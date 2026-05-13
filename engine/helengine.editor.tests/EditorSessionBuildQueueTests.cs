@@ -36,7 +36,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
@@ -202,8 +202,7 @@ namespace helengine.editor.tests {
                 "windows-install-tree",
                 new Dictionary<string, string>(),
                 new Dictionary<string, string>(),
-                new Dictionary<string, string>(),
-                ["gameplay", "ui"]));
+                new Dictionary<string, string>()));
 
             EditorBuildConfigDocument persistedDocument = buildConfigService.Load([
                 "windows"
@@ -219,7 +218,6 @@ namespace helengine.editor.tests {
             Assert.Equal(@"C:\builds\windows", queueItem.OutputDirectoryPath);
             Assert.Equal("loose-files", queueItem.SelectedStorageProfileId);
             Assert.Equal("windows-install-tree", queueItem.SelectedMediaProfileId);
-            Assert.Equal(["gameplay", "ui"], queueItem.SelectedCodeModuleIds);
         }
 
         /// <summary>

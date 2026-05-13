@@ -30,7 +30,7 @@ namespace helengine.editor.tests {
                 ContentRootPath = TempRootPath
             });
             Input = new TestInputBackend();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
@@ -402,10 +402,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures Add to Build clears persisted runtime-module selections because the dialog no longer exposes module picking.
+        /// Ensures Add to Build still raises a request when legacy runtime-module data exists in the persisted config.
         /// </summary>
         [Fact]
-        public void HandleAddToBuildClicked_WhenPlatformContainsPersistedRuntimeModules_ClearsTheSelection() {
+        public void HandleAddToBuildClicked_WhenPlatformContainsLegacyRuntimeModules_RaisesRequestNormally() {
             BuildDialog dialog = new BuildDialog(CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             dialog.AddRequested += request => raisedRequest = request;
@@ -422,11 +422,7 @@ namespace helengine.editor.tests {
                             SelectedSceneIds = [
                                 "Scenes/City.helen"
                             ],
-                            OutputDirectoryPath = @"C:\builds\windows",
-                            SelectedCodeModuleIds = [
-                                "gameplay",
-                                "ui"
-                            ]
+                            OutputDirectoryPath = @"C:\builds\windows"
                         }
                     ]
                 });
@@ -434,7 +430,7 @@ namespace helengine.editor.tests {
             InvokePrivate(dialog, "HandleAddToBuildClicked");
 
             Assert.NotNull(raisedRequest);
-            Assert.Empty(raisedRequest.SelectedCodeModuleIds);
+            Assert.Equal("windows", raisedRequest.PlatformId);
         }
 
         /// <summary>
@@ -926,11 +922,7 @@ namespace helengine.editor.tests {
                             Status = EditorBuildQueueItemStatus.Pending,
                             DebugBuild = true,
                             SelectedBuildProfileId = "b",
-                            SelectedGraphicsProfileId = "g",
-                            SelectedCodeModuleIds = [
-                                "gameplay",
-                                "ai"
-                            ]
+                            SelectedGraphicsProfileId = "g"
                         },
                         new EditorBuildQueueItemDocument {
                             QueueItemId = "queue-2",
@@ -953,7 +945,7 @@ namespace helengine.editor.tests {
             Assert.Equal(3, firstLines.Length);
             Assert.Equal("windows | Pending", firstLines[0]);
             Assert.Equal("1 scene(s) | Debug", firstLines[1]);
-            Assert.Equal("build b | gfx g | runtime modules 2", firstLines[2]);
+            Assert.Equal("build b | gfx g", firstLines[2]);
             Assert.Equal("windows | Failed", secondLines[0]);
             Assert.Equal("1 scene(s) | Release", secondLines[1]);
             Assert.DoesNotContain("Unsupported scene format.", queueItemTexts[1].Text);
@@ -1249,11 +1241,6 @@ namespace helengine.editor.tests {
                             SelectedBuildProfileId = "build-profile-with-a-very-long-name",
                             SelectedGraphicsProfileId = "graphics-profile-with-a-very-long-name",
                             SelectedCodegenProfileId = "codegen-profile-with-a-very-long-name",
-                            SelectedCodeModuleIds = [
-                                "gameplay",
-                                "ai",
-                                "editor"
-                            ],
                             StatusMessage = "This failure belongs in the build log, not in the card."
                         }
                     ]
@@ -1303,11 +1290,7 @@ namespace helengine.editor.tests {
                             DebugBuild = true,
                             SelectedBuildProfileId = "b1",
                             SelectedGraphicsProfileId = "g1",
-                            SelectedCodegenProfileId = "c1",
-                            SelectedCodeModuleIds = [
-                                "gameplay",
-                                "ai"
-                            ]
+                            SelectedCodegenProfileId = "c1"
                         }
                     ]
                 });

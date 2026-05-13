@@ -157,7 +157,7 @@ namespace helengine.editor {
                 selectedGraphicsProfileId,
                 queueItem,
                 workspace);
-            PlatformBuildCodeModule[] codeModules = RunCompileCode(selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
+            PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
             CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(cookedManifest, codeModules, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.CookRootPath);
             EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.CookRootPath);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
@@ -233,20 +233,51 @@ namespace helengine.editor {
         /// Executes the authored-code phase.
         /// </summary>
         PlatformBuildCodeModule[] RunCompileCode(
+            PlatformBuildManifest cookedManifest,
             PlatformCodegenProfileDefinition selectedCodegenProfile,
             PlatformStorageProfileDefinition selectedStorageProfile,
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace) {
             EditorCodeModuleManifestDocument manifestDocument = CodeModuleManifestService.Load();
+            IReadOnlyList<string> inferredRootModuleIds = DiscoverReferencedRuntimeModuleIdsFromCookedScenes(cookedManifest, workspace.CookRootPath);
             return CodeCookService.CompileModules(
                 manifestDocument,
                 PlatformDescriptor.Id,
                 selectedStorageProfile?.RuntimeSpecializationId ?? string.Empty,
                 PlatformDescriptor.CodegenToolPath,
                 selectedCodegenProfile,
-                queueItem.SelectedCodeModuleIds,
+                inferredRootModuleIds,
                 queueItem.SelectedCodegenOptionValues,
                 workspace.CodeRootPath);
+        }
+
+        /// <summary>
+        /// Discovers the distinct runtime module ids referenced by the cooked scene payloads in the current manifest.
+        /// </summary>
+        /// <param name="cookedManifest">Cooked manifest whose selected scene payloads should be inspected.</param>
+        /// <param name="cookRootPath">Cook root that contains the cooked scene payloads.</param>
+        /// <returns>Distinct scene-referenced runtime module ids.</returns>
+        IReadOnlyList<string> DiscoverReferencedRuntimeModuleIdsFromCookedScenes(PlatformBuildManifest cookedManifest, string cookRootPath) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
+            if (string.IsNullOrWhiteSpace(cookRootPath)) {
+                throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
+            }
+
+            List<string> cookedSceneAssetPaths = new List<string>(cookedManifest.Scenes.Length);
+            for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
+                PlatformBuildScene scene = cookedManifest.Scenes[index];
+                if (scene == null || string.IsNullOrWhiteSpace(scene.SourceIdentity)) {
+                    continue;
+                }
+
+                cookedSceneAssetPaths.Add(Path.Combine(cookRootPath, scene.SourceIdentity.Replace('/', Path.DirectorySeparatorChar)));
+            }
+
+            return EditorGeneratedCoreRegenerationService.DiscoverReferencedRuntimeModuleIdsFromCookedScenes(
+                cookedSceneAssetPaths,
+                ScriptTypeResolver);
         }
 
         /// <summary>

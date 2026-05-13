@@ -122,7 +122,6 @@ namespace helengine.editor {
                     platform.SelectedStorageProfileId ??= string.Empty;
                     platform.SelectedMediaProfileId ??= string.Empty;
                     platform.SelectedCodegenOptionValues ??= [];
-                    platform.SelectedCodeModuleIds ??= [];
                 }
 
                 for (int index = 0; index < document.QueueItems.Count; index++) {
@@ -141,7 +140,6 @@ namespace helengine.editor {
                     queueItem.SelectedStorageProfileId ??= string.Empty;
                     queueItem.SelectedMediaProfileId ??= string.Empty;
                     queueItem.SelectedCodegenOptionValues ??= [];
-                    queueItem.SelectedCodeModuleIds ??= [];
                 }
                 return document;
             } catch {
@@ -216,8 +214,7 @@ namespace helengine.editor {
                 SelectedCodegenProfileId = string.Empty,
                 SelectedStorageProfileId = string.Empty,
                 SelectedMediaProfileId = string.Empty,
-                SelectedCodegenOptionValues = [],
-                SelectedCodeModuleIds = []
+                SelectedCodegenOptionValues = []
             };
 
             if (!string.IsNullOrWhiteSpace(currentSceneId)) {

@@ -908,8 +908,7 @@ namespace helengine.editor {
                 platformConfig.SelectedMediaProfileId,
                 platformConfig.SelectedBuildOptionValues,
                 platformConfig.SelectedGraphicsOptionValues,
-                platformConfig.SelectedCodegenOptionValues,
-                platformConfig.SelectedCodeModuleIds));
+                platformConfig.SelectedCodegenOptionValues));
         }
 
         /// <summary>
@@ -1637,10 +1636,6 @@ namespace helengine.editor {
                 segments.Add("codegen " + queueItem.SelectedCodegenProfileId);
             }
 
-            if (queueItem.SelectedCodeModuleIds != null && queueItem.SelectedCodeModuleIds.Count > 0) {
-                segments.Add("runtime modules " + queueItem.SelectedCodeModuleIds.Count);
-            }
-
             if (segments.Count == 0) {
                 return string.Empty;
             }
@@ -1749,7 +1744,6 @@ namespace helengine.editor {
             }
 
             platformConfig.OutputDirectoryPath = OutputDirectoryField.Text ?? string.Empty;
-            platformConfig.SelectedCodeModuleIds = [];
             platformConfig.DebugBuild = DebugBuildCheckBox.IsChecked;
             EnsurePlatformSelectionDefaults(platformConfig);
         }

@@ -64,11 +64,6 @@ namespace helengine.editor {
         public IReadOnlyDictionary<string, string> SelectedCodegenOptionValues { get; }
 
         /// <summary>
-        /// Gets the project-authored code-module identifiers selected for this queued build.
-        /// </summary>
-        public IReadOnlyList<string> SelectedCodeModuleIds { get; }
-
-        /// <summary>
         /// Initializes one queued-build request captured from the dialog UI.
         /// </summary>
         /// <param name="platformId">Platform id for the queued build.</param>
@@ -102,7 +97,6 @@ namespace helengine.editor {
         /// <param name="selectedBuildOptionValues">Selected builder-provided build option values.</param>
         /// <param name="selectedGraphicsOptionValues">Selected builder-provided graphics option values.</param>
         /// <param name="selectedCodegenOptionValues">Selected builder-provided codegen option values.</param>
-        /// <param name="selectedCodeModuleIds">Selected project-authored code-module identifiers.</param>
         public BuildDialogAddRequest(
             string platformId,
             IReadOnlyList<string> selectedSceneIds,
@@ -115,8 +109,7 @@ namespace helengine.editor {
             string selectedMediaProfileId,
             IReadOnlyDictionary<string, string> selectedBuildOptionValues,
             IReadOnlyDictionary<string, string> selectedGraphicsOptionValues,
-            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
-            IReadOnlyList<string> selectedCodeModuleIds = null) {
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id is required.", nameof(platformId));
             }
@@ -146,9 +139,6 @@ namespace helengine.editor {
             SelectedBuildOptionValues = selectedBuildOptionValues ?? new Dictionary<string, string>();
             SelectedGraphicsOptionValues = selectedGraphicsOptionValues ?? new Dictionary<string, string>();
             SelectedCodegenOptionValues = selectedCodegenOptionValues ?? new Dictionary<string, string>();
-            SelectedCodeModuleIds = selectedCodeModuleIds != null
-                ? new List<string>(selectedCodeModuleIds)
-                : [];
         }
     }
 }

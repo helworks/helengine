@@ -45,10 +45,6 @@ namespace helengine.editor.tests {
                     "B",
                     "A"
                 ],
-                SelectedCodeModuleIds = [
-                    "gameplay",
-                    "ui"
-                ],
                 SceneOrders = [
                     new EditorBuildSceneOrderDocument {
                         SceneId = "A",
@@ -70,7 +66,6 @@ namespace helengine.editor.tests {
             Assert.Equal("default", queueItem.SelectedCodegenProfileId);
             Assert.Equal("loose-files", queueItem.SelectedStorageProfileId);
             Assert.Equal("windows-install-tree", queueItem.SelectedMediaProfileId);
-            Assert.Equal(["gameplay", "ui"], queueItem.SelectedCodeModuleIds);
             Assert.Equal("100", queueItem.SelectedBuildOptionValues["texture-scale-percent"]);
             Assert.Equal("true", queueItem.SelectedBuildOptionValues["shader-variant-pruning"]);
             Assert.Equal("1280", queueItem.SelectedGraphicsOptionValues["default-width"]);

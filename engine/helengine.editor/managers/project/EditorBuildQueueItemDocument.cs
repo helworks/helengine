@@ -78,9 +78,5 @@ namespace helengine.editor {
         /// </summary>
         public Dictionary<string, string> SelectedCodegenOptionValues { get; set; } = [];
 
-        /// <summary>
-        /// Gets or sets the project-authored code-module identifiers enabled for this queued build.
-        /// </summary>
-        public List<string> SelectedCodeModuleIds { get; set; } = [];
     }
 }

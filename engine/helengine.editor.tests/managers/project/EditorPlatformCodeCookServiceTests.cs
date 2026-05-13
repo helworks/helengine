@@ -48,8 +48,8 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
                 "Default Windows C++ codegen profile.",
                 PlatformCodegenLanguage.Cpp,
                 PlatformSerializationEndianness.LittleEndian,
-                []),
-            [],
+            []),
+            ["gameplay"],
             new Dictionary<string, string> {
                 ["write-conversion-report"] = "true"
             },
@@ -123,8 +123,8 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
                 "Default Windows C++ codegen profile.",
                 PlatformCodegenLanguage.Cpp,
                 PlatformSerializationEndianness.LittleEndian,
-                []),
-            [],
+            []),
+            ["gameplay"],
             new Dictionary<string, string>(),
             OutputRootPath);
 
@@ -155,8 +155,8 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
                 "Default Windows C++ codegen profile.",
                 PlatformCodegenLanguage.Cpp,
                 PlatformSerializationEndianness.LittleEndian,
-                []),
-            [],
+            []),
+            ["gameplay"],
             new Dictionary<string, string>(),
             OutputRootPath);
 
@@ -195,7 +195,7 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
     }
 
     [Fact]
-    public void Compile_code_modules_throws_when_selected_module_id_is_unknown() {
+    public void Compile_code_modules_throws_when_inferred_root_module_id_is_unknown() {
         RecordingCodegenToolRunner toolRunner = new();
         EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
         EditorCodeModuleManifestDocument manifestDocument = new([
@@ -220,7 +220,7 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
             new Dictionary<string, string>(),
             OutputRootPath));
 
-        Assert.Contains("Selected code module id(s) ui were not found", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Inferred runtime module id(s) ui were not found", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(toolRunner.Invocations);
     }
 
@@ -246,8 +246,8 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
                 "Default Windows C++ codegen profile.",
                 PlatformCodegenLanguage.Cpp,
                 PlatformSerializationEndianness.LittleEndian,
-                []),
-            [],
+            []),
+            ["gameplay"],
             new Dictionary<string, string>(),
             OutputRootPath);
 
@@ -287,8 +287,8 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
                 "Default PS2 C++ codegen profile.",
                 PlatformCodegenLanguage.Cpp,
                 PlatformSerializationEndianness.LittleEndian,
-                []),
-            [],
+            []),
+            ["gameplay"],
             new Dictionary<string, string>(),
             OutputRootPath);
 
@@ -301,6 +301,60 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
         Assert.DoesNotContain("float4 *orientation;", generatedSource);
         Assert.DoesNotContain("float4->CreateFromYawPitchRoll", generatedSource);
         Assert.DoesNotContain("orientation->Normalize()", generatedSource);
+    }
+
+    [Fact]
+    public void Compile_code_modules_with_no_inferred_runtime_roots_returns_no_modules() {
+        RecordingCodegenToolRunner toolRunner = new();
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        PlatformBuildCodeModule[] modules = service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+                []),
+            [],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        Assert.Empty(modules);
+        Assert.Empty(toolRunner.Invocations);
+    }
+
+    [Fact]
+    public void ResolveModulesToCompile_with_engine_owned_inferred_root_ignores_engine_module_id() {
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"], EditorCodeModuleKind.Runtime)
+        ]);
+
+        EditorCodeModuleManifestEntry[] modules = EditorPlatformCodeCookService.ResolveModulesToCompile(
+            manifestDocument,
+            ["gameplay", "helengine.core"]);
+
+        Assert.Single(modules);
+        Assert.Equal("gameplay", modules[0].ModuleId);
+    }
+
+    [Fact]
+    public void ResolveModulesToCompile_with_editor_only_inferred_root_throws_invalid_operation_exception() {
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("tools", "assets/Scripts/Tools", [], ["always-loaded"], EditorCodeModuleKind.Editor)
+        ]);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            EditorPlatformCodeCookService.ResolveModulesToCompile(manifestDocument, ["tools"]));
+
+        Assert.Contains("runtime", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     sealed class RecordingCodegenToolRunner : IEditorCodegenToolRunner {

@@ -2955,7 +2955,6 @@ namespace helengine.editor {
                 SelectedStorageProfileId = request.SelectedStorageProfileId,
                 SelectedMediaProfileId = request.SelectedMediaProfileId,
                 SelectedCodegenOptionValues = new Dictionary<string, string>(request.SelectedCodegenOptionValues),
-                SelectedCodeModuleIds = new List<string>(request.SelectedCodeModuleIds),
                 Status = EditorBuildQueueItemStatus.Pending,
                 StatusMessage = string.Empty
             });

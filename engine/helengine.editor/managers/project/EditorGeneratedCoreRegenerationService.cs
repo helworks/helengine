@@ -441,6 +441,10 @@ namespace helengine.editor {
 
             bool isPs2Build = string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase);
             RemoveEditorOnlyGeneratedSourceFiles(generatedCoreRootPath);
+            bool reflectionLikeRuntimeEnabled = IsGeneratedFeatureEnabled(generatedCoreRootPath, "ReflectionLikeRuntime");
+            if (!reflectionLikeRuntimeEnabled) {
+                RemoveRuntimeScriptReflectionGeneratedSourceFiles(generatedCoreRootPath);
+            }
             string generatedRuntimeComponentRegistrationSourcePath = Path.Combine(
                 generatedCoreRootPath,
                 "GeneratedRuntimeComponentDeserializerRegistration.cpp");
@@ -461,7 +465,7 @@ namespace helengine.editor {
 
                 string fileName = Path.GetFileName(sourceFilePath);
                 string contents = File.ReadAllText(sourceFilePath);
-                string updatedContents = NormalizeGeneratedNativeSource(fileName, contents, featureManifestEntries, isPs2Build);
+                string updatedContents = NormalizeGeneratedNativeSource(fileName, contents, featureManifestEntries, isPs2Build, reflectionLikeRuntimeEnabled);
                 if (!string.Equals(contents, updatedContents, StringComparison.Ordinal)) {
                     File.WriteAllText(sourceFilePath, updatedContents);
                 }
@@ -627,6 +631,31 @@ namespace helengine.editor {
             return componentTypes
                 .OrderBy(type => type.FullName, StringComparer.Ordinal)
                 .ToArray();
+        }
+
+        /// <summary>
+        /// Discovers the distinct runtime module ids referenced by scripted components in the supplied cooked scenes.
+        /// </summary>
+        /// <param name="cookedSceneAssetPaths">Cooked scene asset paths whose serialized component records should be inspected.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        /// <returns>Distinct scene-referenced runtime module ids.</returns>
+        internal static IReadOnlyList<string> DiscoverReferencedRuntimeModuleIdsFromCookedScenes(
+            IReadOnlyList<string> cookedSceneAssetPaths,
+            IScriptTypeResolver scriptTypeResolver) {
+            IReadOnlyList<Type> componentTypes = DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
+                cookedSceneAssetPaths,
+                scriptTypeResolver);
+            SortedSet<string> moduleIds = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int index = 0; index < componentTypes.Count; index++) {
+                Type componentType = componentTypes[index];
+                string moduleId = componentType.Assembly.GetName().Name ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(moduleId)) {
+                    moduleIds.Add(moduleId);
+                }
+            }
+
+            return [.. moduleIds];
         }
 
         /// <summary>
@@ -841,15 +870,115 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Deletes generated runtime-script reflection sources that must not participate when the generated feature manifest disables reflection.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root.</param>
+        static void RemoveRuntimeScriptReflectionGeneratedSourceFiles(string generatedCoreRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+
+            string[] reflectionTypeNames = [
+                "AutomaticScriptComponentRuntimeDeserializer",
+                "ScriptTypeResolver",
+                "RunInEditorAttribute"
+            ];
+            string[] generatedExtensions = [
+                ".hpp",
+                ".cpp",
+                ".tpp"
+            ];
+
+            for (int typeIndex = 0; typeIndex < reflectionTypeNames.Length; typeIndex++) {
+                string typeName = reflectionTypeNames[typeIndex];
+                for (int extensionIndex = 0; extensionIndex < generatedExtensions.Length; extensionIndex++) {
+                    string generatedPath = Path.Combine(generatedCoreRootPath, typeName + generatedExtensions[extensionIndex]);
+                    if (!File.Exists(generatedPath)) {
+                        continue;
+                    }
+
+                    File.Delete(generatedPath);
+                }
+            }
+        }
+
+        /// <summary>
         /// Applies file-specific source fixes needed by the generated native Windows build.
         /// </summary>
         /// <param name="fileName">File name being normalized.</param>
         /// <param name="contents">Current file contents.</param>
         /// <param name="featureManifestEntries">Feature-manifest entries derived from the generated conversion report.</param>
         /// <returns>Updated file contents.</returns>
-        static string NormalizeGeneratedNativeSource(string fileName, string contents, IReadOnlyList<string> featureManifestEntries, bool isPs2Build) {
+        static string NormalizeGeneratedNativeSource(string fileName, string contents, IReadOnlyList<string> featureManifestEntries, bool isPs2Build, bool reflectionLikeRuntimeEnabled) {
             if (string.IsNullOrWhiteSpace(fileName) || string.IsNullOrEmpty(contents)) {
                 return contents;
+            }
+
+            if (!reflectionLikeRuntimeEnabled) {
+                if (string.Equals(fileName, "RuntimeComponentRegistry.hpp", StringComparison.OrdinalIgnoreCase)) {
+                    string updatedContents = RemoveGeneratedIncludeLine(contents, "#include \"runtime/native_type.hpp\"");
+                    updatedContents = Regex.Replace(
+                        updatedContents,
+                        @"\s*::IRuntimeComponentDeserializer\* TryCreateAutomaticComponentDeserializer\(std::string componentTypeId\);\r?\n?",
+                        string.Empty,
+                        RegexOptions.CultureInvariant);
+                    return updatedContents;
+                }
+
+                if (string.Equals(fileName, "RuntimeComponentRegistry.cpp", StringComparison.OrdinalIgnoreCase)) {
+                    string updatedContents = RemoveGeneratedIncludeLine(contents, "#include \"AutomaticScriptComponentRuntimeDeserializer.hpp\"");
+                    updatedContents = RemoveGeneratedIncludeLine(updatedContents, "#include \"runtime/native_type.hpp\"");
+                    updatedContents = Regex.Replace(
+                        updatedContents,
+                        @"\s*deserializer = this->TryCreateAutomaticComponentDeserializer\(componentTypeId\);\r?\n\s*if \(deserializer == nullptr\)\r?\n\s*\{\r?\n\s*throw new InvalidOperationException\(std::string\(""Player builds do not support serialized component type '""\) \+ componentTypeId \+ std::string\(""\' yet\.""\)\);\r?\n\s*\}\r?\n\s*this->DeserializersByTypeId->Add\(componentTypeId, deserializer\);\r?\n",
+                        Environment.NewLine + "throw new InvalidOperationException(std::string(\"Player builds do not support serialized component type '\") + componentTypeId + std::string(\"' yet.\"));" + Environment.NewLine,
+                        RegexOptions.CultureInvariant);
+                    updatedContents = RemoveTrailingMethod(updatedContents, "::IRuntimeComponentDeserializer* RuntimeComponentRegistry::TryCreateAutomaticComponentDeserializer");
+                    return updatedContents;
+                }
+
+                if (string.Equals(fileName, "ComponentExecutionPolicy.cpp", StringComparison.OrdinalIgnoreCase)) {
+                    string updatedContents = RemoveGeneratedIncludeLine(contents, "#include \"runtime/native_type.hpp\"");
+                    int strayIfIndex = updatedContents.IndexOf("    if ()", StringComparison.Ordinal);
+                    if (strayIfIndex >= 0) {
+                        int returnIndex = updatedContents.IndexOf("return Attribute::IsDefined", strayIfIndex, StringComparison.Ordinal);
+                        if (returnIndex >= 0) {
+                            int lineEndIndex = updatedContents.IndexOf("}", returnIndex, StringComparison.Ordinal);
+                            if (lineEndIndex >= 0) {
+                                updatedContents = updatedContents.Substring(0, strayIfIndex)
+                                    + "return false;}"
+                                    + updatedContents.Substring(lineEndIndex + 1);
+                            }
+                        }
+                    }
+
+                    return updatedContents;
+                }
+
+                if (string.Equals(fileName, "MenuDefinitionProviderResolver.hpp", StringComparison.OrdinalIgnoreCase)) {
+                    string updatedContents = RemoveGeneratedIncludeLine(contents, "#include \"runtime/native_type.hpp\"");
+                    updatedContents = RemoveGeneratedIncludeLine(updatedContents, "#include \"ConstructorInfo.hpp\"");
+                    updatedContents = RemoveGeneratedIncludeLine(updatedContents, "#include \"Activator.hpp\"");
+                    return updatedContents;
+                }
+
+                if (string.Equals(fileName, "MenuDefinitionProviderResolver.cpp", StringComparison.OrdinalIgnoreCase)) {
+                    string updatedContents = RemoveGeneratedIncludeLine(contents, "#include \"runtime/native_type.hpp\"");
+                    updatedContents = RemoveGeneratedIncludeLine(updatedContents, "#include \"ConstructorInfo.hpp\"");
+                    updatedContents = RemoveGeneratedIncludeLine(updatedContents, "#include \"Activator.hpp\"");
+                    int resolveMethodIndex = updatedContents.IndexOf("::IMenuDefinitionProvider* MenuDefinitionProviderResolver::Resolve", StringComparison.Ordinal);
+                    int firstTypeLookupIndex = updatedContents.IndexOf("Type *providerType = Type::GetType(providerTypeName, false);", StringComparison.Ordinal);
+                    if (resolveMethodIndex >= 0 && firstTypeLookupIndex >= 0 && firstTypeLookupIndex > resolveMethodIndex) {
+                        int closingBraceIndex = updatedContents.LastIndexOf("return provider;}", StringComparison.Ordinal);
+                        if (closingBraceIndex >= 0) {
+                            updatedContents = updatedContents.Substring(0, firstTypeLookupIndex)
+                                + "throw new InvalidOperationException(\"Menu definition provider reflection is not available in generated native builds.\");" + Environment.NewLine + "}"
+                                + updatedContents.Substring(closingBraceIndex + "return provider;}".Length);
+                        }
+                    }
+
+                    return updatedContents;
+                }
             }
 
             if (string.Equals(fileName, "Component.hpp", StringComparison.OrdinalIgnoreCase)) {
@@ -1283,6 +1412,62 @@ namespace helengine.editor {
             }
 
             return entries;
+        }
+
+        /// <summary>
+        /// Returns whether one generated feature is enabled in the conversion report written beside the generated core output.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        /// <param name="featureName">Stable feature name to look up.</param>
+        /// <returns>True when the feature is enabled; otherwise false.</returns>
+        static bool IsGeneratedFeatureEnabled(string generatedCoreRootPath, string featureName) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath) || string.IsNullOrWhiteSpace(featureName)) {
+                return false;
+            }
+
+            string reportPath = Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json");
+            if (!File.Exists(reportPath)) {
+                return false;
+            }
+
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(reportPath));
+            if (!document.RootElement.TryGetProperty("buildFeatures", out JsonElement buildFeatures)
+                || !buildFeatures.TryGetProperty("decisions", out JsonElement decisions)
+                || decisions.ValueKind != JsonValueKind.Array) {
+                return false;
+            }
+
+            foreach (JsonElement decision in decisions.EnumerateArray()) {
+                if (!decision.TryGetProperty("feature", out JsonElement featureElement)
+                    || !decision.TryGetProperty("enabled", out JsonElement enabledElement)
+                    || enabledElement.ValueKind != JsonValueKind.True
+                    || !string.Equals(featureElement.GetString(), featureName, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                return enabledElement.GetBoolean();
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Removes one trailing generated method definition that should not survive post-processing.
+        /// </summary>
+        /// <param name="contents">Current generated file contents.</param>
+        /// <param name="methodSignature">Stable generated method signature that starts the removable method.</param>
+        /// <returns>Updated generated file contents without the trailing method.</returns>
+        static string RemoveTrailingMethod(string contents, string methodSignature) {
+            if (string.IsNullOrEmpty(contents) || string.IsNullOrWhiteSpace(methodSignature)) {
+                return contents;
+            }
+
+            int methodIndex = contents.IndexOf(methodSignature, StringComparison.Ordinal);
+            if (methodIndex < 0) {
+                return contents;
+            }
+
+            return contents.Substring(0, methodIndex).TrimEnd();
         }
 
         /// <summary>

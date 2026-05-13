@@ -59,8 +59,7 @@ namespace helengine.editor {
                 SelectedCodegenProfileId = platformConfig.SelectedCodegenProfileId,
                 SelectedStorageProfileId = platformConfig.SelectedStorageProfileId,
                 SelectedMediaProfileId = platformConfig.SelectedMediaProfileId,
-                SelectedCodegenOptionValues = new Dictionary<string, string>(platformConfig.SelectedCodegenOptionValues ?? new Dictionary<string, string>()),
-                SelectedCodeModuleIds = new List<string>(platformConfig.SelectedCodeModuleIds ?? [])
+                SelectedCodegenOptionValues = new Dictionary<string, string>(platformConfig.SelectedCodegenOptionValues ?? new Dictionary<string, string>())
             };
 
             return queueItem;
@@ -116,7 +115,6 @@ namespace helengine.editor {
             platformConfig.SelectedBuildOptionValues ??= new Dictionary<string, string>();
             platformConfig.SelectedGraphicsOptionValues ??= new Dictionary<string, string>();
             platformConfig.SelectedCodegenOptionValues ??= new Dictionary<string, string>();
-            platformConfig.SelectedCodeModuleIds ??= [];
         }
 
         /// <summary>

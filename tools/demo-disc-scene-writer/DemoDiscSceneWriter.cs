@@ -81,7 +81,7 @@ namespace helengine.demo_disc_scene_writer {
             WriteMenuSourceFiles(assetsRootPath);
             WriteMenuFonts(assetsRootPath);
             WriteMenuSceneAsset(assetsRootPath, providerTypeName);
-            UpdateBuildConfig(Path.Combine(userSettingsRootPath, "build_config.json"), owningModuleId);
+            UpdateBuildConfig(Path.Combine(userSettingsRootPath, "build_config.json"));
         }
 
         /// <summary>
@@ -135,12 +135,7 @@ namespace helengine.demo_disc_scene_writer {
         /// Updates the city build configuration so the menu scene starts first and all curated scenes are packaged.
         /// </summary>
         /// <param name="buildConfigPath">Build-config document path.</param>
-        /// <param name="owningModuleId">Authored module id that owns the generated menu code.</param>
-        void UpdateBuildConfig(string buildConfigPath, string owningModuleId) {
-            if (string.IsNullOrWhiteSpace(owningModuleId)) {
-                throw new ArgumentException("Owning module id must be provided.", nameof(owningModuleId));
-            }
-
+        void UpdateBuildConfig(string buildConfigPath) {
             JsonNode rootNode = JsonNode.Parse(File.ReadAllText(buildConfigPath)) ?? throw new InvalidOperationException("Build config JSON could not be parsed.");
             JsonArray platforms = rootNode["platforms"]?.AsArray() ?? throw new InvalidOperationException("Build config is missing the platforms array.");
             JsonObject windowsPlatform = FindWindowsPlatform(platforms);
@@ -158,7 +153,6 @@ namespace helengine.demo_disc_scene_writer {
 
             windowsPlatform["selectedSceneIds"] = selectedSceneIds;
             windowsPlatform["sceneOrders"] = sceneOrders;
-            windowsPlatform["selectedCodeModuleIds"] = new JsonArray(owningModuleId);
             rootNode["queueItems"] = new JsonArray();
 
             JsonSerializerOptions serializerOptions = new JsonSerializerOptions {

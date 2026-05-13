@@ -366,6 +366,71 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies cooked scenes that serialize scripted component ids infer the owning runtime module assembly names.
+    /// </summary>
+    [Fact]
+    public void DiscoverReferencedRuntimeModuleIdsFromCookedScenes_with_scripted_component_returns_owning_assembly_name() {
+        string scenePath = Path.Combine(RootPath, "module-discovery-scene.hasset");
+        DictionaryScriptTypeResolver scriptTypeResolver = new DictionaryScriptTypeResolver();
+        string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestAxisRotationScriptComponent));
+        scriptTypeResolver.Register(componentTypeId, typeof(TestAxisRotationScriptComponent));
+
+        using (FileStream stream = File.Create(scenePath)) {
+            AssetSerializer.Serialize(
+                stream,
+                new SceneAsset {
+                    RootEntities = [
+                        new SceneEntityAsset {
+                            Components = [
+                                new SceneComponentAssetRecord {
+                                    ComponentTypeId = componentTypeId,
+                                    Payload = Array.Empty<byte>()
+                                }
+                            ]
+                        }
+                    ]
+                });
+        }
+
+        IReadOnlyList<string> moduleIds = EditorGeneratedCoreRegenerationService.DiscoverReferencedRuntimeModuleIdsFromCookedScenes(
+            [scenePath],
+            scriptTypeResolver);
+
+        Assert.Equal([typeof(TestAxisRotationScriptComponent).Assembly.GetName().Name ?? string.Empty], moduleIds);
+    }
+
+    /// <summary>
+    /// Verifies cooked scenes without scripted components infer no runtime modules.
+    /// </summary>
+    [Fact]
+    public void DiscoverReferencedRuntimeModuleIdsFromCookedScenes_without_scripted_components_returns_empty_list() {
+        string scenePath = Path.Combine(RootPath, "module-discovery-empty-scene.hasset");
+
+        using (FileStream stream = File.Create(scenePath)) {
+            AssetSerializer.Serialize(
+                stream,
+                new SceneAsset {
+                    RootEntities = [
+                        new SceneEntityAsset {
+                            Components = [
+                                new SceneComponentAssetRecord {
+                                    ComponentTypeId = "helengine.TransformComponent",
+                                    Payload = Array.Empty<byte>()
+                                }
+                            ]
+                        }
+                    ]
+                });
+        }
+
+        IReadOnlyList<string> moduleIds = EditorGeneratedCoreRegenerationService.DiscoverReferencedRuntimeModuleIdsFromCookedScenes(
+            [scenePath],
+            null);
+
+        Assert.Empty(moduleIds);
+    }
+
+    /// <summary>
     /// Verifies normalization preserves scene-driven runtime component registration instead of rewriting it back to the engine-only automatic set.
     /// </summary>
     [Fact]
@@ -720,6 +785,123 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string normalizedSource = File.ReadAllText(sourcePath);
         Assert.Contains("return String::Empty;    }", normalizedSource);
         Assert.DoesNotContain("return nullptr;    }", normalizedSource);
+    }
+
+    /// <summary>
+    /// Verifies generated native normalization removes runtime-script reflection artifacts when the generated feature manifest disables reflection.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_removes_runtime_script_reflection_artifacts_when_feature_is_disabled() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-runtime-script-reflection-disabled");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json"),
+            """
+            {
+              "buildFeatures": {
+                "decisions": [
+                  {
+                    "feature": "ReflectionLikeRuntime",
+                    "enabled": false,
+                    "origin": "NotIncluded"
+                  }
+                ]
+              }
+            }
+            """);
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "AutomaticScriptComponentRuntimeDeserializer.hpp"), "stale");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "AutomaticScriptComponentRuntimeDeserializer.cpp"), "stale");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "ScriptTypeResolver.hpp"), "stale");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "ScriptTypeResolver.cpp"), "stale");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "RunInEditorAttribute.hpp"), "stale");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "RunInEditorAttribute.cpp"), "stale");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.hpp"),
+            "#include \"runtime/native_type.hpp\"\n"
+            + "class RuntimeComponentRegistry {\n"
+            + "private:\n"
+            + "    ::IRuntimeComponentDeserializer* TryCreateAutomaticComponentDeserializer(std::string componentTypeId);\n"
+            + "};\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.cpp"),
+            "#include \"RuntimeComponentRegistry.hpp\"\n"
+            + "#include \"GeneratedRuntimeComponentDeserializerRegistration.hpp\"\n"
+            + "#include \"AutomaticScriptComponentRuntimeDeserializer.hpp\"\n"
+            + "#include \"runtime/native_type.hpp\"\n"
+            + "::RuntimeComponentRegistry* RuntimeComponentRegistry::CreateDefault()\n"
+            + "{\n"
+            + "::RuntimeComponentRegistry *registry = new ::RuntimeComponentRegistry();\n"
+            + "RegisterGeneratedRuntimeComponentDeserializers(registry);\n"
+            + "return registry;}\n"
+            + "::IRuntimeComponentDeserializer* RuntimeComponentRegistry::GetDeserializer(std::string componentTypeId)\n"
+            + "{\n"
+            + "::IRuntimeComponentDeserializer* deserializer;\n"
+            + "    if (!this->DeserializersByTypeId->TryGetValue(componentTypeId, deserializer))\n"
+            + "    {\n"
+            + "deserializer = this->TryCreateAutomaticComponentDeserializer(componentTypeId);\n"
+            + "    if (deserializer == nullptr)\n"
+            + "    {\n"
+            + "throw new InvalidOperationException(std::string(\"Player builds do not support serialized component type '\") + componentTypeId + std::string(\"' yet.\"));\n"
+            + "    }\n"
+            + "this->DeserializersByTypeId->Add(componentTypeId, deserializer);\n"
+            + "    }\n"
+            + "return deserializer;}\n"
+            + "::IRuntimeComponentDeserializer* RuntimeComponentRegistry::TryCreateAutomaticComponentDeserializer(std::string componentTypeId)\n"
+            + "{\n"
+            + "return new ::AutomaticScriptComponentRuntimeDeserializer(componentTypeId, componentType);}\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "ComponentExecutionPolicy.cpp"),
+            "#include \"ComponentExecutionPolicy.hpp\"\n"
+            + "#include \"runtime/native_type.hpp\"\n"
+            + "bool ComponentExecutionPolicy::ShouldRunComponentLifecycle(::Component* component, ::Entity* entity)\n"
+            + "{\n"
+            + "    if ()\n"
+            + "    {\n"
+            + "return true;    }\n"
+            + "return Attribute::IsDefined(component->GetType(), he_cpp_type_of<RunInEditorAttribute>(\"RunInEditorAttribute\"), true);}\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "MenuDefinitionProviderResolver.hpp"),
+            "#include \"runtime/native_type.hpp\"\n"
+            + "#include \"ConstructorInfo.hpp\"\n"
+            + "#include \"Activator.hpp\"\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "MenuDefinitionProviderResolver.cpp"),
+            "#include \"MenuDefinitionProviderResolver.hpp\"\n"
+            + "#include \"runtime/native_type.hpp\"\n"
+            + "#include \"ConstructorInfo.hpp\"\n"
+            + "#include \"Activator.hpp\"\n"
+            + "::IMenuDefinitionProvider* MenuDefinitionProviderResolver::Resolve(std::string providerTypeName)\n"
+            + "{\n"
+            + "Type *providerType = Type::GetType(providerTypeName, false);\n"
+            + "ConstructorInfo *constructor = providerType->GetConstructor(Type::EmptyTypes);\n"
+            + "const void *instance = Activator::CreateInstance(providerType);\n"
+            + "return provider;}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "windows");
+
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "AutomaticScriptComponentRuntimeDeserializer.hpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "AutomaticScriptComponentRuntimeDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "ScriptTypeResolver.hpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "ScriptTypeResolver.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "RunInEditorAttribute.hpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "RunInEditorAttribute.cpp")));
+
+        string normalizedRegistryHeader = File.ReadAllText(Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.hpp"));
+        string normalizedRegistrySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.cpp"));
+        string normalizedExecutionPolicySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "ComponentExecutionPolicy.cpp"));
+        string normalizedMenuResolverHeader = File.ReadAllText(Path.Combine(generatedCoreRootPath, "MenuDefinitionProviderResolver.hpp"));
+        string normalizedMenuResolverSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "MenuDefinitionProviderResolver.cpp"));
+
+        Assert.DoesNotContain("TryCreateAutomaticComponentDeserializer", normalizedRegistryHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("AutomaticScriptComponentRuntimeDeserializer", normalizedRegistrySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryCreateAutomaticComponentDeserializer", normalizedRegistrySource, StringComparison.Ordinal);
+        Assert.Contains("RegisterGeneratedRuntimeComponentDeserializers(registry);", normalizedRegistrySource);
+        Assert.DoesNotContain("RunInEditorAttribute", normalizedExecutionPolicySource, StringComparison.Ordinal);
+        Assert.Contains("return false;}", normalizedExecutionPolicySource);
+        Assert.DoesNotContain("ConstructorInfo.hpp", normalizedMenuResolverHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("Activator.hpp", normalizedMenuResolverHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("Type::GetType", normalizedMenuResolverSource, StringComparison.Ordinal);
+        Assert.Contains("Menu definition provider reflection is not available in generated native builds.", normalizedMenuResolverSource);
     }
 
     /// <summary>

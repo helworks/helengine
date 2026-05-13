@@ -26,7 +26,7 @@ namespace helengine.editor {
             string runtimeSpecializationId,
             string codegenToolPath,
             PlatformCodegenProfileDefinition codegenProfile,
-            IReadOnlyList<string> selectedModuleIds,
+            IReadOnlyList<string> inferredRootModuleIds,
             IReadOnlyDictionary<string, string> selectedOptionValues,
             string outputRootPath) {
             if (manifestDocument == null) {
@@ -44,7 +44,7 @@ namespace helengine.editor {
 
             Directory.CreateDirectory(outputRootPath);
             List<PlatformBuildCodeModule> compiledModules = [];
-            EditorCodeModuleManifestEntry[] modulesToCompile = ResolveModulesToCompile(manifestDocument, selectedModuleIds);
+            EditorCodeModuleManifestEntry[] modulesToCompile = ResolveModulesToCompile(manifestDocument, inferredRootModuleIds);
 
             for (int index = 0; index < modulesToCompile.Length; index++) {
                 EditorCodeModuleManifestEntry moduleEntry = modulesToCompile[index];
@@ -106,25 +106,38 @@ namespace helengine.editor {
             return [.. compiledModules];
         }
 
-        static HashSet<string> BuildSelectedModuleIdSet(IReadOnlyList<string> selectedModuleIds) {
-            HashSet<string> selectedModuleIdSet = new(StringComparer.OrdinalIgnoreCase);
-            if (selectedModuleIds == null) {
-                return selectedModuleIdSet;
+        static HashSet<string> BuildInferredRootModuleIdSet(IReadOnlyList<string> inferredRootModuleIds) {
+            HashSet<string> inferredRootModuleIdSet = new(StringComparer.OrdinalIgnoreCase);
+            if (inferredRootModuleIds == null) {
+                return inferredRootModuleIdSet;
             }
 
-            for (int index = 0; index < selectedModuleIds.Count; index++) {
-                string selectedModuleId = selectedModuleIds[index];
-                if (!string.IsNullOrWhiteSpace(selectedModuleId)) {
-                    selectedModuleIdSet.Add(selectedModuleId);
+            for (int index = 0; index < inferredRootModuleIds.Count; index++) {
+                string inferredRootModuleId = inferredRootModuleIds[index];
+                if (!string.IsNullOrWhiteSpace(inferredRootModuleId)) {
+                    inferredRootModuleIdSet.Add(inferredRootModuleId);
                 }
             }
 
-            return selectedModuleIdSet;
+            return inferredRootModuleIdSet;
         }
 
-        static EditorCodeModuleManifestEntry[] ResolveModulesToCompile(
+        /// <summary>
+        /// Returns true when the supplied assembly/module id belongs to the built-in engine runtime rather than an authored project module.
+        /// </summary>
+        /// <param name="moduleId">Assembly or module id inferred from a cooked scripted component type.</param>
+        /// <returns>True when the id belongs to the engine runtime; otherwise false.</returns>
+        static bool IsEngineOwnedAssemblyModuleId(string moduleId) {
+            if (string.IsNullOrWhiteSpace(moduleId)) {
+                return false;
+            }
+
+            return moduleId.StartsWith("helengine.", StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static EditorCodeModuleManifestEntry[] ResolveModulesToCompile(
             EditorCodeModuleManifestDocument manifestDocument,
-            IReadOnlyList<string> selectedModuleIds) {
+            IReadOnlyList<string> inferredRootModuleIds) {
             if (manifestDocument == null) {
                 throw new ArgumentNullException(nameof(manifestDocument));
             }
@@ -138,29 +151,36 @@ namespace helengine.editor {
             List<EditorCodeModuleManifestEntry> orderedModules = [];
             HashSet<string> visitedModuleIds = new(StringComparer.OrdinalIgnoreCase);
             HashSet<string> activeModuleIds = new(StringComparer.OrdinalIgnoreCase);
-            HashSet<string> selectedModuleIdSet = BuildSelectedModuleIdSet(selectedModuleIds);
-            if (selectedModuleIdSet.Count > 0) {
-                List<string> missingSelectedModuleIds = [];
-                foreach (string selectedModuleId in selectedModuleIdSet) {
-                    if (!modulesById.TryGetValue(selectedModuleId, out EditorCodeModuleManifestEntry selectedModule)
-                        || selectedModule.ModuleKind != EditorCodeModuleKind.Runtime) {
-                        missingSelectedModuleIds.Add(selectedModuleId);
+            HashSet<string> inferredRootModuleIdSet = BuildInferredRootModuleIdSet(inferredRootModuleIds);
+            if (inferredRootModuleIdSet.Count > 0) {
+                List<string> missingInferredRootModuleIds = [];
+                foreach (string inferredRootModuleId in inferredRootModuleIdSet) {
+                    if (IsEngineOwnedAssemblyModuleId(inferredRootModuleId)) {
+                        continue;
+                    }
+
+                    if (!modulesById.TryGetValue(inferredRootModuleId, out EditorCodeModuleManifestEntry inferredRootModule)
+                        || inferredRootModule.ModuleKind != EditorCodeModuleKind.Runtime) {
+                        missingInferredRootModuleIds.Add(inferredRootModuleId);
                     }
                 }
 
-                if (missingSelectedModuleIds.Count > 0) {
+                if (missingInferredRootModuleIds.Count > 0) {
                     throw new InvalidOperationException(
-                        $"Selected code module id(s) {string.Join(", ", missingSelectedModuleIds)} were not found in the authored module manifest.");
+                        $"Inferred runtime module id(s) {string.Join(", ", missingInferredRootModuleIds)} were not found in the authored runtime module manifest.");
                 }
             }
 
-            IEnumerable<EditorCodeModuleManifestEntry> runtimeModules = manifestDocument.Modules.Where(module => module.ModuleKind == EditorCodeModuleKind.Runtime);
-            IEnumerable<EditorCodeModuleManifestEntry> rootModules = runtimeModules;
-            if (selectedModuleIdSet.Count > 0) {
-                rootModules = runtimeModules.Where(module => selectedModuleIdSet.Contains(module.ModuleId));
+            if (inferredRootModuleIdSet.Count == 0) {
+                return [];
             }
 
-            foreach (EditorCodeModuleManifestEntry moduleEntry in rootModules) {
+            foreach (string inferredRootModuleId in inferredRootModuleIdSet) {
+                if (IsEngineOwnedAssemblyModuleId(inferredRootModuleId)) {
+                    continue;
+                }
+
+                EditorCodeModuleManifestEntry moduleEntry = modulesById[inferredRootModuleId];
                 VisitModule(moduleEntry, modulesById, orderedModules, visitedModuleIds, activeModuleIds);
             }
 

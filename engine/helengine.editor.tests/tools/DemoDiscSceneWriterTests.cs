@@ -51,8 +51,7 @@ namespace helengine.editor.tests.tools {
       "selectedCodegenProfileId": "",
       "selectedStorageProfileId": "",
       "selectedMediaProfileId": "",
-      "selectedCodegenOptionValues": {},
-      "selectedCodeModuleIds": []
+      "selectedCodegenOptionValues": {}
     }
   ],
   "queueItems": []
@@ -107,7 +106,6 @@ namespace helengine.editor.tests.tools {
             writer.WriteAll(ProjectRootPath);
 
             Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, gameplay", ReadProviderTypeName());
-            Assert.Equal(new[] { "gameplay" }, ReadSelectedCodeModuleIds());
         }
 
         /// <summary>
@@ -133,7 +131,6 @@ namespace helengine.editor.tests.tools {
             writer.WriteAll(ProjectRootPath);
 
             Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, gameplay.menu", ReadProviderTypeName());
-            Assert.Equal(new[] { "gameplay.menu" }, ReadSelectedCodeModuleIds());
         }
 
         /// <summary>
@@ -506,7 +503,7 @@ namespace helengine.editor.tests.tools {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
@@ -531,23 +528,6 @@ namespace helengine.editor.tests.tools {
             string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenu.helen");
             using FileStream stream = File.OpenRead(scenePath);
             return Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
-        }
-
-        /// <summary>
-        /// Reads the selected Windows code-module ids from the generated build config.
-        /// </summary>
-        /// <returns>Selected Windows code-module ids.</returns>
-        string[] ReadSelectedCodeModuleIds() {
-            JsonNode rootNode = JsonNode.Parse(File.ReadAllText(Path.Combine(ProjectRootPath, "user_settings", "build_config.json")))
-                ?? throw new InvalidOperationException("Build config JSON could not be parsed.");
-            JsonArray platforms = rootNode["platforms"]?.AsArray()
-                ?? throw new InvalidOperationException("Build config is missing the platforms array.");
-            JsonObject windowsPlatform = Assert.IsType<JsonObject>(Assert.Single(
-                platforms,
-                platformNode => string.Equals(platformNode?["platformId"]?.GetValue<string>(), "windows", StringComparison.OrdinalIgnoreCase)));
-            JsonArray selectedCodeModuleIdsNode = windowsPlatform["selectedCodeModuleIds"]?.AsArray()
-                ?? throw new InvalidOperationException("Build config is missing selected code-module ids.");
-            return [.. selectedCodeModuleIdsNode.Select(moduleIdNode => moduleIdNode?.GetValue<string>() ?? string.Empty)];
         }
 
         /// <summary>
