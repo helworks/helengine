@@ -13,7 +13,7 @@ namespace helengine.editor.tests.components {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

@@ -32,7 +32,7 @@ namespace helengine.editor.tests {
                 ContentRootPath = TempRootPath
             });
             Input = new TestInputBackend();
-            core.Initialize(null, new TestRenderManager2D(), Input);
+            core.Initialize(null, new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
 
             CreateUiCamera(320, 240, 0b0000000000000010);
         }
@@ -113,7 +113,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(renderManager, new TestRenderManager2D(), Input);
+            core.Initialize(renderManager, new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
             renderManager.OnWindowResize(IntPtr.Zero, 320, 240);
             CreateNormalizedUiCamera(0b0000000000000010);
 

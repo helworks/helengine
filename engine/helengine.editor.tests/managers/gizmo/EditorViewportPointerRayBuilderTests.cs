@@ -38,7 +38,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, null, new TestInputBackend());
+            core.Initialize(null, null, new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

@@ -17,7 +17,7 @@ namespace helengine.editor.tests.managers.asset {
         public EngineGeneratedAssetProviderTests() {
             RenderManager3D = new TestRenderManager3D();
             Core core = new Core();
-            core.Initialize(RenderManager3D, null, null);
+            core.Initialize(RenderManager3D, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

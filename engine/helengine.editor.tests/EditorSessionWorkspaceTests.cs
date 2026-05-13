@@ -611,7 +611,7 @@ namespace helengine.editor.tests {
             /// </summary>
             EditorSessionHarness() {
                 Core core = new Core();
-                core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null);
+                core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
                 EditorKeyboardFocusService.Reset();
                 GeneratedAssetProviderRegistry.ResetForTests();
                 GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());

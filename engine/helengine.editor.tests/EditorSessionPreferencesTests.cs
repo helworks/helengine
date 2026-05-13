@@ -29,7 +29,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null);
+            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

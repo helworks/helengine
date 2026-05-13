@@ -177,7 +177,7 @@ namespace helengine.editor.tests {
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
@@ -189,7 +189,7 @@ namespace helengine.editor.tests {
         TestRenderManager3D InitializeCoreWithWindow(int windowWidth, int windowHeight) {
             Core core = new Core();
             TestRenderManager3D renderManager = new TestRenderManager3D();
-            core.Initialize(renderManager, new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(renderManager, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             renderManager.OnWindowResize(IntPtr.Zero, windowWidth, windowHeight);
             return renderManager;
         }

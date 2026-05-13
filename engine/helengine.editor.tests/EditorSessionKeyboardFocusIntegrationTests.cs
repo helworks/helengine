@@ -262,7 +262,7 @@ namespace helengine.editor.tests {
                 Name = "Keyboard Focus",
                 Path = TempProjectRootPath
             });
-            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager);
+            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"));
             core.InputSystem.SetKeyboardActive(true);
 
             FontAsset font = CreateFont();

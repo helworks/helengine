@@ -22,7 +22,7 @@ namespace helengine.editor.tests.managers.scene {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();

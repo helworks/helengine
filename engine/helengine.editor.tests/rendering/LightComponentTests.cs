@@ -100,7 +100,7 @@ namespace helengine.editor.tests.rendering {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
     }
 }

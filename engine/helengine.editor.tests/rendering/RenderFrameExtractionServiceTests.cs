@@ -15,7 +15,7 @@ namespace helengine.editor.tests.rendering {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             TestRenderManager3D renderManager = new TestRenderManager3D();
             RenderFrameExtractionService extractionService = new RenderFrameExtractionService();
             CameraComponent camera = new CameraComponent();
@@ -43,7 +43,7 @@ namespace helengine.editor.tests.rendering {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
             TestDrawable3D opaqueDrawable = new TestDrawable3D(MaterialBlendMode.Opaque);
             TestDrawable3D transparentDrawable = new TestDrawable3D(MaterialBlendMode.AlphaBlend);
@@ -71,7 +71,7 @@ namespace helengine.editor.tests.rendering {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
             TestDrawable3D opaqueDrawable = new TestDrawable3D(MaterialBlendMode.Opaque);
             TestDrawable3D transparentDrawable = new TestDrawable3D(MaterialBlendMode.AlphaBlend);
@@ -97,7 +97,7 @@ namespace helengine.editor.tests.rendering {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
             TestDrawable3D drawable = new TestDrawable3D(MaterialBlendMode.Opaque);
             drawable.Material = null;
@@ -123,7 +123,7 @@ namespace helengine.editor.tests.rendering {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
             TestDrawable3D drawable = new TestDrawable3D(
                 new[] { MaterialBlendMode.Opaque, MaterialBlendMode.AlphaBlend },
@@ -167,7 +167,7 @@ namespace helengine.editor.tests.rendering {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
             DirectionalLightComponent shadowedDirectionalLight = new DirectionalLightComponent();
             shadowedDirectionalLight.Intensity = 2.5f;

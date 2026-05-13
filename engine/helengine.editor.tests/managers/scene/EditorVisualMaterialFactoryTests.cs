@@ -16,7 +16,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         public EditorVisualMaterialFactoryTests() {
             CoreValue = new Core();
-            CoreValue.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null);
+            CoreValue.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

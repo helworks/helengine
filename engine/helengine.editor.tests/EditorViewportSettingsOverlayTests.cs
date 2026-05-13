@@ -312,7 +312,7 @@ namespace helengine.editor.tests {
         TestInputBackend InitializeCore() {
             TestInputBackend inputManager = new TestInputBackend();
             Core core = new Core();
-            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager);
+            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"));
             EditorKeyboardFocusService.Reset();
             TransformGizmoSnapSettingsService.ResetDefaults();
             return inputManager;

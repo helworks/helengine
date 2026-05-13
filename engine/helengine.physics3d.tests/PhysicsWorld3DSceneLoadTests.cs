@@ -12,7 +12,7 @@ namespace helengine.physics3d.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreatePhysicsSceneAsset();
@@ -40,7 +40,7 @@ namespace helengine.physics3d.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateSpherePhysicsSceneAsset();
@@ -68,7 +68,7 @@ namespace helengine.physics3d.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCapsulePhysicsSceneAsset();
@@ -96,7 +96,7 @@ namespace helengine.physics3d.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateKinematicPushSceneAsset();
@@ -127,7 +127,7 @@ namespace helengine.physics3d.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterSlopeSceneAsset();
@@ -153,7 +153,7 @@ namespace helengine.physics3d.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterSteepSlopeSceneAsset();
@@ -179,7 +179,7 @@ namespace helengine.physics3d.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterStepsSceneAsset();
@@ -205,7 +205,7 @@ namespace helengine.physics3d.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterMovingPlatformRideSceneAsset();
@@ -233,7 +233,7 @@ namespace helengine.physics3d.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterCeilingLiftSceneAsset();

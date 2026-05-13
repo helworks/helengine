@@ -34,7 +34,7 @@ namespace helengine.editor.tests {
                 ContentRootPath = TempProjectRootPath
             });
             Input = new TestInputBackend();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
             EditorSelectionService.ClearSelection();
             EditorSceneMutationService.Reset();
         }

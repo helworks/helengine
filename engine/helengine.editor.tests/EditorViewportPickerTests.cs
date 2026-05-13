@@ -23,7 +23,7 @@ namespace helengine.editor.tests {
             Core core = new Core();
 
             try {
-                core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputBackend);
+                core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputBackend, new PlatformInfo("test", "test-version"));
                 EditorInputCaptureService.Reset();
                 EditorGizmoHoverService.ClearHoveredHandle();
 

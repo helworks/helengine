@@ -30,7 +30,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
             ContentRootPath = TempRootPath
         });
         Input = new TestInputBackend();
-        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
+        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
     }
 
     /// <summary>

@@ -27,7 +27,7 @@ namespace helengine.editor.tests {
                 ContentRootPath = TempRootPath
             });
             InputBackend = new TestInputBackend();
-            core.Initialize(null, new TestRenderManager2D(), InputBackend);
+            core.Initialize(null, new TestRenderManager2D(), InputBackend, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

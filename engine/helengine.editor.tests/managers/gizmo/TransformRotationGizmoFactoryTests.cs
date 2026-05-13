@@ -99,7 +99,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, null, null);
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

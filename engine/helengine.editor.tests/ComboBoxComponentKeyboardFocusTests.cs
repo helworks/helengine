@@ -70,7 +70,7 @@ namespace helengine.editor.tests {
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

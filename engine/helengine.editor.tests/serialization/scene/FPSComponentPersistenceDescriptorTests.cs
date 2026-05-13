@@ -21,7 +21,7 @@ namespace helengine.editor.tests.serialization.scene {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             Core.Instance.DefaultFontAsset = CreateFont();
         }
 

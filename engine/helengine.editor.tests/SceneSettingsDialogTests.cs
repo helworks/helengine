@@ -30,7 +30,7 @@ namespace helengine.editor.tests {
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

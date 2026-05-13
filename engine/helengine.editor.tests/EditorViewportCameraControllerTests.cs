@@ -254,7 +254,7 @@ namespace helengine.editor.tests {
             Core core = new Core();
             TestInputBackend input = new TestInputBackend();
             core.InputSystem.SetMouseClientBounds(new int2(500, 400));
-            core.Initialize(null, new TestRenderManager2D(), input);
+            core.Initialize(null, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
             return input;
         }
 

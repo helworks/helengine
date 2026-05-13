@@ -226,7 +226,7 @@ namespace helengine.editor.tests {
         TestInputBackend InitializeCore() {
             Core core = new Core();
             TestInputBackend input = new TestInputBackend();
-            core.Initialize(null, new TestRenderManager2D(), input);
+            core.Initialize(null, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
             core.InputSystem.SetKeyboardActive(true);
             EditorKeyboardFocusService.Reset();
             EditorSelectionService.ClearSelection();

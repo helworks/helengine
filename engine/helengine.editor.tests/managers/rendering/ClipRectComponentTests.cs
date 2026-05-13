@@ -20,7 +20,7 @@ namespace helengine.editor.tests.managers.rendering {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(null, null, new TestInputBackend());
+            core.Initialize(null, null, new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

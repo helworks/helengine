@@ -33,7 +33,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
 
             ContentManager contentManager = new ContentManager(TempProjectRootPath);
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);

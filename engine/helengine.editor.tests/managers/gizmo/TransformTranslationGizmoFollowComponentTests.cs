@@ -245,7 +245,7 @@ namespace helengine.editor.tests.managers.gizmo {
         TestInputBackend InitializeCore() {
             Core core = new Core();
             var input = new TestInputBackend();
-            core.Initialize(null, null, input);
+            core.Initialize(null, null, input, new PlatformInfo("test", "test-version"));
             return input;
         }
 

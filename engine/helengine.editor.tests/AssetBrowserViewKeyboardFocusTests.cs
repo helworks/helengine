@@ -149,7 +149,7 @@ namespace helengine.editor.tests {
                 ContentRootPath = projectRoot
             });
             TestInputBackend input = new TestInputBackend();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
 
             AssetBrowserView browserView = new AssetBrowserView(
                 CreateFont(),
@@ -200,7 +200,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = projectRoot
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             EditorKeyboardFocusService.Reset();
         }
 

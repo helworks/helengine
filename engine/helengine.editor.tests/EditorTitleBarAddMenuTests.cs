@@ -23,7 +23,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
@@ -232,7 +232,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
             CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
 
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");

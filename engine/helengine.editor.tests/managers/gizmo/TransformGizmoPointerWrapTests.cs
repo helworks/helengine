@@ -102,7 +102,7 @@ namespace helengine.editor.tests.managers.gizmo {
             Core core = new Core();
             TestInputBackend input = new TestInputBackend();
             core.InputSystem.SetMouseClientBounds(new int2(500, 400));
-            core.Initialize(null, null, input);
+            core.Initialize(null, null, input, new PlatformInfo("test", "test-version"));
             return input;
         }
 

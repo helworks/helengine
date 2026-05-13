@@ -25,7 +25,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
         Core core = new Core(new CoreInitializationOptions {
             ContentRootPath = TempRootPath
         });
-        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
     }
 
     /// <summary>

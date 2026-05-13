@@ -278,7 +278,7 @@ namespace helengine.editor.tests.serialization.scene {
                 ContentRootPath = TempRootPath,
                 SceneCatalog = sceneCatalog
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             return core;
         }
 

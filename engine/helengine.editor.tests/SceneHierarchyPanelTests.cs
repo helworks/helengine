@@ -29,7 +29,7 @@ namespace helengine.editor.tests {
                 ContentRootPath = TempRootPath
             });
             Input = new TestInputBackend();
-            core.Initialize(null, new TestRenderManager2D(), Input);
+            core.Initialize(null, new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
 
             CreateUiCamera(640, 480, 0b1000000000000000);
         }

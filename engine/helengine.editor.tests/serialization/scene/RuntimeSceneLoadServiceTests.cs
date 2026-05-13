@@ -23,7 +23,7 @@ namespace helengine.editor.tests.serialization.scene {
                 ContentRootPath = TempRootPath
             });
 
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             Core.Instance.DefaultFontAsset = CreateFont();
         }
 
@@ -876,7 +876,7 @@ namespace helengine.editor.tests.serialization.scene {
                 ContentRootPath = buildRootPath,
                 SceneCatalog = sceneCatalog
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             Core.Instance.DefaultFontAsset = CreateFont();
 
             MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
@@ -943,7 +943,7 @@ namespace helengine.editor.tests.serialization.scene {
                 ContentRootPath = assetsRootPath,
                 ScenePathResolver = scenePathResolver
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             Core.Instance.DefaultFontAsset = CreateFont();
 
             TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();

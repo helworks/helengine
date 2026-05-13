@@ -12,7 +12,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public PlatformTabStripViewTests() {
             Core core = new Core();
-            core.Initialize(null, new TestRenderManager2D(), null);
+            core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             EditorKeyboardFocusService.Reset();
         }
 

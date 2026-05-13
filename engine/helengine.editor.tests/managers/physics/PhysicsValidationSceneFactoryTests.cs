@@ -277,7 +277,7 @@ namespace helengine.editor.tests.managers.physics {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = buildRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             IReadOnlyList<Entity> rootEntities = core.SceneLoadService.Load(sceneAsset);
@@ -319,7 +319,7 @@ namespace helengine.editor.tests.managers.physics {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = buildRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             IReadOnlyList<Entity> rootEntities = core.SceneLoadService.Load(sceneAsset);
@@ -359,7 +359,7 @@ namespace helengine.editor.tests.managers.physics {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = buildRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
             IReadOnlyList<Entity> rootEntities = core.SceneLoadService.Load(sceneAsset);

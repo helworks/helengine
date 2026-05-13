@@ -151,7 +151,8 @@ namespace helengine.editor.app {
             CoreInitializationOptions initOptions = new CoreInitializationOptions {
                 ContentRootPath = projectAssetsRootPath
             };
-            core.Initialize(renderer3D, renderer2D, inputBackend, initOptions);
+            PlatformInfo platformInfo = ResolveEditorPlatformInfo(projectPath);
+            core.Initialize(renderer3D, renderer2D, inputBackend, platformInfo, initOptions);
             core.SetTextClipboardService(new SystemTextClipboardService());
 
             int renderWidth = Math.Max(1, ClientSize.Width);
@@ -292,6 +293,40 @@ namespace helengine.editor.app {
             }
 
             return Path.GetFullPath(Path.Combine(inputProjectRootPath, "assets"));
+        }
+
+        /// <summary>
+        /// Resolves the runtime platform metadata injected into the editor-owned core instance.
+        /// </summary>
+        /// <param name="inputProjectPath">Project directory path or project file path.</param>
+        /// <returns>Stable editor platform metadata built from the project's required engine version.</returns>
+        PlatformInfo ResolveEditorPlatformInfo(string inputProjectPath) {
+            string requiredEngineVersion = ResolveRequiredEngineVersion(inputProjectPath);
+            return new PlatformInfo("editor", requiredEngineVersion);
+        }
+
+        /// <summary>
+        /// Resolves the exact engine version required by the project opened in this host.
+        /// </summary>
+        /// <param name="inputProjectPath">Project directory path or project file path.</param>
+        /// <returns>Exact required engine version declared by the canonical project document.</returns>
+        string ResolveRequiredEngineVersion(string inputProjectPath) {
+            if (string.IsNullOrWhiteSpace(inputProjectPath)) {
+                throw new InvalidOperationException("Project path must be provided.");
+            }
+
+            ProjectFilePathResolver resolver = new ProjectFilePathResolver();
+            string canonicalProjectFilePath = resolver.Resolve(inputProjectPath);
+            ProjectFileReader reader = new ProjectFileReader();
+            ProjectFileReadResult readResult = reader.ReadAsync(canonicalProjectFilePath).GetAwaiter().GetResult();
+            if (!readResult.Succeeded) {
+                throw new InvalidOperationException(readResult.Errors[0].Message);
+            }
+            if (string.IsNullOrWhiteSpace(readResult.Document.RequiredEngineVersion)) {
+                throw new InvalidOperationException("Project file must declare a required engine version.");
+            }
+
+            return readResult.Document.RequiredEngineVersion;
         }
 
         /// <summary>
