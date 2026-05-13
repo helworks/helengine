@@ -6,6 +6,6 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the stable id assigned to the referenced entity.
         /// </summary>
-        public string EntityId { get; set; }
+        public uint EntityId { get; set; }
     }
 }

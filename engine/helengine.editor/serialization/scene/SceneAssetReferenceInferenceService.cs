@@ -29,6 +29,11 @@ namespace helengine.editor {
         readonly MaterialAssetSettingsService MaterialAssetSettingsService;
 
         /// <summary>
+        /// Cached authored model source paths keyed by their stable imported model asset id.
+        /// </summary>
+        Dictionary<string, string> ModelRelativePathsByAssetId;
+
+        /// <summary>
         /// Cached authored material paths keyed by their stable material asset id.
         /// </summary>
         Dictionary<string, string> MaterialRelativePathsByAssetId;
@@ -134,6 +139,10 @@ namespace helengine.editor {
                 saveState.SetAssetReference(MeshModelReferenceName, modelReference);
                 return;
             }
+            if (TryInferFileSystemModelReference(runtimeModel, out SceneAssetReference fileSystemModelReference)) {
+                saveState.SetAssetReference(MeshModelReferenceName, fileSystemModelReference);
+                return;
+            }
 
             throw new InvalidOperationException("MeshComponent Model is assigned but could not be inferred into a stable scene asset reference.");
         }
@@ -198,6 +207,38 @@ namespace helengine.editor {
 
             reference = null;
             return false;
+        }
+
+        /// <summary>
+        /// Attempts to infer one file-system model reference from the supplied runtime model id.
+        /// </summary>
+        /// <param name="runtimeModel">Runtime model to inspect.</param>
+        /// <param name="reference">Inferred file-system model reference when one could be resolved.</param>
+        /// <returns>True when the runtime model id matches an authored model source file.</returns>
+        bool TryInferFileSystemModelReference(RuntimeModel runtimeModel, out SceneAssetReference reference) {
+            if (runtimeModel == null) {
+                throw new ArgumentNullException(nameof(runtimeModel));
+            }
+
+            string runtimeModelId = runtimeModel.Id ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(runtimeModelId)) {
+                reference = null;
+                return false;
+            }
+
+            Dictionary<string, string> modelRelativePathsByAssetId = GetModelRelativePathsByAssetId();
+            if (!modelRelativePathsByAssetId.TryGetValue(runtimeModelId, out string relativePath)) {
+                reference = null;
+                return false;
+            }
+
+            reference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = relativePath,
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+            return true;
         }
 
         /// <summary>
@@ -290,6 +331,67 @@ namespace helengine.editor {
             }
 
             return MaterialRelativePathsByAssetId;
+        }
+
+        /// <summary>
+        /// Returns the authored model-source lookup keyed by stable imported model asset id.
+        /// </summary>
+        /// <returns>Authored model-source lookup keyed by stable imported model asset id.</returns>
+        Dictionary<string, string> GetModelRelativePathsByAssetId() {
+            if (ModelRelativePathsByAssetId != null) {
+                return ModelRelativePathsByAssetId;
+            }
+
+            ModelRelativePathsByAssetId = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (!Directory.Exists(AssetsRootPath)) {
+                return ModelRelativePathsByAssetId;
+            }
+
+            string[] settingsPaths = Directory.GetFiles(AssetsRootPath, "*.hasset", SearchOption.AllDirectories);
+            for (int settingsIndex = 0; settingsIndex < settingsPaths.Length; settingsIndex++) {
+                string settingsPath = settingsPaths[settingsIndex];
+                if (!TryLoadModelImportSettings(settingsPath, out ModelAssetImportSettings settings) ||
+                    settings == null ||
+                    settings.Importer == null ||
+                    string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+                    continue;
+                }
+
+                string relativeSourcePath = Path.GetRelativePath(AssetsRootPath, settingsPath).Replace('\\', '/');
+                if (!relativeSourcePath.EndsWith(".hasset", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                relativeSourcePath = relativeSourcePath.Substring(0, relativeSourcePath.Length - ".hasset".Length);
+                if (ModelRelativePathsByAssetId.ContainsKey(settings.Importer.AssetId)) {
+                    continue;
+                }
+
+                ModelRelativePathsByAssetId.Add(settings.Importer.AssetId, relativeSourcePath);
+            }
+
+            return ModelRelativePathsByAssetId;
+        }
+
+        /// <summary>
+        /// Attempts to load one model import-settings document from disk.
+        /// </summary>
+        /// <param name="settingsPath">Absolute path to the candidate model import-settings file.</param>
+        /// <param name="settings">Loaded model import-settings document when deserialization succeeds.</param>
+        /// <returns>True when the file contains a valid model import-settings document.</returns>
+        bool TryLoadModelImportSettings(string settingsPath, out ModelAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(settingsPath)) {
+                throw new ArgumentException("Settings path must be provided.", nameof(settingsPath));
+            }
+
+            settings = null;
+            try {
+                using FileStream stream = File.OpenRead(settingsPath);
+                settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
+                return settings != null;
+            } catch {
+                return false;
+            }
         }
 
         /// <summary>

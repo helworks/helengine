@@ -183,7 +183,7 @@ namespace helengine {
             }
 
             return new SceneEntityReference {
-                EntityId = ReadString()
+                EntityId = ReadUInt32()
             };
         }
 

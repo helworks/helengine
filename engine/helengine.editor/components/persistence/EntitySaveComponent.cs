@@ -19,7 +19,7 @@ namespace helengine {
         /// <summary>
         /// Stable id used to reference the owning entity from serialized scene data.
         /// </summary>
-        public string EntityId { get; set; }
+        public uint EntityId { get; set; }
 
         /// <summary>
         /// Gets or sets the platform currently projected into the live entity transform while editing in the inspector.

@@ -23,6 +23,11 @@ namespace helengine {
         /// </summary>
         public Project Project { get; private set; }
 
+        /// <summary>
+        /// Gets the allocator that owns numeric scene entity ids for the active editor host.
+        /// </summary>
+        public global::helengine.editor.EditorSceneEntityIdAllocator SceneEntityIdAllocator { get; private set; }
+
         /// <inheritdoc />
         public override void Initialize(
             RenderManager3D render3D,
@@ -30,6 +35,7 @@ namespace helengine {
             IInputBackend input,
             PlatformInfo platformInfo,
             CoreInitializationOptions options) {
+            SceneEntityIdAllocator = new global::helengine.editor.EditorSceneEntityIdAllocator();
             base.Initialize(render3D, render2D, input, platformInfo, options);
 
             EditorObjectManager = new ObjectManager(InitializationOptions);
@@ -40,7 +46,11 @@ namespace helengine {
         /// </summary>
         /// <returns>Editor-authored entity factory.</returns>
         protected override IEntityFactory CreateEntityFactory() {
-            return new global::helengine.editor.EditorEntityFactory();
+            if (SceneEntityIdAllocator == null) {
+                throw new InvalidOperationException("EditorCore must initialize SceneEntityIdAllocator before creating the entity factory.");
+            }
+
+            return new global::helengine.editor.EditorEntityFactory(SceneEntityIdAllocator);
         }
 
         /// <inheritdoc />

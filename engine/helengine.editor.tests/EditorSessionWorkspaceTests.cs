@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor.tests.testing;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -514,11 +515,11 @@ namespace helengine.editor.tests {
             harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowPreview);
             EditorWorkspacePanelInstance previewInstance = Assert.Single(harness.Session.GetPanelInstancesForTest("preview"));
             PreviewPanel panel = Assert.IsType<PreviewPanel>(previewInstance.Dockable);
-            EditorEntity cameraEntity = harness.CreatePreviewCameraEntity("camera-entity-1");
+            EditorEntity cameraEntity = harness.CreatePreviewCameraEntity(17u);
             panel.RestoreState(new PreviewPanelStateDocument {
                 IsLocked = true,
                 BindingKind = PreviewPanelBindingKind.Camera,
-                SceneEntityId = "camera-entity-1"
+                SceneEntityId = 17u
             });
 
             harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.SaveSlot1);
@@ -530,7 +531,7 @@ namespace helengine.editor.tests {
             PreviewPanelStateDocument state = restored.CaptureState();
             Assert.True(state.IsLocked);
             Assert.Equal(PreviewPanelBindingKind.Camera, state.BindingKind);
-            Assert.Equal("camera-entity-1", state.SceneEntityId);
+            Assert.Equal(17u, state.SceneEntityId);
             Assert.IsType<CameraPreviewSource>(restored.ActivePreviewSource);
             Assert.NotNull(cameraEntity);
         }
@@ -610,17 +611,27 @@ namespace helengine.editor.tests {
             /// Initializes the workspace test harness.
             /// </summary>
             EditorSessionHarness() {
-                Core core = new Core();
-                core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+                TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-session-workspace-tests", Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(TempProjectRootPath);
+                Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets"));
+                EditorCore core = new EditorCore(new Project {
+                    Name = "Workspace Tests",
+                    Path = TempProjectRootPath
+                });
+                core.Initialize(
+                    TestDirectX11RenderManager3D.Create(),
+                    new TestRenderManager2D(),
+                    null,
+                    new PlatformInfo("test", "test-version"),
+                    new CoreInitializationOptions {
+                        ContentRootPath = TempProjectRootPath
+                    });
                 EditorKeyboardFocusService.Reset();
                 GeneratedAssetProviderRegistry.ResetForTests();
                 GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
 
                 Font = CreateFont();
                 ViewportToolbarIcons = CreateViewportToolbarIcons();
-                TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-session-workspace-tests", Guid.NewGuid().ToString("N"));
-                Directory.CreateDirectory(TempProjectRootPath);
-                Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets"));
                 ContentManager = new ContentManager(TempProjectRootPath);
                 EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(ContentManager);
                 AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, ContentManager);
@@ -707,9 +718,9 @@ namespace helengine.editor.tests {
             /// </summary>
             /// <param name="entityId">Stable scene entity id assigned to the camera entity.</param>
             /// <returns>Registered camera entity.</returns>
-            public EditorEntity CreatePreviewCameraEntity(string entityId) {
-                if (string.IsNullOrWhiteSpace(entityId)) {
-                    throw new ArgumentException("Entity id must be provided.", nameof(entityId));
+            public EditorEntity CreatePreviewCameraEntity(uint entityId) {
+                if (entityId == 0u) {
+                    throw new ArgumentException("Entity id must be non-zero.", nameof(entityId));
                 }
 
                 EditorEntity cameraEntity = new EditorEntity();

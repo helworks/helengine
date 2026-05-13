@@ -99,8 +99,35 @@ namespace helengine.editor.tests {
             Assert.DoesNotContain("new EditorEntityFactory()", source, StringComparison.Ordinal);
             Assert.DoesNotContain("SuppressUpdateComponentExecutionInEditor", source, StringComparison.Ordinal);
             Assert.Contains("Core.Instance.EntityFactory", source, StringComparison.Ordinal);
-            Assert.Contains("IEntityFactory", source, StringComparison.Ordinal);
-            Assert.Contains("EntityFactory.Create(", source, StringComparison.Ordinal);
+            Assert.Contains(".Create(", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the colored cube-grid factory now authors live entities instead of serialized editor scene records.
+        /// </summary>
+        [Fact]
+        public void ReadColoredCubeGridSceneFactorySource_DoesNotUseEditorSerializationHelpers() {
+            string source = ReadCitySource("rendering.tools", "ColoredCubeGridSceneFactory.cs");
+
+            Assert.DoesNotContain("using helengine.editor;", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("SceneComponentAssetRecord", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("MeshComponentPersistenceDescriptor", source, StringComparison.Ordinal);
+            Assert.Contains("GeneratedAuthoringSceneDefinition", source, StringComparison.Ordinal);
+            Assert.Contains("Core.Instance.EntityFactory.Create", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the textured cube-grid factory now authors live entities instead of serialized editor scene records.
+        /// </summary>
+        [Fact]
+        public void ReadTexturedCubeGridSceneFactorySource_DoesNotUseEditorSerializationHelpers() {
+            string source = ReadCitySource("rendering.tools", "TexturedCubeGridSceneFactory.cs");
+
+            Assert.DoesNotContain("using helengine.editor;", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("SceneComponentAssetRecord", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("MeshComponentPersistenceDescriptor", source, StringComparison.Ordinal);
+            Assert.Contains("GeneratedAuthoringSceneDefinition", source, StringComparison.Ordinal);
+            Assert.Contains("Core.Instance.EntityFactory.Create", source, StringComparison.Ordinal);
         }
 
         /// <summary>

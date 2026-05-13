@@ -360,6 +360,18 @@ namespace helengine.editor {
         const byte KinematicBodyKindCode = 1;
 
         /// <summary>
+        /// Allocates numeric entity ids while one validation scene asset is being built.
+        /// </summary>
+        readonly SceneEntityAssetIdAllocator SceneEntityIdAllocator;
+
+        /// <summary>
+        /// Initializes the validation-scene factory with a fresh scene-local entity id allocator.
+        /// </summary>
+        public PhysicsValidationSceneFactory() {
+            SceneEntityIdAllocator = new SceneEntityAssetIdAllocator();
+        }
+
+        /// <summary>
         /// Creates one fully-authored physics validation scene asset for the requested scene id.
         /// </summary>
         /// <param name="sceneId">Stable relative scene id to author.</param>
@@ -368,6 +380,8 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
             }
+
+            SceneEntityIdAllocator.Reset();
 
             if (string.Equals(sceneId, PhysicsValidationSceneCatalog.CharacterSlopeSceneId, StringComparison.Ordinal)) {
                 return CreateCharacterSlopeScene();
@@ -597,7 +611,7 @@ namespace helengine.editor {
         /// <param name="cameraEntity">Root camera entity.</param>
         /// <param name="scenarioEntity">Root scenario entity.</param>
         /// <returns>Scene asset ready for serialization.</returns>
-        static SceneAsset CreateSceneAsset(
+        SceneAsset CreateSceneAsset(
             string sceneId,
             SceneEntityAsset cameraEntity,
             SceneEntityAsset scenarioEntity) {
@@ -624,7 +638,7 @@ namespace helengine.editor {
         /// <param name="entityId">Stable serialized entity id.</param>
         /// <param name="children">Authored scenario children.</param>
         /// <returns>Scenario root entity.</returns>
-        static SceneEntityAsset CreateScenarioRoot(string entityId, SceneEntityAsset[] children) {
+        SceneEntityAsset CreateScenarioRoot(string entityId, SceneEntityAsset[] children) {
             if (string.IsNullOrWhiteSpace(entityId)) {
                 throw new ArgumentException("Scenario entity id must be provided.", nameof(entityId));
             }
@@ -635,7 +649,7 @@ namespace helengine.editor {
             SceneEntityAsset[] sceneChildren = AppendKeyLight(children);
 
             return new SceneEntityAsset {
-                Id = entityId,
+                Id = AllocateSceneEntityId(),
                 Name = "Scenario",
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
@@ -652,13 +666,13 @@ namespace helengine.editor {
         /// <param name="position">Camera position.</param>
         /// <param name="orientation">Camera orientation.</param>
         /// <returns>Camera entity with a serialized camera component.</returns>
-        static SceneEntityAsset CreateCameraEntity(string entityId, float3 position, float4 orientation) {
+        SceneEntityAsset CreateCameraEntity(string entityId, float3 position, float4 orientation) {
             if (string.IsNullOrWhiteSpace(entityId)) {
                 throw new ArgumentException("Camera entity id must be provided.", nameof(entityId));
             }
 
             return new SceneEntityAsset {
-                Id = entityId,
+                Id = AllocateSceneEntityId(),
                 Name = "Camera",
                 LocalPosition = position,
                 LocalScale = float3.One,
@@ -677,7 +691,7 @@ namespace helengine.editor {
         /// <param name="scale">Entity scale.</param>
         /// <param name="orientation">Entity orientation.</param>
         /// <returns>Mesh-backed entity.</returns>
-        static SceneEntityAsset CreateCubeMeshEntity(
+        SceneEntityAsset CreateCubeMeshEntity(
             string entityId,
             string name,
             float3 position,
@@ -695,7 +709,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityAsset {
-                Id = entityId,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = position,
                 LocalScale = scale,
@@ -716,7 +730,7 @@ namespace helengine.editor {
         /// <param name="bodyKindCode">Rigid-body participation mode byte to serialize.</param>
         /// <param name="useGravity">True when the serialized rigid body should receive gravity.</param>
         /// <returns>Mesh-backed entity with serialized rigid-body and box-collider records.</returns>
-        static SceneEntityAsset CreatePhysicsBoxMeshEntity(
+        SceneEntityAsset CreatePhysicsBoxMeshEntity(
             string entityId,
             string name,
             float3 position,
@@ -736,7 +750,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityAsset {
-                Id = entityId,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = position,
                 LocalScale = scale,
@@ -763,7 +777,7 @@ namespace helengine.editor {
         /// <param name="travelDurationSeconds">One-way travel duration in seconds.</param>
         /// <param name="pingPong">True when the motion should reverse at the end.</param>
         /// <returns>Mesh-backed entity with serialized rigid-body, box-collider, and kinematic-motion records.</returns>
-        static SceneEntityAsset CreateKinematicPhysicsBoxMeshEntity(
+        SceneEntityAsset CreateKinematicPhysicsBoxMeshEntity(
             string entityId,
             string name,
             float3 position,
@@ -785,7 +799,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityAsset {
-                Id = entityId,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = position,
                 LocalScale = scale,
@@ -814,7 +828,7 @@ namespace helengine.editor {
         /// <param name="stepHeight">Maximum upward snap height used while climbing support surfaces.</param>
         /// <param name="groundSnapDistance">Maximum downward snap distance used to keep the controller grounded.</param>
         /// <returns>Mesh-backed entity with serialized box-collider and character-controller records.</returns>
-        static SceneEntityAsset CreateCharacterControllerBoxMeshEntity(
+        SceneEntityAsset CreateCharacterControllerBoxMeshEntity(
             string entityId,
             string name,
             float3 position,
@@ -837,7 +851,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityAsset {
-                Id = entityId,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = position,
                 LocalScale = scale,
@@ -858,7 +872,7 @@ namespace helengine.editor {
         /// <param name="name">Authored entity name.</param>
         /// <param name="position">Marker position.</param>
         /// <returns>Marker entity without components.</returns>
-        static SceneEntityAsset CreateMarkerEntity(string entityId, string name, float3 position) {
+        SceneEntityAsset CreateMarkerEntity(string entityId, string name, float3 position) {
             if (string.IsNullOrWhiteSpace(entityId)) {
                 throw new ArgumentException("Marker entity id must be provided.", nameof(entityId));
             }
@@ -867,7 +881,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityAsset {
-                Id = entityId,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = position,
                 LocalScale = float3.One,
@@ -992,7 +1006,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="children">Authored scenario children.</param>
         /// <returns>Copied child array with the shared key light appended at the end.</returns>
-        static SceneEntityAsset[] AppendKeyLight(SceneEntityAsset[] children) {
+        SceneEntityAsset[] AppendKeyLight(SceneEntityAsset[] children) {
             if (children == null) {
                 throw new ArgumentNullException(nameof(children));
             }
@@ -1007,9 +1021,9 @@ namespace helengine.editor {
         /// Creates the shared directional light used to give the exported validation scenes stronger shape and visible shadows.
         /// </summary>
         /// <returns>Directional light entity appended to each scenario root.</returns>
-        static SceneEntityAsset CreateKeyLightEntity() {
+        SceneEntityAsset CreateKeyLightEntity() {
             return new SceneEntityAsset {
-                Id = "physics.key_light",
+                Id = AllocateSceneEntityId(),
                 Name = "KeyLight",
                 LocalPosition = new float3(0f, 6f, 0f),
                 LocalScale = float3.One,
@@ -1354,6 +1368,14 @@ namespace helengine.editor {
 
             string relativePath = sceneId.Replace('/', Path.DirectorySeparatorChar);
             return Path.Combine(projectRootPath, "assets", relativePath);
+        }
+
+        /// <summary>
+        /// Allocates the next scene-local entity id for the validation scene currently being built.
+        /// </summary>
+        /// <returns>Next non-zero scene-local entity id.</returns>
+        uint AllocateSceneEntityId() {
+            return SceneEntityIdAllocator.Allocate();
         }
     }
 }

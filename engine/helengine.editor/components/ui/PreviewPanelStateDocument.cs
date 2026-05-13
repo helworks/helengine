@@ -21,6 +21,6 @@ namespace helengine.editor {
         /// <summary>
         /// Gets or sets the stable scene entity id used when the preview panel is bound to one camera.
         /// </summary>
-        public string SceneEntityId { get; set; } = string.Empty;
+        public uint SceneEntityId { get; set; }
     }
 }

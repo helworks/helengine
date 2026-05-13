@@ -3967,16 +3967,16 @@ namespace helengine.editor {
         /// <param name="entityId">Stable scene entity id captured by a preview panel.</param>
         /// <param name="selectedEntity">Resolved live scene entity when one exists.</param>
         /// <returns>True when the entity id is still present in the current scene; otherwise false.</returns>
-        bool TryResolvePreviewSceneEntity(string entityId, out Entity selectedEntity) {
+        bool TryResolvePreviewSceneEntity(uint entityId, out Entity selectedEntity) {
             selectedEntity = null;
-            if (string.IsNullOrWhiteSpace(entityId) || helengine.Core.Instance == null || helengine.Core.Instance.ObjectManager == null) {
+            if (entityId == 0u || helengine.Core.Instance == null || helengine.Core.Instance.ObjectManager == null) {
                 return false;
             }
 
             IReadOnlyList<Entity> entities = helengine.Core.Instance.ObjectManager.Entities;
             for (int index = 0; index < entities.Count; index++) {
                 EntitySaveComponent saveComponent = FindEntitySaveComponent(entities[index]);
-                if (saveComponent == null || !string.Equals(saveComponent.EntityId, entityId, StringComparison.Ordinal)) {
+                if (saveComponent == null || saveComponent.EntityId != entityId) {
                     continue;
                 }
 

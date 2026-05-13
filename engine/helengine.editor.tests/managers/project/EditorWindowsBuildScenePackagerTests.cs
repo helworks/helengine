@@ -81,7 +81,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "city-root",
+                        Id = 1u,
                         Name = "CityRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -944,7 +944,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "line-root",
+                        Id = 1u,
                         Name = "LineRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -998,7 +998,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "script-root",
+                        Id = 1u,
                         Name = "ScriptRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1048,7 +1048,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "update-root",
+                        Id = 1u,
                         Name = "UpdateRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1114,7 +1114,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "camera-root",
+                        Id = 1u,
                         Name = "CameraRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1125,7 +1125,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "orbit-root",
+                        Id = 2u,
                         Name = "OrbitRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1136,7 +1136,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "sun-root",
+                        Id = 3u,
                         Name = "SunRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1147,7 +1147,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "tower-root",
+                        Id = 4u,
                         Name = "TowerRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1236,7 +1236,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "axis-root",
+                        Id = 1u,
                         Name = "AxisRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1290,7 +1290,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "physics-root",
+                        Id = 1u,
                         Name = "PhysicsRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1483,7 +1483,7 @@ namespace helengine.editor.tests {
                 },
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1528,7 +1528,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         LocalPosition = new float3(1f, 2f, 3f),
                         LocalScale = float3.One,
@@ -1573,7 +1573,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1623,7 +1623,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "camera-root",
+                        Id = 1u,
                         Name = "CameraRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1695,7 +1695,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "return-root",
+                        Id = 1u,
                         Name = "ReturnRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1748,7 +1748,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "tower-root",
+                        Id = 1u,
                         Name = "TowerRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -1884,7 +1884,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "ground-entity",
+                        Id = 1u,
                         Name = "Ground",
                         LocalPosition = new float3(0f, -0.5f, 0f),
                         LocalScale = new float3(8f, 1f, 8f),
@@ -1904,7 +1904,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "box-entity",
+                        Id = 2u,
                         Name = "Box",
                         LocalPosition = new float3(0f, 2f, 0f),
                         LocalScale = float3.One,
@@ -1957,7 +1957,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "kinematic-entity",
+                        Id = 1u,
                         Name = "KinematicPusher",
                         LocalPosition = new float3(-2f, 0.5f, 0f),
                         LocalScale = new float3(1.5f, 1f, 1.5f),
@@ -2015,7 +2015,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "ground-entity",
+                        Id = 1u,
                         Name = "Ground",
                         LocalPosition = new float3(0f, -0.5f, 0f),
                         LocalScale = new float3(8f, 1f, 8f),
@@ -2035,7 +2035,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "controller-entity",
+                        Id = 2u,
                         Name = "Controller",
                         LocalPosition = new float3(0f, 1f, 0f),
                         LocalScale = float3.One,
@@ -2082,7 +2082,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "trigger-entity",
+                        Id = 1u,
                         Name = "Trigger",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -2131,7 +2131,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -2146,7 +2146,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "second-root-entity",
+                        Id = 2u,
                         Name = "SecondRoot",
                         LocalPosition = new float3(1f, 0f, 0f),
                         LocalScale = float3.One,
@@ -2184,7 +2184,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -2220,7 +2220,7 @@ namespace helengine.editor.tests {
                 AssetReferences = assetReferences ?? Array.Empty<SceneAssetReference>(),
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -2342,7 +2342,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -2737,7 +2737,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -3105,7 +3105,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "directional-root",
+                        Id = 1u,
                         Name = "Directional",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -3120,7 +3120,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "ambient-root",
+                        Id = 2u,
                         Name = "Ambient",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -3135,7 +3135,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "point-root",
+                        Id = 3u,
                         Name = "Point",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -3150,7 +3150,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "spot-root",
+                        Id = 4u,
                         Name = "Spot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -3165,7 +3165,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "rounded-root",
+                        Id = 5u,
                         Name = "RoundedRect",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,

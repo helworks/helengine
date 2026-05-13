@@ -4,11 +4,6 @@ namespace helengine {
     /// </summary>
     public static class ComponentExecutionPolicy {
         /// <summary>
-        /// Fully qualified runtime type name used to identify the editor-only suppression marker without introducing a core-to-editor assembly dependency.
-        /// </summary>
-        const string EditorUpdateExecutionSuppressionComponentTypeName = "helengine.EditorUpdateExecutionSuppressionComponent";
-
-        /// <summary>
         /// Returns whether the supplied component should execute its lifecycle callbacks in the current mode.
         /// </summary>
         /// <param name="component">Component whose behavior is being evaluated.</param>
@@ -50,7 +45,7 @@ namespace helengine {
 
             for (int index = 0; index < entity.Components.Count; index++) {
                 Component component = entity.Components[index];
-                if (component?.GetType().FullName == EditorUpdateExecutionSuppressionComponentTypeName) {
+                if (component != null && component.IsEditorUpdateExecutionSuppressionMarker) {
                     return true;
                 }
             }

@@ -58,6 +58,11 @@ namespace helengine.editor {
         readonly FontAsset PlaceholderFont;
 
         /// <summary>
+        /// Allocates numeric entity ids while one baked scene asset is being built.
+        /// </summary>
+        readonly SceneEntityAssetIdAllocator SceneEntityIdAllocator;
+
+        /// <summary>
         /// Initializes the factory with the persistence descriptors required for baked menu scene output.
         /// </summary>
         public DemoMenuSceneAssetFactory() {
@@ -80,6 +85,7 @@ namespace helengine.editor {
                 16f,
                 1,
                 1);
+            SceneEntityIdAllocator = new SceneEntityAssetIdAllocator();
         }
 
         /// <summary>
@@ -132,8 +138,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(definition));
             }
 
+            SceneEntityIdAllocator.Reset();
+
             return new SceneEntityAsset {
-                Id = "demo-disc-camera",
+                Id = AllocateSceneEntityId(),
                 Name = "DemoDiscCamera",
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
@@ -203,7 +211,7 @@ namespace helengine.editor {
             SceneComponentAssetRecord viewportRecord = AutomaticDescriptor.SerializeComponent(viewportComponent, 1, null);
             SceneComponentAssetRecord referenceCanvasFitRecord = AutomaticDescriptor.SerializeComponent(referenceCanvasFitComponent, 2, null);
             return new SceneEntityAsset {
-                Id = "demo-disc-menu-root",
+                Id = AllocateSceneEntityId(),
                 Name = "DemoDiscMenuRoot",
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
@@ -229,7 +237,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityAsset {
-                Id = "demo-disc-generated-menu",
+                Id = AllocateSceneEntityId(),
                 Name = DemoMenuLayout.GeneratedRootEntityName,
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
@@ -274,7 +282,7 @@ namespace helengine.editor {
             children.Add(BuildItemsViewportEntityAsset(panelDefinition, itemsRootEntity));
 
             return new SceneEntityAsset {
-                Id = $"panel-{panelDefinition.PanelId}",
+                Id = AllocateSceneEntityId(),
                 Name = $"Panel-{panelDefinition.PanelId}",
                 LocalPosition = new float3(88f, 190f, 0f),
                 LocalScale = float3.One,
@@ -318,7 +326,7 @@ namespace helengine.editor {
             SceneComponentAssetRecord backgroundRecord = RoundedRectDescriptor.SerializeComponent(backgroundComponent, 1, null);
 
             return new SceneEntityAsset {
-                Id = $"item-{panelDefinition.PanelId}-{itemDefinition.ItemId}",
+                Id = AllocateSceneEntityId(),
                 Name = $"Item-{itemDefinition.ItemId}",
                 LocalPosition = new float3(0f, visibleIndex * (DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing), 0f),
                 LocalScale = float3.One,
@@ -349,7 +357,7 @@ namespace helengine.editor {
             SceneComponentAssetRecord textRecord = SerializeTextComponent(description, fontPath, color, new int2(500, 64), 41);
 
             return new SceneEntityAsset {
-                Id = $"selected-description-{panelId}",
+                Id = AllocateSceneEntityId(),
                 Name = $"SelectedDescription-{panelId}",
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
@@ -381,7 +389,7 @@ namespace helengine.editor {
             };
 
             return new SceneEntityAsset {
-                Id = $"panel-{panelDefinition.PanelId}-items-viewport",
+                Id = AllocateSceneEntityId(),
                 Name = $"Panel-{panelDefinition.PanelId}-ItemsViewport",
                 LocalPosition = new float3(32f, 90f, 0f),
                 LocalScale = float3.One,
@@ -417,7 +425,7 @@ namespace helengine.editor {
             };
 
             return new SceneEntityAsset {
-                Id = $"panel-{panelDefinition.PanelId}-items-root",
+                Id = AllocateSceneEntityId(),
                 Name = $"Panel-{panelDefinition.PanelId}-ItemsRoot",
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
@@ -482,7 +490,7 @@ namespace helengine.editor {
             saveState.SetAssetReference(TextureAssetScenePersistenceSupport.TextureReferenceName, BuildFileTextureReference(overlayImage.TexturePath));
 
             return new SceneEntityAsset {
-                Id = "demo-disc-overlay-image",
+                Id = AllocateSceneEntityId(),
                 Name = "DemoDiscOverlayImage",
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
@@ -505,7 +513,7 @@ namespace helengine.editor {
                 componentRecords.Add(AutomaticDescriptor.SerializeComponent(anchorComponent, 1, null));
             }
             return new SceneEntityAsset {
-                Id = entityId,
+                Id = AllocateSceneEntityId(),
                 Name = entityId,
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
@@ -530,7 +538,7 @@ namespace helengine.editor {
             };
             SceneComponentAssetRecord roundedRectRecord = RoundedRectDescriptor.SerializeComponent(roundedRectComponent, 0, null);
             return new SceneEntityAsset {
-                Id = entityId,
+                Id = AllocateSceneEntityId(),
                 Name = entityId,
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
@@ -608,6 +616,14 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Menu panel '{panelDefinition.PanelId}' does not contain any enabled items.");
+        }
+
+        /// <summary>
+        /// Allocates the next scene-local entity id for the baked menu scene currently being built.
+        /// </summary>
+        /// <returns>Next non-zero scene-local entity id.</returns>
+        uint AllocateSceneEntityId() {
+            return SceneEntityIdAllocator.Allocate();
         }
     }
 }

@@ -6,48 +6,42 @@ namespace helengine.editor {
         /// <summary>
         /// Entity ids keyed by the live entity instance.
         /// </summary>
-        readonly Dictionary<Entity, string> EntityIdsByEntity;
+        readonly Dictionary<Entity, uint> EntityIdsByEntity;
 
         /// <summary>
         /// Live entities keyed by their stable id.
         /// </summary>
-        readonly Dictionary<string, Entity> EntitiesById;
+        readonly Dictionary<uint, Entity> EntitiesById;
 
         /// <summary>
         /// Initializes an empty entity reference table.
         /// </summary>
         public SceneEntityReferenceTable() {
-            EntityIdsByEntity = new Dictionary<Entity, string>();
-            EntitiesById = new Dictionary<string, Entity>(StringComparer.Ordinal);
+            EntityIdsByEntity = new Dictionary<Entity, uint>();
+            EntitiesById = new Dictionary<uint, Entity>();
         }
 
         /// <summary>
-        /// Returns the existing stable id for one entity or generates a new one.
+        /// Returns the existing stable id for one entity.
         /// </summary>
         /// <param name="entity">Live entity to identify.</param>
         /// <returns>Stable id associated with the entity.</returns>
-        public string GetOrCreateEntityId(Entity entity) {
+        public uint GetRequiredEntityId(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
 
-            if (EntityIdsByEntity.TryGetValue(entity, out string entityId)) {
+            if (EntityIdsByEntity.TryGetValue(entity, out uint entityId)) {
                 return entityId;
             }
 
             EntitySaveComponent saveComponent = FindSaveComponent(entity);
-            if (saveComponent != null && !string.IsNullOrWhiteSpace(saveComponent.EntityId)) {
+            if (saveComponent != null && saveComponent.EntityId != 0u) {
                 RegisterEntity(entity, saveComponent.EntityId);
                 return saveComponent.EntityId;
             }
 
-            entityId = Guid.NewGuid().ToString("N");
-            RegisterEntity(entity, entityId);
-            if (saveComponent != null) {
-                saveComponent.EntityId = entityId;
-            }
-
-            return entityId;
+            throw new InvalidOperationException("Authored editor entities must have a preassigned numeric scene entity id.");
         }
 
         /// <summary>
@@ -57,7 +51,7 @@ namespace helengine.editor {
         /// <returns>Stable scene entity reference for the entity.</returns>
         public SceneEntityReference GetOrCreateReference(Entity entity) {
             return new SceneEntityReference {
-                EntityId = GetOrCreateEntityId(entity)
+                EntityId = GetRequiredEntityId(entity)
             };
         }
 
@@ -66,19 +60,19 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Live entity to register.</param>
         /// <param name="entityId">Stable id assigned to the entity.</param>
-        public void RegisterEntity(Entity entity, string entityId) {
+        public void RegisterEntity(Entity entity, uint entityId) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
-            if (string.IsNullOrWhiteSpace(entityId)) {
-                throw new ArgumentException("Entity id must be provided.", nameof(entityId));
+            if (entityId == 0u) {
+                throw new ArgumentException("Entity id must be non-zero.", nameof(entityId));
             }
 
             if (EntitiesById.TryGetValue(entityId, out Entity existingEntity) && !ReferenceEquals(existingEntity, entity)) {
                 throw new InvalidOperationException($"An entity is already registered for id '{entityId}'.");
             }
 
-            if (EntityIdsByEntity.TryGetValue(entity, out string existingEntityId) && !string.Equals(existingEntityId, entityId, StringComparison.Ordinal)) {
+            if (EntityIdsByEntity.TryGetValue(entity, out uint existingEntityId) && existingEntityId != entityId) {
                 throw new InvalidOperationException("The entity is already registered with a different id.");
             }
 
@@ -87,9 +81,9 @@ namespace helengine.editor {
 
             EntitySaveComponent saveComponent = FindSaveComponent(entity);
             if (saveComponent != null) {
-                if (string.IsNullOrWhiteSpace(saveComponent.EntityId)) {
+                if (saveComponent.EntityId == 0u) {
                     saveComponent.EntityId = entityId;
-                } else if (!string.Equals(saveComponent.EntityId, entityId, StringComparison.Ordinal)) {
+                } else if (saveComponent.EntityId != entityId) {
                     throw new InvalidOperationException("The entity save component already stores a different id.");
                 }
             }
@@ -100,9 +94,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entityId">Stable id to resolve.</param>
         /// <returns>Live entity associated with the id.</returns>
-        public Entity Resolve(string entityId) {
-            if (string.IsNullOrWhiteSpace(entityId)) {
-                throw new ArgumentException("Entity id must be provided.", nameof(entityId));
+        public Entity Resolve(uint entityId) {
+            if (entityId == 0u) {
+                throw new ArgumentException("Entity id must be non-zero.", nameof(entityId));
             }
 
             if (!EntitiesById.TryGetValue(entityId, out Entity entity)) {

@@ -200,6 +200,11 @@ namespace helengine.demo_disc_scene_writer {
         readonly FPSComponentPersistenceDescriptor FpsDescriptor;
 
         /// <summary>
+        /// Allocates numeric entity ids while one serialized rendering scene is being built.
+        /// </summary>
+        readonly SceneEntityAssetIdAllocator SceneEntityIdAllocator;
+
+        /// <summary>
         /// Initializes the committed rendering scene writer with the persistence descriptors required for authored editor-scene output.
         /// </summary>
         public RenderingSceneWriter() {
@@ -213,6 +218,7 @@ namespace helengine.demo_disc_scene_writer {
             DirectionalShadowPlazaFactory = new DirectionalShadowPlazaSceneAssetFactory();
             MaterialSettingsService = new MaterialAssetSettingsService();
             FpsDescriptor = new FPSComponentPersistenceDescriptor();
+            SceneEntityIdAllocator = new SceneEntityAssetIdAllocator();
         }
 
         /// <summary>
@@ -252,6 +258,7 @@ namespace helengine.demo_disc_scene_writer {
 
             Directory.CreateDirectory(sceneDirectoryPath);
             WritePs2BasisLightTestMaterialAssets(assetsRootPath);
+            SceneEntityIdAllocator.Reset();
             SceneAsset sceneAsset = new SceneAsset {
                 Id = Ps2BasisLightTestSceneId,
                 AssetReferences = CreatePs2BasisLightTestAssetReferences(),
@@ -295,6 +302,7 @@ namespace helengine.demo_disc_scene_writer {
             }
 
             Directory.CreateDirectory(sceneDirectoryPath);
+            SceneEntityIdAllocator.Reset();
             SceneAsset sceneAsset = new SceneAsset {
                 Id = PointShadowSceneId,
                 AssetReferences = CreatePointShadowAssetReferences(),
@@ -317,6 +325,7 @@ namespace helengine.demo_disc_scene_writer {
             }
 
             Directory.CreateDirectory(sceneDirectoryPath);
+            SceneEntityIdAllocator.Reset();
             SceneAsset sceneAsset = new SceneAsset {
                 Id = PointShadowLabSceneId,
                 AssetReferences = CreatePointShadowAssetReferences(),
@@ -339,6 +348,7 @@ namespace helengine.demo_disc_scene_writer {
             }
 
             Directory.CreateDirectory(sceneDirectoryPath);
+            SceneEntityIdAllocator.Reset();
             SceneAsset sceneAsset = new SceneAsset {
                 Id = SpotShadowLabSceneId,
                 AssetReferences = CreatePointShadowAssetReferences(),
@@ -361,6 +371,7 @@ namespace helengine.demo_disc_scene_writer {
             }
 
             Directory.CreateDirectory(sceneDirectoryPath);
+            SceneEntityIdAllocator.Reset();
             SceneAsset sceneAsset = new SceneAsset {
                 Id = DirectionalShadowLabSceneId,
                 AssetReferences = CreatePointShadowAssetReferences(),
@@ -985,7 +996,7 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Serialized camera entity with the known-good rendering-scene payload contract.</returns>
         SceneEntityAsset CreatePs2BasisLightTestCameraEntity() {
             return new SceneEntityAsset {
-                Id = "ps2-basis-light-test-camera",
+                Id = AllocateSceneEntityId(),
                 Name = "Ps2BasisLightTestCamera",
                 LocalPosition = new float3(0f, 0f, 9f),
                 LocalScale = float3.One,
@@ -1012,7 +1023,7 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Serialized camera entity.</returns>
         SceneEntityAsset CreateCameraEntity(string id, string name, float3 localPosition, float4 localOrientation) {
             return new SceneEntityAsset {
-                Id = id,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
@@ -1075,7 +1086,7 @@ namespace helengine.demo_disc_scene_writer {
             SceneAssetReference modelReference,
             SceneAssetReference materialReference) {
             return new SceneEntityAsset {
-                Id = id,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = localPosition,
                 LocalScale = localScale,
@@ -1102,7 +1113,7 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Serialized point-light entity.</returns>
         SceneEntityAsset CreatePointLightEntity(string id, string name, float3 localPosition, float range, float intensity) {
             return new SceneEntityAsset {
-                Id = id,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
@@ -1140,7 +1151,7 @@ namespace helengine.demo_disc_scene_writer {
             float outerConeAngleDegrees,
             float intensity) {
             return new SceneEntityAsset {
-                Id = id,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
@@ -1174,7 +1185,7 @@ namespace helengine.demo_disc_scene_writer {
             float intensity,
             float shadowDistance) {
             return new SceneEntityAsset {
-                Id = id,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
@@ -1533,6 +1544,14 @@ namespace helengine.demo_disc_scene_writer {
             writer.WriteString(reference.RelativePath);
             writer.WriteString(reference.ProviderId);
             writer.WriteString(reference.AssetId);
+        }
+
+        /// <summary>
+        /// Allocates the next scene-local entity id for the rendering scene currently being built.
+        /// </summary>
+        /// <returns>Next non-zero scene-local entity id.</returns>
+        uint AllocateSceneEntityId() {
+            return SceneEntityIdAllocator.Allocate();
         }
     }
 }

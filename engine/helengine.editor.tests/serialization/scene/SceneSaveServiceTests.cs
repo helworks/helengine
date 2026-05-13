@@ -98,7 +98,7 @@ namespace helengine.editor.tests.serialization.scene {
                 reference.SourceKind == materialReference.SourceKind &&
                 reference.RelativePath == materialReference.RelativePath);
             Assert.Single(asset.RootEntities);
-            Assert.False(string.IsNullOrWhiteSpace(asset.RootEntities[0].Id));
+            Assert.NotEqual(0u, asset.RootEntities[0].Id);
             Assert.Equal("Root", asset.RootEntities[0].Name);
             Assert.Single(asset.RootEntities[0].Children);
             Assert.Equal("Child", asset.RootEntities[0].Children[0].Name);
@@ -193,6 +193,55 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.True(loadedSaveState.TryGetAssetReference("Material", out SceneAssetReference loadedMaterialReference));
             Assert.Equal(EngineGeneratedAssetProvider.CubeRelativePath, loadedModelReference.RelativePath);
             Assert.Equal(EngineGeneratedAssetProvider.StandardMaterialRelativePath, loadedMaterialReference.RelativePath);
+        }
+
+        /// <summary>
+        /// Ensures scene save can infer one file-backed model reference from the live runtime model id without requiring user-authored save metadata.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenMeshUsesFileSystemModelWithoutStoredReference_InfersReferenceDuringSave() {
+            string modelRelativePath = Path.Combine("Models", "Arrow.obj");
+            string modelSourcePath = Path.Combine(TempProjectRootPath, "assets", modelRelativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(modelSourcePath));
+            File.WriteAllText(modelSourcePath, "# test");
+
+            ModelAssetImportSettings importSettings = new ModelAssetImportSettings();
+            importSettings.Importer.ImporterId = "obj";
+            importSettings.Importer.SourceChecksum = "checksum";
+            importSettings.Importer.AssetId = "imported-arrow-model";
+            using (FileStream stream = File.Create(modelSourcePath + ".hasset")) {
+                ModelAssetImportSettingsBinarySerializer.Serialize(stream, importSettings);
+            }
+
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new MeshComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FileSystemModelInference.helen");
+
+            EditorEntity root = CreateUserEntity("Arrow", float3.Zero, float3.One, float4.Identity);
+            TestRuntimeModel runtimeModel = new TestRuntimeModel();
+            runtimeModel.SetId(importSettings.Importer.AssetId);
+            MeshComponent meshComponent = new MeshComponent {
+                Model = runtimeModel,
+                Material = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId),
+                RenderOrder3D = 3
+            };
+            root.AddComponent(meshComponent);
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem &&
+                reference.RelativePath == "Models/Arrow.obj");
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.SourceKind == SceneAssetReferenceSourceKind.Generated &&
+                reference.RelativePath == EngineGeneratedAssetProvider.StandardMaterialRelativePath &&
+                reference.AssetId == EngineGeneratedMaterialCache.StandardAssetId);
         }
 
         /// <summary>
@@ -804,13 +853,10 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="orientation">Local orientation assigned to the entity.</param>
         /// <returns>Configured editor entity.</returns>
         EditorEntity CreateUserEntity(string name, float3 position, float3 scale, float4 orientation) {
-            EditorEntity entity = new EditorEntity {
-                Name = name,
-                LayerMask = EditorLayerMasks.SceneObjects,
-                LocalPosition = position,
-                LocalScale = scale,
-                LocalOrientation = orientation
-            };
+            EditorEntity entity = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create(name));
+            entity.LocalPosition = position;
+            entity.LocalScale = scale;
+            entity.LocalOrientation = orientation;
             return entity;
         }
 

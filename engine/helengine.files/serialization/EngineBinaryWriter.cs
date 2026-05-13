@@ -183,11 +183,11 @@ namespace helengine.files {
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(reference.EntityId)) {
-                throw new InvalidOperationException("Scene entity references must define an entity id.");
+            if (reference.EntityId == 0u) {
+                throw new InvalidOperationException("Scene entity references must define a non-zero entity id.");
             }
 
-            WriteString(reference.EntityId);
+            WriteUInt32(reference.EntityId);
         }
 
         /// <summary>

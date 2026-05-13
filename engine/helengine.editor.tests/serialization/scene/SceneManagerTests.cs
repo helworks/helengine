@@ -54,7 +54,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void LoadScene_whenModeIsSingle_tracksSceneAndRaisesLifecycleEvents() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", "root-bootstrap");
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
             Core core = CreateCore(CreateSceneCatalog(
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
             List<string> raisedEvents = new List<string>();
@@ -89,8 +89,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void LoadScene_whenModeIsAdditive_preservesPreviouslyLoadedScenes() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", "root-bootstrap");
-            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", "root-playable");
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 1u);
             Core core = CreateCore(CreateSceneCatalog(
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
@@ -110,11 +110,11 @@ namespace helengine.editor.tests.serialization.scene {
         public void LoadScene_whenModeIsSingleAfterPreviousSceneWasLoaded_disposesPreviousSceneEntities() {
             WriteSceneAsset(
                 "cooked/scenes/Bootstrap.hasset",
-                "root-bootstrap",
+                1u,
                 CreateCameraComponentRecord(0));
             WriteSceneAsset(
                 "cooked/scenes/TestPlayableScene.hasset",
-                "root-playable",
+                1u,
                 CreateCameraComponentRecord(1));
             Core core = CreateCore(CreateSceneCatalog(
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
@@ -148,11 +148,11 @@ namespace helengine.editor.tests.serialization.scene {
         public void LoadScene_whenModeIsSingleAndUntrackedStartupRootsExist_disposesTheUntrackedRoots() {
             WriteSceneAsset(
                 "cooked/scenes/Bootstrap.hasset",
-                "root-bootstrap",
+                1u,
                 CreateCameraComponentRecord(0));
             WriteSceneAsset(
                 "cooked/scenes/TestPlayableScene.hasset",
-                "root-playable",
+                1u,
                 CreateCameraComponentRecord(1));
             Core core = CreateCore(CreateSceneCatalog(
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
@@ -185,8 +185,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void LoadScene_whenRequestedDuringUpdate_defersSceneDisposalUntilAfterTheUpdateMethodReturns() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", "root-bootstrap");
-            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", "root-playable");
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 1u);
             Core core = CreateCore(CreateSceneCatalog(
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
@@ -212,7 +212,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void UnloadScene_whenSceneIsTracked_raisesUnloadEventsWithRootEntitiesAndRemovesTheRecord() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", "root-bootstrap");
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
             Core core = CreateCore(CreateSceneCatalog(
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
             List<string> raisedEvents = new List<string>();
@@ -240,7 +240,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <param name="relativePath">Content-relative packaged scene path.</param>
         /// <param name="rootEntityId">Stable root entity identifier to persist.</param>
-        void WriteSceneAsset(string relativePath, string rootEntityId, params SceneComponentAssetRecord[] components) {
+        void WriteSceneAsset(string relativePath, uint rootEntityId, params SceneComponentAssetRecord[] components) {
             string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
             SceneAsset sceneAsset = new SceneAsset {
@@ -248,7 +248,7 @@ namespace helengine.editor.tests.serialization.scene {
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = rootEntityId,
-                        Name = rootEntityId,
+                        Name = "Entity" + rootEntityId.ToString(),
                         Components = components ?? Array.Empty<SceneComponentAssetRecord>(),
                         Children = Array.Empty<SceneEntityAsset>()
                     }

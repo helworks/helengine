@@ -37,7 +37,7 @@ public sealed class EditorPhysics3DCodegenFeatureSymbolServiceTests : IDisposabl
                 Id = "Scenes/PhysicsScene.helen",
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "ground",
+                        Id = 1u,
                         Name = "Ground",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -49,7 +49,7 @@ public sealed class EditorPhysics3DCodegenFeatureSymbolServiceTests : IDisposabl
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "dynamic-box",
+                        Id = 2u,
                         Name = "DynamicBox",
                         LocalPosition = new float3(0f, 2f, 0f),
                         LocalScale = float3.One,
@@ -61,7 +61,7 @@ public sealed class EditorPhysics3DCodegenFeatureSymbolServiceTests : IDisposabl
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "trigger",
+                        Id = 3u,
                         Name = "Trigger",
                         LocalPosition = new float3(0f, 1f, 2f),
                         LocalScale = float3.One,

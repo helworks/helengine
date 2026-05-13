@@ -81,10 +81,7 @@ namespace helengine.editor.tests.serialization.scene {
             string scenePath = SaveSceneAsset("BrokenMaterialization.helen", "Transient Root", modelReference, materialReference);
             ComponentPersistenceRegistry registry = CreatePersistenceRegistry();
             SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, registry, new TestSceneAssetReferenceResolver());
-            EditorEntity existing = new EditorEntity {
-                Name = "Existing",
-                LayerMask = EditorLayerMasks.SceneObjects
-            };
+            EditorEntity existing = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create("Existing"));
 
             Assert.Throws<InvalidOperationException>(() => loadService.Load(scenePath));
 
@@ -197,10 +194,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="sceneSettings">Scene-level settings that should be persisted.</param>
         /// <returns>Absolute path to the written `.helen` file.</returns>
         string SaveSceneAsset(string fileName, string entityName, SceneAssetReference modelReference, SceneAssetReference materialReference, SceneSettingsAsset sceneSettings) {
-            EditorEntity root = new EditorEntity {
-                Name = entityName,
-                LayerMask = EditorLayerMasks.SceneObjects
-            };
+            EditorEntity root = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create(entityName));
             MeshComponent meshComponent = new MeshComponent {
                 Model = new TestRuntimeModel(),
                 Material = new TestRuntimeMaterial()

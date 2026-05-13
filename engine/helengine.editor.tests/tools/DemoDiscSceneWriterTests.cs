@@ -168,7 +168,7 @@ namespace helengine.editor.tests.tools {
             SceneAsset sceneAsset = ReadGeneratedSceneAsset();
             SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
             SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
-            SceneEntityAsset panelEntity = Assert.Single(generatedRoot.Children, entity => string.Equals(entity.Id, "panel-main", StringComparison.Ordinal));
+            SceneEntityAsset panelEntity = Assert.Single(generatedRoot.Children, entity => string.Equals(entity.Name, "Panel-main", StringComparison.Ordinal));
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             string viewportTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(ViewportComponent));
             string anchorTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(AnchorComponent));
@@ -364,7 +364,7 @@ namespace helengine.editor.tests.tools {
             SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
             SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
 
-            Assert.DoesNotContain(generatedRoot.Children, child => string.Equals(child.Id, "demo-disc-menu-accent", StringComparison.Ordinal));
+            Assert.DoesNotContain(generatedRoot.Children, child => string.Equals(child.Name, "demo-disc-menu-accent", StringComparison.Ordinal));
         }
 
         /// <summary>
@@ -383,7 +383,7 @@ namespace helengine.editor.tests.tools {
             foreach (SceneEntityAsset panelEntity in generatedRoot.Children.Where(child => child.Name.StartsWith("Panel-", StringComparison.Ordinal))) {
                 Assert.DoesNotContain(
                     panelEntity.Children,
-                    child => child.Id.Contains("-description", StringComparison.Ordinal) && !child.Id.StartsWith("selected-description-", StringComparison.Ordinal));
+                    child => child.Name.Contains("-description", StringComparison.Ordinal) && !child.Name.StartsWith("SelectedDescription-", StringComparison.Ordinal));
             }
         }
 
@@ -401,8 +401,8 @@ namespace helengine.editor.tests.tools {
             SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
 
             foreach (SceneEntityAsset panelEntity in generatedRoot.Children.Where(child => child.Name.StartsWith("Panel-", StringComparison.Ordinal))) {
-                Assert.DoesNotContain(panelEntity.Children, child => child.Id.EndsWith("-accent", StringComparison.Ordinal));
-                Assert.Contains(panelEntity.Children, child => child.Id.StartsWith("selected-description-", StringComparison.Ordinal));
+                Assert.DoesNotContain(panelEntity.Children, child => child.Name.EndsWith("-accent", StringComparison.Ordinal));
+                Assert.Contains(panelEntity.Children, child => child.Name.StartsWith("SelectedDescription-", StringComparison.Ordinal));
             }
         }
 
@@ -420,7 +420,7 @@ namespace helengine.editor.tests.tools {
             SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
 
             foreach (SceneEntityAsset panelEntity in generatedRoot.Children.Where(child => child.Name.StartsWith("Panel-", StringComparison.Ordinal))) {
-                Assert.Single(panelEntity.Children.Where(child => child.Id.StartsWith("selected-description-", StringComparison.Ordinal)));
+                Assert.Single(panelEntity.Children.Where(child => child.Name.StartsWith("SelectedDescription-", StringComparison.Ordinal)));
             }
         }
 
@@ -436,13 +436,13 @@ namespace helengine.editor.tests.tools {
             SceneAsset sceneAsset = ReadGeneratedSceneAsset();
             SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
             SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
-            SceneEntityAsset sceneSelectPanel = Assert.Single(generatedRoot.Children, child => string.Equals(child.Id, "panel-scene-select", StringComparison.Ordinal));
+            SceneEntityAsset sceneSelectPanel = Assert.Single(generatedRoot.Children, child => string.Equals(child.Name, "Panel-scene-select", StringComparison.Ordinal));
 
-            SceneEntityAsset itemsViewport = Assert.Single(sceneSelectPanel.Children, child => string.Equals(child.Id, "panel-scene-select-items-viewport", StringComparison.Ordinal));
-            SceneEntityAsset itemsRoot = Assert.Single(itemsViewport.Children, child => string.Equals(child.Id, "panel-scene-select-items-root", StringComparison.Ordinal));
+            SceneEntityAsset itemsViewport = Assert.Single(sceneSelectPanel.Children, child => string.Equals(child.Name, "Panel-scene-select-ItemsViewport", StringComparison.Ordinal));
+            SceneEntityAsset itemsRoot = Assert.Single(itemsViewport.Children, child => string.Equals(child.Name, "Panel-scene-select-ItemsRoot", StringComparison.Ordinal));
 
-            Assert.DoesNotContain(sceneSelectPanel.Children, child => child.Id.StartsWith("item-scene-select-", StringComparison.Ordinal));
-            Assert.Contains(itemsRoot.Children, child => child.Id.StartsWith("item-scene-select-", StringComparison.Ordinal));
+            Assert.DoesNotContain(sceneSelectPanel.Children, child => child.Name.StartsWith("Item-", StringComparison.Ordinal));
+            Assert.Contains(itemsRoot.Children, child => child.Name.StartsWith("Item-", StringComparison.Ordinal));
         }
 
         /// <summary>
@@ -457,9 +457,9 @@ namespace helengine.editor.tests.tools {
             SceneAsset sceneAsset = ReadGeneratedSceneAsset();
             SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
             SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
-            SceneEntityAsset sceneSelectPanel = Assert.Single(generatedRoot.Children, child => string.Equals(child.Id, "panel-scene-select", StringComparison.Ordinal));
-            SceneEntityAsset itemsViewport = Assert.Single(sceneSelectPanel.Children, child => string.Equals(child.Id, "panel-scene-select-items-viewport", StringComparison.Ordinal));
-            SceneEntityAsset itemsRoot = Assert.Single(itemsViewport.Children, child => string.Equals(child.Id, "panel-scene-select-items-root", StringComparison.Ordinal));
+            SceneEntityAsset sceneSelectPanel = Assert.Single(generatedRoot.Children, child => string.Equals(child.Name, "Panel-scene-select", StringComparison.Ordinal));
+            SceneEntityAsset itemsViewport = Assert.Single(sceneSelectPanel.Children, child => string.Equals(child.Name, "Panel-scene-select-ItemsViewport", StringComparison.Ordinal));
+            SceneEntityAsset itemsRoot = Assert.Single(itemsViewport.Children, child => string.Equals(child.Name, "Panel-scene-select-ItemsRoot", StringComparison.Ordinal));
 
             string clipTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(ClipRectComponent));
             string scrollTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(ScrollComponent));
@@ -480,9 +480,9 @@ namespace helengine.editor.tests.tools {
             SceneAsset sceneAsset = ReadGeneratedSceneAsset();
             SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
             SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
-            SceneEntityAsset sceneSelectPanel = Assert.Single(generatedRoot.Children, child => string.Equals(child.Id, "panel-scene-select", StringComparison.Ordinal));
-            SceneEntityAsset itemsViewport = Assert.Single(sceneSelectPanel.Children, child => string.Equals(child.Id, "panel-scene-select-items-viewport", StringComparison.Ordinal));
-            SceneEntityAsset itemsRoot = Assert.Single(itemsViewport.Children, child => string.Equals(child.Id, "panel-scene-select-items-root", StringComparison.Ordinal));
+            SceneEntityAsset sceneSelectPanel = Assert.Single(generatedRoot.Children, child => string.Equals(child.Name, "Panel-scene-select", StringComparison.Ordinal));
+            SceneEntityAsset itemsViewport = Assert.Single(sceneSelectPanel.Children, child => string.Equals(child.Name, "Panel-scene-select-ItemsViewport", StringComparison.Ordinal));
+            SceneEntityAsset itemsRoot = Assert.Single(itemsViewport.Children, child => string.Equals(child.Name, "Panel-scene-select-ItemsRoot", StringComparison.Ordinal));
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneComponentAssetRecord clipRecord = Assert.Single(itemsViewport.Components);
             SceneComponentAssetRecord scrollRecord = Assert.Single(itemsRoot.Components);

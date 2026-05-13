@@ -27,6 +27,10 @@ namespace helengine.editor {
         /// Factory used to create authored scene entities for the active editor host.
         /// </summary>
         readonly IEntityFactory EntityFactory;
+        /// <summary>
+        /// Allocator that advances beyond restored numeric scene entity ids during scene load.
+        /// </summary>
+        readonly EditorSceneEntityIdAllocator EntityIdAllocator;
 
         /// <summary>
         /// Initializes a new scene load service.
@@ -39,6 +43,7 @@ namespace helengine.editor {
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
             EntityFactory = ResolveEntityFactory();
+            EntityIdAllocator = ResolveEntityIdAllocator();
         }
 
         /// <summary>
@@ -53,6 +58,20 @@ namespace helengine.editor {
             }
 
             return Core.Instance.EntityFactory;
+        }
+
+        /// <summary>
+        /// Resolves the editor-owned scene entity id allocator from the active editor core.
+        /// </summary>
+        /// <returns>Allocator that owns numeric scene entity ids for the active editor host.</returns>
+        static EditorSceneEntityIdAllocator ResolveEntityIdAllocator() {
+            if (Core.Instance is not EditorCore editorCore) {
+                throw new InvalidOperationException("Scene loading requires EditorCore before resolving the scene entity id allocator.");
+            } else if (editorCore.SceneEntityIdAllocator == null) {
+                throw new InvalidOperationException("Scene loading requires EditorCore.SceneEntityIdAllocator.");
+            }
+
+            return editorCore.SceneEntityIdAllocator;
         }
 
         /// <summary>
@@ -95,15 +114,16 @@ namespace helengine.editor {
             entity.LocalOrientation = entityAsset.LocalOrientation;
 
             EntitySaveComponent saveComponent = FindEntitySaveComponent(entity);
-            if (string.IsNullOrWhiteSpace(entityAsset.Id)) {
-                throw new InvalidOperationException("Serialized scene entities must define a stable id.");
+            if (entityAsset.Id == 0u) {
+                throw new InvalidOperationException("Serialized scene entities must define a non-zero stable id.");
             }
 
-            EntityReferenceTable.RegisterEntity(entity, entityAsset.Id);
+            EntityIdAllocator.RegisterRestored(entityAsset.Id);
             if (saveComponent != null) {
                 saveComponent.EntityId = entityAsset.Id;
                 RestoreEntityTransformPlatformOverrides(entityAsset, saveComponent);
             }
+            EntityReferenceTable.RegisterEntity(entity, entityAsset.Id);
 
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int i = 0; i < componentRecords.Length; i++) {

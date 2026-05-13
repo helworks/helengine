@@ -160,7 +160,7 @@ namespace helengine.editor {
                 TransformEditingService.PersistActivePlatform(entity, saveComponent);
             }
 
-            string entityId = EntityReferenceTable.GetOrCreateEntityId(entity);
+            uint entityId = EntityReferenceTable.GetRequiredEntityId(entity);
             int persistedComponentIndex = 0;
             if (entity.Components != null) {
                 for (int i = 0; i < entity.Components.Count; i++) {

@@ -4,6 +4,19 @@ namespace helengine.editor {
     /// </summary>
     public class EditorEntityFactory : IEntityFactory {
         /// <summary>
+        /// Allocator that issues editor-owned numeric scene entity ids.
+        /// </summary>
+        readonly EditorSceneEntityIdAllocator EntityIdAllocator;
+
+        /// <summary>
+        /// Initializes one editor-authored entity factory.
+        /// </summary>
+        /// <param name="entityIdAllocator">Allocator that issues numeric scene entity ids for authored editor entities.</param>
+        public EditorEntityFactory(EditorSceneEntityIdAllocator entityIdAllocator) {
+            EntityIdAllocator = entityIdAllocator ?? throw new ArgumentNullException(nameof(entityIdAllocator));
+        }
+
+        /// <summary>
         /// Creates one authored root entity.
         /// </summary>
         /// <param name="name">Display name assigned to the created entity.</param>
@@ -20,6 +33,7 @@ namespace helengine.editor {
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity
             };
+            AssignSceneEntityId(entity);
             EnsureUpdateExecutionSuppressionMarker(entity);
             return entity;
         }
@@ -38,6 +52,25 @@ namespace helengine.editor {
             Entity entity = Create(name);
             parent.AddChild(entity);
             return entity;
+        }
+
+        /// <summary>
+        /// Assigns one fresh numeric scene entity id to the hidden save component attached to the supplied editor entity.
+        /// </summary>
+        /// <param name="entity">Editor entity whose hidden save component should receive one fresh id.</param>
+        void AssignSceneEntityId(EditorEntity entity) {
+            if (entity == null || entity.Components == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is EntitySaveComponent saveComponent) {
+                    saveComponent.EntityId = EntityIdAllocator.Allocate();
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException("Editor-authored entities must include EntitySaveComponent.");
         }
 
         /// <summary>

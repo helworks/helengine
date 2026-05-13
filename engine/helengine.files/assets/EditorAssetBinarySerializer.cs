@@ -680,7 +680,7 @@ namespace helengine.files {
         /// <param name="asset">Scene entity asset to serialize.</param>
         static void WriteSceneEntityAsset(EngineBinaryWriter writer, SceneEntityAsset asset) {
             writer.WriteByte(SceneEntityPayloadVersion);
-            writer.WriteString(asset.Id);
+            writer.WriteUInt32(asset.Id);
             writer.WriteString(asset.Name);
             writer.WriteFloat3(asset.LocalPosition);
             writer.WriteFloat3(asset.LocalScale);
@@ -712,7 +712,7 @@ namespace helengine.files {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
-            string id = reader.ReadString();
+            uint id = reader.ReadUInt32();
             string name = reader.ReadString();
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
@@ -749,7 +749,7 @@ namespace helengine.files {
             }
 
             return new SceneEntityAsset {
-                Id = string.Empty,
+                Id = 0u,
                 Name = reader.ReadString(),
                 LocalPosition = reader.ReadFloat3(),
                 LocalScale = reader.ReadFloat3(),

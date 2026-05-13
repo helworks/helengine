@@ -71,7 +71,7 @@ namespace helengine.editor {
         /// <summary>
         /// Stable scene entity id used when the preview panel is bound to one camera.
         /// </summary>
-        string BoundSceneEntityId = string.Empty;
+        uint BoundSceneEntityId;
         /// <summary>
         /// True when the preview panel should ignore later latest-click updates.
         /// </summary>
@@ -233,7 +233,7 @@ namespace helengine.editor {
             IsLockedValue = state.IsLocked;
             BindingKindValue = state.BindingKind;
             BoundAssetRelativePath = state.AssetRelativePath ?? string.Empty;
-            BoundSceneEntityId = state.SceneEntityId ?? string.Empty;
+            BoundSceneEntityId = state.SceneEntityId;
         }
 
         /// <summary>
@@ -295,7 +295,7 @@ namespace helengine.editor {
             SetPreviewSource(previewSource);
             BindingKindValue = PreviewPanelBindingKind.Asset;
             BoundAssetRelativePath = assetEntry.RelativePath ?? string.Empty;
-            BoundSceneEntityId = string.Empty;
+            BoundSceneEntityId = 0u;
             return true;
         }
 
@@ -355,7 +355,7 @@ namespace helengine.editor {
 
             SetPreviewSource(previewSource);
             BoundAssetRelativePath = assetEntry.RelativePath ?? string.Empty;
-            BoundSceneEntityId = string.Empty;
+            BoundSceneEntityId = 0u;
             return true;
         }
 
@@ -400,7 +400,7 @@ namespace helengine.editor {
             ClearPreview();
             BindingKindValue = PreviewPanelBindingKind.None;
             BoundAssetRelativePath = string.Empty;
-            BoundSceneEntityId = string.Empty;
+            BoundSceneEntityId = 0u;
         }
 
         /// <summary>
@@ -414,7 +414,7 @@ namespace helengine.editor {
             ClearPreview();
             BindingKindValue = PreviewPanelBindingKind.None;
             BoundAssetRelativePath = string.Empty;
-            BoundSceneEntityId = string.Empty;
+            BoundSceneEntityId = 0u;
         }
 
         /// <summary>
@@ -869,13 +869,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="selectedEntity">Scene selection whose id should be captured.</param>
         /// <returns>Stable scene entity id when one is available; otherwise an empty string.</returns>
-        string ResolveSceneEntityId(Entity selectedEntity) {
+        uint ResolveSceneEntityId(Entity selectedEntity) {
             EntitySaveComponent saveComponent = FindSaveComponent(selectedEntity);
-            if (saveComponent != null && !string.IsNullOrWhiteSpace(saveComponent.EntityId)) {
+            if (saveComponent != null && saveComponent.EntityId != 0u) {
                 return saveComponent.EntityId;
             }
 
-            return string.Empty;
+            return 0u;
         }
 
         /// <summary>

@@ -166,11 +166,11 @@ namespace helengine {
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(reference.EntityId)) {
-                throw new InvalidOperationException("Scene entity references must define an entity id.");
+            if (reference.EntityId == 0u) {
+                throw new InvalidOperationException("Scene entity references must define a non-zero entity id.");
             }
 
-            writer.WriteString(reference.EntityId);
+            writer.WriteUInt32(reference.EntityId);
         }
 
         /// <summary>
@@ -188,7 +188,7 @@ namespace helengine {
             }
 
             return new SceneEntityReference {
-                EntityId = reader.ReadString()
+                EntityId = reader.ReadUInt32()
             };
         }
     }

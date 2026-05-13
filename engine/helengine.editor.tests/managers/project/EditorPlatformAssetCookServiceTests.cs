@@ -56,7 +56,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             new IAssetImporterRegistration[] {
                 new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" })
             },
-            null);
+            PackagedFontAssetFactory.Create());
         TestPlatformMaterialAssetBuilder builder = new TestPlatformMaterialAssetBuilder();
 
         PlatformBuildManifest manifest = service.Cook(
@@ -94,7 +94,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "game",
             "1.0.0",
             Array.Empty<IAssetImporterRegistration>(),
-            null);
+            PackagedFontAssetFactory.Create());
         TestPlatformMaterialAssetBuilder builder = new TestPlatformMaterialAssetBuilder();
 
         PlatformBuildManifest manifest = service.Cook(
@@ -135,7 +135,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             bootstrap.ProjectName,
             bootstrap.ProjectVersion,
             Array.Empty<IAssetImporterRegistration>(),
-            null);
+            PackagedFontAssetFactory.Create());
 
         PlatformBuildManifest manifest = service.Cook(
             builder.Definition,
@@ -173,7 +173,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             bootstrap.ProjectName,
             bootstrap.ProjectVersion,
             Array.Empty<IAssetImporterRegistration>(),
-            null);
+            PackagedFontAssetFactory.Create());
 
         PlatformBuildManifest manifest = service.Cook(
             builder.Definition,
@@ -255,7 +255,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             AssetReferences = assetReferences ?? Array.Empty<SceneAssetReference>(),
             RootEntities = new[] {
                 new SceneEntityAsset {
-                    Id = "root-entity",
+                    Id = 1u,
                     Name = "Root",
                     LocalPosition = float3.Zero,
                     LocalScale = float3.One,
@@ -315,7 +315,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             Id = sceneId,
             RootEntities = [
                 new SceneEntityAsset {
-                    Id = "mesh-root",
+                    Id = 1u,
                     Name = "MeshRoot",
                     LocalPosition = float3.Zero,
                     LocalScale = float3.One,

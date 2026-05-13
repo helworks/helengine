@@ -1,4 +1,5 @@
 using Xunit;
+using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests {
     /// <summary>
@@ -101,7 +102,7 @@ namespace helengine.editor.tests {
                 },
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         LocalPosition = new float3(1f, 2f, 3f),
                         LocalScale = new float3(2f, 2f, 2f),
@@ -115,7 +116,7 @@ namespace helengine.editor.tests {
                         },
                         Children = new[] {
                             new SceneEntityAsset {
-                                Id = "child-entity",
+                                Id = 2u,
                                 Name = "Child",
                                 LocalPosition = new float3(5f, 6f, 7f),
                                 LocalScale = float3.One,
@@ -141,11 +142,11 @@ namespace helengine.editor.tests {
             Assert.Equal(1920, deserialized.SceneSettings.CanvasProfile.Width);
             Assert.Equal(1080, deserialized.SceneSettings.CanvasProfile.Height);
             Assert.Single(deserialized.RootEntities);
-            Assert.Equal("root-entity", deserialized.RootEntities[0].Id);
+            Assert.Equal(1u, deserialized.RootEntities[0].Id);
             Assert.Equal(new float3(1f, 2f, 3f), deserialized.RootEntities[0].LocalPosition);
             Assert.Equal(new float3(2f, 2f, 2f), deserialized.RootEntities[0].LocalScale);
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, deserialized.RootEntities[0].Components[0].Payload);
-            Assert.Equal("child-entity", deserialized.RootEntities[0].Children[0].Id);
+            Assert.Equal(2u, deserialized.RootEntities[0].Children[0].Id);
             Assert.Equal("Child", deserialized.RootEntities[0].Children[0].Name);
         }
 
@@ -202,18 +203,47 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Verifies the packaged Windows city startup scene still deserializes cleanly in managed code.
+        /// Verifies one packaged scene emitted by the current scene packager still deserializes cleanly in managed code.
         /// </summary>
         [Fact]
-        public void DeserializePackagedCityMainMenuSceneAsset_FromWindowsBuildOutput_Succeeds() {
-            string packagedScenePath = @"C:\dev\helprojs\output\windows\cooked\scenes\DemoDiscMainMenu.hasset";
-            Assert.True(File.Exists(packagedScenePath));
+        public void DeserializePackagedSceneAsset_FromCurrentPackagerOutput_Succeeds() {
+            string sceneId = "Scenes/TestPackagedScene.helen";
+            string scenePath = Path.Combine(TempRootPath, "assets", "Scenes", "TestPackagedScene.helen");
+            string buildRootPath = Path.Combine(TempRootPath, "build");
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
+            Directory.CreateDirectory(buildRootPath);
 
+            SceneAsset authoredScene = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "PackagedRoot",
+                        LocalPosition = new float3(1f, 2f, 3f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+            using (FileStream authoredStream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(authoredStream, authoredScene);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                TempRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                PackagedFontAssetFactory.Create());
+            packager.Package(new[] { sceneId }, buildRootPath);
+
+            string packagedScenePath = Path.Combine(buildRootPath, "cooked", "scenes", "TestPackagedScene.hasset");
             using FileStream stream = File.OpenRead(packagedScenePath);
             SceneAsset scene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
 
-            Assert.NotEmpty(scene.RootEntities);
-            Assert.Contains(scene.RootEntities, entity => entity.Components.Any(component => component.ComponentTypeId == MenuComponent.SerializedComponentTypeId));
+            SceneEntityAsset rootEntity = Assert.Single(scene.RootEntities);
+            Assert.Equal(1u, rootEntity.Id);
+            Assert.Equal("PackagedRoot", rootEntity.Name);
         }
 
         /// <summary>

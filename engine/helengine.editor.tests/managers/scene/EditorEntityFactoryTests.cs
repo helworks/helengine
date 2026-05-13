@@ -59,9 +59,25 @@ namespace helengine.editor.tests.managers.scene {
             Assert.IsType<EditorEntity>(entity);
             Assert.Contains(entity.Components, component => component is EntitySaveComponent);
             Assert.Contains(entity.Components, component => component is EditorUpdateExecutionSuppressionComponent);
+            Assert.True(GetSaveComponent(entity).EntityId > 0u);
             Assert.Equal(float3.Zero, entity.LocalPosition);
             Assert.Equal(float3.One, entity.LocalScale);
             Assert.Equal(float4.Identity, entity.LocalOrientation);
+        }
+
+        /// <summary>
+        /// Ensures authored entity creation assigns unique numeric scene ids immediately.
+        /// </summary>
+        [Fact]
+        public void Create_WhenEditorFactoryCreatesTwoAuthoredEntities_AssignsDistinctNumericSceneIds() {
+            IEntityFactory factory = Core.Instance.EntityFactory;
+
+            Entity first = factory.Create("First");
+            Entity second = factory.Create("Second");
+
+            Assert.True(GetSaveComponent(first).EntityId > 0u);
+            Assert.True(GetSaveComponent(second).EntityId > 0u);
+            Assert.NotEqual(GetSaveComponent(first).EntityId, GetSaveComponent(second).EntityId);
         }
 
         /// <summary>
@@ -69,7 +85,8 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateChild_ParentsChildBeforeReturning() {
-            IEntityFactory factory = new EditorEntityFactory();
+            EditorCore editorCore = Assert.IsType<EditorCore>(Core.Instance);
+            IEntityFactory factory = new EditorEntityFactory(editorCore.SceneEntityIdAllocator);
             EditorEntity parent = Assert.IsType<EditorEntity>(factory.Create("Parent"));
             parent.InitChildren();
 
@@ -78,6 +95,26 @@ namespace helengine.editor.tests.managers.scene {
             Assert.IsType<EditorEntity>(child);
             Assert.Same(parent, child.Parent);
             Assert.Contains(child, parent.Children);
+            Assert.NotEqual(GetSaveComponent(parent).EntityId, GetSaveComponent(child).EntityId);
+        }
+
+        /// <summary>
+        /// Resolves the hidden save component attached to one editor-authored entity.
+        /// </summary>
+        /// <param name="entity">Entity whose hidden save component should be returned.</param>
+        /// <returns>Hidden save component attached to the entity.</returns>
+        EntitySaveComponent GetSaveComponent(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is EntitySaveComponent saveComponent) {
+                    return saveComponent;
+                }
+            }
+
+            throw new InvalidOperationException("Editor-authored entities must include EntitySaveComponent.");
         }
     }
 }

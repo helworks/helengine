@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the stable id assigned to the serialized entity.
         /// </summary>
-        public string Id { get; set; }
+        public uint Id { get; set; }
 
         /// <summary>
         /// Gets or sets the display name shown for the serialized entity.

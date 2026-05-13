@@ -1,5 +1,6 @@
 using helengine.editor.tests.testing;
 using helengine.files;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
@@ -13,17 +14,24 @@ namespace helengine.editor.tests.serialization.scene {
         readonly string TempRootPath;
 
         /// <summary>
+        /// Next numeric scene entity id assigned to manually-authored editor entities in tests that run without an editor core.
+        /// </summary>
+        uint NextEditorEntityId = 1u;
+
+        /// <summary>
         /// Initializes the runtime services required by the scene-load tests.
         /// </summary>
         public RuntimeSceneLoadServiceTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-runtime-scene-load-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
+            EditorCore core = new EditorCore(new Project {
+                Name = "Runtime Scene Load",
+                Path = TempRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             Core.Instance.DefaultFontAsset = CreateFont();
         }
 
@@ -84,7 +92,7 @@ namespace helengine.editor.tests.serialization.scene {
                 SceneAsset sceneAsset = new SceneAsset {
                     RootEntities = new[] {
                         new SceneEntityAsset {
-                            Id = "root-entity",
+                            Id = 1u,
                             Name = "Root"
                         }
                     }
@@ -114,7 +122,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -151,7 +159,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -181,7 +189,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -216,7 +224,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -254,7 +262,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -291,7 +299,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -330,7 +338,7 @@ namespace helengine.editor.tests.serialization.scene {
                 },
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -844,7 +852,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Id = "TestPlayableScene",
                         RootEntities = new[] {
                             new SceneEntityAsset {
-                                Id = "playable-root",
+                                Id = 1u,
                                 Name = "PlayableRoot",
                                 Components = Array.Empty<SceneComponentAssetRecord>(),
                                 Children = Array.Empty<SceneEntityAsset>()
@@ -927,7 +935,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Id = "TestPlayableScene",
                         RootEntities = new[] {
                             new SceneEntityAsset {
-                                Id = "playable-root",
+                                Id = 1u,
                                 Name = "PlayableRoot",
                                 Components = Array.Empty<SceneComponentAssetRecord>(),
                                 Children = Array.Empty<SceneEntityAsset>()
@@ -939,11 +947,14 @@ namespace helengine.editor.tests.serialization.scene {
             TestSceneIdPathResolver scenePathResolver = new TestSceneIdPathResolver(new Dictionary<string, string> {
                 ["TestPlayableScene"] = "Scenes/TestPlayableScene.helen"
             });
-            Core core = new Core(new CoreInitializationOptions {
+            EditorCore core = new EditorCore(new Project {
+                Name = "Runtime Scene Load Editor Resolver",
+                Path = assetsRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = assetsRootPath,
                 ScenePathResolver = scenePathResolver
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             Core.Instance.DefaultFontAsset = CreateFont();
 
             TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
@@ -1054,7 +1065,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "directional-light",
+                        Id = 1u,
                         Name = "DirectionalLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -1065,7 +1076,7 @@ namespace helengine.editor.tests.serialization.scene {
                         }
                     },
                     new SceneEntityAsset {
-                        Id = "ambient-light",
+                        Id = 2u,
                         Name = "AmbientLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -1076,7 +1087,7 @@ namespace helengine.editor.tests.serialization.scene {
                         }
                     },
                     new SceneEntityAsset {
-                        Id = "point-light",
+                        Id = 3u,
                         Name = "PointLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -1087,7 +1098,7 @@ namespace helengine.editor.tests.serialization.scene {
                         }
                     },
                     new SceneEntityAsset {
-                        Id = "spot-light",
+                        Id = 4u,
                         Name = "SpotLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -1169,7 +1180,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "spot-light",
+                        Id = 1u,
                         Name = "SpotLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
@@ -1803,7 +1814,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "root-entity",
+                        Id = 1u,
                         Name = "Root",
                         Components = Array.Empty<SceneComponentAssetRecord>(),
                         Children = Array.Empty<SceneEntityAsset>()
@@ -1821,13 +1832,17 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="name">Display name assigned to the entity.</param>
         /// <returns>Configured editor scene entity.</returns>
         EditorEntity CreateUserEntity(string name) {
-            return new EditorEntity {
+            EditorEntity entity = new EditorEntity {
                 Name = name,
                 LayerMask = EditorLayerMasks.SceneObjects,
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity
             };
+            EntitySaveComponent saveComponent = Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
+            saveComponent.EntityId = NextEditorEntityId;
+            NextEditorEntityId++;
+            return entity;
         }
     }
 }

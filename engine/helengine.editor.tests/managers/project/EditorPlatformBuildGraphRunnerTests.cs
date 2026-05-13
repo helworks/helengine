@@ -3,6 +3,7 @@ using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
 using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Requests;
+using helengine.editor.tests.testing;
 using helengine.platforms;
 using System.Reflection;
 
@@ -498,7 +499,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                 Id = "Scenes/PhysicsScene.helen",
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "ground",
+                        Id = 1u,
                         Name = "Ground",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -510,7 +511,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "box",
+                        Id = 2u,
                         Name = "Box",
                         LocalPosition = new float3(0f, 2f, 0f),
                         LocalScale = float3.One,
@@ -606,7 +607,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                 bootstrap.ProjectVersion,
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDescriptor,
-                null,
+                PackagedFontAssetFactory.Create(),
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService());
 

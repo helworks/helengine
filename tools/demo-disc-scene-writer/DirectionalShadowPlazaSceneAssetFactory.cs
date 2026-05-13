@@ -72,6 +72,11 @@ namespace helengine.demo_disc_scene_writer {
         readonly FPSComponentPersistenceDescriptor FpsDescriptor;
 
         /// <summary>
+        /// Allocates numeric entity ids while one authored showcase scene asset is being built.
+        /// </summary>
+        readonly SceneEntityAssetIdAllocator SceneEntityIdAllocator;
+
+        /// <summary>
         /// Initializes the directional-shadow plaza scene factory with the persistence descriptors required for authored output.
         /// </summary>
         public DirectionalShadowPlazaSceneAssetFactory() {
@@ -80,6 +85,7 @@ namespace helengine.demo_disc_scene_writer {
             PlaceholderModel = new AuthoringPlaceholderRuntimeModel();
             PlaceholderMaterial = new RuntimeMaterial();
             FpsDescriptor = new FPSComponentPersistenceDescriptor();
+            SceneEntityIdAllocator = new SceneEntityAssetIdAllocator();
         }
 
         /// <summary>
@@ -100,6 +106,8 @@ namespace helengine.demo_disc_scene_writer {
             } else if (standardMaterialReference == null) {
                 throw new ArgumentNullException(nameof(standardMaterialReference));
             }
+
+            SceneEntityIdAllocator.Reset();
 
             return new SceneAsset {
                 Id = SceneId,
@@ -131,7 +139,7 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Serialized camera entity.</returns>
         SceneEntityAsset CreateCameraEntity() {
             return new SceneEntityAsset {
-                Id = "directional-shadow-plaza-camera",
+                Id = AllocateSceneEntityId(),
                 Name = "DirectionalShadowPlazaCamera",
                 LocalPosition = new float3(0f, 10f, -26f),
                 LocalScale = float3.One,
@@ -153,7 +161,7 @@ namespace helengine.demo_disc_scene_writer {
             float4 orientation;
             float4.CreateFromYawPitchRoll(0f, -0.95f, 0f, out orientation);
             return new SceneEntityAsset {
-                Id = "directional-shadow-plaza-sun",
+                Id = AllocateSceneEntityId(),
                 Name = "DirectionalShadowPlazaSun",
                 LocalPosition = new float3(0f, 18f, 0f),
                 LocalScale = float3.One,
@@ -188,7 +196,7 @@ namespace helengine.demo_disc_scene_writer {
             SceneAssetReference modelReference,
             SceneAssetReference materialReference) {
             return new SceneEntityAsset {
-                Id = id,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = localPosition,
                 LocalScale = localScale,
@@ -209,7 +217,7 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Serialized orbiting hero entity.</returns>
         SceneEntityAsset CreateOrbitHeroEntity(SceneAssetReference modelReference, SceneAssetReference materialReference) {
             return new SceneEntityAsset {
-                Id = "directional-shadow-plaza-hero",
+                Id = AllocateSceneEntityId(),
                 Name = "DirectionalShadowPlazaHero",
                 LocalPosition = new float3(0f, 3f, 12f),
                 LocalScale = new float3(3f, 6f, 3f),
@@ -230,7 +238,7 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Serialized ground entity.</returns>
         SceneEntityAsset CreateGroundEntity(SceneAssetReference modelReference, SceneAssetReference materialReference) {
             return new SceneEntityAsset {
-                Id = "directional-shadow-plaza-ground",
+                Id = AllocateSceneEntityId(),
                 Name = "DirectionalShadowPlazaGround",
                 LocalPosition = new float3(0f, -0.5f, 0f),
                 LocalScale = new float3(42f, 1f, 42f),
@@ -260,7 +268,7 @@ namespace helengine.demo_disc_scene_writer {
             SceneAssetReference modelReference,
             SceneAssetReference materialReference) {
             return new SceneEntityAsset {
-                Id = id,
+                Id = AllocateSceneEntityId(),
                 Name = name,
                 LocalPosition = localPosition,
                 LocalScale = localScale,
@@ -410,6 +418,14 @@ namespace helengine.demo_disc_scene_writer {
                 ShadowDistance = shadowDistance
             };
             return DirectionalLightDescriptor.SerializeComponent(lightComponent, 0, null).Payload;
+        }
+
+        /// <summary>
+        /// Allocates the next scene-local entity id for the showcase scene currently being built.
+        /// </summary>
+        /// <returns>Next non-zero scene-local entity id.</returns>
+        uint AllocateSceneEntityId() {
+            return SceneEntityIdAllocator.Allocate();
         }
     }
 }

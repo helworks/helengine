@@ -67,8 +67,9 @@ namespace helengine.editor.tests {
                 Name = "Target",
                 LayerMask = EditorLayerMasks.SceneObjects
             };
+            FindSaveComponent(entity).EntityId = 11u;
             SceneEntityReferenceTable referenceTable = new SceneEntityReferenceTable();
-            string entityId = referenceTable.GetOrCreateEntityId(entity);
+            uint entityId = referenceTable.GetRequiredEntityId(entity);
 
             using MemoryStream stream = new MemoryStream();
             using (BinaryWriterLE writer = new BinaryWriterLE(stream)) {
@@ -82,6 +83,25 @@ namespace helengine.editor.tests {
 
             Assert.Equal(entityId, reference.EntityId);
             Assert.Same(entity, referenceTable.Resolve(entityId));
+        }
+
+        /// <summary>
+        /// Resolves the hidden save component attached to one editor entity.
+        /// </summary>
+        /// <param name="entity">Entity whose hidden save component should be returned.</param>
+        /// <returns>Attached hidden save component.</returns>
+        static EntitySaveComponent FindSaveComponent(EditorEntity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is EntitySaveComponent saveComponent) {
+                    return saveComponent;
+                }
+            }
+
+            throw new InvalidOperationException("Editor entities must include EntitySaveComponent.");
         }
     }
 }
