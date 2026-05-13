@@ -48,6 +48,62 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the regenerated cube-test scene still contains the expected authored camera, sun, and cube roots.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityCubeTestSceneAsset_ContainsCameraSunAndCubeRoots() {
+            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
+
+            Assert.NotNull(FindEntityByName(sceneAsset.RootEntities, "CubeTestCamera"));
+            Assert.NotNull(FindEntityByName(sceneAsset.RootEntities, "CubeTestSun"));
+            Assert.NotNull(FindEntityByName(sceneAsset.RootEntities, "CubeTestCube"));
+        }
+
+        /// <summary>
+        /// Ensures the regenerated cube-test cube still carries one mesh component and one authored motion component record.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityCubeTestSceneAsset_CubeRootContainsMeshAndMotionComponent() {
+            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
+            SceneEntityAsset cubeEntity = FindEntityByName(sceneAsset.RootEntities, "CubeTestCube");
+
+            Assert.NotNull(cubeEntity);
+            Assert.Equal(2, (cubeEntity.Components ?? Array.Empty<SceneComponentAssetRecord>()).Length);
+        }
+
+        /// <summary>
+        /// Ensures the regenerated cube-test cube stores the reusable gameplay axis-rotation component type.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityCubeTestSceneAsset_CubeRootContainsAxisRotationComponent() {
+            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
+
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.AxisRotationComponent, gameplay"));
+        }
+
+        /// <summary>
+        /// Ensures the regenerated cube-test scene no longer stores the stale directional-shadow tower-spin component type.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityCubeTestSceneAsset_DoesNotContainDirectionalShadowTowerSpinComponent() {
+            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
+
+            Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay"));
+            Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "city.rendering.DirectionalShadowTowerSpinComponent, gameplay"));
+            Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "helengine.DirectionalShadowTowerSpinComponent"));
+        }
+
+        /// <summary>
+        /// Ensures the authored cube-test scene remains deserializable after regeneration through the live-authoring save path.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityCubeTestSceneAsset_RemainsReadableAfterLiveAuthoringSavePath() {
+            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
+
+            Assert.Equal("scenes/rendering/cube_test.helen", sceneAsset.Id);
+        }
+
+        /// <summary>
         /// Ensures the authored colored cube-grid scene stores identity orientation for each generated showcase cube.
         /// </summary>
         [Fact]
