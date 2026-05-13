@@ -96,7 +96,9 @@ namespace helengine.editor.tests {
 
             Assert.DoesNotContain("new EditorEntity {", source, StringComparison.Ordinal);
             Assert.DoesNotContain("new EditorEntity(", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("new EditorEntityFactory()", source, StringComparison.Ordinal);
             Assert.DoesNotContain("SuppressUpdateComponentExecutionInEditor", source, StringComparison.Ordinal);
+            Assert.Contains("Core.Instance.EntityFactory", source, StringComparison.Ordinal);
             Assert.Contains("IEntityFactory", source, StringComparison.Ordinal);
             Assert.Contains("EntityFactory.Create(", source, StringComparison.Ordinal);
         }

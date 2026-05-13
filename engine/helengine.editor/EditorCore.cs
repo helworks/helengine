@@ -35,6 +35,14 @@ namespace helengine {
             EditorObjectManager = new ObjectManager(InitializationOptions);
         }
 
+        /// <summary>
+        /// Creates the authored entity factory exposed by editor hosts.
+        /// </summary>
+        /// <returns>Editor-authored entity factory.</returns>
+        protected override IEntityFactory CreateEntityFactory() {
+            return new global::helengine.editor.EditorEntityFactory();
+        }
+
         /// <inheritdoc />
         public override void Update() {
             ComponentExecutionContext.EnterEditor();

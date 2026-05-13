@@ -13,10 +13,11 @@ namespace helengine {
                 throw new ArgumentException("Entity name must be provided.", nameof(name));
             }
 
-            Entity entity = new Entity();
-            entity.LocalPosition = float3.Zero;
-            entity.LocalScale = float3.One;
-            entity.LocalOrientation = float4.Identity;
+            Entity entity = new Entity {
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity
+            };
             return entity;
         }
 

@@ -1,5 +1,6 @@
 using helengine.editor;
 using helengine.editor.tests.testing;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
@@ -19,10 +20,13 @@ namespace helengine.editor.tests.serialization.scene {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-file-load-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
 
-            Core core = new Core(new CoreInitializationOptions {
+            EditorCore core = new EditorCore(new Project {
+                Name = "Scene File Load",
+                Path = TempProjectRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

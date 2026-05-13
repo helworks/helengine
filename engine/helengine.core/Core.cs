@@ -98,6 +98,11 @@ namespace helengine {
         public ObjectManager ObjectManager { get; private set; }
 
         /// <summary>
+        /// Gets the host-owned authored entity factory exposed to scene-authoring consumers.
+        /// </summary>
+        public IEntityFactory EntityFactory { get; private set; }
+
+        /// <summary>
         /// Gets the 3D render manager.
         /// </summary>
         public RenderManager3D RenderManager3D { get; private set; }
@@ -241,6 +246,11 @@ namespace helengine {
             PhysicsSchedulerValue = CreatePhysicsScheduler(options);
 
             ObjectManager = new ObjectManager(options);
+            EntityFactory = CreateEntityFactory();
+            if (EntityFactory == null) {
+                throw new InvalidOperationException("Core entity factory creation must return one factory instance.");
+            }
+
             ContentManager contentManager = GetContentManager();
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(
@@ -250,6 +260,14 @@ namespace helengine {
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
             SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
             SceneManager = CreateSceneManager(contentManager, InitializationOptions.SceneCatalog);
+        }
+
+        /// <summary>
+        /// Creates the authored entity factory that should be exposed by the active host core.
+        /// </summary>
+        /// <returns>Host-owned authored entity factory.</returns>
+        protected virtual IEntityFactory CreateEntityFactory() {
+            return new RuntimeEntityFactory();
         }
 
         /// <summary>

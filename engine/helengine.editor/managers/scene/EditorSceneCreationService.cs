@@ -22,7 +22,7 @@ namespace helengine.editor {
         /// Initializes one editor scene creation service.
         /// </summary>
         public EditorSceneCreationService()
-            : this(new EditorEntityFactory()) {
+            : this(ResolveEntityFactory()) {
         }
 
         /// <summary>
@@ -31,6 +31,20 @@ namespace helengine.editor {
         /// <param name="entityFactory">Factory used to create authored scene entities for the active editor host.</param>
         public EditorSceneCreationService(IEntityFactory entityFactory) {
             EntityFactory = entityFactory ?? throw new ArgumentNullException(nameof(entityFactory));
+        }
+
+        /// <summary>
+        /// Resolves the host-owned authored entity factory from the active core instance.
+        /// </summary>
+        /// <returns>Host-owned authored entity factory.</returns>
+        static IEntityFactory ResolveEntityFactory() {
+            if (Core.Instance == null) {
+                throw new InvalidOperationException("Editor scene creation requires Core.Instance before resolving EntityFactory.");
+            } else if (Core.Instance.EntityFactory == null) {
+                throw new InvalidOperationException("Editor scene creation requires Core.Instance.EntityFactory.");
+            }
+
+            return Core.Instance.EntityFactory;
         }
 
         /// <summary>

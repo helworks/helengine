@@ -1,4 +1,5 @@
 using helengine.editor.tests.testing;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests.managers.scene {
@@ -18,10 +19,13 @@ namespace helengine.editor.tests.managers.scene {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-entity-factory-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
+            EditorCore core = new EditorCore(new Project {
+                Name = "Editor Entity Factory",
+                Path = TempRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
@@ -34,11 +38,21 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
+        /// Ensures initialized editor cores expose the editor-authored entity factory through the core surface.
+        /// </summary>
+        [Fact]
+        public void Initialize_PopulatesEntityFactoryWithEditorFactory() {
+            Assert.NotNull(Core.Instance);
+            Assert.NotNull(Core.Instance.EntityFactory);
+            Assert.IsType<EditorEntityFactory>(Core.Instance.EntityFactory);
+        }
+
+        /// <summary>
         /// Ensures editor factory creation returns an editor entity with the hidden authored-scene metadata.
         /// </summary>
         [Fact]
         public void Create_ReturnsEditorEntityWithHiddenAuthoringComponents() {
-            IEntityFactory factory = new EditorEntityFactory();
+            IEntityFactory factory = Core.Instance.EntityFactory;
 
             Entity entity = factory.Create("Authored");
 

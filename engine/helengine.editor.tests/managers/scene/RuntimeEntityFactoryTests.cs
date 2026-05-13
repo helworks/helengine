@@ -34,11 +34,21 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
+        /// Ensures initialized runtime cores expose the runtime-authored entity factory through the core surface.
+        /// </summary>
+        [Fact]
+        public void Initialize_PopulatesEntityFactoryWithRuntimeFactory() {
+            Assert.NotNull(Core.Instance);
+            Assert.NotNull(Core.Instance.EntityFactory);
+            Assert.IsType<RuntimeEntityFactory>(Core.Instance.EntityFactory);
+        }
+
+        /// <summary>
         /// Ensures runtime factory creation returns a plain entity with authored defaults.
         /// </summary>
         [Fact]
         public void Create_ReturnsPlainEntityWithAuthoredDefaults() {
-            IEntityFactory factory = new RuntimeEntityFactory();
+            IEntityFactory factory = Core.Instance.EntityFactory;
 
             Entity entity = factory.Create("Player");
 

@@ -38,7 +38,21 @@ namespace helengine.editor {
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
-            EntityFactory = new EditorEntityFactory();
+            EntityFactory = ResolveEntityFactory();
+        }
+
+        /// <summary>
+        /// Resolves the host-owned authored entity factory from the active core instance.
+        /// </summary>
+        /// <returns>Host-owned authored entity factory.</returns>
+        static IEntityFactory ResolveEntityFactory() {
+            if (Core.Instance == null) {
+                throw new InvalidOperationException("Scene loading requires Core.Instance before resolving EntityFactory.");
+            } else if (Core.Instance.EntityFactory == null) {
+                throw new InvalidOperationException("Scene loading requires Core.Instance.EntityFactory.");
+            }
+
+            return Core.Instance.EntityFactory;
         }
 
         /// <summary>

@@ -1,5 +1,6 @@
 using System.Reflection;
 using helengine.editor.tests.testing;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests.managers.scene {
@@ -19,10 +20,13 @@ namespace helengine.editor.tests.managers.scene {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-creation-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
 
-            Core core = new Core(new CoreInitializationOptions {
+            EditorCore core = new EditorCore(new Project {
+                Name = "Scene Creation",
+                Path = TempProjectRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();
@@ -44,6 +48,34 @@ namespace helengine.editor.tests.managers.scene {
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
+        }
+
+        /// <summary>
+        /// Ensures Add > Empty resolves the host-owned editor entity factory from the active core.
+        /// </summary>
+        [Fact]
+        public void CreateEmpty_UsesCoreOwnedEditorEntityFactory() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+
+            EditorEntity entity = service.CreateEmpty();
+
+            Assert.NotNull(Core.Instance);
+            Assert.IsType<EditorEntityFactory>(Core.Instance.EntityFactory);
+            Assert.NotNull(entity);
+        }
+
+        /// <summary>
+        /// Ensures Add > Empty fails fast when the active core does not expose an authored entity factory.
+        /// </summary>
+        [Fact]
+        public void CreateEmpty_WhenCoreEntityFactoryIsUnavailable_Throws() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempProjectRootPath
+            });
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new EditorSceneCreationService());
+
+            Assert.Contains("EntityFactory", exception.Message, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -458,5 +490,6 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Equal(EditorLayerMasks.SceneObjects, deserializedCamera.LayerMask);
             Assert.True(deserializedCamera.ClearSettings.ClearColorEnabled);
         }
+
     }
 }
