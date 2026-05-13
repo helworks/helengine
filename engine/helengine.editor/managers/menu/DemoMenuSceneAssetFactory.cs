@@ -8,6 +8,11 @@ namespace helengine.editor {
         /// </summary>
         const byte RuntimeLayerMask = 0b00000001;
 
+        /// <summary>
+        /// Serialized type id used by the top-right platform info overlay binder component baked into the menu scene.
+        /// </summary>
+        const string PlatformInfoTextComponentTypeId = "city.menu.PlatformInfoTextComponent, gameplay";
+
         /// Descriptor used to serialize baked demo menu root metadata.
         /// </summary>
         readonly MenuComponentPersistenceDescriptor DemoMenuBuildDescriptor;
@@ -230,6 +235,9 @@ namespace helengine.editor {
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
             if (definition.OverlayImage != null) {
                 children.Add(BuildOverlayImageEntityAsset(definition.OverlayImage));
+            }
+            if (definition.PlatformInfoOverlay != null) {
+                children.Add(BuildPlatformInfoOverlayEntityAsset(definition, definition.PlatformInfoOverlay));
             }
 
             for (int panelIndex = 0; panelIndex < definition.Panels.Length; panelIndex++) {
@@ -470,7 +478,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds one decorative overlay image entity pinned to the top-right of the fitted menu canvas.
+        /// Builds one decorative overlay image entity pinned to the bottom-right of the fitted menu canvas.
         /// </summary>
         /// <param name="overlayImage">Overlay image definition to bake.</param>
         /// <returns>Overlay sprite entity.</returns>
@@ -485,7 +493,7 @@ namespace helengine.editor {
                 LayerMask = RuntimeLayerMask
             };
             AnchorComponent anchorComponent = new AnchorComponent();
-            anchorComponent.SetAnchorDistances(right: overlayImage.RightMargin, top: overlayImage.TopMargin);
+            anchorComponent.SetAnchorDistances(right: overlayImage.RightMargin, bottom: overlayImage.BottomMargin);
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(TextureAssetScenePersistenceSupport.TextureReferenceName, BuildFileTextureReference(overlayImage.TexturePath));
 
@@ -500,6 +508,57 @@ namespace helengine.editor {
                     AutomaticDescriptor.SerializeComponent(anchorComponent, 1, null)
                 },
                 Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Builds the top-right platform-info overlay container and its two text lines.
+        /// </summary>
+        /// <param name="platformInfoOverlay">Layout descriptor used to bake the overlay container.</param>
+        /// <returns>Overlay container entity.</returns>
+        SceneEntityAsset BuildPlatformInfoOverlayEntityAsset(MenuDefinition definition, MenuPlatformInfoDefinition platformInfoOverlay) {
+            if (definition == null) {
+                throw new ArgumentNullException(nameof(definition));
+            }
+            if (platformInfoOverlay == null) {
+                throw new ArgumentNullException(nameof(platformInfoOverlay));
+            }
+
+            AnchorComponent anchorComponent = new AnchorComponent();
+            anchorComponent.SetAnchorDistances(right: platformInfoOverlay.RightMargin, top: platformInfoOverlay.TopMargin);
+
+            return new SceneEntityAsset {
+                Id = AllocateSceneEntityId(),
+                Name = "DemoDiscPlatformInfoOverlay",
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = new[] {
+                    AutomaticDescriptor.SerializeComponent(anchorComponent, 0, null),
+                    new SceneComponentAssetRecord {
+                        ComponentTypeId = PlatformInfoTextComponentTypeId,
+                        ComponentIndex = 1,
+                        Payload = Array.Empty<byte>()
+                    }
+                },
+                Children = new[] {
+                    BuildTextEntityAsset(
+                        "DemoDiscPlatformInfoNameText",
+                        new float3(0f, 0f, 0.1f),
+                        string.Empty,
+                        definition.BodyFontPath,
+                        definition.TextColor,
+                        new int2(1, 1),
+                        42),
+                    BuildTextEntityAsset(
+                        "DemoDiscPlatformInfoVersionText",
+                        new float3(0f, platformInfoOverlay.LineSpacing, 0.1f),
+                        string.Empty,
+                        definition.BodyFontPath,
+                        definition.MutedTextColor,
+                        new int2(1, 1),
+                        42)
+                }
             };
         }
 

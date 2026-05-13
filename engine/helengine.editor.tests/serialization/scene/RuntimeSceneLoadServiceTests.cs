@@ -384,7 +384,7 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures packaged demo menus preserve decorative overlay sprites and their cooked texture references for runtime loading.
+        /// Ensures packaged demo menus preserve decorative overlay sprites, their cooked texture references, and their bottom-right anchor.
         /// </summary>
         [Fact]
         public void Load_WhenPackagedDemoMenuUsesDecorativeOverlayImage_MaterializesSpriteWithCookedTexture() {
@@ -411,10 +411,13 @@ namespace helengine.editor.tests.serialization.scene {
 
             Entity overlayEntity = Assert.Single(spriteEntities);
             SpriteComponent spriteComponent = Assert.IsType<SpriteComponent>(Assert.Single(overlayEntity.Components, component => component is SpriteComponent));
+            AnchorComponent anchorComponent = Assert.IsType<AnchorComponent>(Assert.Single(overlayEntity.Components, component => component is AnchorComponent));
             string importedTextureRootPath = Path.Combine(buildRootPath, "cooked", "imported");
 
             Assert.NotNull(spriteComponent.Texture);
             Assert.Equal(new int2(220, 220), spriteComponent.Size);
+            Assert.Equal((byte)(AnchorComponent.RightAnchorFlag | AnchorComponent.BottomAnchorFlag), anchorComponent.AnchorFlags);
+            Assert.Equal(new float4(0f, 44f, 0f, 36f), anchorComponent.AnchorDistances);
             Assert.NotEmpty(Directory.GetFiles(importedTextureRootPath, "*", SearchOption.AllDirectories));
         }
 

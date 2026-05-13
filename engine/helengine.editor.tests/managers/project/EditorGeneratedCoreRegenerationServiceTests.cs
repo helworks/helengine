@@ -597,7 +597,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("InputSystem *inputSystem = Core::get_Instance() != nullptr ? Core::get_Instance()->get_Input() : nullptr;", normalizedSource);
         Assert.Contains("this->PreviousGamepadState = InputGamepadState();", normalizedSource);
         Assert.Contains("InputGamepadState currentGamepadState = this->ReadPrimaryGamepadState(inputSystem);", normalizedSource);
-        Assert.Contains("ComponentExecutionContext::get_CurrentMode() == ComponentExecutionMode::Editor", normalizedSource);
+        Assert.Contains("#if HELENGINE_EDITOR", normalizedSource);
+        Assert.Contains("#else", normalizedSource);
+        Assert.Contains("#endif", normalizedSource);
+        Assert.DoesNotContain("ComponentExecutionContext::get_CurrentMode() == ComponentExecutionMode::Editor", normalizedSource);
         Assert.Contains("Core::get_Instance()->get_InitializationOptions()->get_ScenePathResolver()->ResolveScenePath(MainMenuSceneId);", normalizedSource);
         Assert.Contains("Core::get_Instance()->get_ContentManager()->Load<SceneAsset*>(resolvedScenePath, RuntimeContentProcessorIds::SceneAsset);", normalizedSource);
         Assert.Contains("Core::get_Instance()->get_SceneManager()->LoadScene(MainMenuSceneId, SceneLoadMode::Single);", normalizedSource);

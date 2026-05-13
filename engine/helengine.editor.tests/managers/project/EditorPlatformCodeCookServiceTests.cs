@@ -137,7 +137,7 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
     }
 
     [Fact]
-    public void Compile_code_modules_passes_windows_platform_preprocessor_symbols_to_codegen() {
+    public void Compile_code_modules_passes_windows_player_preprocessor_symbols_to_codegen_without_editor_symbol() {
         RecordingCodegenToolRunner toolRunner = new();
         EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
         EditorCodeModuleManifestDocument manifestDocument = new([
@@ -162,6 +162,9 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
 
         Assert.Single(toolRunner.Invocations);
         Assert.Contains("additional-preprocessor-symbols=HELENGINE_INPUT_KEYBOARD,HELENGINE_INPUT_MOUSE,DESKTOP_PLATFORM", toolRunner.Invocations[0].Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain(
+            toolRunner.Invocations[0].Arguments,
+            argument => argument.Contains("HELENGINE_EDITOR", StringComparison.Ordinal));
     }
 
     [Fact]

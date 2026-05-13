@@ -20,6 +20,7 @@ namespace helengine {
         /// <param name="mutedTextColor">Secondary text color used for subtitles and descriptions.</param>
         /// <param name="panels">Panels available to the menu host.</param>
         /// <param name="overlayImage">Optional decorative overlay image baked into the menu canvas.</param>
+        /// <param name="platformInfoOverlay">Optional top-right platform information overlay baked into the menu canvas.</param>
         public MenuDefinition(
             string title,
             string subtitle,
@@ -34,7 +35,8 @@ namespace helengine {
             byte4 textColor,
             byte4 mutedTextColor,
             MenuPanelDefinition[] panels,
-            MenuOverlayImageDefinition overlayImage = null) {
+            MenuOverlayImageDefinition overlayImage = null,
+            MenuPlatformInfoDefinition platformInfoOverlay = null) {
             if (title == null) {
                 throw new ArgumentNullException(nameof(title));
             }
@@ -71,6 +73,7 @@ namespace helengine {
             MutedTextColor = mutedTextColor;
             Panels = panels;
             OverlayImage = overlayImage;
+            PlatformInfoOverlay = platformInfoOverlay;
         }
 
         /// <summary>
@@ -142,5 +145,10 @@ namespace helengine {
         /// Gets the optional decorative overlay image baked into the menu canvas.
         /// </summary>
         public MenuOverlayImageDefinition OverlayImage { get; }
+
+        /// <summary>
+        /// Gets the optional top-right platform information overlay baked into the menu canvas.
+        /// </summary>
+        public MenuPlatformInfoDefinition PlatformInfoOverlay { get; }
     }
 }

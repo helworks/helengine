@@ -9,9 +9,9 @@ namespace helengine {
         /// <param name="texturePath">Project-relative texture source path.</param>
         /// <param name="width">Authored overlay width in canvas pixels.</param>
         /// <param name="height">Authored overlay height in canvas pixels.</param>
-        /// <param name="topMargin">Top margin from the reference canvas edge in pixels.</param>
+        /// <param name="bottomMargin">Bottom margin from the reference canvas edge in pixels.</param>
         /// <param name="rightMargin">Right margin from the reference canvas edge in pixels.</param>
-        public MenuOverlayImageDefinition(string texturePath, int width, int height, int topMargin, int rightMargin) {
+        public MenuOverlayImageDefinition(string texturePath, int width, int height, int bottomMargin, int rightMargin) {
             if (string.IsNullOrWhiteSpace(texturePath)) {
                 throw new ArgumentException("Texture path must be provided.", nameof(texturePath));
             }
@@ -21,8 +21,8 @@ namespace helengine {
             if (height < 1) {
                 throw new ArgumentOutOfRangeException(nameof(height), "Overlay height must be positive.");
             }
-            if (topMargin < 0) {
-                throw new ArgumentOutOfRangeException(nameof(topMargin), "Top margin must not be negative.");
+            if (bottomMargin < 0) {
+                throw new ArgumentOutOfRangeException(nameof(bottomMargin), "Bottom margin must not be negative.");
             }
             if (rightMargin < 0) {
                 throw new ArgumentOutOfRangeException(nameof(rightMargin), "Right margin must not be negative.");
@@ -31,7 +31,7 @@ namespace helengine {
             TexturePath = texturePath;
             Width = width;
             Height = height;
-            TopMargin = topMargin;
+            BottomMargin = bottomMargin;
             RightMargin = rightMargin;
         }
 
@@ -51,9 +51,9 @@ namespace helengine {
         public int Height { get; }
 
         /// <summary>
-        /// Gets the authored top margin from the reference canvas edge in pixels.
+        /// Gets the authored bottom margin from the reference canvas edge in pixels.
         /// </summary>
-        public int TopMargin { get; }
+        public int BottomMargin { get; }
 
         /// <summary>
         /// Gets the authored right margin from the reference canvas edge in pixels.

@@ -232,6 +232,27 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures the generated demo-disc menu scene also carries the platform-info overlay with the expected hierarchy.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_BakesPlatformInfoOverlayOnTheMenuRoot() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+            SceneEntityAsset overlayEntity = Assert.Single(generatedRoot.Children, entity => entity.Name == "DemoDiscPlatformInfoOverlay");
+            string anchorTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(AnchorComponent));
+
+            Assert.Contains(overlayEntity.Components, component => string.Equals(component.ComponentTypeId, anchorTypeId, StringComparison.Ordinal));
+            Assert.Contains(overlayEntity.Components, component => string.Equals(component.ComponentTypeId, "city.menu.PlatformInfoTextComponent, gameplay", StringComparison.Ordinal));
+            Assert.Contains(overlayEntity.Children, entity => entity.Name == "DemoDiscPlatformInfoNameText");
+            Assert.Contains(overlayEntity.Children, entity => entity.Name == "DemoDiscPlatformInfoVersionText");
+        }
+
+        /// <summary>
         /// Ensures generated demo-disc source files are written beneath the codebase folder instead of the asset root.
         /// </summary>
         [Fact]
@@ -244,6 +265,7 @@ namespace helengine.editor.tests.tools {
             Assert.True(File.Exists(Path.Combine(codebaseMenuRootPath, "DemoDiscSceneCatalog.cs")));
             Assert.True(File.Exists(Path.Combine(codebaseMenuRootPath, "DemoDiscMenuTheme.cs")));
             Assert.True(File.Exists(Path.Combine(codebaseMenuRootPath, "DemoDiscMenuDefinitionProvider.cs")));
+            Assert.True(File.Exists(Path.Combine(codebaseMenuRootPath, "PlatformInfoTextComponent.cs")));
             Assert.False(Directory.Exists(Path.Combine(ProjectRootPath, "assets", "Menu")));
         }
 

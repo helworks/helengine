@@ -103,6 +103,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the authored demo-disc menu provider includes the platform-info overlay descriptor.
+        /// </summary>
+        [Fact]
+        public void ReadCityDemoDiscMenuDefinitionProviderSource_EmitsPlatformInfoOverlayDescriptor() {
+            string source = ReadCitySource("menu", "DemoDiscMenuDefinitionProvider.cs");
+
+            Assert.Contains("new MenuPlatformInfoDefinition(", source, StringComparison.Ordinal);
+            Assert.Contains("PlatformInfoTopMargin", source, StringComparison.Ordinal);
+            Assert.Contains("PlatformInfoRightMargin", source, StringComparison.Ordinal);
+            Assert.Contains("PlatformInfoLineSpacing", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the authored demo-disc runtime binder component populates the platform name and version strings.
+        /// </summary>
+        [Fact]
+        public void ReadCityPlatformInfoTextComponentSource_UsesPlatformInfoValues() {
+            string source = ReadCitySource("menu", "PlatformInfoTextComponent.cs");
+
+            Assert.Contains("Core.Instance.PlatformInfo.Name", source, StringComparison.Ordinal);
+            Assert.Contains("Core.Instance.PlatformInfo.Version", source, StringComparison.Ordinal);
+            Assert.Contains("DemoDiscPlatformInfoNameText", source, StringComparison.Ordinal);
+            Assert.Contains("DemoDiscPlatformInfoVersionText", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures the colored cube-grid factory now authors live entities instead of serialized editor scene records.
         /// </summary>
         [Fact]

@@ -1160,8 +1160,18 @@ namespace helengine.editor {
                 updatedContents = updatedContents.Replace("->ContentManager", "->get_ContentManager()", StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("RuntimeContentProcessorIds->SceneAsset", "RuntimeContentProcessorIds::SceneAsset", StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("SceneLoadMode->Single", "SceneLoadMode::Single", StringComparison.Ordinal);
-                updatedContents = updatedContents.Replace("ComponentExecutionContext->CurrentMode", "ComponentExecutionContext::get_CurrentMode()", StringComparison.Ordinal);
-                updatedContents = updatedContents.Replace("ComponentExecutionMode->Editor", "ComponentExecutionMode::Editor", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "if (ComponentExecutionContext->CurrentMode == ComponentExecutionMode->Editor) {",
+                    "#if HELENGINE_EDITOR" + Environment.NewLine + "if (true) {",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "} else if (Core::get_Instance()->get_SceneManager() == nullptr) {",
+                    "}" + Environment.NewLine + "#else" + Environment.NewLine + "if (Core::get_Instance()->get_SceneManager() == nullptr) {",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "}" + Environment.NewLine + "bool DemoDiscReturnToMenuComponent::WasGamepadButtonPressed",
+                    "#endif" + Environment.NewLine + "}" + Environment.NewLine + "bool DemoDiscReturnToMenuComponent::WasGamepadButtonPressed",
+                    StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("this->PreviousGamepadState = nullptr;", "this->PreviousGamepadState = InputGamepadState();", StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("Parent->Enabled = false;", "Parent->set_Enabled(false);", StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("Keys->", "Keys::", StringComparison.Ordinal);

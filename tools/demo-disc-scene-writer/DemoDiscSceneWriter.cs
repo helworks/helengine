@@ -94,6 +94,7 @@ namespace helengine.demo_disc_scene_writer {
             File.WriteAllText(Path.Combine(menuRootPath, "DemoDiscSceneCatalog.cs"), BuildSceneCatalogSource());
             File.WriteAllText(Path.Combine(menuRootPath, "DemoDiscMenuTheme.cs"), BuildMenuThemeSource());
             File.WriteAllText(Path.Combine(menuRootPath, "DemoDiscMenuDefinitionProvider.cs"), BuildMenuDefinitionProviderSource());
+            File.WriteAllText(Path.Combine(menuRootPath, "PlatformInfoTextComponent.cs"), BuildPlatformInfoTextComponentSource());
         }
 
         /// <summary>
@@ -329,7 +330,9 @@ namespace helengine.demo_disc_scene_writer {
                             new MenuItemDefinition("options-controls", "Controls", "Placeholder row for future input remapping.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
                             new MenuItemDefinition("options-back", "Back", "Returns to the main menu.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                         })
-                });
+                },
+                new MenuOverlayImageDefinition("Images/Menu/helengine-logo.png", 220, 220, 36, 44),
+                new MenuPlatformInfoDefinition(28, 44, 6));
         }
 
         /// <summary>
@@ -341,6 +344,10 @@ namespace helengine.demo_disc_scene_writer {
                 new MenuItemDefinition("scene-cube-test", "Cube Test", "Minimal one-cube rendering validation scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/cube_test.helen"))),
                 new MenuItemDefinition("scene-colored-cube-grid", "Colored Cube Grid", "Sixteen rotating cubes with distinct lit material colors.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/colored_cube_grid.helen"))),
                 new MenuItemDefinition("scene-textured-cube-grid", "Textured Cube Grid", "Sixteen rotating cubes with distinct lit texture materials.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/textured_cube_grid.helen"))),
+                new MenuItemDefinition("scene-axis-test", "Axis Test", "Three-axis rotation validation scene with a directional-light arrow.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/axis_test.helen"))),
+                new MenuItemDefinition("scene-axis-test-2", "Axis Test 2", "Mirrored axis showcase that validates the right-side directional layout.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/axis_test2.helen"))),
+                new MenuItemDefinition("scene-directional-shadow-plaza", "Directional Shadow Plaza", "Lighting showcase with an orbiting camera and decorative plaza geometry.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/directional_shadow_plaza.helen"))),
+                new MenuItemDefinition("scene-spotlight-street-slice", "Spotlight Street Slice", "Street-lit showcase that validates spotlights and prop placement.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/spotlight_street_slice.helen"))),
                 new MenuItemDefinition("scene-back", "Back", "Returns to the main menu.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
             };
         }
@@ -365,6 +372,10 @@ namespace helengine.demo_disc_scene_writer {
             builder.AppendLine("                new MenuItemDefinition(\"scene-cube-test\", \"Cube Test\", \"Minimal one-cube rendering validation scene.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"cube_test\")),");
             builder.AppendLine("                new MenuItemDefinition(\"scene-colored-cube-grid\", \"Colored Cube Grid\", \"Sixteen rotating cubes with distinct lit material colors.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"colored_cube_grid\")),");
             builder.AppendLine("                new MenuItemDefinition(\"scene-textured-cube-grid\", \"Textured Cube Grid\", \"Sixteen rotating cubes with distinct lit texture materials.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"textured_cube_grid\")),");
+            builder.AppendLine("                new MenuItemDefinition(\"scene-axis-test\", \"Axis Test\", \"Three-axis rotation validation scene with a directional-light arrow.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"axis_test\")),");
+            builder.AppendLine("                new MenuItemDefinition(\"scene-axis-test-2\", \"Axis Test 2\", \"Mirrored axis showcase that validates the right-side directional layout.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"axis_test2\")),");
+            builder.AppendLine("                new MenuItemDefinition(\"scene-directional-shadow-plaza\", \"Directional Shadow Plaza\", \"Lighting showcase with an orbiting camera and decorative plaza geometry.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"directional_shadow_plaza\")),");
+            builder.AppendLine("                new MenuItemDefinition(\"scene-spotlight-street-slice\", \"Spotlight Street Slice\", \"Street-lit showcase that validates spotlights and prop placement.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"spotlight_street_slice\")),");
             builder.AppendLine("                new MenuItemDefinition(\"scene-back\", \"Back\", \"Returns to the main menu.\", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))");
             builder.AppendLine("            };");
             builder.AppendLine("        }");
@@ -381,7 +392,7 @@ namespace helengine.demo_disc_scene_writer {
             StringBuilder builder = new StringBuilder();
             builder.AppendLine("namespace city.menu {");
             builder.AppendLine("    /// <summary>");
-            builder.AppendLine("    /// Stores reusable colors and font paths for the first-pass demo-disc menu.");
+            builder.AppendLine("    /// Stores reusable colors, font paths, and decorative artwork paths for the first-pass demo-disc menu.");
             builder.AppendLine("    /// </summary>");
             builder.AppendLine("    public sealed class DemoDiscMenuTheme {");
             builder.AppendLine("        /// <summary>");
@@ -393,6 +404,46 @@ namespace helengine.demo_disc_scene_writer {
             builder.AppendLine("        /// Gets the authored body font path.");
             builder.AppendLine("        /// </summary>");
             builder.AppendLine("        public string BodyFontPath => \"Fonts/DemoDiscBody.ttf\";");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Gets the decorative logo texture path.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        public string LogoTexturePath => \"Images/Menu/helengine-logo.png\";");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Gets the decorative logo width in authored canvas pixels.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        public int LogoWidth => 220;");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Gets the decorative logo height in authored canvas pixels.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        public int LogoHeight => 220;");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Gets the decorative logo bottom margin in authored canvas pixels.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        public int LogoBottomMargin => 36;");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Gets the decorative logo right margin in authored canvas pixels.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        public int LogoRightMargin => 44;");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Gets the top margin used by the platform-info overlay.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        public int PlatformInfoTopMargin => 28;");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Gets the right margin used by the platform-info overlay.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        public int PlatformInfoRightMargin => 44;");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Gets the vertical spacing between the platform-name and platform-version lines.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        public int PlatformInfoLineSpacing => 6;");
             builder.AppendLine();
             builder.AppendLine("        /// <summary>");
             builder.AppendLine("        /// Gets the primary lilac background color.");
@@ -492,7 +543,114 @@ namespace helengine.demo_disc_scene_writer {
             builder.AppendLine("                            new MenuItemDefinition(\"options-controls\", \"Controls\", \"Placeholder row for future input remapping.\", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),");
             builder.AppendLine("                            new MenuItemDefinition(\"options-back\", \"Back\", \"Returns to the main menu.\", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))");
             builder.AppendLine("                        })");
-            builder.AppendLine("                });");
+            builder.AppendLine("                },");
+            builder.AppendLine("                new MenuOverlayImageDefinition(");
+            builder.AppendLine("                    theme.LogoTexturePath,");
+            builder.AppendLine("                    theme.LogoWidth,");
+            builder.AppendLine("                    theme.LogoHeight,");
+            builder.AppendLine("                    theme.LogoBottomMargin,");
+            builder.AppendLine("                    theme.LogoRightMargin),");
+            builder.AppendLine("                new MenuPlatformInfoDefinition(");
+            builder.AppendLine("                    theme.PlatformInfoTopMargin,");
+            builder.AppendLine("                    theme.PlatformInfoRightMargin,");
+            builder.AppendLine("                    theme.PlatformInfoLineSpacing));");
+            builder.AppendLine("        }");
+            builder.AppendLine("    }");
+            builder.AppendLine("}");
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Builds the city-side platform-info overlay runtime component source code.
+        /// </summary>
+        /// <returns>Generated runtime component source text.</returns>
+        string BuildPlatformInfoTextComponentSource() {
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine("namespace city.menu {");
+            builder.AppendLine("    /// <summary>");
+            builder.AppendLine("    /// Applies the current platform name and version to the demo-disc menu overlay text.");
+            builder.AppendLine("    /// </summary>");
+            builder.AppendLine("    public sealed class PlatformInfoTextComponent : UpdateComponent {");
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Stable child entity name used for the platform name text line.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        const string PlatformNameTextEntityName = \"DemoDiscPlatformInfoNameText\";");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Stable child entity name used for the platform version text line.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        const string PlatformVersionTextEntityName = \"DemoDiscPlatformInfoVersionText\";");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Tracks whether the overlay text has already been populated.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        bool Applied;");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Applies the current platform name and version to the child text entities once.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        public override void Update() {");
+            builder.AppendLine("            base.Update();");
+            builder.AppendLine();
+            builder.AppendLine("            if (Applied) {");
+            builder.AppendLine("                return;");
+            builder.AppendLine("            }");
+            builder.AppendLine("            if (Core.Instance == null) {");
+            builder.AppendLine("                throw new InvalidOperationException(\"PlatformInfoTextComponent requires a core instance.\");");
+            builder.AppendLine("            } else if (Parent == null) {");
+            builder.AppendLine("                throw new InvalidOperationException(\"PlatformInfoTextComponent requires a parent entity.\");");
+            builder.AppendLine("            } else if (Parent.Children == null || Parent.Children.Count < 2) {");
+            builder.AppendLine("                throw new InvalidOperationException(\"Platform-info overlay requires two child text entities.\");");
+            builder.AppendLine("            }");
+            builder.AppendLine();
+            builder.AppendLine("            Entity nameEntity = Parent.Children[0];");
+            builder.AppendLine("            Entity versionEntity = Parent.Children[1];");
+            builder.AppendLine("            TextComponent nameText = FindTextComponent(nameEntity);");
+            builder.AppendLine("            TextComponent versionText = FindTextComponent(versionEntity);");
+            builder.AppendLine("            string platformName = Core.Instance.PlatformInfo.Name;");
+            builder.AppendLine("            string platformVersion = Core.Instance.PlatformInfo.Version;");
+            builder.AppendLine("            ApplyText(nameEntity, nameText, platformName, 0f);");
+            builder.AppendLine("            ApplyText(versionEntity, versionText, platformVersion, nameText.Size.Y + 6f);");
+            builder.AppendLine("            Applied = true;");
+            builder.AppendLine("        }");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Applies one platform-info text line to one child entity.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        /// <param name=\"entity\">Child text entity that should be updated.</param>");
+            builder.AppendLine("        /// <param name=\"textComponent\">Text component that renders the value.</param>");
+            builder.AppendLine("        /// <param name=\"text\">Text content to display.</param>");
+            builder.AppendLine("        /// <param name=\"topOffset\">Vertical offset from the overlay container.</param>");
+            builder.AppendLine("        void ApplyText(Entity entity, TextComponent textComponent, string text, float topOffset) {");
+            builder.AppendLine("            if (entity == null) {");
+            builder.AppendLine("                throw new ArgumentNullException(nameof(entity));");
+            builder.AppendLine("            } else if (textComponent == null) {");
+            builder.AppendLine("                throw new ArgumentNullException(nameof(textComponent));");
+            builder.AppendLine("            }");
+            builder.AppendLine();
+            builder.AppendLine("            textComponent.Text = text;");
+            builder.AppendLine("            float2 measuredSize = textComponent.Font.MeasureString(text);");
+            builder.AppendLine("            textComponent.Size = new int2((int)Math.Ceiling(measuredSize.X), (int)Math.Ceiling(measuredSize.Y));");
+            builder.AppendLine("            entity.LocalPosition = new float3(-textComponent.Size.X, topOffset, 0f);");
+            builder.AppendLine("        }");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>");
+            builder.AppendLine("        /// Finds the text component attached to one child entity.");
+            builder.AppendLine("        /// </summary>");
+            builder.AppendLine("        /// <param name=\"entity\">Child entity whose text component should be returned.</param>");
+            builder.AppendLine("        /// <returns>Attached text component.</returns>");
+            builder.AppendLine("        TextComponent FindTextComponent(Entity entity) {");
+            builder.AppendLine("            if (entity == null) {");
+            builder.AppendLine("                throw new ArgumentNullException(nameof(entity));");
+            builder.AppendLine("            }");
+            builder.AppendLine();
+            builder.AppendLine("            for (int index = 0; index < entity.Components.Count; index++) {");
+            builder.AppendLine("                if (entity.Components[index] is TextComponent textComponent) {");
+            builder.AppendLine("                    return textComponent;");
+            builder.AppendLine("                }");
+            builder.AppendLine("            }");
+            builder.AppendLine();
+            builder.AppendLine("            throw new InvalidOperationException(\"Platform-info overlay child must include a text component.\");");
             builder.AppendLine("        }");
             builder.AppendLine("    }");
             builder.AppendLine("}");
