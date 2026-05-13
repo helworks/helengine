@@ -178,7 +178,12 @@ namespace helengine.editor {
                 return;
             }
 
-            throw new InvalidOperationException($"MeshComponent {referenceName} is assigned but could not be inferred into a stable scene asset reference.");
+            RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
+            string runtimeMaterialId = runtimeMaterial.Id ?? string.Empty;
+            string rootMaterialId = rootMaterial == null || rootMaterial.Id == null ? string.Empty : rootMaterial.Id;
+            throw new InvalidOperationException(
+                $"MeshComponent {referenceName} is assigned but could not be inferred into a stable scene asset reference. " +
+                $"Runtime material id='{runtimeMaterialId}', root material id='{rootMaterialId}'.");
         }
 
         /// <summary>
@@ -315,19 +320,17 @@ namespace helengine.editor {
             string[] materialPaths = Directory.GetFiles(AssetsRootPath, "*.hasset", SearchOption.AllDirectories);
             for (int materialIndex = 0; materialIndex < materialPaths.Length; materialIndex++) {
                 string materialPath = materialPaths[materialIndex];
-                if (!MaterialAssetSettingsService.TryLoad(materialPath, out MaterialAssetImportSettings settings) ||
-                    settings == null ||
-                    settings.Importer == null ||
-                    string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+                if (!MaterialAssetSettingsService.TryLoadMaterialAssetId(materialPath, out string assetId) ||
+                    string.IsNullOrWhiteSpace(assetId)) {
                     continue;
                 }
 
-                if (MaterialRelativePathsByAssetId.ContainsKey(settings.Importer.AssetId)) {
+                if (MaterialRelativePathsByAssetId.ContainsKey(assetId)) {
                     continue;
                 }
 
                 string relativePath = Path.GetRelativePath(AssetsRootPath, materialPath).Replace('\\', '/');
-                MaterialRelativePathsByAssetId.Add(settings.Importer.AssetId, relativePath);
+                MaterialRelativePathsByAssetId.Add(assetId, relativePath);
             }
 
             return MaterialRelativePathsByAssetId;

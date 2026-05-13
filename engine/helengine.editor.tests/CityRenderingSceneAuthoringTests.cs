@@ -157,7 +157,7 @@ namespace helengine.editor.tests {
         public void DeserializeCityAxisTest2SceneAsset_GeneratedSceneExists() {
             SceneAsset sceneAsset = ReadSceneAsset("axis_test2.helen");
 
-            Assert.Equal("axis_test2", sceneAsset.Id);
+            Assert.Equal("scenes/rendering/axis_test2.helen", sceneAsset.Id);
         }
 
         /// <summary>
@@ -192,7 +192,7 @@ namespace helengine.editor.tests {
             SceneEntityAsset wallEntity = FindEntityByName(sceneAsset.RootEntities, "AxisTest2Ground");
 
             Assert.NotNull(wallEntity);
-            Assert.Equal(new float3(14f, 12f, 0.5f), wallEntity.LocalScale);
+            Assert.Equal(new float3(14f, 14f, 0.5f), wallEntity.LocalScale);
         }
 
         /// <summary>

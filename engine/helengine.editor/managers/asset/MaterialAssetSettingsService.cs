@@ -187,6 +187,32 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attempts to read the stable importer asset id from one authored base material document.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="assetId">Stable importer asset id when the base document exists and contains one.</param>
+        /// <returns>True when the base material document was loaded and exposed a non-empty importer asset id.</returns>
+        public bool TryLoadMaterialAssetId(string materialAssetPath, out string assetId) {
+            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
+                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
+            }
+
+            assetId = string.Empty;
+            MaterialAssetCommonSettingsDocument commonDocument;
+            if (!TryLoadCommonDocument(materialAssetPath, out commonDocument)) {
+                return false;
+            }
+
+            NormalizeCommonDocument(commonDocument, null);
+            if (commonDocument.Importer == null || string.IsNullOrWhiteSpace(commonDocument.Importer.AssetId)) {
+                return false;
+            }
+
+            assetId = commonDocument.Importer.AssetId;
+            return true;
+        }
+
+        /// <summary>
         /// Attempts to load one effective platform-specific material settings payload from the shared settings document plus one optional platform override file.
         /// </summary>
         /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>

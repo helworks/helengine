@@ -27,7 +27,16 @@ namespace helengine.editor {
         /// <returns>Runtime model built from the processed model asset.</returns>
         public RuntimeModel ResolveRuntimeModel(string sourcePath) {
             ModelAsset modelAsset = ResolveModelAsset(sourcePath);
-            return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            if (runtimeModel == null) {
+                throw new InvalidOperationException($"Model importer did not return a runtime model for '{sourcePath}'.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(modelAsset.Id)) {
+                runtimeModel.SetId(modelAsset.Id);
+            }
+
+            return runtimeModel;
         }
 
         /// <summary>
