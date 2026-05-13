@@ -1053,7 +1053,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "helengine.material",
                     SourceChecksum = string.Empty,
-                    AssetId = "Materials/Demo.helmat"
+                    AssetId = "Materials/Demo.hasset"
                 },
                 Processor = new MaterialAssetProcessorPlatformSettings {
                     Platforms = new Dictionary<string, MaterialAssetProcessorSettings> {

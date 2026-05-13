@@ -191,7 +191,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenTwoMeshesReferenceTheSameShader_ReportsOneReferencedShaderId() {
             string sceneId = "Scenes/TestScene.helen";
-            string materialRelativePath = "Materials/TestMaterial.helmat";
+            string materialRelativePath = "Materials/TestMaterial.hasset";
             string shaderAssetId = "ForwardStandardShader";
 
             WriteShaderCachePackage(shaderAssetId, ShaderCompileTarget.DirectX11);
@@ -210,7 +210,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenImportedModelCompanionMaterialUsesSourceTextureIdWithoutCachedAsset_PackagesUsingSourceTexture() {
             string sceneId = "Scenes/ImportedModelScene.helen";
-            string materialRelativePath = "Models/Riemers/racer/x3ds_mat_ruedas.helmat";
+            string materialRelativePath = "Models/Riemers/racer/x3ds_mat_ruedas.hasset";
             string sourceModelRelativePath = "Models/Riemers/racer.x";
             string sourceTextureRelativePath = "Models/Riemers/ruedas.jpg";
 
@@ -238,8 +238,8 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenTaggedMeshUsesMultipleMaterials_RewritesEveryMaterialReference() {
             string sceneId = "Scenes/MultiMaterialScene.helen";
-            string firstMaterialRelativePath = "Materials/SponzaWalls.helmat";
-            string secondMaterialRelativePath = "Materials/SponzaTrim.helmat";
+            string firstMaterialRelativePath = "Materials/SponzaWalls.hasset";
+            string secondMaterialRelativePath = "Materials/SponzaTrim.hasset";
             string shaderAssetId = "ForwardStandardShader";
 
             WriteShaderCachePackage(shaderAssetId, ShaderCompileTarget.DirectX11);
@@ -280,42 +280,38 @@ namespace helengine.editor.tests {
 
             Assert.Null(modelReference);
             Assert.Equal(2, materialReferenceCount);
-            Assert.Equal("cooked/Materials/SponzaWalls.helmat", firstMaterialReference.RelativePath);
-            Assert.Equal("cooked/Materials/SponzaTrim.helmat", secondMaterialReference.RelativePath);
+            Assert.Equal("cooked/Materials/SponzaWalls.hasset", firstMaterialReference.RelativePath);
+            Assert.Equal("cooked/Materials/SponzaTrim.hasset", secondMaterialReference.RelativePath);
             Assert.Equal((byte)0, renderOrder3D);
         }
 
         /// <summary>
-        /// Ensures packaging ignores malformed material sidecars that do not define a schema or field values.
+        /// Ensures packaging preserves effective material settings when one platform override omits schema and field values.
         /// </summary>
         [Fact]
         public void Package_WhenMaterialSidecarHasNoSchema_PreservesTopLevelMaterialShaderFields() {
-            string materialRelativePath = "Materials/TestMaterial.helmat";
+            string materialRelativePath = "Materials/TestMaterial.hasset";
             string shaderAssetId = "ForwardStandardShader";
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
 
-            WriteMaterialAsset(materialRelativePath, shaderAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath);
             WriteInvalidMaterialSettings(materialRelativePath);
 
-            MaterialAsset materialAsset;
-            using (FileStream stream = new FileStream(materialPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                materialAsset = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(stream));
-            }
-
             MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
-            Assert.True(settingsService.TryLoad(materialPath, out MaterialAssetImportSettings settings));
+            Assert.True(settingsService.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings settings));
+            MaterialAsset materialAsset = settingsService.LoadMaterialAsset(materialPath, "windows");
 
             MethodInfo validationMethod = typeof(EditorPlatformBuildScenePackager).GetMethod(
                 "HasValidPlatformMaterialSettings",
                 BindingFlags.Static | BindingFlags.NonPublic);
             Assert.NotNull(validationMethod);
-            bool isValid = Assert.IsType<bool>(validationMethod.Invoke(null, [settings, "windows"]));
+            bool isValid = Assert.IsType<bool>(validationMethod.Invoke(null, [settings]));
 
             if (isValid) {
-                settingsService.ApplyPlatformMaterialFields(materialAsset, settings, "windows");
+                settingsService.ApplyPlatformMaterialFields(materialAsset, settings);
             }
 
-            Assert.False(isValid);
+            Assert.True(isValid);
             Assert.Equal(shaderAssetId, materialAsset.ShaderAssetId);
             Assert.Equal(shaderAssetId + ".vs", materialAsset.VertexProgram);
             Assert.Equal(shaderAssetId + ".ps", materialAsset.PixelProgram);
@@ -328,12 +324,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenMaterialSettingsSidecarIsCorrupt_RebuildsSettingsAndPackagesScene() {
             string sceneId = "Scenes/MaterialScene.helen";
-            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
 
             WriteCityStyleStandardMaterialAsset(materialRelativePath);
-            File.WriteAllBytes(
-                Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar)) + ".hasset",
-                new byte[] { 0, 1, 2, 3, 4, 5, 6, 7 });
+            WriteCorruptMaterialSettingsOverride(materialRelativePath, "windows");
             WriteSceneAsset(sceneId, materialRelativePath);
 
             FontAsset defaultFont = CreatePackagedFontAsset();
@@ -350,14 +344,13 @@ namespace helengine.editor.tests {
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             Assert.NotNull(materialBuilder.LastMaterialCookRequest);
-            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.helmat");
+            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.hasset");
             Assert.True(File.Exists(cookedMaterialPath));
 
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
-            Assert.True(settingsService.TryLoad(materialPath, out MaterialAssetImportSettings settings));
-            Assert.Equal("windows", settings.Processor.Platforms.Keys.Single());
-            Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].SchemaId);
+            Assert.True(settingsService.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings settings));
+            Assert.Equal("standard-shader", settings.SchemaId);
         }
 
         /// <summary>
@@ -366,7 +359,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenCustomShaderIsDisabled_UsesMeshVariantAndStandardShaderDefaults() {
             string sceneId = "Scenes/TestScene.helen";
-            string materialRelativePath = "Materials/TestMaterial.helmat";
+            string materialRelativePath = "Materials/TestMaterial.hasset";
             string shaderAssetId = "ForwardStandardShader";
 
             WriteShaderCachePackage(shaderAssetId, ShaderCompileTarget.DirectX11);
@@ -455,7 +448,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenPs2BuilderCooksMaterialWithImportedDiffuseTexture_PopulatesTextureRelativePath() {
             string sceneId = "Scenes/TexturedMaterialScene.helen";
-            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.helmat";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
             string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
 
             WriteCachedTextureAsset(textureAssetId);
@@ -597,11 +590,11 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenSceneReferencesFileSystemMaterial_LeavesPackagedRuntimeLoadable() {
             string sceneId = "Scenes/MaterialScene.helen";
-            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             string shaderAssetId = "ForwardStandardShader";
 
             WriteShaderCachePackage(shaderAssetId, ShaderCompileTarget.DirectX11);
-            WriteMaterialAsset(materialRelativePath, shaderAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath);
             WriteSceneAsset(sceneId, materialRelativePath);
 
             FontAsset defaultFont = CreatePackagedFontAsset();
@@ -611,7 +604,7 @@ namespace helengine.editor.tests {
                 defaultFont);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
-            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.helmat");
+            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.hasset");
             Assert.True(File.Exists(cookedMaterialPath));
             using (FileStream cookedMaterialStream = File.OpenRead(cookedMaterialPath)) {
                 MaterialAsset cookedMaterial = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(cookedMaterialStream));
@@ -646,7 +639,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenStandardShaderMaterialUsesMirroredFieldSidecar_WritesPlayerResolvableShaderContract() {
             string sceneId = "Scenes/MaterialScene.helen";
-            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
 
             WriteCityStyleStandardMaterialAsset(materialRelativePath);
             WriteSceneAsset(sceneId, materialRelativePath);
@@ -658,7 +651,7 @@ namespace helengine.editor.tests {
                 defaultFont);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
-            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.helmat");
+            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.hasset");
             using FileStream cookedMaterialStream = File.OpenRead(cookedMaterialPath);
             MaterialAsset cookedMaterial = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(cookedMaterialStream));
 
@@ -674,7 +667,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenMaterialUsesImportedDiffuseTexture_WritesCookedImportedTextureAndLoadsRuntimeMaterial() {
             string sceneId = "Scenes/TexturedMaterialScene.helen";
-            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.helmat";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
             string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
 
             WriteCachedTextureAsset(textureAssetId);
@@ -720,7 +713,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenBuilderCooksMaterialWithImportedDiffuseTexture_WritesCookedImportedTexture() {
             string sceneId = "Scenes/TexturedMaterialScene.helen";
-            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.helmat";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
             string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
 
             WriteCachedTextureAsset(textureAssetId);
@@ -2425,7 +2418,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one serialized material asset that references the supplied shader asset id.
+        /// Writes one authored material document that references the supplied shader asset id.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path to write.</param>
         /// <param name="shaderAssetId">Shader asset id referenced by the material.</param>
@@ -2434,19 +2427,16 @@ namespace helengine.editor.tests {
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
 
-            MaterialAsset materialAsset = new MaterialAsset {
-                Id = materialRelativePath,
-                ShaderAssetId = shaderAssetId,
-                VertexProgram = string.Concat(shaderAssetId, ".vs"),
-                PixelProgram = string.Concat(shaderAssetId, ".ps"),
-                Variant = "default",
-                RenderState = new MaterialRenderState(),
-                ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>(),
-                DiffuseTextureAssetId = diffuseTextureAssetId
-            };
+            MaterialAssetImportSettings settings = CreateMaterialSettings(
+                materialRelativePath,
+                shaderAssetId,
+                diffuseTextureAssetId,
+                "standard-shader",
+                useCustomShader: true,
+                "#FFFFFFFF");
 
-            using FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            AssetSerializer.Serialize(stream, materialAsset);
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            settingsService.Save(materialPath, settings);
         }
 
         /// <summary>
@@ -2460,66 +2450,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one serialized material asset without authored shader fields so the packager must supply them.
+        /// Writes one authored material document without explicit shader overrides so the packager must supply the standard defaults.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path to write.</param>
         void WriteBlankMaterialAsset(string materialRelativePath) {
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
 
-            MaterialAsset materialAsset = new MaterialAsset {
-                Id = materialRelativePath,
-                ShaderAssetId = string.Empty,
-                VertexProgram = string.Empty,
-                PixelProgram = string.Empty,
-                Variant = string.Empty,
-                RenderState = new MaterialRenderState(),
-                ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
-            };
+            MaterialAssetImportSettings settings = CreateMaterialSettings(
+                materialRelativePath,
+                string.Empty,
+                string.Empty,
+                "standard-shader",
+                useCustomShader: false,
+                "#FFFFFFFF");
 
-            using FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            AssetSerializer.Serialize(stream, materialAsset);
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            settingsService.Save(materialPath, settings);
         }
 
         /// <summary>
-        /// Writes one city-style standard material asset and mirrored-field sidecar that mirrors the colored cube-grid authored content.
+        /// Writes one city-style standard material document that mirrors the colored cube-grid authored content.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path to write.</param>
         void WriteCityStyleStandardMaterialAsset(string materialRelativePath, string diffuseTextureAssetId = "") {
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
 
-            MaterialAsset materialAsset = new MaterialAsset {
-                Id = materialRelativePath,
-                ShaderAssetId = "ForwardStandardShader",
-                VertexProgram = "ForwardStandardShader.vs",
-                PixelProgram = "ForwardStandardShader.ps",
-                Variant = "Mesh",
-                RenderState = new MaterialRenderState(),
-                ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>(),
-                DiffuseTextureAssetId = diffuseTextureAssetId,
-                CastsShadows = true,
-                ReceivesShadows = true
-            };
-
-            using (FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetSerializer.Serialize(stream, materialAsset);
-            }
-
-            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
-            settings.Importer.ImporterId = "helengine.material";
-            settings.Importer.SourceChecksum = string.Empty;
-            settings.Importer.AssetId = materialRelativePath;
-            settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
-                SchemaId = "standard-shader",
-                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
-                    ["use-custom-shader"] = "false",
-                    ["texture-id"] = diffuseTextureAssetId,
-                    ["casts-shadow"] = "true",
-                    ["receives-shadow"] = "true",
-                    ["base-color"] = "#FF4040FF"
-                }
-            };
+            MaterialAssetImportSettings settings = CreateMaterialSettings(
+                materialRelativePath,
+                "ForwardStandardShader",
+                diffuseTextureAssetId,
+                "standard-shader",
+                useCustomShader: false,
+                "#FF4040FF");
 
             MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
             settingsService.Save(materialPath, settings);
@@ -2544,19 +2508,100 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one malformed material settings sidecar that names the platform but omits schema and field values.
+        /// Writes one malformed material settings override that names the platform but omits schema and field values.
         /// </summary>
-        /// <param name="materialRelativePath">Project-relative material path whose sidecar should be written.</param>
+        /// <param name="materialRelativePath">Project-relative material path whose override should be written.</param>
         void WriteInvalidMaterialSettings(string materialRelativePath) {
-            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string overridePath = GetMaterialPlatformOverridePath(materialRelativePath, "windows");
+            string directoryPath = Path.GetDirectoryName(overridePath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Material override directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            MaterialAssetPlatformOverrideDocument document = new MaterialAssetPlatformOverrideDocument {
+                PlatformId = "windows",
+                Processor = new MaterialAssetProcessorOverrideSettings()
+            };
+
+            using FileStream stream = new FileStream(overridePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            MaterialAssetPlatformOverrideDocumentBinarySerializer.Serialize(stream, document);
+        }
+
+        /// <summary>
+        /// Writes one corrupt material settings override file for the supplied platform.
+        /// </summary>
+        /// <param name="materialRelativePath">Project-relative material path whose override should be corrupted.</param>
+        /// <param name="platformId">Platform identifier encoded in the override filename.</param>
+        void WriteCorruptMaterialSettingsOverride(string materialRelativePath, string platformId) {
+            string overridePath = GetMaterialPlatformOverridePath(materialRelativePath, platformId);
+            string directoryPath = Path.GetDirectoryName(overridePath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Material override directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            File.WriteAllBytes(overridePath, new byte[] { 0, 1, 2, 3, 4, 5, 6, 7 });
+        }
+
+        /// <summary>
+        /// Resolves one project-relative material override path for the supplied platform.
+        /// </summary>
+        /// <param name="materialRelativePath">Project-relative base material path.</param>
+        /// <param name="platformId">Platform identifier appended before the `.hasset` suffix.</param>
+        /// <returns>Absolute override file path under the project assets tree.</returns>
+        string GetMaterialPlatformOverridePath(string materialRelativePath, string platformId) {
+            if (string.IsNullOrWhiteSpace(materialRelativePath)) {
+                throw new ArgumentException("Material relative path must be provided.", nameof(materialRelativePath));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            string relativePath = materialRelativePath.Replace('/', Path.DirectorySeparatorChar);
+            string extension = Path.GetExtension(relativePath);
+            string basePathWithoutExtension = relativePath.Substring(0, relativePath.Length - extension.Length);
+            return Path.Combine(ProjectRootPath, "assets", $"{basePathWithoutExtension}.{platformId}{extension}");
+        }
+
+        /// <summary>
+        /// Creates one authored material settings payload for the supplied material path and shader behavior.
+        /// </summary>
+        /// <param name="materialRelativePath">Project-relative material path stored as the material asset id.</param>
+        /// <param name="shaderAssetId">Shader asset id to author when custom shader mode is enabled.</param>
+        /// <param name="diffuseTextureAssetId">Optional authored diffuse texture asset id.</param>
+        /// <param name="schemaId">Schema id assigned to the authored material.</param>
+        /// <param name="useCustomShader">True when custom shader fields should be authored explicitly.</param>
+        /// <param name="baseColor">Authored standard-material base color.</param>
+        /// <returns>Material settings payload ready to save.</returns>
+        MaterialAssetImportSettings CreateMaterialSettings(
+            string materialRelativePath,
+            string shaderAssetId,
+            string diffuseTextureAssetId,
+            string schemaId,
+            bool useCustomShader,
+            string baseColor) {
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
             settings.Importer.SourceChecksum = string.Empty;
             settings.Importer.AssetId = materialRelativePath;
-            settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings();
+            settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+                SchemaId = schemaId,
+                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["use-custom-shader"] = useCustomShader ? "true" : "false",
+                    ["texture-id"] = diffuseTextureAssetId ?? string.Empty,
+                    ["casts-shadow"] = "true",
+                    ["receives-shadow"] = "true",
+                    ["base-color"] = baseColor ?? "#FFFFFFFF"
+                }
+            };
 
-            using FileStream stream = new FileStream(materialPath + ".hasset", FileMode.Create, FileAccess.Write, FileShare.None);
-            MaterialAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            if (useCustomShader) {
+                settings.Processor.Platforms["windows"].FieldValues["shader-asset-id"] = shaderAssetId ?? string.Empty;
+                settings.Processor.Platforms["windows"].FieldValues["vertex-program"] = string.IsNullOrWhiteSpace(shaderAssetId) ? string.Empty : string.Concat(shaderAssetId, ".vs");
+                settings.Processor.Platforms["windows"].FieldValues["pixel-program"] = string.IsNullOrWhiteSpace(shaderAssetId) ? string.Empty : string.Concat(shaderAssetId, ".ps");
+            }
+
+            return settings;
         }
 
         /// <summary>

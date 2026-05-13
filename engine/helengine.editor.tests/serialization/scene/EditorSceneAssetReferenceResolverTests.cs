@@ -112,15 +112,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void ResolveMaterial_WhenFileSystemMaterialUsesBuiltInShader_LoadsBuiltInShaderWithoutCachedPackage() {
-            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
-            string materialFullPath = WriteMaterialAsset(materialRelativePath, new MaterialAsset {
-                Id = "Materials.rendering.colored_cube_grid.Cube00",
-                ShaderAssetId = "ForwardStandardShader",
-                VertexProgram = "ForwardStandardShader.vs",
-                PixelProgram = "ForwardStandardShader.ps",
-                Variant = "default",
-                RenderState = new MaterialRenderState()
-            });
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
+            string materialFullPath = WriteMaterialSettingsDocument(materialRelativePath, CreateCustomShaderMaterialSettings("ForwardStandardShader"));
             ContentManager contentManager = new ContentManager(TempProjectRootPath);
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             EditorProjectPaths.Initialize(TempProjectRootPath);
@@ -142,16 +135,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void ResolveMaterial_WhenFileSystemMaterialHasStandardShaderBaseColorSettings_AppliesBaseColorBuffer() {
-            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
-            WriteMaterialAsset(materialRelativePath, new MaterialAsset {
-                Id = "Materials.rendering.colored_cube_grid.Cube00",
-                ShaderAssetId = "ForwardStandardShader",
-                VertexProgram = "ForwardStandardShader.vs",
-                PixelProgram = "ForwardStandardShader.ps",
-                Variant = "default",
-                RenderState = new MaterialRenderState()
-            });
-            WriteMaterialSettings(materialRelativePath, CreateStandardMaterialSettings("#336699"));
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
+            WriteMaterialSettingsDocument(materialRelativePath, CreateStandardMaterialSettings("#336699"));
             ContentManager contentManager = new ContentManager(TempProjectRootPath);
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             EditorProjectPaths.Initialize(TempProjectRootPath);
@@ -172,6 +157,34 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(
                 StandardMaterialBaseColorDefaults.CreateConstantBufferData(new float4(0x33 / 255f, 0x66 / 255f, 0x99 / 255f, 1f)),
                 baseColorBuffer.Data);
+        }
+
+        /// <summary>
+        /// Ensures authored material base documents stored directly as `.hasset` files resolve into runtime materials without a separate `.hasset` sidecar.
+        /// </summary>
+        [Fact]
+        public void ResolveMaterial_WhenFileSystemMaterialUsesBaseHassetDocument_LoadsRuntimeMaterial() {
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
+            WriteMaterialSettingsDocument(materialRelativePath, CreateStandardMaterialSettings("#336699"));
+            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorProjectPaths.Initialize(TempProjectRootPath);
+            using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
+            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
+
+            RuntimeMaterial material = resolver.ResolveMaterial(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = materialRelativePath
+            });
+
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            MaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
+
+            Assert.NotNull(material);
+            Assert.Equal("ForwardStandardShader", builtMaterialAsset.ShaderAssetId);
+            Assert.Equal("default", builtMaterialAsset.Variant);
+            Assert.False(File.Exists(Path.Combine(TempProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar)) + ".hasset"));
         }
 
         /// <summary>
@@ -239,11 +252,11 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Writes one material settings sidecar under the temporary project assets root.
+        /// Writes one authored material settings document directly to the material `.hasset` path.
         /// </summary>
-        /// <param name="relativePath">Project-relative material path whose sidecar should be written.</param>
+        /// <param name="relativePath">Project-relative material path whose authored document should be written.</param>
         /// <param name="settings">Material settings payload to persist.</param>
-        void WriteMaterialSettings(string relativePath, MaterialAssetImportSettings settings) {
+        string WriteMaterialSettingsDocument(string relativePath, MaterialAssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
             } else if (settings == null) {
@@ -251,8 +264,15 @@ namespace helengine.editor.tests.serialization.scene {
             }
 
             string materialFullPath = Path.Combine(TempProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(materialFullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Material directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
             MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
             settingsService.Save(materialFullPath, settings);
+            return materialFullPath;
         }
 
         /// <summary>
@@ -275,6 +295,35 @@ namespace helengine.editor.tests.serialization.scene {
                     ["casts-shadow"] = "true",
                     ["receives-shadow"] = "true",
                     ["base-color"] = baseColor
+                }
+            };
+            return settings;
+        }
+
+        /// <summary>
+        /// Creates one custom-shader material settings payload that targets a built-in shader package.
+        /// </summary>
+        /// <param name="shaderAssetId">Built-in shader asset identifier to reference.</param>
+        /// <returns>Material settings payload for the active platform.</returns>
+        MaterialAssetImportSettings CreateCustomShaderMaterialSettings(string shaderAssetId) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
+            }
+
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+            settings.Importer.ImporterId = "helengine.material";
+            settings.Importer.AssetId = "Materials/rendering/colored_cube_grid/Cube00.hasset";
+            settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+                SchemaId = "standard-shader",
+                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["use-custom-shader"] = "true",
+                    ["shader-asset-id"] = shaderAssetId,
+                    ["vertex-program"] = string.Concat(shaderAssetId, ".vs"),
+                    ["pixel-program"] = string.Concat(shaderAssetId, ".ps"),
+                    ["texture-id"] = string.Empty,
+                    ["casts-shadow"] = "true",
+                    ["receives-shadow"] = "true",
+                    ["base-color"] = "#ffffff"
                 }
             };
             return settings;

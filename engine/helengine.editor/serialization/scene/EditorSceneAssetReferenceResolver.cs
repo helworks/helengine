@@ -243,8 +243,12 @@ namespace helengine.editor {
         /// <returns>Runtime material built from the serialized material asset.</returns>
         RuntimeMaterial ResolveFileSystemMaterial(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference);
-            MaterialAsset materialAsset = AssetContentManager.Load<MaterialAsset>(fullPath, EditorContentProcessorIds.MaterialAsset);
-            ApplyMaterialSettingsRuntimeFields(fullPath, materialAsset);
+            string platformId = ResolveActiveProjectPlatformId();
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new InvalidOperationException("At least one supported project platform must exist before file-backed materials can be resolved.");
+            }
+
+            MaterialAsset materialAsset = MaterialSettingsService.LoadMaterialAsset(fullPath, platformId);
             if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
                 throw new InvalidOperationException("Material asset did not provide a shader asset id.");
             }
@@ -256,78 +260,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies one file-backed material's active-platform settings sidecar to the runtime-facing material payload used by editor scene loading.
-        /// </summary>
-        /// <param name="fullPath">Absolute path to the serialized material asset.</param>
-        /// <param name="materialAsset">Material asset to update before runtime material construction.</param>
-        void ApplyMaterialSettingsRuntimeFields(string fullPath, MaterialAsset materialAsset) {
-            if (string.IsNullOrWhiteSpace(fullPath)) {
-                throw new ArgumentException("Material path must be provided.", nameof(fullPath));
-            } else if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
-            }
-
-            MaterialAssetImportSettings settings;
-            if (!MaterialSettingsService.TryLoad(fullPath, out settings) || settings == null) {
-                return;
-            }
-
-            string platformId = ResolveActiveProjectPlatformId(settings);
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                return;
-            }
-
-            MaterialSettingsService.ApplyPlatformRuntimeFields(materialAsset, settings, platformId);
-        }
-
-        /// <summary>
-        /// Resolves the active project platform that should drive file-backed material settings during editor scene loading.
-        /// </summary>
-        /// <param name="settings">Material sidecar settings that may expose per-platform field values.</param>
-        /// <returns>Active platform identifier, or an empty string when no compatible platform settings exist.</returns>
-        string ResolveActiveProjectPlatformId(MaterialAssetImportSettings settings) {
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
+         /// Resolves the active project platform that should drive file-backed material settings during editor scene loading.
+         /// </summary>
+        /// <returns>Active project platform identifier, or the first supported platform when no explicit active platform is available.</returns>
+        string ResolveActiveProjectPlatformId() {
             EditorProjectPlatformsDocument platformsDocument = new EditorProjectPlatformsService(ProjectRootPath).Load();
             IReadOnlyList<string> supportedPlatforms = platformsDocument.SupportedPlatforms;
+            if (supportedPlatforms.Count == 0) {
+                return string.Empty;
+            }
+
             string activePlatformId = new EditorProjectLocalSettingsService(ProjectRootPath, supportedPlatforms).LoadActivePlatform();
-            if (HasPlatformMaterialSettings(settings, activePlatformId)) {
+            if (!string.IsNullOrWhiteSpace(activePlatformId)) {
                 return activePlatformId;
             }
 
-            for (int index = 0; index < supportedPlatforms.Count; index++) {
-                string platformId = supportedPlatforms[index];
-                if (HasPlatformMaterialSettings(settings, platformId)) {
-                    return platformId;
-                }
-            }
-
-            return string.Empty;
-        }
-
-        /// <summary>
-        /// Returns true when the material sidecar publishes material settings for the supplied platform identifier.
-        /// </summary>
-        /// <param name="settings">Material sidecar settings to inspect.</param>
-        /// <param name="platformId">Platform identifier to locate.</param>
-        /// <returns>True when matching platform material settings exist.</returns>
-        bool HasPlatformMaterialSettings(MaterialAssetImportSettings settings, string platformId) {
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
-            if (string.IsNullOrWhiteSpace(platformId) || settings.Processor == null || settings.Processor.Platforms == null) {
-                return false;
-            }
-
-            MaterialAssetProcessorSettings platformSettings;
-            if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null) {
-                return false;
-            }
-
-            return true;
+            return supportedPlatforms[0] ?? string.Empty;
         }
 
         /// <summary>

@@ -36,32 +36,32 @@ namespace helengine.editor {
         /// <summary>
         /// Relative project asset path for the neutral physics demo material.
         /// </summary>
-        const string PhysicsDemoNeutralMaterialRelativePath = "Materials/physics/PhysicsDemoNeutral.helmat";
+        const string PhysicsDemoNeutralMaterialRelativePath = "Materials/physics/PhysicsDemoNeutral" + EditorFileTemplateRegistry.MaterialExtension;
 
         /// <summary>
         /// Relative project asset path for the blue physics demo material.
         /// </summary>
-        const string PhysicsDemoBlueMaterialRelativePath = "Materials/physics/PhysicsDemoBlue.helmat";
+        const string PhysicsDemoBlueMaterialRelativePath = "Materials/physics/PhysicsDemoBlue" + EditorFileTemplateRegistry.MaterialExtension;
 
         /// <summary>
         /// Relative project asset path for the green physics demo material.
         /// </summary>
-        const string PhysicsDemoGreenMaterialRelativePath = "Materials/physics/PhysicsDemoGreen.helmat";
+        const string PhysicsDemoGreenMaterialRelativePath = "Materials/physics/PhysicsDemoGreen" + EditorFileTemplateRegistry.MaterialExtension;
 
         /// <summary>
         /// Relative project asset path for the magenta physics demo material.
         /// </summary>
-        const string PhysicsDemoMagentaMaterialRelativePath = "Materials/physics/PhysicsDemoMagenta.helmat";
+        const string PhysicsDemoMagentaMaterialRelativePath = "Materials/physics/PhysicsDemoMagenta" + EditorFileTemplateRegistry.MaterialExtension;
 
         /// <summary>
         /// Relative project asset path for the yellow physics demo material.
         /// </summary>
-        const string PhysicsDemoYellowMaterialRelativePath = "Materials/physics/PhysicsDemoYellow.helmat";
+        const string PhysicsDemoYellowMaterialRelativePath = "Materials/physics/PhysicsDemoYellow" + EditorFileTemplateRegistry.MaterialExtension;
 
         /// <summary>
         /// Relative project asset path for the cyan physics demo material.
         /// </summary>
-        const string PhysicsDemoCyanMaterialRelativePath = "Materials/physics/PhysicsDemoCyan.helmat";
+        const string PhysicsDemoCyanMaterialRelativePath = "Materials/physics/PhysicsDemoCyan" + EditorFileTemplateRegistry.MaterialExtension;
 
         /// <summary>
         /// Shader asset identifier derived from the shared physics demo shader path.

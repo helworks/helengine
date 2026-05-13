@@ -27,7 +27,7 @@ namespace helengine.editor.tests.serialization.scene {
             };
             SceneAssetReference materialReference = new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Materials/Default.helmat",
+                RelativePath = "Materials/Default.hasset",
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };
@@ -110,13 +110,13 @@ namespace helengine.editor.tests.serialization.scene {
             };
             SceneAssetReference firstMaterialReference = new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Materials/SponzaWalls.helmat",
+                RelativePath = "Materials/SponzaWalls.hasset",
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };
             SceneAssetReference secondMaterialReference = new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Materials/SponzaTrim.helmat",
+                RelativePath = "Materials/SponzaTrim.hasset",
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };

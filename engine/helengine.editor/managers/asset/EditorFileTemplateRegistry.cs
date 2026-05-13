@@ -10,7 +10,7 @@ namespace helengine.editor {
         /// <summary>
         /// Extension used for serialized material assets.
         /// </summary>
-        public const string MaterialExtension = ".helmat";
+        public const string MaterialExtension = ".hasset";
 
         /// <summary>
         /// Default shader source contents used for new shader files.

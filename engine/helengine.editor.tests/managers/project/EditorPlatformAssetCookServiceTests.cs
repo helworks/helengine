@@ -163,7 +163,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         helengine.baseplatform.Builders.IPlatformAssetBuilder builder = builderLoader.Load(platformDescriptor.BuilderAssemblyPath);
 
         string scenePath = "Scenes/PhysicsTrigger.helen";
-        string materialRelativePath = "Materials/physics/PhysicsDemoNeutral.helmat";
+        string materialRelativePath = "Materials/physics/PhysicsDemoNeutral.hasset";
         WriteMaterialAsset(materialRelativePath, "PhysicsDemoNeutral");
         WriteSceneAssetWithMaterial(scenePath, materialRelativePath);
 
@@ -186,7 +186,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         Assert.Equal("PhysicsTrigger", manifest.StartupSceneId);
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "PhysicsTrigger.hasset")));
-        string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "Materials", "physics", "PhysicsDemoNeutral.helmat");
+        string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "Materials", "physics", "PhysicsDemoNeutral.hasset");
         Assert.True(File.Exists(cookedMaterialPath));
 
         using FileStream stream = new FileStream(cookedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -271,7 +271,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Writes one serialized material asset with shader-backed material fields and no import-settings sidecar.
+    /// Writes one authored material document with standard-shader defaults and no platform override.
     /// </summary>
     /// <param name="materialRelativePath">Project-relative material path to write.</param>
     /// <param name="materialAssetId">Serialized material asset identifier.</param>
@@ -279,18 +279,27 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(materialPath)!);
 
-        MaterialAsset materialAsset = new() {
-            Id = materialAssetId,
-            ShaderAssetId = "PhysicsDemoShader",
-            VertexProgram = "PhysicsDemo.vs",
-            PixelProgram = "PhysicsDemo.ps",
-            Variant = "default",
-            RenderState = new MaterialRenderState(),
-            ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
+        MaterialAssetImportSettings settings = new() {
+            Importer = new AssetImporterSettings {
+                ImporterId = "helengine.material",
+                SourceChecksum = string.Empty,
+                AssetId = materialAssetId
+            },
+            Processor = new MaterialAssetProcessorPlatformSettings()
+        };
+        settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+            SchemaId = "standard-shader",
+            FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                ["use-custom-shader"] = "false",
+                ["texture-id"] = string.Empty,
+                ["casts-shadow"] = "true",
+                ["receives-shadow"] = "true",
+                ["base-color"] = "#FFFFFFFF"
+            }
         };
 
-        using FileStream stream = new(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        AssetSerializer.Serialize(stream, materialAsset);
+        MaterialAssetSettingsService settingsService = new();
+        settingsService.Save(materialPath, settings);
     }
 
     /// <summary>

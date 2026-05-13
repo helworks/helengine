@@ -149,10 +149,10 @@ namespace helengine.editor {
 
                     string relativePath = CombineRelativePath(currentRelativePath, name);
                     string extension = Path.GetExtension(filePath);
-                    if (string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase)) {
+                    if (ShouldHideFile(filePath, extension)) {
                         continue;
                     }
-                    AssetEntryKind entryKind = ClassifyEntryKind(extension);
+                    AssetEntryKind entryKind = ClassifyEntryKind(filePath, extension);
                     entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind));
                 }
             } catch (Exception ex) {
@@ -206,7 +206,7 @@ namespace helengine.editor {
                 return AssetEntryKind.Directory;
             }
 
-            return ClassifyEntryKind(entry.Extension);
+            return ClassifyEntryKind(entry.FullPath, entry.Extension);
         }
 
         /// <summary>
@@ -300,9 +300,18 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="extension">File extension including the dot.</param>
         /// <returns>Visual category used by the browser row.</returns>
-        AssetEntryKind ClassifyEntryKind(string extension) {
+        AssetEntryKind ClassifyEntryKind(string filePath, string extension) {
             if (string.IsNullOrEmpty(extension)) {
                 return AssetEntryKind.Unknown;
+            }
+
+            if (string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase)) {
+                AssetEntryKind hassetKind;
+                if (TryClassifyHassetFile(filePath, out hassetKind)) {
+                    return hassetKind;
+                }
+
+                return AssetEntryKind.File;
             }
 
             if (imageExtensions.Contains(extension)) {
@@ -338,6 +347,70 @@ namespace helengine.editor {
             }
 
             return AssetEntryKind.File;
+        }
+
+        /// <summary>
+        /// Returns true when a file should be omitted from the asset browser.
+        /// </summary>
+        /// <param name="filePath">Absolute path to the candidate file.</param>
+        /// <param name="extension">File extension including the dot.</param>
+        /// <returns>True when the file should be hidden from the browser.</returns>
+        bool ShouldHideFile(string filePath, string extension) {
+            if (!string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
+            AssetEntryKind hassetKind;
+            if (!TryClassifyHassetFile(filePath, out hassetKind)) {
+                return true;
+            }
+
+            return hassetKind != AssetEntryKind.Material;
+        }
+
+        /// <summary>
+        /// Classifies one `.hasset` file by peeking its HELE header so authored material assets can coexist with importer settings sidecars.
+        /// </summary>
+        /// <param name="filePath">Absolute path to the `.hasset` file.</param>
+        /// <param name="entryKind">Resolved asset-browser entry kind when classification succeeds.</param>
+        /// <returns>True when the file header could be classified successfully.</returns>
+        bool TryClassifyHassetFile(string filePath, out AssetEntryKind entryKind) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                entryKind = AssetEntryKind.Unknown;
+                return false;
+            }
+
+            try {
+                using FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
+                    entryKind = AssetEntryKind.File;
+                    return true;
+                }
+
+                if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
+                    if (header.ValueKind == (ushort)EditorAssetBinaryValueKind.MaterialAsset ||
+                        header.ValueKind == (ushort)EditorAssetBinaryValueKind.Ps2MaterialAsset) {
+                        entryKind = AssetEntryKind.Material;
+                        return true;
+                    }
+
+                    entryKind = AssetEntryKind.File;
+                    return true;
+                }
+
+                if (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings &&
+                    header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument) {
+                    entryKind = AssetEntryKind.Material;
+                    return true;
+                }
+
+                entryKind = AssetEntryKind.File;
+                return true;
+            } catch {
+                entryKind = AssetEntryKind.Unknown;
+                return false;
+            }
         }
 
         /// <summary>

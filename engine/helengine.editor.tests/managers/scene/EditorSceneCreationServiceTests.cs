@@ -108,7 +108,7 @@ namespace helengine.editor.tests.managers.scene {
             SceneAssetReference[] materialReferences = {
                 new SceneAssetReference {
                     SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = "Models/Cube.helmat"
+                    RelativePath = "Models/Cube.hasset"
                 }
             };
 
@@ -127,7 +127,7 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, savedModelReference.SourceKind);
             Assert.Equal("Models/Cube.obj", savedModelReference.RelativePath);
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, savedMaterialReference.SourceKind);
-            Assert.Equal("Models/Cube.helmat", savedMaterialReference.RelativePath);
+            Assert.Equal("Models/Cube.hasset", savedMaterialReference.RelativePath);
         }
 
         /// <summary>

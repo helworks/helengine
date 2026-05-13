@@ -38,9 +38,9 @@ namespace helengine.editor.tests {
         public void ReadCityWindowsBuildConfig_WindowsSelectedScenesContainAxisTest() {
             string buildConfigSource = ReadBuildConfigSource();
 
-            int windowsPlatformIndex = buildConfigSource.IndexOf("\"platformId\":  \"windows\"", StringComparison.Ordinal);
+            int windowsPlatformIndex = buildConfigSource.IndexOf("\"platformId\": \"windows\"", StringComparison.Ordinal);
             int axisTestIndex = buildConfigSource.IndexOf("\"axis_test\"", StringComparison.Ordinal);
-            int pspPlatformIndex = buildConfigSource.IndexOf("\"platformId\":  \"psp\"", StringComparison.Ordinal);
+            int pspPlatformIndex = buildConfigSource.IndexOf("\"platformId\": \"psp\"", StringComparison.Ordinal);
 
             Assert.True(windowsPlatformIndex >= 0);
             Assert.True(axisTestIndex > windowsPlatformIndex);
@@ -169,10 +169,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the authored spotlight street-slice scene references generated racer companion materials through their real `.helmat` assets instead of import-settings sidecars.
+        /// Ensures the authored spotlight street-slice scene references generated racer companion materials through their real `.hasset` assets instead of legacy sidecars.
         /// </summary>
         [Fact]
-        public void DeserializeCitySpotlightStreetSliceSceneAsset_RacerMaterialReferencesDoNotUseHelmatHassetSidecars() {
+        public void DeserializeCitySpotlightStreetSliceSceneAsset_RacerMaterialReferencesDoNotUseLegacyMaterialSidecars() {
             SceneAsset sceneAsset = ReadSceneAsset("spotlight_street_slice.helen");
 
             Assert.DoesNotContain(
@@ -181,7 +181,7 @@ namespace helengine.editor.tests {
                     && reference.RelativePath.Contains(".helmat.hasset", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(
                 sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>(),
-                reference => string.Equals(reference.RelativePath, "models/Riemers/racer/x3ds_mat_ruedas.helmat", StringComparison.OrdinalIgnoreCase));
+                reference => string.Equals(reference.RelativePath, "models/Riemers/racer/x3ds_mat_ruedas.hasset", StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>

@@ -21,6 +21,16 @@ namespace helengine.editor {
         /// <summary>
         /// The payload stores an <see cref="AssetImportSettings"/> instance.
         /// </summary>
-        AssetImportSettings = 4
+        AssetImportSettings = 4,
+
+        /// <summary>
+        /// The payload stores a <see cref="MaterialAssetCommonSettingsDocument"/> instance.
+        /// </summary>
+        MaterialAssetCommonSettingsDocument = 5,
+
+        /// <summary>
+        /// The payload stores a <see cref="MaterialAssetPlatformOverrideDocument"/> instance.
+        /// </summary>
+        MaterialAssetPlatformOverrideDocument = 6
     }
 }

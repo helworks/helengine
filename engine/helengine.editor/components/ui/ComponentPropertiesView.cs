@@ -97,7 +97,7 @@ namespace helengine.editor {
         /// <summary>
         /// Extension used for material assets.
         /// </summary>
-        const string MaterialExtension = ".helmat";
+        const string MaterialExtension = EditorFileTemplateRegistry.MaterialExtension;
         /// <summary>
         /// Extension used for font assets.
         /// </summary>
@@ -1988,7 +1988,31 @@ namespace helengine.editor {
                 throw new ArgumentException("Material path must be provided.", nameof(path));
             }
 
-            return AssetContentManager.Load<MaterialAsset>(path, EditorContentProcessorIds.MaterialAsset);
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            return settingsService.LoadMaterialAsset(path, ResolveActiveProjectPlatformId());
+        }
+
+        /// <summary>
+        /// Resolves the active project platform used when file-backed material assets are previewed from the component inspector.
+        /// </summary>
+        /// <returns>Active project platform identifier.</returns>
+        string ResolveActiveProjectPlatformId() {
+            string projectRootPath = EditorProjectPaths.ProjectRoot;
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new InvalidOperationException("The current project root must be initialized before file-backed materials can be loaded.");
+            }
+
+            EditorProjectPlatformsDocument platformsDocument = new EditorProjectPlatformsService(projectRootPath).Load();
+            if (platformsDocument.SupportedPlatforms.Count == 0) {
+                throw new InvalidOperationException("At least one supported project platform must exist before file-backed materials can be loaded.");
+            }
+
+            string activePlatformId = new EditorProjectLocalSettingsService(projectRootPath, platformsDocument.SupportedPlatforms).LoadActivePlatform();
+            if (!string.IsNullOrWhiteSpace(activePlatformId)) {
+                return activePlatformId;
+            }
+
+            return platformsDocument.SupportedPlatforms[0];
         }
 
         /// <summary>

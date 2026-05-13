@@ -92,7 +92,7 @@ namespace helengine.editor.assimp {
         }
 
         /// <summary>
-        /// Builds generated `.helmat` payloads for the distinct materials referenced by the imported meshes.
+        /// Builds generated `.hasset` payloads for the distinct materials referenced by the imported meshes.
         /// </summary>
         /// <param name="scene">Imported scene that owns the materials.</param>
         /// <param name="stream">Source stream used to resolve deterministic sibling output paths.</param>
@@ -219,7 +219,7 @@ namespace helengine.editor.assimp {
                 throw new ArgumentException("Material name must be provided.", nameof(materialName));
             }
 
-            string fileName = string.Concat(materialName, ".helmat");
+            string fileName = string.Concat(materialName, EditorFileTemplateRegistry.MaterialExtension);
             if (string.IsNullOrWhiteSpace(generatedMaterialDirectoryName)) {
                 return NormalizeRelativePath(fileName);
             }

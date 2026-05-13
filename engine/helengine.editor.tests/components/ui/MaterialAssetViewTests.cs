@@ -43,13 +43,13 @@ public sealed class MaterialAssetViewTests : IDisposable {
     [Fact]
     public void Show_when_multiple_platforms_are_available_renders_separate_panels_for_each_platform() {
         MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
-        string materialPath = Path.Combine(TempRootPath, "Test.helmat");
+        string materialPath = Path.Combine(TempRootPath, "Test.hasset");
         File.WriteAllBytes(materialPath, Array.Empty<byte>());
 
         view.Show(
-            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.helmat", materialPath, ".helmat", AssetEntryKind.Material),
+            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
             new MaterialAsset {
-                Id = "Materials/Test.helmat"
+                Id = "Materials/Test.hasset"
             },
             CreateSettings(useCustomShader: false),
             ["windows", "linux"],
@@ -126,13 +126,13 @@ public sealed class MaterialAssetViewTests : IDisposable {
             LayerMask = 1
         };
         MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, modalHost);
-        string materialPath = Path.Combine(TempRootPath, "Test.helmat");
+        string materialPath = Path.Combine(TempRootPath, "Test.hasset");
         File.WriteAllBytes(materialPath, Array.Empty<byte>());
 
         view.Show(
-            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.helmat", materialPath, ".helmat", AssetEntryKind.Material),
+            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
             new MaterialAsset {
-                Id = "Materials/Test.helmat"
+                Id = "Materials/Test.hasset"
             },
             CreateSettings(useCustomShader: false),
             ["windows"],
@@ -165,13 +165,13 @@ public sealed class MaterialAssetViewTests : IDisposable {
     [Fact]
     public void Show_when_custom_shader_is_disabled_does_not_leave_stale_interactables() {
         MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
-        string materialPath = Path.Combine(TempRootPath, "Test.helmat");
+        string materialPath = Path.Combine(TempRootPath, "Test.hasset");
         File.WriteAllBytes(materialPath, Array.Empty<byte>());
 
         view.Show(
-            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.helmat", materialPath, ".helmat", AssetEntryKind.Material),
+            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
             new MaterialAsset {
-                Id = "Materials/Test.helmat"
+                Id = "Materials/Test.hasset"
             },
             CreateSettings(useCustomShader: true),
             ["windows"],

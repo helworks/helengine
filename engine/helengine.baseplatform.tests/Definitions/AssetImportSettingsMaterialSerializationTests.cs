@@ -170,22 +170,62 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
             ]);
 
         MaterialAssetSettingsService service = new MaterialAssetSettingsService();
-        AssetImportSettings settings = service.LoadOrCreate(
+        MaterialAssetImportSettings settings = service.LoadOrCreate(
             materialAssetPath,
             materialAsset,
             ["windows"],
             platformId => EditorPlatformBuildSelectionModel.From(definition));
 
-        Assert.True(File.Exists(materialAssetPath + ".hasset"));
-        Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].Material.SchemaId);
-        Assert.Equal("false", settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"]);
-        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
-        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].Material.FieldValues["texture-id"]);
-        Assert.Equal("true", settings.Processor.Platforms["windows"].Material.FieldValues["casts-shadow"]);
-        Assert.Equal("true", settings.Processor.Platforms["windows"].Material.FieldValues["receives-shadow"]);
-        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].Material.FieldValues["vertex-program"]);
-        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].Material.FieldValues["pixel-program"]);
-        Assert.Equal("#ffffff", settings.Processor.Platforms["windows"].Material.FieldValues["base-color"]);
+        Assert.True(File.Exists(materialAssetPath));
+        Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].SchemaId);
+        Assert.Equal("false", settings.Processor.Platforms["windows"].FieldValues["use-custom-shader"]);
+        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].FieldValues["shader-asset-id"]);
+        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].FieldValues["texture-id"]);
+        Assert.Equal("true", settings.Processor.Platforms["windows"].FieldValues["casts-shadow"]);
+        Assert.Equal("true", settings.Processor.Platforms["windows"].FieldValues["receives-shadow"]);
+        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].FieldValues["vertex-program"]);
+        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].FieldValues["pixel-program"]);
+        Assert.Equal("#ffffff", settings.Processor.Platforms["windows"].FieldValues["base-color"]);
+    }
+
+    /// <summary>
+    /// Verifies base material authoring now lives directly in the material `.hasset` file and platform overrides live in `*.platform.hasset`.
+    /// </summary>
+    [Fact]
+    public void MaterialAssetSettingsService_loads_platform_settings_from_base_hasset_and_platform_override() {
+        string materialAssetPath = Path.Combine(TempRootPath, "Test.hasset");
+        MaterialAssetCommonSettingsDocument commonDocument = new MaterialAssetCommonSettingsDocument();
+        commonDocument.Importer.ImporterId = "helengine.material";
+        commonDocument.Importer.AssetId = "Materials/Test.hasset";
+        commonDocument.Processor.SchemaId = "standard-shader";
+        commonDocument.Processor.FieldValues["use-custom-shader"] = "false";
+        commonDocument.Processor.FieldValues["texture-id"] = "Textures/Common.png";
+        commonDocument.Processor.FieldValues["casts-shadow"] = "true";
+        commonDocument.Processor.FieldValues["receives-shadow"] = "true";
+        commonDocument.Processor.FieldValues["base-color"] = "#ffffff";
+        using (FileStream stream = File.Create(materialAssetPath)) {
+            MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, commonDocument);
+        }
+
+        MaterialAssetPlatformOverrideDocument overrideDocument = new MaterialAssetPlatformOverrideDocument();
+        overrideDocument.PlatformId = "windows";
+        overrideDocument.Processor.FieldValues["texture-id"] = "Textures/Windows.png";
+        overrideDocument.Processor.FieldValues["base-color"] = "#336699";
+        using (FileStream stream = File.Create(materialAssetPath + ".windows.hasset")) {
+            MaterialAssetPlatformOverrideDocumentBinarySerializer.Serialize(stream, overrideDocument);
+        }
+
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+
+        bool loaded = service.TryLoadPlatformSettings(materialAssetPath, "windows", out MaterialAssetProcessorSettings platformSettings);
+
+        Assert.True(loaded);
+        Assert.NotNull(platformSettings);
+        Assert.Equal("standard-shader", platformSettings.SchemaId);
+        Assert.Equal("Textures/Windows.png", platformSettings.FieldValues["texture-id"]);
+        Assert.Equal("#336699", platformSettings.FieldValues["base-color"]);
+        Assert.Equal("true", platformSettings.FieldValues["casts-shadow"]);
+        Assert.False(File.Exists(materialAssetPath + ".hasset"));
     }
 
     /// <summary>
@@ -203,13 +243,13 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
             Variant = "Mesh"
         };
 
-        AssetImportSettings settings = new AssetImportSettings();
-        settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings();
-        settings.Processor.Platforms["windows"].Material.SchemaId = "standard-shader";
-        settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"] = "false";
-        settings.Processor.Platforms["windows"].Material.FieldValues["texture-id"] = "Textures/Brick.png";
-        settings.Processor.Platforms["windows"].Material.FieldValues["casts-shadow"] = "false";
-        settings.Processor.Platforms["windows"].Material.FieldValues["receives-shadow"] = "false";
+        MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+        settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings();
+        settings.Processor.Platforms["windows"].SchemaId = "standard-shader";
+        settings.Processor.Platforms["windows"].FieldValues["use-custom-shader"] = "false";
+        settings.Processor.Platforms["windows"].FieldValues["texture-id"] = "Textures/Brick.png";
+        settings.Processor.Platforms["windows"].FieldValues["casts-shadow"] = "false";
+        settings.Processor.Platforms["windows"].FieldValues["receives-shadow"] = "false";
 
         MaterialAssetSettingsService service = new MaterialAssetSettingsService();
 
@@ -237,10 +277,10 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
             Variant = "Mesh"
         };
 
-        AssetImportSettings settings = new AssetImportSettings();
-        settings.Processor.Platforms["ps2"] = new AssetPlatformProcessorSettings();
-        settings.Processor.Platforms["ps2"].Material.SchemaId = "fixed-textured";
-        settings.Processor.Platforms["ps2"].Material.FieldValues["texture-id"] = "Textures/Brick.png";
+        MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+        settings.Processor.Platforms["ps2"] = new MaterialAssetProcessorSettings();
+        settings.Processor.Platforms["ps2"].SchemaId = "fixed-textured";
+        settings.Processor.Platforms["ps2"].FieldValues["texture-id"] = "Textures/Brick.png";
 
         MaterialAssetSettingsService service = new MaterialAssetSettingsService();
 

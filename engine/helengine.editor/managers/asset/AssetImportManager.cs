@@ -854,6 +854,10 @@ namespace helengine.editor {
         public List<string> ImportTexturesMissingCache() {
             List<string> importedAssets = new List<string>();
             foreach (string sourcePath in EnumerateAssetSourceFiles()) {
+                if (!IsTextureExtension(Path.GetExtension(sourcePath))) {
+                    continue;
+                }
+
                 TextureAssetImportSettings settings;
                 if (!TryLoadOrCreateTextureImportSettings(sourcePath, out settings)) {
                     continue;
@@ -882,6 +886,10 @@ namespace helengine.editor {
         public List<string> ImportModelsMissingCache() {
             List<string> importedAssets = new List<string>();
             foreach (string sourcePath in EnumerateAssetSourceFiles()) {
+                if (!IsModelExtension(Path.GetExtension(sourcePath))) {
+                    continue;
+                }
+
                 ModelAssetImportSettings settings;
                 if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings)) {
                     continue;

@@ -107,20 +107,20 @@ namespace helengine.editor.tests {
         /// Ensures importer-generated material assets are written next to the source model using their deterministic relative paths.
         /// </summary>
         [Fact]
-        public void ImportModel_WhenImporterReturnsGeneratedMaterials_WritesSiblingHelmatAssets() {
+        public void ImportModel_WhenImporterReturnsGeneratedMaterials_WritesSiblingHassetAssets() {
             string sourcePath = WriteSourceModel("sponza.obj");
             TestModelImporter modelImporter = new TestModelImporter {
                 GeneratedMaterials = new[] {
-                    CreateGeneratedMaterial("Fabric", "sponza/Fabric.helmat", "Textures/Fabric.png"),
-                    CreateGeneratedMaterial("Wood", "sponza/Wood.helmat", "Textures/Wood.png")
+                    CreateGeneratedMaterial("Fabric", "sponza/Fabric.hasset", "Textures/Fabric.png"),
+                    CreateGeneratedMaterial("Wood", "sponza/Wood.hasset", "Textures/Wood.png")
                 }
             };
             AssetImportManager manager = CreateManager(modelImporter);
 
             manager.ImportModel(sourcePath);
 
-            string firstMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.helmat");
-            string secondMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Wood.helmat");
+            string firstMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.hasset");
+            string secondMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Wood.hasset");
             Assert.True(File.Exists(firstMaterialPath));
             Assert.True(File.Exists(secondMaterialPath));
             Assert.Equal("Textures/Fabric.png", ReadMaterialAsset(firstMaterialPath).DiffuseTextureAssetId);
@@ -131,23 +131,23 @@ namespace helengine.editor.tests {
         /// Ensures reimporting a model rewrites previously generated material assets in place.
         /// </summary>
         [Fact]
-        public void ImportModel_WhenReimportingGeneratedMaterials_UpdatesExistingHelmatInPlace() {
+        public void ImportModel_WhenReimportingGeneratedMaterials_UpdatesExistingHassetInPlace() {
             string sourcePath = WriteSourceModel("sponza.obj");
             TestModelImporter modelImporter = new TestModelImporter {
                 GeneratedMaterials = new[] {
-                    CreateGeneratedMaterial("Fabric", "sponza/Fabric.helmat", "Textures/FabricA.png")
+                    CreateGeneratedMaterial("Fabric", "sponza/Fabric.hasset", "Textures/FabricA.png")
                 }
             };
             AssetImportManager manager = CreateManager(modelImporter);
 
             manager.ImportModel(sourcePath);
             modelImporter.GeneratedMaterials = new[] {
-                CreateGeneratedMaterial("Fabric", "sponza/Fabric.helmat", "Textures/FabricB.png")
+                CreateGeneratedMaterial("Fabric", "sponza/Fabric.hasset", "Textures/FabricB.png")
             };
 
             manager.ImportModel(sourcePath);
 
-            string materialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.helmat");
+            string materialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.hasset");
             Assert.True(File.Exists(materialPath));
             Assert.Equal("Textures/FabricB.png", ReadMaterialAsset(materialPath).DiffuseTextureAssetId);
         }
@@ -374,6 +374,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures startup model-cache scans do not overwrite authored material documents or platform override files.
+        /// </summary>
+        [Fact]
+        public void ImportModelsMissingCache_WhenMaterialAssetSidecarExists_DoesNotRewriteMaterialSettings() {
+            string materialSourcePath = WriteMaterialAsset("Generated/Cube00.hasset");
+            AssetImportManager manager = CreateManager(new TestModelImporter());
+            MaterialAssetImportSettings expectedSettings = CreateMaterialImportSettings("Materials/Generated/Cube00.hasset", "#FF4040FF");
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+
+            settingsService.Save(materialSourcePath, expectedSettings);
+
+            List<string> importedAssets = manager.ImportModelsMissingCache();
+
+            Assert.Empty(importedAssets);
+            Assert.True(settingsService.TryLoadPlatformSettings(materialSourcePath, "windows", out MaterialAssetProcessorSettings actualSettings));
+            Assert.True(File.Exists(materialSourcePath));
+            Assert.Equal(expectedSettings.Processor.Platforms["windows"].SchemaId, actualSettings.SchemaId);
+            Assert.Equal(
+                expectedSettings.Processor.Platforms["windows"].FieldValues["base-color"],
+                actualSettings.FieldValues["base-color"]);
+        }
+
+        /// <summary>
         /// Creates a configured asset import manager with a deterministic model importer.
         /// </summary>
         /// <param name="modelImporter">Model importer instance to register.</param>
@@ -412,6 +435,63 @@ namespace helengine.editor.tests {
         /// <returns>Absolute path to the source file.</returns>
         string WriteSourceModel(string fileName) {
             return WriteSourceModel(fileName, "test model source");
+        }
+
+        /// <summary>
+        /// Writes one minimal serialized material asset inside the temporary assets folder.
+        /// </summary>
+        /// <param name="relativePath">Asset-relative material path to create.</param>
+        /// <returns>Absolute path to the serialized material asset.</returns>
+        string WriteMaterialAsset(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+            string sourcePath = Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(sourcePath);
+            if (!string.IsNullOrWhiteSpace(directoryPath)) {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            settingsService.Save(sourcePath, CreateMaterialImportSettings("Materials/Generated/Cube00.hasset", "#FFFFFFFF"));
+            return sourcePath;
+        }
+
+        /// <summary>
+        /// Creates one representative material import-settings payload for a generated standard material.
+        /// </summary>
+        /// <param name="assetId">Stable asset id stored on the settings sidecar.</param>
+        /// <param name="baseColor">Authored base-color string stored for the Windows platform.</param>
+        /// <returns>Typed material import settings ready for serialization.</returns>
+        MaterialAssetImportSettings CreateMaterialImportSettings(string assetId, string baseColor) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Asset id must be provided.", nameof(assetId));
+            } else if (string.IsNullOrWhiteSpace(baseColor)) {
+                throw new ArgumentException("Base color must be provided.", nameof(baseColor));
+            }
+
+            return new MaterialAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = "helengine.material",
+                    SourceChecksum = string.Empty,
+                    AssetId = assetId
+                },
+                Processor = new MaterialAssetProcessorPlatformSettings {
+                    Platforms = new Dictionary<string, MaterialAssetProcessorSettings> {
+                        ["windows"] = new MaterialAssetProcessorSettings {
+                            SchemaId = "standard-shader",
+                            FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                                ["use-custom-shader"] = "false",
+                                ["texture-id"] = string.Empty,
+                                ["casts-shadow"] = "true",
+                                ["receives-shadow"] = "true",
+                                ["base-color"] = baseColor
+                            }
+                        }
+                    }
+                }
+            };
         }
 
         /// <summary>

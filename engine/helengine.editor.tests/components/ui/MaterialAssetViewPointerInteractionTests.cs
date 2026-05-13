@@ -51,13 +51,13 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
         CreateUiCamera(1280, 720);
 
         MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
-        string materialPath = Path.Combine(TempRootPath, "Test.helmat");
+        string materialPath = Path.Combine(TempRootPath, "Test.hasset");
         File.WriteAllBytes(materialPath, Array.Empty<byte>());
 
         view.Show(
-            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.helmat", materialPath, ".helmat", AssetEntryKind.Material),
+            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
             new MaterialAsset {
-                Id = "Materials/Test.helmat"
+                Id = "Materials/Test.hasset"
             },
             CreateSettings(useCustomShader: true),
             ["windows"],

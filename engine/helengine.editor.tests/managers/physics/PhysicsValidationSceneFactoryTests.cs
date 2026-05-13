@@ -177,8 +177,8 @@ namespace helengine.editor.tests.managers.physics {
             factory.WriteScenes(TempProjectRootPath);
 
             string shaderPath = Path.Combine(TempProjectRootPath, "assets", "Shaders", "physics", "PhysicsDemoMesh.hlsl");
-            string neutralMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoNeutral.helmat");
-            string blueMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoBlue.helmat");
+            string neutralMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoNeutral.hasset");
+            string blueMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoBlue.hasset");
 
             Assert.True(File.Exists(shaderPath));
             Assert.True(File.Exists(neutralMaterialPath));

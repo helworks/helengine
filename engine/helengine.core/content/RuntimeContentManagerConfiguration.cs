@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// File extension used for serialized material assets.
         /// </summary>
-        const string MaterialAssetExtension = ".helmat";
+        const string MaterialAssetExtension = ".hasset";
 
         /// <summary>
         /// File extension used for serialized shader packages.

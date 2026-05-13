@@ -1372,7 +1372,7 @@ namespace helengine.editor {
             string fullPath = ResolveProjectAssetPath(reference.RelativePath);
             MaterialAsset materialAsset;
             try {
-                materialAsset = ProjectContentManager.Load<MaterialAsset>(fullPath, EditorContentProcessorIds.MaterialAsset);
+                materialAsset = MaterialAssetSettingsService.LoadMaterialAsset(fullPath, TargetPlatformId);
             } catch (Exception ex) {
                 throw new InvalidOperationException($"Material '{reference.RelativePath}' at '{fullPath}' could not be loaded for packaging.", ex);
             }
@@ -1386,12 +1386,6 @@ namespace helengine.editor {
                 CopyReferencedDiffuseTextureAsset(fullPath, ResolveReferencedDiffuseTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 WriteBytes(Path.Combine(buildRootPath, cookedRelativePath), cookResult.CookedMaterialBytes);
                 return CreateFileSystemReference(cookedRelativePath);
-            }
-
-            MaterialAssetImportSettings platformMaterialSettings;
-            if (MaterialAssetSettingsService.TryLoad(fullPath, out platformMaterialSettings) &&
-                HasValidPlatformMaterialSettings(platformMaterialSettings, TargetPlatformId)) {
-                MaterialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, platformMaterialSettings, TargetPlatformId);
             }
 
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
@@ -1505,27 +1499,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (string.IsNullOrWhiteSpace(materialRelativePath)) {
                 throw new ArgumentException("Material relative path must be provided.", nameof(materialRelativePath));
-            } else if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
-            }
-
-            string settingsPath = materialAssetPath + AssetImportManager.SettingsExtension;
-            if (File.Exists(settingsPath)) {
-                try {
-                    using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    MaterialAssetImportSettings settings = MaterialAssetImportSettingsBinarySerializer.Deserialize(stream);
-                    if (settings.Processor?.Platforms != null && settings.Processor.Platforms.ContainsKey(TargetPlatformId)) {
-                        return settings;
-                    }
-                } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(settingsPath, StringComparison.Ordinal)) {
-                    Logger.WriteWarning($"Material settings file '{settingsPath}' could not be deserialized for material '{materialRelativePath}'. Rebuilding settings.");
-                }
             }
 
             if (MaterialBuilder != null) {
                 return MaterialAssetSettingsService.LoadOrCreate(
                     materialAssetPath,
-                    materialAsset,
                     [TargetPlatformId],
                     ResolveSelectionModelForMaterialSettings);
             }
@@ -1554,16 +1532,7 @@ namespace helengine.editor {
         /// <param name="settings">Persisted material settings candidate.</param>
         /// <param name="platformId">Target platform whose settings should be validated.</param>
         /// <returns>True when the sidecar contains a non-empty schema id for the requested platform.</returns>
-        static bool HasValidPlatformMaterialSettings(MaterialAssetImportSettings settings, string platformId) {
-            if (settings == null || string.IsNullOrWhiteSpace(platformId)) {
-                return false;
-            }
-            if (settings.Processor == null || settings.Processor.Platforms == null) {
-                return false;
-            }
-            if (!settings.Processor.Platforms.TryGetValue(platformId, out MaterialAssetProcessorSettings platformSettings)) {
-                return false;
-            }
+        static bool HasValidPlatformMaterialSettings(MaterialAssetProcessorSettings platformSettings) {
             if (platformSettings == null) {
                 return false;
             }

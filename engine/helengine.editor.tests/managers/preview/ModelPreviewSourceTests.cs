@@ -156,7 +156,7 @@ namespace helengine.editor.tests {
         public void TryCreate_WhenModelHasImportedMaterials_BindsTheImportedDiffuseTexture() {
             TestModelImporter modelImporter = new TestModelImporter {
                 GeneratedMaterials = new[] {
-                    CreateGeneratedMaterial("Default", "Materials/Default.helmat", "Textures/Fabric.png")
+                    CreateGeneratedMaterial("Default", "Materials/Default.hasset", "Textures/Fabric.png")
                 }
             };
             AssetImportManager assetImportManager = CreateAssetImportManager(modelImporter);
@@ -197,7 +197,7 @@ namespace helengine.editor.tests {
         public void TryCreate_WhenImportedTextureLivesBesideTheModel_ResolvesItFromTheModelDirectory() {
             TestModelImporter modelImporter = new TestModelImporter {
                 GeneratedMaterials = new[] {
-                    CreateGeneratedMaterial("Default", "Materials/Default.helmat", "Textures/Fabric.png")
+                    CreateGeneratedMaterial("Default", "Materials/Default.hasset", "Textures/Fabric.png")
                 }
             };
             AssetImportManager assetImportManager = CreateAssetImportManager(modelImporter);
@@ -227,7 +227,7 @@ namespace helengine.editor.tests {
         public void TryCreate_WhenTextureCacheIsStale_UsesTheSourceTextureInsteadOfTheCachedAsset() {
             TestModelImporter modelImporter = new TestModelImporter {
                 GeneratedMaterials = new[] {
-                    CreateGeneratedMaterial("Default", "Materials/Default.helmat", "Textures/Fabric.png")
+                    CreateGeneratedMaterial("Default", "Materials/Default.hasset", "Textures/Fabric.png")
                 }
             };
             AssetImportManager assetImportManager = CreateAssetImportManager(modelImporter);
@@ -269,7 +269,7 @@ namespace helengine.editor.tests {
         public void TryCreate_WhenImportedMaterialHasNoDiffuseTexture_BindsNeutralPreviewTexture() {
             TestModelImporter modelImporter = new TestModelImporter {
                 GeneratedMaterials = new[] {
-                    CreateGeneratedMaterial("Default", "Materials/Default.helmat", string.Empty)
+                    CreateGeneratedMaterial("Default", "Materials/Default.hasset", string.Empty)
                 }
             };
             AssetImportManager assetImportManager = CreateAssetImportManager(modelImporter);

@@ -52,7 +52,7 @@ namespace helengine.editor.tests.serialization.scene {
             };
             SceneAssetReference materialReference = new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Materials/Default.helmat"
+                RelativePath = "Materials/Default.hasset"
             };
 
             EditorEntity root = CreateUserEntity("Root", new float3(1f, 2f, 3f), new float3(2f, 2f, 2f), new float4(0f, 0.70710677f, 0f, 0.70710677f));

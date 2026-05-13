@@ -1339,13 +1339,13 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Material file name stored under the basis-test material folder.</returns>
         string ResolvePs2BasisLightTestMaterialFileName(int materialIndex) {
             switch (materialIndex) {
-                case 0: return "Ground.helmat";
-                case 1: return "Center.helmat";
-                case 2: return "PlusX.helmat";
-                case 3: return "MinusX.helmat";
-                case 4: return "PlusZ.helmat";
-                case 5: return "MinusZ.helmat";
-                case 6: return "Corner.helmat";
+                case 0: return "Ground" + EditorFileTemplateRegistry.MaterialExtension;
+                case 1: return "Center" + EditorFileTemplateRegistry.MaterialExtension;
+                case 2: return "PlusX" + EditorFileTemplateRegistry.MaterialExtension;
+                case 3: return "MinusX" + EditorFileTemplateRegistry.MaterialExtension;
+                case 4: return "PlusZ" + EditorFileTemplateRegistry.MaterialExtension;
+                case 5: return "MinusZ" + EditorFileTemplateRegistry.MaterialExtension;
+                case 6: return "Corner" + EditorFileTemplateRegistry.MaterialExtension;
                 default: throw new ArgumentOutOfRangeException(nameof(materialIndex), "Basis-test material index must be between 0 and 6.");
             }
         }
