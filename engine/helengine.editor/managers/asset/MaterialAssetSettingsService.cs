@@ -104,12 +104,13 @@ namespace helengine.editor {
 
             string settingsPath = GetSettingsPath(materialAssetPath);
             MaterialAssetImportSettings settings;
-            if (!TryLoadSettings(settingsPath, out settings)) {
+            bool loadedFromDisk = TryLoadSettings(settingsPath, out settings);
+            if (!loadedFromDisk) {
                 settings = CreateDefaultSettings(materialAsset);
             }
 
             bool changed = NormalizeSettings(settings, materialAsset, supportedPlatforms, selectionModelResolver);
-            if (changed || !File.Exists(settingsPath)) {
+            if (changed || !loadedFromDisk || !File.Exists(settingsPath)) {
                 Save(materialAssetPath, settings);
             }
 

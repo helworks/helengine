@@ -1438,12 +1438,10 @@ namespace helengine.editor {
                 return;
             }
 
-            string sourcePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
             TextureAsset textureAsset;
-            try {
-                textureAsset = ProjectContentManager.Load<TextureAsset>(sourcePath, EditorContentProcessorIds.TextureAsset);
-            } catch (Exception ex) {
-                throw new InvalidOperationException($"Imported texture '{diffuseTextureAssetId}' at '{sourcePath}' could not be loaded for packaging.", ex);
+            if (!AssetImportManager.TryLoadImportedTextureAsset(diffuseTextureAssetId, out textureAsset) || textureAsset == null) {
+                string sourcePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
+                throw new InvalidOperationException($"Imported texture '{diffuseTextureAssetId}' at '{sourcePath}' could not be loaded for packaging.");
             }
 
             string cookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
@@ -1520,7 +1518,7 @@ namespace helengine.editor {
                         return settings;
                     }
                 } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(settingsPath, StringComparison.Ordinal)) {
-                    throw new InvalidOperationException($"Material settings file '{settingsPath}' could not be deserialized for material '{materialRelativePath}'.", ex);
+                    Logger.WriteWarning($"Material settings file '{settingsPath}' could not be deserialized for material '{materialRelativePath}'. Rebuilding settings.");
                 }
             }
 

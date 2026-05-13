@@ -593,6 +593,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures stale legacy model settings are replaced with current typed settings when a source file is reopened.
+        /// </summary>
+        [Fact]
+        public void LoadOrCreateModelImportSettings_WhenLegacySidecarExists_RecreatesCurrentTypedSettings() {
+            string sourcePath = Path.Combine(TempRootPath, "DemoDiscBody.ttf");
+            string settingsPath = sourcePath + ".hasset";
+            File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
+
+            AssetImportSettings legacySettings = CreateAssetImportSettings();
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetImportSettingsBinarySerializer.Serialize(stream, legacySettings);
+            }
+
+            ContentManager contentManager = new ContentManager(TempRootPath);
+            AssetImportManager manager = new AssetImportManager(TempRootPath, contentManager);
+
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+
+            Assert.False(string.IsNullOrWhiteSpace(settings.Importer.SourceChecksum));
+            Assert.False(string.IsNullOrWhiteSpace(settings.Importer.AssetId));
+
+            byte[] rewrittenSettings = File.ReadAllBytes(settingsPath);
+            EngineBinaryHeader header = ReadHeader(rewrittenSettings);
+            Assert.Equal((ushort)ModelAssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal((ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings, header.ValueKind);
+        }
+
+        /// <summary>
         /// Ensures typed material asset import settings round-trip through their dedicated serializer.
         /// </summary>
         [Fact]

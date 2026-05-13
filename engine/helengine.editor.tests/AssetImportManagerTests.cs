@@ -93,10 +93,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures unsupported asset-import-settings versions are rejected instead of being regenerated.
+        /// Ensures imported textures can be reloaded from the cache id after the cached file is deleted.
         /// </summary>
         [Fact]
-        public void LoadOrCreateImportSettings_WhenSettingsUseUnsupportedVersion_Throws() {
+        public void TryLoadImportedTextureAsset_WhenCacheFileIsMissing_RecreatesAndLoadsTexture() {
+            string sourcePath = WriteSourceTexture("missing-imported-cache.png");
+            AssetImportManager manager = CreateManager();
+            TextureAsset importedAsset = manager.ImportTexture(sourcePath);
+            string outputPath = Path.Combine(CacheRootPath, importedAsset.Id);
+
+            File.Delete(outputPath);
+
+            bool loaded = manager.TryLoadImportedTextureAsset(importedAsset.Id, out TextureAsset recoveredAsset);
+
+            Assert.True(loaded);
+            Assert.NotNull(recoveredAsset);
+            Assert.True(File.Exists(outputPath));
+            Assert.Equal((ushort)1, recoveredAsset.Width);
+            Assert.Equal((ushort)1, recoveredAsset.Height);
+            Assert.Equal(new byte[] { 255, 128, 64, 255 }, recoveredAsset.Colors);
+        }
+
+        /// <summary>
+        /// Ensures stale texture import settings are regenerated in the current typed format instead of failing to load.
+        /// </summary>
+        [Fact]
+        public void LoadOrCreateTextureImportSettings_WhenSettingsUseUnsupportedVersion_RecreatesDefaults() {
             string sourcePath = WriteSourceTexture("unsupported-settings-version.png");
             string settingsPath = sourcePath + ".hasset";
             AssetImportManager manager = CreateManager();
@@ -110,8 +132,13 @@ namespace helengine.editor.tests {
             unsupportedVersionSettings[5] = 2;
             File.WriteAllBytes(settingsPath, unsupportedVersionSettings);
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => manager.LoadOrCreateTextureImportSettings(sourcePath));
-            Assert.Contains("Unsupported texture asset import settings binary version", exception.Message);
+            TextureAssetImportSettings recoveredSettings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+
+            Assert.Equal(settings.Importer.ImporterId, recoveredSettings.Importer.ImporterId);
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                TextureAssetImportSettings savedSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
+                Assert.Equal(settings.Importer.ImporterId, savedSettings.Importer.ImporterId);
+            }
         }
 
         /// <summary>
@@ -323,6 +350,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures stale generic font settings are treated as missing and rebuilt when importing a ttf source.
+        /// </summary>
+        [Fact]
+        public void ImportFont_WhenGenericSettingsSidecarIsStale_RebuildsSettingsAndImportsFont() {
+            string sourcePath = WriteSourceFont("demo-body.ttf");
+            string settingsPath = sourcePath + ".hasset";
+            AssetImportManager manager = CreateFontManager();
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            }
+
+            byte[] corruptedSettings = File.ReadAllBytes(settingsPath);
+            corruptedSettings[5] = 2;
+            File.WriteAllBytes(settingsPath, corruptedSettings);
+
+            FontAsset fontAsset = manager.ImportFont(sourcePath);
+
+            Assert.NotNull(fontAsset);
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                AssetImportSettings rebuiltSettings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                Assert.Equal("test-font", rebuiltSettings.Importer.ImporterId);
+            }
+        }
+
+        /// <summary>
         /// Ensures the editor content manager registers the shared material processor needed by the material settings view.
         /// </summary>
         [Fact]
@@ -365,6 +419,17 @@ namespace helengine.editor.tests {
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(new byte[] { 1, 2, 3, 4 }), new[] { ".tga" }));
             manager.RegisterTextureImporter(new TextureImporterRegistration("magick", new ConfigurableTextureImporter(new byte[] { 9, 8, 7, 6 }), new[] { ".tga" }));
+            return manager;
+        }
+
+        /// <summary>
+        /// Creates an import manager with the font importer required for ttf recovery tests.
+        /// </summary>
+        /// <returns>Configured asset import manager for ttf font coverage.</returns>
+        AssetImportManager CreateFontManager() {
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
             return manager;
         }
 

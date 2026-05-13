@@ -208,7 +208,7 @@ namespace helengine.editor.tests {
         /// Ensures packaging rejects source-oriented texture ids that are not backed by imported cache assets.
         /// </summary>
         [Fact]
-        public void Package_WhenImportedModelCompanionMaterialUsesSourceTextureIdWithoutCachedAsset_Throws() {
+        public void Package_WhenImportedModelCompanionMaterialUsesSourceTextureIdWithoutCachedAsset_PackagesUsingSourceTexture() {
             string sceneId = "Scenes/ImportedModelScene.helen";
             string materialRelativePath = "Models/Riemers/racer/x3ds_mat_ruedas.helmat";
             string sourceModelRelativePath = "Models/Riemers/racer.x";
@@ -226,8 +226,10 @@ namespace helengine.editor.tests {
                     new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".x" })
                 ]);
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
-            Assert.Contains("Imported texture 'RUEDAS.JPG'", exception.Message);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string cookedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", "RUEDAS.JPG");
+            Assert.True(File.Exists(cookedTexturePath));
         }
 
         /// <summary>
@@ -318,6 +320,44 @@ namespace helengine.editor.tests {
             Assert.Equal(shaderAssetId + ".vs", materialAsset.VertexProgram);
             Assert.Equal(shaderAssetId + ".ps", materialAsset.PixelProgram);
             Assert.Equal("default", materialAsset.Variant);
+        }
+
+        /// <summary>
+        /// Ensures packaging rebuilds a corrupt material settings sidecar instead of failing on deserialize.
+        /// </summary>
+        [Fact]
+        public void Package_WhenMaterialSettingsSidecarIsCorrupt_RebuildsSettingsAndPackagesScene() {
+            string sceneId = "Scenes/MaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
+
+            WriteCityStyleStandardMaterialAsset(materialRelativePath);
+            File.WriteAllBytes(
+                Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar)) + ".hasset",
+                new byte[] { 0, 1, 2, 3, 4, 5, 6, 7 });
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(CreateWindowsMaterialBuilderDefinition());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                CreateWindowsMaterialBuilderDefinition(),
+                defaultFont,
+                materialBuilder,
+                "debug",
+                "directx11");
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.NotNull(materialBuilder.LastMaterialCookRequest);
+            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.helmat");
+            Assert.True(File.Exists(cookedMaterialPath));
+
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            Assert.True(settingsService.TryLoad(materialPath, out MaterialAssetImportSettings settings));
+            Assert.Equal("windows", settings.Processor.Platforms.Keys.Single());
+            Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].SchemaId);
         }
 
         /// <summary>
@@ -832,7 +872,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = BuildRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
 
             ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
@@ -1183,6 +1223,68 @@ namespace helengine.editor.tests {
                     Assert.Equal(component.BaseYawRadians, loadedComponent.BaseYawRadians);
                     Assert.Equal(component.AngularSpeedRadians, loadedComponent.AngularSpeedRadians);
                 });
+        }
+
+        /// <summary>
+        /// Ensures the Windows packager preserves the gameplay axis-rotation component as an automatic script record instead of rewriting it to the old engine tower-spin type.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsAxisRotationGameplayComponent_PreservesGameplayRuntimeComponentRecord() {
+            string sceneId = "Scenes/AxisRotationScriptScene.helen";
+            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
+            TestAxisRotationScriptComponent component = new TestAxisRotationScriptComponent {
+                Axis = new float3(0f, 1f, 0f),
+                AngularSpeedRadiansPerSecond = (float)(Math.PI / 2.0)
+            };
+            SceneComponentAssetRecord serializedRecord = persistenceRegistry.GetDescriptor(component)
+                .SerializeComponent(component, 0, new EntityComponentSaveState());
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "axis-root",
+                        Name = "AxisRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateDirectionalShadowComponentRecord("gameplay.rendering.AxisRotationComponent, gameplay", serializedRecord)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestAxisRotationScriptComponent)));
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+            SceneComponentAssetRecord packagedRecord = Assert.Single(packagedRoot.Components);
+            Assert.Equal("gameplay.rendering.AxisRotationComponent, gameplay", packagedRecord.ComponentTypeId);
+            Assert.DoesNotContain(packagedRoot.Components, record => string.Equals(record.ComponentTypeId, DirectionalShadowTowerSpinComponent.SerializedComponentTypeId, StringComparison.Ordinal));
+
+            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(3, reader.ReadInt32());
+            Assert.Equal((float)(Math.PI / 2.0), reader.ReadSingle());
+            Assert.Equal(new float3(0f, 1f, 0f), reader.ReadFloat3());
+            Assert.Equal((byte)0, reader.ReadByte());
         }
 
         /// <summary>
@@ -2218,7 +2320,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = contentRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

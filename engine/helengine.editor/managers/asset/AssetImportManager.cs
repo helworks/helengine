@@ -785,12 +785,7 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
             AssetImportSettings settings = null;
-            bool loadedFromDisk = false;
-            try {
-                loadedFromDisk = settingsFileExists && TryLoadImportSettings(settingsPath, out settings);
-            } catch (Exception ex) {
-                throw new InvalidOperationException($"Failed to load generic import settings for source '{sourcePath}'.", ex);
-            }
+            bool loadedFromDisk = settingsFileExists && TryLoadImportSettings(settingsPath, out settings);
             bool repaired = false;
             if (!loadedFromDisk) {
                 settings = CreateDefaultSettings(sourcePath);
@@ -950,6 +945,80 @@ namespace helengine.editor {
 
             asset = ImportTexture(sourcePath);
             return true;
+        }
+
+        /// <summary>
+        /// Loads one imported texture asset from the cached asset id, recreating missing cache files before retrying.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored in serialized material data.</param>
+        /// <param name="asset">Loaded imported texture asset when the cache can be rebuilt.</param>
+        /// <returns>True when the imported texture cache could be loaded or recreated.</returns>
+        public bool TryLoadImportedTextureAsset(string assetId, out TextureAsset asset) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            asset = null;
+            string outputPath = GetTextureAssetPath(assetId);
+            if (TryLoadCachedTextureAsset(outputPath, out asset)) {
+                return true;
+            }
+
+            ImportTexturesMissingCache();
+            if (TryLoadCachedTextureAsset(outputPath, out asset)) {
+                return true;
+            }
+
+            string sourcePath;
+            if (!TryResolveTextureSourcePath(assetId, out sourcePath)) {
+                asset = null;
+                return false;
+            }
+
+            if (TryLoadTextureAsset(sourcePath, out asset)) {
+                return true;
+            }
+
+            if (TryLoadCachedTextureAsset(outputPath, out asset)) {
+                return true;
+            }
+
+            asset = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Resolves one imported texture asset id to a source texture file inside the project assets tree.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored in serialized material data.</param>
+        /// <param name="sourcePath">Resolved source texture file path when the asset can be found on disk.</param>
+        /// <returns>True when the asset id maps to one source texture file.</returns>
+        bool TryResolveTextureSourcePath(string assetId, out string sourcePath) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            string directPath = Path.GetFullPath(Path.Combine(assetsRootPath, assetId));
+            if (File.Exists(directPath)) {
+                sourcePath = directPath;
+                return true;
+            }
+
+            string fileName = Path.GetFileName(assetId);
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                sourcePath = string.Empty;
+                return false;
+            }
+
+            foreach (string candidatePath in EnumerateAssetSourceFiles()) {
+                if (string.Equals(Path.GetFileName(candidatePath), fileName, StringComparison.OrdinalIgnoreCase)) {
+                    sourcePath = candidatePath;
+                    return true;
+                }
+            }
+
+            sourcePath = string.Empty;
+            return false;
         }
 
         /// <summary>
@@ -1213,11 +1282,20 @@ namespace helengine.editor {
                 throw new ArgumentException("Asset type name must be provided.", nameof(assetTypeName));
             }
 
-            using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                asset = AssetSerializer.Deserialize(stream);
+            asset = null;
+            if (!File.Exists(outputPath)) {
+                return false;
             }
 
-            return true;
+            try {
+                using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                    asset = AssetSerializer.Deserialize(stream);
+                }
+                return true;
+            } catch {
+                asset = null;
+                return false;
+            }
         }
 
         /// <summary>
@@ -1236,11 +1314,15 @@ namespace helengine.editor {
                 return false;
             }
 
-            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+            try {
+                using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                    settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                }
+                return true;
+            } catch {
+                settings = null;
+                return false;
             }
-
-            return true;
         }
 
         /// <summary>
@@ -1379,9 +1461,14 @@ namespace helengine.editor {
                 return false;
             }
 
-            using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            settings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
-            return true;
+            try {
+                using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                settings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
+                return true;
+            } catch {
+                settings = null;
+                return false;
+            }
         }
 
         /// <summary>
@@ -1400,9 +1487,14 @@ namespace helengine.editor {
                 return false;
             }
 
-            using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
-            return true;
+            try {
+                using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
+                return true;
+            } catch {
+                settings = null;
+                return false;
+            }
         }
 
         /// <summary>
@@ -1596,7 +1688,11 @@ namespace helengine.editor {
             bool loadedFromDisk = settingsFileExists && TryLoadTextureImportSettings(settingsPath, out settings);
             bool repaired = false;
             if (!loadedFromDisk) {
-                settings = CreateDefaultTextureImportSettings(sourcePath);
+                try {
+                    settings = CreateDefaultTextureImportSettings(sourcePath);
+                } catch {
+                    settings = new TextureAssetImportSettings();
+                }
             } else {
                 repaired = RepairTextureImporterId(sourcePath, settings);
             }
@@ -1631,7 +1727,7 @@ namespace helengine.editor {
         /// Attempts to load typed texture import settings or create defaults when missing.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the source file.</param>
-        /// <param name="settings">Resolved settings when available; null when no default importer exists.</param>
+        /// <param name="settings">Resolved settings when available.</param>
         /// <returns>True when settings could be resolved for the source file.</returns>
         public bool TryLoadOrCreateTextureImportSettings(string sourcePath, out TextureAssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
@@ -1650,7 +1746,7 @@ namespace helengine.editor {
             }
 
             if (!TryCreateDefaultTextureImportSettings(sourcePath, out settings)) {
-                return false;
+                settings = new TextureAssetImportSettings();
             }
 
             UpdateTextureImportSettingsChecksum(settings, sourcePath);
@@ -1682,7 +1778,11 @@ namespace helengine.editor {
             }
             bool repaired = false;
             if (!loadedFromDisk) {
-                settings = CreateDefaultModelImportSettings(sourcePath);
+                try {
+                    settings = CreateDefaultModelImportSettings(sourcePath);
+                } catch {
+                    settings = new ModelAssetImportSettings();
+                }
             } else {
                 repaired = RepairModelImporterId(sourcePath, settings);
             }
@@ -1717,7 +1817,7 @@ namespace helengine.editor {
         /// Attempts to load typed model import settings or create defaults when missing.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the source file.</param>
-        /// <param name="settings">Resolved settings when available; null when no default importer exists.</param>
+        /// <param name="settings">Resolved settings when available.</param>
         /// <returns>True when settings could be resolved for the source file.</returns>
         public bool TryLoadOrCreateModelImportSettings(string sourcePath, out ModelAssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
@@ -1740,7 +1840,7 @@ namespace helengine.editor {
             }
 
             if (!TryCreateDefaultModelImportSettings(sourcePath, out settings)) {
-                return false;
+                settings = new ModelAssetImportSettings();
             }
 
             UpdateModelImportSettingsChecksum(settings, sourcePath);

@@ -74,6 +74,12 @@ namespace helengine.editor {
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
             ValidateHeader(header);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings) {
+                throw new InvalidOperationException($"Unexpected texture asset import settings value kind '{header.ValueKind}'.");
+            } else if (header.Version != CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported texture asset import settings binary version '{header.Version}'.");
+            }
+
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
             settings.Importer.SourceChecksum = reader.ReadString();
@@ -114,10 +120,6 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported texture asset import settings format id '{header.FormatId}'.");
             } else if (header.RecordKind != (ushort)RecordKind) {
                 throw new InvalidOperationException($"Unexpected texture asset import settings record kind '{header.RecordKind}'.");
-            } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings) {
-                throw new InvalidOperationException($"Unexpected texture asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported texture asset import settings binary version '{header.Version}'.");
             }
         }
     }
