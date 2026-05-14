@@ -614,6 +614,42 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated transient asset ownership rewrites use distinct helper names so Windows amalgamation does not collide.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_uses_distinct_temporary_asset_array_helper_names_per_source() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-transient-asset-helper-collisions");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string runtimeSceneAssetReferenceResolverPath = Path.Combine(generatedCoreRootPath, "RuntimeSceneAssetReferenceResolver.cpp");
+        string sceneManagerPath = Path.Combine(generatedCoreRootPath, "SceneManager.cpp");
+
+        File.WriteAllText(
+            runtimeSceneAssetReferenceResolverPath,
+            "#include \"RuntimeSceneAssetReferenceResolver.hpp\"\n"
+            + "::ModelAsset *modelAsset = this->AssetContentManager->Load<ModelAsset*>(fullPath, RuntimeContentProcessorIds::ModelAsset);\n"
+            + "::RuntimeModel *runtimeModel = Core::get_Instance()->get_RenderManager3D()->BuildModelFromRaw(modelAsset);\n"
+            + "this->TrackOwnedModel(runtimeModel);\n"
+            + "return runtimeModel;}\n");
+        File.WriteAllText(
+            sceneManagerPath,
+            "#include \"SceneManager.hpp\"\n"
+            + "::SceneAsset *sceneAsset = this->ContentManager->Load<SceneAsset*>(entry->get_CookedRelativePath(), RuntimeContentProcessorIds::SceneAsset);\n"
+            + "this->RecordTraceState(\"LoadSceneImmediateBeforeSceneLoadServiceLoad\", entry->get_SceneId());\n"
+            + "::RuntimeSceneLoadResult *loadResult = this->SceneLoadService->LoadTracked(sceneAsset);\n"
+            + "this->RecordTraceState(\"LoadSceneImmediateAfterSceneLoadServiceLoad\", entry->get_SceneId());\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "windows");
+
+        string normalizedRuntimeSceneAssetReferenceResolver = File.ReadAllText(runtimeSceneAssetReferenceResolverPath);
+        string normalizedSceneManager = File.ReadAllText(sceneManagerPath);
+
+        Assert.Contains("DeleteGeneratedAssetArray(", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.DoesNotContain("DeleteGeneratedArray(", normalizedRuntimeSceneAssetReferenceResolver, StringComparison.Ordinal);
+        Assert.Contains("DeleteGeneratedSceneArray(", normalizedSceneManager);
+        Assert.DoesNotContain("DeleteGeneratedArray(", normalizedSceneManager, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies generated dictionary runtime support gains a Clear helper required by converted menu code.
     /// </summary>
     [Fact]

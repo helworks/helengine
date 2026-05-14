@@ -1449,7 +1449,7 @@ namespace helengine.editor {
                 updatedContents = InsertBlockAfterLastInclude(updatedContents, """
 namespace {
     template <typename T>
-    void DeleteGeneratedArray(Array<T>* values) {
+    void DeleteGeneratedAssetArray(Array<T>* values) {
         if (values == nullptr || values == Array<T>::Empty()) {
             return;
         }
@@ -1475,7 +1475,7 @@ namespace {
             return;
         }
 
-        DeleteGeneratedArray(asset->Colors);
+        DeleteGeneratedAssetArray(asset->Colors);
         delete asset;
     }
 
@@ -1484,7 +1484,7 @@ namespace {
             return;
         }
 
-        DeleteGeneratedArray(asset->get_Data());
+        DeleteGeneratedAssetArray(asset->get_Data());
         delete asset;
     }
 
@@ -1509,7 +1509,7 @@ namespace {
             return;
         }
 
-        DeleteGeneratedArray(asset->Defines);
+        DeleteGeneratedAssetArray(asset->Defines);
         delete asset;
     }
 
@@ -1537,7 +1537,7 @@ namespace {
             return;
         }
 
-        DeleteGeneratedArray(asset->Bytecode);
+        DeleteGeneratedAssetArray(asset->Bytecode);
         delete asset;
     }
 
@@ -1569,13 +1569,13 @@ namespace {
             return;
         }
 
-        DeleteGeneratedArray(asset->Positions);
-        DeleteGeneratedArray(asset->Normals);
-        DeleteGeneratedArray(asset->TexCoords);
-        DeleteGeneratedArray(asset->Indices16);
-        DeleteGeneratedArray(asset->Indices32);
+        DeleteGeneratedAssetArray(asset->Positions);
+        DeleteGeneratedAssetArray(asset->Normals);
+        DeleteGeneratedAssetArray(asset->TexCoords);
+        DeleteGeneratedAssetArray(asset->Indices16);
+        DeleteGeneratedAssetArray(asset->Indices32);
         DeleteGeneratedPointerArray(asset->Submeshes);
-        DeleteGeneratedArray(asset->Ps2PackedMeshBytes);
+        DeleteGeneratedAssetArray(asset->Ps2PackedMeshBytes);
         delete asset;
     }
 }
@@ -1623,7 +1623,7 @@ namespace {
                 updatedContents = InsertBlockAfterLastInclude(updatedContents, """
 namespace {
     template <typename T>
-    void DeleteGeneratedArray(Array<T>* values) {
+    void DeleteGeneratedSceneArray(Array<T>* values) {
         if (values == nullptr || values == Array<T>::Empty()) {
             return;
         }
@@ -1636,7 +1636,7 @@ namespace {
             return;
         }
 
-        DeleteGeneratedArray(asset->get_Payload());
+        DeleteGeneratedSceneArray(asset->get_Payload());
         delete asset;
     }
 
@@ -1654,7 +1654,7 @@ namespace {
             return;
         }
 
-        DeleteGeneratedArray(asset->get_RemovedComponentKeys());
+        DeleteGeneratedSceneArray(asset->get_RemovedComponentKeys());
         Array<SceneEntityPlatformAddedComponentAsset*>* addedComponents = asset->get_AddedComponents();
         if (addedComponents != nullptr && addedComponents != Array<SceneEntityPlatformAddedComponentAsset*>::Empty()) {
             for (int32_t index = 0; index < addedComponents->Length; index++) {
