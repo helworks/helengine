@@ -58,9 +58,23 @@ namespace helengine {
         public TextureAsset SourceTextureAsset { get; set; }
 
         /// <summary>
-        /// Disposes of managed resources if needed.
+        /// Gets whether this font asset has already released its scene-owned references.
+        /// </summary>
+        public bool IsDisposed { get; private set; }
+
+        /// <summary>
+        /// Releases scene-owned references held by this font asset.
         /// </summary>
         public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+
+            Texture = null;
+            Characters = null;
+            FontInfo = null;
+            SourceTextureAsset = null;
+            IsDisposed = true;
         }
 
         /// <summary>

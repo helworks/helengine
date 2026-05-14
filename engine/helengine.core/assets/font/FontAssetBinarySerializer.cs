@@ -16,7 +16,12 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current packaged font payload layout.
         /// </summary>
-        public const byte CurrentVersion = 1;
+        public const byte CurrentVersion = 2;
+
+        /// <summary>
+        /// Gets the most recent font-deserialization stage reached by the packaged runtime loader.
+        /// </summary>
+        public static string LastDeserializeStage { get; private set; }
 
         /// <summary>
         /// Deserializes a font asset from the supplied stream.
@@ -28,6 +33,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(stream));
             }
 
+            LastDeserializeStage = "ReadHeader";
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
             return Deserialize(stream, header);
         }
@@ -46,29 +52,40 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(header));
             }
 
+            LastDeserializeStage = "ValidateHeader";
             ValidateHeader(header);
             if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
                 throw new InvalidOperationException("Font assets require an initialized core renderer before deserialization.");
             }
 
+            LastDeserializeStage = "CreateReader";
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            LastDeserializeStage = "ReadFontInfo";
             FontInfo fontInfo = new FontInfo(
                 reader.ReadString(),
                 reader.ReadInt32(),
                 reader.ReadSingle());
 
+            LastDeserializeStage = "ReadAtlasMetrics";
             float lineHeight = reader.ReadSingle();
             int atlasWidth = reader.ReadInt32();
             int atlasHeight = reader.ReadInt32();
 
-            TextureAsset sourceTexture = new TextureAsset {
-                Width = reader.ReadUInt16(),
-                Height = reader.ReadUInt16(),
-                Colors = reader.ReadByteArray()
-            };
+            LastDeserializeStage = "ReadSourceTextureHeader";
+            TextureAsset sourceTexture = new TextureAsset();
+            sourceTexture.RuntimeAssetId = header.Version >= CurrentVersion
+                ? (ulong)reader.ReadInt64()
+                : 0ul;
+            sourceTexture.Width = reader.ReadUInt16();
+            sourceTexture.Height = reader.ReadUInt16();
+            LastDeserializeStage = "ReadSourceTextureColors";
+            sourceTexture.Colors = reader.ReadByteArray();
 
+            LastDeserializeStage = "ReadCharacterCount";
             int characterCount = reader.ReadInt32();
+            LastDeserializeStage = "AllocateCharacterDictionary";
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar>(characterCount);
+            LastDeserializeStage = "ReadCharacters";
             for (int index = 0; index < characterCount; index++) {
                 char character = (char)reader.ReadUInt16();
                 FontChar fontChar = new FontChar(
@@ -80,10 +97,13 @@ namespace helengine {
                 characters.Add(character, fontChar);
             }
 
+            LastDeserializeStage = "BuildRuntimeTexture";
             RuntimeTexture texture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTexture);
+            LastDeserializeStage = "ConstructFontAsset";
             FontAsset asset = new FontAsset(fontInfo, texture, characters, lineHeight, atlasWidth, atlasHeight) {
                 SourceTextureAsset = sourceTexture
             };
+            LastDeserializeStage = "Complete";
             return asset;
         }
 
@@ -98,7 +118,7 @@ namespace helengine {
             if (header.RecordKind != (ushort)RecordKind) {
                 throw new InvalidOperationException($"Unexpected font record kind '{header.RecordKind}'.");
             }
-            if (header.Version != CurrentVersion) {
+            if (header.Version < 1 || header.Version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported font binary version '{header.Version}'.");
             }
         }

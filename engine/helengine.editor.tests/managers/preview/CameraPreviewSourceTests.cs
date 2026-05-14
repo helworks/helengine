@@ -70,7 +70,7 @@ namespace helengine.editor.tests {
 
             TestRenderTarget resizedRenderTarget = Assert.IsType<TestRenderTarget>(source.RenderTarget);
             Assert.NotSame(initialRenderTarget, source.RenderTarget);
-            Assert.True(((TestRenderTarget)initialRenderTarget).IsDisposed);
+            Assert.True(((TestRenderTarget)initialRenderTarget).WasDisposed);
             Assert.Equal(320, resizedRenderTarget.Width);
             Assert.Equal(180, resizedRenderTarget.Height);
             Assert.Equal(new float4(0f, 0f, 320f, 180f), source.PreviewCamera.Viewport);

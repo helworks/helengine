@@ -58,5 +58,6 @@ namespace helengine {
             BinaryPrimitives.WriteInt64BigEndian(buffer, value);
             BaseStream.Write(buffer);
         }
+
     }
 }

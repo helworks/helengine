@@ -6,7 +6,7 @@ namespace helengine.directx11 {
     /// <summary>
     /// DirectX11-backed render target resource that provides color and depth buffers.
     /// </summary>
-    public class DirectX11RenderTargetResource : RenderTarget, IDisposable {
+    public class DirectX11RenderTargetResource : RenderTarget {
         /// <summary>
         /// Initializes a render target with color and depth buffers for camera rendering.
         /// </summary>
@@ -111,12 +111,17 @@ namespace helengine.directx11 {
         /// <summary>
         /// Releases the Direct3D resources owned by this render target.
         /// </summary>
-        public void Dispose() {
+        public override void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+
             DepthStencilView.Dispose();
             DepthTexture.Dispose();
             ShaderResourceView.Dispose();
             RenderTargetView.Dispose();
             ColorTexture.Dispose();
+            base.Dispose();
         }
     }
 }

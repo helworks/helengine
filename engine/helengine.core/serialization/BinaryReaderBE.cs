@@ -58,5 +58,6 @@ namespace helengine {
             ReadRequiredBytes(buffer);
             return BinaryPrimitives.ReadInt64BigEndian(buffer);
         }
+
     }
 }

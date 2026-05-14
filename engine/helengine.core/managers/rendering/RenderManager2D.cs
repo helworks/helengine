@@ -11,6 +11,31 @@ namespace helengine {
         public abstract RuntimeTexture BuildTextureFromRaw(TextureAsset data);
 
         /// <summary>
+        /// Releases one runtime texture previously created by this renderer.
+        /// </summary>
+        /// <param name="texture">Runtime texture that should release any renderer-owned resources.</param>
+        public virtual void ReleaseTexture(RuntimeTexture texture) {
+        }
+
+        /// <summary>
+        /// Releases one font asset previously materialized for this renderer.
+        /// </summary>
+        /// <param name="font">Font asset that should release any renderer-owned or native-owned resources.</param>
+        public virtual void ReleaseFont(FontAsset font) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+
+            font.Dispose();
+        }
+
+        /// <summary>
+        /// Flushes any renderer-owned runtime texture releases that were deferred until the renderer reached a safe point.
+        /// </summary>
+        public virtual void FlushReleasedTextures() {
+        }
+
+        /// <summary>
         /// Performs per-frame update for 2D rendering systems.
         /// </summary>
         public virtual void Update() { }

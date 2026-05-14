@@ -14,6 +14,41 @@ namespace helengine {
         readonly RuntimeComponentRegistry ComponentRegistry;
 
         /// <summary>
+        /// Gets the most recent runtime scene-load stage recorded for diagnostics.
+        /// </summary>
+        public string LastTraceStage { get; private set; }
+
+        /// <summary>
+        /// Gets the current root-entity index being materialized for diagnostics.
+        /// </summary>
+        public int LastTraceRootEntityIndex { get; private set; }
+
+        /// <summary>
+        /// Gets the current child-entity depth being materialized for diagnostics.
+        /// </summary>
+        public int LastTraceEntityDepth { get; private set; }
+
+        /// <summary>
+        /// Gets the current component type id being materialized for diagnostics.
+        /// </summary>
+        public string LastTraceComponentTypeId { get; private set; }
+
+        /// <summary>
+        /// Gets the last recorded text-load stage emitted by the shared scene asset reference resolver.
+        /// </summary>
+        public string LastTextLoadStage => ReferenceResolver.LastTextLoadStage;
+
+        /// <summary>
+        /// Gets the last recorded text-font relative path emitted by the shared scene asset reference resolver.
+        /// </summary>
+        public string LastTextFontRelativePath => ReferenceResolver.LastTextFontRelativePath;
+
+        /// <summary>
+        /// Gets the most recent packaged font-deserialization stage emitted by the shared scene asset reference resolver.
+        /// </summary>
+        public string LastFontDeserializeStage => ReferenceResolver.LastFontDeserializeStage;
+
+        /// <summary>
         /// Initializes a new runtime scene-load service with the default runtime component registry.
         /// </summary>
         /// <param name="referenceResolver">Resolver used to rebuild packaged runtime assets.</param>
@@ -36,6 +71,18 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Loads root runtime entities together with scene-owned runtime assets from one packaged scene asset.
+        /// </summary>
+        /// <param name="sceneAsset">Packaged scene asset payload to materialize.</param>
+        /// <returns>Loaded runtime entities together with scene-owned runtime assets.</returns>
+        public RuntimeSceneLoadResult LoadTracked(SceneAsset sceneAsset) {
+            ReferenceResolver.BeginOwnedAssetTracking();
+            IReadOnlyList<Entity> rootEntities = Load(sceneAsset);
+            RuntimeSceneOwnedAssetSet ownedAssets = ReferenceResolver.CompleteOwnedAssetTracking();
+            return new RuntimeSceneLoadResult(rootEntities, ownedAssets);
+        }
+
+        /// <summary>
         /// Loads root runtime entities from one packaged scene asset.
         /// </summary>
         /// <param name="sceneAsset">Packaged scene asset payload to materialize.</param>
@@ -45,15 +92,18 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(sceneAsset));
             }
 
+            RecordTraceState("LoadBegin", -1, 0, string.Empty);
             Logger.WriteLine("Loading packaged scene assets.");
             System.Diagnostics.Stopwatch loadStopwatch = System.Diagnostics.Stopwatch.StartNew();
             SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
             List<Entity> rootEntities = new List<Entity>(rootEntityAssets.Length);
             for (int index = 0; index < rootEntityAssets.Length; index++) {
-                rootEntities.Add(LoadEntity(rootEntityAssets[index]));
+                RecordTraceState("BeforeRootEntityLoad", index, 0, string.Empty);
+                rootEntities.Add(LoadEntity(rootEntityAssets[index], index, 0));
             }
 
             loadStopwatch.Stop();
+            RecordTraceState("LoadEnd", rootEntities.Count - 1, 0, string.Empty);
             Logger.WriteLine($"Loaded packaged scene assets in {loadStopwatch.Elapsed.TotalMilliseconds:0.###} ms ({rootEntities.Count} root entities).");
 
             return rootEntities;
@@ -64,11 +114,12 @@ namespace helengine {
         /// </summary>
         /// <param name="entityAsset">Serialized runtime entity payload to materialize.</param>
         /// <returns>Loaded runtime entity.</returns>
-        Entity LoadEntity(SceneEntityAsset entityAsset) {
+        Entity LoadEntity(SceneEntityAsset entityAsset, int rootEntityIndex, int entityDepth) {
             if (entityAsset == null) {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
 
+            RecordTraceState("LoadEntityBegin", rootEntityIndex, entityDepth, string.Empty);
             Entity entity = new Entity {
                 LocalPosition = entityAsset.LocalPosition,
                 LocalScale = entityAsset.LocalScale,
@@ -79,14 +130,17 @@ namespace helengine {
 
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < componentRecords.Length; index++) {
-                entity.AddComponent(LoadComponent(componentRecords[index]));
+                RecordTraceState("BeforeComponentLoad", rootEntityIndex, entityDepth, componentRecords[index] != null ? componentRecords[index].ComponentTypeId : string.Empty);
+                entity.AddComponent(LoadComponent(componentRecords[index], rootEntityIndex, entityDepth));
             }
 
             SceneEntityAsset[] childEntityAssets = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
             for (int index = 0; index < childEntityAssets.Length; index++) {
-                entity.AddChild(LoadEntity(childEntityAssets[index]));
+                RecordTraceState("BeforeChildEntityLoad", rootEntityIndex, entityDepth + 1, string.Empty);
+                entity.AddChild(LoadEntity(childEntityAssets[index], rootEntityIndex, entityDepth + 1));
             }
 
+            RecordTraceState("LoadEntityEnd", rootEntityIndex, entityDepth, string.Empty);
             return entity;
         }
 
@@ -95,12 +149,27 @@ namespace helengine {
         /// </summary>
         /// <param name="record">Serialized component record to materialize.</param>
         /// <returns>Loaded runtime component.</returns>
-        Component LoadComponent(SceneComponentAssetRecord record) {
+        Component LoadComponent(SceneComponentAssetRecord record, int rootEntityIndex, int entityDepth) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
 
+            RecordTraceState("LoadComponentBegin", rootEntityIndex, entityDepth, record.ComponentTypeId);
             return ComponentRegistry.GetDeserializer(record.ComponentTypeId).Deserialize(record, ReferenceResolver);
+        }
+
+        /// <summary>
+        /// Records one runtime scene-load diagnostic snapshot that native hosts can inspect after failures.
+        /// </summary>
+        /// <param name="stage">Short scene-load stage name.</param>
+        /// <param name="rootEntityIndex">Current root-entity index under materialization.</param>
+        /// <param name="entityDepth">Current entity depth under materialization.</param>
+        /// <param name="componentTypeId">Current component type id under materialization.</param>
+        void RecordTraceState(string stage, int rootEntityIndex, int entityDepth, string componentTypeId) {
+            LastTraceStage = stage;
+            LastTraceRootEntityIndex = rootEntityIndex;
+            LastTraceEntityDepth = entityDepth;
+            LastTraceComponentTypeId = componentTypeId ?? string.Empty;
         }
     }
 }

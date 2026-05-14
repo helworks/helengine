@@ -39,6 +39,16 @@ namespace helengine {
         readonly List<PendingSceneOperation> PendingOperations;
 
         /// <summary>
+        /// Tracks active scene-owned runtime textures and how many loaded scenes still reference each instance.
+        /// </summary>
+        readonly Dictionary<RuntimeTexture, int> ActiveOwnedTextureReferenceCounts;
+
+        /// <summary>
+        /// Tracks active scene-owned font assets and how many loaded scenes still reference each instance.
+        /// </summary>
+        readonly Dictionary<FontAsset, int> ActiveOwnedFontReferenceCounts;
+
+        /// <summary>
         /// Tracks whether deferred scene operations are currently being flushed.
         /// </summary>
         bool IsFlushingPendingOperations;
@@ -58,6 +68,8 @@ namespace helengine {
             LoadedSceneRecords = new List<LoadedSceneRecord>();
             LoadedSceneRecordsById = new Dictionary<string, LoadedSceneRecord>(StringComparer.OrdinalIgnoreCase);
             PendingOperations = new List<PendingSceneOperation>();
+            ActiveOwnedTextureReferenceCounts = new Dictionary<RuntimeTexture, int>();
+            ActiveOwnedFontReferenceCounts = new Dictionary<FontAsset, int>();
         }
 
         /// <summary>
@@ -86,6 +98,26 @@ namespace helengine {
         public IReadOnlyList<LoadedSceneRecord> LoadedScenes => LoadedSceneRecords;
 
         /// <summary>
+        /// Gets the most recent scene-manager transition stage recorded for runtime diagnostics.
+        /// </summary>
+        public string LastTraceStage { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent stable scene identifier associated with the recorded transition stage.
+        /// </summary>
+        public string LastTraceSceneId { get; private set; }
+
+        /// <summary>
+        /// Gets the loaded-scene count captured at the recorded transition stage.
+        /// </summary>
+        public int LastTraceLoadedSceneCount { get; private set; }
+
+        /// <summary>
+        /// Gets the deferred-operation count captured at the recorded transition stage.
+        /// </summary>
+        public int LastTracePendingOperationCount { get; private set; }
+
+        /// <summary>
         /// Loads one built scene using the requested runtime load mode.
         /// </summary>
         /// <param name="sceneId">Stable scene identifier to load.</param>
@@ -94,8 +126,10 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
+            RecordTraceState("LoadSceneRequest", sceneId);
             if (ObjectManager.IsUpdateLoopActive && !IsFlushingPendingOperations) {
                 PendingOperations.Add(PendingSceneOperation.CreateLoad(sceneId, loadMode));
+                RecordTraceState("LoadSceneDeferred", sceneId);
                 return;
             }
 
@@ -110,11 +144,13 @@ namespace helengine {
                 return;
             }
 
+            RecordTraceState("FlushPendingOperationsBegin", string.Empty);
             IsFlushingPendingOperations = true;
             try {
                 while (PendingOperations.Count > 0) {
                     PendingSceneOperation operation = PendingOperations[0];
                     PendingOperations.RemoveAt(0);
+                    RecordTraceState("FlushPendingOperationsOperation", operation.SceneId);
                     if (operation.OperationKind == PendingSceneOperationKind.Load) {
                         LoadSceneImmediate(operation.SceneId, operation.LoadMode);
                     } else {
@@ -124,6 +160,8 @@ namespace helengine {
             } finally {
                 IsFlushingPendingOperations = false;
             }
+
+            RecordTraceState("FlushPendingOperationsEnd", string.Empty);
         }
 
         /// <summary>
@@ -132,6 +170,7 @@ namespace helengine {
         /// <param name="sceneId">Stable scene identifier to load.</param>
         /// <param name="loadMode">Runtime load behavior to apply.</param>
         void LoadSceneImmediate(string sceneId, SceneLoadMode loadMode) {
+            RecordTraceState("LoadSceneImmediateBegin", sceneId);
             if (!SceneCatalog.TryGetEntry(sceneId, out RuntimeSceneCatalogEntry entry)) {
                 throw new InvalidOperationException($"Runtime scene '{sceneId}' was not found in the build scene catalog.");
             }
@@ -141,22 +180,33 @@ namespace helengine {
 
             if (loadMode == SceneLoadMode.Single) {
                 if (LoadedSceneRecords.Count == 0) {
+                    RecordTraceState("LoadSceneImmediateDisposeUntrackedRoots", sceneId);
                     DisposeUntrackedRootEntities();
                 } else {
+                    RecordTraceState("LoadSceneImmediateUnloadAllScenes", sceneId);
                     UnloadAllScenes();
                 }
+
+                RecordTraceState("LoadSceneImmediateFlushReleasedTextures", sceneId);
+                FlushReleasedTextures();
             }
 
             SceneLoading?.Invoke(this, new SceneLoadingEventArgs(entry.SceneId, entry.CookedRelativePath));
+            RecordTraceState("LoadSceneImmediateBeforeContentLoad", entry.SceneId);
             SceneAsset sceneAsset = ContentManager.Load<SceneAsset>(entry.CookedRelativePath, RuntimeContentProcessorIds.SceneAsset);
-            IReadOnlyList<Entity> rootEntities = SceneLoadService.Load(sceneAsset);
-            LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(entry.SceneId, entry.CookedRelativePath, rootEntities);
+            RecordTraceState("LoadSceneImmediateBeforeSceneLoadServiceLoad", entry.SceneId);
+            RuntimeSceneLoadResult loadResult = SceneLoadService.LoadTracked(sceneAsset);
+            RecordTraceState("LoadSceneImmediateAfterSceneLoadServiceLoad", entry.SceneId);
+            LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(entry.SceneId, entry.CookedRelativePath, loadResult.RootEntities, loadResult.OwnedAssets);
+            RecordTraceState("LoadSceneImmediateBeforeLoadedSceneRecordTrack", entry.SceneId);
             LoadedSceneRecords.Add(loadedSceneRecord);
             LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
+            RegisterOwnedAssets(loadedSceneRecord.OwnedAssets);
             SceneLoaded?.Invoke(this, new SceneLoadedEventArgs(
                 loadedSceneRecord.SceneId,
                 loadedSceneRecord.CookedRelativePath,
                 loadedSceneRecord.RootEntities));
+            RecordTraceState("LoadSceneImmediateEnd", entry.SceneId);
         }
 
         /// <summary>
@@ -180,6 +230,7 @@ namespace helengine {
         /// </summary>
         /// <param name="sceneId">Stable scene identifier to unload.</param>
         void UnloadSceneImmediate(string sceneId) {
+            RecordTraceState("UnloadSceneImmediateBegin", sceneId);
             if (!LoadedSceneRecordsById.TryGetValue(sceneId, out LoadedSceneRecord loadedSceneRecord)) {
                 throw new InvalidOperationException($"Runtime scene '{sceneId}' is not currently loaded.");
             }
@@ -188,12 +239,15 @@ namespace helengine {
                 loadedSceneRecord.SceneId,
                 loadedSceneRecord.CookedRelativePath,
                 loadedSceneRecord.RootEntities));
+            RecordTraceState("UnloadSceneImmediateBeforeDisposeSceneRoots", loadedSceneRecord.SceneId);
             DisposeSceneRoots(loadedSceneRecord.RootEntities);
+            ReleaseOwnedAssets(loadedSceneRecord.OwnedAssets);
             LoadedSceneRecordsById.Remove(loadedSceneRecord.SceneId);
             LoadedSceneRecords.Remove(loadedSceneRecord);
             SceneUnloaded?.Invoke(this, new SceneUnloadedEventArgs(
                 loadedSceneRecord.SceneId,
                 loadedSceneRecord.CookedRelativePath));
+            RecordTraceState("UnloadSceneImmediateEnd", loadedSceneRecord.SceneId);
         }
 
         /// <summary>
@@ -227,9 +281,11 @@ namespace helengine {
         /// Unloads every currently tracked scene record.
         /// </summary>
         void UnloadAllScenes() {
+            RecordTraceState("UnloadAllScenesBegin", string.Empty);
             while (LoadedSceneRecords.Count > 0) {
                 UnloadScene(LoadedSceneRecords[0].SceneId);
             }
+            RecordTraceState("UnloadAllScenesEnd", string.Empty);
         }
 
         /// <summary>
@@ -261,6 +317,194 @@ namespace helengine {
             for (int index = rootEntities.Count - 1; index >= 0; index--) {
                 rootEntities[index].Dispose();
             }
+        }
+
+        /// <summary>
+        /// Registers one scene's owned runtime assets against the active scene set.
+        /// </summary>
+        /// <param name="ownedAssets">Scene-owned runtime assets resolved during materialization.</param>
+        void RegisterOwnedAssets(RuntimeSceneOwnedAssetSet ownedAssets) {
+            if (ownedAssets == null) {
+                throw new ArgumentNullException(nameof(ownedAssets));
+            }
+
+            RegisterOwnedTextures(ownedAssets.OwnedTextures);
+            RegisterOwnedFonts(ownedAssets.OwnedFonts);
+        }
+
+        /// <summary>
+        /// Registers one scene's owned runtime textures against the active scene set.
+        /// </summary>
+        /// <param name="ownedTextures">Scene-owned runtime textures resolved during materialization.</param>
+        void RegisterOwnedTextures(IReadOnlyList<RuntimeTexture> ownedTextures) {
+            if (ownedTextures == null) {
+                throw new ArgumentNullException(nameof(ownedTextures));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedTextures.Count; assetIndex++) {
+                RuntimeTexture ownedAsset = ownedTextures[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+
+                if (ActiveOwnedTextureReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    ActiveOwnedTextureReferenceCounts[ownedAsset] = existingReferenceCount + 1;
+                } else {
+                    ActiveOwnedTextureReferenceCounts.Add(ownedAsset, 1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Registers one scene's owned font assets against the active scene set.
+        /// </summary>
+        /// <param name="ownedFonts">Scene-owned font assets resolved during materialization.</param>
+        void RegisterOwnedFonts(IReadOnlyList<FontAsset> ownedFonts) {
+            if (ownedFonts == null) {
+                throw new ArgumentNullException(nameof(ownedFonts));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedFonts.Count; assetIndex++) {
+                FontAsset ownedAsset = ownedFonts[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+
+                if (ActiveOwnedFontReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    ActiveOwnedFontReferenceCounts[ownedAsset] = existingReferenceCount + 1;
+                } else {
+                    ActiveOwnedFontReferenceCounts.Add(ownedAsset, 1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Releases one scene's owned runtime assets when no other loaded scene still references them.
+        /// </summary>
+        /// <param name="ownedAssets">Scene-owned runtime assets resolved during materialization.</param>
+        void ReleaseOwnedAssets(RuntimeSceneOwnedAssetSet ownedAssets) {
+            if (ownedAssets == null) {
+                throw new ArgumentNullException(nameof(ownedAssets));
+            }
+
+            ReleaseOwnedFonts(ownedAssets.OwnedFonts);
+            ReleaseOwnedTextures(ownedAssets.OwnedTextures);
+        }
+
+        /// <summary>
+        /// Releases one scene's owned font assets when no other loaded scene still references them.
+        /// </summary>
+        /// <param name="ownedFonts">Scene-owned font assets resolved during materialization.</param>
+        void ReleaseOwnedFonts(IReadOnlyList<FontAsset> ownedFonts) {
+            if (ownedFonts == null) {
+                throw new ArgumentNullException(nameof(ownedFonts));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedFonts.Count; assetIndex++) {
+                FontAsset ownedAsset = ownedFonts[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+                if (!ActiveOwnedFontReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    throw new InvalidOperationException("Scene-owned font asset was not tracked before release.");
+                }
+
+                if (existingReferenceCount > 1) {
+                    ActiveOwnedFontReferenceCounts[ownedAsset] = existingReferenceCount - 1;
+                    continue;
+                }
+
+                ActiveOwnedFontReferenceCounts.Remove(ownedAsset);
+                ReleaseOwnedFont(ownedAsset);
+            }
+        }
+
+        /// <summary>
+        /// Releases one scene's owned runtime textures when no other loaded scene still references them.
+        /// </summary>
+        /// <param name="ownedTextures">Scene-owned runtime textures resolved during materialization.</param>
+        void ReleaseOwnedTextures(IReadOnlyList<RuntimeTexture> ownedTextures) {
+            if (ownedTextures == null) {
+                throw new ArgumentNullException(nameof(ownedTextures));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedTextures.Count; assetIndex++) {
+                RuntimeTexture ownedAsset = ownedTextures[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+                if (!ActiveOwnedTextureReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    throw new InvalidOperationException("Scene-owned runtime texture was not tracked before release.");
+                }
+
+                if (existingReferenceCount > 1) {
+                    ActiveOwnedTextureReferenceCounts[ownedAsset] = existingReferenceCount - 1;
+                    continue;
+                }
+
+                ActiveOwnedTextureReferenceCounts.Remove(ownedAsset);
+                ReleaseOwnedAsset(ownedAsset);
+            }
+        }
+
+        /// <summary>
+        /// Releases one scene-owned font asset after the final scene reference has been removed.
+        /// </summary>
+        /// <param name="ownedAsset">Scene-owned font asset that is no longer referenced by any loaded scene.</param>
+        void ReleaseOwnedFont(FontAsset ownedAsset) {
+            if (ownedAsset == null) {
+                throw new ArgumentNullException(nameof(ownedAsset));
+            }
+            if (ownedAsset.IsDisposed) {
+                return;
+            }
+            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+                throw new InvalidOperationException("Font asset release requires an initialized 2D render manager.");
+            }
+
+            Core.Instance.RenderManager2D.ReleaseFont(ownedAsset);
+        }
+
+        /// <summary>
+        /// Releases one scene-owned runtime asset through the correct runtime ownership seam.
+        /// </summary>
+        /// <param name="ownedAsset">Scene-owned runtime asset that is no longer referenced by any loaded scene.</param>
+        void ReleaseOwnedAsset(RuntimeTexture ownedAsset) {
+            if (ownedAsset == null) {
+                throw new ArgumentNullException(nameof(ownedAsset));
+            }
+            if (ownedAsset.IsDisposed) {
+                return;
+            }
+            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+                throw new InvalidOperationException("Runtime texture release requires an initialized 2D render manager.");
+            }
+
+            Core.Instance.RenderManager2D.ReleaseTexture(ownedAsset);
+            ownedAsset.Dispose();
+        }
+
+        /// <summary>
+        /// Flushes any renderer-owned runtime texture releases that were deferred during scene unload before the next scene begins loading.
+        /// </summary>
+        void FlushReleasedTextures() {
+            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+                throw new InvalidOperationException("Deferred runtime texture release flushing requires an initialized 2D render manager.");
+            }
+
+            Core.Instance.RenderManager2D.FlushReleasedTextures();
+        }
+
+        /// <summary>
+        /// Records one focused scene-transition diagnostic snapshot that native hosts can inspect after failures.
+        /// </summary>
+        /// <param name="stage">Short stage name describing the current transition boundary.</param>
+        /// <param name="sceneId">Stable scene identifier associated with the current transition boundary.</param>
+        void RecordTraceState(string stage, string sceneId) {
+            LastTraceStage = stage;
+            LastTraceSceneId = sceneId;
+            LastTraceLoadedSceneCount = LoadedSceneRecords.Count;
+            LastTracePendingOperationCount = PendingOperations.Count;
         }
     }
 }

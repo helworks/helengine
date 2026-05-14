@@ -2,7 +2,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Minimal render-target implementation used by preview camera tests.
     /// </summary>
-    internal class TestRenderTarget : RenderTarget, IDisposable {
+    internal class TestRenderTarget : RenderTarget {
         /// <summary>
         /// Initializes one test render target with post-process-friendly defaults.
         /// </summary>
@@ -14,13 +14,14 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Gets a value indicating whether the test target was disposed.
         /// </summary>
-        public bool IsDisposed { get; private set; }
+        public bool WasDisposed { get; private set; }
 
         /// <summary>
         /// Releases the test render target.
         /// </summary>
-        public void Dispose() {
-            IsDisposed = true;
+        public override void Dispose() {
+            WasDisposed = true;
+            base.Dispose();
         }
     }
 }

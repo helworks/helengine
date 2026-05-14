@@ -6,6 +6,16 @@ namespace helengine.editor.tests.testing {
     /// </summary>
     internal class TestRenderManager2D : RenderManager2D {
         /// <summary>
+        /// Gets the runtime textures released through this test renderer.
+        /// </summary>
+        public List<RuntimeTexture> ReleasedTextures { get; } = new List<RuntimeTexture>();
+
+        /// <summary>
+        /// Gets how many times production code requested one deferred-texture flush.
+        /// </summary>
+        public int FlushReleasedTexturesCallCount { get; private set; }
+
+        /// <summary>
         /// Creates a runtime texture that mirrors the supplied raw texture dimensions.
         /// </summary>
         /// <param name="data">Raw texture data requested by the UI under test.</param>
@@ -19,6 +29,25 @@ namespace helengine.editor.tests.testing {
                 Width = data.Width,
                 Height = data.Height
             };
+        }
+
+        /// <summary>
+        /// Records one released runtime texture so tests can assert scene-owned asset disposal.
+        /// </summary>
+        /// <param name="texture">Runtime texture released by production code.</param>
+        public override void ReleaseTexture(RuntimeTexture texture) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+
+            ReleasedTextures.Add(texture);
+        }
+
+        /// <summary>
+        /// Records one deferred-texture flush request so tests can assert scene transitions flush releases before reloading.
+        /// </summary>
+        public override void FlushReleasedTextures() {
+            FlushReleasedTexturesCallCount++;
         }
 
         /// <summary>

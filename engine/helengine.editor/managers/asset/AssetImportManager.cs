@@ -622,6 +622,7 @@ namespace helengine.editor {
 
             asset = TextureAssetProcessor.Apply(asset, GetCurrentPlatformTextureProcessorSettings(settings));
             asset.Id = settings.Importer.AssetId;
+            asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.AssetId);
 
             string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
             EnsureDirectoryForFile(outputPath);
@@ -658,6 +659,7 @@ namespace helengine.editor {
             }
 
             asset.Id = settings.Importer.AssetId;
+            asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.AssetId);
 
             string outputPath = GetTextAssetPath(settings.Importer.AssetId);
             EnsureDirectoryForFile(outputPath);
@@ -692,6 +694,14 @@ namespace helengine.editor {
             if (asset == null) {
                 throw new InvalidOperationException($"Font importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
+
+            if (asset.SourceTextureAsset == null) {
+                throw new InvalidOperationException("Font importers must provide one source atlas texture.");
+            }
+
+            string fontAtlasAssetId = settings.Importer.AssetId + "#atlas";
+            asset.SourceTextureAsset.Id = fontAtlasAssetId;
+            asset.SourceTextureAsset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(fontAtlasAssetId);
 
             string outputPath = GetFontAssetPath(settings.Importer.AssetId);
             EnsureDirectoryForFile(outputPath);
@@ -730,6 +740,7 @@ namespace helengine.editor {
             ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
             ModelAssetProcessor.Apply(asset, processorSettings);
             asset.Id = settings.Importer.AssetId;
+            asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.AssetId);
             WriteGeneratedModelMaterials(sourcePath, importedModel.GeneratedMaterials);
 
             string outputPath = GetModelAssetPath(settings.Importer.AssetId);

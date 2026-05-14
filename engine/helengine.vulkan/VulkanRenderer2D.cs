@@ -313,6 +313,24 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
+        /// Releases one Vulkan runtime texture previously created by this renderer.
+        /// </summary>
+        /// <param name="texture">Runtime texture that should release its Vulkan resources.</param>
+        public override void ReleaseTexture(RuntimeTexture texture) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+            if (texture is not VulkanTextureResource vulkanTextureResource) {
+                throw new InvalidOperationException("Released runtime texture was not created by the Vulkan 2D renderer.");
+            }
+            if (ReferenceEquals(vulkanTextureResource, whiteTexture)) {
+                return;
+            }
+
+            DestroyTextureResource(vulkanTextureResource);
+        }
+
+        /// <summary>
         /// Draws a sprite component.
         /// </summary>
         /// <param name="sprite">Sprite to draw.</param>

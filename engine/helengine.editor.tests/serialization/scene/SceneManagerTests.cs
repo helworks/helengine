@@ -142,6 +142,43 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures single-mode scene transitions release font textures owned by the previous scene before the next scene loads.
+        /// </summary>
+        [Fact]
+        public void LoadScene_whenModeIsSingleAfterTextSceneWasLoaded_releasesPreviousSceneFontTextures() {
+            WriteFontAsset("fonts/default.hefont", CreateFont());
+            WriteSceneAsset(
+                "cooked/scenes/Bootstrap.hasset",
+                1u,
+                CreateTextComponentRecord("fonts/default.hefont"));
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
+            TestRenderManager2D renderManager2D = new TestRenderManager2D();
+            Core core = CreateCore(
+                renderManager2D,
+                CreateSceneCatalog(
+                    new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
+                    new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+
+            Entity previousRoot = Assert.Single(core.SceneManager.LoadedScenes).RootEntities[0];
+            TextComponent previousText = Assert.IsType<TextComponent>(
+                Assert.Single(previousRoot.Components, component => component is TextComponent));
+            FontAsset previousFont = previousText.Font;
+            RuntimeTexture previousFontTexture = previousText.Font.Texture;
+            Assert.Empty(renderManager2D.ReleasedTextures);
+            int flushReleasedTexturesCallCountBeforeReload = renderManager2D.FlushReleasedTexturesCallCount;
+
+            core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+
+            RuntimeTexture releasedTexture = Assert.Single(renderManager2D.ReleasedTextures);
+            Assert.Same(previousFontTexture, releasedTexture);
+            Assert.True(previousFont.IsDisposed);
+            Assert.True(previousFontTexture.IsDisposed);
+            Assert.Equal(flushReleasedTexturesCallCountBeforeReload + 1, renderManager2D.FlushReleasedTexturesCallCount);
+        }
+
+        /// <summary>
         /// Ensures single-mode scene transitions tear down startup roots that were loaded directly before the runtime scene manager began tracking scenes.
         /// </summary>
         [Fact]
@@ -274,11 +311,21 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="sceneCatalog">Optional runtime scene catalog to inject before initialization.</param>
         /// <returns>Initialized core instance for runtime scene-manager tests.</returns>
         Core CreateCore(RuntimeSceneCatalog sceneCatalog = null) {
+            return CreateCore(new TestRenderManager2D(), sceneCatalog);
+        }
+
+        /// <summary>
+        /// Creates one initialized core rooted at the temporary content path with the supplied 2D render manager.
+        /// </summary>
+        /// <param name="renderManager2D">2D render manager used by the initialized core.</param>
+        /// <param name="sceneCatalog">Optional runtime scene catalog to inject before initialization.</param>
+        /// <returns>Initialized core instance for runtime scene-manager tests.</returns>
+        Core CreateCore(RenderManager2D renderManager2D, RuntimeSceneCatalog sceneCatalog = null) {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath,
                 SceneCatalog = sceneCatalog
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            core.Initialize(new TestRenderManager3D(), renderManager2D, new TestInputBackend(), new PlatformInfo("test", "test-version"));
             return core;
         }
 
@@ -325,6 +372,78 @@ namespace helengine.editor.tests.serialization.scene {
             writer.WriteSingle(40f);
             writer.WriteByte((byte)PostProcessTier.Disabled);
             return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one packaged font asset into the temporary content root.
+        /// </summary>
+        /// <param name="relativePath">Content-relative packaged font path.</param>
+        /// <param name="font">Packaged font asset to persist.</param>
+        void WriteFontAsset(string relativePath, FontAsset font) {
+            string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            FontAssetBinarySerializer.Serialize(stream, font);
+        }
+
+        /// <summary>
+        /// Creates one packaged font asset used by runtime scene-manager tests.
+        /// </summary>
+        /// <returns>Packaged font asset with a single white atlas texel.</returns>
+        FontAsset CreateFont() {
+            TextureAsset sourceTexture = new TextureAsset {
+                Width = 1,
+                Height = 1,
+                Colors = new byte[] { 255, 255, 255, 255 }
+            };
+
+            FontAsset font = new FontAsset(
+                new FontInfo("Test", 16, 4f),
+                new TestRuntimeTexture {
+                    Width = 1,
+                    Height = 1
+                },
+                new Dictionary<char, FontChar>(),
+                16f,
+                1,
+                1) {
+                SourceTextureAsset = sourceTexture
+            };
+            return font;
+        }
+
+        /// <summary>
+        /// Creates one serialized text component record that references the supplied packaged font path.
+        /// </summary>
+        /// <param name="fontRelativePath">Content-relative packaged font path used by the text component.</param>
+        /// <returns>Serialized text component record.</returns>
+        SceneComponentAssetRecord CreateTextComponentRecord(string fontRelativePath) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteByte(1);
+            writer.WriteInt32((int)SceneAssetReferenceSourceKind.FileSystem);
+            writer.WriteString(fontRelativePath);
+            writer.WriteString(string.Empty);
+            writer.WriteString(string.Empty);
+            writer.WriteString("Hello world");
+            writer.WriteByte(1);
+            writer.WriteInt2(new int2(320, 64));
+            writer.WriteByte(12);
+            writer.WriteByte(34);
+            writer.WriteByte(56);
+            writer.WriteByte(78);
+            writer.WriteFloat4(new float4(0.1f, 0.2f, 0.3f, 0.4f));
+            writer.WriteSingle(0.25f);
+            writer.WriteByte(19);
+            writer.WriteByte(7);
+            writer.WriteByte(0);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.TextComponent",
+                ComponentIndex = 0,
+                Payload = stream.ToArray()
+            };
         }
     }
 }

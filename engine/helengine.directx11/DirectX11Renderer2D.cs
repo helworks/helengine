@@ -412,6 +412,24 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Releases one DirectX11 runtime texture previously created by this renderer.
+        /// </summary>
+        /// <param name="texture">Runtime texture that should release its Direct3D resources.</param>
+        public override void ReleaseTexture(RuntimeTexture texture) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+            if (texture is not DirectX11TextureResource directX11TextureResource) {
+                throw new InvalidOperationException("Released runtime texture was not created by the DirectX11 2D renderer.");
+            }
+
+            directX11TextureResource.Resource?.Dispose();
+            directX11TextureResource.Resource = null;
+            directX11TextureResource.Texture?.Dispose();
+            directX11TextureResource.Texture = null;
+        }
+
+        /// <summary>
         /// Releases all GPU resources created by the 2D renderer.
         /// </summary>
         public override void Dispose() {

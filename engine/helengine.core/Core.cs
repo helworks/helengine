@@ -175,6 +175,11 @@ namespace helengine {
         public RuntimeComponentRegistry SceneRuntimeComponentRegistry { get; private set; }
 
         /// <summary>
+        /// Gets the most recent core-side scene-transition stage recorded for runtime diagnostics.
+        /// </summary>
+        public string LastSceneTransitionStage { get; private set; }
+
+        /// <summary>
         /// Gets the clipboard service used by textbox shortcut commands.
         /// </summary>
         public ITextClipboardService TextClipboardService => TextClipboardServiceValue;
@@ -416,14 +421,24 @@ namespace helengine {
             Input.EarlyUpdate();
             FPSComponent.RecordUpdateFrame();
 
+            LastSceneTransitionStage = "BeforeObjectManagerUpdate";
             ObjectManager.Update();
+            LastSceneTransitionStage = "AfterObjectManagerUpdate";
             if (SceneManager != null) {
+                LastSceneTransitionStage = "BeforeSceneManagerFlushPendingOperations";
                 SceneManager.FlushPendingOperations();
+                LastSceneTransitionStage = "AfterSceneManagerFlushPendingOperations";
             }
+            LastSceneTransitionStage = "BeforeUpdatePhysics";
             UpdatePhysics(elapsedSeconds);
+            LastSceneTransitionStage = "AfterUpdatePhysics";
 
+            LastSceneTransitionStage = "BeforeInputUpdate";
             Input.Update();
+            LastSceneTransitionStage = "AfterInputUpdate";
+            LastSceneTransitionStage = "BeforePointerInteractionSystemUpdate";
             PointerInteractionSystem.Update();
+            LastSceneTransitionStage = "AfterPointerInteractionSystemUpdate";
         }
 
         /// <summary>

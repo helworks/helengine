@@ -54,6 +54,7 @@ namespace helengine.editor {
 
             return new TextureAsset {
                 Id = asset.Id,
+                RuntimeAssetId = asset.RuntimeAssetId,
                 Width = (ushort)resizedWidth,
                 Height = (ushort)resizedHeight,
                 Colors = resizedColors

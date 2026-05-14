@@ -51,7 +51,7 @@ namespace helengine.editor.tests.managers.scene {
             component.Update();
 
             Assert.NotSame(initialRenderTarget, component.PreviewRenderTarget);
-            Assert.True(((TestRenderTarget)initialRenderTarget).IsDisposed);
+            Assert.True(((TestRenderTarget)initialRenderTarget).WasDisposed);
             Assert.Equal(new float3(4.8f, 2.7f, 0f), component.PlaneEntity.LocalPosition);
             Assert.Equal(new float3(9.6f, 5.4f, 1f), component.PlaneEntity.LocalScale);
             Assert.Equal(new float4(0f, 0f, 1920f, 1080f), component.PreviewCamera.Viewport);

@@ -37,6 +37,7 @@ namespace helengine.editor.tests {
             using (BinaryWriterLE writer = new BinaryWriterLE(stream)) {
                 writer.WriteUInt16(0x1234);
                 writer.WriteInt32(0x12345678);
+                writer.WriteInt64(unchecked((long)0x1112131415161718UL));
                 writer.WriteInt64(0x0102030405060708L);
                 writer.WriteSingle(1.5f);
                 writer.WriteString("AB");
@@ -51,6 +52,7 @@ namespace helengine.editor.tests {
             using BinaryReaderLE reader = new BinaryReaderLE(stream);
             Assert.Equal((ushort)0x1234, reader.ReadUInt16());
             Assert.Equal(0x12345678, reader.ReadInt32());
+            Assert.Equal(0x1112131415161718UL, unchecked((ulong)reader.ReadInt64()));
             Assert.Equal(0x0102030405060708L, reader.ReadInt64());
             Assert.Equal(1.5f, reader.ReadSingle());
             Assert.Equal("AB", reader.ReadString());
@@ -66,6 +68,7 @@ namespace helengine.editor.tests {
             using (BinaryWriterBE writer = new BinaryWriterBE(stream)) {
                 writer.WriteUInt16(0x1234);
                 writer.WriteInt32(0x12345678);
+                writer.WriteInt64(unchecked((long)0x1112131415161718UL));
                 writer.WriteInt64(0x0102030405060708L);
                 writer.WriteSingle(1.5f);
                 writer.WriteString("AB");
@@ -80,6 +83,7 @@ namespace helengine.editor.tests {
             using BinaryReaderBE reader = new BinaryReaderBE(stream);
             Assert.Equal((ushort)0x1234, reader.ReadUInt16());
             Assert.Equal(0x12345678, reader.ReadInt32());
+            Assert.Equal(0x1112131415161718UL, unchecked((ulong)reader.ReadInt64()));
             Assert.Equal(0x0102030405060708L, reader.ReadInt64());
             Assert.Equal(1.5f, reader.ReadSingle());
             Assert.Equal("AB", reader.ReadString());
@@ -257,6 +261,7 @@ namespace helengine.editor.tests {
             TextureAsset deserialized = (TextureAsset)AssetSerializer.DeserializeFromBytes(data);
 
             Assert.Equal(asset.Id, deserialized.Id);
+            Assert.Equal(asset.RuntimeAssetId, deserialized.RuntimeAssetId);
             Assert.Equal(asset.Width, deserialized.Width);
             Assert.Equal(asset.Height, deserialized.Height);
             Assert.Equal(asset.Colors, deserialized.Colors);
@@ -792,6 +797,7 @@ namespace helengine.editor.tests {
         static TextureAsset CreateTextureAsset() {
             return new TextureAsset {
                 Id = "texture/test",
+                RuntimeAssetId = 0x0102030405060708UL,
                 Width = 2,
                 Height = 2,
                 Colors = new byte[] {

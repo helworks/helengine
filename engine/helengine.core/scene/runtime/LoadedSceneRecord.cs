@@ -9,7 +9,8 @@ namespace helengine {
         /// <param name="sceneId">Stable built scene identifier.</param>
         /// <param name="cookedRelativePath">Cooked content-relative scene payload path.</param>
         /// <param name="rootEntities">Tracked root entities materialized from the scene payload.</param>
-        public LoadedSceneRecord(string sceneId, string cookedRelativePath, IReadOnlyList<Entity> rootEntities) {
+        /// <param name="ownedAssets">Scene-owned runtime assets resolved during materialization.</param>
+        public LoadedSceneRecord(string sceneId, string cookedRelativePath, IReadOnlyList<Entity> rootEntities, RuntimeSceneOwnedAssetSet ownedAssets) {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
@@ -19,10 +20,14 @@ namespace helengine {
             if (rootEntities == null) {
                 throw new ArgumentNullException(nameof(rootEntities));
             }
+            if (ownedAssets == null) {
+                throw new ArgumentNullException(nameof(ownedAssets));
+            }
 
             SceneId = sceneId;
             CookedRelativePath = cookedRelativePath;
             RootEntities = rootEntities;
+            OwnedAssets = ownedAssets;
         }
 
         /// <summary>
@@ -39,5 +44,10 @@ namespace helengine {
         /// Gets the tracked root entities materialized from the scene payload.
         /// </summary>
         public IReadOnlyList<Entity> RootEntities { get; }
+
+        /// <summary>
+        /// Gets the scene-owned runtime assets resolved during materialization.
+        /// </summary>
+        public RuntimeSceneOwnedAssetSet OwnedAssets { get; }
     }
 }
