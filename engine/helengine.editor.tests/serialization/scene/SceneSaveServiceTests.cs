@@ -248,8 +248,9 @@ namespace helengine.editor.tests.serialization.scene {
         /// Ensures scene save can infer the editor default-font reference for FPS overlays without requiring user-authored save metadata.
         /// </summary>
         [Fact]
-        public void SaveAndLoad_WhenFpsUsesDefaultFontWithoutStoredReference_InfersReferenceDuringSave() {
-            Core.Instance.DefaultFontAsset = CreateFont("EditorUi");
+        public void SaveAndLoad_WhenFpsUsesEditorCoreFont_InfersReferenceDuringSave() {
+            EditorCore editorCore = Assert.IsType<EditorCore>(Core.Instance);
+            editorCore.SetDefaultFontAssetForEditor(CreateFont("EditorUi"));
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             registry.Register(new FPSComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
@@ -257,6 +258,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             EditorEntity root = CreateUserEntity("Fps", float3.Zero, float3.One, float4.Identity);
             FPSComponent fpsComponent = new FPSComponent {
+                Font = editorCore.DefaultFontAssetForEditor,
                 RefreshIntervalSeconds = 1.75d,
                 Padding = new int2(4, 6),
                 RenderOrder2D = 211
@@ -276,12 +278,12 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("ui-font", fontReference.AssetId);
 
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
-            resolver.RegisterFont(fontReference, Core.Instance.DefaultFontAsset);
+            resolver.RegisterFont(fontReference, editorCore.DefaultFontAssetForEditor);
             SceneLoadService loadService = new SceneLoadService(registry, resolver);
             EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
             FPSComponent loadedComponent = Assert.IsType<FPSComponent>(Assert.Single(loadedRoot.Components, component => component is FPSComponent));
 
-            Assert.Same(Core.Instance.DefaultFontAsset, loadedComponent.Font);
+            Assert.Same(editorCore.DefaultFontAssetForEditor, loadedComponent.Font);
             Assert.True(GetSaveComponent(loadedRoot).TryGetComponentState(loadedComponent, out EntityComponentSaveState loadedSaveState));
             Assert.True(loadedSaveState.TryGetAssetReference("Font", out SceneAssetReference loadedFontReference));
             Assert.Equal(fontReference.AssetId, loadedFontReference.AssetId);

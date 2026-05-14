@@ -32,7 +32,7 @@ namespace helengine.editor.tests.serialization.scene {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            Core.Instance.DefaultFontAsset = CreateFont();
+            core.SetDefaultFontAssetForEditor(CreateFont());
         }
 
         /// <summary>
@@ -144,6 +144,42 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal((byte)250, fpsComponent.RenderOrder2D);
             Assert.NotNull(fpsComponent.Font);
             Assert.Equal(16f, fpsComponent.Font.LineHeight);
+        }
+
+        /// <summary>
+        /// Ensures packaged runtime scene loading accepts FPS overlays whose payload omits the packaged font reference.
+        /// </summary>
+        [Fact]
+        public void Load_WhenFpsPayloadOmitsFontReference_LoadsComponentWithNullFont() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "Helengine.FPSComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteFpsComponentPayloadWithoutFontReference()
+                            }
+                        }
+                    }
+                }
+            };
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            FPSComponent fpsComponent = Assert.IsType<FPSComponent>(Assert.Single(loadedRoot.Components, component => component is FPSComponent));
+
+            Assert.Null(fpsComponent.Font);
+            Assert.Equal(0.5d, fpsComponent.RefreshIntervalSeconds);
+            Assert.Equal(new int2(8, 6), fpsComponent.Padding);
+            Assert.Equal((byte)250, fpsComponent.RenderOrder2D);
         }
 
         /// <summary>
@@ -888,7 +924,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SceneCatalog = sceneCatalog
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
-            Core.Instance.DefaultFontAsset = CreateFont();
 
             MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
             TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
@@ -958,7 +993,7 @@ namespace helengine.editor.tests.serialization.scene {
                 ContentRootPath = assetsRootPath,
                 ScenePathResolver = scenePathResolver
             });
-            Core.Instance.DefaultFontAsset = CreateFont();
+            core.SetDefaultFontAssetForEditor(CreateFont());
 
             TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
             referenceResolver.RegisterFont(CreateFileFontReference("Fonts/DemoDiscTitle.ttf"), CreateFont());
@@ -1236,6 +1271,21 @@ namespace helengine.editor.tests.serialization.scene {
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(2);
             WriteFontReference(writer);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
+            writer.WriteInt2(new int2(8, 6));
+            writer.WriteByte(250);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized FPS component payload that omits the packaged font reference.
+        /// </summary>
+        /// <returns>Serialized FPS component payload.</returns>
+        byte[] WriteFpsComponentPayloadWithoutFontReference() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(2);
+            writer.WriteByte(0);
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
             writer.WriteInt2(new int2(8, 6));
             writer.WriteByte(250);

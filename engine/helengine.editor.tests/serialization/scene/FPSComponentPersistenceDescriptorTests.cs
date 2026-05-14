@@ -18,11 +18,11 @@ namespace helengine.editor.tests.serialization.scene {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-fps-component-persistence-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempProjectRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
+            EditorCore core = new EditorCore(null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
-            Core.Instance.DefaultFontAsset = CreateFont();
+            core.SetDefaultFontAssetForEditor(CreateFont());
         }
 
         /// <summary>
@@ -41,8 +41,9 @@ namespace helengine.editor.tests.serialization.scene {
         public void SerializeAndDeserialize_WhenFpsOverlayUsesCustomSettings_RoundTripsTheComponent() {
             FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
             TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
-            referenceResolver.RegisterFont(BuildEditorFontReference(), Core.Instance.DefaultFontAsset);
+            referenceResolver.RegisterFont(BuildEditorFontReference(), ((EditorCore)Core.Instance).DefaultFontAssetForEditor);
             FPSComponent fpsComponent = new FPSComponent {
+                Font = ((EditorCore)Core.Instance).DefaultFontAssetForEditor,
                 RefreshIntervalSeconds = 1.25d,
                 Padding = new int2(13, 21),
                 RenderOrder2D = 243
@@ -54,7 +55,33 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(1.25d, loadedComponent.RefreshIntervalSeconds);
             Assert.Equal(new int2(13, 21), loadedComponent.Padding);
             Assert.Equal((byte)243, loadedComponent.RenderOrder2D);
-            Assert.Same(Core.Instance.DefaultFontAsset, loadedComponent.Font);
+            Assert.Same(((EditorCore)Core.Instance).DefaultFontAssetForEditor, loadedComponent.Font);
+        }
+
+        /// <summary>
+        /// Ensures missing font references deserialize into an inert FPS component.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenFontReferenceIsMissing_LeavesFontNull() {
+            FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
+
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("RefreshIntervalSeconds", fieldWriter => fieldWriter.WriteInt64(BitConverter.DoubleToInt64Bits(1.25d)));
+            writer.WriteField("Padding", fieldWriter => fieldWriter.WriteInt2(new int2(13, 21)));
+            writer.WriteField("RenderOrder2D", fieldWriter => fieldWriter.WriteByte(243));
+
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.FPSComponent",
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
+
+            FPSComponent loadedComponent = Assert.IsType<FPSComponent>(descriptor.DeserializeComponent(record, null, new TestSceneAssetReferenceResolver()));
+
+            Assert.Null(loadedComponent.Font);
+            Assert.Equal(1.25d, loadedComponent.RefreshIntervalSeconds);
+            Assert.Equal(new int2(13, 21), loadedComponent.Padding);
+            Assert.Equal((byte)243, loadedComponent.RenderOrder2D);
         }
 
         /// <summary>

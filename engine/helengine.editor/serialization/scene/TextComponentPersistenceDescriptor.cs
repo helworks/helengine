@@ -177,11 +177,6 @@ namespace helengine.editor {
                         }
                     }
                 }
-            } else if (Core.Instance != null && Core.Instance.DefaultFontAsset != null) {
-                textComponent.Font = Core.Instance.DefaultFontAsset;
-                if (saveComponent != null) {
-                    saveComponent.SetAssetReference(textComponent, FontAssetScenePersistenceSupport.FontReferenceName, FontAssetScenePersistenceSupport.BuildEditorFontReference());
-                }
             } else if (textComponent.Font == null) {
                 throw new InvalidOperationException("TextComponent requires a font asset reference before deserialization.");
             }

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor;
 using helengine.editor.tests.testing;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -21,10 +22,13 @@ namespace helengine.editor.tests {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-scene-save-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
 
-            Core core = new Core(new CoreInitializationOptions {
+            EditorCore core = new EditorCore(new Project {
+                Name = "Editor Session Scene Save",
+                Path = TempProjectRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             EditorSceneMutationService.Reset();
         }
 
@@ -180,14 +184,12 @@ namespace helengine.editor.tests {
         [Fact]
         public void HandleSceneSaveRequested_WhenSceneContainsFpsComponent_WritesSceneFile() {
             EditorSession session = CreateSessionForSceneSave();
-            Core.Instance.DefaultFontAsset = CreateFont();
 
-            EditorEntity entity = new EditorEntity {
-                Name = "FPS",
-                LayerMask = EditorLayerMasks.SceneObjects
-            };
+            EditorEntity entity = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create("FPS"));
+            entity.LayerMask = EditorLayerMasks.SceneObjects;
             FPSComponent fps = new FPSComponent();
             entity.AddComponent(fps);
+            Core.Instance.ObjectManager.RegisterEntity(entity);
 
             string expectedPath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Fps.helen");
             Directory.CreateDirectory(Path.GetDirectoryName(expectedPath));

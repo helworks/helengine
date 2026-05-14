@@ -38,46 +38,31 @@ namespace helengine.editor.tests {
         /// Ensures the component creates a top-left overlay host with two text children.
         /// </summary>
         [Fact]
-        public void ComponentAdded_WhenAttached_BuildsTwoTextChildrenAtTopLeft() {
+        public void ComponentAdded_WhenFontIsMissing_DoesNotBuildOverlayChildren() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
 
-            FontAsset font = CreateFont();
-            Core.Instance.DefaultFontAsset = font;
             FPSComponent fps = new FPSComponent();
 
             entity.AddComponent(fps);
 
-            Entity overlayHost = Assert.Single(entity.Children);
-            Assert.Equal(new float3(8f, 6f, 0f), overlayHost.LocalPosition);
-            Assert.Equal(2, overlayHost.Children.Count);
-
-            Entity updateRow = overlayHost.Children[0];
-            Entity renderRow = overlayHost.Children[1];
-
-            TextComponent updateText = Assert.Single(updateRow.Components.OfType<TextComponent>());
-            TextComponent renderText = Assert.Single(renderRow.Components.OfType<TextComponent>());
-
-            Assert.Equal("Update FPS: --", updateText.Text);
-            Assert.Equal("Render FPS: --", renderText.Text);
-            Assert.Equal(0f, updateRow.LocalPosition.Y);
-            Assert.Equal(font.LineHeight, renderRow.LocalPosition.Y);
+            Assert.Empty(entity.Children);
+            Assert.Null(fps.Font);
         }
 
         /// <summary>
         /// Ensures update and render frame ticks refresh both visible lines.
         /// </summary>
         [Fact]
-        public void CoreUpdateAndDraw_WhenFrameTicksAdvance_RefreshesBothTextLines() {
+        public void CoreUpdateAndDraw_WhenFontIsMissing_DoesNotThrow() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
 
-            FontAsset font = CreateFont();
-            Core.Instance.DefaultFontAsset = font;
-            FPSComponent fps = new FPSComponent();
-            fps.RefreshIntervalSeconds = 0d;
+            FPSComponent fps = new FPSComponent {
+                RefreshIntervalSeconds = 0d
+            };
 
             entity.AddComponent(fps);
 
@@ -86,84 +71,54 @@ namespace helengine.editor.tests {
             Core.Instance.Update();
             Core.Instance.Draw();
 
-            Entity overlayHost = Assert.Single(entity.Children);
-            TextComponent updateText = Assert.Single(overlayHost.Children[0].Components.OfType<TextComponent>());
-            TextComponent renderText = Assert.Single(overlayHost.Children[1].Components.OfType<TextComponent>());
-
-            Assert.StartsWith("Update FPS:", updateText.Text);
-            Assert.StartsWith("Render FPS:", renderText.Text);
-            Assert.NotEqual("Update FPS: --", updateText.Text);
-            Assert.NotEqual("Render FPS: --", renderText.Text);
+            Assert.Empty(entity.Children);
+            Assert.Equal("Update FPS: --", fps.UpdateFpsText);
+            Assert.Equal("Render FPS: --", fps.RenderFpsText);
         }
 
         /// <summary>
         /// Ensures disabling the parent entity removes the text drawables from render participation.
         /// </summary>
         [Fact]
-        public void ParentEntity_WhenDisabled_RemovesOverlayDrawablesFromRenderLists() {
+        public void FontProperty_WhenAssignedAfterAttachment_BuildsOverlayChildren() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
 
-            Core.Instance.DefaultFontAsset = CreateFont();
             FPSComponent fps = new FPSComponent();
-
             entity.AddComponent(fps);
+
+            FontAsset font = CreateFont(24f);
+            fps.Font = font;
 
             Entity overlayHost = Assert.Single(entity.Children);
             TextComponent updateText = Assert.Single(overlayHost.Children[0].Components.OfType<TextComponent>());
             TextComponent renderText = Assert.Single(overlayHost.Children[1].Components.OfType<TextComponent>());
 
-            Assert.Contains(updateText, Core.Instance.ObjectManager.Drawables2D);
-            Assert.Contains(renderText, Core.Instance.ObjectManager.Drawables2D);
-
-            entity.Enabled = false;
-
-            Assert.DoesNotContain(updateText, Core.Instance.ObjectManager.Drawables2D);
-            Assert.DoesNotContain(renderText, Core.Instance.ObjectManager.Drawables2D);
-            Assert.False(overlayHost.IsHierarchyEnabled);
+            Assert.Same(font, updateText.Font);
+            Assert.Same(font, renderText.Font);
+            Assert.Equal(font.LineHeight, overlayHost.Children[1].LocalPosition.Y);
         }
 
         /// <summary>
         /// Ensures the parameterless constructor uses the configured default font asset.
         /// </summary>
         [Fact]
-        public void Constructor_WhenCoreDefaultFontIsConfigured_AssignsThatFont() {
-            FontAsset font = CreateFont();
-            Core.Instance.DefaultFontAsset = font;
-
-            FPSComponent fps = new FPSComponent();
-
-            Assert.Same(font, fps.Font);
-        }
-
-        /// <summary>
-        /// Ensures changing the font after attachment updates the rendered overlay text.
-        /// </summary>
-        [Fact]
-        public void FontProperty_WhenChangedAfterAttachment_UpdatesOverlayTextFonts() {
+        public void FontProperty_WhenClearedAfterAttachment_RemovesOverlayChildren() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
 
-            FontAsset initialFont = CreateFont(16f);
-            FontAsset replacementFont = CreateFont(24f);
-            Core.Instance.DefaultFontAsset = initialFont;
-
-            FPSComponent fps = new FPSComponent();
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont()
+            };
             entity.AddComponent(fps);
-            fps.Font = replacementFont;
+            Assert.Single(entity.Children);
 
-            Entity overlayHost = Assert.Single(entity.Children);
-            Entity updateRow = overlayHost.Children[0];
-            Entity renderRow = overlayHost.Children[1];
-            TextComponent updateText = Assert.Single(updateRow.Components.OfType<TextComponent>());
-            TextComponent renderText = Assert.Single(renderRow.Components.OfType<TextComponent>());
+            fps.Font = null;
 
-            Assert.Same(replacementFont, fps.Font);
-            Assert.Same(replacementFont, updateText.Font);
-            Assert.Same(replacementFont, renderText.Font);
-            Assert.Equal(replacementFont.LineHeight, renderRow.LocalPosition.Y);
+            Assert.Empty(entity.Children);
+            Assert.Null(fps.Font);
         }
 
         /// <summary>

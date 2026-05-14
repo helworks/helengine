@@ -45,8 +45,6 @@ namespace helengine {
 
             if (fontReference != null) {
                 fpsComponent.Font = referenceResolver.ResolveFont(fontReference);
-            } else {
-                throw new InvalidOperationException("FPSComponent requires a packaged font reference before deserialization.");
             }
 
             return fpsComponent;

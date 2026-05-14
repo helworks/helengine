@@ -40,8 +40,7 @@ namespace helengine.editor {
             if (saveState != null && saveState.TryGetAssetReference(FontReferenceName, out SceneAssetReference storedReference)) {
                 return storedReference;
             }
-            if (Core.Instance != null && Core.Instance.DefaultFontAsset != null && ReferenceEquals(font, Core.Instance.DefaultFontAsset)) {
-                SceneAssetReference editorFontReference = BuildEditorFontReference();
+            if (TryResolveEditorCoreFont(font, out SceneAssetReference editorFontReference)) {
                 if (saveState != null) {
                     saveState.SetAssetReference(FontReferenceName, editorFontReference);
                 }
@@ -50,6 +49,31 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"{componentName} Font is assigned but does not have a stored scene asset reference.");
+        }
+
+        /// <summary>
+        /// Attempts to map one runtime font back to the generated editor UI-font reference.
+        /// </summary>
+        /// <param name="font">Runtime font currently assigned to a component.</param>
+        /// <param name="reference">Resolved generated editor-font reference when the font belongs to the active editor core.</param>
+        /// <returns>True when the font belongs to the active editor core.</returns>
+        internal static bool TryResolveEditorCoreFont(FontAsset font, out SceneAssetReference reference) {
+            reference = null;
+            if (font == null) {
+                return false;
+            }
+            if (Core.Instance is not EditorCore editorCore) {
+                return false;
+            }
+            if (editorCore.DefaultFontAssetForEditor == null) {
+                return false;
+            }
+            if (!ReferenceEquals(font, editorCore.DefaultFontAssetForEditor)) {
+                return false;
+            }
+
+            reference = BuildEditorFontReference();
+            return true;
         }
 
         /// <summary>
