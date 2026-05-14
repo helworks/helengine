@@ -111,16 +111,6 @@ namespace helengine.editor {
                         }
                     }
                 }
-            } else if (Core.Instance != null && Core.Instance.DefaultFontAsset != null) {
-                fpsComponent.Font = Core.Instance.DefaultFontAsset;
-                if (saveComponent != null) {
-                    saveComponent.SetAssetReference(
-                        fpsComponent,
-                        FontAssetScenePersistenceSupport.FontReferenceName,
-                        FontAssetScenePersistenceSupport.BuildEditorFontReference());
-                }
-            } else if (fpsComponent.Font == null) {
-                throw new InvalidOperationException("FPSComponent requires a font asset reference before deserialization.");
             }
 
             return fpsComponent;

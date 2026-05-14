@@ -498,7 +498,7 @@ namespace helengine.editor {
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             ViewportToolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
             Importers = importers ?? throw new ArgumentNullException(nameof(importers));
-            this.core.DefaultFontAsset = this.uiFont;
+            this.core.SetDefaultFontAssetForEditor(this.uiFont);
 
             EditorKeyboardFocusService.Reset();
             core.Initialize(render3D, render2D, input, CreateEditorPlatformInfo());
@@ -1082,7 +1082,7 @@ namespace helengine.editor {
             this.uiFont = uiFont;
 
             if (core != null) {
-                core.DefaultFontAsset = uiFont;
+                core.SetDefaultFontAssetForEditor(uiFont);
             }
             if (titleBar != null) {
                 titleBar.ApplyUiMetrics(uiFont, metrics);

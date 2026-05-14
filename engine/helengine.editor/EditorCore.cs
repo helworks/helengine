@@ -6,6 +6,11 @@ namespace helengine {
     /// </summary>
     public class EditorCore : Core {
         /// <summary>
+        /// Stores the editor UI font used by editor-only systems and generated asset references.
+        /// </summary>
+        FontAsset DefaultFontAssetForEditorValue;
+
+        /// <summary>
         /// Creates a new editor core instance for the specified project.
         /// </summary>
         /// <param name="project">The project to open in the editor.</param>
@@ -27,6 +32,25 @@ namespace helengine {
         /// Gets the allocator that owns numeric scene entity ids for the active editor host.
         /// </summary>
         public global::helengine.editor.EditorSceneEntityIdAllocator SceneEntityIdAllocator { get; private set; }
+
+        /// <summary>
+        /// Gets the editor-owned font asset used by editor UI and generated editor font references.
+        /// </summary>
+        public FontAsset DefaultFontAssetForEditor {
+            get { return DefaultFontAssetForEditorValue; }
+        }
+
+        /// <summary>
+        /// Stores the editor-owned font asset used by editor UI and generated editor font references.
+        /// </summary>
+        /// <param name="font">Editor-owned font asset.</param>
+        public void SetDefaultFontAssetForEditor(FontAsset font) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+
+            DefaultFontAssetForEditorValue = font;
+        }
 
         /// <inheritdoc />
         public override void Initialize(

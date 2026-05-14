@@ -334,11 +334,11 @@ namespace helengine.editor {
             if (!string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
             }
-            if (Core.Instance == null || Core.Instance.DefaultFontAsset == null) {
-                throw new InvalidOperationException("The editor font is not available in the active core.");
+            if (Core.Instance is not EditorCore editorCore || editorCore.DefaultFontAssetForEditor == null) {
+                throw new InvalidOperationException("The editor font is not available in the active editor core.");
             }
 
-            return Core.Instance.DefaultFontAsset;
+            return editorCore.DefaultFontAssetForEditor;
         }
 
         /// <summary>

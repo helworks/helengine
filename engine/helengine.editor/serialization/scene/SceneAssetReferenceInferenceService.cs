@@ -114,8 +114,8 @@ namespace helengine.editor {
             if (fpsComponent.Font == null) {
                 return;
             }
-            if (Core.Instance != null && Core.Instance.DefaultFontAsset != null && ReferenceEquals(fpsComponent.Font, Core.Instance.DefaultFontAsset)) {
-                saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, FontAssetScenePersistenceSupport.BuildEditorFontReference());
+            if (FontAssetScenePersistenceSupport.TryResolveEditorCoreFont(fpsComponent.Font, out SceneAssetReference fontReference)) {
+                saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, fontReference);
                 return;
             }
 
