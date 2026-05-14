@@ -104,15 +104,12 @@ namespace helengine {
         public FontAsset Font {
             get { return font; }
             set {
-                if (value == null) {
-                    throw new ArgumentNullException(nameof(value));
-                }
-                if (font == value) {
+                if (ReferenceEquals(font, value)) {
                     return;
                 }
 
                 font = value;
-                ApplyFont();
+                RefreshOverlayActivation();
             }
         }
 
@@ -142,13 +139,10 @@ namespace helengine {
         byte renderOrder2D = 250;
 
         /// <summary>
-        /// Creates a new FPS overlay using the default font configured on the active core when one is available.
+        /// Creates a new FPS overlay with no implicit font fallback.
         /// </summary>
         public FPSComponent() {
-            FontAsset defaultFont = ResolveDefaultFont();
-            if (defaultFont != null) {
-                Font = defaultFont;
-            }
+            ResetSamplingWindow();
         }
 
         /// <summary>
@@ -159,55 +153,9 @@ namespace helengine {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
-            if (Font == null) {
-                throw new InvalidOperationException("FPSComponent requires a font asset before it can be attached.");
-            }
 
             base.ComponentAdded(entity);
-
-            if (Initialized) {
-                return;
-            }
-
-            if (entity.Children == null) {
-                entity.InitChildren();
-            }
-
-            OverlayHost = new Entity();
-            OverlayHost.LayerMask = entity.LayerMask;
-            OverlayHost.InitChildren();
-            OverlayHost.InitComponents();
-            entity.AddChild(OverlayHost);
-
-            UpdateRowHost = new Entity();
-            UpdateRowHost.LayerMask = entity.LayerMask;
-            UpdateRowHost.InitChildren();
-            UpdateRowHost.InitComponents();
-            OverlayHost.AddChild(UpdateRowHost);
-
-            UpdateTextComponent = new TextComponent();
-            UpdateTextComponent.Font = Font;
-            UpdateTextComponent.Color = new byte4(255, 255, 255, 255);
-            UpdateTextComponent.RenderOrder2D = RenderOrder2D;
-            UpdateRowHost.AddComponent(UpdateTextComponent);
-
-            RenderRowHost = new Entity();
-            RenderRowHost.LayerMask = entity.LayerMask;
-            RenderRowHost.InitChildren();
-            RenderRowHost.InitComponents();
-            RenderRowHost.LocalPosition = new float3(0f, Font.LineHeight, 0.1f);
-            OverlayHost.AddChild(RenderRowHost);
-
-            RenderTextComponent = new TextComponent();
-            RenderTextComponent.Color = new byte4(255, 255, 255, 255);
-            RenderTextComponent.RenderOrder2D = RenderOrder2D;
-            RenderRowHost.AddComponent(RenderTextComponent);
-
-            ApplyFont();
-            ResetSamplingWindow();
-            ApplyPadding();
-            Initialized = true;
-            ActiveComponents.Add(this);
+            RefreshOverlayActivation();
         }
 
         /// <summary>
@@ -215,21 +163,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Owning entity.</param>
         public override void ComponentRemoved(Entity entity) {
-            bool wasInitialized = Initialized;
-            Initialized = false;
-            ActiveComponents.Remove(this);
-
-            if (wasInitialized && Parent != null && OverlayHost != null && OverlayHost.Parent == Parent) {
-                Parent.RemoveChild(OverlayHost);
-            }
-
-            OverlayHost = null;
-            UpdateRowHost = null;
-            RenderRowHost = null;
-            UpdateTextComponent = null;
-            RenderTextComponent = null;
-            Initialized = false;
-
+            TearDownOverlay();
             base.ComponentRemoved(entity);
         }
 
@@ -247,10 +181,101 @@ namespace helengine {
         /// </summary>
         public override void Update() {
             if (!Initialized) {
-                throw new InvalidOperationException("FPSComponent must be attached before it can sample frames.");
+                return;
             }
 
             TryRefreshOverlay();
+        }
+
+        /// <summary>
+        /// Reconciles the overlay hierarchy with the currently assigned font and attachment state.
+        /// </summary>
+        void RefreshOverlayActivation() {
+            if (Parent == null) {
+                return;
+            }
+
+            if (Font == null) {
+                TearDownOverlay();
+                return;
+            }
+
+            if (!Initialized) {
+                BuildOverlay();
+                ResetSamplingWindow();
+                ApplyPadding();
+                ApplyRenderOrder();
+                return;
+            }
+
+            ApplyFont();
+            ApplyRenderOrder();
+            ApplyPadding();
+        }
+
+        /// <summary>
+        /// Creates the overlay hierarchy for the currently attached parent entity.
+        /// </summary>
+        void BuildOverlay() {
+            if (Parent == null) {
+                throw new InvalidOperationException("FPSComponent must be attached before its overlay can be created.");
+            }
+            if (Font == null) {
+                throw new InvalidOperationException("FPSComponent overlay creation requires a font.");
+            }
+            if (Initialized) {
+                return;
+            }
+            if (Parent.Children == null) {
+                Parent.InitChildren();
+            }
+
+            OverlayHost = new Entity();
+            OverlayHost.LayerMask = Parent.LayerMask;
+            OverlayHost.InitChildren();
+            OverlayHost.InitComponents();
+            Parent.AddChild(OverlayHost);
+
+            UpdateRowHost = new Entity();
+            UpdateRowHost.LayerMask = Parent.LayerMask;
+            UpdateRowHost.InitChildren();
+            UpdateRowHost.InitComponents();
+            OverlayHost.AddChild(UpdateRowHost);
+
+            UpdateTextComponent = new TextComponent();
+            UpdateTextComponent.Color = new byte4(255, 255, 255, 255);
+            UpdateRowHost.AddComponent(UpdateTextComponent);
+
+            RenderRowHost = new Entity();
+            RenderRowHost.LayerMask = Parent.LayerMask;
+            RenderRowHost.InitChildren();
+            RenderRowHost.InitComponents();
+            OverlayHost.AddChild(RenderRowHost);
+
+            RenderTextComponent = new TextComponent();
+            RenderTextComponent.Color = new byte4(255, 255, 255, 255);
+            RenderRowHost.AddComponent(RenderTextComponent);
+
+            Initialized = true;
+            ActiveComponents.Add(this);
+            ApplyFont();
+        }
+
+        /// <summary>
+        /// Removes the overlay hierarchy and unregisters the component from frame sampling.
+        /// </summary>
+        void TearDownOverlay() {
+            ActiveComponents.Remove(this);
+            if (Parent != null && OverlayHost != null && OverlayHost.Parent == Parent) {
+                Parent.RemoveChild(OverlayHost);
+            }
+
+            OverlayHost = null;
+            UpdateRowHost = null;
+            RenderRowHost = null;
+            UpdateTextComponent = null;
+            RenderTextComponent = null;
+            Initialized = false;
         }
 
         /// <summary>
@@ -367,15 +392,5 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves the default font configured on the active core instance.
-        /// </summary>
-        /// <returns>Default font used for new FPS overlays.</returns>
-        static FontAsset ResolveDefaultFont() {
-            if (Core.Instance == null) {
-                return null;
-            }
-
-            return Core.Instance.DefaultFontAsset;
-        }
     }
 }
