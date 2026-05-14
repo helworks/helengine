@@ -440,6 +440,7 @@ namespace helengine.editor {
             }
 
             bool isPs2Build = string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase);
+            bool isNintendoDsBuild = string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase);
             RemoveEditorOnlyGeneratedSourceFiles(generatedCoreRootPath);
             bool reflectionLikeRuntimeEnabled = IsGeneratedFeatureEnabled(generatedCoreRootPath, "ReflectionLikeRuntime");
             if (!reflectionLikeRuntimeEnabled) {
@@ -465,7 +466,7 @@ namespace helengine.editor {
 
                 string fileName = Path.GetFileName(sourceFilePath);
                 string contents = File.ReadAllText(sourceFilePath);
-                string updatedContents = NormalizeGeneratedNativeSource(fileName, contents, featureManifestEntries, isPs2Build, reflectionLikeRuntimeEnabled);
+                string updatedContents = NormalizeGeneratedNativeSource(fileName, contents, featureManifestEntries, isPs2Build, isNintendoDsBuild, reflectionLikeRuntimeEnabled);
                 if (!string.Equals(contents, updatedContents, StringComparison.Ordinal)) {
                     File.WriteAllText(sourceFilePath, updatedContents);
                 }
@@ -909,7 +910,7 @@ namespace helengine.editor {
         /// <param name="contents">Current file contents.</param>
         /// <param name="featureManifestEntries">Feature-manifest entries derived from the generated conversion report.</param>
         /// <returns>Updated file contents.</returns>
-        static string NormalizeGeneratedNativeSource(string fileName, string contents, IReadOnlyList<string> featureManifestEntries, bool isPs2Build, bool reflectionLikeRuntimeEnabled) {
+        static string NormalizeGeneratedNativeSource(string fileName, string contents, IReadOnlyList<string> featureManifestEntries, bool isPs2Build, bool isNintendoDsBuild, bool reflectionLikeRuntimeEnabled) {
             if (string.IsNullOrWhiteSpace(fileName) || string.IsNullOrEmpty(contents)) {
                 return contents;
             }
@@ -1268,6 +1269,9 @@ namespace helengine.editor {
                 if (isPs2Build) {
                     return InsertPs2PathSupport(updatedContents);
                 }
+                if (isNintendoDsBuild) {
+                    return InsertNintendoDsPathSupport(updatedContents);
+                }
 
                 return updatedContents;
             }
@@ -1275,6 +1279,11 @@ namespace helengine.editor {
             if (isPs2Build
                 && string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return InsertPs2PathSupport(contents);
+            }
+
+            if (isNintendoDsBuild
+                && string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return InsertNintendoDsPathSupport(contents);
             }
 
             if (isPs2Build
@@ -2088,6 +2097,124 @@ return Encoding::GetString(Encoding::UTF8, bytes);}";
                 + "#endif" + newline
                 + "    return std::filesystem::path(path).is_absolute();",
                 StringComparison.Ordinal);
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Inserts Nintendo DS-specific device-path handling into generated native path support so NitroFS roots avoid host-style normalization.
+        /// </summary>
+        /// <param name="contents">Current path source contents.</param>
+        /// <returns>Updated path source contents.</returns>
+        static string InsertNintendoDsPathSupport(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("IsNintendoDsDevicePath", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string helpers = "#if HELENGINE_NINTENDO_DS_HAS_GENERATED_CORE" + newline
+                + "namespace {" + newline
+                + "    bool IsNintendoDsDevicePath(const std::string& path) {" + newline
+                + "        return path.rfind(\"nitro:\", 0) == 0;" + newline
+                + "    }" + newline
+                + "}" + newline
+                + "#endif" + newline + newline;
+
+            string updatedContents = contents;
+            if (updatedContents.Contains("#include <filesystem>", StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace("#include <filesystem>", "#include <filesystem>" + newline + newline + helpers.TrimEnd(), StringComparison.Ordinal);
+            } else {
+                updatedContents = helpers + updatedContents;
+            }
+
+            updatedContents = updatedContents.Replace(
+                "std::string Path::Combine(const std::string& left, const std::string& right) {" + newline
+                + "    if (left.empty()) {" + newline
+                + "        return right;" + newline
+                + "    }" + newline + newline
+                + "    if (right.empty()) {" + newline
+                + "        return left;" + newline
+                + "    }" + newline + newline
+                + "    return (std::filesystem::path(left) / right).lexically_normal().string();" + newline
+                + "}",
+                "std::string Path::Combine(const std::string& left, const std::string& right) {" + newline
+                + "#if HELENGINE_NINTENDO_DS_HAS_GENERATED_CORE" + newline
+                + "    if (IsNintendoDsDevicePath(left)) {" + newline
+                + "        if (right.empty()) {" + newline
+                + "            return left;" + newline
+                + "        }" + newline
+                + "        if (left.empty()) {" + newline
+                + "            return right;" + newline
+                + "        }" + newline
+                + "        if (right[0] == '/') {" + newline
+                + "            return left + right;" + newline
+                + "        }" + newline
+                + "        return left + \"/\" + right;" + newline
+                + "    }" + newline
+                + "#endif" + newline
+                + "    if (left.empty()) {" + newline
+                + "        return right;" + newline
+                + "    }" + newline + newline
+                + "    if (right.empty()) {" + newline
+                + "        return left;" + newline
+                + "    }" + newline + newline
+                + "    return (std::filesystem::path(left) / right).lexically_normal().string();" + newline
+                + "}",
+                StringComparison.Ordinal);
+
+            updatedContents = updatedContents.Replace(
+                "std::string Path::GetFullPath(const std::string& path) {" + newline
+                + "#if !HE_CPP_PLATFORM_IS_WINDOWS_HOST" + newline
+                + "    if (path.empty()) {" + newline
+                + "        return std::string(\".\");" + newline
+                + "    }" + newline + newline
+                + "    return std::filesystem::path(path).lexically_normal().string();" + newline
+                + "#else" + newline
+                + "    if (path.empty()) {" + newline
+                + "        return std::filesystem::current_path().string();" + newline
+                + "    }" + newline + newline
+                + "    return std::filesystem::absolute(std::filesystem::path(path)).lexically_normal().string();" + newline
+                + "#endif" + newline
+                + "}",
+                "std::string Path::GetFullPath(const std::string& path) {" + newline
+                + "#if HELENGINE_NINTENDO_DS_HAS_GENERATED_CORE" + newline
+                + "    if (IsNintendoDsDevicePath(path)) {" + newline
+                + "        return path;" + newline
+                + "    }" + newline
+                + "#endif" + newline
+                + "#if !HE_CPP_PLATFORM_IS_WINDOWS_HOST" + newline
+                + "    if (path.empty()) {" + newline
+                + "        return std::string(\".\");" + newline
+                + "    }" + newline + newline
+                + "    return std::filesystem::path(path).lexically_normal().string();" + newline
+                + "#else" + newline
+                + "    if (path.empty()) {" + newline
+                + "        return std::filesystem::current_path().string();" + newline
+                + "    }" + newline + newline
+                + "    return std::filesystem::absolute(std::filesystem::path(path)).lexically_normal().string();" + newline
+                + "#endif" + newline
+                + "}",
+                StringComparison.Ordinal);
+
+            updatedContents = updatedContents.Replace(
+                "bool Path::IsPathRooted(const std::string& path) {" + newline
+                + "    if (path.empty()) {" + newline
+                + "        return false;" + newline
+                + "    }" + newline + newline
+                + "    return std::filesystem::path(path).is_absolute();" + newline
+                + "}",
+                "bool Path::IsPathRooted(const std::string& path) {" + newline
+                + "    if (path.empty()) {" + newline
+                + "        return false;" + newline
+                + "    }" + newline + newline
+                + "#if HELENGINE_NINTENDO_DS_HAS_GENERATED_CORE" + newline
+                + "    if (IsNintendoDsDevicePath(path)) {" + newline
+                + "        return true;" + newline
+                + "    }" + newline
+                + "#endif" + newline
+                + "    return std::filesystem::path(path).is_absolute();" + newline
+                + "}",
+                StringComparison.Ordinal);
+
             return updatedContents;
         }
 

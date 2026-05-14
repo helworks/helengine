@@ -1722,5 +1722,67 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.DoesNotContain("#include \"ObjectManager.hpp\"", normalizedEntityHeader, StringComparison.Ordinal);
         Assert.Contains("#include \"float4.hpp\"", normalizedEntityHeader, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Verifies DS generated native path support treats NitroFS device paths as rooted so absolute packaged paths are not prefixed twice.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_adds_nintendo_ds_path_support() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-ds-path-support");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "system", "io"));
+        string sourcePath = Path.Combine(generatedCoreRootPath, "system", "io", "path.cpp");
+        File.WriteAllText(
+            sourcePath,
+            "#include \"path.hpp\"\n"
+            + "\n"
+            + "#include <filesystem>\n"
+            + "\n"
+            + "std::string Path::Combine(const std::string& left, const std::string& right) {\n"
+            + "    if (left.empty()) {\n"
+            + "        return right;\n"
+            + "    }\n"
+            + "\n"
+            + "    if (right.empty()) {\n"
+            + "        return left;\n"
+            + "    }\n"
+            + "\n"
+            + "    return (std::filesystem::path(left) / right).lexically_normal().string();\n"
+            + "}\n"
+            + "\n"
+            + "std::string Path::GetFullPath(const std::string& path) {\n"
+            + "#if !HE_CPP_PLATFORM_IS_WINDOWS_HOST\n"
+            + "    if (path.empty()) {\n"
+            + "        return std::string(\".\");\n"
+            + "    }\n"
+            + "\n"
+            + "    return std::filesystem::path(path).lexically_normal().string();\n"
+            + "#else\n"
+            + "    if (path.empty()) {\n"
+            + "        return std::filesystem::current_path().string();\n"
+            + "    }\n"
+            + "\n"
+            + "    return std::filesystem::absolute(std::filesystem::path(path)).lexically_normal().string();\n"
+            + "#endif\n"
+            + "}\n"
+            + "\n"
+            + "bool Path::IsPathRooted(const std::string& path) {\n"
+            + "    if (path.empty()) {\n"
+            + "        return false;\n"
+            + "    }\n"
+            + "\n"
+            + "    return std::filesystem::path(path).is_absolute();\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
+
+        string normalized = File.ReadAllText(sourcePath);
+        Assert.Contains("#if HELENGINE_NINTENDO_DS_HAS_GENERATED_CORE", normalized);
+        Assert.Contains("bool IsNintendoDsDevicePath(const std::string& path)", normalized);
+        Assert.Contains("return path.rfind(\"nitro:\", 0) == 0;", normalized);
+        Assert.Contains("if (IsNintendoDsDevicePath(path)) {", normalized);
+        Assert.Contains("return true;", normalized);
+        Assert.Contains("return path;", normalized);
+        Assert.Contains("return left + \"/\" + right;", normalized);
+    }
 }
 
