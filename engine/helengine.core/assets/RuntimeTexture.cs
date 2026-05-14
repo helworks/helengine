@@ -19,6 +19,11 @@ namespace helengine {
         public int Height { get; set; }
 
         /// <summary>
+        /// Gets or sets whether this runtime texture is owned by engine infrastructure instead of one loaded scene.
+        /// </summary>
+        public bool IsEngineOwned { get; set; }
+
+        /// <summary>
         /// Releases renderer-owned resources associated with this runtime texture.
         /// </summary>
         public virtual void Dispose() {

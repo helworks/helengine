@@ -170,6 +170,11 @@ namespace helengine {
         public SceneManager SceneManager { get; private set; }
 
         /// <summary>
+        /// Gets the runtime diagnostics service used to capture shared diagnostics snapshots.
+        /// </summary>
+        public RuntimeDiagnosticsService RuntimeDiagnosticsService { get; private set; }
+
+        /// <summary>
         /// Gets the runtime component registry used to materialize packaged scene components.
         /// </summary>
         public RuntimeComponentRegistry SceneRuntimeComponentRegistry { get; private set; }
@@ -246,6 +251,10 @@ namespace helengine {
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
             SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
             SceneManager = CreateSceneManager(contentManager, InitializationOptions.SceneCatalog);
+            RuntimeDiagnosticsService = new RuntimeDiagnosticsService(
+                InitializationOptions.RuntimeDiagnosticsProvider,
+                SceneManager,
+                ObjectManager);
         }
 
         /// <summary>
@@ -367,6 +376,7 @@ namespace helengine {
         public void Dispose() {
             RenderManager3D.Dispose();
             RenderManager2D.Dispose();
+            RuntimeDiagnosticsService = null;
         }
 
         /// <summary>

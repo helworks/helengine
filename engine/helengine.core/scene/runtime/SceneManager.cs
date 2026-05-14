@@ -49,6 +49,16 @@ namespace helengine {
         readonly Dictionary<FontAsset, int> ActiveOwnedFontReferenceCounts;
 
         /// <summary>
+        /// Tracks active scene-owned runtime models and how many loaded scenes still reference each instance.
+        /// </summary>
+        readonly Dictionary<RuntimeModel, int> ActiveOwnedModelReferenceCounts;
+
+        /// <summary>
+        /// Tracks active scene-owned runtime materials and how many loaded scenes still reference each instance.
+        /// </summary>
+        readonly Dictionary<RuntimeMaterial, int> ActiveOwnedMaterialReferenceCounts;
+
+        /// <summary>
         /// Tracks whether deferred scene operations are currently being flushed.
         /// </summary>
         bool IsFlushingPendingOperations;
@@ -70,6 +80,8 @@ namespace helengine {
             PendingOperations = new List<PendingSceneOperation>();
             ActiveOwnedTextureReferenceCounts = new Dictionary<RuntimeTexture, int>();
             ActiveOwnedFontReferenceCounts = new Dictionary<FontAsset, int>();
+            ActiveOwnedModelReferenceCounts = new Dictionary<RuntimeModel, int>();
+            ActiveOwnedMaterialReferenceCounts = new Dictionary<RuntimeMaterial, int>();
         }
 
         /// <summary>
@@ -96,6 +108,49 @@ namespace helengine {
         /// Gets the loaded scene records in load order.
         /// </summary>
         public IReadOnlyList<LoadedSceneRecord> LoadedScenes => LoadedSceneRecords;
+
+        /// <summary>
+        /// Gets the current loaded-scene-record list capacity reserved by the manager.
+        /// </summary>
+        public int LoadedSceneRecordCapacity => LoadedSceneRecords.Capacity;
+
+        /// <summary>
+        /// Gets the current deferred-scene-operation list capacity reserved by the manager.
+        /// </summary>
+        public int PendingOperationCapacity => PendingOperations.Capacity;
+
+        /// <summary>
+        /// Gets the number of scene-owned runtime textures currently tracked across all loaded scenes.
+        /// </summary>
+        public int ActiveOwnedTextureReferenceCount => ActiveOwnedTextureReferenceCounts.Count;
+
+        /// <summary>
+        /// Gets the number of scene-owned font assets currently tracked across all loaded scenes.
+        /// </summary>
+        public int ActiveOwnedFontReferenceCount => ActiveOwnedFontReferenceCounts.Count;
+
+        /// <summary>
+        /// Gets the number of scene-owned runtime models currently tracked across all loaded scenes.
+        /// </summary>
+        public int ActiveOwnedModelReferenceCount => ActiveOwnedModelReferenceCounts.Count;
+
+        /// <summary>
+        /// Gets the number of scene-owned runtime materials currently tracked across all loaded scenes.
+        /// </summary>
+        public int ActiveOwnedMaterialReferenceCount => ActiveOwnedMaterialReferenceCounts.Count;
+
+        /// <summary>
+        /// Returns the currently loaded scene ids in load order for diagnostics.
+        /// </summary>
+        /// <returns>Currently loaded scene ids in deterministic load order.</returns>
+        public List<string> GetLoadedSceneIds() {
+            List<string> sceneIds = new List<string>(LoadedSceneRecords.Count);
+            for (int index = 0; index < LoadedSceneRecords.Count; index++) {
+                sceneIds.Add(LoadedSceneRecords[index].SceneId);
+            }
+
+            return sceneIds;
+        }
 
         /// <summary>
         /// Gets the most recent scene-manager transition stage recorded for runtime diagnostics.
@@ -330,6 +385,8 @@ namespace helengine {
 
             RegisterOwnedTextures(ownedAssets.OwnedTextures);
             RegisterOwnedFonts(ownedAssets.OwnedFonts);
+            RegisterOwnedModels(ownedAssets.OwnedModels);
+            RegisterOwnedMaterials(ownedAssets.OwnedMaterials);
         }
 
         /// <summary>
@@ -379,6 +436,52 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Registers one scene's owned runtime models against the active scene set.
+        /// </summary>
+        /// <param name="ownedModels">Scene-owned runtime models resolved during materialization.</param>
+        void RegisterOwnedModels(IReadOnlyList<RuntimeModel> ownedModels) {
+            if (ownedModels == null) {
+                throw new ArgumentNullException(nameof(ownedModels));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedModels.Count; assetIndex++) {
+                RuntimeModel ownedAsset = ownedModels[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+
+                if (ActiveOwnedModelReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    ActiveOwnedModelReferenceCounts[ownedAsset] = existingReferenceCount + 1;
+                } else {
+                    ActiveOwnedModelReferenceCounts.Add(ownedAsset, 1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Registers one scene's owned runtime materials against the active scene set.
+        /// </summary>
+        /// <param name="ownedMaterials">Scene-owned runtime materials resolved during materialization.</param>
+        void RegisterOwnedMaterials(IReadOnlyList<RuntimeMaterial> ownedMaterials) {
+            if (ownedMaterials == null) {
+                throw new ArgumentNullException(nameof(ownedMaterials));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedMaterials.Count; assetIndex++) {
+                RuntimeMaterial ownedAsset = ownedMaterials[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+
+                if (ActiveOwnedMaterialReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    ActiveOwnedMaterialReferenceCounts[ownedAsset] = existingReferenceCount + 1;
+                } else {
+                    ActiveOwnedMaterialReferenceCounts.Add(ownedAsset, 1);
+                }
+            }
+        }
+
+        /// <summary>
         /// Releases one scene's owned runtime assets when no other loaded scene still references them.
         /// </summary>
         /// <param name="ownedAssets">Scene-owned runtime assets resolved during materialization.</param>
@@ -389,6 +492,8 @@ namespace helengine {
 
             ReleaseOwnedFonts(ownedAssets.OwnedFonts);
             ReleaseOwnedTextures(ownedAssets.OwnedTextures);
+            ReleaseOwnedModels(ownedAssets.OwnedModels);
+            ReleaseOwnedMaterials(ownedAssets.OwnedMaterials);
         }
 
         /// <summary>
@@ -448,6 +553,62 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Releases one scene's owned runtime models when no other loaded scene still references them.
+        /// </summary>
+        /// <param name="ownedModels">Scene-owned runtime models resolved during materialization.</param>
+        void ReleaseOwnedModels(IReadOnlyList<RuntimeModel> ownedModels) {
+            if (ownedModels == null) {
+                throw new ArgumentNullException(nameof(ownedModels));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedModels.Count; assetIndex++) {
+                RuntimeModel ownedAsset = ownedModels[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+                if (!ActiveOwnedModelReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    throw new InvalidOperationException("Scene-owned runtime model was not tracked before release.");
+                }
+
+                if (existingReferenceCount > 1) {
+                    ActiveOwnedModelReferenceCounts[ownedAsset] = existingReferenceCount - 1;
+                    continue;
+                }
+
+                ActiveOwnedModelReferenceCounts.Remove(ownedAsset);
+                ReleaseOwnedModel(ownedAsset);
+            }
+        }
+
+        /// <summary>
+        /// Releases one scene's owned runtime materials when no other loaded scene still references them.
+        /// </summary>
+        /// <param name="ownedMaterials">Scene-owned runtime materials resolved during materialization.</param>
+        void ReleaseOwnedMaterials(IReadOnlyList<RuntimeMaterial> ownedMaterials) {
+            if (ownedMaterials == null) {
+                throw new ArgumentNullException(nameof(ownedMaterials));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedMaterials.Count; assetIndex++) {
+                RuntimeMaterial ownedAsset = ownedMaterials[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+                if (!ActiveOwnedMaterialReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    throw new InvalidOperationException("Scene-owned runtime material was not tracked before release.");
+                }
+
+                if (existingReferenceCount > 1) {
+                    ActiveOwnedMaterialReferenceCounts[ownedAsset] = existingReferenceCount - 1;
+                    continue;
+                }
+
+                ActiveOwnedMaterialReferenceCounts.Remove(ownedAsset);
+                ReleaseOwnedMaterial(ownedAsset);
+            }
+        }
+
+        /// <summary>
         /// Releases one scene-owned font asset after the final scene reference has been removed.
         /// </summary>
         /// <param name="ownedAsset">Scene-owned font asset that is no longer referenced by any loaded scene.</param>
@@ -485,6 +646,36 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Releases one scene-owned runtime model after the final scene reference has been removed.
+        /// </summary>
+        /// <param name="ownedAsset">Scene-owned runtime model that is no longer referenced by any loaded scene.</param>
+        void ReleaseOwnedModel(RuntimeModel ownedAsset) {
+            if (ownedAsset == null) {
+                throw new ArgumentNullException(nameof(ownedAsset));
+            }
+            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+                throw new InvalidOperationException("Runtime model release requires an initialized 3D render manager.");
+            }
+
+            Core.Instance.RenderManager3D.ReleaseModel(ownedAsset);
+        }
+
+        /// <summary>
+        /// Releases one scene-owned runtime material after the final scene reference has been removed.
+        /// </summary>
+        /// <param name="ownedAsset">Scene-owned runtime material that is no longer referenced by any loaded scene.</param>
+        void ReleaseOwnedMaterial(RuntimeMaterial ownedAsset) {
+            if (ownedAsset == null) {
+                throw new ArgumentNullException(nameof(ownedAsset));
+            }
+            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+                throw new InvalidOperationException("Runtime material release requires an initialized 3D render manager.");
+            }
+
+            Core.Instance.RenderManager3D.ReleaseMaterial(ownedAsset);
+        }
+
+        /// <summary>
         /// Flushes any renderer-owned runtime texture releases that were deferred during scene unload before the next scene begins loading.
         /// </summary>
         void FlushReleasedTextures() {
@@ -493,6 +684,11 @@ namespace helengine {
             }
 
             Core.Instance.RenderManager2D.FlushReleasedTextures();
+            if (Core.Instance.RenderManager3D == null) {
+                throw new InvalidOperationException("Deferred runtime asset release flushing requires an initialized 3D render manager.");
+            }
+
+            Core.Instance.RenderManager3D.FlushReleasedAssets();
         }
 
         /// <summary>

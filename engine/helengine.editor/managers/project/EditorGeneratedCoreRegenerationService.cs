@@ -1306,6 +1306,22 @@ namespace helengine.editor {
                 return RewriteNativeReaderNullableStringReturns(contents);
             }
 
+            if (string.Equals(fileName, "ContentManager.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return RewriteGeneratedContentManagerTemporaryStreamOwnership(contents);
+            }
+
+            if (string.Equals(fileName, "RuntimeSceneAssetReferenceResolver.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return RewriteGeneratedRuntimeSceneAssetReferenceResolverTemporaryAssetOwnership(contents);
+            }
+
+            if (string.Equals(fileName, "SceneManager.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return RewriteGeneratedSceneManagerTemporarySceneAssetOwnership(contents);
+            }
+
+            if (string.Equals(fileName, "FontAsset.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return RewriteGeneratedFontAssetSourceTextureOwnership(contents);
+            }
+
             if (string.Equals(fileName, "native_dictionary.hpp", StringComparison.OrdinalIgnoreCase)
                 && !contents.Contains("void Clear()", StringComparison.Ordinal)) {
                 return InsertNativeDictionaryClearHelper(contents);
@@ -1372,6 +1388,410 @@ namespace helengine.editor {
             updatedContents = updatedContents.Replace(
                 "new T[values.size()] : nullptr",
                 "new T[values.size()]() : nullptr",
+                StringComparison.Ordinal);
+            if (!updatedContents.Contains("~Array()", StringComparison.Ordinal)) {
+                string newline = updatedContents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+                string destructor = "    ~Array() {" + newline
+                    + "        delete[] Data;" + newline
+                    + "        Data = nullptr;" + newline
+                    + "        Length = 0;" + newline
+                    + "    }" + newline + newline;
+                updatedContents = updatedContents.Replace(
+                    "    static Array<T>* Empty() {",
+                    destructor + "    static Array<T>* Empty() {",
+                    StringComparison.Ordinal);
+            }
+
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Rewrites the generated native content manager so temporary file streams are disposed and deleted explicitly.
+        /// </summary>
+        /// <param name="contents">Current generated content-manager source.</param>
+        /// <returns>Updated source with explicit file-stream ownership cleanup.</returns>
+        static string RewriteGeneratedContentManagerTemporaryStreamOwnership(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents;
+            if (!updatedContents.Contains("#include \"runtime/finally.hpp\"", StringComparison.Ordinal)) {
+                updatedContents = InsertIncludeAfterOwnHeader(updatedContents, "#include \"runtime/finally.hpp\"");
+            }
+
+            updatedContents = updatedContents.Replace(
+                "{\n::FileStream *stream = File::OpenRead(fullPath);\nreturn processor->Read(stream);}",
+                "{\n::FileStream *stream = File::OpenRead(fullPath);\nauto __disposeStreamGuard = he_cpp_make_scope_exit([&]() {\nif (stream != nullptr)\n{\nstream->Dispose();\ndelete stream;\n}\n});\nreturn processor->Read(stream);}",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "{\r\n::FileStream *stream = File::OpenRead(fullPath);\r\nreturn processor->Read(stream);}",
+                "{\r\n::FileStream *stream = File::OpenRead(fullPath);\r\nauto __disposeStreamGuard = he_cpp_make_scope_exit([&]() {\r\nif (stream != nullptr)\r\n{\r\nstream->Dispose();\r\ndelete stream;\r\n}\r\n});\r\nreturn processor->Read(stream);}",
+                StringComparison.Ordinal);
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Rewrites the generated runtime scene asset resolver so temporary model, texture, material, and shader payloads are released after conversion.
+        /// </summary>
+        /// <param name="contents">Current generated runtime scene asset resolver source.</param>
+        /// <returns>Updated source with explicit temporary payload ownership cleanup.</returns>
+        static string RewriteGeneratedRuntimeSceneAssetReferenceResolverTemporaryAssetOwnership(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents;
+            if (!updatedContents.Contains("#include \"runtime/finally.hpp\"", StringComparison.Ordinal)) {
+                updatedContents = InsertIncludeAfterOwnHeader(updatedContents, "#include \"runtime/finally.hpp\"");
+            }
+            if (!updatedContents.Contains("ReleaseTransientModelAsset(", StringComparison.Ordinal)) {
+                updatedContents = InsertBlockAfterLastInclude(updatedContents, """
+namespace {
+    template <typename T>
+    void DeleteGeneratedArray(Array<T>* values) {
+        if (values == nullptr || values == Array<T>::Empty()) {
+            return;
+        }
+
+        delete values;
+    }
+
+    template <typename T>
+    void DeleteGeneratedPointerArray(Array<T*>* values) {
+        if (values == nullptr || values == Array<T*>::Empty()) {
+            return;
+        }
+
+        for (int32_t index = 0; index < values->Length; index++) {
+            delete (*values)[index];
+        }
+
+        delete values;
+    }
+
+    void ReleaseTransientTextureAsset(TextureAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        DeleteGeneratedArray(asset->Colors);
+        delete asset;
+    }
+
+    void ReleaseTransientMaterialConstantBufferAsset(MaterialConstantBufferAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        DeleteGeneratedArray(asset->get_Data());
+        delete asset;
+    }
+
+    void ReleaseTransientMaterialAsset(MaterialAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        if (asset->ConstantBuffers != nullptr && asset->ConstantBuffers != Array<MaterialConstantBufferAsset*>::Empty()) {
+            for (int32_t index = 0; index < asset->ConstantBuffers->Length; index++) {
+                ReleaseTransientMaterialConstantBufferAsset((*asset->ConstantBuffers)[index]);
+            }
+
+            delete asset->ConstantBuffers;
+        }
+
+        delete asset;
+    }
+
+    void ReleaseTransientShaderVariantAsset(ShaderVariantAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        DeleteGeneratedArray(asset->Defines);
+        delete asset;
+    }
+
+    void ReleaseTransientShaderProgramAsset(ShaderProgramAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        DeleteGeneratedPointerArray(asset->Bindings);
+        DeleteGeneratedPointerArray(asset->Inputs);
+        DeleteGeneratedPointerArray(asset->Outputs);
+        if (asset->Variants != nullptr && asset->Variants != Array<ShaderVariantAsset*>::Empty()) {
+            for (int32_t index = 0; index < asset->Variants->Length; index++) {
+                ReleaseTransientShaderVariantAsset((*asset->Variants)[index]);
+            }
+
+            delete asset->Variants;
+        }
+
+        delete asset;
+    }
+
+    void ReleaseTransientShaderBinaryAsset(ShaderBinaryAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        DeleteGeneratedArray(asset->Bytecode);
+        delete asset;
+    }
+
+    void ReleaseTransientShaderAsset(ShaderAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        if (asset->Programs != nullptr && asset->Programs != Array<ShaderProgramAsset*>::Empty()) {
+            for (int32_t index = 0; index < asset->Programs->Length; index++) {
+                ReleaseTransientShaderProgramAsset((*asset->Programs)[index]);
+            }
+
+            delete asset->Programs;
+        }
+        if (asset->Binaries != nullptr && asset->Binaries != Array<ShaderBinaryAsset*>::Empty()) {
+            for (int32_t index = 0; index < asset->Binaries->Length; index++) {
+                ReleaseTransientShaderBinaryAsset((*asset->Binaries)[index]);
+            }
+
+            delete asset->Binaries;
+        }
+
+        delete asset;
+    }
+
+    void ReleaseTransientModelAsset(ModelAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        DeleteGeneratedArray(asset->Positions);
+        DeleteGeneratedArray(asset->Normals);
+        DeleteGeneratedArray(asset->TexCoords);
+        DeleteGeneratedArray(asset->Indices16);
+        DeleteGeneratedArray(asset->Indices32);
+        DeleteGeneratedPointerArray(asset->Submeshes);
+        DeleteGeneratedArray(asset->Ps2PackedMeshBytes);
+        delete asset;
+    }
+}
+""");
+            }
+
+            updatedContents = updatedContents.Replace(
+                "::MaterialAsset *materialAsset = this->AssetContentManager->Load<MaterialAsset*>(fullPath, RuntimeContentProcessorIds::MaterialAsset);\n::ShaderAsset *shaderAsset = this->AssetContentManager->Load<ShaderAsset*>(this->ResolveShaderPackagePath(materialAsset->ShaderAssetId), RuntimeContentProcessorIds::ShaderAsset);\n::RuntimeMaterial *runtimeMaterial = Core::get_Instance()->get_RenderManager3D()->BuildMaterialFromRaw(materialAsset, shaderAsset);\nthis->TrackOwnedMaterial(runtimeMaterial);\nthis->ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);\nreturn runtimeMaterial;}",
+                "::MaterialAsset *materialAsset = this->AssetContentManager->Load<MaterialAsset*>(fullPath, RuntimeContentProcessorIds::MaterialAsset);\nauto __releaseMaterialAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientMaterialAsset(materialAsset);\n});\n::ShaderAsset *shaderAsset = this->AssetContentManager->Load<ShaderAsset*>(this->ResolveShaderPackagePath(materialAsset->ShaderAssetId), RuntimeContentProcessorIds::ShaderAsset);\nauto __releaseShaderAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientShaderAsset(shaderAsset);\n});\n::RuntimeMaterial *runtimeMaterial = Core::get_Instance()->get_RenderManager3D()->BuildMaterialFromRaw(materialAsset, shaderAsset);\nthis->TrackOwnedMaterial(runtimeMaterial);\nthis->ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);\nreturn runtimeMaterial;}",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "::ModelAsset *modelAsset = this->AssetContentManager->Load<ModelAsset*>(fullPath, RuntimeContentProcessorIds::ModelAsset);\n::RuntimeModel *runtimeModel = Core::get_Instance()->get_RenderManager3D()->BuildModelFromRaw(modelAsset);\nthis->TrackOwnedModel(runtimeModel);\nreturn runtimeModel;}",
+                "::ModelAsset *modelAsset = this->AssetContentManager->Load<ModelAsset*>(fullPath, RuntimeContentProcessorIds::ModelAsset);\nauto __releaseModelAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientModelAsset(modelAsset);\n});\n::RuntimeModel *runtimeModel = Core::get_Instance()->get_RenderManager3D()->BuildModelFromRaw(modelAsset);\nthis->TrackOwnedModel(runtimeModel);\nreturn runtimeModel;}",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(fullPath, RuntimeContentProcessorIds::TextureAsset);\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nreturn runtimeTexture;}",
+                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(fullPath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(textureAsset);\n});\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nreturn runtimeTexture;}",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "::TextureAsset *sourceTextureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\n::RuntimeTexture *sourceRuntimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(sourceTextureAsset);\nthis->TrackOwnedTexture(sourceRuntimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, sourceRuntimeTexture);\nreturn;    }",
+                "::TextureAsset *sourceTextureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseSourceTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(sourceTextureAsset);\n});\n::RuntimeTexture *sourceRuntimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(sourceTextureAsset);\nthis->TrackOwnedTexture(sourceRuntimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, sourceRuntimeTexture);\nreturn;    }",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, runtimeTexture);\n}",
+                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(textureAsset);\n});\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, runtimeTexture);\n}",
+                StringComparison.Ordinal);
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Rewrites the generated scene manager so temporary cooked scene assets are released after scene materialization.
+        /// </summary>
+        /// <param name="contents">Current generated scene-manager source.</param>
+        /// <returns>Updated source with explicit temporary scene-asset ownership cleanup.</returns>
+        static string RewriteGeneratedSceneManagerTemporarySceneAssetOwnership(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents;
+            if (!updatedContents.Contains("#include \"runtime/finally.hpp\"", StringComparison.Ordinal)) {
+                updatedContents = InsertIncludeAfterOwnHeader(updatedContents, "#include \"runtime/finally.hpp\"");
+            }
+            if (!updatedContents.Contains("ReleaseTransientSceneAsset(", StringComparison.Ordinal)) {
+                updatedContents = InsertBlockAfterLastInclude(updatedContents, """
+namespace {
+    template <typename T>
+    void DeleteGeneratedArray(Array<T>* values) {
+        if (values == nullptr || values == Array<T>::Empty()) {
+            return;
+        }
+
+        delete values;
+    }
+
+    void ReleaseTransientSceneComponentAssetRecord(SceneComponentAssetRecord* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        DeleteGeneratedArray(asset->get_Payload());
+        delete asset;
+    }
+
+    void ReleaseTransientSceneEntityPlatformAddedComponentAsset(SceneEntityPlatformAddedComponentAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        ReleaseTransientSceneComponentAssetRecord(asset->get_Component());
+        delete asset;
+    }
+
+    void ReleaseTransientSceneEntityPlatformComponentOverrideAsset(SceneEntityPlatformComponentOverrideAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        DeleteGeneratedArray(asset->get_RemovedComponentKeys());
+        Array<SceneEntityPlatformAddedComponentAsset*>* addedComponents = asset->get_AddedComponents();
+        if (addedComponents != nullptr && addedComponents != Array<SceneEntityPlatformAddedComponentAsset*>::Empty()) {
+            for (int32_t index = 0; index < addedComponents->Length; index++) {
+                ReleaseTransientSceneEntityPlatformAddedComponentAsset((*addedComponents)[index]);
+            }
+
+            delete addedComponents;
+        }
+
+        delete asset;
+    }
+
+    void ReleaseTransientSceneEntityPlatformTransformOverrideAsset(SceneEntityPlatformTransformOverrideAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        delete asset;
+    }
+
+    void ReleaseTransientSceneEntityAsset(SceneEntityAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        Array<SceneComponentAssetRecord*>* components = asset->get_Components();
+        if (components != nullptr && components != Array<SceneComponentAssetRecord*>::Empty()) {
+            for (int32_t index = 0; index < components->Length; index++) {
+                ReleaseTransientSceneComponentAssetRecord((*components)[index]);
+            }
+
+            delete components;
+        }
+        Array<SceneEntityPlatformTransformOverrideAsset*>* transformOverrides = asset->get_PlatformTransformOverrides();
+        if (transformOverrides != nullptr && transformOverrides != Array<SceneEntityPlatformTransformOverrideAsset*>::Empty()) {
+            for (int32_t index = 0; index < transformOverrides->Length; index++) {
+                ReleaseTransientSceneEntityPlatformTransformOverrideAsset((*transformOverrides)[index]);
+            }
+
+            delete transformOverrides;
+        }
+        Array<SceneEntityPlatformComponentOverrideAsset*>* componentOverrides = asset->get_PlatformComponentOverrides();
+        if (componentOverrides != nullptr && componentOverrides != Array<SceneEntityPlatformComponentOverrideAsset*>::Empty()) {
+            for (int32_t index = 0; index < componentOverrides->Length; index++) {
+                ReleaseTransientSceneEntityPlatformComponentOverrideAsset((*componentOverrides)[index]);
+            }
+
+            delete componentOverrides;
+        }
+        Array<SceneEntityAsset*>* children = asset->get_Children();
+        if (children != nullptr && children != Array<SceneEntityAsset*>::Empty()) {
+            for (int32_t index = 0; index < children->Length; index++) {
+                ReleaseTransientSceneEntityAsset((*children)[index]);
+            }
+
+            delete children;
+        }
+
+        delete asset;
+    }
+
+    void ReleaseTransientSceneSettingsAsset(SceneSettingsAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        delete asset->get_CanvasProfile();
+        delete asset;
+    }
+
+    void ReleaseTransientSceneAsset(SceneAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        Array<SceneEntityAsset*>* rootEntities = asset->get_RootEntities();
+        if (rootEntities != nullptr && rootEntities != Array<SceneEntityAsset*>::Empty()) {
+            for (int32_t index = 0; index < rootEntities->Length; index++) {
+                ReleaseTransientSceneEntityAsset((*rootEntities)[index]);
+            }
+
+            delete rootEntities;
+        }
+        Array<SceneAssetReference*>* assetReferences = asset->get_AssetReferences();
+        if (assetReferences != nullptr && assetReferences != Array<SceneAssetReference*>::Empty()) {
+            for (int32_t index = 0; index < assetReferences->Length; index++) {
+                delete (*assetReferences)[index];
+            }
+
+            delete assetReferences;
+        }
+        ReleaseTransientSceneSettingsAsset(asset->get_SceneSettings());
+        delete asset;
+    }
+}
+""");
+            }
+
+            updatedContents = updatedContents.Replace(
+                "::SceneAsset *sceneAsset = this->ContentManager->Load<SceneAsset*>(entry->get_CookedRelativePath(), RuntimeContentProcessorIds::SceneAsset);\nthis->RecordTraceState(\"LoadSceneImmediateBeforeSceneLoadServiceLoad\", entry->get_SceneId());\n::RuntimeSceneLoadResult *loadResult = this->SceneLoadService->LoadTracked(sceneAsset);\nthis->RecordTraceState(\"LoadSceneImmediateAfterSceneLoadServiceLoad\", entry->get_SceneId());",
+                "::SceneAsset *sceneAsset = this->ContentManager->Load<SceneAsset*>(entry->get_CookedRelativePath(), RuntimeContentProcessorIds::SceneAsset);\nauto __releaseSceneAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientSceneAsset(sceneAsset);\n});\nthis->RecordTraceState(\"LoadSceneImmediateBeforeSceneLoadServiceLoad\", entry->get_SceneId());\n::RuntimeSceneLoadResult *loadResult = this->SceneLoadService->LoadTracked(sceneAsset);\nthis->RecordTraceState(\"LoadSceneImmediateAfterSceneLoadServiceLoad\", entry->get_SceneId());",
+                StringComparison.Ordinal);
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Rewrites the generated font asset so embedded source textures are released when the font is disposed.
+        /// </summary>
+        /// <param name="contents">Current generated font-asset source.</param>
+        /// <returns>Updated source with explicit embedded source-texture cleanup.</returns>
+        static string RewriteGeneratedFontAssetSourceTextureOwnership(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents;
+            if (!updatedContents.Contains("ReleaseTransientSourceTextureAsset(", StringComparison.Ordinal)) {
+                updatedContents = InsertBlockAfterLastInclude(updatedContents, """
+namespace {
+    void ReleaseTransientSourceTextureAsset(TextureAsset* asset) {
+        if (asset == nullptr) {
+            return;
+        }
+
+        if (asset->Colors != nullptr && asset->Colors != Array<uint8_t>::Empty()) {
+            delete asset->Colors;
+        }
+
+        delete asset;
+    }
+}
+""");
+            }
+
+            updatedContents = updatedContents.Replace(
+                "this->set_Texture(nullptr);\nthis->set_Characters(nullptr);\nthis->set_FontInfo(nullptr);\nthis->set_SourceTextureAsset(nullptr);\nthis->set_IsDisposed(true);",
+                "this->set_Texture(nullptr);\nthis->set_Characters(nullptr);\nthis->set_FontInfo(nullptr);\nReleaseTransientSourceTextureAsset(this->get_SourceTextureAsset());\nthis->set_SourceTextureAsset(nullptr);\nthis->set_IsDisposed(true);",
                 StringComparison.Ordinal);
             return updatedContents;
         }

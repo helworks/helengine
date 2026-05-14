@@ -56,6 +56,32 @@ namespace helengine {
             throw new NotSupportedException("This renderer does not support material creation.");
         }
 
+        /// <summary>
+        /// Releases one runtime model previously created by this renderer.
+        /// </summary>
+        /// <param name="model">Runtime model that should release any renderer-owned resources.</param>
+        public virtual void ReleaseModel(RuntimeModel model) {
+            if (model == null) {
+                throw new ArgumentNullException(nameof(model));
+            }
+        }
+
+        /// <summary>
+        /// Releases one runtime material previously created by this renderer.
+        /// </summary>
+        /// <param name="material">Runtime material that should release any renderer-owned resources.</param>
+        public virtual void ReleaseMaterial(RuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+        }
+
+        /// <summary>
+        /// Flushes any renderer-owned runtime asset releases that were deferred until the renderer reached a safe point.
+        /// </summary>
+        public virtual void FlushReleasedAssets() {
+        }
+
 #if PS2_PLATFORM
         /// <summary>
         /// Builds a runtime material from one PS2-cooked material payload.

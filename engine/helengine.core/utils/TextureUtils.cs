@@ -44,8 +44,11 @@ namespace helengine {
             rawTex.Colors = [red, green, blue, alpha];
             rawTex.Width = 1;
             rawTex.Height = 1;
+            rawTex.IsEngineOwned = true;
 
-            return Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTex);
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTex);
+            runtimeTexture.IsEngineOwned = true;
+            return runtimeTexture;
         }
     }
 }

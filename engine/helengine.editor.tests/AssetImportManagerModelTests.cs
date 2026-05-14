@@ -121,10 +121,11 @@ namespace helengine.editor.tests {
 
             string firstMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.hasset");
             string secondMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Wood.hasset");
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
             Assert.True(File.Exists(firstMaterialPath));
             Assert.True(File.Exists(secondMaterialPath));
-            Assert.Equal("Textures/Fabric.png", ReadMaterialAsset(firstMaterialPath).DiffuseTextureAssetId);
-            Assert.Equal("Textures/Wood.png", ReadMaterialAsset(secondMaterialPath).DiffuseTextureAssetId);
+            Assert.Equal("Textures/Fabric.png", settingsService.LoadMaterialAsset(firstMaterialPath, "windows").DiffuseTextureAssetId);
+            Assert.Equal("Textures/Wood.png", settingsService.LoadMaterialAsset(secondMaterialPath, "windows").DiffuseTextureAssetId);
         }
 
         /// <summary>
@@ -148,8 +149,9 @@ namespace helengine.editor.tests {
             manager.ImportModel(sourcePath);
 
             string materialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.hasset");
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
             Assert.True(File.Exists(materialPath));
-            Assert.Equal("Textures/FabricB.png", ReadMaterialAsset(materialPath).DiffuseTextureAssetId);
+            Assert.Equal("Textures/FabricB.png", settingsService.LoadMaterialAsset(materialPath, "windows").DiffuseTextureAssetId);
         }
 
         /// <summary>
@@ -541,18 +543,5 @@ namespace helengine.editor.tests {
                 });
         }
 
-        /// <summary>
-        /// Reads one serialized material asset from disk.
-        /// </summary>
-        /// <param name="materialPath">Absolute path to the material asset file.</param>
-        /// <returns>Deserialized material asset.</returns>
-        MaterialAsset ReadMaterialAsset(string materialPath) {
-            if (string.IsNullOrWhiteSpace(materialPath)) {
-                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
-            }
-
-            using FileStream stream = new FileStream(materialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(stream));
-        }
     }
 }

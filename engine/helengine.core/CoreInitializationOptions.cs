@@ -54,6 +54,11 @@ namespace helengine {
         public ISceneIdPathResolver ScenePathResolver { get; set; }
 
         /// <summary>
+        /// Gets or sets the optional runtime diagnostics provider supplied by the active host.
+        /// </summary>
+        public IRuntimeDiagnosticsProvider RuntimeDiagnosticsProvider { get; set; }
+
+        /// <summary>
         /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {

@@ -420,6 +420,92 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime scene loading reuses one cooked font asset instance when multiple text components reference the same packaged font.
+        /// </summary>
+        [Fact]
+        public void Load_WhenMultipleTextComponentsShareOnePackagedFont_ReusesTheSameFontAssetAndAtlas() {
+            string projectRootPath = Path.Combine(TempRootPath, "shared-font-project");
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
+            string buildRootPath = Path.Combine(TempRootPath, "shared-font-build");
+            Directory.CreateDirectory(assetsRootPath);
+            Directory.CreateDirectory(buildRootPath);
+
+            WriteSourceFont(projectRootPath, "Fonts/DemoDiscBody.ttf");
+
+            string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "SharedFontScene.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
+            SceneAssetReference sharedFontReference = CreateFileFontReference("Fonts/DemoDiscBody.ttf");
+            SceneAsset authoredSceneAsset = new SceneAsset {
+                Id = "Scenes/SharedFontScene.helen",
+                AssetReferences = new[] {
+                    sharedFontReference
+                },
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "RootA",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "Helengine.TextComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteTextComponentPayload(sharedFontReference)
+                            }
+                        }
+                    },
+                    new SceneEntityAsset {
+                        Id = 2u,
+                        Name = "RootB",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "Helengine.TextComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteTextComponentPayload(sharedFontReference)
+                            }
+                        }
+                    }
+                }
+            };
+            using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                projectRootPath,
+                new IAssetImporterRegistration[] {
+                    new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
+                },
+                CreateFont());
+            packager.Package(new[] { "Scenes/SharedFontScene.helen" }, buildRootPath);
+
+            string packagedScenePath = GetPackagedScenePath(buildRootPath, "Scenes/SharedFontScene.helen");
+            SceneAsset sceneAsset;
+            using (FileStream packagedSceneStream = File.OpenRead(packagedScenePath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            }
+
+            TestRenderManager2D renderManager2D = Assert.IsType<TestRenderManager2D>(Core.Instance.RenderManager2D);
+            int buildTextureFromRawCallCountBeforeLoad = renderManager2D.BuildTextureFromRawCallCount;
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                buildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            RuntimeSceneLoadResult loadResult = loadService.LoadTracked(sceneAsset);
+            IReadOnlyList<Entity> loadedRoots = loadResult.RootEntities;
+            TextComponent firstTextComponent = Assert.IsType<TextComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is TextComponent));
+            TextComponent secondTextComponent = Assert.IsType<TextComponent>(
+                Assert.Single(loadedRoots[1].Components, component => component is TextComponent));
+
+            Assert.Same(firstTextComponent.Font, secondTextComponent.Font);
+            Assert.Same(firstTextComponent.Font.Texture, secondTextComponent.Font.Texture);
+            Assert.Equal(buildTextureFromRawCallCountBeforeLoad + 1, renderManager2D.BuildTextureFromRawCallCount);
+            Assert.Single(loadResult.OwnedAssets.OwnedFonts);
+            Assert.Single(loadResult.OwnedAssets.OwnedTextures);
+        }
+
+        /// <summary>
         /// Ensures packaged demo menus preserve decorative overlay sprites, their cooked texture references, and their bottom-right anchor.
         /// </summary>
         [Fact]

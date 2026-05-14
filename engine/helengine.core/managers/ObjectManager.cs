@@ -45,9 +45,19 @@ public class ObjectManager {
     public List<Entity> Entities { get; private set; }
 
     /// <summary>
+    /// Gets the current entity-list capacity reserved by the manager.
+    /// </summary>
+    public int EntityCapacity => Entities.Capacity;
+
+    /// <summary>
     /// Gets the updateables ordered by update order.
     /// </summary>
     public List<IUpdateable> Updateables { get; private set; }
+
+    /// <summary>
+    /// Gets the current update-list capacity reserved by the manager.
+    /// </summary>
+    public int UpdateableCapacity => Updateables.Capacity;
 
     /// <summary>
     /// Gets whether the object manager is currently iterating the update list.
@@ -65,9 +75,19 @@ public class ObjectManager {
     public List<IDrawable2D> Drawables2D { get; private set; }
 
     /// <summary>
+    /// Gets the current 2D-drawable list capacity reserved by the manager.
+    /// </summary>
+    public int Drawable2DCapacity => Drawables2D.Capacity;
+
+    /// <summary>
     /// Gets registered 3D drawables for diagnostics.
     /// </summary>
     public List<IDrawable3D> Drawables3D { get; private set; }
+
+    /// <summary>
+    /// Gets the current 3D-drawable list capacity reserved by the manager.
+    /// </summary>
+    public int Drawable3DCapacity => Drawables3D.Capacity;
 
     /// <summary>
     /// Gets the number of 3D render order layers available for helper methods.
@@ -80,9 +100,29 @@ public class ObjectManager {
     public List<ICamera> Cameras { get; private set; }
 
     /// <summary>
+    /// Gets the current camera-list capacity reserved by the manager.
+    /// </summary>
+    public int CameraCapacity => Cameras.Capacity;
+
+    /// <summary>
     /// Gets registered 2D interactables.
     /// </summary>
     public List<IInteractable2D> Interactables { get; private set; }
+
+    /// <summary>
+    /// Gets the current interactable-list capacity reserved by the manager.
+    /// </summary>
+    public int InteractableCapacity => Interactables.Capacity;
+
+    /// <summary>
+    /// Gets the number of pending update operations waiting for the active update loop to finish.
+    /// </summary>
+    public int PendingUpdateOperationCount => pendingUpdateOperations.Count;
+
+    /// <summary>
+    /// Gets the current pending-update-operation list capacity reserved by the manager.
+    /// </summary>
+    public int PendingUpdateOperationCapacity => pendingUpdateOperations.Capacity;
 
     /// <summary>
     /// Computes a render order value that maps to a desired 3D layer.

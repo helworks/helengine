@@ -16,6 +16,11 @@ namespace helengine.editor.tests.testing {
         public int FlushReleasedTexturesCallCount { get; private set; }
 
         /// <summary>
+        /// Gets how many runtime textures were built from raw texture data.
+        /// </summary>
+        public int BuildTextureFromRawCallCount { get; private set; }
+
+        /// <summary>
         /// Creates a runtime texture that mirrors the supplied raw texture dimensions.
         /// </summary>
         /// <param name="data">Raw texture data requested by the UI under test.</param>
@@ -25,6 +30,7 @@ namespace helengine.editor.tests.testing {
                 throw new ArgumentNullException(nameof(data));
             }
 
+            BuildTextureFromRawCallCount++;
             return new TestRuntimeTexture {
                 Width = data.Width,
                 Height = data.Height

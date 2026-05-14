@@ -26,6 +26,11 @@ namespace helengine {
         public int Count { get { return items.Count; } }
 
         /// <summary>
+        /// Gets the current backing-list capacity reserved by the queue.
+        /// </summary>
+        public int Capacity { get { return items.Capacity; } }
+
+        /// <summary>
         /// Gets the drawable at the specified index.
         /// </summary>
         /// <param name="index">Zero-based index.</param>

@@ -778,9 +778,66 @@ namespace helengine.editor {
 
                 string materialPath = Path.Combine(sourceDirectoryPath, generatedMaterial.RelativeMaterialPath);
                 EnsureDirectoryForFile(materialPath);
-                using FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                AssetSerializer.Serialize(stream, generatedMaterial.MaterialAsset);
+                MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+                MaterialAssetImportSettings settings = CreateGeneratedMaterialSettings(generatedMaterial);
+                settingsService.Save(materialPath, settings);
             }
+        }
+
+        /// <summary>
+        /// Creates authored material settings for one importer-generated companion material using the project's supported platform list.
+        /// </summary>
+        /// <param name="generatedMaterial">Generated companion material returned by the model importer.</param>
+        /// <returns>Material settings that mirror the generated material across every supported platform.</returns>
+        MaterialAssetImportSettings CreateGeneratedMaterialSettings(ImportedModelMaterialAsset generatedMaterial) {
+            if (generatedMaterial == null) {
+                throw new ArgumentNullException(nameof(generatedMaterial));
+            } else if (generatedMaterial.MaterialAsset == null) {
+                throw new InvalidOperationException("Generated model materials must include a material asset payload.");
+            }
+
+            MaterialAsset materialAsset = generatedMaterial.MaterialAsset;
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+            settings.Importer.ImporterId = "helengine.material";
+            settings.Importer.SourceChecksum = string.Empty;
+            settings.Importer.AssetId = generatedMaterial.RelativeMaterialPath ?? string.Empty;
+
+            IReadOnlyList<string> supportedPlatforms = new EditorProjectPlatformsService(projectRootPath).Load().SupportedPlatforms;
+            for (int platformIndex = 0; platformIndex < supportedPlatforms.Count; platformIndex++) {
+                string platformId = supportedPlatforms[platformIndex];
+                settings.Processor.Platforms[platformId] = CreateGeneratedMaterialPlatformSettings(materialAsset);
+            }
+
+            return settings;
+        }
+
+        /// <summary>
+        /// Creates one effective platform material settings payload that mirrors the generated material fields returned by the model importer.
+        /// </summary>
+        /// <param name="materialAsset">Generated material asset returned by the model importer.</param>
+        /// <returns>Platform settings payload that preserves shader and diffuse-texture fields.</returns>
+        MaterialAssetProcessorSettings CreateGeneratedMaterialPlatformSettings(MaterialAsset materialAsset) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            MaterialAssetProcessorSettings settings = new MaterialAssetProcessorSettings();
+            settings.SchemaId = "standard-shader";
+            settings.FieldValues["use-custom-shader"] = string.Equals(materialAsset.ShaderAssetId, "engine:material:standard", StringComparison.OrdinalIgnoreCase)
+                ? "false"
+                : "true";
+            settings.FieldValues["texture-id"] = materialAsset.DiffuseTextureAssetId ?? string.Empty;
+            settings.FieldValues["casts-shadow"] = "true";
+            settings.FieldValues["receives-shadow"] = "true";
+            settings.FieldValues["base-color"] = "#FFFFFFFF";
+
+            if (string.Equals(settings.FieldValues["use-custom-shader"], "true", StringComparison.Ordinal)) {
+                settings.FieldValues["shader-asset-id"] = materialAsset.ShaderAssetId ?? string.Empty;
+                settings.FieldValues["vertex-program"] = materialAsset.VertexProgram ?? string.Empty;
+                settings.FieldValues["pixel-program"] = materialAsset.PixelProgram ?? string.Empty;
+            }
+
+            return settings;
         }
 
         /// <summary>

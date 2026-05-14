@@ -37,6 +37,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
 
             Assert.NotNull(core.SceneManager);
+            Assert.NotNull(core.RuntimeDiagnosticsService);
         }
 
         /// <summary>
@@ -47,6 +48,45 @@ namespace helengine.editor.tests.serialization.scene {
             Core core = CreateCore();
 
             Assert.Null(core.SceneManager);
+            Assert.NotNull(core.RuntimeDiagnosticsService);
+        }
+
+        /// <summary>
+        /// Ensures runtime diagnostics snapshots preserve provider memory counters and overlay loaded scene ids.
+        /// </summary>
+        [Fact]
+        public void RuntimeDiagnosticsService_whenProviderIsSupplied_returnsProviderSnapshotAndLoadedSceneIds() {
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            RuntimeMemoryDiagnosticsSnapshot snapshot = new RuntimeMemoryDiagnosticsSnapshot {
+                ResidentBytes = 123u,
+                CommittedBytes = 456u,
+                AvailablePhysicalBytes = 789u
+            };
+            Core core = CreateCore(
+                CreateSceneCatalog(new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")),
+                new FakeRuntimeDiagnosticsProvider(snapshot));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+
+            RuntimeMemoryDiagnosticsSnapshot capturedSnapshot = core.RuntimeDiagnosticsService.CaptureSnapshot();
+
+            Assert.Equal(123ul, capturedSnapshot.ResidentBytes);
+            Assert.Equal(456ul, capturedSnapshot.CommittedBytes);
+            Assert.Equal(789ul, capturedSnapshot.AvailablePhysicalBytes);
+            Assert.Equal(new[] { "Scenes/Bootstrap.helen" }, capturedSnapshot.TrackedSceneIds);
+        }
+
+        /// <summary>
+        /// Ensures runtime diagnostics snapshots remain available when no provider or scene manager has been configured.
+        /// </summary>
+        [Fact]
+        public void RuntimeDiagnosticsService_whenProviderIsNotSupplied_returnsEmptyTrackedSceneIds() {
+            Core core = CreateCore();
+
+            RuntimeMemoryDiagnosticsSnapshot capturedSnapshot = core.RuntimeDiagnosticsService.CaptureSnapshot();
+
+            Assert.NotNull(capturedSnapshot);
+            Assert.Empty(capturedSnapshot.TrackedSceneIds);
         }
 
         /// <summary>
@@ -176,6 +216,42 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.True(previousFont.IsDisposed);
             Assert.True(previousFontTexture.IsDisposed);
             Assert.Equal(flushReleasedTexturesCallCountBeforeReload + 1, renderManager2D.FlushReleasedTexturesCallCount);
+        }
+
+        /// <summary>
+        /// Ensures single-mode scene transitions release models and materials owned by the previous scene before the next scene loads.
+        /// </summary>
+        [Fact]
+        public void LoadScene_whenModeIsSingleAfterMeshSceneWasLoaded_releasesPreviousSceneModelAndMaterial() {
+            WriteModelAsset("cooked/models/TestModel.hasset");
+            WriteMaterialAsset("cooked/materials/TestMaterial.hasset", "ForwardStandardShader");
+            WriteShaderAsset("cooked/shaders/ForwardStandardShader.dx11.hasset", "ForwardStandardShader");
+            WriteSceneAsset(
+                "cooked/scenes/Bootstrap.hasset",
+                1u,
+                CreateMeshComponentRecord("cooked/models/TestModel.hasset", "cooked/materials/TestMaterial.hasset"));
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
+            TestRenderManager3D renderManager3D = new TestRenderManager3D();
+            Core core = CreateCore(renderManager3D, new TestRenderManager2D(), CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+
+            Entity previousRoot = Assert.Single(core.SceneManager.LoadedScenes).RootEntities[0];
+            MeshComponent previousMesh = Assert.IsType<MeshComponent>(
+                Assert.Single(previousRoot.Components, component => component is MeshComponent));
+            RuntimeModel previousModel = Assert.IsAssignableFrom<RuntimeModel>(previousMesh.Model);
+            RuntimeMaterial previousMaterial = Assert.IsAssignableFrom<RuntimeMaterial>(Assert.Single(previousMesh.Materials));
+            Assert.Empty(renderManager3D.ReleasedModels);
+            Assert.Empty(renderManager3D.ReleasedMaterials);
+
+            core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+
+            RuntimeModel releasedModel = Assert.Single(renderManager3D.ReleasedModels);
+            RuntimeMaterial releasedMaterial = Assert.Single(renderManager3D.ReleasedMaterials);
+            Assert.Same(previousModel, releasedModel);
+            Assert.Same(previousMaterial, releasedMaterial);
         }
 
         /// <summary>
@@ -310,8 +386,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <param name="sceneCatalog">Optional runtime scene catalog to inject before initialization.</param>
         /// <returns>Initialized core instance for runtime scene-manager tests.</returns>
-        Core CreateCore(RuntimeSceneCatalog sceneCatalog = null) {
-            return CreateCore(new TestRenderManager2D(), sceneCatalog);
+        Core CreateCore(RuntimeSceneCatalog sceneCatalog = null, FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null) {
+            return CreateCore(new TestRenderManager2D(), sceneCatalog, runtimeDiagnosticsProvider);
         }
 
         /// <summary>
@@ -320,12 +396,28 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="renderManager2D">2D render manager used by the initialized core.</param>
         /// <param name="sceneCatalog">Optional runtime scene catalog to inject before initialization.</param>
         /// <returns>Initialized core instance for runtime scene-manager tests.</returns>
-        Core CreateCore(RenderManager2D renderManager2D, RuntimeSceneCatalog sceneCatalog = null) {
+        Core CreateCore(RenderManager2D renderManager2D, RuntimeSceneCatalog sceneCatalog = null, FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null) {
+            return CreateCore(new TestRenderManager3D(), renderManager2D, sceneCatalog, runtimeDiagnosticsProvider);
+        }
+
+        /// <summary>
+        /// Creates one initialized core rooted at the temporary content path with the supplied render managers.
+        /// </summary>
+        /// <param name="renderManager3D">3D render manager used by the initialized core.</param>
+        /// <param name="renderManager2D">2D render manager used by the initialized core.</param>
+        /// <param name="sceneCatalog">Optional runtime scene catalog to inject before initialization.</param>
+        /// <returns>Initialized core instance for runtime scene-manager tests.</returns>
+        Core CreateCore(
+            RenderManager3D renderManager3D,
+            RenderManager2D renderManager2D,
+            RuntimeSceneCatalog sceneCatalog = null,
+            FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null) {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath,
-                SceneCatalog = sceneCatalog
+                SceneCatalog = sceneCatalog,
+                RuntimeDiagnosticsProvider = runtimeDiagnosticsProvider
             });
-            core.Initialize(new TestRenderManager3D(), renderManager2D, new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            core.Initialize(renderManager3D, renderManager2D, new TestInputBackend(), new PlatformInfo("test", "test-version"));
             return core;
         }
 
@@ -444,6 +536,141 @@ namespace helengine.editor.tests.serialization.scene {
                 ComponentIndex = 0,
                 Payload = stream.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Creates one serialized mesh component record that references the supplied packaged model and material paths.
+        /// </summary>
+        /// <param name="modelRelativePath">Content-relative packaged model path used by the mesh component.</param>
+        /// <param name="materialRelativePath">Content-relative packaged material path used by the mesh component.</param>
+        /// <returns>Serialized mesh component record.</returns>
+        SceneComponentAssetRecord CreateMeshComponentRecord(string modelRelativePath, string materialRelativePath) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            MeshComponentScenePayloadSerializer.Write(
+                writer,
+                CreateFileReference(modelRelativePath),
+                new[] { CreateFileReference(materialRelativePath) },
+                9);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.MeshComponent",
+                ComponentIndex = 0,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates one packaged file-backed scene asset reference.
+        /// </summary>
+        /// <param name="relativePath">Content-relative packaged asset path.</param>
+        /// <returns>File-backed scene asset reference.</returns>
+        SceneAssetReference CreateFileReference(string relativePath) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = relativePath,
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+        }
+
+        /// <summary>
+        /// Writes one packaged model asset into the temporary content root.
+        /// </summary>
+        /// <param name="relativePath">Content-relative packaged model path.</param>
+        void WriteModelAsset(string relativePath) {
+            string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            ModelAsset modelAsset = new ModelAsset {
+                Id = "TestModel",
+                Positions = new[] {
+                    new float3(0f, 0f, 0f),
+                    new float3(1f, 0f, 0f),
+                    new float3(0f, 1f, 0f)
+                },
+                Normals = new[] {
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(0f, 1f)
+                },
+                Indices16 = new ushort[] { 0, 1, 2 },
+                BoundsMin = new float3(0f, 0f, 0f),
+                BoundsMax = new float3(1f, 1f, 0f),
+                Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        MaterialSlotName = "Default",
+                        IndexStart = 0,
+                        IndexCount = 3
+                    }
+                }
+            };
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, modelAsset);
+        }
+
+        /// <summary>
+        /// Writes one packaged material asset into the temporary content root.
+        /// </summary>
+        /// <param name="relativePath">Content-relative packaged material path.</param>
+        /// <param name="shaderAssetId">Shader asset identifier referenced by the packaged material.</param>
+        void WriteMaterialAsset(string relativePath, string shaderAssetId) {
+            string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            MaterialAsset materialAsset = new MaterialAsset {
+                Id = "TestMaterial",
+                ShaderAssetId = shaderAssetId,
+                VertexProgram = "VS",
+                PixelProgram = "PS",
+                Variant = "Default"
+            };
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, materialAsset);
+        }
+
+        /// <summary>
+        /// Writes one packaged shader asset into the temporary content root.
+        /// </summary>
+        /// <param name="relativePath">Content-relative packaged shader path.</param>
+        /// <param name="shaderAssetId">Stable shader asset identifier stored in the package.</param>
+        void WriteShaderAsset(string relativePath, string shaderAssetId) {
+            string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            ShaderAsset shaderAsset = new ShaderAsset {
+                Id = shaderAssetId,
+                Name = shaderAssetId,
+                TargetName = "directx11",
+                Programs = new[] {
+                    new ShaderProgramAsset {
+                        Name = "VS",
+                        Stage = ShaderStage.Vertex,
+                        EntryPoint = "VS",
+                        Bindings = Array.Empty<ShaderBindingAsset>(),
+                        Inputs = Array.Empty<ShaderVertexElementAsset>(),
+                        Outputs = Array.Empty<ShaderVertexElementAsset>(),
+                        Variants = Array.Empty<ShaderVariantAsset>()
+                    },
+                    new ShaderProgramAsset {
+                        Name = "PS",
+                        Stage = ShaderStage.Pixel,
+                        EntryPoint = "PS",
+                        Bindings = Array.Empty<ShaderBindingAsset>(),
+                        Inputs = Array.Empty<ShaderVertexElementAsset>(),
+                        Outputs = Array.Empty<ShaderVertexElementAsset>(),
+                        Variants = Array.Empty<ShaderVariantAsset>()
+                    }
+                },
+                Binaries = Array.Empty<ShaderBinaryAsset>()
+            };
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, shaderAsset);
         }
     }
 }

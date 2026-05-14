@@ -9,6 +9,11 @@ namespace helengine {
         int Count { get; }
 
         /// <summary>
+        /// Gets the current backing-store capacity reserved by the queue.
+        /// </summary>
+        int Capacity { get; }
+
+        /// <summary>
         /// Adds a drawable to the queue.
         /// </summary>
         /// <param name="drawable">Drawable to add.</param>

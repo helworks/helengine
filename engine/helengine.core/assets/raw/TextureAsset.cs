@@ -17,5 +17,10 @@ namespace helengine {
         /// Height of the texture in pixels.
         /// </summary>
         public ushort Height;
+
+        /// <summary>
+        /// Indicates whether this raw texture payload is created by engine infrastructure instead of scene-authored content.
+        /// </summary>
+        public bool IsEngineOwned;
     }
 }

@@ -13,6 +13,14 @@ namespace helengine.editor.tests.testing {
         /// Captured raw material assets passed through the build API.
         /// </summary>
         readonly List<MaterialAsset> BuiltMaterialAssetsValue;
+        /// <summary>
+        /// Runtime models released through this test renderer.
+        /// </summary>
+        readonly List<RuntimeModel> ReleasedModelsValue;
+        /// <summary>
+        /// Runtime materials released through this test renderer.
+        /// </summary>
+        readonly List<RuntimeMaterial> ReleasedMaterialsValue;
 
         /// <summary>
         /// Initializes a new test render manager.
@@ -20,6 +28,8 @@ namespace helengine.editor.tests.testing {
         public TestRenderManager3D() {
             BuiltModelAssetsValue = new List<ModelAsset>();
             BuiltMaterialAssetsValue = new List<MaterialAsset>();
+            ReleasedModelsValue = new List<RuntimeModel>();
+            ReleasedMaterialsValue = new List<RuntimeMaterial>();
         }
 
         /// <summary>
@@ -31,6 +41,16 @@ namespace helengine.editor.tests.testing {
         /// Gets the raw material assets that were passed to the renderer.
         /// </summary>
         public IReadOnlyList<MaterialAsset> BuiltMaterialAssets => BuiltMaterialAssetsValue;
+
+        /// <summary>
+        /// Gets the runtime models released through the shared renderer contract.
+        /// </summary>
+        public IReadOnlyList<RuntimeModel> ReleasedModels => ReleasedModelsValue;
+
+        /// <summary>
+        /// Gets the runtime materials released through the shared renderer contract.
+        /// </summary>
+        public IReadOnlyList<RuntimeMaterial> ReleasedMaterials => ReleasedMaterialsValue;
 
         /// <summary>
         /// Gets the shader compile target exposed by the test renderer.
@@ -99,6 +119,30 @@ namespace helengine.editor.tests.testing {
             material.ReceivesShadows = materialAsset.ReceivesShadows;
             StandardMaterialTextureBindingDefaults.Apply(material);
             return material;
+        }
+
+        /// <summary>
+        /// Records one runtime model release request so scene unload tests can assert the shared contract.
+        /// </summary>
+        /// <param name="model">Runtime model released by production code.</param>
+        public override void ReleaseModel(RuntimeModel model) {
+            if (model == null) {
+                throw new ArgumentNullException(nameof(model));
+            }
+
+            ReleasedModelsValue.Add(model);
+        }
+
+        /// <summary>
+        /// Records one runtime material release request so scene unload tests can assert the shared contract.
+        /// </summary>
+        /// <param name="material">Runtime material released by production code.</param>
+        public override void ReleaseMaterial(RuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            ReleasedMaterialsValue.Add(material);
         }
     }
 }
