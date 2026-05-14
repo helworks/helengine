@@ -51,7 +51,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("FPS component descriptor received an unsupported component type.");
             }
 
-            SceneAssetReference fontReference = FontAssetScenePersistenceSupport.ResolveFontReference(nameof(FPSComponent), fpsComponent.Font, saveState);
+            SceneAssetReference fontReference = fpsComponent.Font == null
+                ? null
+                : FontAssetScenePersistenceSupport.ResolveFontReference(nameof(FPSComponent), fpsComponent.Font, saveState);
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
             writer.WriteField(FontReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, fontReference));
             writer.WriteField(RefreshIntervalSecondsFieldName, fieldWriter => fieldWriter.WriteInt64(BitConverter.DoubleToInt64Bits(fpsComponent.RefreshIntervalSeconds)));

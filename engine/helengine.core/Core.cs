@@ -21,11 +21,6 @@ namespace helengine {
         PhysicsFixedStepScheduler PhysicsSchedulerValue;
 
         /// <summary>
-        /// Backing field for the default font asset used by text-heavy components.
-        /// </summary>
-        FontAsset DefaultFontAssetValue;
-
-        /// <summary>
         /// Attached physics runtime advanced by the core update loop when one has been configured.
         /// </summary>
         IPhysicsRuntime PhysicsRuntimeValue;
@@ -158,20 +153,6 @@ namespace helengine {
         /// Gets the currently attached pluggable physics runtime, when one has been configured.
         /// </summary>
         public IPhysicsRuntime PhysicsRuntime => PhysicsRuntimeValue;
-
-        /// <summary>
-        /// Gets or sets the default font asset used by components that need a text font without being configured explicitly.
-        /// </summary>
-        public FontAsset DefaultFontAsset {
-            get { return DefaultFontAssetValue; }
-            set {
-                if (value == null) {
-                    throw new ArgumentNullException(nameof(value));
-                }
-
-                DefaultFontAssetValue = value;
-            }
-        }
 
         /// <summary>
         /// Gets the packaged scene asset resolver configured for the current runtime target.
