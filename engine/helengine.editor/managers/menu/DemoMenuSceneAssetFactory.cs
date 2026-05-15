@@ -152,8 +152,7 @@ namespace helengine.editor {
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = new[] {
-                    BuildCameraComponentRecord(),
-                    CreateFpsComponentRecord(definition.BodyFontPath)
+                    BuildCameraComponentRecord()
                 },
                 Children = Array.Empty<SceneEntityAsset>()
             };
@@ -250,7 +249,9 @@ namespace helengine.editor {
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
-                Components = Array.Empty<SceneComponentAssetRecord>(),
+                Components = new[] {
+                    CreateFpsComponentRecord(definition.BodyFontPath)
+                },
                 Children = children.ToArray()
             };
         }

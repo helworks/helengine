@@ -200,6 +200,11 @@ namespace helengine.demo_disc_scene_writer {
         readonly FPSComponentPersistenceDescriptor FpsDescriptor;
 
         /// <summary>
+        /// Descriptor used to serialize reflected component payloads for fitted viewport overlay helpers.
+        /// </summary>
+        readonly AutomaticScriptComponentPersistenceDescriptor AutomaticDescriptor;
+
+        /// <summary>
         /// Allocates numeric entity ids while one serialized rendering scene is being built.
         /// </summary>
         readonly SceneEntityAssetIdAllocator SceneEntityIdAllocator;
@@ -218,6 +223,7 @@ namespace helengine.demo_disc_scene_writer {
             DirectionalShadowPlazaFactory = new DirectionalShadowPlazaSceneAssetFactory();
             MaterialSettingsService = new MaterialAssetSettingsService();
             FpsDescriptor = new FPSComponentPersistenceDescriptor();
+            AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneEntityIdAllocator = new SceneEntityAssetIdAllocator();
         }
 
@@ -427,6 +433,7 @@ namespace helengine.demo_disc_scene_writer {
                     "PointShadowCamera",
                     new float3(0f, 3f, -12f),
                     cameraOrientation),
+                CreateFpsOverlayRootEntity("PointShadowFpsOverlayRoot"),
                 CreateMeshEntity(
                     "point-shadow-floor",
                     "PointShadowFloor",
@@ -473,6 +480,7 @@ namespace helengine.demo_disc_scene_writer {
                     "PointShadowLabCamera",
                     new float3(0f, 0f, -36f),
                     cameraOrientation),
+                CreateFpsOverlayRootEntity("PointShadowLabFpsOverlayRoot"),
                 CreateMeshEntity(
                     "point-shadow-lab-floor",
                     "PointShadowLabFloor",
@@ -697,6 +705,7 @@ namespace helengine.demo_disc_scene_writer {
                     "SpotShadowLabCamera",
                     new float3(0f, 0f, -28f),
                     cameraOrientation),
+                CreateFpsOverlayRootEntity("SpotShadowLabFpsOverlayRoot"),
                 CreateMeshEntity(
                     "spot-shadow-lab-floor",
                     "SpotShadowLabFloor",
@@ -820,6 +829,7 @@ namespace helengine.demo_disc_scene_writer {
                     "DirectionalShadowLabCamera",
                     new float3(-12f, 10f, -24f),
                     cameraOrientation),
+                CreateFpsOverlayRootEntity("DirectionalShadowLabFpsOverlayRoot"),
                 CreateMeshEntity(
                     "directional-shadow-lab-floor",
                     "DirectionalShadowLabFloor",
@@ -924,6 +934,7 @@ namespace helengine.demo_disc_scene_writer {
 
             return new[] {
                 CreatePs2BasisLightTestCameraEntity(),
+                CreateFpsOverlayRootEntity("Ps2BasisLightTestFpsOverlayRoot"),
                 CreateMeshEntity(
                     "ps2-basis-light-test-ground",
                     "Ps2BasisLightTestGround",
@@ -1006,8 +1017,7 @@ namespace helengine.demo_disc_scene_writer {
                         ComponentTypeId = CameraComponentTypeId,
                         ComponentIndex = 0,
                         Payload = WritePs2BasisLightTestCameraPayload()
-                    },
-                    CreateFpsComponentRecord()
+                    }
                 },
                 Children = Array.Empty<SceneEntityAsset>()
             };
@@ -1033,8 +1043,37 @@ namespace helengine.demo_disc_scene_writer {
                         ComponentTypeId = CameraComponentTypeId,
                         ComponentIndex = 0,
                         Payload = WriteCameraPayload()
-                    },
-                    CreateFpsComponentRecord()
+                    }
+                },
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Creates one fitted HUD root that keeps the authored FPS overlay inside the shared reference-canvas scaling path.
+        /// </summary>
+        /// <param name="name">Display name stored on the overlay root entity.</param>
+        /// <returns>Serialized fitted HUD root entity.</returns>
+        SceneEntityAsset CreateFpsOverlayRootEntity(string name) {
+            ViewportComponent viewportComponent = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(SceneCanvasProfile.DefaultWidth, SceneCanvasProfile.DefaultHeight)
+            };
+            ReferenceCanvasFitComponent referenceCanvasFitComponent = new ReferenceCanvasFitComponent {
+                ReferenceWidth = SceneCanvasProfile.DefaultWidth,
+                ReferenceHeight = SceneCanvasProfile.DefaultHeight
+            };
+
+            return new SceneEntityAsset {
+                Id = AllocateSceneEntityId(),
+                Name = name,
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = new[] {
+                    AutomaticDescriptor.SerializeComponent(viewportComponent, 0, null),
+                    AutomaticDescriptor.SerializeComponent(referenceCanvasFitComponent, 1, null),
+                    CreateFpsComponentRecord(2)
                 },
                 Children = Array.Empty<SceneEntityAsset>()
             };
@@ -1044,13 +1083,17 @@ namespace helengine.demo_disc_scene_writer {
         /// Creates one serialized FPS overlay component record for a scene camera.
         /// </summary>
         /// <returns>Serialized FPS overlay component record.</returns>
-        SceneComponentAssetRecord CreateFpsComponentRecord() {
+        SceneComponentAssetRecord CreateFpsComponentRecord(int componentIndex) {
+            if (componentIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(componentIndex), "FPS component index must be non-negative.");
+            }
+
             FPSComponent fpsComponent = new FPSComponent {
                 Font = new FontAsset(new FontInfo("RenderingFpsPlaceholder", 16, 4f), null, new Dictionary<char, FontChar>(), 16f, 1, 1)
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(FontReferenceName, CreateEditorFontReference());
-            return FpsDescriptor.SerializeComponent(fpsComponent, 1, saveState);
+            return FpsDescriptor.SerializeComponent(fpsComponent, componentIndex, saveState);
         }
 
         /// <summary>

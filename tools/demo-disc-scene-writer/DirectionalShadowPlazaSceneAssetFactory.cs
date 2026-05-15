@@ -72,6 +72,11 @@ namespace helengine.demo_disc_scene_writer {
         readonly FPSComponentPersistenceDescriptor FpsDescriptor;
 
         /// <summary>
+        /// Descriptor used to serialize reflected component payloads for the fitted FPS overlay root.
+        /// </summary>
+        readonly AutomaticScriptComponentPersistenceDescriptor AutomaticDescriptor;
+
+        /// <summary>
         /// Allocates numeric entity ids while one authored showcase scene asset is being built.
         /// </summary>
         readonly SceneEntityAssetIdAllocator SceneEntityIdAllocator;
@@ -85,6 +90,7 @@ namespace helengine.demo_disc_scene_writer {
             PlaceholderModel = new AuthoringPlaceholderRuntimeModel();
             PlaceholderMaterial = new RuntimeMaterial();
             FpsDescriptor = new FPSComponentPersistenceDescriptor();
+            AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneEntityIdAllocator = new SceneEntityAssetIdAllocator();
         }
 
@@ -119,6 +125,7 @@ namespace helengine.demo_disc_scene_writer {
                 },
                 RootEntities = new[] {
                     CreateCameraEntity(),
+                    CreateFpsOverlayRootEntity(),
                     CreateDirectionalLightEntity(),
                     CreateGroundEntity(planeReference, standardMaterialReference),
                     CreateTowerEntity("directional-shadow-plaza-tower-left", "DirectionalShadowPlazaTowerLeft", new float3(-10f, 4f, -6f), new float3(3f, 8f, 3f), -0.35f, 0.18f, cubeReference, standardMaterialReference),
@@ -146,7 +153,35 @@ namespace helengine.demo_disc_scene_writer {
                 LocalOrientation = float4.Identity,
                 Components = new[] {
                     CreateCameraComponentRecord(),
-                    RenderingScriptComponentRecordFactory.CreateCameraOrbitRecord(1, new float3(0f, 0f, 0f), 26f, 10f, 0f, 0.12f, -0.32f),
+                    RenderingScriptComponentRecordFactory.CreateCameraOrbitRecord(1, new float3(0f, 0f, 0f), 26f, 10f, 0f, 0.12f, -0.32f)
+                },
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Creates one fitted HUD root that keeps the authored FPS overlay inside the shared reference-canvas scaling path.
+        /// </summary>
+        /// <returns>Serialized fitted HUD root entity.</returns>
+        SceneEntityAsset CreateFpsOverlayRootEntity() {
+            ViewportComponent viewportComponent = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(SceneCanvasProfile.DefaultWidth, SceneCanvasProfile.DefaultHeight)
+            };
+            ReferenceCanvasFitComponent referenceCanvasFitComponent = new ReferenceCanvasFitComponent {
+                ReferenceWidth = SceneCanvasProfile.DefaultWidth,
+                ReferenceHeight = SceneCanvasProfile.DefaultHeight
+            };
+
+            return new SceneEntityAsset {
+                Id = AllocateSceneEntityId(),
+                Name = "DirectionalShadowPlazaFpsOverlayRoot",
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = new[] {
+                    AutomaticDescriptor.SerializeComponent(viewportComponent, 0, null),
+                    AutomaticDescriptor.SerializeComponent(referenceCanvasFitComponent, 1, null),
                     CreateFpsComponentRecord()
                 },
                 Children = Array.Empty<SceneEntityAsset>()
