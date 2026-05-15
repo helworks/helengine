@@ -36,6 +36,13 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Called once after the parent entity hierarchy has finished initialization and the component can safely resolve related entities and components.
+        /// </summary>
+        /// <param name="entity">Entity that owns the initialized component.</param>
+        public virtual void ComponentInitialized(Entity entity) {
+        }
+
+        /// <summary>
         /// Called when the component is allowed to run its detach lifecycle.
         /// </summary>
         /// <param name="entity">Entity losing the component.</param>

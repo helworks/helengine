@@ -3,7 +3,7 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies the reduced city-owned demo-disc scene generation flow persists only the active showcase scenes and menu overlays.
+    /// Verifies the city-owned demo-disc scene generation flow persists the intended showcase scenes and menu overlays.
     /// </summary>
     public sealed class CityRenderingSceneAuthoringTests {
         /// <summary>
@@ -12,36 +12,41 @@ namespace helengine.editor.tests {
         const string CityProjectRootPath = @"C:\dev\helprojs\city";
 
         /// <summary>
-        /// Ensures the authored city demo-disc scene catalog exposes only the two remaining rendering showcase scenes before the back action.
+        /// Ensures the authored city demo-disc scene catalog exposes the intended showcase lineup before the back action.
         /// </summary>
         [Fact]
-        public void ReadCityDemoDiscSceneCatalogSource_ListsDirectionalAndSpotlightShowcasesBeforeBack() {
+        public void ReadCityDemoDiscSceneCatalogSource_ListsRestoredShowcaseLineupBeforeBack() {
             string sceneCatalogSource = ReadDemoDiscSceneCatalogSource();
 
+            int cubeTestIndex = sceneCatalogSource.IndexOf("\"cube_test\"", StringComparison.Ordinal);
+            int coloredCubeGridIndex = sceneCatalogSource.IndexOf("\"colored_cube_grid\"", StringComparison.Ordinal);
+            int texturedCubeGridIndex = sceneCatalogSource.IndexOf("\"textured_cube_grid\"", StringComparison.Ordinal);
+            int axisTestIndex = sceneCatalogSource.IndexOf("\"axis_test\"", StringComparison.Ordinal);
+            int axisTest2Index = sceneCatalogSource.IndexOf("\"axis_test2\"", StringComparison.Ordinal);
             int directionalShadowPlazaIndex = sceneCatalogSource.IndexOf("\"directional_shadow_plaza\"", StringComparison.Ordinal);
             int spotlightStreetSliceIndex = sceneCatalogSource.IndexOf("\"spotlight_street_slice\"", StringComparison.Ordinal);
             int backIndex = sceneCatalogSource.IndexOf("MenuActionKind.Back", StringComparison.Ordinal);
 
-            Assert.True(directionalShadowPlazaIndex >= 0);
+            Assert.True(cubeTestIndex >= 0);
+            Assert.True(coloredCubeGridIndex > cubeTestIndex);
+            Assert.True(texturedCubeGridIndex > coloredCubeGridIndex);
+            Assert.True(axisTestIndex > texturedCubeGridIndex);
+            Assert.True(axisTest2Index > axisTestIndex);
+            Assert.True(directionalShadowPlazaIndex > axisTest2Index);
             Assert.True(spotlightStreetSliceIndex > directionalShadowPlazaIndex);
             Assert.True(backIndex > spotlightStreetSliceIndex);
-            Assert.DoesNotContain("\"cube_test\"", sceneCatalogSource, StringComparison.Ordinal);
-            Assert.DoesNotContain("\"colored_cube_grid\"", sceneCatalogSource, StringComparison.Ordinal);
-            Assert.DoesNotContain("\"textured_cube_grid\"", sceneCatalogSource, StringComparison.Ordinal);
-            Assert.DoesNotContain("\"axis_test\"", sceneCatalogSource, StringComparison.Ordinal);
-            Assert.DoesNotContain("\"axis_test2\"", sceneCatalogSource, StringComparison.Ordinal);
         }
 
         /// <summary>
-        /// Ensures the city rendering generation command uses the focused two-scene city-owned generation service.
+        /// Ensures the city rendering generation command uses the full city-owned rendering scene generator.
         /// </summary>
         [Fact]
-        public void ReadCityGenerateRenderingScenesCommandSource_UsesFocusedDemoDiscShowcaseGenerationService() {
+        public void ReadCityGenerateRenderingScenesCommandSource_UsesRenderingSceneGenerator() {
             string source = ReadCitySource("menu.tools", "GenerateRenderingScenesCommand.cs");
 
             Assert.DoesNotContain("helengine.demo_disc_scene_writer", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("new RenderingSceneGenerator()", source, StringComparison.Ordinal);
-            Assert.Contains("DemoDiscRenderingSceneGenerationService", source, StringComparison.Ordinal);
+            Assert.Contains("new RenderingSceneGenerator()", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("DemoDiscRenderingSceneGenerationService", source, StringComparison.Ordinal);
         }
 
         /// <summary>

@@ -91,6 +91,9 @@ namespace helengine.editor {
                 for (int i = 0; i < rootEntities.Length; i++) {
                     loadedRoots.Add(LoadEntity(rootEntities[i]));
                 }
+                for (int i = 0; i < loadedRoots.Count; i++) {
+                    loadedRoots[i].InitializeHierarchy();
+                }
 
                 return loadedRoots;
             } finally {

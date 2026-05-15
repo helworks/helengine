@@ -101,6 +101,9 @@ namespace helengine {
                 RecordTraceState("BeforeRootEntityLoad", index, 0, string.Empty);
                 rootEntities.Add(LoadEntity(rootEntityAssets[index], index, 0));
             }
+            for (int index = 0; index < rootEntities.Count; index++) {
+                rootEntities[index].InitializeHierarchy();
+            }
 
             loadStopwatch.Stop();
             RecordTraceState("LoadEnd", rootEntities.Count - 1, 0, string.Empty);

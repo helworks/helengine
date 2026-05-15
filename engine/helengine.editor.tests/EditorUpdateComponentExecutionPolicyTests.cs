@@ -49,6 +49,20 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures suppressed user scene update components also suppress hierarchy initialization in editor mode.
+        /// </summary>
+        [Fact]
+        public void InitializeHierarchy_WhenEditorModeAndUserSceneEntityAndComponentLacksRunInEditor_SuppressesInitializedLifecycle() {
+            EditorEntity entity = CreateUserSceneEntity();
+            EditorUpdateLifecycleProbeComponent component = new EditorUpdateLifecycleProbeComponent();
+
+            EnterEditorAndRun(() => entity.AddComponent(component));
+            EnterEditorAndRun(() => entity.InitializeHierarchy());
+
+            Assert.Equal(0, component.ComponentInitializedCallCount);
+        }
+
+        /// <summary>
         /// Ensures user scene update components can be removed in editor mode even when their gameplay lifecycle never ran.
         /// </summary>
         [Fact]
@@ -87,8 +101,10 @@ namespace helengine.editor.tests {
             EditorRunInEditorUpdateLifecycleProbeComponent component = new EditorRunInEditorUpdateLifecycleProbeComponent();
 
             EnterEditorAndRun(() => entity.AddComponent(component));
+            EnterEditorAndRun(() => entity.InitializeHierarchy());
 
             Assert.Equal(1, component.ComponentAddedCallCount);
+            Assert.Equal(1, component.ComponentInitializedCallCount);
             Assert.Single(Core.Instance.ObjectManager.Updateables);
 
             EnterEditorAndRun(() => Core.Instance.Update());
@@ -115,6 +131,23 @@ namespace helengine.editor.tests {
 
             Assert.Equal(1, component.ComponentAddedCallCount);
             Assert.Single(Core.Instance.ObjectManager.Updateables);
+        }
+
+        /// <summary>
+        /// Ensures plain editor entities initialize opted-in gameplay components once the hierarchy is finalized.
+        /// </summary>
+        [Fact]
+        public void InitializeHierarchy_WhenEditorModeAndEntityLacksSuppressionMarker_RunsInitializedLifecycle() {
+            EditorEntity entity = new EditorEntity {
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            EditorUpdateLifecycleProbeComponent component = new EditorUpdateLifecycleProbeComponent();
+
+            EnterEditorAndRun(() => entity.AddComponent(component));
+            EnterEditorAndRun(() => entity.InitializeHierarchy());
+
+            Assert.Equal(1, component.ComponentInitializedCallCount);
+            Assert.True(entity.IsInitialized);
         }
 
         /// <summary>

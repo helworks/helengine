@@ -5,6 +5,7 @@ namespace helengine {
     public class Entity : IDisposable {
         bool isEnabled;
         bool isStatic;
+        bool isInitialized;
         float3 position;
         float3 scale;
         float4 orientation;
@@ -152,6 +153,13 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets a value indicating whether this entity hierarchy has completed component initialization.
+        /// </summary>
+        public bool IsInitialized {
+            get { return isInitialized; }
+        }
+
+        /// <summary>
         /// Gets or sets a value indicating whether the entity is static.
         /// </summary>
         public bool Static {
@@ -183,6 +191,9 @@ namespace helengine {
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
             entity.Parent = this;
             Children.Add(entity);
+            if (IsInitialized) {
+                entity.InitializeHierarchy();
+            }
             bool isHierarchyEnabled = entity.IsHierarchyEnabled;
             if (wasHierarchyEnabled != isHierarchyEnabled) {
                 entity.ParentEnabledChange(isHierarchyEnabled);
@@ -231,6 +242,36 @@ namespace helengine {
 
             if (ComponentExecutionPolicy.ShouldRunComponentLifecycle(comp, this)) {
                 comp.ComponentAdded(this);
+                if (IsInitialized) {
+                    comp.ComponentInitialized(this);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Marks this entity hierarchy as fully materialized and notifies all eligible components once.
+        /// </summary>
+        public void InitializeHierarchy() {
+            if (IsInitialized) {
+                return;
+            }
+
+            isInitialized = true;
+            if (Components != null) {
+                for (int i = 0; i < Components.Count; i++) {
+                    Component component = Components[i];
+                    if (!ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, this)) {
+                        continue;
+                    }
+
+                    component.ComponentInitialized(this);
+                }
+            }
+
+            if (Children != null) {
+                for (int i = 0; i < Children.Count; i++) {
+                    Children[i].InitializeHierarchy();
+                }
             }
         }
 

@@ -12,6 +12,10 @@ namespace helengine.editor.tests.testing {
         /// Gets the number of times the detach lifecycle has executed.
         /// </summary>
         public int ComponentRemovedCallCount { get; private set; }
+        /// <summary>
+        /// Gets the number of times the hierarchy-initialized lifecycle has executed.
+        /// </summary>
+        public int ComponentInitializedCallCount { get; private set; }
 
         /// <summary>
         /// Gets the number of times the per-frame update callback has executed.
@@ -39,6 +43,15 @@ namespace helengine.editor.tests.testing {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
             ComponentRemovedCallCount++;
+        }
+
+        /// <summary>
+        /// Records one hierarchy-initialized lifecycle execution.
+        /// </summary>
+        /// <param name="entity">Entity whose hierarchy finished initialization.</param>
+        public override void ComponentInitialized(Entity entity) {
+            base.ComponentInitialized(entity);
+            ComponentInitializedCallCount++;
         }
 
         /// <summary>
