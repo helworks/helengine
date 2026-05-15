@@ -44,10 +44,6 @@ namespace helengine {
         MenuPanelRuntime ActivePanel;
 
         /// <summary>
-        /// Previous primary gamepad state used for edge detection.
-        /// </summary>
-        InputGamepadState PreviousGamepadState;
-        /// <summary>
         /// Menu item that owns the active pointer press, if any.
         /// </summary>
         MenuItemRuntime PressedPointerItem;
@@ -157,7 +153,6 @@ namespace helengine {
 
             BindPanels(Parent);
             ActivatePanel(InitialPanelIdValue, false);
-            PreviousGamepadState = ReadPrimaryGamepadState();
             IsInitialized = true;
         }
 
@@ -474,22 +469,19 @@ namespace helengine {
         void HandleGamepadInput(InputSystem inputSystem) {
             InputGamepadState currentGamepadState = inputSystem.GetGamepadState(0);
             if (!currentGamepadState.Connected) {
-                PreviousGamepadState = currentGamepadState;
                 return;
             }
 
-            if (inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.DPadUp)) {
+            if (inputSystem.WasGamepadButtonPressed(0, InputGamepadButton.DPadUp)) {
                 MoveSelection(-1);
-            } else if (inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.DPadDown)) {
+            } else if (inputSystem.WasGamepadButtonPressed(0, InputGamepadButton.DPadDown)) {
                 MoveSelection(1);
-            } else if (inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.South)) {
+            } else if (inputSystem.WasGamepadButtonPressed(0, InputGamepadButton.South)) {
                 ConfirmSelection(Keys.Enter);
-            } else if (inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.East)
-                || inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.Select)) {
+            } else if (inputSystem.WasGamepadButtonPressed(0, InputGamepadButton.East)
+                || inputSystem.WasGamepadButtonPressed(0, InputGamepadButton.Select)) {
                 NavigateBack();
             }
-
-            PreviousGamepadState = currentGamepadState;
         }
 
         /// <summary>
@@ -835,12 +827,5 @@ namespace helengine {
             return false;
         }
 
-        /// <summary>
-        /// Reads the current primary gamepad state from the shared input system.
-        /// </summary>
-        /// <returns>Current primary gamepad state.</returns>
-        InputGamepadState ReadPrimaryGamepadState() {
-            return Core.Instance.Input.GetGamepadState(0);
-        }
     }
 }

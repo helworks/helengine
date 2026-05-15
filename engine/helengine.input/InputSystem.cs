@@ -33,6 +33,10 @@ public sealed class InputSystem {
     /// </summary>
     MouseState mouseState;
     /// <summary>
+    /// Raw input frame snapshot from the previous update.
+    /// </summary>
+    InputFrameState previousFrame;
+    /// <summary>
     /// Keyboard state snapshot from the previous update.
     /// </summary>
     KeyboardState lastKeyboardState;
@@ -95,6 +99,7 @@ public sealed class InputSystem {
             Keyboard = keyboardState,
             Mouse = mouseState
         };
+        previousFrame = CurrentFrame;
     }
 
     /// <summary>
@@ -350,6 +355,38 @@ public sealed class InputSystem {
         }
 
         return CurrentFrame.Gamepads[index];
+    }
+
+    /// <summary>
+    /// Gets one captured gamepad state from the previous frame by index.
+    /// </summary>
+    /// <param name="index">Zero-based gamepad index.</param>
+    /// <returns>Captured previous-frame gamepad state, or a default state when the index is invalid.</returns>
+    public InputGamepadState GetPreviousGamepadState(int index) {
+        if (previousFrame.Gamepads == null) {
+            return new InputGamepadState();
+        }
+        if (index < 0 || index >= previousFrame.GamepadCount || index >= previousFrame.Gamepads.Length) {
+            return new InputGamepadState();
+        }
+
+        return previousFrame.Gamepads[index];
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether one abstract gamepad button transitioned from up to down on the current frame.
+    /// </summary>
+    /// <param name="index">Zero-based gamepad index.</param>
+    /// <param name="button">Button to test.</param>
+    /// <returns>True when the button was pressed this frame.</returns>
+    public bool WasGamepadButtonPressed(int index, InputGamepadButton button) {
+        InputGamepadState currentState = GetGamepadState(index);
+        if (!currentState.Connected) {
+            return false;
+        }
+
+        InputGamepadState previousState = GetPreviousGamepadState(index);
+        return currentState.IsButtonDown(button) && !previousState.IsButtonDown(button);
     }
 
     /// <summary>
@@ -626,6 +663,7 @@ public sealed class InputSystem {
     /// Captures current keyboard and mouse states, updating cached values.
     /// </summary>
     void CaptureInputState() {
+        previousFrame = CurrentFrame;
         lastMouseState = mouseState;
         lastKeyboardState = keyboardState;
 
