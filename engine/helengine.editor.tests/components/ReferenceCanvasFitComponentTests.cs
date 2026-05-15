@@ -144,6 +144,45 @@ namespace helengine.editor.tests.components {
         }
 
         /// <summary>
+        /// Ensures anchored sprite sizes scale with the fitted canvas so decorative footer artwork follows viewport changes.
+        /// </summary>
+        [Fact]
+        public void ComponentAdded_WhenWindowShrinksTo640x480_ScalesAnchoredSpriteSize() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            menuRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            Entity generatedRoot = CreateEntity(float3.Zero);
+            menuRoot.AddChild(generatedRoot);
+
+            Entity logoEntity = CreateEntity(float3.Zero);
+            SpriteComponent sprite = new SpriteComponent {
+                Size = new int2(220, 220)
+            };
+            AnchorComponent anchor = new AnchorComponent();
+            anchor.SetAnchorDistances(right: 44f, bottom: 36f);
+            logoEntity.AddComponent(sprite);
+            logoEntity.AddComponent(anchor);
+            generatedRoot.AddChild(logoEntity);
+
+            menuRoot.AddComponent(new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            });
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(110, 110), sprite.Size);
+            Assert.Equal(new float4(0f, 22f, 0f, 18f), anchor.AnchorDistances);
+        }
+
+        /// <summary>
         /// Ensures same-aspect widescreen resolutions preserve the same normalized menu layout instead of drifting when the window shrinks.
         /// </summary>
         [Fact]

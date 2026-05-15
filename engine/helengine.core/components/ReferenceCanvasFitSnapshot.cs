@@ -31,6 +31,11 @@ namespace helengine {
                 TextFontScale = TrackedTextComponent.FontScale;
             }
 
+            TrackedSpriteComponent = FindSpriteComponent(entity);
+            if (TrackedSpriteComponent != null) {
+                SpriteSize = TrackedSpriteComponent.Size;
+            }
+
             TrackedClipRectComponent = FindClipRectComponent(entity);
             if (TrackedClipRectComponent != null) {
                 ClipRectSize = TrackedClipRectComponent.Size;
@@ -111,6 +116,16 @@ namespace helengine {
         /// <summary>
         /// Gets the attached clip-rectangle component when one exists.
         /// </summary>
+        public SpriteComponent TrackedSpriteComponent { get; }
+
+        /// <summary>
+        /// Gets the authored sprite size.
+        /// </summary>
+        public int2 SpriteSize { get; }
+
+        /// <summary>
+        /// Gets the attached clip-rectangle component when one exists.
+        /// </summary>
         public ClipRectComponent TrackedClipRectComponent { get; }
 
         /// <summary>
@@ -183,6 +198,10 @@ namespace helengine {
             if (TrackedTextComponent != null) {
                 TrackedTextComponent.Size = ScaleInt2(TextSize, widthScale, heightScale);
                 TrackedTextComponent.FontScale = ScaleFloat(TextFontScale, scalarScale);
+            }
+
+            if (TrackedSpriteComponent != null) {
+                TrackedSpriteComponent.Size = ScaleInt2(SpriteSize, widthScale, heightScale);
             }
 
             if (TrackedClipRectComponent != null) {
@@ -258,6 +277,25 @@ namespace helengine {
 
             for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
                 if (entity.Components[componentIndex] is TextComponent component) {
+                    return component;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Finds the first attached sprite component.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>Attached sprite component when one exists; otherwise null.</returns>
+        static SpriteComponent FindSpriteComponent(Entity entity) {
+            if (entity.Components == null) {
+                return null;
+            }
+
+            for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                if (entity.Components[componentIndex] is SpriteComponent component) {
                     return component;
                 }
             }
