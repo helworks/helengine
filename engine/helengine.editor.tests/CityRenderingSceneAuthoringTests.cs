@@ -103,6 +103,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the city rendering scene generator no longer depends on the legacy HelEngine demo-disc writer namespace.
+        /// </summary>
+        [Fact]
+        public void ReadCityRenderingSceneGeneratorSource_DoesNotDependOnHelengineDemoDiscSceneWriterNamespace() {
+            string source = ReadCitySource("rendering.tools", "RenderingSceneGenerator.cs");
+
+            Assert.DoesNotContain("helengine.demo_disc_scene_writer", source, StringComparison.Ordinal);
+            Assert.Contains("GeneratedAuthoringSceneWriteService", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the city demo-disc menu regeneration command is owned by project code instead of the editor-only engine regeneration service.
+        /// </summary>
+        [Fact]
+        public void ReadCityMenuRegenerationCommandSource_DoesNotDependOnEngineMenuSceneRegenerationService() {
+            string source = ReadCitySource("menu.tools", "RegenerateDemoDiscMainMenuCommand.cs");
+
+            Assert.DoesNotContain("MenuSceneRegenerationService", source, StringComparison.Ordinal);
+            Assert.Contains("DemoDiscSceneGenerator", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures the authored demo-disc menu provider includes the platform-info overlay descriptor.
         /// </summary>
         [Fact]
@@ -265,12 +287,39 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the authored top-level demo-disc menu scene carries the FPS overlay under the generated fitted UI subtree.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityDemoDiscMainMenuSceneAsset_GeneratedRootContainsFpsComponent() {
+            SceneAsset sceneAsset = ReadTopLevelSceneAsset("DemoDiscMainMenu.helen");
+            SceneEntityAsset menuRoot = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuRoot.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+
+            Assert.Contains(
+                generatedRoot.Components ?? Array.Empty<SceneComponentAssetRecord>(),
+                component => string.Equals(component.ComponentTypeId, "helengine.FPSComponent", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Reads one city rendering scene asset from the authored project scene folder.
         /// </summary>
         /// <param name="sceneFileName">File name of the authored rendering scene.</param>
         /// <returns>Deserialized scene asset.</returns>
         SceneAsset ReadSceneAsset(string sceneFileName) {
             string scenePath = Path.Combine(CityProjectRootPath, "assets", "scenes", "rendering", sceneFileName);
+            Assert.True(File.Exists(scenePath));
+
+            using FileStream stream = File.OpenRead(scenePath);
+            return Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
+        }
+
+        /// <summary>
+        /// Reads one authored top-level city scene asset from the project scene folder.
+        /// </summary>
+        /// <param name="sceneFileName">File name of the authored top-level scene.</param>
+        /// <returns>Deserialized scene asset.</returns>
+        SceneAsset ReadTopLevelSceneAsset(string sceneFileName) {
+            string scenePath = Path.Combine(CityProjectRootPath, "assets", "Scenes", sceneFileName);
             Assert.True(File.Exists(scenePath));
 
             using FileStream stream = File.OpenRead(scenePath);

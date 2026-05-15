@@ -216,19 +216,20 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
-        /// Ensures the generated demo-disc menu scene also carries the FPS overlay on its camera root.
+        /// Ensures the generated demo-disc menu scene carries the FPS overlay under the generated fitted menu subtree.
         /// </summary>
         [Fact]
-        public void WriteAll_WhenMenuSceneIsGenerated_BakesFpsOverlayOnTheCameraRoot() {
+        public void WriteAll_WhenMenuSceneIsGenerated_BakesFpsOverlayOnTheGeneratedRoot() {
             DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
 
             writer.WriteAll(ProjectRootPath);
 
             SceneAsset sceneAsset = ReadGeneratedSceneAsset();
-            SceneEntityAsset cameraEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscCamera");
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
             string fpsTypeId = "helengine.FPSComponent";
 
-            Assert.Contains(cameraEntity.Components, component => string.Equals(component.ComponentTypeId, fpsTypeId, StringComparison.Ordinal));
+            Assert.Contains(generatedRoot.Components, component => string.Equals(component.ComponentTypeId, fpsTypeId, StringComparison.Ordinal));
         }
 
         /// <summary>

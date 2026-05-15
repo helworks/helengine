@@ -101,6 +101,17 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures the city rendering generator is owned by project code instead of depending on the legacy engine scene-writer namespace.
+        /// </summary>
+        [Fact]
+        public void ReadCityRenderingSceneGeneratorSource_DoesNotDependOnLegacyEngineSceneWriterNamespace() {
+            string source = File.ReadAllText(Path.Combine(@"C:\dev\helprojs\city", "assets", "codebase", "rendering.tools", "RenderingSceneGenerator.cs"));
+
+            Assert.DoesNotContain("helengine.demo_disc_scene_writer", source, StringComparison.Ordinal);
+            Assert.Contains("GeneratedAuthoringSceneWriteService", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Reads one generated rendering scene asset from the isolated temp project.
         /// </summary>
         /// <param name="sceneFileName">Scene file name stored beneath the rendering scene folder.</param>
