@@ -353,6 +353,17 @@ public sealed class InputSystem {
     }
 
     /// <summary>
+    /// Gets a value indicating whether one abstract gamepad button transitioned from up to down on the current frame.
+    /// </summary>
+    /// <param name="currentState">Current raw gamepad state.</param>
+    /// <param name="previousState">Previous raw gamepad state.</param>
+    /// <param name="button">Button to test.</param>
+    /// <returns>True when the button was pressed this frame.</returns>
+    public bool WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button) {
+        return currentState.IsButtonDown(button) && !previousState.IsButtonDown(button);
+    }
+
+    /// <summary>
     /// Gets the captured text input state.
     /// </summary>
     /// <returns>Text state captured for the current frame.</returns>

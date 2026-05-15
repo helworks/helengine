@@ -137,10 +137,6 @@ namespace helengine {
             }
 
             InputSystem inputSystem = Core.Instance.Input;
-            if (inputSystem == null) {
-                return;
-            }
-
             HandleKeyboardInput(inputSystem);
             HandleMouseInput(inputSystem);
             HandleGamepadInput(inputSystem);
@@ -482,29 +478,18 @@ namespace helengine {
                 return;
             }
 
-            if (WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.DPadUp)) {
+            if (inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.DPadUp)) {
                 MoveSelection(-1);
-            } else if (WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.DPadDown)) {
+            } else if (inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.DPadDown)) {
                 MoveSelection(1);
-            } else if (WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.South)) {
+            } else if (inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.South)) {
                 ConfirmSelection(Keys.Enter);
-            } else if (WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.East)
-                || WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.Select)) {
+            } else if (inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.East)
+                || inputSystem.WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.Select)) {
                 NavigateBack();
             }
 
             PreviousGamepadState = currentGamepadState;
-        }
-
-        /// <summary>
-        /// Returns whether the supplied gamepad button transitioned from up to down on the current frame.
-        /// </summary>
-        /// <param name="currentState">Current raw gamepad state.</param>
-        /// <param name="previousState">Previous raw gamepad state.</param>
-        /// <param name="button">Button to test.</param>
-        /// <returns>True when the button was pressed this frame.</returns>
-        bool WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button) {
-            return currentState.IsButtonDown(button) && !previousState.IsButtonDown(button);
         }
 
         /// <summary>
@@ -855,10 +840,6 @@ namespace helengine {
         /// </summary>
         /// <returns>Current primary gamepad state.</returns>
         InputGamepadState ReadPrimaryGamepadState() {
-            if (Core.Instance == null || Core.Instance.Input == null) {
-                return default;
-            }
-
             return Core.Instance.Input.GetGamepadState(0);
         }
     }
