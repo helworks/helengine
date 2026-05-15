@@ -3,7 +3,7 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies authored city rendering scenes keep cube-grid showcase entities aligned to identity orientation.
+    /// Verifies the reduced city-owned demo-disc scene generation flow persists only the active showcase scenes and menu overlays.
     /// </summary>
     public sealed class CityRenderingSceneAuthoringTests {
         /// <summary>
@@ -12,94 +12,47 @@ namespace helengine.editor.tests {
         const string CityProjectRootPath = @"C:\dev\helprojs\city";
 
         /// <summary>
-        /// Ensures the authored city demo-disc scene catalog places the axis test as the fourth playable scene entry.
+        /// Ensures the authored city demo-disc scene catalog exposes only the two remaining rendering showcase scenes before the back action.
         /// </summary>
         [Fact]
-        public void ReadCityDemoDiscSceneCatalogSource_AxisTestIsTheFourthPlayableScene() {
+        public void ReadCityDemoDiscSceneCatalogSource_ListsDirectionalAndSpotlightShowcasesBeforeBack() {
             string sceneCatalogSource = ReadDemoDiscSceneCatalogSource();
 
-            int cubeTestIndex = sceneCatalogSource.IndexOf("\"cube_test\"", StringComparison.Ordinal);
-            int coloredCubeGridIndex = sceneCatalogSource.IndexOf("\"colored_cube_grid\"", StringComparison.Ordinal);
-            int texturedCubeGridIndex = sceneCatalogSource.IndexOf("\"textured_cube_grid\"", StringComparison.Ordinal);
-            int axisTestIndex = sceneCatalogSource.IndexOf("\"axis_test\"", StringComparison.Ordinal);
             int directionalShadowPlazaIndex = sceneCatalogSource.IndexOf("\"directional_shadow_plaza\"", StringComparison.Ordinal);
+            int spotlightStreetSliceIndex = sceneCatalogSource.IndexOf("\"spotlight_street_slice\"", StringComparison.Ordinal);
+            int backIndex = sceneCatalogSource.IndexOf("MenuActionKind.Back", StringComparison.Ordinal);
 
-            Assert.True(cubeTestIndex >= 0);
-            Assert.True(coloredCubeGridIndex > cubeTestIndex);
-            Assert.True(texturedCubeGridIndex > coloredCubeGridIndex);
-            Assert.True(axisTestIndex > texturedCubeGridIndex);
-            Assert.True(directionalShadowPlazaIndex > axisTestIndex);
+            Assert.True(directionalShadowPlazaIndex >= 0);
+            Assert.True(spotlightStreetSliceIndex > directionalShadowPlazaIndex);
+            Assert.True(backIndex > spotlightStreetSliceIndex);
+            Assert.DoesNotContain("\"cube_test\"", sceneCatalogSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"colored_cube_grid\"", sceneCatalogSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"textured_cube_grid\"", sceneCatalogSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"axis_test\"", sceneCatalogSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"axis_test2\"", sceneCatalogSource, StringComparison.Ordinal);
         }
 
         /// <summary>
-        /// Ensures the regenerated cube-test scene still contains the expected authored camera, sun, and cube roots.
+        /// Ensures the city rendering generation command uses the focused two-scene city-owned generation service.
         /// </summary>
         [Fact]
-        public void DeserializeCityCubeTestSceneAsset_ContainsCameraSunAndCubeRoots() {
-            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
+        public void ReadCityGenerateRenderingScenesCommandSource_UsesFocusedDemoDiscShowcaseGenerationService() {
+            string source = ReadCitySource("menu.tools", "GenerateRenderingScenesCommand.cs");
 
-            Assert.NotNull(FindEntityByName(sceneAsset.RootEntities, "CubeTestCamera"));
-            Assert.NotNull(FindEntityByName(sceneAsset.RootEntities, "CubeTestSun"));
-            Assert.NotNull(FindEntityByName(sceneAsset.RootEntities, "CubeTestCube"));
+            Assert.DoesNotContain("helengine.demo_disc_scene_writer", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("new RenderingSceneGenerator()", source, StringComparison.Ordinal);
+            Assert.Contains("DemoDiscRenderingSceneGenerationService", source, StringComparison.Ordinal);
         }
 
         /// <summary>
-        /// Ensures the regenerated cube-test cube still carries one mesh component and one authored motion component record.
+        /// Ensures the city demo-disc menu regeneration command is owned by project code instead of the editor-only engine regeneration service.
         /// </summary>
         [Fact]
-        public void DeserializeCityCubeTestSceneAsset_CubeRootContainsMeshAndMotionComponent() {
-            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
-            SceneEntityAsset cubeEntity = FindEntityByName(sceneAsset.RootEntities, "CubeTestCube");
+        public void ReadCityMenuRegenerationCommandSource_DoesNotDependOnEngineMenuSceneRegenerationService() {
+            string source = ReadCitySource("menu.tools", "RegenerateDemoDiscMainMenuCommand.cs");
 
-            Assert.NotNull(cubeEntity);
-            Assert.Equal(2, (cubeEntity.Components ?? Array.Empty<SceneComponentAssetRecord>()).Length);
-        }
-
-        /// <summary>
-        /// Ensures the regenerated cube-test cube stores the reusable gameplay axis-rotation component type.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityCubeTestSceneAsset_CubeRootContainsAxisRotationComponent() {
-            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
-
-            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.AxisRotationComponent, gameplay"));
-        }
-
-        /// <summary>
-        /// Ensures the regenerated cube-test scene no longer stores the stale directional-shadow tower-spin component type.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityCubeTestSceneAsset_DoesNotContainDirectionalShadowTowerSpinComponent() {
-            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
-
-            Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay"));
-            Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "city.rendering.DirectionalShadowTowerSpinComponent, gameplay"));
-            Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "helengine.DirectionalShadowTowerSpinComponent"));
-        }
-
-        /// <summary>
-        /// Ensures the authored cube-test scene remains deserializable after regeneration through the live-authoring save path.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityCubeTestSceneAsset_RemainsReadableAfterLiveAuthoringSavePath() {
-            SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
-
-            Assert.Equal("scenes/rendering/cube_test.helen", sceneAsset.Id);
-        }
-
-        /// <summary>
-        /// Ensures cube-test authored scene source creation now relies on the host-owned entity factory instead of constructing editor entities directly.
-        /// </summary>
-        [Fact]
-        public void ReadCityCubeTestSceneFactorySource_DoesNotConstructEditorEntitiesOrSetEditorSuppressionDirectly() {
-            string source = ReadCitySource("rendering.tools", "CubeTestSceneFactory.cs");
-
-            Assert.DoesNotContain("new EditorEntity {", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("new EditorEntity(", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("new EditorEntityFactory()", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("SuppressUpdateComponentExecutionInEditor", source, StringComparison.Ordinal);
-            Assert.Contains("Core.Instance.EntityFactory", source, StringComparison.Ordinal);
-            Assert.Contains(".Create(", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("MenuSceneRegenerationService", source, StringComparison.Ordinal);
+            Assert.Contains("DemoDiscSceneGenerator", source, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -129,99 +82,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the colored cube-grid factory now authors live entities instead of serialized editor scene records.
-        /// </summary>
-        [Fact]
-        public void ReadColoredCubeGridSceneFactorySource_DoesNotUseEditorSerializationHelpers() {
-            string source = ReadCitySource("rendering.tools", "ColoredCubeGridSceneFactory.cs");
-
-            Assert.DoesNotContain("using helengine.editor;", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("SceneComponentAssetRecord", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("MeshComponentPersistenceDescriptor", source, StringComparison.Ordinal);
-            Assert.Contains("GeneratedAuthoringSceneDefinition", source, StringComparison.Ordinal);
-            Assert.Contains("Core.Instance.EntityFactory.Create", source, StringComparison.Ordinal);
-        }
-
-        /// <summary>
-        /// Ensures the textured cube-grid factory now authors live entities instead of serialized editor scene records.
-        /// </summary>
-        [Fact]
-        public void ReadTexturedCubeGridSceneFactorySource_DoesNotUseEditorSerializationHelpers() {
-            string source = ReadCitySource("rendering.tools", "TexturedCubeGridSceneFactory.cs");
-
-            Assert.DoesNotContain("using helengine.editor;", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("SceneComponentAssetRecord", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("MeshComponentPersistenceDescriptor", source, StringComparison.Ordinal);
-            Assert.Contains("GeneratedAuthoringSceneDefinition", source, StringComparison.Ordinal);
-            Assert.Contains("Core.Instance.EntityFactory.Create", source, StringComparison.Ordinal);
-        }
-
-        /// <summary>
-        /// Ensures the authored colored cube-grid scene stores identity orientation for each generated showcase cube.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityColoredCubeGridSceneAsset_AuthoredCubeOrientationsAreIdentity() {
-            SceneAsset sceneAsset = ReadSceneAsset("colored_cube_grid.helen");
-
-            AssertCubeOrientationsAreIdentity(sceneAsset, "ColoredCubeGridCube");
-        }
-
-        /// <summary>
-        /// Ensures the authored textured cube-grid scene stores identity orientation for each generated showcase cube.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityTexturedCubeGridSceneAsset_AuthoredCubeOrientationsAreIdentity() {
-            SceneAsset sceneAsset = ReadSceneAsset("textured_cube_grid.helen");
-
-            AssertCubeOrientationsAreIdentity(sceneAsset, "TexturedCubeGridCube");
-        }
-
-        /// <summary>
-        /// Ensures the authored city axis-test-2 scene exists as a generated rendering validation asset.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityAxisTest2SceneAsset_GeneratedSceneExists() {
-            SceneAsset sceneAsset = ReadSceneAsset("axis_test2.helen");
-
-            Assert.Equal("scenes/rendering/axis_test2.helen", sceneAsset.Id);
-        }
-
-        /// <summary>
-        /// Ensures the authored city axis-test-2 scene stores one directional light and one camera-forward-axis spin component.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityAxisTest2SceneAsset_ContainsDirectionalLightRigAndCameraForwardSpinComponent() {
-            SceneAsset sceneAsset = ReadSceneAsset("axis_test2.helen");
-
-            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.DirectionalLightComponent"));
-            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.AxisTestCameraForwardSpinComponent, gameplay"));
-        }
-
-        /// <summary>
-        /// Ensures the authored city axis-test-2 camera mirrors the original axis-test camera distance on the right side.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityAxisTest2SceneAsset_CameraUsesRightSideMirroredDistance() {
-            SceneAsset sceneAsset = ReadSceneAsset("axis_test2.helen");
-            SceneEntityAsset cameraEntity = FindEntityByName(sceneAsset.RootEntities, "AxisTest2Camera");
-
-            Assert.NotNull(cameraEntity);
-            Assert.Equal(new float3(30f, 6f, 5f), cameraEntity.LocalPosition);
-        }
-
-        /// <summary>
-        /// Ensures the authored city axis-test-2 right wall extends along the mirrored camera forward axis instead of across depth.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityAxisTest2SceneAsset_RightWallExtendsAlongCameraForwardAxis() {
-            SceneAsset sceneAsset = ReadSceneAsset("axis_test2.helen");
-            SceneEntityAsset wallEntity = FindEntityByName(sceneAsset.RootEntities, "AxisTest2Ground");
-
-            Assert.NotNull(wallEntity);
-            Assert.Equal(new float3(14f, 14f, 0.5f), wallEntity.LocalScale);
-        }
-
-        /// <summary>
         /// Ensures the authored spotlight street-slice scene references generated racer companion materials through their real `.hasset` assets instead of legacy sidecars.
         /// </summary>
         [Fact]
@@ -238,16 +98,11 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures every authored city rendering showcase scene carries one FPS overlay and the generated editor font reference it needs at runtime.
+        /// Ensures the two authored city demo-disc rendering showcase scenes carry one FPS overlay and the generated editor font reference they need at runtime.
         /// </summary>
         [Fact]
-        public void DeserializeCityRenderingSceneAssets_AllShowcaseScenesContainFpsOverlayAndEditorFontReference() {
+        public void DeserializeCityRenderingSceneAssets_DemoDiscShowcasesContainFpsOverlayAndEditorFontReference() {
             string[] sceneFileNames = new[] {
-                "cube_test.helen",
-                "colored_cube_grid.helen",
-                "textured_cube_grid.helen",
-                "axis_test.helen",
-                "axis_test2.helen",
                 "directional_shadow_plaza.helen",
                 "spotlight_street_slice.helen"
             };
@@ -265,12 +120,39 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the authored top-level demo-disc menu scene carries the FPS overlay under the generated fitted UI subtree.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityDemoDiscMainMenuSceneAsset_GeneratedRootContainsFpsComponent() {
+            SceneAsset sceneAsset = ReadTopLevelSceneAsset("DemoDiscMainMenu.helen");
+            SceneEntityAsset menuRoot = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuRoot.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+
+            Assert.Contains(
+                generatedRoot.Components ?? Array.Empty<SceneComponentAssetRecord>(),
+                component => string.Equals(component.ComponentTypeId, "helengine.FPSComponent", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Reads one city rendering scene asset from the authored project scene folder.
         /// </summary>
         /// <param name="sceneFileName">File name of the authored rendering scene.</param>
         /// <returns>Deserialized scene asset.</returns>
         SceneAsset ReadSceneAsset(string sceneFileName) {
             string scenePath = Path.Combine(CityProjectRootPath, "assets", "scenes", "rendering", sceneFileName);
+            Assert.True(File.Exists(scenePath));
+
+            using FileStream stream = File.OpenRead(scenePath);
+            return Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
+        }
+
+        /// <summary>
+        /// Reads one authored top-level city scene asset from the project scene folder.
+        /// </summary>
+        /// <param name="sceneFileName">File name of the authored top-level scene.</param>
+        /// <returns>Deserialized scene asset.</returns>
+        SceneAsset ReadTopLevelSceneAsset(string sceneFileName) {
+            string scenePath = Path.Combine(CityProjectRootPath, "assets", "Scenes", sceneFileName);
             Assert.True(File.Exists(scenePath));
 
             using FileStream stream = File.OpenRead(scenePath);
@@ -306,27 +188,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Asserts all generated showcase cubes beneath the supplied scene share identity local orientation.
-        /// </summary>
-        /// <param name="sceneAsset">Scene asset whose cube entities should be inspected.</param>
-        /// <param name="cubeNamePrefix">Stable name prefix used by the generated cube entities.</param>
-        void AssertCubeOrientationsAreIdentity(SceneAsset sceneAsset, string cubeNamePrefix) {
-            if (sceneAsset == null) {
-                throw new ArgumentNullException(nameof(sceneAsset));
-            } else if (string.IsNullOrWhiteSpace(cubeNamePrefix)) {
-                throw new ArgumentException("Cube name prefix must be provided.", nameof(cubeNamePrefix));
-            }
-
-            List<SceneEntityAsset> cubeEntities = new List<SceneEntityAsset>();
-            CollectCubeEntities(sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>(), cubeNamePrefix, cubeEntities);
-
-            Assert.Equal(16, cubeEntities.Count);
-            for (int index = 0; index < cubeEntities.Count; index++) {
-                Assert.Equal(float4.Identity, cubeEntities[index].LocalOrientation);
-            }
-        }
-
-        /// <summary>
         /// Counts matching component records throughout one scene hierarchy.
         /// </summary>
         /// <param name="entities">Scene entities to inspect.</param>
@@ -357,63 +218,6 @@ namespace helengine.editor.tests {
             }
 
             return count;
-        }
-
-        /// <summary>
-        /// Finds one entity by exact display name within the supplied hierarchy.
-        /// </summary>
-        /// <param name="entities">Scene entities to inspect.</param>
-        /// <param name="entityName">Exact display name to locate.</param>
-        /// <returns>Matching scene entity when found; otherwise null.</returns>
-        SceneEntityAsset FindEntityByName(SceneEntityAsset[] entities, string entityName) {
-            if (entities == null) {
-                throw new ArgumentNullException(nameof(entities));
-            } else if (string.IsNullOrWhiteSpace(entityName)) {
-                throw new ArgumentException("Entity name must be provided.", nameof(entityName));
-            }
-
-            for (int index = 0; index < entities.Length; index++) {
-                SceneEntityAsset entity = entities[index];
-                if (entity == null) {
-                    continue;
-                } else if (string.Equals(entity.Name, entityName, StringComparison.Ordinal)) {
-                    return entity;
-                }
-
-                SceneEntityAsset childMatch = FindEntityByName(entity.Children ?? Array.Empty<SceneEntityAsset>(), entityName);
-                if (childMatch != null) {
-                    return childMatch;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Collects generated showcase cube entities from the supplied scene hierarchy.
-        /// </summary>
-        /// <param name="entities">Scene entities to inspect.</param>
-        /// <param name="cubeNamePrefix">Stable name prefix used by the generated cube entities.</param>
-        /// <param name="results">Destination list receiving matching cube entities.</param>
-        void CollectCubeEntities(SceneEntityAsset[] entities, string cubeNamePrefix, List<SceneEntityAsset> results) {
-            if (entities == null) {
-                throw new ArgumentNullException(nameof(entities));
-            } else if (string.IsNullOrWhiteSpace(cubeNamePrefix)) {
-                throw new ArgumentException("Cube name prefix must be provided.", nameof(cubeNamePrefix));
-            } else if (results == null) {
-                throw new ArgumentNullException(nameof(results));
-            }
-
-            for (int index = 0; index < entities.Length; index++) {
-                SceneEntityAsset entity = entities[index];
-                if (entity != null && !string.IsNullOrWhiteSpace(entity.Name) && entity.Name.StartsWith(cubeNamePrefix, StringComparison.Ordinal)) {
-                    results.Add(entity);
-                }
-
-                if (entity != null) {
-                    CollectCubeEntities(entity.Children ?? Array.Empty<SceneEntityAsset>(), cubeNamePrefix, results);
-                }
-            }
         }
     }
 }
