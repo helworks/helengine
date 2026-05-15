@@ -986,6 +986,26 @@ namespace helengine.editor {
                 return RemoveGeneratedIncludeLine(contents, "#include \"Entity.hpp\"");
             }
 
+            if (string.Equals(fileName, "EditorAssetBinarySerializer.hpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = Regex.Replace(
+                    contents,
+                    @"\s*static\s+.*ReadSceneEntityPlatformAddedComponentAssetCurrentVersion\(.*\);\r?\n?",
+                    string.Empty,
+                    RegexOptions.CultureInvariant);
+                updatedContents = Regex.Replace(
+                    updatedContents,
+                    @"\s*static\s+.*WriteSceneComponentAssetRecordCurrentVersion\(.*\);\r?\n?",
+                    string.Empty,
+                    RegexOptions.CultureInvariant);
+                return updatedContents;
+            }
+
+            if (string.Equals(fileName, "EditorAssetBinarySerializer.cpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = RemoveTrailingMethod(contents, "EditorAssetBinarySerializer::ReadSceneEntityPlatformAddedComponentAssetCurrentVersion");
+                updatedContents = RemoveTrailingMethod(updatedContents, "EditorAssetBinarySerializer::WriteSceneComponentAssetRecordCurrentVersion");
+                return updatedContents;
+            }
+
             if (string.Equals(fileName, "Entity.hpp", StringComparison.OrdinalIgnoreCase)) {
                 string updatedContents = RemoveGeneratedIncludeLine(contents, "#include \"Component.hpp\"");
                 updatedContents = RemoveGeneratedIncludeLine(updatedContents, "#include \"ComponentExecutionPolicy.hpp\"");

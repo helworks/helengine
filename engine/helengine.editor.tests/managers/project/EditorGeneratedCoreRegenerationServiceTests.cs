@@ -101,6 +101,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             symbol => Assert.Equal("HELENGINE_INPUT_KEYBOARD", symbol),
             symbol => Assert.Equal("HELENGINE_INPUT_MOUSE", symbol),
             symbol => Assert.Equal("DESKTOP_PLATFORM", symbol),
+            symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol, symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
     }
@@ -120,13 +121,19 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
-            Array.Empty<PlatformMediaProfileDefinition>());
+            Array.Empty<PlatformMediaProfileDefinition>(),
+            new RuntimeGenerationContract(
+                RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                false,
+                PackagedPathPolicy.RootedOrContentRelative));
 
         IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(definition);
 
         Assert.Collection(
             symbols,
             symbol => Assert.Equal("PS2_PLATFORM", symbol),
+            symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeMaterialResolutionCookedPlatformOwnedSymbol, symbol),
+            symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeAllowRootedPackagedPathsSymbol, symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
     }
@@ -153,6 +160,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Collection(
             symbols,
             symbol => Assert.Equal("PSP_PLATFORM", symbol),
+            symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol, symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
     }
@@ -1392,6 +1400,63 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string normalizedSource = File.ReadAllText(sourcePath);
         Assert.Contains("#include <cmath>", normalizedSource);
         Assert.Contains("double wrapped = std::fmod(static_cast<double>(time), duration);", normalizedSource);
+    }
+
+    /// <summary>
+    /// Verifies generated serializer normalization removes stray current-version adapter declarations and definitions that are not present in raw codegen output.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_removes_editor_asset_serializer_current_version_adapters() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-editor-asset-binary-serializer-current-version-adapters");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string headerPath = Path.Combine(generatedCoreRootPath, "EditorAssetBinarySerializer.hpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "EditorAssetBinarySerializer.cpp");
+        File.WriteAllText(
+            headerPath,
+            "class EngineBinaryReader;\n"
+            + "class EngineBinaryWriter;\n"
+            + "class SceneComponentAssetRecord;\n"
+            + "class SceneEntityPlatformAddedComponentAsset;\n"
+            + "class EditorAssetBinarySerializer {\n"
+            + "public:\n"
+            + "    static SceneEntityPlatformAddedComponentAsset* ReadSceneEntityPlatformAddedComponentAsset(EngineBinaryReader* reader, uint8_t sceneEntityPayloadVersion);\n"
+            + "    static SceneEntityPlatformAddedComponentAsset* ReadSceneEntityPlatformAddedComponentAssetCurrentVersion(EngineBinaryReader* reader);\n"
+            + "    static void WriteSceneComponentAssetRecord(EngineBinaryWriter* writer, SceneComponentAssetRecord* record, uint8_t sceneEntityPayloadVersion);\n"
+            + "    static void WriteSceneComponentAssetRecordCurrentVersion(EngineBinaryWriter* writer, SceneComponentAssetRecord* record);\n"
+            + "};\n");
+        File.WriteAllText(
+            sourcePath,
+            "#include \"EditorAssetBinarySerializer.hpp\"\n"
+            + "\n"
+            + "SceneEntityPlatformAddedComponentAsset* EditorAssetBinarySerializer::ReadSceneEntityPlatformAddedComponentAsset(EngineBinaryReader* reader, uint8_t sceneEntityPayloadVersion)\n"
+            + "{\n"
+            + "    return nullptr;\n"
+            + "}\n"
+            + "\n"
+            + "void EditorAssetBinarySerializer::WriteSceneComponentAssetRecord(EngineBinaryWriter* writer, SceneComponentAssetRecord* record, uint8_t sceneEntityPayloadVersion)\n"
+            + "{\n"
+            + "}\n"
+            + "\n"
+            + "SceneEntityPlatformAddedComponentAsset* EditorAssetBinarySerializer::ReadSceneEntityPlatformAddedComponentAssetCurrentVersion(EngineBinaryReader* reader)\n"
+            + "{\n"
+            + "    return ReadSceneEntityPlatformAddedComponentAsset(reader, SceneEntityPayloadVersion);\n"
+            + "}\n"
+            + "\n"
+            + "void EditorAssetBinarySerializer::WriteSceneComponentAssetRecordCurrentVersion(EngineBinaryWriter* writer, SceneComponentAssetRecord* record)\n"
+            + "{\n"
+            + "    WriteSceneComponentAssetRecord(writer, record, SceneEntityPayloadVersion);\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedHeader = File.ReadAllText(headerPath);
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.DoesNotContain("ReadSceneEntityPlatformAddedComponentAssetCurrentVersion", normalizedHeader);
+        Assert.DoesNotContain("WriteSceneComponentAssetRecordCurrentVersion", normalizedHeader);
+        Assert.DoesNotContain("ReadSceneEntityPlatformAddedComponentAssetCurrentVersion", normalizedSource);
+        Assert.DoesNotContain("WriteSceneComponentAssetRecordCurrentVersion", normalizedSource);
+        Assert.Contains("ReadSceneEntityPlatformAddedComponentAsset(EngineBinaryReader* reader, uint8_t sceneEntityPayloadVersion)", normalizedSource);
+        Assert.Contains("WriteSceneComponentAssetRecord(EngineBinaryWriter* writer, SceneComponentAssetRecord* record, uint8_t sceneEntityPayloadVersion)", normalizedSource);
     }
 
     /// <summary>
