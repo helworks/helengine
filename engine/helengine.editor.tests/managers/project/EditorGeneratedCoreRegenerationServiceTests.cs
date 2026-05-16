@@ -725,6 +725,73 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated runtime scene resolver rewrites survive the current generated formatting and add transient asset release guards.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_runtime_scene_asset_reference_resolver_transient_asset_ownership_for_current_generated_shape() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-runtime-scene-asset-reference-resolver-current-shape");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string runtimeSceneAssetReferenceResolverPath = Path.Combine(generatedCoreRootPath, "RuntimeSceneAssetReferenceResolver.cpp");
+
+        File.WriteAllText(
+            runtimeSceneAssetReferenceResolverPath,
+            "#include \"RuntimeSceneAssetReferenceResolver.hpp\"\n"
+            + "::RuntimeMaterial* RuntimeSceneAssetReferenceResolver::ResolveMaterial(::SceneAssetReference* reference)\n"
+            + "{\n"
+            + "const std::string fullPath = this->ResolveFileBackedAssetPath(reference);\n"
+            + "::MaterialAsset *materialAsset = this->AssetContentManager->Load<MaterialAsset*>(fullPath, RuntimeContentProcessorIds::MaterialAsset);\n"
+            + "::ShaderAsset *shaderAsset = this->AssetContentManager->Load<ShaderAsset*>(this->ResolveShaderPackagePath(materialAsset->ShaderAssetId), RuntimeContentProcessorIds::ShaderAsset);\n"
+            + "::RuntimeMaterial *runtimeMaterial = Core::get_Instance()->get_RenderManager3D()->BuildMaterialFromRaw(materialAsset, shaderAsset);\n"
+            + "this->TrackOwnedMaterial(runtimeMaterial);\n"
+            + "this->ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);\n"
+            + "return runtimeMaterial;}\n"
+            + "::RuntimeModel* RuntimeSceneAssetReferenceResolver::ResolveModel(::SceneAssetReference* reference)\n"
+            + "{\n"
+            + "const std::string fullPath = this->ResolveFileBackedAssetPath(reference);\n"
+            + "::ModelAsset *modelAsset = this->AssetContentManager->Load<ModelAsset*>(fullPath, RuntimeContentProcessorIds::ModelAsset);\n"
+            + "::RuntimeModel *runtimeModel = Core::get_Instance()->get_RenderManager3D()->BuildModelFromRaw(modelAsset);\n"
+            + "this->TrackOwnedModel(runtimeModel);\n"
+            + "return runtimeModel;}\n"
+            + "::RuntimeTexture* RuntimeSceneAssetReferenceResolver::ResolveTexture(::SceneAssetReference* reference)\n"
+            + "{\n"
+            + "const std::string fullPath = this->ResolveFileBackedAssetPath(reference);\n"
+            + "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(fullPath, RuntimeContentProcessorIds::TextureAsset);\n"
+            + "::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\n"
+            + "this->TrackOwnedTexture(runtimeTexture);\n"
+            + "return runtimeTexture;}\n"
+            + "void RuntimeSceneAssetReferenceResolver::ApplyMaterialDiffuseTexture(::RuntimeMaterial* runtimeMaterial, ::MaterialAsset* materialAsset, std::string materialPath)\n"
+            + "{\n"
+            + "    if (this->TryResolveSourceTexturePath(materialPath, materialAsset->DiffuseTextureAssetId, diffuseTexturePath))\n"
+            + "    {\n"
+            + "::TextureAsset *sourceTextureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\n"
+            + "::RuntimeTexture *sourceRuntimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(sourceTextureAsset);\n"
+            + "this->TrackOwnedTexture(sourceRuntimeTexture);\n"
+            + "runtimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, sourceRuntimeTexture);\n"
+            + "return;    }\n"
+            + "diffuseTexturePath = this->ResolveImportedTexturePackagePath(materialAsset->DiffuseTextureAssetId);\n"
+            + "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\n"
+            + "::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\n"
+            + "this->TrackOwnedTexture(runtimeTexture);\n"
+            + "runtimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, runtimeTexture);\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "psp");
+
+        string normalizedRuntimeSceneAssetReferenceResolver = File.ReadAllText(runtimeSceneAssetReferenceResolverPath);
+
+        Assert.Contains("__releaseMaterialAssetGuard", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.Contains("__releaseShaderAssetGuard", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.Contains("__releaseModelAssetGuard", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.Contains("__releaseTextureAssetGuard", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.Contains("__releaseSourceTextureAssetGuard", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.Contains("ReleaseTransientMaterialAsset(materialAsset);", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.Contains("ReleaseTransientShaderAsset(shaderAsset);", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.Contains("ReleaseTransientModelAsset(modelAsset);", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.Contains("ReleaseTransientTextureAsset(textureAsset);", normalizedRuntimeSceneAssetReferenceResolver);
+        Assert.Contains("ReleaseTransientTextureAsset(sourceTextureAsset);", normalizedRuntimeSceneAssetReferenceResolver);
+    }
+
+    /// <summary>
     /// Verifies generated dictionary runtime support gains a Clear helper required by converted menu code.
     /// </summary>
     [Fact]

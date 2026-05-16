@@ -1640,27 +1640,46 @@ namespace {
 """);
             }
 
-            updatedContents = updatedContents.Replace(
-                "::MaterialAsset *materialAsset = this->AssetContentManager->Load<MaterialAsset*>(fullPath, RuntimeContentProcessorIds::MaterialAsset);\n::ShaderAsset *shaderAsset = this->AssetContentManager->Load<ShaderAsset*>(this->ResolveShaderPackagePath(materialAsset->ShaderAssetId), RuntimeContentProcessorIds::ShaderAsset);\n::RuntimeMaterial *runtimeMaterial = Core::get_Instance()->get_RenderManager3D()->BuildMaterialFromRaw(materialAsset, shaderAsset);\nthis->TrackOwnedMaterial(runtimeMaterial);\nthis->ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);\nreturn runtimeMaterial;}",
-                "::MaterialAsset *materialAsset = this->AssetContentManager->Load<MaterialAsset*>(fullPath, RuntimeContentProcessorIds::MaterialAsset);\nauto __releaseMaterialAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientMaterialAsset(materialAsset);\n});\n::ShaderAsset *shaderAsset = this->AssetContentManager->Load<ShaderAsset*>(this->ResolveShaderPackagePath(materialAsset->ShaderAssetId), RuntimeContentProcessorIds::ShaderAsset);\nauto __releaseShaderAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientShaderAsset(shaderAsset);\n});\n::RuntimeMaterial *runtimeMaterial = Core::get_Instance()->get_RenderManager3D()->BuildMaterialFromRaw(materialAsset, shaderAsset);\nthis->TrackOwnedMaterial(runtimeMaterial);\nthis->ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);\nreturn runtimeMaterial;}",
-                StringComparison.Ordinal);
-            updatedContents = updatedContents.Replace(
-                "::ModelAsset *modelAsset = this->AssetContentManager->Load<ModelAsset*>(fullPath, RuntimeContentProcessorIds::ModelAsset);\n::RuntimeModel *runtimeModel = Core::get_Instance()->get_RenderManager3D()->BuildModelFromRaw(modelAsset);\nthis->TrackOwnedModel(runtimeModel);\nreturn runtimeModel;}",
-                "::ModelAsset *modelAsset = this->AssetContentManager->Load<ModelAsset*>(fullPath, RuntimeContentProcessorIds::ModelAsset);\nauto __releaseModelAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientModelAsset(modelAsset);\n});\n::RuntimeModel *runtimeModel = Core::get_Instance()->get_RenderManager3D()->BuildModelFromRaw(modelAsset);\nthis->TrackOwnedModel(runtimeModel);\nreturn runtimeModel;}",
-                StringComparison.Ordinal);
-            updatedContents = updatedContents.Replace(
-                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(fullPath, RuntimeContentProcessorIds::TextureAsset);\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nreturn runtimeTexture;}",
-                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(fullPath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(textureAsset);\n});\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nreturn runtimeTexture;}",
-                StringComparison.Ordinal);
-            updatedContents = updatedContents.Replace(
-                "::TextureAsset *sourceTextureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\n::RuntimeTexture *sourceRuntimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(sourceTextureAsset);\nthis->TrackOwnedTexture(sourceRuntimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, sourceRuntimeTexture);\nreturn;    }",
-                "::TextureAsset *sourceTextureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseSourceTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(sourceTextureAsset);\n});\n::RuntimeTexture *sourceRuntimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(sourceTextureAsset);\nthis->TrackOwnedTexture(sourceRuntimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, sourceRuntimeTexture);\nreturn;    }",
-                StringComparison.Ordinal);
-            updatedContents = updatedContents.Replace(
-                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, runtimeTexture);\n}",
-                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(textureAsset);\n});\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, runtimeTexture);\n}",
-                StringComparison.Ordinal);
+            updatedContents = RewriteGeneratedRuntimeSceneResolverSnippet(
+                updatedContents,
+                @"::MaterialAsset \*materialAsset = this->AssetContentManager->Load<MaterialAsset\*>\(fullPath, RuntimeContentProcessorIds::MaterialAsset\);\s*::ShaderAsset \*shaderAsset = this->AssetContentManager->Load<ShaderAsset\*>\(this->ResolveShaderPackagePath\(materialAsset->ShaderAssetId\), RuntimeContentProcessorIds::ShaderAsset\);\s*::RuntimeMaterial \*runtimeMaterial = Core::get_Instance\(\)->get_RenderManager3D\(\)->BuildMaterialFromRaw\(materialAsset, shaderAsset\);\s*this->TrackOwnedMaterial\(runtimeMaterial\);\s*this->ApplyMaterialDiffuseTexture\(runtimeMaterial, materialAsset, fullPath\);\s*return runtimeMaterial;\}",
+                "::MaterialAsset *materialAsset = this->AssetContentManager->Load<MaterialAsset*>(fullPath, RuntimeContentProcessorIds::MaterialAsset);\nauto __releaseMaterialAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientMaterialAsset(materialAsset);\n});\n::ShaderAsset *shaderAsset = this->AssetContentManager->Load<ShaderAsset*>(this->ResolveShaderPackagePath(materialAsset->ShaderAssetId), RuntimeContentProcessorIds::ShaderAsset);\nauto __releaseShaderAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientShaderAsset(shaderAsset);\n});\n::RuntimeMaterial *runtimeMaterial = Core::get_Instance()->get_RenderManager3D()->BuildMaterialFromRaw(materialAsset, shaderAsset);\nthis->TrackOwnedMaterial(runtimeMaterial);\nthis->ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);\nreturn runtimeMaterial;}");
+            updatedContents = RewriteGeneratedRuntimeSceneResolverSnippet(
+                updatedContents,
+                @"::ModelAsset \*modelAsset = this->AssetContentManager->Load<ModelAsset\*>\(fullPath, RuntimeContentProcessorIds::ModelAsset\);\s*::RuntimeModel \*runtimeModel = Core::get_Instance\(\)->get_RenderManager3D\(\)->BuildModelFromRaw\(modelAsset\);\s*this->TrackOwnedModel\(runtimeModel\);\s*return runtimeModel;\}",
+                "::ModelAsset *modelAsset = this->AssetContentManager->Load<ModelAsset*>(fullPath, RuntimeContentProcessorIds::ModelAsset);\nauto __releaseModelAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientModelAsset(modelAsset);\n});\n::RuntimeModel *runtimeModel = Core::get_Instance()->get_RenderManager3D()->BuildModelFromRaw(modelAsset);\nthis->TrackOwnedModel(runtimeModel);\nreturn runtimeModel;}");
+            updatedContents = RewriteGeneratedRuntimeSceneResolverSnippet(
+                updatedContents,
+                @"::TextureAsset \*textureAsset = this->AssetContentManager->Load<TextureAsset\*>\(fullPath, RuntimeContentProcessorIds::TextureAsset\);\s*::RuntimeTexture \*runtimeTexture = Core::get_Instance\(\)->get_RenderManager2D\(\)->BuildTextureFromRaw\(textureAsset\);\s*this->TrackOwnedTexture\(runtimeTexture\);\s*return runtimeTexture;\}",
+                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(fullPath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(textureAsset);\n});\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nreturn runtimeTexture;}");
+            updatedContents = RewriteGeneratedRuntimeSceneResolverSnippet(
+                updatedContents,
+                @"::TextureAsset \*sourceTextureAsset = this->AssetContentManager->Load<TextureAsset\*>\(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset\);\s*::RuntimeTexture \*sourceRuntimeTexture = Core::get_Instance\(\)->get_RenderManager2D\(\)->BuildTextureFromRaw\(sourceTextureAsset\);\s*this->TrackOwnedTexture\(sourceRuntimeTexture\);\s*runtimeMaterial->get_Properties\(\)->SetTexture\(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, sourceRuntimeTexture\);\s*return;\s*\}",
+                "::TextureAsset *sourceTextureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseSourceTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(sourceTextureAsset);\n});\n::RuntimeTexture *sourceRuntimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(sourceTextureAsset);\nthis->TrackOwnedTexture(sourceRuntimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, sourceRuntimeTexture);\nreturn;    }");
+            updatedContents = RewriteGeneratedRuntimeSceneResolverSnippet(
+                updatedContents,
+                @"::TextureAsset \*textureAsset = this->AssetContentManager->Load<TextureAsset\*>\(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset\);\s*::RuntimeTexture \*runtimeTexture = Core::get_Instance\(\)->get_RenderManager2D\(\)->BuildTextureFromRaw\(textureAsset\);\s*this->TrackOwnedTexture\(runtimeTexture\);\s*runtimeMaterial->get_Properties\(\)->SetTexture\(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, runtimeTexture\);\s*\}",
+                "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(textureAsset);\n});\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, runtimeTexture);\n}");
             return updatedContents;
+        }
+
+        /// <summary>
+        /// Rewrites one generated runtime scene resolver code block using a structural pattern that tolerates formatting drift.
+        /// </summary>
+        /// <param name="contents">Current generated source.</param>
+        /// <param name="pattern">Structural pattern describing the stale generated block.</param>
+        /// <param name="replacement">Replacement block that adds temporary asset release guards.</param>
+        /// <returns>Updated generated source.</returns>
+        static string RewriteGeneratedRuntimeSceneResolverSnippet(string contents, string pattern, string replacement) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            return Regex.Replace(
+                contents,
+                pattern,
+                replacement,
+                RegexOptions.CultureInvariant);
         }
 
         /// <summary>
