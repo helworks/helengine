@@ -374,6 +374,51 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies scene-referenced compatibility component ids that already have built-in runtime deserializers do not emit duplicate generated registrations.
+    /// </summary>
+    [Fact]
+    public void Emit_cooked_scene_automatic_runtime_component_deserializers_skips_engine_owned_compatibility_type_ids() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-compatibility-skip");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.cpp"),
+            "#include \"RuntimeComponentRegistry.hpp\"" + Environment.NewLine
+            + "::RuntimeComponentRegistry* RuntimeComponentRegistry::CreateDefault()" + Environment.NewLine
+            + "{" + Environment.NewLine
+            + "::RuntimeComponentRegistry *registry = new ::RuntimeComponentRegistry();" + Environment.NewLine
+            + "return registry;}" + Environment.NewLine);
+
+        string scenePath = Path.Combine(RootPath, "compatibility-component-scene.hasset");
+        using (FileStream stream = File.Create(scenePath)) {
+            AssetSerializer.Serialize(
+                stream,
+                new SceneAsset {
+                    RootEntities = [
+                        new SceneEntityAsset {
+                            Components = [
+                                new SceneComponentAssetRecord {
+                                    ComponentTypeId = "city.menu.DemoDiscReturnToMenuComponent, gameplay",
+                                    Payload = Array.Empty<byte>()
+                                }
+                            ]
+                        }
+                    ]
+                });
+        }
+
+        DictionaryScriptTypeResolver scriptTypeResolver = new DictionaryScriptTypeResolver();
+        scriptTypeResolver.Register("city.menu.DemoDiscReturnToMenuComponent, gameplay", typeof(TestUpdateOnlyScriptComponent));
+
+        EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            [scenePath],
+            scriptTypeResolver);
+
+        string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
+        Assert.DoesNotContain("GeneratedRuntimeTestUpdateOnlyScriptComponentDeserializer", registrationSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies cooked scenes that serialize scripted component ids infer the owning runtime module assembly names.
     /// </summary>
     [Fact]
@@ -623,6 +668,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("InputGamepadState PreviousGamepadState;", normalizedHeader);
         Assert.Contains("InputGamepadState ReadPrimaryGamepadState(InputSystem* inputSystem);", normalizedHeader);
         Assert.Contains("#include \"RuntimeContentProcessorIds.hpp\"", normalizedSource);
+        Assert.Contains("#include \"PlatformMenuSceneResolver.hpp\"", normalizedSource);
         Assert.Contains("InputSystem *inputSystem = Core::get_Instance() != nullptr ? Core::get_Instance()->get_Input() : nullptr;", normalizedSource);
         Assert.Contains("this->PreviousGamepadState = InputGamepadState();", normalizedSource);
         Assert.Contains("InputGamepadState currentGamepadState = this->ReadPrimaryGamepadState(inputSystem);", normalizedSource);
@@ -630,9 +676,9 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("#else", normalizedSource);
         Assert.Contains("#endif", normalizedSource);
         Assert.DoesNotContain("ComponentExecutionContext::get_CurrentMode() == ComponentExecutionMode::Editor", normalizedSource);
-        Assert.Contains("Core::get_Instance()->get_InitializationOptions()->get_ScenePathResolver()->ResolveScenePath(MainMenuSceneId);", normalizedSource);
+        Assert.Contains("Core::get_Instance()->get_InitializationOptions()->get_ScenePathResolver()->ResolveScenePath(PlatformMenuSceneResolver::ResolveMainMenuSceneId());", normalizedSource);
         Assert.Contains("Core::get_Instance()->get_ContentManager()->Load<SceneAsset*>(resolvedScenePath, RuntimeContentProcessorIds::SceneAsset);", normalizedSource);
-        Assert.Contains("Core::get_Instance()->get_SceneManager()->LoadScene(MainMenuSceneId, SceneLoadMode::Single);", normalizedSource);
+        Assert.Contains("Core::get_Instance()->get_SceneManager()->LoadScene(PlatformMenuSceneResolver::ResolveMainMenuSceneId(), SceneLoadMode::Single);", normalizedSource);
         Assert.Contains("Parent->set_Enabled(false);", normalizedSource);
         Assert.Contains("#if DESKTOP_PLATFORM", normalizedSource);
         Assert.Contains("Keys::Escape", normalizedSource);

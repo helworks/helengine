@@ -6,6 +6,16 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorBuildQueueItemFactory {
         /// <summary>
+        /// Stores the Nintendo DS platform id that forces the demo-disc main menu to become the startup scene.
+        /// </summary>
+        const string NintendoDsPlatformId = "ds";
+
+        /// <summary>
+        /// Stores the project scene id that Nintendo DS builds must stage first as their startup scene.
+        /// </summary>
+        const string NintendoDsStartupSceneId = PlatformMenuSceneResolver.NintendoDsMainMenuSceneId;
+
+        /// <summary>
         /// Project scene catalog used to preserve stable scene ordering.
         /// </summary>
         readonly EditorProjectSceneCatalogService SceneCatalogService;
@@ -42,6 +52,7 @@ namespace helengine.editor {
             EnsurePlatformSelectionDefaults(platformConfig, selectionModel);
             EnsureSelectedScenes(platformConfig);
             List<string> orderedSceneIds = BuildOrderedSceneIds(platformConfig, platformConfig.SelectedSceneIds);
+            ApplyPlatformStartupSceneOverrides(platformConfig.PlatformId, orderedSceneIds);
             if (orderedSceneIds.Count == 0) {
                 throw new InvalidOperationException($"Platform '{platformConfig.PlatformId}' does not have any selected scenes.");
             }
@@ -52,6 +63,7 @@ namespace helengine.editor {
                 SelectedSceneIds = orderedSceneIds,
                 OutputDirectoryPath = Path.GetFullPath(outputDirectoryPath),
                 DebugBuild = platformConfig.DebugBuild,
+                ExecutionMode = EditorBuildExecutionMode.Runtime,
                 SelectedBuildProfileId = platformConfig.SelectedBuildProfileId,
                 SelectedGraphicsProfileId = platformConfig.SelectedGraphicsProfileId,
                 SelectedBuildOptionValues = new Dictionary<string, string>(platformConfig.SelectedBuildOptionValues ?? new Dictionary<string, string>()),
@@ -312,6 +324,44 @@ namespace helengine.editor {
             });
 
             return orderedSceneIds;
+        }
+
+        /// <summary>
+        /// Applies any platform-specific startup scene overrides to the ordered scene list.
+        /// </summary>
+        /// <param name="platformId">Platform identifier selected for the queued build.</param>
+        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
+        void ApplyPlatformStartupSceneOverrides(string platformId, List<string> orderedSceneIds) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+            if (!string.Equals(platformId, NintendoDsPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            EnsureNintendoDsStartupSceneFirst(orderedSceneIds);
+        }
+
+        /// <summary>
+        /// Ensures Nintendo DS builds always cook and stage the demo-disc main menu scene first.
+        /// </summary>
+        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
+        void EnsureNintendoDsStartupSceneFirst(List<string> orderedSceneIds) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+
+            int startupSceneIndex = IndexOf(orderedSceneIds, NintendoDsStartupSceneId);
+            if (startupSceneIndex < 0) {
+                orderedSceneIds.Insert(0, NintendoDsStartupSceneId);
+                return;
+            }
+            if (startupSceneIndex == 0) {
+                return;
+            }
+
+            orderedSceneIds.RemoveAt(startupSceneIndex);
+            orderedSceneIds.Insert(0, NintendoDsStartupSceneId);
         }
 
         /// <summary>

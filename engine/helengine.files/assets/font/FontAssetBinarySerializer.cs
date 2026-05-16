@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current packaged font payload layout.
         /// </summary>
-        public const byte CurrentVersion = 2;
+        public const byte CurrentVersion = 4;
 
         /// <summary>
         /// Payload endianness used by packaged font assets.
@@ -67,6 +67,9 @@ namespace helengine.files {
             writer.WriteInt64(unchecked((long)asset.SourceTextureAsset.RuntimeAssetId));
             writer.WriteUInt16(asset.SourceTextureAsset.Width);
             writer.WriteUInt16(asset.SourceTextureAsset.Height);
+            writer.WriteByte((byte)asset.SourceTextureAsset.ColorFormat);
+            writer.WriteByte((byte)asset.SourceTextureAsset.AlphaPrecision);
+            writer.WriteByteArray(asset.SourceTextureAsset.PaletteColors);
             writer.WriteByteArray(asset.SourceTextureAsset.Colors);
 
             KeyValuePair<char, FontChar>[] characters = asset.Characters == null

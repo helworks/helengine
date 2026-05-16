@@ -92,6 +92,28 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(referenceResolver));
             }
 
+            try {
+                return DeserializeTaggedComponent(record, saveComponent, referenceResolver);
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                if (TryDeserializeCookedRuntimeComponent(record, saveComponent, referenceResolver, out SpriteComponent cookedRuntimeComponent)) {
+                    return cookedRuntimeComponent;
+                }
+
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Deserializes one authored tagged sprite payload back into a live runtime component.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <param name="saveComponent">Hidden entity save component that should receive restored metadata.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime asset references.</param>
+        /// <returns>Live sprite component reconstructed from the tagged editor payload.</returns>
+        SpriteComponent DeserializeTaggedComponent(
+            SceneComponentAssetRecord record,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver) {
             SpriteComponent spriteComponent = new SpriteComponent();
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             if (reader.TryGetFieldReader(SourceRectFieldName, out EngineBinaryReader sourceRectReader)) {
@@ -141,6 +163,53 @@ namespace helengine.editor {
             }
 
             return spriteComponent;
+        }
+
+        /// <summary>
+        /// Attempts to deserialize one strict cooked-runtime sprite payload written by the scene packager.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <param name="saveComponent">Hidden entity save component that should receive restored metadata.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime asset references.</param>
+        /// <param name="spriteComponent">Cooked-runtime sprite component when deserialization succeeds.</param>
+        /// <returns>True when the payload matched the cooked runtime layout; otherwise false.</returns>
+        bool TryDeserializeCookedRuntimeComponent(
+            SceneComponentAssetRecord record,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver,
+            out SpriteComponent spriteComponent) {
+            spriteComponent = new SpriteComponent();
+            try {
+                using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+                using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+                byte version = reader.ReadByte();
+                if (version != 1) {
+                    spriteComponent = null;
+                    return false;
+                }
+
+                SceneAssetReference textureReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
+                spriteComponent.SourceRect = reader.ReadFloat4();
+                spriteComponent.Size = reader.ReadInt2();
+                spriteComponent.Color = SceneComponentBinaryFieldEncoding.ReadByte4(reader);
+                spriteComponent.Rotation = reader.ReadSingle();
+                spriteComponent.RenderOrder2D = reader.ReadByte();
+                spriteComponent.LayerMask = reader.ReadByte();
+
+                if (textureReference == null) {
+                    throw new InvalidOperationException("SpriteComponent requires a texture asset reference before deserialization.");
+                }
+
+                spriteComponent.Texture = referenceResolver.ResolveTexture(textureReference);
+                if (saveComponent != null) {
+                    saveComponent.SetAssetReference(spriteComponent, TextureAssetScenePersistenceSupport.TextureReferenceName, textureReference);
+                }
+
+                return true;
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                spriteComponent = null;
+                return false;
+            }
         }
     }
 }

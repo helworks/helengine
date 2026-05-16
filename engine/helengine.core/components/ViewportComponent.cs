@@ -1,8 +1,8 @@
 namespace helengine {
     /// <summary>
-    /// Exposes a reusable logical viewport that can follow the current screen or an ancestor camera.
+    /// Exposes a reusable logical viewport that can follow the current screen or a camera and can optionally scale one authored subtree against a reference canvas.
     /// </summary>
-    public class ViewportComponent : Component, IAnchorBoundsProvider {
+    public class ViewportComponent : UpdateComponent, IAnchorBoundsProvider, ICameraBoundViewportOwner {
         /// <summary>
         /// Binding mode that resolves the viewport from the current screen size.
         /// </summary>
@@ -19,6 +19,21 @@ namespace helengine {
         public const byte FixedBindingMode = 2;
 
         /// <summary>
+        /// Binding mode that resolves the viewport from one explicitly assigned camera component.
+        /// </summary>
+        public const byte ExplicitCameraBindingMode = 3;
+
+        /// <summary>
+        /// Scaling mode that leaves authored positions and sizes unchanged.
+        /// </summary>
+        public const byte NoScalingMode = 0;
+
+        /// <summary>
+        /// Scaling mode that fits the authored subtree into the resolved viewport using one reference canvas.
+        /// </summary>
+        public const byte ReferenceCanvasScalingMode = 1;
+
+        /// <summary>
         /// Stores the selected viewport binding mode.
         /// </summary>
         byte BindingModeValue;
@@ -29,14 +44,59 @@ namespace helengine {
         int2 FixedSizeValue;
 
         /// <summary>
-        /// Tracks the nearest ancestor camera currently driving this viewport.
+        /// Stores the active camera currently driving this viewport.
         /// </summary>
-        CameraComponent BoundCameraComponentValue;
+        CameraComponent ActiveCameraComponentValue;
+
+        /// <summary>
+        /// Stores the explicitly assigned camera used by the explicit camera binding mode.
+        /// </summary>
+        CameraComponent ExplicitBoundCameraComponentValue;
+
+        /// <summary>
+        /// Stores the selected scaling mode.
+        /// </summary>
+        byte ScalingModeValue;
+
+        /// <summary>
+        /// Stores the authored reference canvas width used by viewport-owned scaling.
+        /// </summary>
+        int ReferenceWidthValue;
+
+        /// <summary>
+        /// Stores the authored reference canvas height used by viewport-owned scaling.
+        /// </summary>
+        int ReferenceHeightValue;
+
+        /// <summary>
+        /// Stores the authored layout snapshots captured for the current subtree.
+        /// </summary>
+        readonly List<ViewportLayoutSnapshot> LayoutSnapshotsValue;
 
         /// <summary>
         /// Tracks whether the component is subscribed to screen resize events.
         /// </summary>
         bool IsSubscribedToWindowResizeValue;
+
+        /// <summary>
+        /// Tracks whether the authored subtree should be re-evaluated on the next update.
+        /// </summary>
+        bool PendingScaleApplyValue;
+
+        /// <summary>
+        /// Tracks the number of entities captured in the current viewport scaling snapshot set.
+        /// </summary>
+        int SnapshotEntityCountValue;
+
+        /// <summary>
+        /// Tracks the current anchor space exposed to descendants when viewport scaling is active.
+        /// </summary>
+        AnchorSpace CurrentAnchorSpaceValue;
+
+        /// <summary>
+        /// Tracks the current origin applied to the scaled subtree root.
+        /// </summary>
+        float2 CurrentCanvasOriginValue;
 
         /// <summary>
         /// Raises when the resolved viewport bounds change.
@@ -49,6 +109,11 @@ namespace helengine {
         public ViewportComponent() {
             BindingModeValue = ScreenBindingMode;
             FixedSizeValue = new int2(SceneCanvasProfile.DefaultWidth, SceneCanvasProfile.DefaultHeight);
+            ReferenceWidthValue = SceneCanvasProfile.DefaultWidth;
+            ReferenceHeightValue = SceneCanvasProfile.DefaultHeight;
+            LayoutSnapshotsValue = new List<ViewportLayoutSnapshot>();
+            CurrentAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
+            CurrentCanvasOriginValue = new float2(0f, 0f);
         }
 
         /// <summary>
@@ -60,6 +125,7 @@ namespace helengine {
                 if (BindingModeValue != value) {
                     BindingModeValue = value;
                     RefreshSubscriptions();
+                    PendingScaleApplyValue = true;
                     RaiseAnchorBoundsChanged();
                 }
             }
@@ -73,6 +139,72 @@ namespace helengine {
             set {
                 if (FixedSizeValue.X != value.X || FixedSizeValue.Y != value.Y) {
                     FixedSizeValue = value;
+                    PendingScaleApplyValue = true;
+                    RaiseAnchorBoundsChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the scaling mode used to adapt the authored subtree to the resolved viewport.
+        /// </summary>
+        public byte ScalingMode {
+            get { return ScalingModeValue; }
+            set {
+                if (ScalingModeValue != value) {
+                    ScalingModeValue = value;
+                    PendingScaleApplyValue = true;
+                    RaiseAnchorBoundsChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the authored reference canvas width used by viewport-owned scaling.
+        /// </summary>
+        public int ReferenceWidth {
+            get { return ReferenceWidthValue; }
+            set {
+                if (value < 1) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Reference width must be at least one.");
+                }
+                if (ReferenceWidthValue != value) {
+                    ReferenceWidthValue = value;
+                    PendingScaleApplyValue = true;
+                    RaiseAnchorBoundsChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the authored reference canvas height used by viewport-owned scaling.
+        /// </summary>
+        public int ReferenceHeight {
+            get { return ReferenceHeightValue; }
+            set {
+                if (value < 1) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Reference height must be at least one.");
+                }
+                if (ReferenceHeightValue != value) {
+                    ReferenceHeightValue = value;
+                    PendingScaleApplyValue = true;
+                    RaiseAnchorBoundsChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the explicitly assigned camera used by the explicit camera binding mode.
+        /// This live binding is runtime-only and is excluded from reflected scene persistence.
+        /// </summary>
+        [ScenePersistenceIgnore]
+        public CameraComponent BoundCameraComponent {
+            get { return ExplicitBoundCameraComponentValue; }
+            set {
+                if (!ReferenceEquals(ExplicitBoundCameraComponentValue, value)) {
+                    ExplicitBoundCameraComponentValue = value;
+                    RefreshSubscriptions();
+                    PendingScaleApplyValue = true;
                     RaiseAnchorBoundsChanged();
                 }
             }
@@ -84,6 +216,10 @@ namespace helengine {
         public AnchorSpace AnchorSpace {
             get {
                 RefreshSubscriptions();
+                if (ScalingModeValue == ReferenceCanvasScalingMode) {
+                    return CurrentAnchorSpaceValue;
+                }
+
                 return new AnchorSpace(ResolveAnchorBounds(), new float2(0f, 0f));
             }
         }
@@ -95,6 +231,8 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
             RefreshSubscriptions();
+            RebuildSnapshots();
+            PendingScaleApplyValue = true;
         }
 
         /// <summary>
@@ -105,6 +243,9 @@ namespace helengine {
             base.ComponentRemoved(entity);
             DetachFromCamera();
             DetachFromWindowResize();
+            LayoutSnapshotsValue.Clear();
+            SnapshotEntityCountValue = 0;
+            PendingScaleApplyValue = false;
         }
 
         /// <summary>
@@ -116,10 +257,33 @@ namespace helengine {
 
             if (newEnabled) {
                 RefreshSubscriptions();
+                PendingScaleApplyValue = true;
                 RaiseAnchorBoundsChanged();
             } else {
                 DetachFromCamera();
                 DetachFromWindowResize();
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds viewport scaling snapshots after subtree changes and reapplies scaling when a pending layout invalidation exists.
+        /// </summary>
+        public override void Update() {
+            base.Update();
+
+            if (Parent == null || ScalingModeValue != ReferenceCanvasScalingMode) {
+                return;
+            }
+
+            int currentEntityCount = CountEntitiesRecursive(Parent);
+            if (currentEntityCount != SnapshotEntityCountValue) {
+                RebuildSnapshots();
+                PendingScaleApplyValue = true;
+            }
+
+            if (PendingScaleApplyValue) {
+                ApplyCurrentScale();
+                PendingScaleApplyValue = false;
             }
         }
 
@@ -133,9 +297,16 @@ namespace helengine {
             } else if (BindingModeValue == AncestorCameraBindingMode) {
                 DetachFromWindowResize();
                 CameraComponent nextCameraComponent = ResolveAncestorCameraComponent();
-                if (!ReferenceEquals(BoundCameraComponentValue, nextCameraComponent)) {
+                if (!ReferenceEquals(ActiveCameraComponentValue, nextCameraComponent)) {
                     DetachFromCamera();
-                    BoundCameraComponentValue = nextCameraComponent;
+                    ActiveCameraComponentValue = nextCameraComponent;
+                    AttachToCamera();
+                }
+            } else if (BindingModeValue == ExplicitCameraBindingMode) {
+                DetachFromWindowResize();
+                if (!ReferenceEquals(ActiveCameraComponentValue, ExplicitBoundCameraComponentValue)) {
+                    DetachFromCamera();
+                    ActiveCameraComponentValue = ExplicitBoundCameraComponentValue;
                     AttachToCamera();
                 }
             } else {
@@ -148,20 +319,20 @@ namespace helengine {
         /// Attaches to the current ancestor camera viewport changes when one exists.
         /// </summary>
         void AttachToCamera() {
-            if (BoundCameraComponentValue == null) {
+            if (ActiveCameraComponentValue == null) {
                 return;
             }
 
-            BoundCameraComponentValue.ViewportChanged += HandleCameraViewportChanged;
+            ActiveCameraComponentValue.ViewportChanged += HandleCameraViewportChanged;
         }
 
         /// <summary>
         /// Detaches from the current ancestor camera viewport changes when one is active.
         /// </summary>
         void DetachFromCamera() {
-            if (BoundCameraComponentValue != null) {
-                BoundCameraComponentValue.ViewportChanged -= HandleCameraViewportChanged;
-                BoundCameraComponentValue = null;
+            if (ActiveCameraComponentValue != null) {
+                ActiveCameraComponentValue.ViewportChanged -= HandleCameraViewportChanged;
+                ActiveCameraComponentValue = null;
             }
         }
 
@@ -203,6 +374,7 @@ namespace helengine {
         /// <param name="newWidth">Updated window width.</param>
         /// <param name="newHeight">Updated window height.</param>
         void HandleWindowResized(IntPtr handle, int newWidth, int newHeight) {
+            PendingScaleApplyValue = true;
             RaiseAnchorBoundsChanged();
         }
 
@@ -220,10 +392,10 @@ namespace helengine {
                 return FixedSizeValue;
             }
 
-            if (BindingModeValue == AncestorCameraBindingMode) {
-                CameraComponent cameraComponent = ResolveAncestorCameraComponent();
+            if (BindingModeValue == AncestorCameraBindingMode || BindingModeValue == ExplicitCameraBindingMode) {
+                CameraComponent cameraComponent = ResolveBoundCameraComponent();
                 if (cameraComponent != null) {
-                    float4 viewport = cameraComponent.Viewport;
+                    float4 viewport = ResolveCameraViewportBounds(cameraComponent);
                     int viewportWidth = Math.Max(1, (int)Math.Round(viewport.Z));
                     int viewportHeight = Math.Max(1, (int)Math.Round(viewport.W));
                     return new int2(viewportWidth, viewportHeight);
@@ -233,6 +405,55 @@ namespace helengine {
             }
 
             return FixedSizeValue;
+        }
+
+        /// <summary>
+        /// Resolves the active camera that should currently drive this viewport.
+        /// </summary>
+        /// <returns>Camera currently driving this viewport, or null when no binding is available.</returns>
+        CameraComponent ResolveBoundCameraComponent() {
+            if (BindingModeValue == ExplicitCameraBindingMode) {
+                return ExplicitBoundCameraComponentValue;
+            }
+
+            if (BindingModeValue == AncestorCameraBindingMode) {
+                return ResolveAncestorCameraComponent();
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the camera currently targeted by this viewport when the viewport is camera-bound.
+        /// Returns null when the viewport is screen-bound, fixed-size, or does not currently resolve a target camera.
+        /// </summary>
+        /// <returns>Resolved camera binding for rendering and layout decisions, or null when no camera is bound.</returns>
+        public CameraComponent GetBoundCameraComponent() {
+            RefreshSubscriptions();
+            return ResolveBoundCameraComponent();
+        }
+
+        /// <summary>
+        /// Resolves one camera viewport into pixel-space bounds suitable for layout calculations.
+        /// </summary>
+        /// <param name="cameraComponent">Camera whose viewport should be resolved.</param>
+        /// <returns>Viewport rectangle expressed in pixel-space coordinates when possible.</returns>
+        float4 ResolveCameraViewportBounds(CameraComponent cameraComponent) {
+            if (cameraComponent == null) {
+                throw new ArgumentNullException(nameof(cameraComponent));
+            }
+
+            float4 viewport = cameraComponent.Viewport;
+            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+                return viewport;
+            }
+
+            int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
+            if (mainWindowSize.X <= 0 || mainWindowSize.Y <= 0) {
+                return viewport;
+            }
+
+            return CameraViewportResolver.ResolveViewport(viewport, mainWindowSize.X, mainWindowSize.Y);
         }
 
         /// <summary>
@@ -255,6 +476,164 @@ namespace helengine {
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Rebuilds the authored snapshots for the current entity subtree when viewport-owned scaling is active.
+        /// </summary>
+        void RebuildSnapshots() {
+            LayoutSnapshotsValue.Clear();
+            if (Parent == null) {
+                SnapshotEntityCountValue = 0;
+                return;
+            }
+
+            CaptureSnapshotsRecursive(Parent, true);
+            SnapshotEntityCountValue = LayoutSnapshotsValue.Count;
+        }
+
+        /// <summary>
+        /// Recursively captures one entity subtree into immutable authored snapshots.
+        /// </summary>
+        /// <param name="entity">Current entity to capture.</param>
+        /// <param name="isRootEntity">True when the entity is the root of the scaled subtree.</param>
+        void CaptureSnapshotsRecursive(Entity entity, bool isRootEntity) {
+            LayoutSnapshotsValue.Add(new ViewportLayoutSnapshot(entity, isRootEntity));
+            if (entity.Children == null) {
+                return;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                CaptureSnapshotsRecursive(entity.Children[childIndex], false);
+            }
+        }
+
+        /// <summary>
+        /// Applies the current viewport-owned scale to the captured subtree.
+        /// </summary>
+        void ApplyCurrentScale() {
+            if (Parent == null || LayoutSnapshotsValue.Count == 0) {
+                return;
+            }
+
+            AnchorSpace resolvedAnchorSpace = ResolveCurrentAnchorSpace();
+            float2 resolvedCanvasOrigin = ResolveCurrentCanvasOrigin(resolvedAnchorSpace);
+            bool anchorSpaceChanged = DidAnchorSpaceChange(CurrentAnchorSpaceValue, resolvedAnchorSpace) ||
+                                      DidCanvasOriginChange(CurrentCanvasOriginValue, resolvedCanvasOrigin);
+
+            CurrentAnchorSpaceValue = resolvedAnchorSpace;
+            CurrentCanvasOriginValue = resolvedCanvasOrigin;
+            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                LayoutSnapshotsValue[snapshotIndex].Apply(resolvedAnchorSpace, resolvedCanvasOrigin, ReferenceWidthValue, ReferenceHeightValue);
+            }
+
+            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                LayoutSnapshotsValue[snapshotIndex].RefreshAnchoring();
+            }
+
+            if (anchorSpaceChanged) {
+                RaiseAnchorBoundsChanged();
+            }
+        }
+
+        /// <summary>
+        /// Resolves the current scaled anchor space from the live viewport bounds and the authored reference canvas.
+        /// </summary>
+        /// <returns>Anchor space that descendants should use for local anchoring.</returns>
+        AnchorSpace ResolveCurrentAnchorSpace() {
+            int2 viewportBounds = ResolveAnchorBounds();
+            double liveWidth = viewportBounds.X > 0 ? viewportBounds.X : ReferenceWidthValue;
+            double liveHeight = viewportBounds.Y > 0 ? viewportBounds.Y : ReferenceHeightValue;
+            if (LiveViewportMatchesReferenceAspect(liveWidth, liveHeight)) {
+                return new AnchorSpace(new int2((int)Math.Round(liveWidth), (int)Math.Round(liveHeight)), new float2(0f, 0f));
+            }
+
+            double widthScale = liveWidth / ReferenceWidthValue;
+            double heightScale = liveHeight / ReferenceHeightValue;
+            double scale = Math.Min(widthScale, heightScale);
+            if (scale <= 0d) {
+                return new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
+            }
+
+            int fittedWidth = Math.Max(1, (int)Math.Round(ReferenceWidthValue * scale));
+            int fittedHeight = Math.Max(1, (int)Math.Round(ReferenceHeightValue * scale));
+            return new AnchorSpace(new int2(fittedWidth, fittedHeight), new float2(0f, 0f));
+        }
+
+        /// <summary>
+        /// Resolves the root-entity offset that centers the scaled subtree inside the live viewport.
+        /// </summary>
+        /// <param name="anchorSpace">Current scaled anchor space.</param>
+        /// <returns>Root-entity offset applied to the scaled subtree.</returns>
+        float2 ResolveCurrentCanvasOrigin(AnchorSpace anchorSpace) {
+            int2 viewportBounds = ResolveAnchorBounds();
+            double liveWidth = viewportBounds.X > 0 ? viewportBounds.X : ReferenceWidthValue;
+            double liveHeight = viewportBounds.Y > 0 ? viewportBounds.Y : ReferenceHeightValue;
+            float originX = (float)((liveWidth - anchorSpace.Size.X) * 0.5d);
+            float originY = (float)((liveHeight - anchorSpace.Size.Y) * 0.5d);
+            return new float2(originX, originY);
+        }
+
+        /// <summary>
+        /// Determines whether the live viewport aspect matches the authored reference aspect closely enough to skip letterboxing.
+        /// </summary>
+        /// <param name="liveWidth">Live viewport width.</param>
+        /// <param name="liveHeight">Live viewport height.</param>
+        /// <returns>True when the viewport aspect is effectively the same as the reference aspect.</returns>
+        bool LiveViewportMatchesReferenceAspect(double liveWidth, double liveHeight) {
+            double expectedWidth = liveHeight * ReferenceWidthValue / ReferenceHeightValue;
+            double expectedHeight = liveWidth * ReferenceHeightValue / ReferenceWidthValue;
+            return Math.Abs(liveWidth - expectedWidth) <= 0.5d || Math.Abs(liveHeight - expectedHeight) <= 0.5d;
+        }
+
+        /// <summary>
+        /// Determines whether the effective anchor space changed between viewport scaling passes.
+        /// </summary>
+        /// <param name="currentAnchorSpace">Previously applied anchor space.</param>
+        /// <param name="resolvedAnchorSpace">Newly resolved anchor space.</param>
+        /// <returns>True when the size or origin changed.</returns>
+        bool DidAnchorSpaceChange(AnchorSpace currentAnchorSpace, AnchorSpace resolvedAnchorSpace) {
+            if (currentAnchorSpace == null) {
+                return true;
+            }
+
+            return currentAnchorSpace.Size.X != resolvedAnchorSpace.Size.X ||
+                   currentAnchorSpace.Size.Y != resolvedAnchorSpace.Size.Y ||
+                   currentAnchorSpace.Origin.X != resolvedAnchorSpace.Origin.X ||
+                   currentAnchorSpace.Origin.Y != resolvedAnchorSpace.Origin.Y;
+        }
+
+        /// <summary>
+        /// Determines whether the root origin changed between viewport scaling passes.
+        /// </summary>
+        /// <param name="currentCanvasOrigin">Previously applied root origin.</param>
+        /// <param name="resolvedCanvasOrigin">Newly resolved root origin.</param>
+        /// <returns>True when the root origin changed.</returns>
+        bool DidCanvasOriginChange(float2 currentCanvasOrigin, float2 resolvedCanvasOrigin) {
+            return currentCanvasOrigin.X != resolvedCanvasOrigin.X ||
+                   currentCanvasOrigin.Y != resolvedCanvasOrigin.Y;
+        }
+
+        /// <summary>
+        /// Counts one entity subtree recursively.
+        /// </summary>
+        /// <param name="entity">Root entity whose subtree should be counted.</param>
+        /// <returns>Total entity count including the supplied root.</returns>
+        int CountEntitiesRecursive(Entity entity) {
+            if (entity == null) {
+                return 0;
+            }
+
+            int count = 1;
+            if (entity.Children == null) {
+                return count;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                count += CountEntitiesRecursive(entity.Children[childIndex]);
+            }
+
+            return count;
         }
 
         /// <summary>

@@ -40,6 +40,30 @@ namespace helengine.editor {
         /// Deserializes one scene record back into a baked demo menu panel metadata component.
         /// </summary>
         public Component DeserializeComponent(SceneComponentAssetRecord record, EntitySaveComponent saveComponent, ISceneAssetReferenceResolver referenceResolver) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (!string.Equals(record.ComponentTypeId, ComponentTypeId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Menu panel descriptor cannot deserialize '{record.ComponentTypeId}'.");
+            }
+
+            try {
+                return DeserializeTaggedComponent(record);
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                if (TryDeserializeCookedRuntimeComponent(record, out MenuPanelComponent cookedRuntimeComponent)) {
+                    return cookedRuntimeComponent;
+                }
+
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Deserializes one authored tagged menu-panel payload back into a live runtime component.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <returns>Live menu-panel component reconstructed from the tagged editor payload.</returns>
+        MenuPanelComponent DeserializeTaggedComponent(SceneComponentAssetRecord record) {
             MenuPanelComponent component = new MenuPanelComponent();
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             if (reader.TryGetFieldReader(PanelIdFieldName, out EngineBinaryReader panelIdReader)) {
@@ -49,6 +73,22 @@ namespace helengine.editor {
             }
 
             return component;
+        }
+
+        /// <summary>
+        /// Attempts to deserialize one strict cooked-runtime menu-panel payload written by the scene packager.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <param name="component">Cooked-runtime menu-panel component when deserialization succeeds.</param>
+        /// <returns>True when the payload matched the cooked runtime layout; otherwise false.</returns>
+        bool TryDeserializeCookedRuntimeComponent(SceneComponentAssetRecord record, out MenuPanelComponent component) {
+            try {
+                component = (MenuPanelComponent)new RuntimeMenuPanelComponentDeserializer().Deserialize(record, null);
+                return true;
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                component = null;
+                return false;
+            }
         }
     }
 }

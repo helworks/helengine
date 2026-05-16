@@ -41,6 +41,11 @@ namespace helengine {
         /// <summary>
         /// The payload stores an <see cref="AnimationClipAsset"/>.
         /// </summary>
-        AnimationClipAsset = 8
+        AnimationClipAsset = 8,
+
+        /// <summary>
+        /// The payload stores a <see cref="PlatformMaterialAsset"/>.
+        /// </summary>
+        PlatformMaterialAsset = 9
     }
 }

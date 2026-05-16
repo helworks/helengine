@@ -121,6 +121,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Nintendo DS queued builds insert the demo-disc main menu scene first even when it was not selected explicitly.
+        /// </summary>
+        [Fact]
+        public void Create_WhenDsBuildOmitsDemoDiscMainMenu_InsertsItAsStartupScene() {
+            WriteScene("Scenes/ColoredCubeGrid.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "ds",
+                SelectedSceneIds = [
+                    "ColoredCubeGrid"
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
+            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal(new[] { "DemoDiscMainMenuDs", "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
         /// Writes one empty scene file that the scene catalog can enumerate.
         /// </summary>
         /// <param name="sceneId">Project-relative scene identifier to create.</param>

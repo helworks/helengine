@@ -17,6 +17,8 @@ public class PlatformDefinition {
     /// <param name="codegenProfiles">Codegen profiles exposed by the platform.</param>
     /// <param name="storageProfiles">Storage/runtime profiles exposed by the platform.</param>
     /// <param name="mediaProfiles">Media profiles exposed by the platform.</param>
+    /// <param name="runtimeGenerationContract">Cross-platform runtime-generation behavior exposed by the platform.</param>
+    /// <param name="hostDebugCapability">Cross-platform host-debug capability metadata exposed by the platform.</param>
     public PlatformDefinition(
         string platformId,
         string displayName,
@@ -27,7 +29,9 @@ public class PlatformDefinition {
         PlatformComponentSupportRule[] componentSupportRules,
         PlatformCodegenProfileDefinition[] codegenProfiles,
         PlatformStorageProfileDefinition[] storageProfiles,
-        PlatformMediaProfileDefinition[] mediaProfiles) {
+        PlatformMediaProfileDefinition[] mediaProfiles,
+        RuntimeGenerationContract runtimeGenerationContract = null,
+        PlatformHostDebugCapability hostDebugCapability = null) {
         if (string.IsNullOrWhiteSpace(platformId)) {
             throw new ArgumentException("Platform id is required.", nameof(platformId));
         } else if (string.IsNullOrWhiteSpace(displayName)) {
@@ -76,6 +80,38 @@ public class PlatformDefinition {
         CodegenProfiles = [.. codegenProfiles];
         StorageProfiles = [.. storageProfiles];
         MediaProfiles = [.. mediaProfiles];
+        RuntimeGenerationContract = runtimeGenerationContract ?? RuntimeGenerationContract.CreateDefault();
+        HostDebugCapability = hostDebugCapability ?? PlatformHostDebugCapability.CreateDefault();
+    }
+
+    /// <summary>
+    /// Initializes one platform definition without any media profiles.
+    /// </summary>
+    public PlatformDefinition(
+        string platformId,
+        string displayName,
+        PlatformBuildProfileDefinition[] buildProfiles,
+        PlatformGraphicsProfileDefinition[] graphicsProfiles,
+        PlatformAssetRequirementDefinition[] assetRequirements,
+        PlatformMaterialSchemaDefinition[] materialSchemas,
+        PlatformComponentSupportRule[] componentSupportRules,
+        PlatformCodegenProfileDefinition[] codegenProfiles,
+        PlatformStorageProfileDefinition[] storageProfiles,
+        PlatformMediaProfileDefinition[] mediaProfiles,
+        RuntimeGenerationContract runtimeGenerationContract)
+        : this(
+            platformId,
+            displayName,
+            buildProfiles,
+            graphicsProfiles,
+            assetRequirements,
+            materialSchemas,
+            componentSupportRules,
+            codegenProfiles,
+            storageProfiles,
+            mediaProfiles,
+            runtimeGenerationContract,
+            null) {
     }
 
     /// <summary>
@@ -319,6 +355,16 @@ public class PlatformDefinition {
     /// Gets the media profiles exposed by the platform.
     /// </summary>
     public PlatformMediaProfileDefinition[] MediaProfiles { get; }
+
+    /// <summary>
+    /// Gets the cross-platform runtime-generation behavior exposed by the platform.
+    /// </summary>
+    public RuntimeGenerationContract RuntimeGenerationContract { get; }
+
+    /// <summary>
+    /// Gets the cross-platform host-debug capability metadata exposed by the platform.
+    /// </summary>
+    public PlatformHostDebugCapability HostDebugCapability { get; }
 }
 
 

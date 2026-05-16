@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 4;
+        public const byte CurrentVersion = 6;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -65,6 +65,10 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Asset import settings must include texture processor settings for platform '{entry.Key}'.");
                 } else if (entry.Value.Texture.MaxResolution < 0) {
                     throw new InvalidOperationException($"Asset import settings cannot contain a negative texture max resolution for platform '{entry.Key}'.");
+                } else if (!IsSupportedColorFormat(entry.Value.Texture.ColorFormat)) {
+                    throw new InvalidOperationException($"Asset import settings cannot contain unsupported texture color format '{entry.Value.Texture.ColorFormat}' for platform '{entry.Key}'.");
+                } else if (!IsSupportedAlphaPrecision(entry.Value.Texture.AlphaPrecision)) {
+                    throw new InvalidOperationException($"Asset import settings cannot contain unsupported texture alpha precision '{entry.Value.Texture.AlphaPrecision}' for platform '{entry.Key}'.");
                 } else if (entry.Value.Model == null) {
                     throw new InvalidOperationException($"Asset import settings must include model processor settings for platform '{entry.Key}'.");
                 } else if (entry.Value.Material == null) {
@@ -76,6 +80,8 @@ namespace helengine.editor {
                 writer.WriteString(entry.Key);
                 writer.WriteByte(entry.Value.Model.FlipWinding ? (byte)1 : (byte)0);
                 writer.WriteInt32(entry.Value.Texture.MaxResolution);
+                writer.WriteByte((byte)entry.Value.Texture.ColorFormat);
+                writer.WriteByte((byte)entry.Value.Texture.AlphaPrecision);
                 writer.WriteString(entry.Value.Material.SchemaId ?? string.Empty);
                 writer.WriteInt32(entry.Value.Material.FieldValues.Count);
                 foreach (KeyValuePair<string, string> fieldEntry in entry.Value.Material.FieldValues) {
@@ -126,6 +132,12 @@ namespace helengine.editor {
                 if (platformSettings.Texture.MaxResolution < 0) {
                     throw new InvalidOperationException($"Asset import settings cannot contain a negative texture max resolution for platform '{platformId}'.");
                 }
+                platformSettings.Texture.ColorFormat = header.Version >= 5
+                    ? ReadTextureAssetColorFormat(reader)
+                    : TextureAssetColorFormat.Rgba32;
+                platformSettings.Texture.AlphaPrecision = header.Version >= CurrentVersion
+                    ? ReadTextureAssetAlphaPrecision(reader)
+                    : TextureAssetAlphaPrecision.A8;
                 platformSettings.Material.SchemaId = reader.ReadString();
 
                 int fieldValueCount = reader.ReadInt32();
@@ -160,7 +172,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected asset import settings record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)ValueKind) {
                 throw new InvalidOperationException($"Unexpected asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
+            } else if (header.Version < 4 || header.Version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset import settings binary version '{header.Version}'.");
             }
         }
@@ -183,6 +195,78 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported asset import settings boolean value '{value}'.");
+        }
+
+        /// <summary>
+        /// Reads one serialized texture color-format value.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the texture format byte.</param>
+        /// <returns>Decoded texture color format.</returns>
+        static TextureAssetColorFormat ReadTextureAssetColorFormat(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            byte serializedValue = reader.ReadByte();
+            if (serializedValue == (byte)TextureAssetColorFormat.Rgba32) {
+                return TextureAssetColorFormat.Rgba32;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Rgba4444) {
+                return TextureAssetColorFormat.Rgba4444;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed4) {
+                return TextureAssetColorFormat.Indexed4;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
+                return TextureAssetColorFormat.Indexed8;
+            }
+
+            throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
+        }
+
+        /// <summary>
+        /// Reads one serialized texture alpha-precision value.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the texture alpha-precision byte.</param>
+        /// <returns>Decoded texture alpha precision.</returns>
+        static TextureAssetAlphaPrecision ReadTextureAssetAlphaPrecision(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            byte serializedValue = reader.ReadByte();
+            if (serializedValue == (byte)TextureAssetAlphaPrecision.Opaque) {
+                return TextureAssetAlphaPrecision.Opaque;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.Binary) {
+                return TextureAssetAlphaPrecision.Binary;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A4) {
+                return TextureAssetAlphaPrecision.A4;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A8) {
+                return TextureAssetAlphaPrecision.A8;
+            }
+
+            throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");
+        }
+
+        /// <summary>
+        /// Determines whether one texture color format can be serialized by this settings document.
+        /// </summary>
+        /// <param name="colorFormat">Texture color format to validate.</param>
+        /// <returns>True when the format is supported.</returns>
+        static bool IsSupportedColorFormat(TextureAssetColorFormat colorFormat) {
+            return colorFormat == TextureAssetColorFormat.Rgba32
+                || colorFormat == TextureAssetColorFormat.Rgba4444
+                || colorFormat == TextureAssetColorFormat.Indexed4
+                || colorFormat == TextureAssetColorFormat.Indexed8;
+        }
+
+        /// <summary>
+        /// Determines whether one texture alpha precision can be serialized by this settings document.
+        /// </summary>
+        /// <param name="alphaPrecision">Texture alpha precision to validate.</param>
+        /// <returns>True when the alpha precision is supported.</returns>
+        static bool IsSupportedAlphaPrecision(TextureAssetAlphaPrecision alphaPrecision) {
+            return alphaPrecision == TextureAssetAlphaPrecision.Opaque
+                || alphaPrecision == TextureAssetAlphaPrecision.Binary
+                || alphaPrecision == TextureAssetAlphaPrecision.A4
+                || alphaPrecision == TextureAssetAlphaPrecision.A8;
         }
     }
 }

@@ -64,6 +64,11 @@ namespace helengine.editor {
         const string CharacterController3DComponentTypeId = "helengine.CharacterController3DComponent";
 
         /// <summary>
+        /// Legacy city-script type id baked into older demo-menu scenes for the platform-info overlay binder.
+        /// </summary>
+        const string LegacyPlatformInfoTextComponentTypeId = "city.menu.PlatformInfoTextComponent, gameplay";
+
+        /// <summary>
         /// Runtime scene layer used by the current Windows player loader for materialized entities.
         /// </summary>
         const ushort RuntimeSceneLayerMask = 0b00000001;
@@ -957,6 +962,11 @@ namespace helengine.editor {
                     "3D character-controller components are emitted unchanged for the current runtime loader.",
                     string.Empty),
                 new PlatformComponentSupportRule(
+                    LegacyPlatformInfoTextComponentTypeId,
+                    PlatformComponentSupportKind.Transform,
+                    "Legacy demo-menu platform-info overlays are rewritten to the built-in runtime component during packaging.",
+                    string.Empty),
+                new PlatformComponentSupportRule(
                     "helengine.RoundedRectComponent",
                     PlatformComponentSupportKind.Transform,
                     "Rounded rectangle visuals are rewritten into strict runtime payloads during packaging.",
@@ -1566,15 +1576,55 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Material '{reference.RelativePath}' is missing a schema id for target platform '{TargetPlatformId}'.");
             }
 
-            Dictionary<string, string> fieldValues = BuildMaterialCookFieldValues(materialAsset, platformMaterialSettings);
+            MaterialAssetProcessorSettings cookMaterialSettings = ResolveCookMaterialSettings(platformMaterialSettings);
+            Dictionary<string, string> fieldValues = BuildMaterialCookFieldValues(materialAsset, cookMaterialSettings);
             return new PlatformMaterialCookRequest(
                 materialAsset.Id ?? reference.RelativePath,
                 reference.RelativePath,
                 TargetPlatformId,
                 SelectedBuildProfileId,
                 SelectedGraphicsProfileId,
-                platformMaterialSettings.SchemaId,
+                cookMaterialSettings.SchemaId,
                 fieldValues);
+        }
+
+        /// <summary>
+        /// Resolves the effective material settings used for one builder cook request without mutating the authored asset import document.
+        /// </summary>
+        /// <param name="platformMaterialSettings">Authored per-platform material settings.</param>
+        /// <returns>Cook-request material settings compatible with the active builder contract.</returns>
+        MaterialAssetProcessorSettings ResolveCookMaterialSettings(MaterialAssetProcessorSettings platformMaterialSettings) {
+            if (platformMaterialSettings == null) {
+                throw new ArgumentNullException(nameof(platformMaterialSettings));
+            } else if (!UsesCookedPlatformOwnedMaterialResolution() || !IsStandardShaderSchema(platformMaterialSettings.SchemaId)) {
+                return platformMaterialSettings;
+            }
+
+            MaterialAssetProcessorSettings cookMaterialSettings = CloneMaterialSettings(platformMaterialSettings);
+            MaterialAssetSchemaSettingsService schemaSettingsService = new MaterialAssetSchemaSettingsService();
+            if (schemaSettingsService.EnsureSelectedSchema(cookMaterialSettings, MaterialBuilder.Definition.MaterialSchemas) == null) {
+                throw new InvalidOperationException("Cooked-platform-owned builders require at least one material schema.");
+            }
+
+            return cookMaterialSettings;
+        }
+
+        /// <summary>
+        /// Clones one per-platform material settings object so build-time normalization does not rewrite authored import metadata in place.
+        /// </summary>
+        /// <param name="platformMaterialSettings">Per-platform material settings to copy.</param>
+        /// <returns>Independent copy of the supplied material settings.</returns>
+        MaterialAssetProcessorSettings CloneMaterialSettings(MaterialAssetProcessorSettings platformMaterialSettings) {
+            if (platformMaterialSettings == null) {
+                throw new ArgumentNullException(nameof(platformMaterialSettings));
+            }
+
+            return new MaterialAssetProcessorSettings {
+                SchemaId = platformMaterialSettings.SchemaId,
+                FieldValues = platformMaterialSettings.FieldValues != null
+                    ? new Dictionary<string, string>(platformMaterialSettings.FieldValues, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            };
         }
 
         /// <summary>
@@ -1594,12 +1644,15 @@ namespace helengine.editor {
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             bool useCustomShader = IsCustomShaderEnabled(fieldValues);
+            bool usesCookedPlatformOwnedMaterialResolution = UsesCookedPlatformOwnedMaterialResolution();
             if (IsStandardShaderSchema(materialSettings.SchemaId) && !useCustomShader) {
                 fieldValues[VariantFieldId] = StandardShaderVariantName;
-                ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
-                fieldValues[ShaderAssetIdFieldId] = shaderAsset.Id;
-                fieldValues[VertexProgramFieldId] = StandardVertexProgramName;
-                fieldValues[PixelProgramFieldId] = StandardPixelProgramName;
+                if (!usesCookedPlatformOwnedMaterialResolution) {
+                    ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                    fieldValues[ShaderAssetIdFieldId] = shaderAsset.Id;
+                    fieldValues[VertexProgramFieldId] = StandardVertexProgramName;
+                    fieldValues[PixelProgramFieldId] = StandardPixelProgramName;
+                }
             } else {
                 fieldValues[VariantFieldId] = MeshVariantName;
             }
@@ -1701,6 +1754,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns whether the active material builder resolves materials through the cooked-platform-owned runtime contract.
+        /// </summary>
+        /// <returns>True when the active material builder uses cooked-platform-owned material resolution.</returns>
+        bool UsesCookedPlatformOwnedMaterialResolution() {
+            if (MaterialBuilder == null || MaterialBuilder.Definition == null || MaterialBuilder.Definition.RuntimeGenerationContract == null) {
+                return false;
+            }
+
+            return MaterialBuilder.Definition.RuntimeGenerationContract.MaterialResolutionMode == RuntimeMaterialResolutionMode.CookedPlatformOwned;
+        }
+
+        /// <summary>
         /// Ensures the packaged generated standard material exists under the build root.
         /// </summary>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
@@ -1711,7 +1776,7 @@ namespace helengine.editor {
                 shaderAssetId = shaderAsset.Id;
                 WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
             } else if (MaterialBuilder == null) {
-                throw new InvalidOperationException("PS2 generated standard materials require a material builder.");
+                throw new InvalidOperationException("Generated standard materials for cooked-platform-owned builders require a material builder.");
             }
 
             if (MaterialBuilder == null) {
@@ -1754,7 +1819,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the shared shader-backed standard material should be staged; otherwise false.</returns>
         bool ShouldWriteGeneratedStandardShaderAsset() {
-            return !string.Equals(TargetPlatformId, "ps2", StringComparison.OrdinalIgnoreCase);
+            return !UsesCookedPlatformOwnedMaterialResolution();
         }
 
         /// <summary>

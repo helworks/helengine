@@ -45,6 +45,41 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures runtime scene loading restores the serialized static flag onto live entities.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneEntityStaticFlagsDiffer_RestoresStaticFlags() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "StaticRoot",
+                        IsStatic = true,
+                        Children = new[] {
+                            new SceneEntityAsset {
+                                Id = 2u,
+                                Name = "DynamicChild",
+                                IsStatic = false,
+                                Children = Array.Empty<SceneEntityAsset>()
+                            }
+                        }
+                    }
+                }
+            };
+
+            Entity loadedRoot = Assert.Single(loadService.Load(sceneAsset));
+            Assert.True(loadedRoot.Static);
+
+            Entity loadedChild = Assert.Single(loadedRoot.Children);
+            Assert.False(loadedChild.Static);
+        }
+
+        /// <summary>
         /// Resolves the packaged scene file path for one authored scene inside the supplied build output root.
         /// </summary>
         /// <param name="buildRootPath">Build output root that contains packaged scene assets.</param>
@@ -353,6 +388,24 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the default runtime component registry materializes the built-in platform-info overlay binder component.
+        /// </summary>
+        [Fact]
+        public void RuntimeComponentRegistry_WhenUsingDefaultRegistry_MaterializesPlatformInfoTextComponent() {
+            RuntimeComponentRegistry registry = RuntimeComponentRegistry.CreateDefault();
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = PlatformInfoTextComponent.SerializedComponentTypeId,
+                ComponentIndex = 0,
+                Payload = WritePlatformInfoTextComponentPayload()
+            };
+
+            Assert.True(registry.TryGet(PlatformInfoTextComponent.SerializedComponentTypeId, out IRuntimeComponentDeserializer deserializer));
+
+            PlatformInfoTextComponent component = Assert.IsType<PlatformInfoTextComponent>(deserializer.Deserialize(record, null));
+            Assert.NotNull(component);
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading resolves text components that were authored against source font files and cooked into packaged `.hefont` outputs.
         /// </summary>
         [Fact]
@@ -387,7 +440,7 @@ namespace helengine.editor.tests.serialization.scene {
                 }
             };
             using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
             }
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -466,7 +519,7 @@ namespace helengine.editor.tests.serialization.scene {
                 }
             };
             using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
             }
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -566,7 +619,7 @@ namespace helengine.editor.tests.serialization.scene {
             string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
             Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
             using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
             }
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -623,7 +676,7 @@ namespace helengine.editor.tests.serialization.scene {
             string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
             Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
             using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
             }
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -971,7 +1024,7 @@ namespace helengine.editor.tests.serialization.scene {
             string playableScenePath = Path.Combine(assetsRootPath, "Scenes", "TestPlayableScene.helen");
             Directory.CreateDirectory(Path.GetDirectoryName(playableScenePath));
             using (FileStream playableSceneStream = new FileStream(playableScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(
                     playableSceneStream,
                     new SceneAsset {
                         Id = "TestPlayableScene",
@@ -990,7 +1043,7 @@ namespace helengine.editor.tests.serialization.scene {
             string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
             Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
             using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
             }
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -1053,7 +1106,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             string playableScenePath = Path.Combine(assetsRootPath, "Scenes", "TestPlayableScene.helen");
             using (FileStream playableSceneStream = new FileStream(playableScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(
                     playableSceneStream,
                     new SceneAsset {
                         Id = "TestPlayableScene",
@@ -1088,7 +1141,7 @@ namespace helengine.editor.tests.serialization.scene {
             MenuComponent menuHostComponent;
             SceneAsset menuSceneAsset = BuildMinimalSceneLoadingMenuSceneAsset();
             using (FileStream menuSceneStream = new FileStream(Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen"), FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(menuSceneStream, menuSceneAsset);
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(menuSceneStream, menuSceneAsset);
             }
 
             SceneLoadService sceneLoadService = new SceneLoadService(CreateDemoMenuPersistenceRegistry(), referenceResolver);
@@ -1530,6 +1583,18 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Writes one serialized platform-info overlay binder payload.
+        /// </summary>
+        /// <returns>Serialized built-in platform-info overlay binder payload.</returns>
+        byte[] WritePlatformInfoTextComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(0);
+            return stream.ToArray();
+        }
+
+        /// <summary>
         /// Builds one baked demo menu scene asset for runtime materialization tests.
         /// </summary>
         /// <returns>Baked demo menu scene asset.</returns>
@@ -1683,7 +1748,7 @@ namespace helengine.editor.tests.serialization.scene {
             string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
             Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
             using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
             }
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(

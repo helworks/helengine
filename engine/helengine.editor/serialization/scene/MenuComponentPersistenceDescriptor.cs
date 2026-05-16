@@ -46,10 +46,30 @@ namespace helengine.editor {
         /// Deserializes one scene component record back into a live baked demo menu root component.
         /// </summary>
         public Component DeserializeComponent(SceneComponentAssetRecord record, EntitySaveComponent saveComponent, ISceneAssetReferenceResolver referenceResolver) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
             if (!string.Equals(record.ComponentTypeId, ComponentTypeId, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"Demo menu build descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
+            try {
+                return DeserializeTaggedComponent(record);
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                if (TryDeserializeCookedRuntimeComponent(record, out MenuComponent cookedRuntimeComponent)) {
+                    return cookedRuntimeComponent;
+                }
+
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Deserializes one authored tagged menu-root payload back into a live runtime component.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <returns>Live menu-root component reconstructed from the tagged editor payload.</returns>
+        MenuComponent DeserializeTaggedComponent(SceneComponentAssetRecord record) {
             MenuComponent component = new MenuComponent();
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             if (reader.TryGetFieldReader(ProviderTypeNameFieldName, out EngineBinaryReader providerTypeNameReader)) {
@@ -64,6 +84,22 @@ namespace helengine.editor {
             }
 
             return component;
+        }
+
+        /// <summary>
+        /// Attempts to deserialize one strict cooked-runtime menu-root payload written by the scene packager.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <param name="component">Cooked-runtime menu-root component when deserialization succeeds.</param>
+        /// <returns>True when the payload matched the cooked runtime layout; otherwise false.</returns>
+        bool TryDeserializeCookedRuntimeComponent(SceneComponentAssetRecord record, out MenuComponent component) {
+            try {
+                component = (MenuComponent)new RuntimeMenuComponentDeserializer().Deserialize(record, null);
+                return true;
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                component = null;
+                return false;
+            }
         }
     }
 }

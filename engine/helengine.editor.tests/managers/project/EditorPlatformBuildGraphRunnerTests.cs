@@ -142,6 +142,73 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the cook phase targets the execution-root workspace so scene outputs land beneath the shared cooked tree without duplicating the `cooked` segment.
+    /// </summary>
+    [Fact]
+    public void RunCookAssets_writes_scene_outputs_beneath_workspace_cook_root_without_duplicate_cooked_segment() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string projectRootPath = Path.Combine(rootPath, "project");
+        Directory.CreateDirectory(Path.Combine(projectRootPath, "assets", "Scenes"));
+
+        try {
+            WriteSceneAssetForBuildGraphRunnerTest(projectRootPath, "Scenes/MainMenu.helen");
+            EditorPlatformBuildGraphRunner runner = new(
+                projectRootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    "generated-core",
+                    "codegen.exe"),
+                PackagedFontAssetFactory.Create(),
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+            TestPlatformMaterialAssetBuilder builder = new();
+            EditorBuildQueueItemDocument queueItem = new() {
+                QueueItemId = "queue-item",
+                PlatformId = "windows",
+                OutputDirectoryPath = Path.Combine(rootPath, "output"),
+                SelectedSceneIds = ["MainMenu"],
+                SelectedBuildOptionValues = new Dictionary<string, string>(),
+                SelectedGraphicsOptionValues = new Dictionary<string, string>(),
+                SelectedCodegenOptionValues = new Dictionary<string, string>()
+            };
+            EditorPlatformBuildGraphWorkspace workspace = new(Path.Combine(rootPath, "workspace"));
+
+            MethodInfo runCookAssetsMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "RunCookAssets",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(runCookAssetsMethod);
+
+            PlatformBuildManifest manifest = (PlatformBuildManifest)runCookAssetsMethod.Invoke(
+                runner,
+                [
+                    builder,
+                    builder.Definition,
+                    "debug",
+                    "directx11",
+                    queueItem,
+                    workspace
+                ]);
+
+            Assert.NotNull(manifest);
+            Assert.True(File.Exists(Path.Combine(workspace.CookRootPath, "scenes", "MainMenu.hasset")));
+            Assert.False(File.Exists(Path.Combine(workspace.CookRootPath, "cooked", "scenes", "MainMenu.hasset")));
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies the editor runner stages package content into the builder-owned package-source root before platform packaging begins.
     /// </summary>
     [Fact]
@@ -172,6 +239,167 @@ public class EditorPlatformBuildGraphRunnerTests {
             Assert.True(File.Exists(payloadDestinationPath));
             Assert.Equal("scene", File.ReadAllText(payloadDestinationPath));
             Assert.False(File.Exists(staleFilePath));
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies the package phase preserves the `cooked/` runtime-relative prefix when mirroring cooked assets into the staged package root.
+    /// </summary>
+    [Fact]
+    public void RunWriteContainers_stages_cooked_tree_beneath_package_root_cooked_directory() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string projectRootPath = Path.Combine(rootPath, "project");
+        Directory.CreateDirectory(projectRootPath);
+
+        try {
+            EditorPlatformBuildGraphRunner runner = new(
+                projectRootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    "generated-core",
+                    "codegen.exe"),
+                PackagedFontAssetFactory.Create(),
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+            EditorPlatformBuildGraphWorkspace workspace = new(Path.Combine(rootPath, "workspace"));
+            string cookedArtifactPath = Path.Combine(workspace.CookRootPath, "engine", "materials", "standard.hasset");
+            string cookedArtifactDirectoryPath = Path.GetDirectoryName(cookedArtifactPath)
+                ?? throw new InvalidOperationException("Cooked artifact directory path could not be resolved.");
+            Directory.CreateDirectory(cookedArtifactDirectoryPath);
+            File.WriteAllText(cookedArtifactPath, "payload");
+            PlatformBuildManifest manifest = new(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0",
+                "windows",
+                "1.0.0",
+                "MainMenu",
+                Array.Empty<PlatformBuildScene>(),
+                Array.Empty<PlatformBuildAsset>(),
+                [
+                    new PlatformBuildArtifact("cooked/engine/materials/standard.hasset", "engine:material:standard", "hash", "asset", "shared")
+                ],
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+            PlatformStorageProfileDefinition storageProfile = new(
+                "default",
+                "Default",
+                PlatformStorageProfileKind.LooseFiles,
+                "storage",
+                true);
+            PlatformMediaProfileDefinition mediaProfile = new(
+                "install",
+                "Install",
+                PlatformMediaLayoutKind.InstallTree,
+                true,
+                true);
+
+            MethodInfo runWriteContainersMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "RunWriteContainers",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(runWriteContainersMethod);
+
+            runWriteContainersMethod.Invoke(
+                runner,
+                [
+                    manifest,
+                    storageProfile,
+                    mediaProfile,
+                    workspace
+                ]);
+
+            Assert.True(File.Exists(Path.Combine(workspace.PackageRootPath, "cooked", "engine", "materials", "standard.hasset")));
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies generated-core scene discovery can resolve cooked scene payloads when the cook workspace retains the runtime-relative <c>cooked/</c> prefix beneath the cook root.
+    /// </summary>
+    [Fact]
+    public void DiscoverReferencedRuntimeModuleIdsFromCookedScenes_whenSceneExistsBeneathCookRootCookedPrefix_resolvesSceneSuccessfully() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string projectRootPath = Path.Combine(rootPath, "project");
+        Directory.CreateDirectory(projectRootPath);
+
+        try {
+            EditorPlatformBuildGraphRunner runner = new(
+                projectRootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    "generated-core",
+                    "codegen.exe"),
+                PackagedFontAssetFactory.Create(),
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+            EditorPlatformBuildGraphWorkspace workspace = new(Path.Combine(rootPath, "workspace"));
+            string cookedScenePath = Path.Combine(workspace.CookRootPath, "cooked", "scenes", "MainMenu.hasset");
+            WriteCookedSceneAssetForBuildGraphRunnerTest(cookedScenePath, "Scenes/MainMenu.helen");
+
+            PlatformBuildManifest manifest = new(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0",
+                "windows",
+                "1.0.0",
+                "MainMenu",
+                [
+                    new PlatformBuildScene(
+                        "MainMenu",
+                        "MainMenu",
+                        "cooked/scenes/MainMenu.hasset",
+                        [],
+                        [
+                            new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "cooked/scenes/MainMenu.hasset")
+                        ])
+                ],
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+            MethodInfo discoverMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "DiscoverReferencedRuntimeModuleIdsFromCookedScenes",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(discoverMethod);
+
+            IReadOnlyList<string> moduleIds = (IReadOnlyList<string>)discoverMethod.Invoke(
+                runner,
+                [
+                    manifest,
+                    workspace.CookRootPath
+                ]);
+
+            Assert.Empty(moduleIds);
         } finally {
             if (Directory.Exists(rootPath)) {
                 Directory.Delete(rootPath, true);
@@ -370,6 +598,69 @@ public class EditorPlatformBuildGraphRunnerTests {
         } finally {
             if (Directory.Exists(rootPath)) {
                 Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies the build-graph runner branches into host-debug finalization after a successful package result.
+    /// </summary>
+    [Fact]
+    public void FinalizeBuildExecution_WhenHostDebugModeIsSelected_LaunchesHostDebugRunner() {
+        RecordingHostDebugBuildGraphRunner runner = new();
+        EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(new HostDebugPlatformBuilder().Definition);
+        EditorBuildQueueItemDocument queueItem = new() {
+            QueueItemId = "queue-item",
+            PlatformId = "ps2",
+            OutputDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-host-debug-finalize-tests", Guid.NewGuid().ToString("N")),
+            SelectedSceneIds = ["Scenes/Main.helen"],
+            ExecutionMode = EditorBuildExecutionMode.HostDebug
+        };
+        EditorBuildExecutionResult packageResult = EditorBuildExecutionResult.Success("Packaged.");
+
+        EditorBuildExecutionResult result = runner.InvokeFinalizeBuildExecution(selectionModel, queueItem, packageResult);
+
+        Assert.True(result.Succeeded);
+        Assert.True(runner.HostDebugRunnerLaunched);
+    }
+
+    /// <summary>
+    /// Verifies the host-debug launch path resolves the published PS2 runner and passes the packaged output root.
+    /// </summary>
+    [Fact]
+    public void LaunchHostDebugRunner_WhenPs2HostDebugIsSelected_LaunchesThePublishedRunnerAgainstPackagedOutput() {
+        string repositoryRootPath = Path.Combine(Path.GetTempPath(), "helengine-host-debug-runner-tests", Guid.NewGuid().ToString("N"));
+        string runnerExecutablePath = Path.Combine(repositoryRootPath, "tools", "ps2-host-debugger", "bin", OperatingSystem.IsWindows() ? "ps2-host-debugger.exe" : "ps2-host-debugger");
+        Directory.CreateDirectory(Path.GetDirectoryName(runnerExecutablePath)
+            ?? throw new InvalidOperationException("Runner directory path could not be resolved."));
+        File.WriteAllText(runnerExecutablePath, "host debug runner");
+
+        try {
+            RecordingHostDebugLaunchBuildGraphRunner runner = new(repositoryRootPath);
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(new HostDebugPlatformBuilder().Definition);
+            string outputDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-host-debug-output", Guid.NewGuid().ToString("N"));
+            EditorBuildQueueItemDocument queueItem = new() {
+                QueueItemId = "queue-item",
+                PlatformId = "ps2",
+                OutputDirectoryPath = outputDirectoryPath,
+                SelectedSceneIds = ["Scenes/Main.helen"],
+                ExecutionMode = EditorBuildExecutionMode.HostDebug
+            };
+
+            EditorBuildExecutionResult result = runner.InvokeLaunchHostDebugRunner(
+                selectionModel,
+                queueItem,
+                outputDirectoryPath,
+                EditorBuildExecutionResult.Success("Packaged."));
+
+            Assert.True(result.Succeeded);
+            Assert.Equal(runnerExecutablePath, runner.LaunchedExecutablePath);
+            Assert.Contains("--export-root", runner.LaunchedArguments);
+            Assert.Contains(Path.GetFullPath(outputDirectoryPath), runner.LaunchedArguments);
+            Assert.Contains("--mode load-only", runner.LaunchedArguments);
+        } finally {
+            if (Directory.Exists(repositoryRootPath)) {
+                Directory.Delete(repositoryRootPath, true);
             }
         }
     }
@@ -870,6 +1161,71 @@ public class EditorPlatformBuildGraphRunnerTests {
         }
     }
 
+    sealed class RecordingHostDebugBuildGraphRunner : EditorPlatformBuildGraphRunner {
+        public RecordingHostDebugBuildGraphRunner()
+            : base(
+                Path.GetTempPath(),
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor("ps2", "PlayStation 2", "builder.dll", string.Empty, true, "generated-core", "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService()) {
+        }
+
+        public bool HostDebugRunnerLaunched { get; private set; }
+
+        public EditorBuildExecutionResult InvokeFinalizeBuildExecution(
+            EditorPlatformBuildSelectionModel selectionModel,
+            EditorBuildQueueItemDocument queueItem,
+            EditorBuildExecutionResult packageResult) {
+            return FinalizeBuildExecution(selectionModel, queueItem, packageResult);
+        }
+
+        protected override EditorBuildExecutionResult LaunchHostDebugRunner(
+            EditorPlatformBuildSelectionModel selectionModel,
+            EditorBuildQueueItemDocument queueItem,
+            string outputDirectoryPath,
+            EditorBuildExecutionResult packageResult) {
+            HostDebugRunnerLaunched = true;
+            return EditorBuildExecutionResult.Success("Host-debug launched.");
+        }
+    }
+
+    sealed class RecordingHostDebugLaunchBuildGraphRunner : EditorPlatformBuildGraphRunner {
+        public RecordingHostDebugLaunchBuildGraphRunner(string nativeRepositoryRootPath)
+            : base(
+                Path.GetTempPath(),
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor("ps2", "PlayStation 2", "builder.dll", nativeRepositoryRootPath, true, "generated-core", "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService()) {
+        }
+
+        public string LaunchedExecutablePath { get; private set; }
+
+        public string LaunchedArguments { get; private set; }
+
+        public EditorBuildExecutionResult InvokeLaunchHostDebugRunner(
+            EditorPlatformBuildSelectionModel selectionModel,
+            EditorBuildQueueItemDocument queueItem,
+            string outputDirectoryPath,
+            EditorBuildExecutionResult packageResult) {
+            return LaunchHostDebugRunner(selectionModel, queueItem, outputDirectoryPath, packageResult);
+        }
+
+        protected override void StartHostDebugProcess(string executablePath, string arguments) {
+            LaunchedExecutablePath = executablePath;
+            LaunchedArguments = arguments;
+        }
+    }
+
     /// <summary>
     /// Provides one minimal PS2 builder definition for request-construction tests.
     /// </summary>
@@ -939,6 +1295,129 @@ public class EditorPlatformBuildGraphRunnerTests {
             PlatformBuildRequest request,
             helengine.baseplatform.Builders.IPlatformBuildProgressReporter progressReporter,
             helengine.baseplatform.Builders.IPlatformBuildDiagnosticReporter diagnosticReporter,
+            CancellationToken cancellationToken) {
+            return Task.FromResult(new helengine.baseplatform.Reporting.PlatformBuildReport(true, [], [], []));
+        }
+    }
+
+    /// <summary>
+    /// Writes one minimal authored scene asset for the build-graph cook regression.
+    /// </summary>
+    /// <param name="projectRootPath">Temporary project root path that owns the authored asset tree.</param>
+    /// <param name="sceneRelativePath">Project-relative authored scene path to write.</param>
+    static void WriteSceneAssetForBuildGraphRunnerTest(string projectRootPath, string sceneRelativePath) {
+        if (string.IsNullOrWhiteSpace(projectRootPath)) {
+            throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+        }
+        if (string.IsNullOrWhiteSpace(sceneRelativePath)) {
+            throw new ArgumentException("Scene relative path must be provided.", nameof(sceneRelativePath));
+        }
+
+        string scenePath = Path.Combine(projectRootPath, "assets", sceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string sceneDirectoryPath = Path.GetDirectoryName(scenePath)
+            ?? throw new InvalidOperationException("Scene directory path could not be resolved.");
+        Directory.CreateDirectory(sceneDirectoryPath);
+
+        SceneAsset sceneAsset = new() {
+            Id = sceneRelativePath,
+            AssetReferences = Array.Empty<SceneAssetReference>(),
+            RootEntities = [
+                new SceneEntityAsset {
+                    Id = 1u,
+                    Name = "Root",
+                    LocalPosition = float3.Zero,
+                    LocalScale = float3.One,
+                    LocalOrientation = float4.Identity,
+                    Components = Array.Empty<SceneComponentAssetRecord>(),
+                    Children = Array.Empty<SceneEntityAsset>()
+                }
+            ]
+        };
+
+        using FileStream stream = new(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        AssetSerializer.Serialize(stream, sceneAsset);
+    }
+
+    /// <summary>
+    /// Writes one minimal cooked scene asset to the supplied absolute output path for scene-discovery path regressions.
+    /// </summary>
+    /// <param name="cookedScenePath">Absolute cooked scene asset path to create.</param>
+    /// <param name="sceneId">Stable scene id stamped into the serialized asset.</param>
+    static void WriteCookedSceneAssetForBuildGraphRunnerTest(string cookedScenePath, string sceneId) {
+        if (string.IsNullOrWhiteSpace(cookedScenePath)) {
+            throw new ArgumentException("Cooked scene path must be provided.", nameof(cookedScenePath));
+        }
+        if (string.IsNullOrWhiteSpace(sceneId)) {
+            throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
+        }
+
+        string sceneDirectoryPath = Path.GetDirectoryName(cookedScenePath)
+            ?? throw new InvalidOperationException("Cooked scene directory path could not be resolved.");
+        Directory.CreateDirectory(sceneDirectoryPath);
+
+        SceneAsset sceneAsset = new() {
+            Id = sceneId,
+            AssetReferences = Array.Empty<SceneAssetReference>(),
+            RootEntities = [
+                new SceneEntityAsset {
+                    Id = 1u,
+                    Name = "Root",
+                    LocalPosition = float3.Zero,
+                    LocalScale = float3.One,
+                    LocalOrientation = float4.Identity,
+                    Components = Array.Empty<SceneComponentAssetRecord>(),
+                    Children = Array.Empty<SceneEntityAsset>()
+                }
+            ]
+        };
+
+        using FileStream stream = new(cookedScenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        AssetSerializer.Serialize(stream, sceneAsset);
+    }
+
+    sealed class HostDebugPlatformBuilder : IPlatformAssetBuilder {
+        public HostDebugPlatformBuilder() {
+            Descriptor = new(
+                "test.ps2.hostdebug.builder",
+                "1.0.0",
+                "ps2",
+                new("1.0.0", "999.0.0"),
+                new(1, 3),
+                ["ps2"],
+                ["ps2"]);
+            Definition = new(
+                "ps2",
+                "PlayStation 2",
+                Array.Empty<PlatformBuildProfileDefinition>(),
+                Array.Empty<PlatformGraphicsProfileDefinition>(),
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                null,
+                new PlatformHostDebugCapability(
+                    true,
+                    PlatformHostDebugRunnerKind.NativeExecutable,
+                    true,
+                    true,
+                    false,
+                    "ps2-host-debugger"));
+        }
+
+        public helengine.baseplatform.Descriptors.PlatformBuilderDescriptor Descriptor { get; }
+
+        public PlatformDefinition Definition { get; }
+
+        public helengine.baseplatform.Results.PlatformMaterialCookResult CookMaterial(PlatformMaterialCookRequest request) {
+            throw new NotSupportedException("Material cooking is not used by this test builder.");
+        }
+
+        public Task<helengine.baseplatform.Reporting.PlatformBuildReport> BuildAsync(
+            PlatformBuildRequest request,
+            IPlatformBuildProgressReporter progressReporter,
+            IPlatformBuildDiagnosticReporter diagnosticReporter,
             CancellationToken cancellationToken) {
             return Task.FromResult(new helengine.baseplatform.Reporting.PlatformBuildReport(true, [], [], []));
         }

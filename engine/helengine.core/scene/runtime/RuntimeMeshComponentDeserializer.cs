@@ -41,7 +41,6 @@ namespace helengine {
             }
 
             meshComponent.SetMaterials(ResolveMaterials(materialReferences, referenceResolver));
-
             return meshComponent;
         }
 

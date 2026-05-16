@@ -24,7 +24,8 @@ namespace helengine {
                 return typedAsset;
             }
 
-            throw new InvalidOperationException($"Serialized asset did not contain '{typeof(TAsset).Name}'.");
+            string actualAssetTypeName = asset == null ? "<null>" : asset.GetType().Name;
+            throw new InvalidOperationException($"Serialized asset did not contain '{typeof(TAsset).Name}'. Actual asset type was '{actualAssetTypeName}'.");
         }
 
         /// <summary>

@@ -16,7 +16,22 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current packaged font payload layout.
         /// </summary>
-        public const byte CurrentVersion = 2;
+        public const byte CurrentVersion = 4;
+
+        /// <summary>
+        /// First packaged font version that stored source-texture runtime ids.
+        /// </summary>
+        const byte RuntimeTextureIdVersion = 2;
+
+        /// <summary>
+        /// First packaged font version that stored explicit texture color formats.
+        /// </summary>
+        const byte TextureColorFormatVersion = 3;
+
+        /// <summary>
+        /// First packaged font version that stored texture alpha precision and palette payloads.
+        /// </summary>
+        const byte PaletteTextureMetadataVersion = 4;
 
         /// <summary>
         /// Gets the most recent font-deserialization stage reached by the packaged runtime loader.
@@ -73,11 +88,20 @@ namespace helengine {
 
             LastDeserializeStage = "ReadSourceTextureHeader";
             TextureAsset sourceTexture = new TextureAsset();
-            sourceTexture.RuntimeAssetId = header.Version >= CurrentVersion
+            sourceTexture.RuntimeAssetId = header.Version >= RuntimeTextureIdVersion
                 ? (ulong)reader.ReadInt64()
                 : 0ul;
             sourceTexture.Width = reader.ReadUInt16();
             sourceTexture.Height = reader.ReadUInt16();
+            sourceTexture.ColorFormat = header.Version >= TextureColorFormatVersion
+                ? ReadTextureAssetColorFormat(reader)
+                : TextureAssetColorFormat.Rgba32;
+            sourceTexture.AlphaPrecision = header.Version >= PaletteTextureMetadataVersion
+                ? ReadTextureAssetAlphaPrecision(reader)
+                : GetDefaultTextureAssetAlphaPrecision(sourceTexture.ColorFormat);
+            sourceTexture.PaletteColors = header.Version >= PaletteTextureMetadataVersion
+                ? reader.ReadByteArray()
+                : Array.Empty<byte>();
             LastDeserializeStage = "ReadSourceTextureColors";
             sourceTexture.Colors = reader.ReadByteArray();
 
@@ -121,6 +145,67 @@ namespace helengine {
             if (header.Version < 1 || header.Version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported font binary version '{header.Version}'.");
             }
+        }
+
+        /// <summary>
+        /// Reads one serialized texture color-format value from the packaged font payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the texture format byte.</param>
+        /// <returns>Decoded texture color format.</returns>
+        static TextureAssetColorFormat ReadTextureAssetColorFormat(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            byte serializedValue = reader.ReadByte();
+            if (serializedValue == (byte)TextureAssetColorFormat.Rgba32) {
+                return TextureAssetColorFormat.Rgba32;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Rgba4444) {
+                return TextureAssetColorFormat.Rgba4444;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed4) {
+                return TextureAssetColorFormat.Indexed4;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
+                return TextureAssetColorFormat.Indexed8;
+            }
+
+            throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
+        }
+
+        /// <summary>
+        /// Reads one serialized texture alpha-precision value from the packaged font payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the texture alpha-precision byte.</param>
+        /// <returns>Decoded texture alpha precision.</returns>
+        static TextureAssetAlphaPrecision ReadTextureAssetAlphaPrecision(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            byte serializedValue = reader.ReadByte();
+            if (serializedValue == (byte)TextureAssetAlphaPrecision.Opaque) {
+                return TextureAssetAlphaPrecision.Opaque;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.Binary) {
+                return TextureAssetAlphaPrecision.Binary;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A4) {
+                return TextureAssetAlphaPrecision.A4;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A8) {
+                return TextureAssetAlphaPrecision.A8;
+            }
+
+            throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");
+        }
+
+        /// <summary>
+        /// Resolves the alpha precision assumed by legacy font atlas payloads that predate explicit metadata.
+        /// </summary>
+        /// <param name="colorFormat">Cooked texture color format read from the legacy payload.</param>
+        /// <returns>Best-effort alpha precision for the legacy atlas payload.</returns>
+        static TextureAssetAlphaPrecision GetDefaultTextureAssetAlphaPrecision(TextureAssetColorFormat colorFormat) {
+            if (colorFormat == TextureAssetColorFormat.Rgba4444) {
+                return TextureAssetAlphaPrecision.A4;
+            }
+
+            return TextureAssetAlphaPrecision.A8;
         }
     }
 }

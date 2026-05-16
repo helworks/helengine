@@ -2,12 +2,7 @@ namespace helengine {
     /// <summary>
     /// Stores one PS2-native cooked material payload selected by the PS2 builder.
     /// </summary>
-    public class Ps2MaterialAsset : Asset {
-        /// <summary>
-        /// Gets or sets the PS2 renderer family that owns this material payload.
-        /// </summary>
-        public string RendererFamilyId;
-
+    public class Ps2MaterialAsset : PlatformMaterialAsset {
         /// <summary>
         /// Gets or sets the lighting mode selected by the PS2 schema.
         /// </summary>

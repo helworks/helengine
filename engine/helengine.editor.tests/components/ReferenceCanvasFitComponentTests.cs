@@ -283,6 +283,42 @@ namespace helengine.editor.tests.components {
         }
 
         /// <summary>
+        /// Ensures viewport-owned scaling can replace the old fit component when the viewport is configured with a reference canvas.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportScalingIsEnabled_ScalesTheAuthoredSubtreeUniformly() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            menuRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720),
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            });
+
+            Entity generatedRoot = CreateEntity(float3.Zero);
+            menuRoot.AddChild(generatedRoot);
+
+            Entity panelEntity = CreateEntity(new float3(88f, 190f, 0f));
+            RoundedRectComponent panelBackground = new RoundedRectComponent {
+                Size = new int2(560, 420),
+                Radius = 18f,
+                BorderThickness = 3f
+            };
+            panelEntity.AddComponent(panelBackground);
+            generatedRoot.AddChild(panelEntity);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+            Core.Instance.Update();
+
+            Assert.Equal(new float3(44f, 95f, 0f), panelEntity.LocalPosition);
+            Assert.Equal(new int2(280, 210), panelBackground.Size);
+        }
+
+        /// <summary>
         /// Creates one initialized entity with the supplied local position.
         /// </summary>
         /// <param name="localPosition">Local position assigned to the entity.</param>

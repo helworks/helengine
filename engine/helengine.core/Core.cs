@@ -103,6 +103,11 @@ namespace helengine {
         public RenderManager3D RenderManager3D { get; private set; }
 
         /// <summary>
+        /// Gets the most recent measured duration spent executing <see cref="RenderManager3D.Draw"/>.
+        /// </summary>
+        public double LastRenderManager3DDrawMilliseconds { get; private set; }
+
+        /// <summary>
         /// Gets the 2D render manager.
         /// </summary>
         public RenderManager2D RenderManager2D { get; private set; }
@@ -366,7 +371,7 @@ namespace helengine {
         /// Executes the engine draw cycle.
         /// </summary>
         public virtual void Draw() {
-            RenderManager3D.Draw();
+            LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
             FPSComponent.RecordRenderFrame();
         }
 
@@ -399,6 +404,16 @@ namespace helengine {
         /// <returns>Total elapsed wall-clock seconds from the active host clock.</returns>
         protected virtual double GetCurrentMeasuredUpdateSeconds() {
             return UpdateStopwatchValue.Elapsed.TotalMilliseconds / 1000d;
+        }
+
+        /// <summary>
+        /// Measures one <see cref="RenderManager3D.Draw"/> execution and returns the elapsed duration in milliseconds.
+        /// </summary>
+        /// <returns>Measured draw duration in milliseconds.</returns>
+        protected virtual double MeasureRenderManager3DDrawMilliseconds() {
+            Stopwatch drawStopwatch = Stopwatch.StartNew();
+            RenderManager3D.Draw();
+            return drawStopwatch.Elapsed.TotalMilliseconds;
         }
 
         /// <summary>

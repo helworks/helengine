@@ -75,7 +75,9 @@ namespace helengine.editor {
             }
 
             string fullOutputRootPath = Path.GetFullPath(outputRootPath);
-            Directory.CreateDirectory(fullOutputRootPath);
+            string effectiveExecutionRootPath = ResolveCookExecutionRootPath(fullOutputRootPath);
+            string effectiveCookRootPath = ResolveCookRootPath(fullOutputRootPath);
+            Directory.CreateDirectory(effectiveExecutionRootPath);
             IPlatformAssetBuilder effectiveMaterialBuilder = ResolveEffectiveMaterialBuilder(materialBuilder);
 
             EditorPlatformBuildScenePackager packager = new(
@@ -88,10 +90,10 @@ namespace helengine.editor {
                 selectedGraphicsProfileId,
                 ScriptTypeResolver);
             List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds);
-            packager.Package(orderedScenePaths, fullOutputRootPath);
+            packager.Package(orderedScenePaths, effectiveExecutionRootPath);
 
-            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedScenePaths, fullOutputRootPath);
-            PlatformBuildArtifact[] cookedArtifacts = BuildCookedArtifacts(fullOutputRootPath, targetIds);
+            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedScenePaths, effectiveCookRootPath);
+            PlatformBuildArtifact[] cookedArtifacts = BuildCookedArtifacts(effectiveCookRootPath, targetIds);
 
             return new PlatformBuildManifest(
                 2,
@@ -163,7 +165,7 @@ namespace helengine.editor {
             return builder.Descriptor.BuilderVersion;
         }
 
-        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedScenePaths, string outputRootPath) {
+        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedScenePaths, string cookRootPath) {
             if (orderedSceneIds == null) {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
@@ -179,7 +181,7 @@ namespace helengine.editor {
                 string sceneId = orderedSceneIds[index];
                 string authoredScenePath = orderedScenePaths[index];
                 string cookedRelativePath = BuildCookedSceneRelativePath(authoredScenePath, index);
-                uint physics3DSceneFeatureFlags = ReadCookedScenePhysics3DFeatureFlags(outputRootPath, cookedRelativePath);
+                uint physics3DSceneFeatureFlags = ReadCookedScenePhysics3DFeatureFlags(cookRootPath, cookedRelativePath);
                 scenes[index] = new PlatformBuildScene(
                     sceneId,
                     SceneIdUtility.FromPath(authoredScenePath),
@@ -221,15 +223,16 @@ namespace helengine.editor {
         /// <param name="outputRootPath">Cooked output root path.</param>
         /// <param name="cookedRelativePath">Runtime-relative cooked scene payload path.</param>
         /// <returns>Compact 3D physics scene feature mask embedded in the cooked scene asset.</returns>
-        static uint ReadCookedScenePhysics3DFeatureFlags(string outputRootPath, string cookedRelativePath) {
-            if (string.IsNullOrWhiteSpace(outputRootPath)) {
-                throw new ArgumentException("Output root path must be provided.", nameof(outputRootPath));
+        static uint ReadCookedScenePhysics3DFeatureFlags(string cookRootPath, string cookedRelativePath) {
+            if (string.IsNullOrWhiteSpace(cookRootPath)) {
+                throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
             }
             if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
                 throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
             }
 
-            string fullScenePath = Path.Combine(outputRootPath, cookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string normalizedCookedRelativePath = NormalizeCookedRelativePath(cookedRelativePath);
+            string fullScenePath = Path.Combine(cookRootPath, normalizedCookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
             try {
                 using FileStream stream = File.OpenRead(fullScenePath);
                 Asset asset = AssetSerializer.Deserialize(stream);
@@ -243,26 +246,67 @@ namespace helengine.editor {
             }
         }
 
-        PlatformBuildArtifact[] BuildCookedArtifacts(string outputRootPath, IReadOnlyList<string> targetIds) {
+        PlatformBuildArtifact[] BuildCookedArtifacts(string cookRootPath, IReadOnlyList<string> targetIds) {
             string variantId = targetIds.Count == 1 && !string.IsNullOrWhiteSpace(targetIds[0])
                 ? targetIds[0]
                 : "shared";
 
             EditorPlatformCookedArtifactPool artifactPool = new(FileHasher);
-            string[] cookedFilePaths = Directory.GetFiles(outputRootPath, "*", SearchOption.AllDirectories);
+            string[] cookedFilePaths = Directory.GetFiles(cookRootPath, "*", SearchOption.AllDirectories);
             Array.Sort(cookedFilePaths, StringComparer.OrdinalIgnoreCase);
 
             for (int index = 0; index < cookedFilePaths.Length; index++) {
                 string fullPath = cookedFilePaths[index];
-                string relativePath = NormalizeRelativePath(Path.GetRelativePath(outputRootPath, fullPath));
+                string relativePath = "cooked/" + NormalizeRelativePath(Path.GetRelativePath(cookRootPath, fullPath));
                 artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath), variantId);
             }
 
             return artifactPool.ToArray();
         }
 
+        static string ResolveCookExecutionRootPath(string outputRootPath) {
+            if (string.IsNullOrWhiteSpace(outputRootPath)) {
+                throw new ArgumentException("Output root path must be provided.", nameof(outputRootPath));
+            }
+
+            if (Path.GetFileName(outputRootPath).Equals("cooked", StringComparison.OrdinalIgnoreCase)) {
+                string? parentDirectoryPath = Directory.GetParent(outputRootPath)?.FullName;
+                if (string.IsNullOrWhiteSpace(parentDirectoryPath)) {
+                    throw new InvalidOperationException($"Cook root '{outputRootPath}' does not have a parent execution root.");
+                }
+
+                return parentDirectoryPath;
+            }
+
+            return outputRootPath;
+        }
+
+        static string ResolveCookRootPath(string outputRootPath) {
+            if (string.IsNullOrWhiteSpace(outputRootPath)) {
+                throw new ArgumentException("Output root path must be provided.", nameof(outputRootPath));
+            }
+
+            if (Path.GetFileName(outputRootPath).Equals("cooked", StringComparison.OrdinalIgnoreCase)) {
+                return outputRootPath;
+            }
+
+            return Path.Combine(outputRootPath, "cooked");
+        }
+
         static string BuildCookedSceneRelativePath(string sceneId, int sceneIndex) {
             return PackagedScenePathResolver.BuildRelativePath(sceneId, sceneIndex);
+        }
+
+        static string NormalizeCookedRelativePath(string cookedRelativePath) {
+            if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
+                throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
+            }
+
+            if (cookedRelativePath.StartsWith("cooked/", StringComparison.OrdinalIgnoreCase)) {
+                return cookedRelativePath.Substring("cooked/".Length);
+            }
+
+            return cookedRelativePath;
         }
 
         static string ResolveArtifactKind(string fullPath, string relativePath) {

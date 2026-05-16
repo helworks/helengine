@@ -124,8 +124,8 @@ namespace helengine {
             }
 
             string fullPath = ResolveFileBackedAssetPath(reference);
-#if PS2_PLATFORM
-            Ps2MaterialAsset materialAsset = AssetContentManager.Load<Ps2MaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
+#if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
+            PlatformMaterialAsset materialAsset = AssetContentManager.Load<PlatformMaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
             return Core.Instance.RenderManager3D.BuildMaterialFromCooked(materialAsset);
 #else
             MaterialAsset materialAsset = AssetContentManager.Load<MaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
@@ -298,6 +298,11 @@ namespace helengine {
                 throw new InvalidOperationException("Packaged scene asset references must include a relative path.");
             }
 
+#if HELENGINE_RUNTIME_ALLOW_ROOTED_PACKAGED_PATHS
+            if (Path.IsPathRooted(reference.RelativePath)) {
+                return Path.GetFullPath(reference.RelativePath);
+            }
+#endif
             string fullPath = Path.GetFullPath(Path.Combine(ContentRootPath, reference.RelativePath));
             string contentRootPrefix = EnsureTrailingDirectorySeparator(ContentRootPath);
             if (!fullPath.StartsWith(contentRootPrefix, StringComparison.OrdinalIgnoreCase)) {

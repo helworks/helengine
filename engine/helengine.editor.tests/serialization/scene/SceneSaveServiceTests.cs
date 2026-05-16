@@ -131,6 +131,42 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures scene save and load preserve the authored static flag for root and child entities.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenEntityStaticFlagsDiffer_RoundTripsStaticFlags() {
+            EditorEntity root = CreateUserEntity("StaticRoot", new float3(1f, 2f, 3f), float3.One, float4.Identity);
+            root.Static = true;
+
+            EditorEntity child = CreateUserEntity("DynamicChild", new float3(4f, 5f, 6f), float3.One, float4.Identity);
+            child.Static = false;
+            root.AddChild(child);
+
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "StaticFlags.helen");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset rootAsset = Assert.Single(asset.RootEntities);
+            Assert.True(rootAsset.IsStatic);
+            SceneEntityAsset childAsset = Assert.Single(rootAsset.Children);
+            Assert.False(childAsset.IsStatic);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
+            Assert.True(loadedRoot.Static);
+
+            EditorEntity loadedChild = Assert.IsType<EditorEntity>(Assert.Single(loadedRoot.Children));
+            Assert.False(loadedChild.Static);
+        }
+
+        /// <summary>
         /// Ensures scene save can infer generated mesh asset references from the live runtime assignments without requiring user-authored save metadata.
         /// </summary>
         [Fact]

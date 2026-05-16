@@ -11,7 +11,12 @@ namespace helengine.editor {
         /// <summary>
         /// Scene-asset factory used to bake menu definitions into scene payloads.
         /// </summary>
-        readonly DemoMenuSceneAssetFactory SceneAssetFactory;
+        readonly DemoMenuSceneAssetFactory DesktopSceneAssetFactory;
+
+        /// <summary>
+        /// Scene-asset factory used to bake the Nintendo DS dual-screen menu scene payload.
+        /// </summary>
+        readonly NintendoDsDemoMenuSceneAssetFactory NintendoDsSceneAssetFactory;
 
         /// <summary>
         /// Initializes a new demo menu scene build service.
@@ -19,7 +24,8 @@ namespace helengine.editor {
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         public DemoMenuSceneBuildService(IScriptTypeResolver scriptTypeResolver = null) {
             ProviderResolver = new MenuDefinitionProviderResolver(scriptTypeResolver);
-            SceneAssetFactory = new DemoMenuSceneAssetFactory();
+            DesktopSceneAssetFactory = new DemoMenuSceneAssetFactory();
+            NintendoDsSceneAssetFactory = new NintendoDsDemoMenuSceneAssetFactory();
         }
 
         /// <summary>
@@ -29,6 +35,17 @@ namespace helengine.editor {
         /// <param name="providerTypeName">Assembly-qualified provider type name.</param>
         /// <returns>Baked demo menu scene asset.</returns>
         public SceneAsset BuildSceneAsset(string sceneId, string providerTypeName) {
+            return BuildSceneAsset(sceneId, providerTypeName, DemoMenuSceneBuildVariant.Desktop);
+        }
+
+        /// <summary>
+        /// Builds one baked scene asset from the supplied provider type name for the requested layout variant.
+        /// </summary>
+        /// <param name="sceneId">Scene id assigned to the baked scene asset.</param>
+        /// <param name="providerTypeName">Assembly-qualified provider type name.</param>
+        /// <param name="variant">Layout variant to generate.</param>
+        /// <returns>Baked demo menu scene asset.</returns>
+        public SceneAsset BuildSceneAsset(string sceneId, string providerTypeName, DemoMenuSceneBuildVariant variant) {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
             }
@@ -42,7 +59,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Menu provider '{providerTypeName}' returned a null definition.");
             }
 
-            return BuildSceneAsset(sceneId, providerTypeName, definition);
+            return BuildSceneAsset(sceneId, providerTypeName, definition, variant);
         }
 
         /// <summary>
@@ -53,6 +70,18 @@ namespace helengine.editor {
         /// <param name="definition">Menu definition that should be baked into the scene.</param>
         /// <returns>Baked demo menu scene asset.</returns>
         public SceneAsset BuildSceneAsset(string sceneId, string providerTypeName, MenuDefinition definition) {
+            return BuildSceneAsset(sceneId, providerTypeName, definition, DemoMenuSceneBuildVariant.Desktop);
+        }
+
+        /// <summary>
+        /// Builds one baked scene asset from an already-authored menu definition for the requested layout variant.
+        /// </summary>
+        /// <param name="sceneId">Scene id assigned to the baked scene asset.</param>
+        /// <param name="providerTypeName">Assembly-qualified provider type name retained for future rebuilds.</param>
+        /// <param name="definition">Menu definition that should be baked into the scene.</param>
+        /// <param name="variant">Layout variant to generate.</param>
+        /// <returns>Baked demo menu scene asset.</returns>
+        public SceneAsset BuildSceneAsset(string sceneId, string providerTypeName, MenuDefinition definition, DemoMenuSceneBuildVariant variant) {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
             }
@@ -63,7 +92,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(definition));
             }
 
-            return SceneAssetFactory.BuildSceneAsset(sceneId, providerTypeName, definition);
+            if (variant == DemoMenuSceneBuildVariant.NintendoDs) {
+                return NintendoDsSceneAssetFactory.BuildSceneAsset(sceneId, providerTypeName, definition);
+            }
+
+            return DesktopSceneAssetFactory.BuildSceneAsset(sceneId, providerTypeName, definition);
         }
     }
 }

@@ -6,6 +6,21 @@ namespace helengine.editor {
     /// </summary>
     internal static class EditorPlatformPreprocessorSymbolService {
         /// <summary>
+        /// Preprocessor symbol used when generated runtimes resolve cooked platform-owned material assets.
+        /// </summary>
+        public const string RuntimeMaterialResolutionCookedPlatformOwnedSymbol = "HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED";
+
+        /// <summary>
+        /// Preprocessor symbol used when generated runtimes allow rooted packaged asset paths.
+        /// </summary>
+        public const string RuntimeAllowRootedPackagedPathsSymbol = "HELENGINE_RUNTIME_ALLOW_ROOTED_PACKAGED_PATHS";
+
+        /// <summary>
+        /// Preprocessor symbol used when generated runtimes support RenderManager2D texture-release flushing.
+        /// </summary>
+        public const string RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol = "HELENGINE_RUNTIME_SUPPORTS_RENDER_MANAGER_2D_TEXTURE_RELEASE_FLUSH";
+
+        /// <summary>
         /// Resolves the platform-specific symbols that should be defined while compiling authored gameplay code.
         /// </summary>
         /// <param name="platformId">Stable platform identifier for the active build.</param>
@@ -49,6 +64,17 @@ namespace helengine.editor {
             }
 
             List<string> symbols = [.. ResolveGameplaySymbols(platformDefinition.PlatformId)];
+            RuntimeGenerationContract runtimeGenerationContract = platformDefinition.RuntimeGenerationContract
+                ?? throw new InvalidOperationException($"Platform '{platformDefinition.PlatformId}' must expose a runtime-generation contract.");
+            if (runtimeGenerationContract.MaterialResolutionMode == RuntimeMaterialResolutionMode.CookedPlatformOwned) {
+                symbols.Add(RuntimeMaterialResolutionCookedPlatformOwnedSymbol);
+            }
+            if (runtimeGenerationContract.PackagedPathPolicy == PackagedPathPolicy.RootedOrContentRelative) {
+                symbols.Add(RuntimeAllowRootedPackagedPathsSymbol);
+            }
+            if (runtimeGenerationContract.SupportsRenderManager2DTextureReleaseFlush) {
+                symbols.Add(RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol);
+            }
             symbols.Add("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION");
             symbols.Add("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION");
             return symbols;

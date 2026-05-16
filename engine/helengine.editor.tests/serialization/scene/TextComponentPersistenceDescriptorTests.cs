@@ -56,6 +56,43 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures text deserialization accepts the strict runtime payload shape written by cooked scene packaging.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenPayloadUsesCookedRuntimeLayout_LoadsTheComponent() {
+            TextComponentPersistenceDescriptor descriptor = new TextComponentPersistenceDescriptor();
+            SceneAssetReference fontReference = BuildFontReference("fonts/runtime.hefont", "fonts", "runtime");
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            FontAsset loadedFont = CreateFont("Runtime");
+            resolver.RegisterFont(fontReference, loadedFont);
+
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = descriptor.ComponentTypeId,
+                ComponentIndex = 0,
+                Payload = WriteCookedRuntimePayload(fontReference)
+            };
+
+            EntitySaveComponent loadedSaveComponent = new EntitySaveComponent();
+            TextComponent loadedComponent = Assert.IsType<TextComponent>(descriptor.DeserializeComponent(record, loadedSaveComponent, resolver));
+
+            Assert.Same(loadedFont, loadedComponent.Font);
+            Assert.Equal("Cooked runtime text", loadedComponent.Text);
+            Assert.True(loadedComponent.WrapText);
+            Assert.Equal(new int2(256, 48), loadedComponent.Size);
+            Assert.Equal(new byte4(9, 18, 27, 255), loadedComponent.Color);
+            Assert.Equal(new float4(0.05f, 0.15f, 0.8f, 0.9f), loadedComponent.SourceRect);
+            Assert.Equal(0.5f, loadedComponent.Rotation);
+            Assert.Equal((byte)6, loadedComponent.RenderOrder2D);
+            Assert.Equal((byte)3, loadedComponent.LayerMask);
+            Assert.True(loadedComponent.SelectionEnabled);
+            Assert.True(loadedSaveComponent.TryGetComponentState(loadedComponent, out EntityComponentSaveState loadedState));
+            Assert.True(loadedState.TryGetAssetReference("Font", out SceneAssetReference loadedReference));
+            Assert.Equal(fontReference.RelativePath, loadedReference.RelativePath);
+            Assert.Equal(fontReference.ProviderId, loadedReference.ProviderId);
+            Assert.Equal(fontReference.AssetId, loadedReference.AssetId);
+        }
+
+        /// <summary>
         /// Creates a stable runtime font asset used by the descriptor round-trip test.
         /// </summary>
         /// <param name="name">Friendly font name.</param>
@@ -87,6 +124,28 @@ namespace helengine.editor.tests.serialization.scene {
                 ProviderId = providerId,
                 AssetId = assetId
             };
+        }
+
+        /// <summary>
+        /// Writes one strict runtime text payload matching the cooked scene layout used by packaged builds.
+        /// </summary>
+        /// <param name="fontReference">Font reference encoded into the runtime payload.</param>
+        /// <returns>Serialized cooked-runtime payload.</returns>
+        byte[] WriteCookedRuntimePayload(SceneAssetReference fontReference) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            SceneComponentBinaryFieldEncoding.WriteOptionalReference(writer, fontReference);
+            writer.WriteString("Cooked runtime text");
+            writer.WriteByte(1);
+            writer.WriteInt2(new int2(256, 48));
+            SceneComponentBinaryFieldEncoding.WriteByte4(writer, new byte4(9, 18, 27, 255));
+            writer.WriteFloat4(new float4(0.05f, 0.15f, 0.8f, 0.9f));
+            writer.WriteSingle(0.5f);
+            writer.WriteByte(6);
+            writer.WriteByte(3);
+            writer.WriteByte(1);
+            return stream.ToArray();
         }
     }
 }

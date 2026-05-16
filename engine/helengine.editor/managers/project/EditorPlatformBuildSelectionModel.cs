@@ -127,6 +127,11 @@ namespace helengine.editor {
         public PlatformMediaProfileDefinition[] MediaProfiles { get; }
 
         /// <summary>
+        /// Gets the host-debug capability metadata exposed by the platform builder.
+        /// </summary>
+        public PlatformHostDebugCapability HostDebugCapability { get { return Definition.HostDebugCapability; } }
+
+        /// <summary>
         /// Gets the underlying platform definition exposed by the builder.
         /// </summary>
         public PlatformDefinition Definition { get; }

@@ -8,6 +8,7 @@ using helengine.baseplatform.Requests;
 using helengine.baseplatform.Targets;
 using helengine.files;
 using helengine.platforms;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
@@ -34,6 +35,7 @@ namespace helengine.editor {
         readonly FontAsset DefaultFontAsset;
         readonly EditorPlatformAssetBuilderLoader BuilderLoader;
         readonly EditorGeneratedCoreRegenerationService GeneratedCoreRegenerationService;
+        readonly EditorGeneratedMenuScenePreparationService GeneratedMenuScenePreparationService;
         readonly EditorPhysics3DCodegenFeatureSymbolService Physics3DCodegenFeatureSymbolService;
         readonly EditorPlatformBuildGraphWorkspaceFactory WorkspaceFactory;
         readonly EditorPlatformAssetCookService AssetCookService;
@@ -103,6 +105,7 @@ namespace helengine.editor {
             DefaultFontAsset = defaultFontAsset;
             BuilderLoader = builderLoader ?? throw new ArgumentNullException(nameof(builderLoader));
             GeneratedCoreRegenerationService = generatedCoreRegenerationService ?? throw new ArgumentNullException(nameof(generatedCoreRegenerationService));
+            GeneratedMenuScenePreparationService = new EditorGeneratedMenuScenePreparationService(ProjectRootPath, scriptTypeResolver);
             Physics3DCodegenFeatureSymbolService = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
             WorkspaceFactory = workspaceFactory ?? new EditorPlatformBuildGraphWorkspaceFactory();
             AssetCookService = new EditorPlatformAssetCookService(
@@ -149,6 +152,7 @@ namespace helengine.editor {
             Directory.CreateDirectory(workspace.BuilderWorkingRootPath);
             Directory.CreateDirectory(workspace.LogsRootPath);
 
+            GeneratedMenuScenePreparationService.EnsurePrepared(queueItem.SelectedSceneIds ?? []);
             RunRegenerateCore(builder.Definition, selectedCodegenProfile, queueItem, workspace);
             PlatformBuildManifest cookedManifest = RunCookAssets(
                 builder,
@@ -158,8 +162,8 @@ namespace helengine.editor {
                 queueItem,
                 workspace);
             PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
-            CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(cookedManifest, codeModules, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.CookRootPath);
-            EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.CookRootPath);
+            CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(cookedManifest, codeModules, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.ExecutionRootPath);
+            EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.ExecutionRootPath);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
@@ -168,7 +172,7 @@ namespace helengine.editor {
             FinalizeGeneratedCoreSources(workspace.GeneratedCoreRootPath);
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
 
-            return RunPackagePlatform(
+            EditorBuildExecutionResult packageResult = RunPackagePlatform(
                 builder,
                 queueItem,
                 workspace,
@@ -179,6 +183,140 @@ namespace helengine.editor {
                 selectedCodegenProfileId,
                 selectedMediaProfileId,
                 selectedStorageProfileId);
+            return FinalizeBuildExecution(selectionModel, queueItem, packageResult);
+        }
+
+        /// <summary>
+        /// Finalizes one build-graph execution after the packaged output has been produced.
+        /// </summary>
+        /// <param name="selectionModel">Resolved builder metadata for the active platform.</param>
+        /// <param name="workspace">Workspace that owns the packaged outputs.</param>
+        /// <param name="queueItem">Queued build item being executed.</param>
+        /// <param name="packageResult">Result returned by the normal package/build phase.</param>
+        /// <returns>Final build execution result for the queue item.</returns>
+        protected virtual EditorBuildExecutionResult FinalizeBuildExecution(
+            EditorPlatformBuildSelectionModel selectionModel,
+            EditorBuildQueueItemDocument queueItem,
+            EditorBuildExecutionResult packageResult) {
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+            if (packageResult == null) {
+                throw new ArgumentNullException(nameof(packageResult));
+            }
+
+            if (!packageResult.Succeeded || queueItem.ExecutionMode != EditorBuildExecutionMode.HostDebug) {
+                return packageResult;
+            }
+
+            return LaunchHostDebugRunner(selectionModel, queueItem, queueItem.OutputDirectoryPath, packageResult);
+        }
+
+        /// <summary>
+        /// Launches one platform host-debug runner after the normal packaged output has been produced.
+        /// </summary>
+        /// <param name="selectionModel">Resolved builder metadata for the active platform.</param>
+        /// <param name="workspace">Workspace that owns the packaged outputs.</param>
+        /// <param name="queueItem">Queued build item being executed.</param>
+        /// <param name="packageResult">Successful package/build result that produced the packaged runtime output.</param>
+        /// <returns>Final build execution result for the queue item.</returns>
+        protected virtual EditorBuildExecutionResult LaunchHostDebugRunner(
+            EditorPlatformBuildSelectionModel selectionModel,
+            EditorBuildQueueItemDocument queueItem,
+            string outputDirectoryPath,
+            EditorBuildExecutionResult packageResult) {
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+            if (string.IsNullOrWhiteSpace(outputDirectoryPath)) {
+                throw new ArgumentException("Output directory path must be provided.", nameof(outputDirectoryPath));
+            }
+            if (packageResult == null) {
+                throw new ArgumentNullException(nameof(packageResult));
+            }
+
+            PlatformHostDebugCapability capability = selectionModel.HostDebugCapability;
+            if (capability == null || !capability.SupportsHostDebug) {
+                return EditorBuildExecutionResult.Failure($"Platform '{selectionModel.PlatformId}' does not support host-debug.");
+            }
+            if (!capability.RequiresPackagedExportArtifacts) {
+                return EditorBuildExecutionResult.Failure($"Platform '{selectionModel.PlatformId}' host-debug requires packaged export artifacts.");
+            }
+            if (capability.RunnerKind != PlatformHostDebugRunnerKind.NativeExecutable) {
+                return EditorBuildExecutionResult.Failure($"Platform '{selectionModel.PlatformId}' host-debug runner kind '{capability.RunnerKind}' is not supported.");
+            }
+
+            string executablePath = ResolveHostDebugRunnerExecutablePath(capability);
+            if (!File.Exists(executablePath)) {
+                return EditorBuildExecutionResult.Failure($"Host-debug runner '{executablePath}' was not found.");
+            }
+
+            string arguments = BuildHostDebugRunnerArguments(outputDirectoryPath);
+            StartHostDebugProcess(executablePath, arguments);
+            return EditorBuildExecutionResult.Success(packageResult.Message + " Host-debug runner launched.");
+        }
+
+        /// <summary>
+        /// Resolves the published host-debug runner executable path for the active platform.
+        /// </summary>
+        /// <param name="capability">Host-debug capability metadata published by the platform builder.</param>
+        /// <returns>Absolute executable path for the published host-debug runner.</returns>
+        protected virtual string ResolveHostDebugRunnerExecutablePath(PlatformHostDebugCapability capability) {
+            if (capability == null) {
+                throw new ArgumentNullException(nameof(capability));
+            }
+
+            string nativeRepositoryRootPath = PlatformDescriptor.PlayerSourceRootPath;
+            if (string.IsNullOrWhiteSpace(nativeRepositoryRootPath)) {
+                string builderAssemblyDirectoryPath = Path.GetDirectoryName(PlatformDescriptor.BuilderAssemblyPath)
+                    ?? throw new InvalidOperationException("Builder assembly directory could not be resolved.");
+                nativeRepositoryRootPath = Path.GetFullPath(Path.Combine(builderAssemblyDirectoryPath, "..", "..", "..", ".."));
+            }
+
+            string runnerFileName = capability.RunnerId + (OperatingSystem.IsWindows() ? ".exe" : string.Empty);
+            return Path.Combine(
+                Path.GetFullPath(nativeRepositoryRootPath),
+                "tools",
+                capability.RunnerId,
+                "bin",
+                runnerFileName);
+        }
+
+        /// <summary>
+        /// Builds the command-line arguments for one host-debug runner invocation.
+        /// </summary>
+        /// <param name="outputDirectoryPath">Packaged platform output root produced by the normal build phase.</param>
+        /// <returns>Command-line arguments passed to the published host-debug runner.</returns>
+        protected virtual string BuildHostDebugRunnerArguments(string outputDirectoryPath) {
+            if (string.IsNullOrWhiteSpace(outputDirectoryPath)) {
+                throw new ArgumentException("Output directory path must be provided.", nameof(outputDirectoryPath));
+            }
+
+            return $"--export-root \"{Path.GetFullPath(outputDirectoryPath)}\" --mode load-only";
+        }
+
+        /// <summary>
+        /// Starts one published host-debug runner process.
+        /// </summary>
+        /// <param name="executablePath">Absolute runner executable path.</param>
+        /// <param name="arguments">Command-line arguments passed to the runner.</param>
+        protected virtual void StartHostDebugProcess(string executablePath, string arguments) {
+            if (string.IsNullOrWhiteSpace(executablePath)) {
+                throw new ArgumentException("Executable path must be provided.", nameof(executablePath));
+            }
+
+            string workingDirectoryPath = Path.GetDirectoryName(executablePath)
+                ?? throw new InvalidOperationException("Host-debug runner working directory could not be resolved.");
+            Process.Start(new ProcessStartInfo(executablePath, arguments) {
+                UseShellExecute = false,
+                WorkingDirectory = workingDirectoryPath
+            });
         }
 
         /// <summary>
@@ -239,7 +377,7 @@ namespace helengine.editor {
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace) {
             EditorCodeModuleManifestDocument manifestDocument = CodeModuleManifestService.Load();
-            IReadOnlyList<string> inferredRootModuleIds = DiscoverReferencedRuntimeModuleIdsFromCookedScenes(cookedManifest, workspace.CookRootPath);
+            IReadOnlyList<string> inferredRootModuleIds = DiscoverReferencedRuntimeModuleIdsFromCookedScenes(cookedManifest, workspace.ExecutionRootPath);
             return CodeCookService.CompileModules(
                 manifestDocument,
                 PlatformDescriptor.Id,
@@ -255,24 +393,24 @@ namespace helengine.editor {
         /// Discovers the distinct runtime module ids referenced by the cooked scene payloads in the current manifest.
         /// </summary>
         /// <param name="cookedManifest">Cooked manifest whose selected scene payloads should be inspected.</param>
-        /// <param name="cookRootPath">Cook root that contains the cooked scene payloads.</param>
+        /// <param name="packagedContentRootPath">Packaged content root that contains the cooked scene payloads beneath a top-level <c>cooked/</c> segment.</param>
         /// <returns>Distinct scene-referenced runtime module ids.</returns>
-        IReadOnlyList<string> DiscoverReferencedRuntimeModuleIdsFromCookedScenes(PlatformBuildManifest cookedManifest, string cookRootPath) {
+        IReadOnlyList<string> DiscoverReferencedRuntimeModuleIdsFromCookedScenes(PlatformBuildManifest cookedManifest, string packagedContentRootPath) {
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
-            if (string.IsNullOrWhiteSpace(cookRootPath)) {
-                throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
+            if (string.IsNullOrWhiteSpace(packagedContentRootPath)) {
+                throw new ArgumentException("Packaged content root path must be provided.", nameof(packagedContentRootPath));
             }
 
             List<string> cookedSceneAssetPaths = new List<string>(cookedManifest.Scenes.Length);
             for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
                 PlatformBuildScene scene = cookedManifest.Scenes[index];
-                if (scene == null || string.IsNullOrWhiteSpace(scene.SourceIdentity)) {
+                if (scene == null) {
                     continue;
                 }
 
-                cookedSceneAssetPaths.Add(Path.Combine(cookRootPath, scene.SourceIdentity.Replace('/', Path.DirectorySeparatorChar)));
+                cookedSceneAssetPaths.Add(ResolveCookedSceneAssetPath(scene, packagedContentRootPath));
             }
 
             return EditorGeneratedCoreRegenerationService.DiscoverReferencedRuntimeModuleIdsFromCookedScenes(
@@ -287,13 +425,13 @@ namespace helengine.editor {
         /// <param name="codeModules">Compiled runtime code modules included in the current build.</param>
         /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
         /// <param name="codeRootPath">Generated module output root produced by the authored-code phase.</param>
-        /// <param name="cookRootPath">Cook root that contains the packaged scene payloads.</param>
+        /// <param name="packagedContentRootPath">Packaged content root that contains the cooked scene payloads beneath a top-level <c>cooked/</c> segment.</param>
         void CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(
             PlatformBuildManifest cookedManifest,
             PlatformBuildCodeModule[] codeModules,
             string generatedCoreRootPath,
             string codeRootPath,
-            string cookRootPath) {
+            string packagedContentRootPath) {
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
@@ -306,8 +444,8 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(codeRootPath)) {
                 throw new ArgumentException("Code root path must be provided.", nameof(codeRootPath));
             }
-            if (string.IsNullOrWhiteSpace(cookRootPath)) {
-                throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
+            if (string.IsNullOrWhiteSpace(packagedContentRootPath)) {
+                throw new ArgumentException("Packaged content root path must be provided.", nameof(packagedContentRootPath));
             }
 
             Dictionary<string, string> generatedModuleRootsById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -321,8 +459,8 @@ namespace helengine.editor {
             List<string> cookedSceneAssetPaths = new List<string>(cookedManifest.Scenes.Length);
             for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
                 PlatformBuildScene scene = cookedManifest.Scenes[index];
-                if (scene != null && !string.IsNullOrWhiteSpace(scene.SourceIdentity)) {
-                    cookedSceneAssetPaths.Add(Path.Combine(cookRootPath, scene.SourceIdentity.Replace('/', Path.DirectorySeparatorChar)));
+                if (scene != null) {
+                    cookedSceneAssetPaths.Add(ResolveCookedSceneAssetPath(scene, packagedContentRootPath));
                 }
             }
 
@@ -349,29 +487,29 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="cookedManifest">Cooked manifest whose scene payloads should drive generated deserializer coverage.</param>
         /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
-        /// <param name="cookRootPath">Cook root that contains the packaged scene payloads.</param>
+        /// <param name="packagedContentRootPath">Packaged content root that contains the cooked scene payloads beneath a top-level <c>cooked/</c> segment.</param>
         void EmitGeneratedRuntimeComponentDeserializersForCookedScenes(
             PlatformBuildManifest cookedManifest,
             string generatedCoreRootPath,
-            string cookRootPath) {
+            string packagedContentRootPath) {
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
-            if (string.IsNullOrWhiteSpace(cookRootPath)) {
-                throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
+            if (string.IsNullOrWhiteSpace(packagedContentRootPath)) {
+                throw new ArgumentException("Packaged content root path must be provided.", nameof(packagedContentRootPath));
             }
 
             List<string> cookedSceneAssetPaths = new List<string>(cookedManifest.Scenes.Length);
             for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
                 PlatformBuildScene scene = cookedManifest.Scenes[index];
-                if (scene == null || string.IsNullOrWhiteSpace(scene.SourceIdentity)) {
+                if (scene == null) {
                     continue;
                 }
 
-                cookedSceneAssetPaths.Add(Path.Combine(cookRootPath, scene.SourceIdentity.Replace('/', Path.DirectorySeparatorChar)));
+                cookedSceneAssetPaths.Add(ResolveCookedSceneAssetPath(scene, packagedContentRootPath));
             }
 
             EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
@@ -414,6 +552,52 @@ namespace helengine.editor {
             }
 
             File.Copy(sourcePath, destinationPath, true);
+        }
+
+        /// <summary>
+        /// Resolves one cooked scene asset file path from the manifest scene entry and packaged content root.
+        /// </summary>
+        /// <param name="scene">Manifest scene entry whose cooked payload should be read.</param>
+        /// <param name="packagedContentRootPath">Packaged content root directory that contains a top-level <c>cooked</c> tree.</param>
+        /// <returns>Absolute cooked scene asset path.</returns>
+        static string ResolveCookedSceneAssetPath(PlatformBuildScene scene, string packagedContentRootPath) {
+            if (scene == null) {
+                throw new ArgumentNullException(nameof(scene));
+            }
+            if (string.IsNullOrWhiteSpace(packagedContentRootPath)) {
+                throw new ArgumentException("Packaged content root path must be provided.", nameof(packagedContentRootPath));
+            }
+
+            string cookedRelativePath = ResolveCookedSceneRelativePath(scene);
+            return Path.Combine(packagedContentRootPath, cookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        /// <summary>
+        /// Resolves the cooked runtime-relative path recorded for one scene manifest entry.
+        /// </summary>
+        /// <param name="scene">Manifest scene entry whose metadata should be read.</param>
+        /// <returns>Cooked runtime-relative scene path.</returns>
+        static string ResolveCookedSceneRelativePath(PlatformBuildScene scene) {
+            if (scene == null) {
+                throw new ArgumentNullException(nameof(scene));
+            }
+
+            if (scene.ResolvedMetadata != null) {
+                for (int index = 0; index < scene.ResolvedMetadata.Length; index++) {
+                    KeyValuePair<string, string> metadata = scene.ResolvedMetadata[index];
+                    if (!string.Equals(metadata.Key, PlatformBuildSceneMetadataKeys.CookedRelativePath, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                    if (!string.IsNullOrWhiteSpace(metadata.Value)) {
+                        return metadata.Value.Replace('\\', '/');
+                    }
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(scene.SourceIdentity)) {
+                return scene.SourceIdentity.Replace('\\', '/');
+            }
+
+            throw new InvalidOperationException($"Scene '{scene.SceneId}' did not define a cooked scene asset path.");
         }
 
         /// <summary>
@@ -492,7 +676,7 @@ namespace helengine.editor {
                 workspace.PackageRootPath,
                 selectedStorageProfile,
                 selectedMediaProfile);
-            CopyDirectoryTree(workspace.CookRootPath, workspace.PackageRootPath);
+            CopyDirectoryTree(workspace.CookRootPath, Path.Combine(workspace.PackageRootPath, "cooked"));
         }
 
         /// <summary>
@@ -795,11 +979,17 @@ namespace helengine.editor {
             Array.Sort(stagedFilePaths, StringComparer.OrdinalIgnoreCase);
 
             PlatformBuildPayloadReference[] stagedPayloadReferences = new PlatformBuildPayloadReference[stagedFilePaths.Length];
+            HashSet<string> stagedRelativePaths = new(StringComparer.OrdinalIgnoreCase);
             for (int index = 0; index < stagedFilePaths.Length; index++) {
                 string stagedFilePath = stagedFilePaths[index];
-                string relativePath = NormalizeRelativePath(Path.GetRelativePath(stagingRoot, stagedFilePath));
+                string relativePath = NormalizeStagedManifestRelativePath(
+                    stagingRoot,
+                    NormalizeRelativePath(Path.GetRelativePath(stagingRoot, stagedFilePath)));
+                stagedRelativePaths.Add(relativePath);
                 stagedPayloadReferences[index] = new PlatformBuildPayloadReference(relativePath, relativePath);
             }
+
+            PlatformBuildArtifact[] stagedCookedArtifacts = ResolveStagedCookedArtifacts(cookedManifest.CookedArtifacts, stagedRelativePaths);
 
             PlatformBuildScene[] manifestScenes = new PlatformBuildScene[cookedManifest.Scenes.Length];
             for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
@@ -823,7 +1013,7 @@ namespace helengine.editor {
                 cookedManifest.StartupSceneId,
                 manifestScenes,
                 cookedManifest.LooseAssets,
-                cookedManifest.CookedArtifacts,
+                stagedCookedArtifacts,
                 cookedManifest.CodeModules,
                 cookedManifest.ArtifactPlacements,
                 cookedManifest.ContainerWritePlan);
@@ -991,6 +1181,48 @@ namespace helengine.editor {
 
         static string NormalizeRelativePath(string relativePath) {
             return relativePath.Replace(Path.DirectorySeparatorChar, '/');
+        }
+
+        static string NormalizeStagedManifestRelativePath(string stagingRoot, string relativePath) {
+            if (string.IsNullOrWhiteSpace(stagingRoot)) {
+                throw new ArgumentException("Staging root path must be provided.", nameof(stagingRoot));
+            }
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            string stagingRootName = Path.GetFileName(Path.GetFullPath(stagingRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (string.Equals(stagingRootName, "cooked", StringComparison.OrdinalIgnoreCase)) {
+                return "cooked/" + normalizedRelativePath;
+            }
+
+            return normalizedRelativePath;
+        }
+
+        static PlatformBuildArtifact[] ResolveStagedCookedArtifacts(PlatformBuildArtifact[] cookedArtifacts, ISet<string> stagedRelativePaths) {
+            if (cookedArtifacts == null || cookedArtifacts.Length == 0) {
+                return [];
+            }
+            if (stagedRelativePaths == null) {
+                throw new ArgumentNullException(nameof(stagedRelativePaths));
+            }
+
+            List<PlatformBuildArtifact> stagedArtifacts = [];
+            for (int index = 0; index < cookedArtifacts.Length; index++) {
+                PlatformBuildArtifact artifact = cookedArtifacts[index];
+                if (artifact == null || string.IsNullOrWhiteSpace(artifact.RelativePath)) {
+                    continue;
+                }
+
+                if (!stagedRelativePaths.Contains(artifact.RelativePath)) {
+                    continue;
+                }
+
+                stagedArtifacts.Add(artifact);
+            }
+
+            return [.. stagedArtifacts];
         }
 
         static PlatformBuildManifest ReplaceCodeModules(PlatformBuildManifest manifest, PlatformBuildCodeModule[] codeModules) {

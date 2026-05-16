@@ -1,4 +1,5 @@
 using helengine.baseplatform.Builders;
+using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Results;
 using System.Reflection;
@@ -232,6 +233,11 @@ namespace helengine.editor {
         /// Authored gameplay-script type id for directional-shadow tower spin motion.
         /// </summary>
         const string GameplayDirectionalShadowTowerSpinComponentTypeId = "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay";
+
+        /// <summary>
+        /// Legacy city-script type id baked into older demo-menu scenes for the platform-info overlay binder.
+        /// </summary>
+        const string LegacyPlatformInfoTextComponentTypeId = "city.menu.PlatformInfoTextComponent, gameplay";
 
         /// <summary>
         /// Generated provider id reserved for the editor's built-in font asset.
@@ -544,6 +550,7 @@ namespace helengine.editor {
                 || string.Equals(componentTypeId, GameplayDirectionalShadowSunSweepComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, CityDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, GameplayDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, LegacyPlatformInfoTextComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, MenuComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, MenuPanelComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, MenuItemComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)
@@ -639,6 +646,11 @@ namespace helengine.editor {
                 return true;
             }
 
+            if (string.Equals(record.ComponentTypeId, LegacyPlatformInfoTextComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteLegacyPlatformInfoTextComponentRecord(record);
+                return true;
+            }
+
             if (TryRewriteDirectionalShadowMotionComponentRecord(record, out transformedRecord)) {
                 return true;
             }
@@ -724,8 +736,42 @@ namespace helengine.editor {
             }
 
             Component component = DeserializeAutomaticComponentForPackaging(record, descriptor);
-            ScriptComponentReflectionSchema schema = ScriptComponentSchemaBuilder.Build(component.GetType());
+            transformedRecord = BuildAutomaticRuntimeComponentRecord(record.ComponentTypeId, record.ComponentIndex, component);
+            return true;
+        }
 
+        /// <summary>
+        /// Rewrites the legacy city-owned platform-info overlay binder into the built-in runtime component used by current demo-menu scenes.
+        /// </summary>
+        /// <param name="record">Serialized legacy component record to rewrite.</param>
+        /// <returns>Rewritten built-in component record.</returns>
+        SceneComponentAssetRecord RewriteLegacyPlatformInfoTextComponentRecord(SceneComponentAssetRecord record) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            return BuildAutomaticRuntimeComponentRecord(
+                PlatformInfoTextComponent.SerializedComponentTypeId,
+                record.ComponentIndex,
+                new PlatformInfoTextComponent());
+        }
+
+        /// <summary>
+        /// Builds one strict runtime automatic-component payload from the supplied live component instance.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized runtime component type id to emit.</param>
+        /// <param name="componentIndex">Stable component index assigned within the owning entity.</param>
+        /// <param name="component">Live component instance whose reflected members should be serialized.</param>
+        /// <returns>Runtime-ready automatic component record.</returns>
+        SceneComponentAssetRecord BuildAutomaticRuntimeComponentRecord(string componentTypeId, int componentIndex, Component component) {
+            if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
+            }
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            ScriptComponentReflectionSchema schema = ScriptComponentSchemaBuilder.Build(component.GetType());
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
@@ -735,13 +781,11 @@ namespace helengine.editor {
                 AutomaticScriptComponentPersistenceDescriptor.WriteSupportedValue(writer, member.ValueType, member.GetValue(component));
             }
 
-            transformedRecord = new SceneComponentAssetRecord {
-                ComponentTypeId = record.ComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = componentTypeId,
+                ComponentIndex = componentIndex,
                 Payload = stream.ToArray()
             };
-
-            return true;
         }
 
         /// <summary>
@@ -2306,15 +2350,55 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Material '{reference.RelativePath}' is missing a schema id for target platform '{TargetPlatformId}'.");
             }
 
-            Dictionary<string, string> fieldValues = BuildMaterialCookFieldValues(materialAsset, platformMaterialSettings);
+            MaterialAssetProcessorSettings cookMaterialSettings = ResolveCookMaterialSettings(platformMaterialSettings);
+            Dictionary<string, string> fieldValues = BuildMaterialCookFieldValues(materialAsset, cookMaterialSettings);
             return new PlatformMaterialCookRequest(
                 materialAsset.Id ?? reference.RelativePath,
                 reference.RelativePath,
                 TargetPlatformId,
                 SelectedBuildProfileId,
                 SelectedGraphicsProfileId,
-                platformMaterialSettings.SchemaId,
+                cookMaterialSettings.SchemaId,
                 fieldValues);
+        }
+
+        /// <summary>
+        /// Resolves the effective material settings used for one builder cook request without mutating the authored asset import document.
+        /// </summary>
+        /// <param name="platformMaterialSettings">Authored per-platform material settings.</param>
+        /// <returns>Cook-request material settings compatible with the active builder contract.</returns>
+        MaterialAssetProcessorSettings ResolveCookMaterialSettings(MaterialAssetProcessorSettings platformMaterialSettings) {
+            if (platformMaterialSettings == null) {
+                throw new ArgumentNullException(nameof(platformMaterialSettings));
+            } else if (!UsesCookedPlatformOwnedMaterialResolution() || !IsStandardShaderSchema(platformMaterialSettings.SchemaId)) {
+                return platformMaterialSettings;
+            }
+
+            MaterialAssetProcessorSettings cookMaterialSettings = CloneMaterialSettings(platformMaterialSettings);
+            MaterialAssetSchemaSettingsService schemaSettingsService = new MaterialAssetSchemaSettingsService();
+            if (schemaSettingsService.EnsureSelectedSchema(cookMaterialSettings, MaterialBuilder.Definition.MaterialSchemas) == null) {
+                throw new InvalidOperationException("Cooked-platform-owned builders require at least one material schema.");
+            }
+
+            return cookMaterialSettings;
+        }
+
+        /// <summary>
+        /// Clones one per-platform material settings object so build-time normalization does not rewrite authored import metadata in place.
+        /// </summary>
+        /// <param name="platformMaterialSettings">Per-platform material settings to copy.</param>
+        /// <returns>Independent copy of the supplied material settings.</returns>
+        MaterialAssetProcessorSettings CloneMaterialSettings(MaterialAssetProcessorSettings platformMaterialSettings) {
+            if (platformMaterialSettings == null) {
+                throw new ArgumentNullException(nameof(platformMaterialSettings));
+            }
+
+            return new MaterialAssetProcessorSettings {
+                SchemaId = platformMaterialSettings.SchemaId,
+                FieldValues = platformMaterialSettings.FieldValues != null
+                    ? new Dictionary<string, string>(platformMaterialSettings.FieldValues, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            };
         }
 
         /// <summary>
@@ -2441,6 +2525,18 @@ namespace helengine.editor {
             return string.Equals(schemaId, StandardShaderSchemaId, StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Returns whether the active material builder resolves materials through the cooked-platform-owned runtime contract.
+        /// </summary>
+        /// <returns>True when the active material builder uses cooked-platform-owned material resolution.</returns>
+        bool UsesCookedPlatformOwnedMaterialResolution() {
+            if (MaterialBuilder == null || MaterialBuilder.Definition == null || MaterialBuilder.Definition.RuntimeGenerationContract == null) {
+                return false;
+            }
+
+            return MaterialBuilder.Definition.RuntimeGenerationContract.MaterialResolutionMode == RuntimeMaterialResolutionMode.CookedPlatformOwned;
+        }
+
         void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
             string shaderAssetId = StandardShaderAssetId;
             if (ShouldWriteGeneratedStandardShaderAsset()) {
@@ -2491,7 +2587,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the shared shader-backed standard material should be staged; otherwise false.</returns>
         bool ShouldWriteGeneratedStandardShaderAsset() {
-            return !string.Equals(TargetPlatformId, "ps2", StringComparison.OrdinalIgnoreCase);
+            return !UsesCookedPlatformOwnedMaterialResolution();
         }
 
         void RememberReferencedShaderAssetId(string shaderAssetId) {

@@ -8,11 +8,6 @@ namespace helengine.editor {
         /// </summary>
         const byte RuntimeLayerMask = 0b00000001;
 
-        /// <summary>
-        /// Serialized type id used by the top-right platform info overlay binder component baked into the menu scene.
-        /// </summary>
-        const string PlatformInfoTextComponentTypeId = "city.menu.PlatformInfoTextComponent, gameplay";
-
         /// Descriptor used to serialize baked demo menu root metadata.
         /// </summary>
         readonly MenuComponentPersistenceDescriptor DemoMenuBuildDescriptor;
@@ -205,22 +200,20 @@ namespace helengine.editor {
             };
             ViewportComponent viewportComponent = new ViewportComponent {
                 BindingMode = ViewportComponent.ScreenBindingMode,
-                FixedSize = new int2(DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight)
-            };
-            ReferenceCanvasFitComponent referenceCanvasFitComponent = new ReferenceCanvasFitComponent {
+                FixedSize = new int2(DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight),
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
                 ReferenceWidth = DemoMenuLayout.CanvasWidth,
                 ReferenceHeight = DemoMenuLayout.CanvasHeight
             };
             SceneComponentAssetRecord buildRecord = DemoMenuBuildDescriptor.SerializeComponent(buildComponent, 0, null);
             SceneComponentAssetRecord viewportRecord = AutomaticDescriptor.SerializeComponent(viewportComponent, 1, null);
-            SceneComponentAssetRecord referenceCanvasFitRecord = AutomaticDescriptor.SerializeComponent(referenceCanvasFitComponent, 2, null);
             return new SceneEntityAsset {
                 Id = AllocateSceneEntityId(),
                 Name = "DemoDiscMenuRoot",
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
-                Components = new[] { buildRecord, viewportRecord, referenceCanvasFitRecord },
+                Components = new[] { buildRecord, viewportRecord },
                 Children = new[] {
                     BuildGeneratedRootEntityAsset(definition)
                 }
@@ -536,11 +529,7 @@ namespace helengine.editor {
                 LocalOrientation = float4.Identity,
                 Components = new[] {
                     AutomaticDescriptor.SerializeComponent(anchorComponent, 0, null),
-                    new SceneComponentAssetRecord {
-                        ComponentTypeId = PlatformInfoTextComponentTypeId,
-                        ComponentIndex = 1,
-                        Payload = Array.Empty<byte>()
-                    }
+                    AutomaticDescriptor.SerializeComponent(new PlatformInfoTextComponent(), 1, null)
                 },
                 Children = new[] {
                     BuildTextEntityAsset(

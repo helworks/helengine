@@ -105,6 +105,9 @@ public class PlatformDefinitionTests {
         Assert.Equal("default", definition.CodegenProfiles[0].ProfileId);
         Assert.Equal("install-tree", definition.StorageProfiles[0].ProfileId);
         Assert.Equal("install-tree", definition.MediaProfiles[0].ProfileId);
+        Assert.Equal(RuntimeMaterialResolutionMode.RawShaderBacked, definition.RuntimeGenerationContract.MaterialResolutionMode);
+        Assert.True(definition.RuntimeGenerationContract.SupportsRenderManager2DTextureReleaseFlush);
+        Assert.Equal(PackagedPathPolicy.ContentRelativeOnly, definition.RuntimeGenerationContract.PackagedPathPolicy);
     }
 }
 

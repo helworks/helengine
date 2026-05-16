@@ -82,14 +82,14 @@ namespace helengine {
         public virtual void FlushReleasedAssets() {
         }
 
-#if PS2_PLATFORM
+#if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
         /// <summary>
-        /// Builds a runtime material from one PS2-cooked material payload.
+        /// Builds a runtime material from one builder-owned cooked material payload.
         /// </summary>
-        /// <param name="materialAsset">PS2-native cooked material payload.</param>
+        /// <param name="materialAsset">Builder-owned cooked material payload.</param>
         /// <returns>Runtime material instance.</returns>
-        public virtual RuntimeMaterial BuildMaterialFromCooked(Ps2MaterialAsset materialAsset) {
-            throw new NotSupportedException("This renderer does not support PS2 cooked material creation.");
+        public virtual RuntimeMaterial BuildMaterialFromCooked(PlatformMaterialAsset materialAsset) {
+            throw new NotSupportedException("This renderer does not support platform-owned cooked material creation.");
         }
 #endif
 

@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 11;
+        public const byte CurrentVersion = 14;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -31,9 +31,19 @@ namespace helengine.files {
         const byte PreviousVersionWithoutRuntimeAssetId = 10;
 
         /// <summary>
-        /// Version marker written into scene entity payloads that include stable ids.
+        /// First asset version that stored explicit texture color formats.
         /// </summary>
-        const byte SceneEntityPayloadVersion = 3;
+        const byte TextureColorFormatVersion = 13;
+
+        /// <summary>
+        /// First asset version that stored texture alpha precision and palette payloads.
+        /// </summary>
+        const byte TexturePaletteMetadataVersion = 14;
+
+        /// <summary>
+        /// Version marker written into scene entity payloads that include stable ids and the static flag.
+        /// </summary>
+        const byte SceneEntityPayloadVersion = 4;
 
         /// <summary>
         /// Payload endianness used by the current editor asset format.
@@ -129,6 +139,8 @@ namespace helengine.files {
                 return EditorAssetBinaryValueKind.MaterialAsset;
             } else if (asset is Ps2MaterialAsset) {
                 return EditorAssetBinaryValueKind.Ps2MaterialAsset;
+            } else if (asset is PlatformMaterialAsset) {
+                return EditorAssetBinaryValueKind.PlatformMaterialAsset;
             } else if (asset is AnimationClipAsset) {
                 return EditorAssetBinaryValueKind.AnimationClipAsset;
             } else if (asset is SceneAsset) {
@@ -162,6 +174,9 @@ namespace helengine.files {
             } else if (asset is Ps2MaterialAsset ps2MaterialAsset) {
                 WritePs2MaterialAsset(writer, ps2MaterialAsset);
                 return;
+            } else if (asset is PlatformMaterialAsset platformMaterialAsset) {
+                WritePlatformMaterialAsset(writer, platformMaterialAsset);
+                return;
             } else if (asset is AnimationClipAsset animationClipAsset) {
                 WriteAnimationClipAsset(writer, animationClipAsset);
                 return;
@@ -193,6 +208,8 @@ namespace helengine.files {
                     return ReadMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.Ps2MaterialAsset:
                     return ReadPs2MaterialAsset(reader, version);
+                case EditorAssetBinaryValueKind.PlatformMaterialAsset:
+                    return ReadPlatformMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.AnimationClipAsset:
                     return ReadAnimationClipAsset(reader, version);
                 case EditorAssetBinaryValueKind.SceneAsset:
@@ -212,6 +229,9 @@ namespace helengine.files {
             WriteAssetIdentity(writer, asset);
             writer.WriteUInt16(asset.Width);
             writer.WriteUInt16(asset.Height);
+            writer.WriteByte((byte)asset.ColorFormat);
+            writer.WriteByte((byte)asset.AlphaPrecision);
+            writer.WriteByteArray(asset.PaletteColors);
             writer.WriteByteArray(asset.Colors);
         }
 
@@ -225,8 +245,78 @@ namespace helengine.files {
             ReadAssetIdentity(reader, asset, version);
             asset.Width = reader.ReadUInt16();
             asset.Height = reader.ReadUInt16();
+            asset.ColorFormat = version >= TextureColorFormatVersion
+                ? ReadTextureAssetColorFormat(reader)
+                : TextureAssetColorFormat.Rgba32;
+            asset.AlphaPrecision = version >= TexturePaletteMetadataVersion
+                ? ReadTextureAssetAlphaPrecision(reader)
+                : GetDefaultTextureAssetAlphaPrecision(asset.ColorFormat);
+            asset.PaletteColors = version >= TexturePaletteMetadataVersion
+                ? reader.ReadByteArray()
+                : Array.Empty<byte>();
             asset.Colors = reader.ReadByteArray();
             return asset;
+        }
+
+        /// <summary>
+        /// Reads one serialized texture color-format value.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the format byte.</param>
+        /// <returns>Decoded texture color format.</returns>
+        static TextureAssetColorFormat ReadTextureAssetColorFormat(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            byte serializedValue = reader.ReadByte();
+            if (serializedValue == (byte)TextureAssetColorFormat.Rgba32) {
+                return TextureAssetColorFormat.Rgba32;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Rgba4444) {
+                return TextureAssetColorFormat.Rgba4444;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed4) {
+                return TextureAssetColorFormat.Indexed4;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
+                return TextureAssetColorFormat.Indexed8;
+            }
+
+            throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
+        }
+
+        /// <summary>
+        /// Reads one serialized texture alpha-precision value.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the alpha-precision byte.</param>
+        /// <returns>Decoded texture alpha precision.</returns>
+        static TextureAssetAlphaPrecision ReadTextureAssetAlphaPrecision(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            byte serializedValue = reader.ReadByte();
+            if (serializedValue == (byte)TextureAssetAlphaPrecision.Opaque) {
+                return TextureAssetAlphaPrecision.Opaque;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.Binary) {
+                return TextureAssetAlphaPrecision.Binary;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A4) {
+                return TextureAssetAlphaPrecision.A4;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A8) {
+                return TextureAssetAlphaPrecision.A8;
+            }
+
+            throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");
+        }
+
+        /// <summary>
+        /// Resolves the alpha precision assumed by legacy texture payloads that predate explicit metadata.
+        /// </summary>
+        /// <param name="colorFormat">Cooked texture color format read from the legacy payload.</param>
+        /// <returns>Best-effort alpha precision for the legacy payload.</returns>
+        static TextureAssetAlphaPrecision GetDefaultTextureAssetAlphaPrecision(TextureAssetColorFormat colorFormat) {
+            if (colorFormat == TextureAssetColorFormat.Rgba4444) {
+                return TextureAssetAlphaPrecision.A4;
+            }
+
+            return TextureAssetAlphaPrecision.A8;
         }
 
         /// <summary>
@@ -422,6 +512,45 @@ namespace helengine.files {
             asset.Roughness = reader.ReadSingle();
             asset.SpecularStrength = reader.ReadSingle();
             asset.EmissiveStrength = reader.ReadSingle();
+            return asset;
+        }
+
+        /// <summary>
+        /// Writes a generic platform-owned cooked material payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Platform-owned cooked material asset to serialize.</param>
+        static void WritePlatformMaterialAsset(EngineBinaryWriter writer, PlatformMaterialAsset asset) {
+            EnsureRuntimeAssetIdentity(asset);
+            WriteAssetIdentity(writer, asset);
+            writer.WriteString(asset.RendererFamilyId);
+            writer.WriteString(asset.TextureRelativePath);
+            writer.WriteByte(asset.DoubleSided ? (byte)1 : (byte)0);
+            writer.WriteByte(asset.UseVertexColor ? (byte)1 : (byte)0);
+            writer.WriteByte(asset.Lit ? (byte)1 : (byte)0);
+            writer.WriteByte(asset.BaseColorR);
+            writer.WriteByte(asset.BaseColorG);
+            writer.WriteByte(asset.BaseColorB);
+            writer.WriteByte(asset.BaseColorA);
+        }
+
+        /// <summary>
+        /// Reads a generic platform-owned cooked material payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized platform-owned cooked material asset.</returns>
+        static PlatformMaterialAsset ReadPlatformMaterialAsset(EngineBinaryReader reader, byte version) {
+            PlatformMaterialAsset asset = new PlatformMaterialAsset();
+            ReadAssetIdentity(reader, asset, version);
+            asset.RendererFamilyId = reader.ReadString();
+            asset.TextureRelativePath = reader.ReadString();
+            asset.DoubleSided = reader.ReadByte() != 0;
+            asset.UseVertexColor = reader.ReadByte() != 0;
+            asset.Lit = reader.ReadByte() != 0;
+            asset.BaseColorR = reader.ReadByte();
+            asset.BaseColorG = reader.ReadByte();
+            asset.BaseColorB = reader.ReadByte();
+            asset.BaseColorA = reader.ReadByte();
             return asset;
         }
 
@@ -692,6 +821,7 @@ namespace helengine.files {
             writer.WriteByte(SceneEntityPayloadVersion);
             writer.WriteUInt32(asset.Id);
             writer.WriteString(asset.Name);
+            writer.WriteByte(asset.IsStatic ? (byte)1 : (byte)0);
             writer.WriteFloat3(asset.LocalPosition);
             writer.WriteFloat3(asset.LocalScale);
             writer.WriteFloat4(asset.LocalOrientation);
@@ -718,12 +848,18 @@ namespace helengine.files {
             }
 
             byte payloadVersion = reader.ReadByte();
-            if (payloadVersion != 1 && payloadVersion != SceneEntityPayloadVersion) {
+            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != SceneEntityPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
-            uint id = reader.ReadUInt32();
+            uint id = 0u;
+            if (payloadVersion >= 4) {
+                id = reader.ReadUInt32();
+            } else {
+                reader.ReadString();
+            }
             string name = reader.ReadString();
+            bool isStatic = payloadVersion >= 4 && reader.ReadByte() != 0;
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
             float4 localOrientation = reader.ReadFloat4();
@@ -738,6 +874,7 @@ namespace helengine.files {
             return new SceneEntityAsset {
                 Id = id,
                 Name = name,
+                IsStatic = isStatic,
                 LocalPosition = localPosition,
                 LocalScale = localScale,
                 LocalOrientation = localOrientation,

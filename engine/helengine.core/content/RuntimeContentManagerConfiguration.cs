@@ -30,8 +30,8 @@ namespace helengine {
             RegisterProcessorIfMissing(
                 contentManager,
                 RuntimeContentProcessorIds.MaterialAsset,
-#if PS2_PLATFORM
-                new AssetContentProcessor<Ps2MaterialAsset>(),
+#if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
+                new AssetContentProcessor<PlatformMaterialAsset>(),
 #else
                 new AssetContentProcessor<MaterialAsset>(),
 #endif

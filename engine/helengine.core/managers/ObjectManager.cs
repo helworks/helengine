@@ -36,6 +36,10 @@ public class ObjectManager {
         Drawables3D = new List<IDrawable3D>(settings.RenderList3DInitialCapacity);
 
         Cameras = new List<ICamera>();
+        DirectionalLights = new List<DirectionalLightComponent>();
+        AmbientLights = new List<AmbientLightComponent>();
+        PointLights = new List<PointLightComponent>();
+        SpotLights = new List<SpotLightComponent>();
         Interactables = new List<IInteractable2D>();
     }
 
@@ -100,6 +104,26 @@ public class ObjectManager {
     public List<ICamera> Cameras { get; private set; }
 
     /// <summary>
+    /// Gets registered directional lights in scene-registration order.
+    /// </summary>
+    public List<DirectionalLightComponent> DirectionalLights { get; private set; }
+
+    /// <summary>
+    /// Gets registered ambient lights in scene-registration order.
+    /// </summary>
+    public List<AmbientLightComponent> AmbientLights { get; private set; }
+
+    /// <summary>
+    /// Gets registered point lights in scene-registration order.
+    /// </summary>
+    public List<PointLightComponent> PointLights { get; private set; }
+
+    /// <summary>
+    /// Gets registered spot lights in scene-registration order.
+    /// </summary>
+    public List<SpotLightComponent> SpotLights { get; private set; }
+
+    /// <summary>
     /// Gets the current camera-list capacity reserved by the manager.
     /// </summary>
     public int CameraCapacity => Cameras.Capacity;
@@ -113,6 +137,70 @@ public class ObjectManager {
     /// Gets the current interactable-list capacity reserved by the manager.
     /// </summary>
     public int InteractableCapacity => Interactables.Capacity;
+
+    /// <summary>
+    /// Registers a directional light for backend light selection.
+    /// </summary>
+    /// <param name="light">Directional light to register.</param>
+    public void RegisterDirectionalLight(DirectionalLightComponent light) {
+        DirectionalLights.Add(light);
+    }
+
+    /// <summary>
+    /// Removes a directional light from backend light selection.
+    /// </summary>
+    /// <param name="light">Directional light to remove.</param>
+    public void RemoveDirectionalLight(DirectionalLightComponent light) {
+        RemoveByReference(DirectionalLights, light);
+    }
+
+    /// <summary>
+    /// Registers an ambient light for backend light selection.
+    /// </summary>
+    /// <param name="light">Ambient light to register.</param>
+    public void RegisterAmbientLight(AmbientLightComponent light) {
+        AmbientLights.Add(light);
+    }
+
+    /// <summary>
+    /// Removes an ambient light from backend light selection.
+    /// </summary>
+    /// <param name="light">Ambient light to remove.</param>
+    public void RemoveAmbientLight(AmbientLightComponent light) {
+        RemoveByReference(AmbientLights, light);
+    }
+
+    /// <summary>
+    /// Registers a point light for backend light selection.
+    /// </summary>
+    /// <param name="light">Point light to register.</param>
+    public void RegisterPointLight(PointLightComponent light) {
+        PointLights.Add(light);
+    }
+
+    /// <summary>
+    /// Removes a point light from backend light selection.
+    /// </summary>
+    /// <param name="light">Point light to remove.</param>
+    public void RemovePointLight(PointLightComponent light) {
+        RemoveByReference(PointLights, light);
+    }
+
+    /// <summary>
+    /// Registers a spot light for backend light selection.
+    /// </summary>
+    /// <param name="light">Spot light to register.</param>
+    public void RegisterSpotLight(SpotLightComponent light) {
+        SpotLights.Add(light);
+    }
+
+    /// <summary>
+    /// Removes a spot light from backend light selection.
+    /// </summary>
+    /// <param name="light">Spot light to remove.</param>
+    public void RemoveSpotLight(SpotLightComponent light) {
+        RemoveByReference(SpotLights, light);
+    }
 
     /// <summary>
     /// Gets the number of pending update operations waiting for the active update loop to finish.
@@ -218,7 +306,7 @@ public class ObjectManager {
 
         for (int i = 0; i < Cameras.Count; i++) {
             ICamera camera = Cameras[i];
-            if ((drawable.Parent.LayerMask & camera.LayerMask) == 0) {
+            if (!ShouldRegisterDrawableWithCamera(drawable.Parent, camera)) {
                 continue;
             }
 
@@ -250,7 +338,7 @@ public class ObjectManager {
 
         for (int i = 0; i < Cameras.Count; i++) {
             ICamera camera = Cameras[i];
-            if ((drawable.Parent.LayerMask & camera.LayerMask) == 0) {
+            if (!ShouldRegisterDrawableWithCamera(drawable.Parent, camera)) {
                 continue;
             }
 
@@ -343,7 +431,7 @@ public class ObjectManager {
         IRenderQueue3D list3D = camera.RenderQueue3D;
         for (int i = 0; i < Drawables3D.Count; i++) {
             IDrawable3D drawable = Drawables3D[i];
-            if ((drawable.Parent.LayerMask & camera.LayerMask) != 0) {
+            if (ShouldRegisterDrawableWithCamera(drawable.Parent, camera)) {
                 list3D.Add(drawable);
             }
         }
@@ -351,7 +439,7 @@ public class ObjectManager {
         IRenderQueue2D list2D = camera.RenderQueue2D;
         for (int i = 0; i < Drawables2D.Count; i++) {
             IDrawable2D drawable2D = Drawables2D[i];
-            if ((drawable2D.Parent.LayerMask & camera.LayerMask) != 0) {
+            if (ShouldRegisterDrawableWithCamera(drawable2D.Parent, camera)) {
                 list2D.Add(drawable2D);
             }
         }
@@ -386,6 +474,60 @@ public class ObjectManager {
         }
 
         Cameras.Insert(insertIndex, camera);
+    }
+
+    /// <summary>
+    /// Determines whether one drawable owner should be registered with one camera after applying layer-mask and viewport-binding rules.
+    /// </summary>
+    /// <param name="drawableOwner">Entity that owns the drawable being considered.</param>
+    /// <param name="camera">Camera that may receive the drawable.</param>
+    /// <returns>True when the drawable should appear in the camera queue; otherwise false.</returns>
+    bool ShouldRegisterDrawableWithCamera(Entity drawableOwner, ICamera camera) {
+        if (drawableOwner == null || camera == null) {
+            return false;
+        }
+
+        if ((drawableOwner.LayerMask & camera.LayerMask) == 0) {
+            return false;
+        }
+
+        ICameraBoundViewportOwner viewportComponent = ResolveNearestViewportComponent(drawableOwner);
+        if (viewportComponent == null) {
+            return true;
+        }
+
+        CameraComponent boundCamera = viewportComponent.GetBoundCameraComponent();
+        if (viewportComponent.BindingMode == ViewportComponent.ExplicitCameraBindingMode) {
+            return ReferenceEquals(boundCamera, camera);
+        }
+
+        if (viewportComponent.BindingMode == ViewportComponent.AncestorCameraBindingMode && boundCamera != null) {
+            return ReferenceEquals(boundCamera, camera);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves the nearest viewport component that governs one drawable owner's subtree, when present.
+    /// </summary>
+    /// <param name="entity">Drawable owner whose ancestor chain should be inspected.</param>
+    /// <returns>Nearest viewport component for the subtree, or null when no viewport owns the drawable.</returns>
+    ICameraBoundViewportOwner ResolveNearestViewportComponent(Entity entity) {
+        Entity current = entity;
+        while (current != null) {
+            if (current.Components != null) {
+                for (int componentIndex = 0; componentIndex < current.Components.Count; componentIndex++) {
+                    if (current.Components[componentIndex] is ICameraBoundViewportOwner viewportComponent) {
+                        return viewportComponent;
+                    }
+                }
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
     }
 
     /// <summary>

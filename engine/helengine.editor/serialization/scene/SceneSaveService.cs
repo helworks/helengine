@@ -209,6 +209,7 @@ namespace helengine.editor {
             return new SceneEntityAsset {
                 Id = entityId,
                 Name = entity.Name,
+                IsStatic = entity.Static,
                 LocalPosition = ResolveSerializedLocalPosition(entity, saveComponent),
                 LocalScale = ResolveSerializedLocalScale(entity, saveComponent),
                 LocalOrientation = ResolveSerializedLocalOrientation(entity, saveComponent),

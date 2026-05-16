@@ -273,7 +273,8 @@ namespace helengine.editor.tests {
             TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Importer.ImporterId = "pfim";
             settings.Processor.Platforms["windows"] = new TextureAssetProcessorSettings {
-                MaxResolution = 512
+                MaxResolution = 512,
+                ColorFormat = TextureAssetColorFormat.Rgba32
             };
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
@@ -314,7 +315,8 @@ namespace helengine.editor.tests {
 
             TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Processor.Platforms["windows"] = new TextureAssetProcessorSettings {
-                MaxResolution = 512
+                MaxResolution = 512,
+                ColorFormat = TextureAssetColorFormat.Rgba32
             };
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
@@ -327,6 +329,82 @@ namespace helengine.editor.tests {
             string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
 
             Assert.NotEqual(firstAssetId, secondAssetId);
+        }
+
+        /// <summary>
+        /// Ensures changing DS alpha precision invalidates the cached texture asset id.
+        /// </summary>
+        [Fact]
+        public void TryLoadTextureAsset_WhenTextureAlphaPrecisionChanges_ReimportsWithANewAssetId() {
+            string sourcePath = WriteSourceTexture("alpha-precision-cache-id.tga");
+            AssetImportManager manager = CreateTgaManager();
+            manager.CurrentPlatformId = "ds";
+
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"] = new TextureAssetProcessorSettings {
+                MaxResolution = 256,
+                ColorFormat = TextureAssetColorFormat.Indexed8,
+                AlphaPrecision = TextureAssetAlphaPrecision.A4
+            };
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"].AlphaPrecision = TextureAssetAlphaPrecision.A8;
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            Assert.NotEqual(firstAssetId, secondAssetId);
+        }
+
+        /// <summary>
+        /// Ensures typed texture sidecars drive cache identity changes when the cooked texture format changes.
+        /// </summary>
+        [Fact]
+        public void TryLoadTextureAsset_WhenTextureColorFormatChanges_ReimportsWithATypedSidecarAssetId() {
+            string sourcePath = WriteSourceTexture("typed-format-id.tga");
+            AssetImportManager manager = CreateTgaManager();
+            manager.CurrentPlatformId = "ds";
+
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"] = new TextureAssetProcessorSettings {
+                MaxResolution = 512,
+                ColorFormat = TextureAssetColorFormat.Rgba32
+            };
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"].ColorFormat = TextureAssetColorFormat.Rgba4444;
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            Assert.NotEqual(firstAssetId, secondAssetId);
+        }
+
+        /// <summary>
+        /// Ensures Nintendo DS texture imports use the compact default texture budget even when no explicit per-platform override was authored yet.
+        /// </summary>
+        [Fact]
+        public void TryLoadTextureAsset_WhenCurrentPlatformIsDsAndTextureSettingsAreMissing_UsesDsDefaultTextureBudget() {
+            string sourcePath = WriteSourceTexture("typed-ds-default-budget.tga");
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(1024, 512, new byte[1024 * 512 * 4]), new[] { ".tga" }));
+            manager.CurrentPlatformId = "ds";
+
+            bool loaded = manager.TryLoadTextureAsset(sourcePath, out TextureAsset asset);
+
+            Assert.True(loaded);
+            Assert.NotNull(asset);
+            Assert.Equal((ushort)128, asset.Width);
+            Assert.Equal((ushort)64, asset.Height);
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, asset.ColorFormat);
+            Assert.Equal(128 * 64 * 2, asset.Colors.Length);
         }
 
         /// <summary>
@@ -347,6 +425,149 @@ namespace helengine.editor.tests {
             AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
             string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
             Assert.True(File.Exists(outputPath));
+        }
+
+        /// <summary>
+        /// Ensures font atlas textures honor platform texture processor settings before the cached font asset is written.
+        /// </summary>
+        [Fact]
+        public void TryLoadFontAsset_WhenPlatformTextureColorFormatIsConfigured_CachesProcessedAtlasFormat() {
+            string sourcePath = WriteSourceFont("demo-body-ds.ttf");
+            AssetImportManager manager = CreateFontManager();
+            manager.CurrentPlatformId = "ds";
+
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 0,
+                    ColorFormat = TextureAssetColorFormat.Rgba4444
+                },
+                Model = new ModelAssetProcessorSettings(),
+                Material = new MaterialAssetProcessorSettings()
+            };
+            manager.SaveImportSettings(sourcePath, settings);
+
+            bool loaded = manager.TryLoadFontAsset(sourcePath, out FontAsset asset);
+
+            Assert.True(loaded);
+            Assert.NotNull(asset);
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, asset.SourceTextureAsset.ColorFormat);
+            Assert.Equal(new byte[] { 0xFF, 0xFF }, asset.SourceTextureAsset.Colors);
+
+            string outputPath = Path.Combine(CacheRootPath, manager.LoadOrCreateImportSettings(sourcePath).Importer.AssetId);
+            using Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = ProjectRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "version"));
+            using FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            FontAsset cachedAsset = FilesFontAssetBinarySerializer.Deserialize(stream);
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, cachedAsset.SourceTextureAsset.ColorFormat);
+            Assert.Equal(new byte[] { 0xFF, 0xFF }, cachedAsset.SourceTextureAsset.Colors);
+        }
+
+        /// <summary>
+        /// Ensures Nintendo DS font imports use the compact default texture format even when no explicit per-platform override was authored yet.
+        /// </summary>
+        [Fact]
+        public void TryLoadFontAsset_WhenCurrentPlatformIsDsAndTextureSettingsAreMissing_UsesDsDefaultTextureFormat() {
+            string sourcePath = WriteSourceFont("demo-body-ds-default.ttf");
+            AssetImportManager manager = CreateFontManager();
+            manager.CurrentPlatformId = "ds";
+
+            bool loaded = manager.TryLoadFontAsset(sourcePath, out FontAsset asset);
+
+            Assert.True(loaded);
+            Assert.NotNull(asset);
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, asset.SourceTextureAsset.ColorFormat);
+            Assert.Equal(new byte[] { 0xFF, 0xFF }, asset.SourceTextureAsset.Colors);
+        }
+
+        /// <summary>
+        /// Ensures Nintendo DS font imports cap oversized atlas textures to the default DS texture budget when no explicit override was authored yet.
+        /// </summary>
+        [Fact]
+        public void TryLoadFontAsset_WhenCurrentPlatformIsDsAndTextureSettingsAreMissing_CapsAtlasToDsDefaultResolution() {
+            string sourcePath = WriteSourceFont("demo-body-ds-default-budget.ttf");
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterFontImporter(new FontImporterRegistration("test-font", new ConfigurableFontImporter(256, 256, new byte[256 * 256 * 4]), new[] { ".ttf" }));
+            manager.CurrentPlatformId = "ds";
+
+            bool loaded = manager.TryLoadFontAsset(sourcePath, out FontAsset asset);
+
+            Assert.True(loaded);
+            Assert.NotNull(asset);
+            Assert.Equal((ushort)128, asset.SourceTextureAsset.Width);
+            Assert.Equal((ushort)128, asset.SourceTextureAsset.Height);
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, asset.SourceTextureAsset.ColorFormat);
+            Assert.Equal(128 * 128 * 2, asset.SourceTextureAsset.Colors.Length);
+        }
+
+        /// <summary>
+        /// Ensures font metrics follow the processed atlas size when per-platform texture settings resize the imported atlas.
+        /// </summary>
+        [Fact]
+        public void TryLoadFontAsset_WhenPlatformTextureMaxResolutionResizesAtlas_RescalesFontMetrics() {
+            string sourcePath = WriteSourceFont("demo-body-ds-resized-metrics.ttf");
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterFontImporter(new FontImporterRegistration("test-font", new ConfigurableFontImporter(256, 128, new byte[256 * 128 * 4]), new[] { ".ttf" }));
+            manager.CurrentPlatformId = "ds";
+
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Rgba32,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                },
+                Model = new ModelAssetProcessorSettings(),
+                Material = new MaterialAssetProcessorSettings()
+            };
+            manager.SaveImportSettings(sourcePath, settings);
+
+            bool loaded = manager.TryLoadFontAsset(sourcePath, out FontAsset asset);
+
+            Assert.True(loaded);
+            Assert.NotNull(asset);
+            Assert.Equal((ushort)128, asset.SourceTextureAsset.Width);
+            Assert.Equal((ushort)64, asset.SourceTextureAsset.Height);
+            Assert.Equal(128, asset.AtlasWidth);
+            Assert.Equal(64, asset.AtlasHeight);
+            Assert.Equal(8f, asset.LineHeight);
+            Assert.Equal(8, asset.FontInfo.LineSpacing);
+            Assert.Equal(2f, asset.FontInfo.SpaceWidth);
+        }
+
+        /// <summary>
+        /// Ensures platform texture format changes invalidate cached font asset ids when font atlases are rebuilt.
+        /// </summary>
+        [Fact]
+        public void TryLoadFontAsset_WhenPlatformTextureColorFormatChanges_ReimportsWithANewAssetId() {
+            string sourcePath = WriteSourceFont("demo-font-format-id.ttf");
+            AssetImportManager manager = CreateFontManager();
+            manager.CurrentPlatformId = "ds";
+
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 0,
+                    ColorFormat = TextureAssetColorFormat.Rgba32
+                },
+                Model = new ModelAssetProcessorSettings(),
+                Material = new MaterialAssetProcessorSettings()
+            };
+            manager.SaveImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadFontAsset(sourcePath, out _));
+            string firstAssetId = manager.LoadOrCreateImportSettings(sourcePath).Importer.AssetId;
+
+            settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"].Texture.ColorFormat = TextureAssetColorFormat.Rgba4444;
+            manager.SaveImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadFontAsset(sourcePath, out _));
+            string secondAssetId = manager.LoadOrCreateImportSettings(sourcePath).Importer.AssetId;
+
+            Assert.NotEqual(firstAssetId, secondAssetId);
         }
 
         /// <summary>

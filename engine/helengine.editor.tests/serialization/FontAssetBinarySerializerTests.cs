@@ -53,7 +53,8 @@ namespace helengine.editor.tests.serialization {
                     RuntimeAssetId = 42ul,
                     Width = 1,
                     Height = 1,
-                    Colors = new byte[] { 255, 255, 255, 255 }
+                    ColorFormat = TextureAssetColorFormat.Rgba4444,
+                    Colors = new byte[] { 0xFF, 0x0F }
                 }
             };
 
@@ -64,6 +65,56 @@ namespace helengine.editor.tests.serialization {
             FontAsset roundTripped = FilesFontAssetBinarySerializer.Deserialize(stream);
 
             Assert.Equal(42ul, roundTripped.SourceTextureAsset.RuntimeAssetId);
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, roundTripped.SourceTextureAsset.ColorFormat);
+            Assert.Equal(new byte[] { 0xFF, 0x0F }, roundTripped.SourceTextureAsset.Colors);
+        }
+
+        /// <summary>
+        /// Ensures packaged font atlases preserve indexed texture metadata through serialize and deserialize.
+        /// </summary>
+        [Fact]
+        public void SerializeDeserialize_whenFontAtlasIsIndexed8_preservesPaletteAndAlphaPrecision() {
+            using Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "version"));
+
+            FontAsset asset = new FontAsset(
+                new FontInfo("DemoDiscBody", 16, 4f),
+                new TestRuntimeTexture {
+                    Width = 2,
+                    Height = 2
+                },
+                new Dictionary<char, FontChar>(),
+                16f,
+                2,
+                2) {
+                SourceTextureAsset = new TextureAsset {
+                    Id = "fonts/demodiscbody.hefont#atlas",
+                    RuntimeAssetId = 77ul,
+                    Width = 2,
+                    Height = 2,
+                    ColorFormat = TextureAssetColorFormat.Indexed8,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                    PaletteColors = new byte[] {
+                        255, 255, 255, 0,
+                        255, 255, 255, 255
+                    },
+                    Colors = new byte[] { 0, 1, 1, 0 }
+                }
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            FilesFontAssetBinarySerializer.Serialize(stream, asset);
+            stream.Position = 0;
+
+            FontAsset roundTripped = FilesFontAssetBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(77ul, roundTripped.SourceTextureAsset.RuntimeAssetId);
+            Assert.Equal(TextureAssetColorFormat.Indexed8, roundTripped.SourceTextureAsset.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, roundTripped.SourceTextureAsset.AlphaPrecision);
+            Assert.Equal(asset.SourceTextureAsset.PaletteColors, roundTripped.SourceTextureAsset.PaletteColors);
+            Assert.Equal(asset.SourceTextureAsset.Colors, roundTripped.SourceTextureAsset.Colors);
         }
     }
 }

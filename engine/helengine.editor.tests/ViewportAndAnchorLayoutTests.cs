@@ -173,6 +173,150 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures anchors can resolve against an explicitly assigned camera instead of relying on ancestor camera lookup.
+        /// </summary>
+        [Fact]
+        public void AnchorComponent_WhenViewportBindsToExplicitCamera_UsesTheTargetCameraViewport() {
+            Entity leftCameraEntity = new Entity();
+            leftCameraEntity.InitComponents();
+            leftCameraEntity.InitChildren();
+            CameraComponent leftCamera = new CameraComponent {
+                Viewport = new float4(0f, 0f, 320f, 180f)
+            };
+            leftCameraEntity.AddComponent(leftCamera);
+
+            Entity rightCameraEntity = new Entity();
+            rightCameraEntity.InitComponents();
+            rightCameraEntity.InitChildren();
+            CameraComponent rightCamera = new CameraComponent {
+                Viewport = new float4(0f, 0f, 640f, 360f)
+            };
+            rightCameraEntity.AddComponent(rightCamera);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ExplicitCameraBindingMode,
+                BoundCameraComponent = rightCamera
+            });
+
+            Entity contentEntity = new Entity {
+                LocalPosition = new float3(520f, 290f, 0f)
+            };
+            contentEntity.InitComponents();
+            contentEntity.InitChildren();
+            contentEntity.AddComponent(new RoundedRectComponent {
+                Size = new int2(100, 50)
+            });
+            contentEntity.AddComponent(new AnchorComponent());
+            viewportEntity.AddChild(contentEntity);
+
+            AnchorComponent anchor = Assert.IsType<AnchorComponent>(Assert.Single(contentEntity.Components, component => component is AnchorComponent));
+            anchor.EnableAnchoring(right: true, bottom: true);
+
+            Assert.Equal(new float3(520f, 290f, 0f), contentEntity.LocalPosition);
+        }
+
+        /// <summary>
+        /// Ensures camera-bound viewports resolve normalized camera rectangles into pixel-space bounds before anchored layout runs.
+        /// </summary>
+        [Fact]
+        public void AnchorComponent_WhenViewportBindsToNormalizedAncestorCamera_UsesResolvedPixelBounds() {
+            TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
+            renderManager.OnWindowResize(IntPtr.Zero, 256, 192);
+
+            Entity cameraEntity = new Entity();
+            cameraEntity.InitComponents();
+            cameraEntity.InitChildren();
+            CameraComponent camera = new CameraComponent {
+                Viewport = new float4(0f, 1f, 1f, 1f)
+            };
+            cameraEntity.AddComponent(camera);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.AncestorCameraBindingMode
+            });
+            cameraEntity.AddChild(viewportEntity);
+
+            Entity contentEntity = new Entity {
+                LocalPosition = new float3(156f, 142f, 0f)
+            };
+            contentEntity.InitComponents();
+            contentEntity.InitChildren();
+            contentEntity.AddComponent(new RoundedRectComponent {
+                Size = new int2(100, 50)
+            });
+            contentEntity.AddComponent(new AnchorComponent());
+            viewportEntity.AddChild(contentEntity);
+
+            AnchorComponent anchor = Assert.IsType<AnchorComponent>(Assert.Single(contentEntity.Components, component => component is AnchorComponent));
+            anchor.EnableAnchoring(right: true, bottom: true);
+
+            Assert.Equal(new float3(156f, 142f, 0f), contentEntity.LocalPosition);
+        }
+
+        /// <summary>
+        /// Ensures camera-bound viewport subtrees only populate the render queue of the camera that owns each subtree.
+        /// </summary>
+        [Fact]
+        public void RenderQueues_WhenViewportBindsToDifferentAncestorCameras_OnlyReceiveTheirOwnSubtrees() {
+            Entity topCameraEntity = new Entity();
+            topCameraEntity.InitComponents();
+            topCameraEntity.InitChildren();
+            CameraComponent topCamera = new CameraComponent {
+                Viewport = new float4(0f, 0f, 1f, 1f)
+            };
+            topCameraEntity.AddComponent(topCamera);
+
+            Entity bottomCameraEntity = new Entity();
+            bottomCameraEntity.InitComponents();
+            bottomCameraEntity.InitChildren();
+            CameraComponent bottomCamera = new CameraComponent {
+                Viewport = new float4(0f, 1f, 1f, 1f)
+            };
+            bottomCameraEntity.AddComponent(bottomCamera);
+
+            Entity topViewportEntity = new Entity();
+            topViewportEntity.InitComponents();
+            topViewportEntity.InitChildren();
+            topViewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.AncestorCameraBindingMode
+            });
+            topCameraEntity.AddChild(topViewportEntity);
+
+            Entity bottomViewportEntity = new Entity();
+            bottomViewportEntity.InitComponents();
+            bottomViewportEntity.InitChildren();
+            bottomViewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.AncestorCameraBindingMode
+            });
+            bottomCameraEntity.AddChild(bottomViewportEntity);
+
+            Entity topDrawableEntity = new Entity();
+            topDrawableEntity.InitComponents();
+            topDrawableEntity.InitChildren();
+            topDrawableEntity.AddComponent(new RoundedRectComponent {
+                Size = new int2(32, 32)
+            });
+            topViewportEntity.AddChild(topDrawableEntity);
+
+            Entity bottomDrawableEntity = new Entity();
+            bottomDrawableEntity.InitComponents();
+            bottomDrawableEntity.InitChildren();
+            bottomDrawableEntity.AddComponent(new RoundedRectComponent {
+                Size = new int2(32, 32)
+            });
+            bottomViewportEntity.AddChild(bottomDrawableEntity);
+
+            Assert.Equal(1, topCamera.RenderQueue2D.Count);
+            Assert.Equal(1, bottomCamera.RenderQueue2D.Count);
+        }
+
+        /// <summary>
         /// Asserts that two three-component floating-point vectors are equal within a caller-supplied tolerance.
         /// </summary>
         /// <param name="expected">Expected vector value.</param>

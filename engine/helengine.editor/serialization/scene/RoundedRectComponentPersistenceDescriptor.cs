@@ -107,6 +107,23 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Rounded rectangle descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
+            try {
+                return DeserializeTaggedComponent(record);
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                if (TryDeserializeCookedRuntimeComponent(record, out RoundedRectComponent cookedRuntimeComponent)) {
+                    return cookedRuntimeComponent;
+                }
+
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Deserializes one authored tagged rounded-rectangle payload back into a live runtime component.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <returns>Live rounded-rectangle component reconstructed from the tagged editor payload.</returns>
+        RoundedRectComponent DeserializeTaggedComponent(SceneComponentAssetRecord record) {
             RoundedRectComponent roundedRectComponent = new RoundedRectComponent();
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             if (reader.TryGetFieldReader(RenderOrder2DFieldName, out EngineBinaryReader renderOrder2DReader)) {
@@ -166,6 +183,41 @@ namespace helengine.editor {
             }
 
             return roundedRectComponent;
+        }
+
+        /// <summary>
+        /// Attempts to deserialize one strict cooked-runtime rounded-rectangle payload written by the scene packager.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <param name="roundedRectComponent">Cooked-runtime rounded-rectangle component when deserialization succeeds.</param>
+        /// <returns>True when the payload matched the cooked runtime layout; otherwise false.</returns>
+        bool TryDeserializeCookedRuntimeComponent(SceneComponentAssetRecord record, out RoundedRectComponent roundedRectComponent) {
+            roundedRectComponent = new RoundedRectComponent();
+            try {
+                using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+                using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+                byte version = reader.ReadByte();
+                if (version != 1) {
+                    roundedRectComponent = null;
+                    return false;
+                }
+
+                roundedRectComponent.RenderOrder2D = reader.ReadByte();
+                roundedRectComponent.LayerMask = reader.ReadByte();
+                roundedRectComponent.Corners = (RoundedRectCorners)reader.ReadInt32();
+                roundedRectComponent.Rotation = reader.ReadSingle();
+                roundedRectComponent.Color = SceneComponentBinaryFieldEncoding.ReadByte4(reader);
+                roundedRectComponent.SourceRect = reader.ReadFloat4();
+                roundedRectComponent.Size = reader.ReadInt2();
+                roundedRectComponent.Radius = reader.ReadSingle();
+                roundedRectComponent.BorderThickness = reader.ReadSingle();
+                roundedRectComponent.FillColor = SceneComponentBinaryFieldEncoding.ReadByte4(reader);
+                roundedRectComponent.BorderColor = SceneComponentBinaryFieldEncoding.ReadByte4(reader);
+                return true;
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                roundedRectComponent = null;
+                return false;
+            }
         }
     }
 }

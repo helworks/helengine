@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Serializes and deserializes editor asset payloads using the engine's minimal HELE binary format.
+    /// Deserializes editor asset payloads using the engine's minimal HELE binary format.
     /// </summary>
     public static class EditorAssetBinarySerializer {
         /// <summary>
@@ -16,7 +16,12 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 11;
+        public const byte CurrentVersion = 14;
+
+        /// <summary>
+        /// Last asset version that used the legacy scene entity layout without stable entity ids.
+        /// </summary>
+        const byte LegacyVersion = 2;
 
         /// <summary>
         /// Last asset binary version that omitted runtime asset ids.
@@ -24,39 +29,19 @@ namespace helengine {
         const byte PreviousVersionWithoutRuntimeAssetId = 10;
 
         /// <summary>
-        /// Version marker written into scene entity payloads that include stable ids.
+        /// First asset version that stored explicit texture color formats.
         /// </summary>
-        const byte SceneEntityPayloadVersion = 3;
+        const byte TextureColorFormatVersion = 13;
 
         /// <summary>
-        /// Payload endianness used by the current editor asset format.
+        /// First asset version that stored texture alpha precision and palette payloads.
         /// </summary>
-        static readonly EngineBinaryEndianness PayloadEndianness = EngineBinaryEndianness.LittleEndian;
+        const byte TexturePaletteMetadataVersion = 14;
 
         /// <summary>
-        /// Serializes an asset to the supplied stream using the editor asset format.
+        /// Version marker written into scene entity payloads that include stable ids and the static flag.
         /// </summary>
-        /// <param name="stream">Destination stream for the asset payload.</param>
-        /// <param name="asset">Asset instance to serialize.</param>
-        public static void Serialize(Stream stream, Asset asset) {
-            if (stream == null) {
-                throw new ArgumentNullException(nameof(stream));
-            } else if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            }
-
-            EditorAssetBinaryValueKind valueKind = GetValueKind(asset);
-            EngineBinaryHeader header = new EngineBinaryHeader(
-                PayloadEndianness,
-                CurrentVersion,
-                FormatId,
-                (ushort)RecordKind,
-                (ushort)valueKind);
-
-            EngineBinaryHeaderSerializer.Write(stream, header);
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
-            WriteAssetPayload(writer, asset);
-        }
+        const byte SceneEntityPayloadVersion = 4;
 
         /// <summary>
         /// Deserializes an asset from the supplied stream using the editor asset format.
@@ -99,71 +84,9 @@ namespace helengine {
                 throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
             } else if (header.RecordKind != (ushort)RecordKind) {
                 throw new InvalidOperationException($"Unexpected asset record kind '{header.RecordKind}'.");
-            } else if (header.Version < PreviousVersionWithoutRuntimeAssetId || header.Version > CurrentVersion) {
+            } else if (header.Version < LegacyVersion || header.Version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset binary version '{header.Version}'.");
             }
-        }
-
-        /// <summary>
-        /// Resolves the value kind identifier for a runtime asset instance.
-        /// </summary>
-        /// <param name="asset">Asset instance to classify.</param>
-        /// <returns>Format-specific value kind identifier.</returns>
-        static EditorAssetBinaryValueKind GetValueKind(Asset asset) {
-            if (asset is TextureAsset) {
-                return EditorAssetBinaryValueKind.TextureAsset;
-            } else if (asset is ModelAsset) {
-                return EditorAssetBinaryValueKind.ModelAsset;
-            } else if (asset is ShaderAsset) {
-                return EditorAssetBinaryValueKind.ShaderAsset;
-            } else if (asset is TextAsset) {
-                return EditorAssetBinaryValueKind.TextAsset;
-            } else if (asset is MaterialAsset) {
-                return EditorAssetBinaryValueKind.MaterialAsset;
-            } else if (asset is Ps2MaterialAsset) {
-                return EditorAssetBinaryValueKind.Ps2MaterialAsset;
-            } else if (asset is AnimationClipAsset) {
-                return EditorAssetBinaryValueKind.AnimationClipAsset;
-            } else if (asset is SceneAsset) {
-                return EditorAssetBinaryValueKind.SceneAsset;
-            }
-
-            throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not supported by the editor binary serializer.");
-        }
-
-        /// <summary>
-        /// Writes the payload for a specific runtime asset instance.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Asset instance to serialize.</param>
-        static void WriteAssetPayload(EngineBinaryWriter writer, Asset asset) {
-            if (asset is TextureAsset textureAsset) {
-                WriteTextureAsset(writer, textureAsset);
-                return;
-            } else if (asset is ModelAsset modelAsset) {
-                WriteModelAsset(writer, modelAsset);
-                return;
-            } else if (asset is ShaderAsset shaderAsset) {
-                WriteShaderAsset(writer, shaderAsset);
-                return;
-            } else if (asset is TextAsset textAsset) {
-                WriteTextAsset(writer, textAsset);
-                return;
-            } else if (asset is MaterialAsset materialAsset) {
-                WriteMaterialAsset(writer, materialAsset);
-                return;
-            } else if (asset is Ps2MaterialAsset ps2MaterialAsset) {
-                WritePs2MaterialAsset(writer, ps2MaterialAsset);
-                return;
-            } else if (asset is AnimationClipAsset animationClipAsset) {
-                WriteAnimationClipAsset(writer, animationClipAsset);
-                return;
-            } else if (asset is SceneAsset sceneAsset) {
-                WriteSceneAsset(writer, sceneAsset);
-                return;
-            }
-
-            throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not supported by the editor binary serializer.");
         }
 
         /// <summary>
@@ -188,23 +111,13 @@ namespace helengine {
                     return ReadPs2MaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.AnimationClipAsset:
                     return ReadAnimationClipAsset(reader, version);
+                case EditorAssetBinaryValueKind.PlatformMaterialAsset:
+                    return ReadPlatformMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.SceneAsset:
                     return ReadSceneAsset(reader, version);
                 default:
                     throw new InvalidOperationException($"Unsupported asset value kind '{(ushort)valueKind}'.");
             }
-        }
-
-        /// <summary>
-        /// Writes a texture asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Texture asset to serialize.</param>
-        static void WriteTextureAsset(EngineBinaryWriter writer, TextureAsset asset) {
-            WriteAssetIdentity(writer, asset);
-            writer.WriteUInt16(asset.Width);
-            writer.WriteUInt16(asset.Height);
-            writer.WriteByteArray(asset.Colors);
         }
 
         /// <summary>
@@ -217,24 +130,78 @@ namespace helengine {
             ReadAssetIdentity(reader, asset, version);
             asset.Width = reader.ReadUInt16();
             asset.Height = reader.ReadUInt16();
+            asset.ColorFormat = version >= TextureColorFormatVersion
+                ? ReadTextureAssetColorFormat(reader)
+                : TextureAssetColorFormat.Rgba32;
+            asset.AlphaPrecision = version >= TexturePaletteMetadataVersion
+                ? ReadTextureAssetAlphaPrecision(reader)
+                : GetDefaultTextureAssetAlphaPrecision(asset.ColorFormat);
+            asset.PaletteColors = version >= TexturePaletteMetadataVersion
+                ? reader.ReadByteArray()
+                : Array.Empty<byte>();
             asset.Colors = reader.ReadByteArray();
             return asset;
         }
 
         /// <summary>
-        /// Writes a model asset payload.
+        /// Reads one serialized texture color-format value.
         /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Model asset to serialize.</param>
-        static void WriteModelAsset(EngineBinaryWriter writer, ModelAsset asset) {
-            WriteAssetIdentity(writer, asset);
-            writer.WriteArray(asset.Positions, WriteFloat3);
-            writer.WriteArray(asset.Normals, WriteFloat3);
-            writer.WriteArray(asset.TexCoords, WriteFloat2);
-            writer.WriteArray(asset.Indices16, WriteUInt16Value);
-            writer.WriteArray(asset.Indices32, WriteUInt32Value);
-            writer.WriteArray(asset.Submeshes, WriteModelSubmeshAsset);
-            writer.WriteByteArray(asset.Ps2PackedMeshBytes);
+        /// <param name="reader">Source reader positioned at the format byte.</param>
+        /// <returns>Decoded texture color format.</returns>
+        static TextureAssetColorFormat ReadTextureAssetColorFormat(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            byte serializedValue = reader.ReadByte();
+            if (serializedValue == (byte)TextureAssetColorFormat.Rgba32) {
+                return TextureAssetColorFormat.Rgba32;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Rgba4444) {
+                return TextureAssetColorFormat.Rgba4444;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed4) {
+                return TextureAssetColorFormat.Indexed4;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
+                return TextureAssetColorFormat.Indexed8;
+            }
+
+            throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
+        }
+
+        /// <summary>
+        /// Reads one serialized texture alpha-precision value.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the alpha-precision byte.</param>
+        /// <returns>Decoded texture alpha precision.</returns>
+        static TextureAssetAlphaPrecision ReadTextureAssetAlphaPrecision(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            byte serializedValue = reader.ReadByte();
+            if (serializedValue == (byte)TextureAssetAlphaPrecision.Opaque) {
+                return TextureAssetAlphaPrecision.Opaque;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.Binary) {
+                return TextureAssetAlphaPrecision.Binary;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A4) {
+                return TextureAssetAlphaPrecision.A4;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A8) {
+                return TextureAssetAlphaPrecision.A8;
+            }
+
+            throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");
+        }
+
+        /// <summary>
+        /// Resolves the alpha precision assumed by legacy texture payloads that predate explicit metadata.
+        /// </summary>
+        /// <param name="colorFormat">Cooked texture color format read from the legacy payload.</param>
+        /// <returns>Best-effort alpha precision for the legacy payload.</returns>
+        static TextureAssetAlphaPrecision GetDefaultTextureAssetAlphaPrecision(TextureAssetColorFormat colorFormat) {
+            if (colorFormat == TextureAssetColorFormat.Rgba4444) {
+                return TextureAssetAlphaPrecision.A4;
+            }
+
+            return TextureAssetAlphaPrecision.A8;
         }
 
         /// <summary>
@@ -262,23 +229,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one model submesh payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="submesh">Model submesh to serialize.</param>
-        static void WriteModelSubmeshAsset(EngineBinaryWriter writer, ModelSubmeshAsset submesh) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            } else if (submesh == null) {
-                throw new ArgumentNullException(nameof(submesh));
-            }
-
-            writer.WriteString(submesh.MaterialSlotName ?? string.Empty);
-            writer.WriteInt32(submesh.IndexStart);
-            writer.WriteInt32(submesh.IndexCount);
-        }
-
-        /// <summary>
         /// Reads one model submesh payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -296,16 +246,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes a text asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Text asset to serialize.</param>
-        static void WriteTextAsset(EngineBinaryWriter writer, TextAsset asset) {
-            WriteAssetIdentity(writer, asset);
-            writer.WriteString(asset.Text);
-        }
-
-        /// <summary>
         /// Reads a text asset payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -315,24 +255,6 @@ namespace helengine {
             ReadAssetIdentity(reader, asset, version);
             asset.Text = reader.ReadString();
             return asset;
-        }
-
-        /// <summary>
-        /// Writes a material asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Material asset to serialize.</param>
-        static void WriteMaterialAsset(EngineBinaryWriter writer, MaterialAsset asset) {
-            WriteAssetIdentity(writer, asset);
-            writer.WriteString(asset.ShaderAssetId);
-            writer.WriteString(asset.VertexProgram);
-            writer.WriteString(asset.PixelProgram);
-            writer.WriteString(asset.Variant);
-            writer.WriteString(asset.DiffuseTextureAssetId);
-            writer.WriteByte(asset.CastsShadows ? (byte)1 : (byte)0);
-            writer.WriteByte(asset.ReceivesShadows ? (byte)1 : (byte)0);
-            WriteMaterialRenderState(writer, asset.RenderState);
-            writer.WriteArray(asset.ConstantBuffers, WriteMaterialConstantBufferAsset);
         }
 
         /// <summary>
@@ -359,31 +281,6 @@ namespace helengine {
             materialAsset.RenderState = ReadMaterialRenderState(reader);
             materialAsset.ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>();
             return materialAsset;
-        }
-
-        /// <summary>
-        /// Writes a PS2 material asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">PS2 material asset to serialize.</param>
-        static void WritePs2MaterialAsset(EngineBinaryWriter writer, Ps2MaterialAsset asset) {
-            WriteAssetIdentity(writer, asset);
-            writer.WriteString(asset.RendererFamilyId);
-            writer.WriteInt32((int)asset.LightingMode);
-            writer.WriteInt32((int)asset.AlphaMode);
-            writer.WriteInt32((int)asset.RenderClass);
-            writer.WriteByte(asset.BaseColorR);
-            writer.WriteByte(asset.BaseColorG);
-            writer.WriteByte(asset.BaseColorB);
-            writer.WriteByte(asset.BaseColorA);
-            writer.WriteString(asset.TextureRelativePath);
-            writer.WriteByte(asset.DoubleSided ? (byte)1 : (byte)0);
-            writer.WriteByte(asset.CastShadows ? (byte)1 : (byte)0);
-            writer.WriteByte(asset.UseVertexColor ? (byte)1 : (byte)0);
-            writer.WriteByte(asset.ExpensiveModeAllowed ? (byte)1 : (byte)0);
-            writer.WriteSingle(asset.Roughness);
-            writer.WriteSingle(asset.SpecularStrength);
-            writer.WriteSingle(asset.EmissiveStrength);
         }
 
         /// <summary>
@@ -414,17 +311,23 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes an animation clip asset payload.
+        /// Reads a generic platform-owned cooked material payload.
         /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Animation clip asset to serialize.</param>
-        static void WriteAnimationClipAsset(EngineBinaryWriter writer, AnimationClipAsset asset) {
-            WriteAssetIdentity(writer, asset);
-            writer.WriteSingle(asset.Duration);
-            writer.WriteArray(asset.PositionTracks, WritePositionKeyframeTrackAsset);
-            writer.WriteArray(asset.PositionOffsetTracks, WritePositionOffsetKeyframeTrackAsset);
-            writer.WriteArray(asset.ScaleTracks, WriteScaleKeyframeTrackAsset);
-            writer.WriteArray(asset.RotationTracks, WriteRotationKeyframeTrackAsset);
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized platform-owned cooked material asset.</returns>
+        static PlatformMaterialAsset ReadPlatformMaterialAsset(EngineBinaryReader reader, byte version) {
+            PlatformMaterialAsset asset = new PlatformMaterialAsset();
+            ReadAssetIdentity(reader, asset, version);
+            asset.RendererFamilyId = reader.ReadString();
+            asset.TextureRelativePath = reader.ReadString();
+            asset.DoubleSided = reader.ReadByte() != 0;
+            asset.UseVertexColor = reader.ReadByte() != 0;
+            asset.Lit = reader.ReadByte() != 0;
+            asset.BaseColorR = reader.ReadByte();
+            asset.BaseColorG = reader.ReadByte();
+            asset.BaseColorB = reader.ReadByte();
+            asset.BaseColorA = reader.ReadByte();
+            return asset;
         }
 
         /// <summary>
@@ -444,15 +347,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one absolute-position keyframe track payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Track asset to serialize.</param>
-        static void WritePositionKeyframeTrackAsset(EngineBinaryWriter writer, PositionKeyframeTrackAsset asset) {
-            writer.WriteArray(asset.Keyframes, WritePositionKeyframeAsset);
-        }
-
-        /// <summary>
         /// Reads one absolute-position keyframe track payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -461,15 +355,6 @@ namespace helengine {
             return new PositionKeyframeTrackAsset {
                 Keyframes = reader.ReadArray(ReadPositionKeyframeAsset) ?? Array.Empty<PositionKeyframeAsset>()
             };
-        }
-
-        /// <summary>
-        /// Writes one additive-position keyframe track payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Track asset to serialize.</param>
-        static void WritePositionOffsetKeyframeTrackAsset(EngineBinaryWriter writer, PositionOffsetKeyframeTrackAsset asset) {
-            writer.WriteArray(asset.Keyframes, WritePositionKeyframeAsset);
         }
 
         /// <summary>
@@ -484,15 +369,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one scale keyframe track payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Track asset to serialize.</param>
-        static void WriteScaleKeyframeTrackAsset(EngineBinaryWriter writer, ScaleKeyframeTrackAsset asset) {
-            writer.WriteArray(asset.Keyframes, WritePositionKeyframeAsset);
-        }
-
-        /// <summary>
         /// Reads one scale keyframe track payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -504,15 +380,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one rotation keyframe track payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Track asset to serialize.</param>
-        static void WriteRotationKeyframeTrackAsset(EngineBinaryWriter writer, RotationKeyframeTrackAsset asset) {
-            writer.WriteArray(asset.Keyframes, WriteRotationKeyframeAsset);
-        }
-
-        /// <summary>
         /// Reads one rotation keyframe track payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -521,17 +388,6 @@ namespace helengine {
             return new RotationKeyframeTrackAsset {
                 Keyframes = reader.ReadArray(ReadRotationKeyframeAsset) ?? Array.Empty<RotationKeyframeAsset>()
             };
-        }
-
-        /// <summary>
-        /// Writes one position-style keyframe payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Keyframe asset to serialize.</param>
-        static void WritePositionKeyframeAsset(EngineBinaryWriter writer, PositionKeyframeAsset asset) {
-            writer.WriteSingle(asset.Time);
-            WriteFloat3(writer, asset.Value);
-            WriteAnimationInterpolationMode(writer, asset.InterpolationMode);
         }
 
         /// <summary>
@@ -547,17 +403,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one rotation keyframe payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Keyframe asset to serialize.</param>
-        static void WriteRotationKeyframeAsset(EngineBinaryWriter writer, RotationKeyframeAsset asset) {
-            writer.WriteSingle(asset.Time);
-            WriteFloat4(writer, asset.Value);
-            WriteAnimationInterpolationMode(writer, asset.InterpolationMode);
-        }
-
-        /// <summary>
         /// Reads one rotation keyframe payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -570,34 +415,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one animation interpolation mode value.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="value">Interpolation mode to serialize.</param>
-        static void WriteAnimationInterpolationMode(EngineBinaryWriter writer, AnimationInterpolationMode value) {
-            writer.WriteByte((byte)value);
-        }
-
-        /// <summary>
         /// Reads one animation interpolation mode value.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized interpolation mode.</returns>
         static AnimationInterpolationMode ReadAnimationInterpolationMode(EngineBinaryReader reader) {
             return (AnimationInterpolationMode)reader.ReadByte();
-        }
-
-        /// <summary>
-        /// Writes a scene asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Scene asset to serialize.</param>
-        static void WriteSceneAsset(EngineBinaryWriter writer, SceneAsset asset) {
-            WriteAssetIdentity(writer, asset);
-            writer.WriteArray(asset.RootEntities, WriteSceneEntityAsset);
-            writer.WriteArray(asset.AssetReferences, WriteSceneAssetReference);
-            writer.WriteUInt32(asset.Physics3DSceneFeatureFlags);
-            WriteSceneSettingsAsset(writer, asset.SceneSettings);
         }
 
         /// <summary>
@@ -608,26 +431,23 @@ namespace helengine {
         static SceneAsset ReadSceneAsset(EngineBinaryReader reader, byte version) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
-            } else if (version < PreviousVersionWithoutRuntimeAssetId || version > CurrentVersion) {
+            } else if (version < LegacyVersion || version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset binary version '{version}'.");
             }
 
             SceneAsset asset = new SceneAsset();
             ReadAssetIdentity(reader, asset, version);
             asset.RootEntities = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>();
-            asset.AssetReferences = ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>();
-            asset.Physics3DSceneFeatureFlags = reader.ReadUInt32();
-            asset.SceneSettings = ReadSceneSettingsAsset(reader);
+            asset.AssetReferences = version >= 4
+                ? ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>()
+                : Array.Empty<SceneAssetReference>();
+            asset.Physics3DSceneFeatureFlags = version >= 5
+                ? reader.ReadUInt32()
+                : 0u;
+            asset.SceneSettings = version >= 6
+                ? ReadSceneSettingsAsset(reader)
+                : new SceneSettingsAsset();
             return asset;
-        }
-
-        /// <summary>
-        /// Writes scene-level settings persisted by the editor scene asset format.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="sceneSettings">Scene settings to serialize.</param>
-        static void WriteSceneSettingsAsset(EngineBinaryWriter writer, SceneSettingsAsset sceneSettings) {
-            WriteSceneCanvasProfile(writer, sceneSettings.CanvasProfile);
         }
 
         /// <summary>
@@ -639,16 +459,6 @@ namespace helengine {
             return new SceneSettingsAsset {
                 CanvasProfile = ReadSceneCanvasProfile(reader)
             };
-        }
-
-        /// <summary>
-        /// Writes one authored scene canvas profile.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="canvasProfile">Canvas profile to serialize.</param>
-        static void WriteSceneCanvasProfile(EngineBinaryWriter writer, SceneCanvasProfile canvasProfile) {
-            writer.WriteInt32(canvasProfile.Width);
-            writer.WriteInt32(canvasProfile.Height);
         }
 
         /// <summary>
@@ -664,24 +474,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one serialized scene entity payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Scene entity asset to serialize.</param>
-        static void WriteSceneEntityAsset(EngineBinaryWriter writer, SceneEntityAsset asset) {
-            writer.WriteByte(SceneEntityPayloadVersion);
-            writer.WriteUInt32(asset.Id);
-            writer.WriteString(asset.Name);
-            writer.WriteFloat3(asset.LocalPosition);
-            writer.WriteFloat3(asset.LocalScale);
-            writer.WriteFloat4(asset.LocalOrientation);
-            writer.WriteArray(asset.Components, WriteSceneComponentAssetRecordValue);
-            writer.WriteArray(asset.PlatformTransformOverrides, WriteSceneEntityPlatformTransformOverrideAsset);
-            writer.WriteArray(asset.PlatformComponentOverrides, WriteSceneEntityPlatformComponentOverrideAsset);
-            writer.WriteArray(asset.Children, WriteSceneEntityAsset);
-        }
-
-        /// <summary>
         /// Reads one serialized scene entity payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -689,27 +481,42 @@ namespace helengine {
         static SceneEntityAsset ReadSceneEntityAsset(EngineBinaryReader reader, byte version) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
-            } else if (version < PreviousVersionWithoutRuntimeAssetId || version > CurrentVersion) {
+            } else if (version < LegacyVersion || version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset binary version '{version}'.");
             }
 
+            if (version == LegacyVersion) {
+                return ReadLegacySceneEntityAsset(reader);
+            }
+
             byte payloadVersion = reader.ReadByte();
-            if (payloadVersion != SceneEntityPayloadVersion) {
+            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != SceneEntityPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
-            uint id = reader.ReadUInt32();
+            uint id = 0u;
+            if (payloadVersion >= 4) {
+                id = reader.ReadUInt32();
+            } else {
+                reader.ReadString();
+            }
             string name = reader.ReadString();
+            bool isStatic = payloadVersion >= 4 && reader.ReadByte() != 0;
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
             float4 localOrientation = reader.ReadFloat4();
             SceneComponentAssetRecord[] components = ReadSceneComponentAssetRecordArray(reader, payloadVersion) ?? Array.Empty<SceneComponentAssetRecord>();
-            SceneEntityPlatformTransformOverrideAsset[] platformTransformOverrides = reader.ReadArray(ReadSceneEntityPlatformTransformOverrideAsset) ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
-            SceneEntityPlatformComponentOverrideAsset[] platformComponentOverrides = reader.ReadArray(ReadSceneEntityPlatformComponentOverrideAsset) ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+            SceneEntityPlatformTransformOverrideAsset[] platformTransformOverrides = payloadVersion >= 2
+                ? reader.ReadArray(ReadSceneEntityPlatformTransformOverrideAsset) ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>()
+                : Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
+            SceneEntityPlatformComponentOverrideAsset[] platformComponentOverrides = payloadVersion >= 3
+                ? reader.ReadArray(ReadSceneEntityPlatformComponentOverrideAsset) ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>()
+                : Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
 
             return new SceneEntityAsset {
                 Id = id,
                 Name = name,
+                IsStatic = isStatic,
                 LocalPosition = localPosition,
                 LocalScale = localScale,
                 LocalOrientation = localOrientation,
@@ -721,24 +528,67 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one serialized scene entity transform override payload.
+        /// Reads one serialized legacy scene entity payload written before stable entity ids were introduced.
         /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Scene entity transform override to serialize.</param>
-        static void WriteSceneEntityPlatformTransformOverrideAsset(EngineBinaryWriter writer, SceneEntityPlatformTransformOverrideAsset asset) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            } else if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized legacy scene entity asset.</returns>
+        static SceneEntityAsset ReadLegacySceneEntityAsset(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
             }
 
-            writer.WriteString(asset.PlatformId);
-            writer.WriteByte(asset.HasLocalPositionOverride ? (byte)1 : (byte)0);
-            writer.WriteFloat3(asset.LocalPosition);
-            writer.WriteByte(asset.HasLocalScaleOverride ? (byte)1 : (byte)0);
-            writer.WriteFloat3(asset.LocalScale);
-            writer.WriteByte(asset.HasLocalOrientationOverride ? (byte)1 : (byte)0);
-            writer.WriteFloat4(asset.LocalOrientation);
+            return new SceneEntityAsset {
+                Id = 0u,
+                Name = reader.ReadString(),
+                LocalPosition = reader.ReadFloat3(),
+                LocalScale = reader.ReadFloat3(),
+                LocalOrientation = reader.ReadFloat4(),
+                Components = reader.ReadArray(ReadLegacySceneComponentAssetRecord) ?? Array.Empty<SceneComponentAssetRecord>(),
+                PlatformTransformOverrides = Array.Empty<SceneEntityPlatformTransformOverrideAsset>(),
+                PlatformComponentOverrides = Array.Empty<SceneEntityPlatformComponentOverrideAsset>(),
+                Children = ReadLegacySceneEntityAssetArray(reader) ?? Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Reads a legacy scene entity array written before stable entity ids were introduced.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the array payload.</param>
+        /// <returns>Decoded legacy scene entity array or null when the source payload was null.</returns>
+        static SceneEntityAsset[] ReadLegacySceneEntityAssetArray(EngineBinaryReader reader) {
+            int length = reader.ReadInt32();
+            if (length == -1) {
+                return null;
+            } else if (length < -1) {
+                throw new InvalidOperationException("Array length cannot be negative.");
+            } else if (length == 0) {
+                return Array.Empty<SceneEntityAsset>();
+            }
+
+            SceneEntityAsset[] values = new SceneEntityAsset[length];
+            for (int index = 0; index < values.Length; index++) {
+                values[index] = ReadLegacySceneEntityAsset(reader);
+            }
+
+            return values;
+        }
+
+        /// <summary>
+        /// Reads one serialized legacy scene component payload that predates component keys and stable ids.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized legacy scene component payload.</returns>
+        static SceneComponentAssetRecord ReadLegacySceneComponentAssetRecord(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return new SceneComponentAssetRecord {
+                ComponentKey = string.Empty,
+                ComponentTypeId = reader.ReadString(),
+                ComponentIndex = reader.ReadInt32(),
+                Payload = reader.ReadByteArray() ?? Array.Empty<byte>()
+            };
         }
 
         /// <summary>
@@ -760,40 +610,6 @@ namespace helengine {
                 HasLocalOrientationOverride = reader.ReadByte() != 0,
                 LocalOrientation = reader.ReadFloat4()
             };
-        }
-
-        /// <summary>
-        /// Writes one serialized scene entity component existence override payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Scene entity component existence override to serialize.</param>
-        static void WriteSceneEntityPlatformComponentOverrideAsset(EngineBinaryWriter writer, SceneEntityPlatformComponentOverrideAsset asset) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            } else if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            }
-
-            writer.WriteString(asset.PlatformId);
-            writer.WriteArray(asset.RemovedComponentKeys, WriteStringValue);
-            writer.WriteArray(asset.AddedComponents, WriteSceneEntityPlatformAddedComponentAsset);
-        }
-
-        /// <summary>
-        /// Writes one serialized platform-only component payload attached to a scene entity.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Platform-only component payload to serialize.</param>
-        static void WriteSceneEntityPlatformAddedComponentAsset(EngineBinaryWriter writer, SceneEntityPlatformAddedComponentAsset asset) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            } else if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            } else if (asset.Component == null) {
-                throw new InvalidOperationException("Platform-added component assets must define a serialized component record.");
-            }
-
-            WriteSceneComponentAssetRecord(writer, asset.Component, SceneEntityPayloadVersion);
         }
 
         /// <summary>
@@ -839,18 +655,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one serialized scene asset reference payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="reference">Scene asset reference to serialize.</param>
-        static void WriteSceneAssetReference(EngineBinaryWriter writer, SceneAssetReference reference) {
-            writer.WriteInt32((int)reference.SourceKind);
-            writer.WriteString(reference.RelativePath);
-            writer.WriteString(reference.ProviderId);
-            writer.WriteString(reference.AssetId);
-        }
-
-        /// <summary>
         /// Reads one serialized scene asset reference payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -871,27 +675,6 @@ namespace helengine {
         /// <returns>Deserialized scene asset references.</returns>
         static SceneAssetReference[] ReadSceneAssetReferenceArray(EngineBinaryReader reader) {
             return reader.ReadArray(ReadSceneAssetReference);
-        }
-
-        /// <summary>
-        /// Writes one serialized scene component record.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="record">Scene component record to serialize.</param>
-        static void WriteSceneComponentAssetRecord(EngineBinaryWriter writer, SceneComponentAssetRecord record, byte sceneEntityPayloadVersion) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            } else if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-
-            if (sceneEntityPayloadVersion >= 3) {
-                writer.WriteString(record.ComponentKey);
-            }
-
-            writer.WriteString(record.ComponentTypeId);
-            writer.WriteInt32(record.ComponentIndex);
-            writer.WriteByteArray(record.Payload);
         }
 
         /// <summary>
@@ -961,22 +744,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one material render-state payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="renderState">Render state to serialize.</param>
-        static void WriteMaterialRenderState(EngineBinaryWriter writer, MaterialRenderState renderState) {
-            if (renderState == null) {
-                throw new ArgumentNullException(nameof(renderState));
-            }
-
-            writer.WriteInt32((int)renderState.BlendMode);
-            writer.WriteInt32((int)renderState.CullMode);
-            writer.WriteByte(renderState.DepthTestEnabled ? (byte)1 : (byte)0);
-            writer.WriteByte(renderState.DepthWriteEnabled ? (byte)1 : (byte)0);
-        }
-
-        /// <summary>
         /// Reads one material render-state payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -991,24 +758,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one material constant-buffer payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Material constant-buffer asset to serialize.</param>
-        static void WriteMaterialConstantBufferAsset(EngineBinaryWriter writer, MaterialConstantBufferAsset asset) {
-            if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            } else if (string.IsNullOrWhiteSpace(asset.Name)) {
-                throw new InvalidOperationException("Material constant-buffer assets must define a binding name.");
-            } else if (asset.Data == null) {
-                throw new InvalidOperationException("Material constant-buffer assets must define a byte payload.");
-            }
-
-            writer.WriteString(asset.Name);
-            writer.WriteByteArray(asset.Data);
-        }
-
-        /// <summary>
         /// Reads one material constant-buffer payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -1018,16 +767,6 @@ namespace helengine {
                 Name = reader.ReadString(),
                 Data = reader.ReadByteArray()
             };
-        }
-
-        /// <summary>
-        /// Writes the shared editor-facing and runtime-facing identity for one top-level asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Asset whose identity should be serialized.</param>
-        static void WriteAssetIdentity(EngineBinaryWriter writer, Asset asset) {
-            writer.WriteString(asset.Id);
-            writer.WriteInt64((long)asset.RuntimeAssetId);
         }
 
         /// <summary>
@@ -1044,19 +783,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes a shader asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Shader asset to serialize.</param>
-        static void WriteShaderAsset(EngineBinaryWriter writer, ShaderAsset asset) {
-            WriteAssetIdentity(writer, asset);
-            writer.WriteString(asset.Name);
-            writer.WriteString(asset.TargetName);
-            writer.WriteArray(asset.Programs, WriteShaderProgramAsset);
-            writer.WriteArray(asset.Binaries, WriteShaderBinaryAsset);
-        }
-
-        /// <summary>
         /// Reads a shader asset payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -1069,21 +795,6 @@ namespace helengine {
             asset.Programs = reader.ReadArray(ReadShaderProgramAsset);
             asset.Binaries = reader.ReadArray(ReadShaderBinaryAsset);
             return asset;
-        }
-
-        /// <summary>
-        /// Writes a shader program asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Shader program asset to serialize.</param>
-        static void WriteShaderProgramAsset(EngineBinaryWriter writer, ShaderProgramAsset asset) {
-            writer.WriteString(asset.Name);
-            writer.WriteInt32((int)asset.Stage);
-            writer.WriteString(asset.EntryPoint);
-            writer.WriteArray(asset.Bindings, WriteShaderBindingAsset);
-            writer.WriteArray(asset.Inputs, WriteShaderVertexElementAsset);
-            writer.WriteArray(asset.Outputs, WriteShaderVertexElementAsset);
-            writer.WriteArray(asset.Variants, WriteShaderVariantAsset);
         }
 
         /// <summary>
@@ -1104,19 +815,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes a shader binary asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Shader binary asset to serialize.</param>
-        static void WriteShaderBinaryAsset(EngineBinaryWriter writer, ShaderBinaryAsset asset) {
-            writer.WriteString(asset.ProgramName);
-            writer.WriteInt32((int)asset.Stage);
-            writer.WriteString(asset.TargetName);
-            writer.WriteString(asset.Variant);
-            writer.WriteByteArray(asset.Bytecode);
-        }
-
-        /// <summary>
         /// Reads a shader binary asset payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -1129,20 +827,6 @@ namespace helengine {
                 Variant = reader.ReadString(),
                 Bytecode = reader.ReadByteArray()
             };
-        }
-
-        /// <summary>
-        /// Writes a shader binding asset payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Shader binding asset to serialize.</param>
-        static void WriteShaderBindingAsset(EngineBinaryWriter writer, ShaderBindingAsset asset) {
-            writer.WriteString(asset.Name);
-            writer.WriteInt32((int)asset.Type);
-            writer.WriteInt32(asset.Set);
-            writer.WriteInt32(asset.Slot);
-            writer.WriteInt32(asset.Size);
-            writer.WriteArray(asset.Members, WriteShaderConstantMemberAsset);
         }
 
         /// <summary>
@@ -1162,18 +846,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes a shader constant member payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Shader constant member asset to serialize.</param>
-        static void WriteShaderConstantMemberAsset(EngineBinaryWriter writer, ShaderConstantMemberAsset asset) {
-            writer.WriteString(asset.Name);
-            writer.WriteString(asset.Type);
-            writer.WriteInt32(asset.Offset);
-            writer.WriteInt32(asset.Size);
-        }
-
-        /// <summary>
         /// Reads a shader constant member payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -1188,16 +860,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes a shader variant payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Shader variant asset to serialize.</param>
-        static void WriteShaderVariantAsset(EngineBinaryWriter writer, ShaderVariantAsset asset) {
-            writer.WriteString(asset.Name);
-            writer.WriteArray(asset.Defines, WriteStringValue);
-        }
-
-        /// <summary>
         /// Reads a shader variant payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -1207,17 +869,6 @@ namespace helengine {
                 Name = reader.ReadString(),
                 Defines = reader.ReadArray(ReadStringValue)
             };
-        }
-
-        /// <summary>
-        /// Writes a shader vertex element payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Shader vertex element asset to serialize.</param>
-        static void WriteShaderVertexElementAsset(EngineBinaryWriter writer, ShaderVertexElementAsset asset) {
-            writer.WriteString(asset.Semantic);
-            writer.WriteInt32(asset.Index);
-            writer.WriteString(asset.Format);
         }
 
         /// <summary>
@@ -1234,48 +885,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes one string value inside an array payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="value">String value to serialize.</param>
-        static void WriteStringValue(EngineBinaryWriter writer, string value) {
-            writer.WriteString(value);
-        }
-
-        /// <summary>
         /// Reads one string value from an array payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the value.</param>
         /// <returns>Deserialized string value.</returns>
         static string ReadStringValue(EngineBinaryReader reader) {
             return reader.ReadString();
-        }
-
-        /// <summary>
-        /// Writes one scene-component record into a scene entity using the current scene payload version.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="asset">Scene component record to serialize.</param>
-        static void WriteSceneComponentAssetRecordValue(EngineBinaryWriter writer, SceneComponentAssetRecord asset) {
-            WriteSceneComponentAssetRecord(writer, asset, SceneEntityPayloadVersion);
-        }
-
-        /// <summary>
-        /// Writes one unsigned integer value inside an array payload.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="value">Unsigned integer to serialize.</param>
-        static void WriteUInt16Value(EngineBinaryWriter writer, ushort value) {
-            writer.WriteUInt16(value);
-        }
-
-        /// <summary>
-        /// Writes a 32-bit unsigned integer array element.
-        /// </summary>
-        /// <param name="writer">Destination writer.</param>
-        /// <param name="value">Value to serialize.</param>
-        static void WriteUInt32Value(EngineBinaryWriter writer, uint value) {
-            writer.WriteUInt32(value);
         }
 
         /// <summary>
@@ -1297,16 +912,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Writes a float2 value.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="value">Vector value to serialize.</param>
-        static void WriteFloat2(EngineBinaryWriter writer, float2 value) {
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-        }
-
-        /// <summary>
         /// Reads a float2 value.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
@@ -1315,17 +920,6 @@ namespace helengine {
             return new float2(
                 reader.ReadSingle(),
                 reader.ReadSingle());
-        }
-
-        /// <summary>
-        /// Writes a float3 value.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="value">Vector value to serialize.</param>
-        static void WriteFloat3(EngineBinaryWriter writer, float3 value) {
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
         }
 
         /// <summary>
@@ -1338,18 +932,6 @@ namespace helengine {
                 reader.ReadSingle(),
                 reader.ReadSingle(),
                 reader.ReadSingle());
-        }
-
-        /// <summary>
-        /// Writes a float4 value.
-        /// </summary>
-        /// <param name="writer">Destination writer for the payload.</param>
-        /// <param name="value">Vector value to serialize.</param>
-        static void WriteFloat4(EngineBinaryWriter writer, float4 value) {
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
-            writer.WriteSingle(value.W);
         }
 
         /// <summary>

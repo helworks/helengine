@@ -45,8 +45,43 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
 
         SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
         Assert.Contains(menuEntity.Components, component => component.ComponentTypeId == MenuComponent.SerializedComponentTypeId);
-        Assert.Contains(menuEntity.Components, component => component.ComponentTypeId == "helengine.ReferenceCanvasFitComponent, helengine.core");
+        Assert.Contains(menuEntity.Components, component => component.ComponentTypeId == "helengine.ViewportComponent, helengine.core");
         string serializedContents = System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(scenePath));
         Assert.DoesNotContain("helengine.DemoMenuBuildComponent", serializedContents, StringComparison.Ordinal);
+        Assert.DoesNotContain("helengine.ReferenceCanvasFitComponent, helengine.core", serializedContents, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures regenerating the Nintendo DS menu scene writes the dual-screen camera structure and viewport-backed menu root.
+    /// </summary>
+    [Fact]
+    public void Regenerate_WhenInvokedForNintendoDs_WritesDualScreenMenuScene() {
+        ScriptTypeResolver resolver = new ScriptTypeResolver();
+        resolver.Register("gameplay", typeof(TestMenuDefinitionProvider).Assembly);
+        EditorMenuSceneRegenerationService service = new EditorMenuSceneRegenerationService(ProjectRootPath, resolver);
+
+        service.Regenerate("Scenes/DemoDiscMainMenuDs.helen", typeof(TestMenuDefinitionProvider).FullName + ", gameplay");
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenuDs.helen");
+        using FileStream stream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+
+        Assert.Collection(
+            sceneAsset.RootEntities,
+            entity => Assert.Equal("DemoDiscTopScreenCamera", entity.Name),
+            entity => Assert.Equal("DemoDiscBottomScreenCamera", entity.Name));
+        SceneEntityAsset topCameraEntity = sceneAsset.RootEntities[0];
+        SceneEntityAsset bottomCameraEntity = sceneAsset.RootEntities[1];
+        Assert.Contains(topCameraEntity.Components, component => component.ComponentTypeId == "helengine.CameraComponent");
+        Assert.Contains(bottomCameraEntity.Components, component => component.ComponentTypeId == "helengine.CameraComponent");
+
+        SceneEntityAsset topRootEntity = Assert.Single(topCameraEntity.Children, entity => entity.Name == "DemoDiscTopScreenRoot");
+        Assert.Contains(topRootEntity.Components, component => component.ComponentTypeId == "helengine.ViewportComponent, helengine.core");
+        SceneEntityAsset menuEntity = Assert.Single(bottomCameraEntity.Children, entity => entity.Name == "DemoDiscMenuRoot");
+        Assert.Contains(menuEntity.Components, component => component.ComponentTypeId == MenuComponent.SerializedComponentTypeId);
+        Assert.Contains(menuEntity.Components, component => component.ComponentTypeId == "helengine.ViewportComponent, helengine.core");
+
+        string serializedContents = System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(scenePath));
+        Assert.DoesNotContain("helengine.ReferenceCanvasFitComponent, helengine.core", serializedContents, StringComparison.Ordinal);
     }
 }

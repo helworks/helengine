@@ -491,6 +491,97 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures generated standard materials are cooked through the active DS material builder instead of writing a DX11 shader-backed material payload.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneReferencesGeneratedStandardMaterial_CooksDsPlatformMaterialAsset() {
+            string sceneId = "Scenes/GeneratedStandardMaterialScene.helen";
+            WriteSceneAsset(sceneId, CreateGeneratedStandardMaterialReference());
+
+            RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
+                CreateDsMaterialBuilderDefinition(),
+                request => new PlatformMaterialCookResult(
+                    AssetSerializer.SerializeToBytes(new PlatformMaterialAsset {
+                        RendererFamilyId = "ds-main-2d",
+                        TextureRelativePath = string.Empty,
+                        DoubleSided = false,
+                        UseVertexColor = true,
+                        Lit = true,
+                        BaseColorR = 255,
+                        BaseColorG = 255,
+                        BaseColorB = 255,
+                        BaseColorA = 255
+                    }),
+                    Array.Empty<string>()));
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "ds",
+                materialBuilder,
+                "ds-default",
+                "ds-main-2d");
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.NotNull(materialBuilder.LastMaterialCookRequest);
+            Assert.Equal("ds-standard-textured", materialBuilder.LastMaterialCookRequest.SchemaId);
+
+            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "engine", "materials", "standard.hasset");
+            using FileStream stream = File.OpenRead(cookedMaterialPath);
+            PlatformMaterialAsset cookedMaterial = Assert.IsType<PlatformMaterialAsset>(AssetSerializer.Deserialize(stream));
+
+            Assert.Equal("ds-main-2d", cookedMaterial.RendererFamilyId);
+            Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "shaders", "ForwardStandardShader.dx11.hasset")));
+        }
+
+        /// <summary>
+        /// Ensures DS builder-backed material cook requests translate imported `texture-id` values into cooked runtime `texture-relative-path` values.
+        /// </summary>
+        [Fact]
+        public void Package_WhenDsBuilderCooksMaterialWithImportedDiffuseTexture_PopulatesTextureRelativePath() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
+            string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+
+            WriteCachedTextureAsset(textureAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
+                CreateDsMaterialBuilderDefinition(),
+                request => new PlatformMaterialCookResult(
+                    AssetSerializer.SerializeToBytes(new PlatformMaterialAsset {
+                        RendererFamilyId = "ds-main-2d",
+                        TextureRelativePath = request.FieldValues["texture-relative-path"],
+                        DoubleSided = false,
+                        UseVertexColor = true,
+                        Lit = true,
+                        BaseColorR = 255,
+                        BaseColorG = 255,
+                        BaseColorB = 255,
+                        BaseColorA = 255
+                    }),
+                    Array.Empty<string>()));
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "ds",
+                materialBuilder,
+                "ds-default",
+                "ds-main-2d");
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.NotNull(materialBuilder.LastMaterialCookRequest);
+            Assert.Equal("ds-standard-textured", materialBuilder.LastMaterialCookRequest.SchemaId);
+            Assert.Equal(
+                "cooked/imported/" + textureAssetId,
+                materialBuilder.LastMaterialCookRequest.FieldValues["texture-relative-path"]);
+        }
+
+        /// <summary>
         /// Ensures packaged scenes preserve FPS overlay components for the player runtime loader.
         /// </summary>
         [Fact]
@@ -1782,6 +1873,52 @@ namespace helengine.editor.tests {
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
             Assert.Equal(DirectionalShadowTowerSpinComponent.SerializedComponentTypeId, packagedRecord.ComponentTypeId);
             Assert.Equal(payload, packagedRecord.Payload);
+        }
+
+        /// <summary>
+        /// Ensures stale demo-menu scenes that still reference the city-owned platform-info overlay binder are rewritten to the built-in runtime component during packaging.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsLegacyPlatformInfoTextComponent_RewritesToBuiltInRuntimeComponent() {
+            const string sceneId = "Scenes/DemoDiscMainMenu.helen";
+            const string legacyComponentTypeId = "city.menu.PlatformInfoTextComponent, gameplay";
+            const string builtInComponentTypeId = "helengine.PlatformInfoTextComponent";
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "PlatformInfoOverlay",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = legacyComponentTypeId,
+                                ComponentIndex = 0,
+                                Payload = Array.Empty<byte>()
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "windows");
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+            SceneComponentAssetRecord packagedRecord = Assert.Single(packagedRoot.Components);
+
+            Assert.Equal(builtInComponentTypeId, packagedRecord.ComponentTypeId);
+            Assert.NotEmpty(packagedRecord.Payload ?? Array.Empty<byte>());
         }
 
         /// <summary>
@@ -3385,6 +3522,83 @@ namespace helengine.editor.tests {
                 Array.Empty<PlatformCodegenProfileDefinition>(),
                 Array.Empty<PlatformStorageProfileDefinition>(),
                 Array.Empty<PlatformMediaProfileDefinition>());
+        }
+
+        /// <summary>
+        /// Creates one minimal DS platform definition that publishes the standard fixed-pipeline material schema for cook verification.
+        /// </summary>
+        /// <returns>Minimal DS platform definition with one generated standard material schema.</returns>
+        static PlatformDefinition CreateDsMaterialBuilderDefinition() {
+            return new PlatformDefinition(
+                "ds",
+                "Nintendo DS",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "ds-default",
+                        "DS Default",
+                        "Debug player build",
+                        "ds-main-2d",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "ds-main-2d",
+                        "DS Main 2D",
+                        "Nintendo DS fixed-pipeline renderer",
+                        [])
+                ],
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                [
+                    new PlatformMaterialSchemaDefinition(
+                        "ds-standard-textured",
+                        "DS Standard Textured",
+                        ["ds-main-2d"],
+                        [
+                            new PlatformMaterialFieldDefinition(
+                                "texture-relative-path",
+                                "Texture",
+                                PlatformMaterialFieldKind.Text,
+                                string.Empty,
+                                false,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "double-sided",
+                                "Double Sided",
+                                PlatformMaterialFieldKind.Boolean,
+                                "false",
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "vertex-color-mode",
+                                "Vertex Color",
+                                PlatformMaterialFieldKind.Choice,
+                                "multiply",
+                                true,
+                                ["multiply", "ignore"]),
+                            new PlatformMaterialFieldDefinition(
+                                "base-color",
+                                "Base Color",
+                                PlatformMaterialFieldKind.Color,
+                                "#FFFFFFFF",
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "lighting-mode",
+                                "Lighting",
+                                PlatformMaterialFieldKind.Choice,
+                                "lit",
+                                true,
+                                ["lit", "unlit"])
+                        ])
+                ],
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                new RuntimeGenerationContract(
+                    RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                    true,
+                    PackagedPathPolicy.ContentRelativeOnly));
         }
 
         /// <summary>

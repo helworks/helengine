@@ -39,9 +39,9 @@ namespace helengine {
         TextComponent RenderTextComponent;
 
         /// <summary>
-        /// Timestamp used to measure the current sampling window.
+        /// Core elapsed-seconds marker used to measure the current sampling window.
         /// </summary>
-        DateTime LastSampleUtc;
+        double LastSampleElapsedSeconds;
 
         /// <summary>
         /// Number of update ticks captured during the current sampling window.
@@ -349,9 +349,9 @@ namespace helengine {
         void ResetSamplingWindow() {
             UpdateFrameCount = 0;
             RenderFrameCount = 0;
-            LastSampleUtc = DateTime.UtcNow;
+            LastSampleElapsedSeconds = Core.Instance == null ? 0d : Core.Instance.TotalElapsedSeconds;
             UpdateFpsText = "Update FPS: --";
-            RenderFpsText = "Render FPS: --";
+            RenderFpsText = "Render FPS: -- (-- ms)";
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Text = UpdateFpsText;
@@ -366,7 +366,7 @@ namespace helengine {
         /// Formats the latest FPS values once the configured refresh interval has elapsed.
         /// </summary>
         void TryRefreshOverlay() {
-            double elapsedSeconds = (DateTime.UtcNow - LastSampleUtc).TotalMilliseconds / 1000.0;
+            double elapsedSeconds = Core.Instance.TotalElapsedSeconds - LastSampleElapsedSeconds;
             if (refreshIntervalSeconds > 0d && elapsedSeconds < refreshIntervalSeconds) {
                 return;
             }
@@ -375,8 +375,8 @@ namespace helengine {
             double updateFps = UpdateFrameCount / safeElapsedSeconds;
             double renderFps = RenderFrameCount / safeElapsedSeconds;
 
-            UpdateFpsText = "Update FPS: " + updateFps;
-            RenderFpsText = "Render FPS: " + renderFps;
+            UpdateFpsText = "Update FPS: " + FormatFpsValue(updateFps);
+            RenderFpsText = FormatRenderFpsText(renderFps, Core.Instance.LastRenderManager3DDrawMilliseconds);
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Text = UpdateFpsText;
@@ -388,7 +388,30 @@ namespace helengine {
 
             UpdateFrameCount = 0;
             RenderFrameCount = 0;
-            LastSampleUtc = DateTime.UtcNow;
+            LastSampleElapsedSeconds = Core.Instance.TotalElapsedSeconds;
+        }
+
+        /// <summary>
+        /// Formats one FPS value using exactly one decimal place without relying on composite formatting.
+        /// </summary>
+        /// <param name="fps">FPS value to format.</param>
+        /// <returns>One-decimal FPS text such as <c>60.3</c>.</returns>
+        string FormatFpsValue(double fps) {
+            int tenths = (int)Math.Round(fps * 10d, MidpointRounding.AwayFromZero);
+            int whole = tenths / 10;
+            int fractional = Math.Abs(tenths % 10);
+
+            return whole + "." + fractional;
+        }
+
+        /// <summary>
+        /// Formats the render FPS line together with the most recent measured render-manager draw duration.
+        /// </summary>
+        /// <param name="renderFps">Measured render FPS value.</param>
+        /// <param name="drawMilliseconds">Measured render-manager draw duration in milliseconds.</param>
+        /// <returns>Render overlay text that includes both FPS and milliseconds.</returns>
+        string FormatRenderFpsText(double renderFps, double drawMilliseconds) {
+            return "Render FPS: " + FormatFpsValue(renderFps) + " (" + FormatFpsValue(drawMilliseconds) + " ms)";
         }
 
         /// <summary>

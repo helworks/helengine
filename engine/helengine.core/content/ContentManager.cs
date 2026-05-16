@@ -40,7 +40,9 @@ namespace helengine {
                 throw new ArgumentException("Root directory must be provided.", nameof(rootDirectory));
             }
 
-            RootDirectoryPath = Path.GetFullPath(rootDirectory);
+            RootDirectoryPath = HasVirtualRootPrefix(rootDirectory)
+                ? rootDirectory
+                : Path.GetFullPath(rootDirectory);
             ProcessorRegistrationsById = new Dictionary<string, ContentProcessorRegistration>(StringComparer.OrdinalIgnoreCase);
             DefaultProcessorsByTypeAndExtension = new Dictionary<Type, Dictionary<string, ContentProcessorRegistration>>();
             RegisterBuiltInProcessors();
@@ -266,11 +268,105 @@ namespace helengine {
                 throw new ArgumentException("Asset path must be provided.", nameof(assetPath));
             }
 
+            if (HasVirtualRootPrefix(assetPath)) {
+                return assetPath;
+            }
+
             if (Path.IsPathRooted(assetPath)) {
                 return Path.GetFullPath(assetPath);
             }
 
+            if (HasVirtualRootPrefix(RootDirectoryPath)) {
+                return CombineVirtualRootedPath(RootDirectoryPath, assetPath);
+            }
+
             return Path.GetFullPath(Path.Combine(RootDirectoryPath, assetPath));
+        }
+
+        /// <summary>
+        /// Combines one relative path beneath a virtual rooted content prefix such as <c>dvd:/</c>.
+        /// </summary>
+        /// <param name="rootPath">Virtual rooted content prefix.</param>
+        /// <param name="relativePath">Relative path to append beneath the prefix.</param>
+        /// <returns>Combined virtual rooted path.</returns>
+        static string CombineVirtualRootedPath(string rootPath, string relativePath) {
+            if (string.IsNullOrWhiteSpace(rootPath)) {
+                throw new ArgumentException("Root path must be provided.", nameof(rootPath));
+            }
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+            return EnsureTrailingDirectorySeparator(rootPath) + TrimLeadingDirectorySeparators(relativePath);
+        }
+
+        /// <summary>
+        /// Returns whether one path uses a virtual platform root such as <c>dvd:/...</c> that must be preserved verbatim.
+        /// </summary>
+        /// <param name="path">Path text to inspect.</param>
+        /// <returns>True when the path uses a non-drive virtual root prefix; otherwise false.</returns>
+        static bool HasVirtualRootPrefix(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                return false;
+            }
+
+            int colonIndex = -1;
+            for (int index = 0; index < path.Length; index++) {
+                if (path[index] == ':') {
+                    colonIndex = index;
+                    break;
+                }
+            }
+
+            if (colonIndex <= 0) {
+                return false;
+            } else if (colonIndex == 1) {
+                return false;
+            } else if (colonIndex >= path.Length - 1) {
+                return false;
+            }
+
+            char nextCharacter = path[colonIndex + 1];
+            return nextCharacter == Path.DirectorySeparatorChar || nextCharacter == Path.AltDirectorySeparatorChar;
+        }
+
+        /// <summary>
+        /// Ensures one directory path ends with a trailing separator before prefix combinations occur.
+        /// </summary>
+        /// <param name="path">Directory path that should end with a separator.</param>
+        /// <returns>Directory path with a trailing separator.</returns>
+        static string EnsureTrailingDirectorySeparator(string path) {
+            if (path.EndsWith(Path.DirectorySeparatorChar) || path.EndsWith(Path.AltDirectorySeparatorChar)) {
+                return path;
+            }
+
+            return path + Path.DirectorySeparatorChar;
+        }
+
+        /// <summary>
+        /// Trims any leading directory separators from one relative path before it is combined beneath a virtual root.
+        /// </summary>
+        /// <param name="path">Relative path whose leading separators should be removed.</param>
+        /// <returns>Relative path without leading separators.</returns>
+        static string TrimLeadingDirectorySeparators(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                return string.Empty;
+            }
+
+            int startIndex = 0;
+            while (startIndex < path.Length
+                && (path[startIndex] == Path.DirectorySeparatorChar || path[startIndex] == Path.AltDirectorySeparatorChar)) {
+                startIndex++;
+            }
+
+            if (startIndex == 0) {
+                return path;
+            }
+            if (startIndex >= path.Length) {
+                return string.Empty;
+            }
+
+            return path.Substring(startIndex);
         }
 
         /// <summary>

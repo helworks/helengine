@@ -172,7 +172,7 @@ namespace helengine.editor.tests {
             };
 
             using MemoryStream stream = new MemoryStream();
-            EditorAssetBinarySerializer.Serialize(stream, sceneAsset);
+            global::helengine.files.EditorAssetBinarySerializer.Serialize(stream, sceneAsset);
             stream.Position = 0;
 
             SceneAsset deserialized = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
@@ -232,7 +232,7 @@ namespace helengine.editor.tests {
                 }
             };
             using (FileStream authoredStream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                EditorAssetBinarySerializer.Serialize(authoredStream, authoredScene);
+                global::helengine.files.EditorAssetBinarySerializer.Serialize(authoredStream, authoredScene);
             }
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -264,6 +264,39 @@ namespace helengine.editor.tests {
             Assert.Equal(asset.RuntimeAssetId, deserialized.RuntimeAssetId);
             Assert.Equal(asset.Width, deserialized.Width);
             Assert.Equal(asset.Height, deserialized.Height);
+            Assert.Equal(asset.ColorFormat, deserialized.ColorFormat);
+            Assert.Equal(asset.Colors, deserialized.Colors);
+        }
+
+        /// <summary>
+        /// Ensures indexed texture assets preserve palette and alpha metadata through the HELE asset serializer.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_TextureAsset_WhenIndexed8_preservesPaletteAndAlphaPrecision() {
+            TextureAsset asset = new TextureAsset {
+                Id = "texture/indexed8",
+                RuntimeAssetId = 0x1112131415161718UL,
+                Width = 2,
+                Height = 2,
+                ColorFormat = TextureAssetColorFormat.Indexed8,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                PaletteColors = new byte[] {
+                    255, 0, 0, 255,
+                    0, 255, 0, 128
+                },
+                Colors = new byte[] { 0, 1, 1, 0 }
+            };
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            TextureAsset deserialized = (TextureAsset)AssetSerializer.DeserializeFromBytes(data);
+
+            Assert.Equal(asset.Id, deserialized.Id);
+            Assert.Equal(asset.RuntimeAssetId, deserialized.RuntimeAssetId);
+            Assert.Equal(asset.Width, deserialized.Width);
+            Assert.Equal(asset.Height, deserialized.Height);
+            Assert.Equal(TextureAssetColorFormat.Indexed8, deserialized.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, deserialized.AlphaPrecision);
+            Assert.Equal(asset.PaletteColors, deserialized.PaletteColors);
             Assert.Equal(asset.Colors, deserialized.Colors);
         }
 
@@ -473,10 +506,13 @@ namespace helengine.editor.tests {
         public void AssetImportSettingsBinarySerializer_RoundTripsTextureMaxResolutionPerPlatform() {
             AssetImportSettings settings = CreateAssetImportSettings();
             settings.Processor.Platforms["windows"].Texture = new TextureAssetProcessorSettings {
-                MaxResolution = 512
+                MaxResolution = 512,
+                ColorFormat = TextureAssetColorFormat.Rgba32
             };
             settings.Processor.Platforms["android"].Texture = new TextureAssetProcessorSettings {
-                MaxResolution = 128
+                MaxResolution = 256,
+                ColorFormat = TextureAssetColorFormat.Indexed8,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8
             };
 
             using MemoryStream stream = new MemoryStream();
@@ -486,7 +522,11 @@ namespace helengine.editor.tests {
             AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
 
             Assert.Equal(512, deserialized.Processor.Platforms["windows"].Texture.MaxResolution);
-            Assert.Equal(128, deserialized.Processor.Platforms["android"].Texture.MaxResolution);
+            Assert.Equal(TextureAssetColorFormat.Rgba32, deserialized.Processor.Platforms["windows"].Texture.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.Opaque, deserialized.Processor.Platforms["windows"].Texture.AlphaPrecision);
+            Assert.Equal(256, deserialized.Processor.Platforms["android"].Texture.MaxResolution);
+            Assert.Equal(TextureAssetColorFormat.Indexed8, deserialized.Processor.Platforms["android"].Texture.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, deserialized.Processor.Platforms["android"].Texture.AlphaPrecision);
         }
 
         /// <summary>
@@ -571,7 +611,8 @@ namespace helengine.editor.tests {
         public void AssetImportSettingsBinarySerializer_Serialize_WhenTextureMaxResolutionIsNegative_Throws() {
             AssetImportSettings settings = CreateAssetImportSettings();
             settings.Processor.Platforms["windows"].Texture = new TextureAssetProcessorSettings {
-                MaxResolution = -1
+                MaxResolution = -1,
+                ColorFormat = TextureAssetColorFormat.Rgba32
             };
 
             using MemoryStream stream = new MemoryStream();
@@ -601,7 +642,9 @@ namespace helengine.editor.tests {
             Assert.Equal(TextureAssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal("pfim", deserialized.Importer.ImporterId);
             Assert.Equal(512, deserialized.Processor.Platforms["windows"].MaxResolution);
+            Assert.Equal(TextureAssetColorFormat.Rgba32, deserialized.Processor.Platforms["windows"].ColorFormat);
             Assert.Equal(128, deserialized.Processor.Platforms["android"].MaxResolution);
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, deserialized.Processor.Platforms["android"].ColorFormat);
         }
 
         /// <summary>
@@ -686,7 +729,8 @@ namespace helengine.editor.tests {
         public void TextureAssetImportSettingsBinarySerializer_Serialize_WhenPlatformIdIsBlank_Throws() {
             TextureAssetImportSettings settings = CreateTextureAssetImportSettings();
             settings.Processor.Platforms[string.Empty] = new TextureAssetProcessorSettings {
-                MaxResolution = 64
+                MaxResolution = 64,
+                ColorFormat = TextureAssetColorFormat.Rgba32
             };
 
             using MemoryStream stream = new MemoryStream();
@@ -800,6 +844,7 @@ namespace helengine.editor.tests {
                 RuntimeAssetId = 0x0102030405060708UL,
                 Width = 2,
                 Height = 2,
+                ColorFormat = TextureAssetColorFormat.Rgba32,
                 Colors = new byte[] {
                     255, 0, 0, 255,
                     0, 255, 0, 255,
@@ -1046,10 +1091,12 @@ namespace helengine.editor.tests {
                 Processor = new TextureAssetProcessorPlatformSettings {
                     Platforms = new Dictionary<string, TextureAssetProcessorSettings> {
                         ["windows"] = new TextureAssetProcessorSettings {
-                            MaxResolution = 512
+                            MaxResolution = 512,
+                            ColorFormat = TextureAssetColorFormat.Rgba32
                         },
                         ["android"] = new TextureAssetProcessorSettings {
-                            MaxResolution = 128
+                            MaxResolution = 128,
+                            ColorFormat = TextureAssetColorFormat.Rgba4444
                         }
                     }
                 }

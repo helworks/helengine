@@ -194,6 +194,9 @@ namespace helengine {
             if (IsInitialized) {
                 entity.InitializeHierarchy();
             }
+            if (wasHierarchyEnabled && entity.IsHierarchyEnabled) {
+                entity.RefreshRegistrationsAfterParentChange();
+            }
             bool isHierarchyEnabled = entity.IsHierarchyEnabled;
             if (wasHierarchyEnabled != isHierarchyEnabled) {
                 entity.ParentEnabledChange(isHierarchyEnabled);
@@ -219,6 +222,9 @@ namespace helengine {
             }
 
             entity.Parent = null;
+            if (wasHierarchyEnabled && entity.IsHierarchyEnabled) {
+                entity.RefreshRegistrationsAfterParentChange();
+            }
             bool isHierarchyEnabled = entity.IsHierarchyEnabled;
             if (wasHierarchyEnabled != isHierarchyEnabled) {
                 entity.ParentEnabledChange(isHierarchyEnabled);
@@ -342,6 +348,47 @@ namespace helengine {
                 for (int i = 0; i < Children.Count; i++) {
                     Children[i].ParentStaticChange(newEnabled);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds render and camera registrations for this subtree after a parent change that preserved enabled state.
+        /// </summary>
+        void RefreshRegistrationsAfterParentChange() {
+            if (!IsHierarchyEnabled || Core.Instance == null || Core.Instance.ObjectManager == null) {
+                return;
+            }
+
+            RefreshRegistrationsAfterParentChangeRecursive(this);
+        }
+
+        /// <summary>
+        /// Recursively rebuilds render and camera registrations for one subtree after a reparent operation.
+        /// </summary>
+        /// <param name="entity">Current entity whose attached components should be refreshed.</param>
+        static void RefreshRegistrationsAfterParentChangeRecursive(Entity entity) {
+            if (entity.Components != null) {
+                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                    Component component = entity.Components[componentIndex];
+                    if (component is IDrawable2D drawable2D) {
+                        Core.Instance.ObjectManager.RemoveFromRender2D(drawable2D);
+                        Core.Instance.ObjectManager.RegisterForRender2D(drawable2D);
+                    } else if (component is IDrawable3D drawable3D) {
+                        Core.Instance.ObjectManager.RemoveFromRender3D(drawable3D);
+                        Core.Instance.ObjectManager.RegisterForRender3D(drawable3D);
+                    } else if (component is ICamera camera) {
+                        Core.Instance.ObjectManager.RemoveCamera(camera);
+                        Core.Instance.ObjectManager.RegisterCamera(camera);
+                    }
+                }
+            }
+
+            if (entity.Children == null) {
+                return;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                RefreshRegistrationsAfterParentChangeRecursive(entity.Children[childIndex]);
             }
         }
 

@@ -39,6 +39,11 @@ namespace helengine.editor {
         public bool DebugBuild { get; set; }
 
         /// <summary>
+        /// Gets or sets how the queued build should finish after the normal export/package phases complete.
+        /// </summary>
+        public EditorBuildExecutionMode ExecutionMode { get; set; } = EditorBuildExecutionMode.Runtime;
+
+        /// <summary>
         /// Gets or sets the selected builder-provided build profile id.
         /// </summary>
         public string SelectedBuildProfileId { get; set; } = string.Empty;

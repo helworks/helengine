@@ -63,6 +63,60 @@ namespace helengine {
         public bool IsDisposed { get; private set; }
 
         /// <summary>
+        /// Replaces the source atlas payload after import-time texture processing and rescales font metrics to match the processed atlas size.
+        /// </summary>
+        /// <param name="processedSourceTextureAsset">Processed source atlas that should become the authoritative texture payload.</param>
+        public void ApplyProcessedSourceTextureAsset(TextureAsset processedSourceTextureAsset) {
+            if (processedSourceTextureAsset == null) {
+                throw new ArgumentNullException(nameof(processedSourceTextureAsset));
+            } else if (processedSourceTextureAsset.Width < 1 || processedSourceTextureAsset.Height < 1) {
+                throw new InvalidOperationException("Processed font atlas textures must have positive dimensions.");
+            }
+
+            int originalAtlasWidth = Math.Max(AtlasWidth, 1);
+            int originalAtlasHeight = Math.Max(AtlasHeight, 1);
+            double scaleX = (double)processedSourceTextureAsset.Width / originalAtlasWidth;
+            double scaleY = (double)processedSourceTextureAsset.Height / originalAtlasHeight;
+            bool atlasWasResized = originalAtlasWidth != processedSourceTextureAsset.Width || originalAtlasHeight != processedSourceTextureAsset.Height;
+
+            if (atlasWasResized) {
+                AtlasWidth = processedSourceTextureAsset.Width;
+                AtlasHeight = processedSourceTextureAsset.Height;
+                LineHeight = (float)(LineHeight * scaleY);
+                if (FontInfo != null) {
+                    FontInfo.LineSpacing = Math.Max(1, (int)Math.Round(FontInfo.LineSpacing * scaleY));
+                    FontInfo.SpaceWidth = (float)(FontInfo.SpaceWidth * scaleX);
+                }
+
+                if (Characters != null) {
+                    List<char> keys = new List<char>();
+                    foreach (char key in Characters.Keys) {
+                        keys.Add(key);
+                    }
+
+                    for (int keyIndex = 0; keyIndex < keys.Count; keyIndex++) {
+                        char key = keys[keyIndex];
+                        FontChar glyph = Characters[key];
+                        glyph.OffsetY = (float)(glyph.OffsetY * scaleY);
+                        glyph.AdvanceWidth = (float)(glyph.AdvanceWidth * scaleX);
+                        glyph.BearingX = (float)(glyph.BearingX * scaleX);
+                        glyph.BearingY = (float)(glyph.BearingY * scaleY);
+                        Characters[key] = glyph;
+                    }
+                }
+            } else {
+                AtlasWidth = processedSourceTextureAsset.Width;
+                AtlasHeight = processedSourceTextureAsset.Height;
+            }
+
+            SourceTextureAsset = processedSourceTextureAsset;
+            if (Texture != null) {
+                Texture.Width = processedSourceTextureAsset.Width;
+                Texture.Height = processedSourceTextureAsset.Height;
+            }
+        }
+
+        /// <summary>
         /// Releases scene-owned references held by this font asset.
         /// </summary>
         public void Dispose() {

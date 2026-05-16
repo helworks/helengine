@@ -83,6 +83,70 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures enabled light components register with the object manager under their concrete light lists.
+        /// </summary>
+        [Fact]
+        public void LightComponents_WhenAddedToEnabledEntity_RegisterWithTypedObjectManagerLists() {
+            InitializeCore();
+            Entity entity = CreateInitializedEntity();
+            DirectionalLightComponent directionalLight = new DirectionalLightComponent();
+            AmbientLightComponent ambientLight = new AmbientLightComponent();
+            PointLightComponent pointLight = new PointLightComponent();
+            SpotLightComponent spotLight = new SpotLightComponent();
+
+            entity.AddComponent(directionalLight);
+            entity.AddComponent(ambientLight);
+            entity.AddComponent(pointLight);
+            entity.AddComponent(spotLight);
+
+            Assert.Same(directionalLight, Assert.Single(Core.Instance.ObjectManager.DirectionalLights));
+            Assert.Same(ambientLight, Assert.Single(Core.Instance.ObjectManager.AmbientLights));
+            Assert.Same(pointLight, Assert.Single(Core.Instance.ObjectManager.PointLights));
+            Assert.Same(spotLight, Assert.Single(Core.Instance.ObjectManager.SpotLights));
+        }
+
+        /// <summary>
+        /// Ensures disabling the owning entity removes registered lights from the object manager until the entity is enabled again.
+        /// </summary>
+        [Fact]
+        public void LightComponents_WhenParentEntityIsDisabled_AreRemovedFromTypedObjectManagerLists() {
+            InitializeCore();
+            Entity entity = CreateInitializedEntity();
+            DirectionalLightComponent directionalLight = new DirectionalLightComponent();
+            AmbientLightComponent ambientLight = new AmbientLightComponent();
+
+            entity.AddComponent(directionalLight);
+            entity.AddComponent(ambientLight);
+            entity.Enabled = false;
+
+            Assert.Empty(Core.Instance.ObjectManager.DirectionalLights);
+            Assert.Empty(Core.Instance.ObjectManager.AmbientLights);
+
+            entity.Enabled = true;
+
+            Assert.Same(directionalLight, Assert.Single(Core.Instance.ObjectManager.DirectionalLights));
+            Assert.Same(ambientLight, Assert.Single(Core.Instance.ObjectManager.AmbientLights));
+        }
+
+        /// <summary>
+        /// Ensures removing one light component unregisters only that light from the object manager.
+        /// </summary>
+        [Fact]
+        public void LightComponents_WhenRemoved_UnregisterOnlyTheRemovedTypedLight() {
+            InitializeCore();
+            Entity entity = CreateInitializedEntity();
+            DirectionalLightComponent directionalLight = new DirectionalLightComponent();
+            SpotLightComponent spotLight = new SpotLightComponent();
+
+            entity.AddComponent(directionalLight);
+            entity.AddComponent(spotLight);
+            entity.RemoveComponent(directionalLight);
+
+            Assert.Empty(Core.Instance.ObjectManager.DirectionalLights);
+            Assert.Same(spotLight, Assert.Single(Core.Instance.ObjectManager.SpotLights));
+        }
+
+        /// <summary>
         /// Creates one entity with initialized component storage for light tests.
         /// </summary>
         /// <returns>Initialized entity ready to receive light components.</returns>

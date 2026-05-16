@@ -14,6 +14,11 @@ namespace helengine {
         public string Name { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the serialized entity should be restored as static.
+        /// </summary>
+        public bool IsStatic { get; set; }
+
+        /// <summary>
         /// Gets or sets the local position relative to the serialized parent.
         /// </summary>
         public float3 LocalPosition { get; set; }

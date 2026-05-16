@@ -51,7 +51,8 @@ namespace helengine.editor {
 
             string normalizedSceneId = sceneId.Replace('\\', '/');
             string scenePath = ResolveScenePath(normalizedSceneId);
-            SceneAsset sceneAsset = SceneBuildService.BuildSceneAsset(normalizedSceneId, providerTypeName);
+            DemoMenuSceneBuildVariant variant = ResolveBuildVariant(normalizedSceneId);
+            SceneAsset sceneAsset = SceneBuildService.BuildSceneAsset(normalizedSceneId, providerTypeName, variant);
             string directoryPath = Path.GetDirectoryName(scenePath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
                 throw new InvalidOperationException("Scene path does not include a writable directory.");
@@ -111,6 +112,24 @@ namespace helengine.editor {
                 ? AssetsRootPath
                 : AssetsRootPath + Path.DirectorySeparatorChar;
             return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Resolves the menu layout variant that should be generated for the supplied scene id.
+        /// </summary>
+        /// <param name="sceneId">Project-relative scene id being regenerated.</param>
+        /// <returns>Layout variant that should be emitted for the scene id.</returns>
+        static DemoMenuSceneBuildVariant ResolveBuildVariant(string sceneId) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
+            }
+
+            string sceneName = Path.GetFileNameWithoutExtension(sceneId);
+            if (string.Equals(sceneName, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId, StringComparison.Ordinal)) {
+                return DemoMenuSceneBuildVariant.NintendoDs;
+            }
+
+            return DemoMenuSceneBuildVariant.Desktop;
         }
     }
 }

@@ -69,13 +69,19 @@ namespace helengine.editor {
 
             string relativeScenePath = SceneCatalogService.ResolveScenePath(sceneId);
             string fullScenePath = ResolveProjectAssetPath(relativeScenePath);
-            using FileStream stream = File.OpenRead(fullScenePath);
-            Asset asset = AssetSerializer.Deserialize(stream);
-            if (asset is not SceneAsset sceneAsset) {
-                throw new InvalidOperationException($"Scene '{sceneId}' did not deserialize into a SceneAsset.");
-            }
+            try {
+                using FileStream stream = File.OpenRead(fullScenePath);
+                Asset asset = AssetSerializer.Deserialize(stream);
+                if (asset is not SceneAsset sceneAsset) {
+                    throw new InvalidOperationException($"Scene '{sceneId}' did not deserialize into a SceneAsset.");
+                }
 
-            return sceneAsset;
+                return sceneAsset;
+            } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(sceneId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException(
+                    $"Scene '{sceneId}' at '{relativeScenePath}' could not be read for physics feature discovery.",
+                    ex);
+            }
         }
 
         /// <summary>

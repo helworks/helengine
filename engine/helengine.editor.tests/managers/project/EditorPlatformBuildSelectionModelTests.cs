@@ -5,6 +5,34 @@ namespace helengine.editor.tests.managers.project;
 
 public class EditorPlatformBuildSelectionModelTests {
     [Fact]
+    public void From_copies_host_debug_capability() {
+        PlatformDefinition definition = new(
+            "ps2",
+            "PlayStation 2",
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            null,
+            new PlatformHostDebugCapability(
+                true,
+                PlatformHostDebugRunnerKind.NativeExecutable,
+                true,
+                true,
+                false,
+                "ps2-host-debugger"));
+
+        EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(definition);
+
+        Assert.True(selectionModel.HostDebugCapability.SupportsHostDebug);
+        Assert.Equal("ps2-host-debugger", selectionModel.HostDebugCapability.RunnerId);
+    }
+
+    [Fact]
     public void From_copies_storage_and_media_profiles() {
         PlatformDefinition definition = new(
             "windows",

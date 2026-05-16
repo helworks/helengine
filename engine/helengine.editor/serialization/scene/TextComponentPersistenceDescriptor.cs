@@ -119,6 +119,28 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Text component descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
+            try {
+                return DeserializeTaggedComponent(record, saveComponent, referenceResolver);
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                if (TryDeserializeCookedRuntimeComponent(record, saveComponent, referenceResolver, out TextComponent cookedRuntimeComponent)) {
+                    return cookedRuntimeComponent;
+                }
+
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Deserializes one authored tagged text payload back into a live runtime component.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <param name="saveComponent">Hidden entity save component that should receive restored metadata.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime asset references.</param>
+        /// <returns>Live text component reconstructed from the tagged editor payload.</returns>
+        TextComponent DeserializeTaggedComponent(
+            SceneComponentAssetRecord record,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver) {
             TextComponent textComponent = new TextComponent();
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             if (reader.TryGetFieldReader(TextFieldName, out EngineBinaryReader textReader)) {
@@ -182,6 +204,56 @@ namespace helengine.editor {
             }
 
             return textComponent;
+        }
+
+        /// <summary>
+        /// Attempts to deserialize one strict cooked-runtime text payload written by the scene packager.
+        /// </summary>
+        /// <param name="record">Serialized scene component record to materialize.</param>
+        /// <param name="saveComponent">Hidden entity save component that should receive restored metadata.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime asset references.</param>
+        /// <param name="textComponent">Cooked-runtime text component when deserialization succeeds.</param>
+        /// <returns>True when the payload matched the cooked runtime layout; otherwise false.</returns>
+        bool TryDeserializeCookedRuntimeComponent(
+            SceneComponentAssetRecord record,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver,
+            out TextComponent textComponent) {
+            textComponent = new TextComponent();
+            try {
+                using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+                using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+                byte version = reader.ReadByte();
+                if (version != 1) {
+                    textComponent = null;
+                    return false;
+                }
+
+                SceneAssetReference fontReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
+                textComponent.Text = reader.ReadString();
+                textComponent.WrapText = reader.ReadByte() != 0;
+                textComponent.Size = reader.ReadInt2();
+                textComponent.Color = SceneComponentBinaryFieldEncoding.ReadByte4(reader);
+                textComponent.SourceRect = reader.ReadFloat4();
+                textComponent.Rotation = reader.ReadSingle();
+                textComponent.RenderOrder2D = reader.ReadByte();
+                textComponent.LayerMask = reader.ReadByte();
+                textComponent.SelectionEnabled = reader.ReadByte() != 0;
+
+                if (fontReference == null) {
+                    throw new InvalidOperationException("TextComponent requires a font asset reference before deserialization.");
+                }
+
+                textComponent.Font = FontAssetScenePersistenceSupport.ResolveFont(referenceResolver, fontReference);
+                if (saveComponent != null) {
+                    saveComponent.SetAssetReference(textComponent, FontAssetScenePersistenceSupport.FontReferenceName, fontReference);
+                }
+
+                return true;
+            } catch (Exception ex) when (ex is InvalidOperationException || ex is EndOfStreamException) {
+                textComponent = null;
+                return false;
+            }
         }
     }
 }
