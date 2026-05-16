@@ -118,6 +118,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures texture assets expose DS color format, alpha precision, and max-resolution controls for the active platform.
+        /// </summary>
+        [Fact]
+        public void Show_WhenTextureProcessorSettingsExist_UsesTheActivePlatformTextureValues() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["ds"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 256,
+                    ColorFormat = TextureAssetColorFormat.Indexed8,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A4
+                }
+            };
+
+            view.Show(
+                ["pfim"],
+                "pfim",
+                settings,
+                ["windows", "ds"],
+                "ds",
+                AssetEntryKind.Image);
+
+            Assert.True(view.IsTextureProcessorVisible);
+            Assert.Equal(256, view.CurrentTextureMaxResolutionValue);
+            Assert.Equal(TextureAssetColorFormat.Indexed8, view.CurrentTextureColorFormatValue);
+            Assert.Equal(TextureAssetAlphaPrecision.A4, view.CurrentTextureAlphaPrecisionValue);
+        }
+
+        /// <summary>
         /// Ensures applying pending importer and processor changes raises one rich request payload.
         /// </summary>
         [Fact]

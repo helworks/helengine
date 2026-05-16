@@ -36,6 +36,10 @@ namespace helengine.editor {
         /// </summary>
         const int FlipWindingCheckBoxSize = 24;
         /// <summary>
+        /// Width allocated to one processor field label inside the panel.
+        /// </summary>
+        const int ProcessorFieldLabelWidth = 120;
+        /// <summary>
         /// Label text shown above the importer selection.
         /// </summary>
         const string ImporterLabel = "Importer";
@@ -47,6 +51,18 @@ namespace helengine.editor {
         /// Label text used for the model winding processor setting.
         /// </summary>
         const string FlipWindingLabel = "Flip Winding";
+        /// <summary>
+        /// Label text used for the texture max-resolution processor setting.
+        /// </summary>
+        const string TextureMaxResolutionLabel = "Max Resolution";
+        /// <summary>
+        /// Label text used for the texture color-format processor setting.
+        /// </summary>
+        const string TextureColorFormatLabel = "Color Format";
+        /// <summary>
+        /// Label text used for the texture alpha-precision processor setting.
+        /// </summary>
+        const string TextureAlphaPrecisionLabel = "Alpha";
         /// <summary>
         /// Status prefix used for feedback messages.
         /// </summary>
@@ -105,6 +121,14 @@ namespace helengine.editor {
         /// </summary>
         readonly List<string> SupportedPlatformIds;
         /// <summary>
+        /// Available texture color-format values shown in the processor combo box.
+        /// </summary>
+        readonly List<string> TextureColorFormatValues;
+        /// <summary>
+        /// Available texture alpha-precision values shown in the processor combo box.
+        /// </summary>
+        readonly List<string> TextureAlphaPrecisionValues;
+        /// <summary>
         /// Host entity for the flip-winding label.
         /// </summary>
         readonly EditorEntity FlipWindingLabelHost;
@@ -120,6 +144,54 @@ namespace helengine.editor {
         /// Checkbox used to edit the flip-winding processor setting on the selected platform.
         /// </summary>
         readonly CheckBoxComponent FlipWindingCheckBox;
+        /// <summary>
+        /// Host entity for the max-resolution label.
+        /// </summary>
+        readonly EditorEntity TextureMaxResolutionLabelHost;
+        /// <summary>
+        /// Text component used to render the max-resolution label.
+        /// </summary>
+        readonly TextComponent TextureMaxResolutionLabelText;
+        /// <summary>
+        /// Host entity for the max-resolution text box.
+        /// </summary>
+        readonly EditorEntity TextureMaxResolutionTextBoxHost;
+        /// <summary>
+        /// Text box used to edit texture max resolution for the selected platform.
+        /// </summary>
+        readonly TextBoxComponent TextureMaxResolutionTextBox;
+        /// <summary>
+        /// Host entity for the color-format label.
+        /// </summary>
+        readonly EditorEntity TextureColorFormatLabelHost;
+        /// <summary>
+        /// Text component used to render the color-format label.
+        /// </summary>
+        readonly TextComponent TextureColorFormatLabelText;
+        /// <summary>
+        /// Host entity for the color-format combo box.
+        /// </summary>
+        readonly EditorEntity TextureColorFormatComboBoxHost;
+        /// <summary>
+        /// Combo box used to edit the texture color format for the selected platform.
+        /// </summary>
+        readonly ComboBoxComponent TextureColorFormatComboBox;
+        /// <summary>
+        /// Host entity for the alpha-precision label.
+        /// </summary>
+        readonly EditorEntity TextureAlphaPrecisionLabelHost;
+        /// <summary>
+        /// Text component used to render the alpha-precision label.
+        /// </summary>
+        readonly TextComponent TextureAlphaPrecisionLabelText;
+        /// <summary>
+        /// Host entity for the alpha-precision combo box.
+        /// </summary>
+        readonly EditorEntity TextureAlphaPrecisionComboBoxHost;
+        /// <summary>
+        /// Combo box used to edit texture alpha precision for the selected platform.
+        /// </summary>
+        readonly ComboBoxComponent TextureAlphaPrecisionComboBox;
         /// <summary>
         /// Host entity for the apply button.
         /// </summary>
@@ -177,6 +249,10 @@ namespace helengine.editor {
         /// Tracks whether the importer combo box is being synchronized from external state.
         /// </summary>
         bool IsUpdatingImporterSelection;
+        /// <summary>
+        /// Tracks whether texture controls are being synchronized from pending platform settings.
+        /// </summary>
+        bool IsUpdatingTextureControls;
 
         /// <summary>
         /// Raised when the user clicks apply with pending importer or processor changes.
@@ -196,6 +272,8 @@ namespace helengine.editor {
             Font = font;
             ImporterIds = new List<string>(8);
             SupportedPlatformIds = new List<string>(4);
+            TextureColorFormatValues = new List<string>(Enum.GetNames<TextureAssetColorFormat>());
+            TextureAlphaPrecisionValues = new List<string>(Enum.GetNames<TextureAssetAlphaPrecision>());
             TextOrder = RenderOrder2D.PanelForeground;
 
             RootEntity = new EditorEntity();
@@ -270,6 +348,63 @@ namespace helengine.editor {
             FlipWindingCheckBox.CheckedChanged += (component, isChecked) => HandleFlipWindingCheckedChanged(isChecked);
             FlipWindingCheckBoxHost.AddComponent(FlipWindingCheckBox);
 
+            TextureMaxResolutionLabelHost = new EditorEntity();
+            TextureMaxResolutionLabelHost.LayerMask = layerMask;
+            RootEntity.AddChild(TextureMaxResolutionLabelHost);
+
+            TextureMaxResolutionLabelText = new TextComponent();
+            TextureMaxResolutionLabelText.Font = font;
+            TextureMaxResolutionLabelText.Text = TextureMaxResolutionLabel;
+            TextureMaxResolutionLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            TextureMaxResolutionLabelText.RenderOrder2D = TextOrder;
+            TextureMaxResolutionLabelHost.AddComponent(TextureMaxResolutionLabelText);
+
+            TextureMaxResolutionTextBoxHost = new EditorEntity();
+            TextureMaxResolutionTextBoxHost.LayerMask = layerMask;
+            RootEntity.AddChild(TextureMaxResolutionTextBoxHost);
+
+            TextureMaxResolutionTextBox = new TextBoxComponent(new int2(80, ControlHeight), font);
+            TextureMaxResolutionTextBox.TextChanged += HandleTextureMaxResolutionTextChanged;
+            TextureMaxResolutionTextBoxHost.AddComponent(TextureMaxResolutionTextBox);
+
+            TextureColorFormatLabelHost = new EditorEntity();
+            TextureColorFormatLabelHost.LayerMask = layerMask;
+            RootEntity.AddChild(TextureColorFormatLabelHost);
+
+            TextureColorFormatLabelText = new TextComponent();
+            TextureColorFormatLabelText.Font = font;
+            TextureColorFormatLabelText.Text = TextureColorFormatLabel;
+            TextureColorFormatLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            TextureColorFormatLabelText.RenderOrder2D = TextOrder;
+            TextureColorFormatLabelHost.AddComponent(TextureColorFormatLabelText);
+
+            TextureColorFormatComboBoxHost = new EditorEntity();
+            TextureColorFormatComboBoxHost.LayerMask = layerMask;
+            RootEntity.AddChild(TextureColorFormatComboBoxHost);
+
+            TextureColorFormatComboBox = new ComboBoxComponent(new int2(180, ControlHeight), font, TextureColorFormatValues, 0);
+            TextureColorFormatComboBox.SelectionChanged += HandleTextureColorFormatChanged;
+            TextureColorFormatComboBoxHost.AddComponent(TextureColorFormatComboBox);
+
+            TextureAlphaPrecisionLabelHost = new EditorEntity();
+            TextureAlphaPrecisionLabelHost.LayerMask = layerMask;
+            RootEntity.AddChild(TextureAlphaPrecisionLabelHost);
+
+            TextureAlphaPrecisionLabelText = new TextComponent();
+            TextureAlphaPrecisionLabelText.Font = font;
+            TextureAlphaPrecisionLabelText.Text = TextureAlphaPrecisionLabel;
+            TextureAlphaPrecisionLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            TextureAlphaPrecisionLabelText.RenderOrder2D = TextOrder;
+            TextureAlphaPrecisionLabelHost.AddComponent(TextureAlphaPrecisionLabelText);
+
+            TextureAlphaPrecisionComboBoxHost = new EditorEntity();
+            TextureAlphaPrecisionComboBoxHost.LayerMask = layerMask;
+            RootEntity.AddChild(TextureAlphaPrecisionComboBoxHost);
+
+            TextureAlphaPrecisionComboBox = new ComboBoxComponent(new int2(180, ControlHeight), font, TextureAlphaPrecisionValues, 0);
+            TextureAlphaPrecisionComboBox.SelectionChanged += HandleTextureAlphaPrecisionChanged;
+            TextureAlphaPrecisionComboBoxHost.AddComponent(TextureAlphaPrecisionComboBox);
+
             ApplyHost = new EditorEntity();
             ApplyHost.LayerMask = layerMask;
             RootEntity.AddChild(ApplyHost);
@@ -327,9 +462,29 @@ namespace helengine.editor {
         public bool IsModelProcessorVisible => CurrentEntryKind == AssetEntryKind.Model;
 
         /// <summary>
+        /// Gets a value indicating whether texture processor controls are visible.
+        /// </summary>
+        public bool IsTextureProcessorVisible => CurrentEntryKind == AssetEntryKind.Image || CurrentEntryKind == AssetEntryKind.Font;
+
+        /// <summary>
         /// Gets the current pending flip-winding value for the selected platform.
         /// </summary>
         public bool CurrentFlipWindingValue => GetPendingPlatformSettings(CurrentPlatformId).Model.FlipWinding;
+
+        /// <summary>
+        /// Gets the current pending max-resolution value for the selected platform texture settings.
+        /// </summary>
+        public int CurrentTextureMaxResolutionValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.MaxResolution;
+
+        /// <summary>
+        /// Gets the current pending color-format value for the selected platform texture settings.
+        /// </summary>
+        public TextureAssetColorFormat CurrentTextureColorFormatValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.ColorFormat;
+
+        /// <summary>
+        /// Gets the current pending alpha-precision value for the selected platform texture settings.
+        /// </summary>
+        public TextureAssetAlphaPrecision CurrentTextureAlphaPrecisionValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.AlphaPrecision;
 
         /// <summary>
         /// Shows the view with the provided importer list, current settings, and supported platforms.
@@ -447,6 +602,30 @@ namespace helengine.editor {
                 currentTop += ControlHeight + RowSpacing;
             }
 
+            if (IsTextureProcessorVisible) {
+                int labelOffsetY = (int)Math.Round((ControlHeight - labelHeight) / 2d);
+                int controlLeft = ProcessorPanelPadding + ProcessorFieldLabelWidth + ProcessorPanelPadding;
+                int controlWidth = Math.Max(1, width - controlLeft - ProcessorPanelPadding);
+
+                TextureMaxResolutionLabelHost.Position = new float3(ProcessorPanelPadding, currentTop + labelOffsetY, 0.1f);
+                TextureMaxResolutionLabelText.Size = new int2(ProcessorFieldLabelWidth, labelHeight);
+                TextureMaxResolutionTextBoxHost.Position = new float3(controlLeft, currentTop, 0.1f);
+                TextureMaxResolutionTextBox.Size = new int2(controlWidth, ControlHeight);
+                currentTop += ControlHeight + RowSpacing;
+
+                TextureColorFormatLabelHost.Position = new float3(ProcessorPanelPadding, currentTop + labelOffsetY, 0.1f);
+                TextureColorFormatLabelText.Size = new int2(ProcessorFieldLabelWidth, labelHeight);
+                TextureColorFormatComboBoxHost.Position = new float3(controlLeft, currentTop, 0.1f);
+                TextureColorFormatComboBox.Size = new int2(controlWidth, ControlHeight);
+                currentTop += ControlHeight + RowSpacing;
+
+                TextureAlphaPrecisionLabelHost.Position = new float3(ProcessorPanelPadding, currentTop + labelOffsetY, 0.1f);
+                TextureAlphaPrecisionLabelText.Size = new int2(ProcessorFieldLabelWidth, labelHeight);
+                TextureAlphaPrecisionComboBoxHost.Position = new float3(controlLeft, currentTop, 0.1f);
+                TextureAlphaPrecisionComboBox.Size = new int2(controlWidth, ControlHeight);
+                currentTop += ControlHeight + RowSpacing;
+            }
+
             ApplyHost.Position = new float3(ProcessorPanelPadding, currentTop, 0.1f);
 
             currentTop += ControlHeight + RowSpacing;
@@ -507,6 +686,60 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Applies one max-resolution textbox value to the currently selected platform texture settings.
+        /// </summary>
+        /// <param name="component">Text box that raised the change event.</param>
+        void HandleTextureMaxResolutionTextChanged(TextBoxComponent component) {
+            if (IsUpdatingTextureControls) {
+                return;
+            }
+
+            if (!int.TryParse(component.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int maxResolution)) {
+                return;
+            } else if (maxResolution < 0) {
+                throw new InvalidOperationException("Texture max resolution must not be negative.");
+            }
+
+            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
+            platformSettings.Texture.MaxResolution = maxResolution;
+            UpdateStatusText();
+        }
+
+        /// <summary>
+        /// Applies one color-format combo-box value to the currently selected platform texture settings.
+        /// </summary>
+        /// <param name="selectedIndex">Selected color-format index.</param>
+        /// <param name="selectedValue">Selected color-format name.</param>
+        void HandleTextureColorFormatChanged(int selectedIndex, string selectedValue) {
+            if (IsUpdatingTextureControls) {
+                return;
+            } else if (string.IsNullOrWhiteSpace(selectedValue)) {
+                throw new InvalidOperationException("Texture color format selection was not provided.");
+            }
+
+            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
+            platformSettings.Texture.ColorFormat = Enum.Parse<TextureAssetColorFormat>(selectedValue, false);
+            UpdateStatusText();
+        }
+
+        /// <summary>
+        /// Applies one alpha-precision combo-box value to the currently selected platform texture settings.
+        /// </summary>
+        /// <param name="selectedIndex">Selected alpha-precision index.</param>
+        /// <param name="selectedValue">Selected alpha-precision name.</param>
+        void HandleTextureAlphaPrecisionChanged(int selectedIndex, string selectedValue) {
+            if (IsUpdatingTextureControls) {
+                return;
+            } else if (string.IsNullOrWhiteSpace(selectedValue)) {
+                throw new InvalidOperationException("Texture alpha precision selection was not provided.");
+            }
+
+            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
+            platformSettings.Texture.AlphaPrecision = Enum.Parse<TextureAssetAlphaPrecision>(selectedValue, false);
+            UpdateStatusText();
+        }
+
+        /// <summary>
         /// Handles apply button clicks by raising the apply event when needed.
         /// </summary>
         void HandleApplyClicked() {
@@ -532,11 +765,22 @@ namespace helengine.editor {
             ProcessorPanelRoot.Enabled = SupportedPlatformIds.Count > 0;
 
             bool showModelProcessor = IsModelProcessorVisible;
+            bool showTextureProcessor = IsTextureProcessorVisible;
             FlipWindingLabelHost.Enabled = showModelProcessor;
             FlipWindingCheckBoxHost.Enabled = showModelProcessor;
+            TextureMaxResolutionLabelHost.Enabled = showTextureProcessor;
+            TextureMaxResolutionTextBoxHost.Enabled = showTextureProcessor;
+            TextureColorFormatLabelHost.Enabled = showTextureProcessor;
+            TextureColorFormatComboBoxHost.Enabled = showTextureProcessor;
+            TextureAlphaPrecisionLabelHost.Enabled = showTextureProcessor;
+            TextureAlphaPrecisionComboBoxHost.Enabled = showTextureProcessor;
 
             if (showModelProcessor) {
                 FlipWindingCheckBox.IsChecked = GetPendingPlatformSettings(CurrentPlatformId).Model.FlipWinding;
+            }
+
+            if (showTextureProcessor) {
+                SyncTextureProcessorControlsFromPendingSettings();
             }
 
             UpdatePlatformTabVisualState();
@@ -676,6 +920,51 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Synchronizes the texture processor controls from the current pending platform settings.
+        /// </summary>
+        void SyncTextureProcessorControlsFromPendingSettings() {
+            TextureAssetProcessorSettings textureSettings = GetPendingPlatformSettings(CurrentPlatformId).Texture;
+
+            IsUpdatingTextureControls = true;
+            TextureMaxResolutionTextBox.Text = textureSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            TextureColorFormatComboBox.SetItems(TextureColorFormatValues, GetTextureColorFormatIndex(textureSettings.ColorFormat));
+            TextureAlphaPrecisionComboBox.SetItems(TextureAlphaPrecisionValues, GetTextureAlphaPrecisionIndex(textureSettings.AlphaPrecision));
+            IsUpdatingTextureControls = false;
+        }
+
+        /// <summary>
+        /// Resolves the combo-box index for one texture color format.
+        /// </summary>
+        /// <param name="colorFormat">Texture color format to locate.</param>
+        /// <returns>Index of the color format inside the combo-box item list.</returns>
+        int GetTextureColorFormatIndex(TextureAssetColorFormat colorFormat) {
+            string colorFormatName = colorFormat.ToString();
+            for (int i = 0; i < TextureColorFormatValues.Count; i++) {
+                if (string.Equals(TextureColorFormatValues[i], colorFormatName, StringComparison.Ordinal)) {
+                    return i;
+                }
+            }
+
+            throw new InvalidOperationException($"Unsupported texture color format '{colorFormat}'.");
+        }
+
+        /// <summary>
+        /// Resolves the combo-box index for one texture alpha precision.
+        /// </summary>
+        /// <param name="alphaPrecision">Texture alpha precision to locate.</param>
+        /// <returns>Index of the alpha precision inside the combo-box item list.</returns>
+        int GetTextureAlphaPrecisionIndex(TextureAssetAlphaPrecision alphaPrecision) {
+            string alphaPrecisionName = alphaPrecision.ToString();
+            for (int i = 0; i < TextureAlphaPrecisionValues.Count; i++) {
+                if (string.Equals(TextureAlphaPrecisionValues[i], alphaPrecisionName, StringComparison.Ordinal)) {
+                    return i;
+                }
+            }
+
+            throw new InvalidOperationException($"Unsupported texture alpha precision '{alphaPrecision}'.");
+        }
+
+        /// <summary>
         /// Gets or creates the pending platform settings for one platform id.
         /// </summary>
         /// <param name="platformId">Platform identifier to resolve.</param>
@@ -739,11 +1028,29 @@ namespace helengine.editor {
         /// <returns>Cloned platform settings.</returns>
         AssetPlatformProcessorSettings ClonePlatformProcessorSettings(AssetPlatformProcessorSettings platformSettings) {
             AssetPlatformProcessorSettings clone = new AssetPlatformProcessorSettings();
-            if (platformSettings == null || platformSettings.Model == null) {
+            if (platformSettings == null) {
                 return clone;
             }
 
+            clone.Texture = CloneTextureProcessorSettings(platformSettings.Texture);
             clone.Model = CloneModelProcessorSettings(platformSettings.Model);
+            return clone;
+        }
+
+        /// <summary>
+        /// Creates a copy of texture processor settings.
+        /// </summary>
+        /// <param name="textureSettings">Texture settings to copy.</param>
+        /// <returns>Copied texture settings.</returns>
+        TextureAssetProcessorSettings CloneTextureProcessorSettings(TextureAssetProcessorSettings textureSettings) {
+            TextureAssetProcessorSettings clone = new TextureAssetProcessorSettings();
+            if (textureSettings == null) {
+                return clone;
+            }
+
+            clone.MaxResolution = textureSettings.MaxResolution;
+            clone.ColorFormat = textureSettings.ColorFormat;
+            clone.AlphaPrecision = textureSettings.AlphaPrecision;
             return clone;
         }
 
@@ -773,6 +1080,12 @@ namespace helengine.editor {
                 string platformId = SupportedPlatformIds[i];
                 AssetPlatformProcessorSettings leftPlatform = ResolvePlatformSettings(left, platformId);
                 AssetPlatformProcessorSettings rightPlatform = ResolvePlatformSettings(right, platformId);
+                if (leftPlatform.Texture.MaxResolution != rightPlatform.Texture.MaxResolution
+                    || leftPlatform.Texture.ColorFormat != rightPlatform.Texture.ColorFormat
+                    || leftPlatform.Texture.AlphaPrecision != rightPlatform.Texture.AlphaPrecision) {
+                    return false;
+                }
+
                 if (leftPlatform.Model.FlipWinding != rightPlatform.Model.FlipWinding) {
                     return false;
                 }
