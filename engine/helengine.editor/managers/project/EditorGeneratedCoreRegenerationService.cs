@@ -1224,7 +1224,10 @@ namespace helengine.editor {
                 || string.Equals(fileName, "PointLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "SpotLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "LightComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
-                string updatedContents = contents.Replace("LightType.", "LightType::");
+                string updatedContents = Regex.Replace(
+                    contents,
+                    "(?<!\")\\bLightType\\.(\\w+)",
+                    "LightType::$1");
                 updatedContents = updatedContents.Replace("this->ShadowMapMode::Auto", "::ShadowMapMode::Auto");
                 return updatedContents;
             }
@@ -1273,9 +1276,16 @@ namespace helengine.editor {
                 return InsertPathChangeExtensionDeclaration(contents);
             }
 
-            if (string.Equals(fileName, "number.hpp", StringComparison.OrdinalIgnoreCase)
-                && !contents.Contains("static bool IsNaN(float value)", StringComparison.Ordinal)) {
-                return InsertNativeNumberFiniteHelpers(contents);
+            if (string.Equals(fileName, "number.hpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = contents;
+                if (!updatedContents.Contains("static bool IsNaN(float value)", StringComparison.Ordinal)) {
+                    updatedContents = InsertNativeNumberFiniteHelpers(updatedContents);
+                }
+                if (!updatedContents.Contains("static constexpr double Epsilon", StringComparison.Ordinal)) {
+                    updatedContents = InsertNativeNumberEpsilonConstant(updatedContents);
+                }
+
+                return updatedContents;
             }
 
             if (string.Equals(fileName, "math.hpp", StringComparison.OrdinalIgnoreCase)
@@ -1345,6 +1355,11 @@ namespace helengine.editor {
             if (string.Equals(fileName, "native_dictionary.hpp", StringComparison.OrdinalIgnoreCase)
                 && !contents.Contains("void Clear()", StringComparison.Ordinal)) {
                 return InsertNativeDictionaryClearHelper(contents);
+            }
+
+            if (string.Equals(fileName, "native_list.hpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("explicit List(const std::vector<T>& values)", StringComparison.Ordinal)) {
+                return InsertNativeListVectorConstructor(contents);
             }
 
             if (string.Equals(fileName, "array.hpp", StringComparison.OrdinalIgnoreCase)
@@ -1926,7 +1941,30 @@ namespace {
                 return contents;
             }
 
-            return contents.Substring(0, methodIndex).TrimEnd();
+            int methodLineStartIndex = contents.LastIndexOf('\n', Math.Max(0, methodIndex - 1));
+            methodLineStartIndex = methodLineStartIndex < 0 ? 0 : methodLineStartIndex + 1;
+
+            int removalStartIndex = methodLineStartIndex;
+            if (methodLineStartIndex > 0) {
+                int previousLineEndIndex = methodLineStartIndex - 1;
+                if (previousLineEndIndex > 0 && contents[previousLineEndIndex - 1] == '\r') {
+                    previousLineEndIndex--;
+                }
+
+                int previousLineStartIndex = contents.LastIndexOf('\n', Math.Max(0, previousLineEndIndex - 1));
+                previousLineStartIndex = previousLineStartIndex < 0 ? 0 : previousLineStartIndex + 1;
+                string previousLine = contents.Substring(previousLineStartIndex, previousLineEndIndex - previousLineStartIndex + 1).Trim();
+                if (!string.IsNullOrWhiteSpace(previousLine)
+                    && !previousLine.Contains(';', StringComparison.Ordinal)
+                    && !previousLine.Contains('}', StringComparison.Ordinal)
+                    && (previousLine.EndsWith("*", StringComparison.Ordinal)
+                        || previousLine.EndsWith("&", StringComparison.Ordinal)
+                        || previousLine.EndsWith(">", StringComparison.Ordinal))) {
+                    removalStartIndex = previousLineStartIndex;
+                }
+            }
+
+            return contents.Substring(0, removalStartIndex).TrimEnd();
         }
 
         /// <summary>
@@ -2059,6 +2097,64 @@ namespace {
             }
 
             return contents + newline + helperMethods;
+        }
+
+        /// <summary>
+        /// Inserts the missing managed numeric epsilon constant into bundled native number support.
+        /// </summary>
+        /// <param name="contents">Current native number support contents.</param>
+        /// <returns>Updated native number support contents.</returns>
+        static string InsertNativeNumberEpsilonConstant(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("static constexpr double Epsilon", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string epsilonConstant = "    static constexpr double Epsilon = 0.000000001;" + newline + newline;
+
+            if (contents.Contains("public:" + newline, StringComparison.Ordinal)) {
+                return contents.Replace("public:" + newline, "public:" + newline + epsilonConstant, StringComparison.Ordinal);
+            }
+
+            if (contents.Contains("class Number {" + newline, StringComparison.Ordinal)) {
+                return contents.Replace("class Number {" + newline, "class Number {" + newline + epsilonConstant, StringComparison.Ordinal);
+            }
+
+            if (contents.Contains("};", StringComparison.Ordinal)) {
+                return contents.Replace("};", epsilonConstant + "};", StringComparison.Ordinal);
+            }
+
+            return contents + newline + epsilonConstant;
+        }
+
+        /// <summary>
+        /// Inserts the missing `std::vector` constructor into bundled native list support.
+        /// </summary>
+        /// <param name="contents">Current native list support contents.</param>
+        /// <returns>Updated native list support contents.</returns>
+        static string InsertNativeListVectorConstructor(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("explicit List(const std::vector<T>& values)", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string constructor = "    explicit List(const std::vector<T>& values)" + newline
+                + "        : std::vector<T>(values) {" + newline
+                + "    }" + newline + newline;
+
+            if (contents.Contains("    explicit List(const Array<T>* values)", StringComparison.Ordinal)) {
+                return contents.Replace("    explicit List(const Array<T>* values)", constructor + "    explicit List(const Array<T>* values)", StringComparison.Ordinal);
+            }
+
+            if (contents.Contains("    void Add(", StringComparison.Ordinal)) {
+                return contents.Replace("    void Add(", constructor + "    void Add(", StringComparison.Ordinal);
+            }
+
+            if (contents.Contains("};", StringComparison.Ordinal)) {
+                return contents.Replace("};", constructor + "};", StringComparison.Ordinal);
+            }
+
+            return contents + newline + constructor;
         }
 
         /// <summary>

@@ -529,6 +529,27 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated light-component source keeps the LightType include path intact while normalizing enum member access.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_keeps_light_type_include_path_intact() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-light-enum-include");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string ambientPath = Path.Combine(generatedCoreRootPath, "AmbientLightComponent.cpp");
+        File.WriteAllText(
+            ambientPath,
+            "#include \"LightType.hpp\"" + Environment.NewLine
+            + "AmbientLightComponent::AmbientLightComponent() : LightComponent(LightType.Ambient) {}" + Environment.NewLine);
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
+
+        string normalized = File.ReadAllText(ambientPath);
+        Assert.Contains("#include \"LightType.hpp\"", normalized);
+        Assert.DoesNotContain("LightType::hpp", normalized, StringComparison.Ordinal);
+        Assert.Contains("LightType::Ambient", normalized);
+    }
+
+    /// <summary>
     /// Verifies generated camera-render-settings source normalizes enum member access for C++ compilation.
     /// </summary>
     [Fact]
@@ -1300,6 +1321,78 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies bundled native number support exposes the managed epsilon constant used by generated floating-point comparisons.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_adds_native_number_epsilon_constant() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-native-number-epsilon");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "system"));
+        string headerPath = Path.Combine(generatedCoreRootPath, "system", "number.hpp");
+        File.WriteAllText(
+            headerPath,
+            "#pragma once\n"
+            + "#include <cmath>\n"
+            + "class Number {\n"
+            + "public:\n"
+            + "    static bool IsNaN(float value) {\n"
+            + "        return std::isnan(value);\n"
+            + "    }\n"
+            + "};\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedHeader = File.ReadAllText(headerPath);
+        Assert.Contains("static constexpr double Epsilon = 0.000000001;", normalizedHeader);
+    }
+
+    /// <summary>
+    /// Verifies bundled native list support exposes a std::vector constructor used by generated dictionary key snapshots.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_adds_native_list_vector_constructor() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-native-list-vector-constructor");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
+        string headerPath = Path.Combine(generatedCoreRootPath, "runtime", "native_list.hpp");
+        File.WriteAllText(
+            headerPath,
+            "#pragma once\n"
+            + "#include <algorithm>\n"
+            + "#include <cstdint>\n"
+            + "#include <string>\n"
+            + "#include <vector>\n"
+            + "#include \"array.hpp\"\n"
+            + "#include \"native_string.hpp\"\n"
+            + "template<typename T>\n"
+            + "class List : public std::vector<T> {\n"
+            + "public:\n"
+            + "    List()\n"
+            + "        : std::vector<T>() {\n"
+            + "    }\n"
+            + "\n"
+            + "    explicit List(int32_t capacity)\n"
+            + "        : std::vector<T>() {\n"
+            + "    }\n"
+            + "\n"
+            + "    List(std::initializer_list<T> values)\n"
+            + "        : std::vector<T>(values) {\n"
+            + "    }\n"
+            + "\n"
+            + "    explicit List(const Array<T>* values) {\n"
+            + "    }\n"
+            + "\n"
+            + "    void Add(const T& value) {\n"
+            + "        this->push_back(value);\n"
+            + "    }\n"
+            + "};\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedHeader = File.ReadAllText(headerPath);
+        Assert.Contains("explicit List(const std::vector<T>& values)", normalizedHeader);
+        Assert.Contains(": std::vector<T>(values)", normalizedHeader);
+    }
+
+    /// <summary>
     /// Verifies bundled native math support exposes `Atan2` helpers used by generated orbit and gizmo code.
     /// </summary>
     [Fact]
@@ -1457,6 +1550,48 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.DoesNotContain("WriteSceneComponentAssetRecordCurrentVersion", normalizedSource);
         Assert.Contains("ReadSceneEntityPlatformAddedComponentAsset(EngineBinaryReader* reader, uint8_t sceneEntityPayloadVersion)", normalizedSource);
         Assert.Contains("WriteSceneComponentAssetRecord(EngineBinaryWriter* writer, SceneComponentAssetRecord* record, uint8_t sceneEntityPayloadVersion)", normalizedSource);
+    }
+
+    /// <summary>
+    /// Verifies serializer adapter removal deletes generated wrappers whose return type is emitted on the line before the obsolete method signature.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_removes_editor_asset_serializer_current_version_adapters_when_return_type_is_on_previous_line() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-editor-asset-binary-serializer-current-version-adapters-split-return-type");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string headerPath = Path.Combine(generatedCoreRootPath, "EditorAssetBinarySerializer.hpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "EditorAssetBinarySerializer.cpp");
+        File.WriteAllText(
+            headerPath,
+            "class EngineBinaryReader;\n"
+            + "class SceneEntityPlatformAddedComponentAsset;\n"
+            + "class EditorAssetBinarySerializer {\n"
+            + "public:\n"
+            + "    static SceneEntityPlatformAddedComponentAsset* ReadSceneEntityPlatformAddedComponentAsset(EngineBinaryReader* reader, uint8_t sceneEntityPayloadVersion);\n"
+            + "    static SceneEntityPlatformAddedComponentAsset* ReadSceneEntityPlatformAddedComponentAssetCurrentVersion(EngineBinaryReader* reader);\n"
+            + "};\n");
+        File.WriteAllText(
+            sourcePath,
+            "#include \"EditorAssetBinarySerializer.hpp\"\n"
+            + "\n"
+            + "SceneEntityPlatformAddedComponentAsset* EditorAssetBinarySerializer::ReadSceneEntityPlatformAddedComponentAsset(EngineBinaryReader* reader, uint8_t sceneEntityPayloadVersion)\n"
+            + "{\n"
+            + "    return nullptr;\n"
+            + "}\n"
+            + "\n"
+            + "::SceneEntityPlatformAddedComponentAsset*\n"
+            + "EditorAssetBinarySerializer::ReadSceneEntityPlatformAddedComponentAssetCurrentVersion(EngineBinaryReader* reader)\n"
+            + "{\n"
+            + "    return ReadSceneEntityPlatformAddedComponentAsset(reader, SceneEntityPayloadVersion);\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.DoesNotContain("ReadSceneEntityPlatformAddedComponentAssetCurrentVersion", normalizedSource);
+        Assert.DoesNotContain("::SceneEntityPlatformAddedComponentAsset*\nEditorAssetBinarySerializer::ReadSceneEntityPlatformAddedComponentAssetCurrentVersion", normalizedSource);
+        Assert.DoesNotContain("::SceneEntityPlatformAddedComponentAsset*", normalizedSource.AsSpan(normalizedSource.LastIndexOf("return nullptr;", StringComparison.Ordinal) + "return nullptr;".Length).ToString(), StringComparison.Ordinal);
+        Assert.Contains("ReadSceneEntityPlatformAddedComponentAsset(EngineBinaryReader* reader, uint8_t sceneEntityPayloadVersion)", normalizedSource);
     }
 
     /// <summary>
