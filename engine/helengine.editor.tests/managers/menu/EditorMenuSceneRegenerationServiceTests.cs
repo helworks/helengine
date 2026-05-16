@@ -75,13 +75,175 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
         Assert.Contains(topCameraEntity.Components, component => component.ComponentTypeId == "helengine.CameraComponent");
         Assert.Contains(bottomCameraEntity.Components, component => component.ComponentTypeId == "helengine.CameraComponent");
 
-        SceneEntityAsset topRootEntity = Assert.Single(topCameraEntity.Children, entity => entity.Name == "DemoDiscTopScreenRoot");
-        Assert.Contains(topRootEntity.Components, component => component.ComponentTypeId == "helengine.ViewportComponent, helengine.core");
-        SceneEntityAsset menuEntity = Assert.Single(bottomCameraEntity.Children, entity => entity.Name == "DemoDiscMenuRoot");
-        Assert.Contains(menuEntity.Components, component => component.ComponentTypeId == MenuComponent.SerializedComponentTypeId);
-        Assert.Contains(menuEntity.Components, component => component.ComponentTypeId == "helengine.ViewportComponent, helengine.core");
+        SceneEntityAsset topMenuEntity = Assert.Single(topCameraEntity.Children, entity => entity.Name == "DemoDiscMenuRoot");
+        Assert.Contains(topMenuEntity.Components, component => component.ComponentTypeId == MenuComponent.SerializedComponentTypeId);
+        Assert.Contains(topMenuEntity.Components, component => component.ComponentTypeId == "helengine.ViewportComponent, helengine.core");
+        SceneEntityAsset bottomRootEntity = Assert.Single(bottomCameraEntity.Children, entity => entity.Name == "DemoDiscBottomScreenRoot");
+        Assert.Contains(bottomRootEntity.Components, component => component.ComponentTypeId == "helengine.ViewportComponent, helengine.core");
+        Assert.DoesNotContain(bottomRootEntity.Components, component => component.ComponentTypeId == "helengine.FPSComponent");
+        Assert.DoesNotContain(FlattenEntityNames(bottomRootEntity), name => name == "DemoDiscOverlayImage");
+        Assert.DoesNotContain(
+            FlattenEntityNames(bottomRootEntity),
+            name => name.Contains("heading", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "helengine.FPSComponent"));
 
         string serializedContents = System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(scenePath));
         Assert.DoesNotContain("helengine.ReferenceCanvasFitComponent, helengine.core", serializedContents, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Counts matching component records throughout one scene hierarchy.
+    /// </summary>
+    /// <param name="entities">Scene entities to inspect.</param>
+    /// <param name="componentTypeId">Serialized component type identifier to count.</param>
+    /// <returns>Total matching component count.</returns>
+    static int CountComponents(SceneEntityAsset[] entities, string componentTypeId) {
+        if (entities == null) {
+            throw new ArgumentNullException(nameof(entities));
+        } else if (string.IsNullOrWhiteSpace(componentTypeId)) {
+            throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
+        }
+
+        int count = 0;
+        for (int index = 0; index < entities.Length; index++) {
+            SceneEntityAsset entity = entities[index];
+            if (entity == null) {
+                continue;
+            }
+
+            SceneComponentAssetRecord[] components = entity.Components ?? Array.Empty<SceneComponentAssetRecord>();
+            for (int componentIndex = 0; componentIndex < components.Length; componentIndex++) {
+                if (string.Equals(components[componentIndex].ComponentTypeId, componentTypeId, StringComparison.Ordinal)) {
+                    count++;
+                }
+            }
+
+            count += CountComponents(entity.Children ?? Array.Empty<SceneEntityAsset>(), componentTypeId);
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// Flattens one scene-entity subtree into a sequence of entity names.
+    /// </summary>
+    /// <param name="entity">Root scene entity to traverse.</param>
+    /// <returns>Flattened entity names in depth-first order.</returns>
+    static IEnumerable<string> FlattenEntityNames(SceneEntityAsset entity) {
+        if (entity == null) {
+            throw new ArgumentNullException(nameof(entity));
+        }
+
+        List<string> names = new List<string>();
+        CollectEntityNames(entity, names);
+        return names;
+    }
+
+    /// <summary>
+    /// Collects entity names from one scene-entity subtree.
+    /// </summary>
+    /// <param name="entity">Root scene entity to traverse.</param>
+    /// <param name="names">Destination list receiving collected entity names.</param>
+    static void CollectEntityNames(SceneEntityAsset entity, List<string> names) {
+        if (entity == null) {
+            throw new ArgumentNullException(nameof(entity));
+        }
+        if (names == null) {
+            throw new ArgumentNullException(nameof(names));
+        }
+
+        names.Add(entity.Name ?? string.Empty);
+        SceneEntityAsset[] children = entity.Children ?? Array.Empty<SceneEntityAsset>();
+        for (int index = 0; index < children.Length; index++) {
+            CollectEntityNames(children[index], names);
+        }
+    }
+
+    /// <summary>
+    /// Reads the file-backed font reference assigned to one serialized FPS component.
+    /// </summary>
+    /// <param name="record">Serialized FPS component record to inspect.</param>
+    /// <returns>Project-relative font path referenced by the FPS component.</returns>
+    static string ReadFpsFontRelativePath(SceneComponentAssetRecord record) {
+        if (record == null) {
+            throw new ArgumentNullException(nameof(record));
+        }
+
+        FontAsset placeholderFont = new FontAsset(
+            new FontInfo("Test", 16, 4f),
+            new TestRuntimeTexture {
+                Width = 1,
+                Height = 1
+            },
+            new Dictionary<char, FontChar>(),
+            16f,
+            1,
+            1);
+        TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
+        SceneAssetReference titleFontReference = new SceneAssetReference {
+            SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+            RelativePath = "Fonts/DemoDiscTitle.ttf",
+            ProviderId = string.Empty,
+            AssetId = string.Empty
+        };
+        referenceResolver.RegisterFont(titleFontReference, placeholderFont);
+        referenceResolver.RegisterFont(
+            new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "fonts/title.hefont",
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            },
+            placeholderFont);
+        EntitySaveComponent saveComponent = new EntitySaveComponent();
+        FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
+        FPSComponent fpsComponent = Assert.IsType<FPSComponent>(descriptor.DeserializeComponent(record, saveComponent, referenceResolver));
+        Assert.Same(placeholderFont, fpsComponent.Font);
+        Assert.True(saveComponent.TryGetComponentState(fpsComponent, out EntityComponentSaveState saveState));
+        Assert.True(saveState.TryGetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, out SceneAssetReference fontReference));
+        return fontReference.RelativePath;
+    }
+
+    /// <summary>
+    /// Reads the serialized refresh interval assigned to one FPS component record.
+    /// </summary>
+    /// <param name="record">Serialized FPS component record to inspect.</param>
+    /// <returns>Refresh interval seconds deserialized from the component payload.</returns>
+    static double ReadFpsRefreshIntervalSeconds(SceneComponentAssetRecord record) {
+        if (record == null) {
+            throw new ArgumentNullException(nameof(record));
+        }
+
+        FontAsset placeholderFont = new FontAsset(
+            new FontInfo("Test", 16, 4f),
+            new TestRuntimeTexture {
+                Width = 1,
+                Height = 1
+            },
+            new Dictionary<char, FontChar>(),
+            16f,
+            1,
+            1);
+        TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
+        referenceResolver.RegisterFont(
+            new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Fonts/DemoDiscTitle.ttf",
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            },
+            placeholderFont);
+        referenceResolver.RegisterFont(
+            new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "fonts/title.hefont",
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            },
+            placeholderFont);
+        EntitySaveComponent saveComponent = new EntitySaveComponent();
+        FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
+        FPSComponent fpsComponent = Assert.IsType<FPSComponent>(descriptor.DeserializeComponent(record, saveComponent, referenceResolver));
+        return fpsComponent.RefreshIntervalSeconds;
     }
 }
