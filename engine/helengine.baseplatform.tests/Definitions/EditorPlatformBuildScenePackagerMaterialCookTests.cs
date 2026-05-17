@@ -125,7 +125,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             Id = sceneId,
             RootEntities = [
                 new SceneEntityAsset {
-                    Id = "root-entity",
+                    Id = 1,
                     Name = "Root",
                     LocalPosition = float3.Zero,
                     LocalScale = float3.One,

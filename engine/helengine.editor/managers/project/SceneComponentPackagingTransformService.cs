@@ -1,5 +1,6 @@
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Manifest;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Results;
 using System.Reflection;
@@ -456,6 +457,18 @@ namespace helengine.editor {
         /// Demo menu selected-description descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
         /// </summary>
         readonly MenuSelectedDescriptionComponentPersistenceDescriptor DemoMenuSelectedDescriptionComponentDescriptor;
+        /// <summary>
+        /// Callback that records builder-owned platform cook work items discovered while rewriting scene content.
+        /// </summary>
+        readonly Action<PlatformCookWorkItem> PlatformCookWorkItemSink;
+        /// <summary>
+        /// Platform definition that publishes builder-owned asset cook capabilities for the current packaging target.
+        /// </summary>
+        readonly PlatformDefinition PlatformDefinition;
+        /// <summary>
+        /// Hasher used to compute stable source and settings hashes for platform cook work items.
+        /// </summary>
+        readonly AssetFileHasher FileHasher;
 
         /// <summary>
         /// Initializes one shared scene-component transform service.
@@ -471,6 +484,8 @@ namespace helengine.editor {
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
         /// <param name="selectedGraphicsProfileId">Selected graphics profile id for the current packaging operation.</param>
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        /// <param name="platformCookWorkItemSink">Optional callback that records builder-owned platform cook work items discovered while packaging.</param>
+        /// <param name="platformDefinition">Optional platform definition that publishes builder-owned asset cook capabilities.</param>
         public SceneComponentPackagingTransformService(
             string assetsRootPath,
             ContentManager projectContentManager,
@@ -482,7 +497,9 @@ namespace helengine.editor {
             IPlatformAssetBuilder materialBuilder = null,
             string selectedBuildProfileId = "",
             string selectedGraphicsProfileId = "",
-            IScriptTypeResolver scriptTypeResolver = null) {
+            IScriptTypeResolver scriptTypeResolver = null,
+            Action<PlatformCookWorkItem> platformCookWorkItemSink = null,
+            PlatformDefinition platformDefinition = null) {
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
                 : Path.GetFullPath(assetsRootPath);
@@ -498,6 +515,9 @@ namespace helengine.editor {
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
             ScriptComponentSchemaBuilder = new ScriptComponentReflectionSchemaBuilder();
             ScriptTypeResolver = scriptTypeResolver;
+            PlatformCookWorkItemSink = platformCookWorkItemSink;
+            PlatformDefinition = platformDefinition;
+            FileHasher = new AssetFileHasher();
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
             RoundedRectComponentDescriptor = new RoundedRectComponentPersistenceDescriptor();
@@ -2047,7 +2067,10 @@ namespace helengine.editor {
             }
 
             string cookedRelativePath = BuildImportedTextureCookedRelativePath(settings.Importer.AssetId);
-            WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+            if (!SupportsBuilderOwnedPlatformCookKind("texture")) {
+                WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+            }
+            RememberTextureCookWorkItem(reference.RelativePath, sourcePath, cookedRelativePath, settings);
             return CreateFileSystemReference(cookedRelativePath);
         }
 
@@ -2061,12 +2084,16 @@ namespace helengine.editor {
             string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
             string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
             if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
-                CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+                if (!SupportsBuilderOwnedPlatformCookKind("font-atlas-texture")) {
+                    CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+                }
+                RememberFontCookWorkItem(reference.RelativePath, sourcePath, cookedRelativePath);
                 return CreateFontFileReference(cookedRelativePath);
             }
 
             FontAsset fontAsset = LoadImportedFontAssetForPackaging(reference, sourcePath);
             WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
+            RememberFontCookWorkItem(reference.RelativePath, sourcePath, cookedRelativePath);
             return CreateFontFileReference(cookedRelativePath);
         }
 
@@ -2124,19 +2151,19 @@ namespace helengine.editor {
             if (string.Equals(reference.AssetId, CubeGeneratedAssetId, StringComparison.Ordinal)) {
                 string relativePath = "cooked/engine/models/cube.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateCubeMesh(float3.Zero, float3.One));
-                return CreateFileSystemReference(relativePath);
+                return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
             }
 
             if (string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal)) {
                 string relativePath = "cooked/engine/models/plane.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One));
-                return CreateFileSystemReference(relativePath);
+                return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
             }
 
             if (string.Equals(reference.AssetId, SphereGeneratedAssetId, StringComparison.Ordinal)) {
                 string relativePath = "cooked/engine/models/sphere.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateSphereMesh(float3.Zero, float3.One));
-                return CreateFileSystemReference(relativePath);
+                return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
             }
 
             throw new InvalidOperationException($"Unsupported generated model asset id '{reference.AssetId}'.");
@@ -2159,7 +2186,7 @@ namespace helengine.editor {
             }
 
             EnsureGeneratedStandardMaterialAssets(buildRootPath);
-            return CreateFileSystemReference(StandardGeneratedMaterialRelativePath);
+            return CreateGeneratedPackagedReference(StandardGeneratedMaterialRelativePath, reference.ProviderId, reference.AssetId);
         }
 
         SceneAssetReference RewriteFileSystemMaterialReference(SceneAssetReference reference, string buildRootPath) {
@@ -2232,7 +2259,25 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Imported texture '{diffuseTextureAssetId}' at '{sourcePath}' could not be loaded for packaging.");
             }
             string cookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
-            WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+            if (!SupportsBuilderOwnedPlatformCookKind("texture")) {
+                WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+            }
+            if (!SupportsBuilderOwnedPlatformCookKind("texture")) {
+                return;
+            }
+
+            string importedTexturePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
+            string importedTextureSourcePath;
+            try {
+                importedTextureSourcePath = ResolveImportedTextureSourcePath(diffuseTextureAssetId);
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Imported texture '{diffuseTextureAssetId}' referenced by material '{materialAssetPath}' could not resolve an authored source texture path.", ex);
+            }
+            TextureAssetImportSettings settings;
+            if (!AssetImportManager.TryLoadOrCreateTextureImportSettings(importedTextureSourcePath, out settings) || settings == null) {
+                throw new InvalidOperationException($"Imported texture '{diffuseTextureAssetId}' from source '{importedTextureSourcePath}' could not create import settings for builder-owned platform cooking.");
+            }
+            RememberTextureCookWorkItem(NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, importedTextureSourcePath)), importedTextureSourcePath, cookedRelativePath, settings);
         }
 
         /// <summary>
@@ -2274,6 +2319,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one imported texture asset id back to the authored source texture file that produced it.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
+        /// <returns>Absolute path to the authored source texture file.</returns>
+        string ResolveImportedTextureSourcePath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            string sourcePath;
+            if (!AssetImportManager.TryResolveImportedTextureSourcePath(assetId, out sourcePath) || string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new InvalidOperationException($"Imported texture '{assetId}' could not be resolved back to one authored source texture path.");
+            }
+
+            return sourcePath;
+        }
+
+        /// <summary>
         /// Builds the packaged relative path used for one imported texture asset.
         /// </summary>
         /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
@@ -2284,6 +2347,94 @@ namespace helengine.editor {
             }
 
             return NormalizeRelativePath(Path.Combine(ImportedTextureDirectoryName, assetId));
+        }
+
+        void RememberTextureCookWorkItem(
+            string sourceRelativePath,
+            string sourcePath,
+            string cookedRelativePath,
+            TextureAssetImportSettings settings) {
+            if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedPlatformCookKind("texture")) {
+                return;
+            } else if (string.IsNullOrWhiteSpace(sourceRelativePath)) {
+                throw new ArgumentException("Source relative path must be provided.", nameof(sourceRelativePath));
+            } else if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
+                throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateTextureWorkItem(
+                PlatformDefinition,
+                TargetPlatformId,
+                Path.GetDirectoryName(AssetsRootPath) ?? throw new InvalidOperationException("Assets root parent path could not be resolved."),
+                NormalizeRelativePath(sourceRelativePath),
+                cookedRelativePath,
+                settings,
+                FileHasher);
+            if (workItem != null) {
+                PlatformCookWorkItemSink(workItem);
+            }
+        }
+
+        void RememberFontCookWorkItem(string sourceRelativePath, string sourcePath, string cookedRelativePath) {
+            if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedPlatformCookKind("font-atlas-texture")) {
+                return;
+            } else if (string.IsNullOrWhiteSpace(sourceRelativePath)) {
+                throw new ArgumentException("Source relative path must be provided.", nameof(sourceRelativePath));
+            } else if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
+                throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
+            }
+
+            AssetImportSettings settings;
+            if (!AssetImportManager.TryLoadOrCreateImportSettings(sourcePath, out settings) || settings == null) {
+                throw new InvalidOperationException($"Font source '{sourceRelativePath}' could not create import settings for builder-owned platform cooking.");
+            }
+
+            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateFontAtlasTextureWorkItem(
+                PlatformDefinition,
+                TargetPlatformId,
+                Path.GetDirectoryName(AssetsRootPath) ?? throw new InvalidOperationException("Assets root parent path could not be resolved."),
+                NormalizeRelativePath(sourceRelativePath),
+                cookedRelativePath,
+                settings,
+                FileHasher);
+            if (workItem != null) {
+                PlatformCookWorkItemSink(workItem);
+            }
+        }
+
+        /// <summary>
+        /// Returns whether the selected platform publishes one builder-owned cook capability for the supplied source asset kind.
+        /// </summary>
+        /// <param name="sourceAssetKind">Generic source asset kind to probe.</param>
+        /// <returns>True when the selected platform wants the builder to own this asset-kind cook step.</returns>
+        bool SupportsBuilderOwnedPlatformCookKind(string sourceAssetKind) {
+            if (PlatformDefinition == null) {
+                return false;
+            } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
+                throw new ArgumentException("Source asset kind must be provided.", nameof(sourceAssetKind));
+            }
+
+            PlatformAssetCookCapabilityDefinition[] capabilities = PlatformDefinition.AssetCookCapabilities ?? [];
+            for (int index = 0; index < capabilities.Length; index++) {
+                PlatformAssetCookCapabilityDefinition capability = capabilities[index];
+                if (capability == null) {
+                    continue;
+                }
+                if (!string.Equals(capability.SourceAssetKind, sourceAssetKind, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (capability.OwnershipKind == PlatformAssetCookOwnershipKind.BuilderOwned) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -2620,6 +2771,29 @@ namespace helengine.editor {
                 RelativePath = NormalizeRelativePath(relativePath),
                 ProviderId = string.Empty,
                 AssetId = string.Empty
+            };
+        }
+
+        /// <summary>
+        /// Creates one packaged generated asset reference that preserves generated ownership semantics while pointing at one cooked file.
+        /// </summary>
+        /// <param name="relativePath">Cooked packaged file path.</param>
+        /// <param name="providerId">Stable generated provider id.</param>
+        /// <param name="assetId">Stable generated asset id.</param>
+        /// <returns>Generated scene asset reference targeting the cooked packaged file.</returns>
+        SceneAssetReference CreateGeneratedPackagedReference(string relativePath, string providerId, string assetId) {
+            if (string.IsNullOrWhiteSpace(providerId)) {
+                throw new ArgumentException("Generated provider id must be provided.", nameof(providerId));
+            }
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Generated asset id must be provided.", nameof(assetId));
+            }
+
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = NormalizeRelativePath(relativePath),
+                ProviderId = providerId,
+                AssetId = assetId
             };
         }
 

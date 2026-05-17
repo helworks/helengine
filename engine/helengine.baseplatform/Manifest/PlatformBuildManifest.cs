@@ -5,6 +5,16 @@ namespace helengine.baseplatform.Manifest;
 /// </summary>
 public class PlatformBuildManifest {
     /// <summary>
+    /// Stable placeholder platform name used by legacy constructor overloads that predate explicit platform metadata.
+    /// </summary>
+    const string LegacyPlatformName = "unspecified-platform";
+
+    /// <summary>
+    /// Stable placeholder platform version used by legacy constructor overloads that predate explicit platform metadata.
+    /// </summary>
+    const string LegacyPlatformVersion = "unspecified-version";
+
+    /// <summary>
     /// Initializes a fully resolved build manifest with first-class scenes and loose assets.
     /// </summary>
     /// <param name="manifestVersion">The manifest schema version.</param>
@@ -20,10 +30,54 @@ public class PlatformBuildManifest {
     /// <param name="codeModules">The authored code modules prepared by the build graph.</param>
     /// <param name="artifactPlacements">The planned physical placements for the cooked artifacts.</param>
     /// <param name="containerWritePlan">The planned container layout for the cooked artifacts.</param>
+    /// <param name="platformCookWorkItems">The builder-owned platform cook work items emitted by the build graph.</param>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the manifest version is less than one.</exception>
     /// <exception cref="ArgumentException">Thrown when any required string value is missing.</exception>
     /// <exception cref="ArgumentNullException">Thrown when the scene or loose-asset collections are missing.</exception>
     /// <exception cref="ArgumentException">Thrown when a collection contains a missing entry.</exception>
+    public PlatformBuildManifest(
+        int manifestVersion,
+        string projectId,
+        string projectVersion,
+        string requiredEngineVersion,
+        string startupSceneId,
+        PlatformBuildScene[] scenes,
+        PlatformBuildAsset[] looseAssets,
+        PlatformBuildArtifact[] cookedArtifacts,
+        PlatformBuildCodeModule[] codeModules,
+        PlatformArtifactPlacement[] artifactPlacements,
+        PlatformContainerWritePlan containerWritePlan)
+        : this(
+            manifestVersion,
+            projectId,
+            projectVersion,
+            requiredEngineVersion,
+            LegacyPlatformName,
+            LegacyPlatformVersion,
+            startupSceneId,
+            scenes,
+            looseAssets,
+            cookedArtifacts,
+            codeModules,
+            artifactPlacements,
+            containerWritePlan,
+            Array.Empty<PlatformCookWorkItem>()) {
+    }
+
+    /// <summary>
+    /// Initializes a fully resolved build manifest with startup-scene metadata but without explicit platform name/version values.
+    /// </summary>
+    /// <param name="manifestVersion">The manifest schema version.</param>
+    /// <param name="projectId">The stable project identity for the build.</param>
+    /// <param name="projectVersion">The project version being built.</param>
+    /// <param name="requiredEngineVersion">The exact engine version the cooked output targets.</param>
+    /// <param name="startupSceneId">The startup scene chosen by build order.</param>
+    /// <param name="scenes">The fully resolved scenes the builder must cook.</param>
+    /// <param name="looseAssets">The fully resolved loose assets the builder must cook.</param>
+    /// <param name="cookedArtifacts">The cooked runtime artifacts prepared by the build graph.</param>
+    /// <param name="codeModules">The authored code modules prepared by the build graph.</param>
+    /// <param name="artifactPlacements">The planned physical placements for the cooked artifacts.</param>
+    /// <param name="containerWritePlan">The planned container layout for the cooked artifacts.</param>
     public PlatformBuildManifest(
         int manifestVersion,
         string projectId,
@@ -37,7 +91,8 @@ public class PlatformBuildManifest {
         PlatformBuildArtifact[] cookedArtifacts,
         PlatformBuildCodeModule[] codeModules,
         PlatformArtifactPlacement[] artifactPlacements,
-        PlatformContainerWritePlan containerWritePlan) {
+        PlatformContainerWritePlan containerWritePlan,
+        PlatformCookWorkItem[] platformCookWorkItems) {
         if (manifestVersion < 1) {
             throw new ArgumentOutOfRangeException(nameof(manifestVersion), "Manifest version must be at least 1.");
         } else if (string.IsNullOrWhiteSpace(projectId)) {
@@ -74,6 +129,10 @@ public class PlatformBuildManifest {
             throw new ArgumentException("Artifact placement collection cannot contain null entries.", nameof(artifactPlacements));
         } else if (containerWritePlan == null) {
             throw new ArgumentNullException(nameof(containerWritePlan), "Container write plan is required.");
+        } else if (platformCookWorkItems == null) {
+            throw new ArgumentNullException(nameof(platformCookWorkItems), "Platform cook work item collection is required.");
+        } else if (Array.Exists(platformCookWorkItems, workItem => workItem == null)) {
+            throw new ArgumentException("Platform cook work item collection cannot contain null entries.", nameof(platformCookWorkItems));
         }
 
         ManifestVersion = manifestVersion;
@@ -89,6 +148,85 @@ public class PlatformBuildManifest {
         CodeModules = [.. codeModules];
         ArtifactPlacements = [.. artifactPlacements];
         ContainerWritePlan = containerWritePlan;
+        PlatformCookWorkItems = [.. platformCookWorkItems];
+    }
+
+    /// <summary>
+    /// Initializes a fully resolved build manifest with first-class scenes and loose assets.
+    /// </summary>
+    /// <param name="manifestVersion">The manifest schema version.</param>
+    /// <param name="projectId">The stable project identity for the build.</param>
+    /// <param name="projectVersion">The project version being built.</param>
+    /// <param name="requiredEngineVersion">The exact engine version the cooked output targets.</param>
+    /// <param name="platformName">The stable target platform identifier stamped into the runtime output.</param>
+    /// <param name="platformVersion">The builder-stamped platform version reported by the runtime output.</param>
+    /// <param name="startupSceneId">The startup scene chosen by build order.</param>
+    /// <param name="scenes">The fully resolved scenes the builder must cook.</param>
+    /// <param name="looseAssets">The fully resolved loose assets the builder must cook.</param>
+    /// <param name="cookedArtifacts">The cooked runtime artifacts prepared by the build graph.</param>
+    /// <param name="codeModules">The authored code modules prepared by the build graph.</param>
+    /// <param name="artifactPlacements">The planned physical placements for the cooked artifacts.</param>
+    /// <param name="containerWritePlan">The planned container layout for the cooked artifacts.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the manifest version is less than one.</exception>
+    /// <exception cref="ArgumentException">Thrown when any required string value is missing.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when the scene or loose-asset collections are missing.</exception>
+    /// <exception cref="ArgumentException">Thrown when a collection contains a missing entry.</exception>
+    public PlatformBuildManifest(
+        int manifestVersion,
+        string projectId,
+        string projectVersion,
+        string requiredEngineVersion,
+        string platformName,
+        string platformVersion,
+        string startupSceneId,
+        PlatformBuildScene[] scenes,
+        PlatformBuildAsset[] looseAssets,
+        PlatformBuildArtifact[] cookedArtifacts,
+        PlatformBuildCodeModule[] codeModules,
+        PlatformArtifactPlacement[] artifactPlacements,
+        PlatformContainerWritePlan containerWritePlan)
+        : this(
+            manifestVersion,
+            projectId,
+            projectVersion,
+            requiredEngineVersion,
+            platformName,
+            platformVersion,
+            startupSceneId,
+            scenes,
+            looseAssets,
+            cookedArtifacts,
+            codeModules,
+            artifactPlacements,
+            containerWritePlan,
+            Array.Empty<PlatformCookWorkItem>()) {
+    }
+
+    /// <summary>
+    /// Initializes a fully resolved build manifest without startup-scene, artifact, code-module, or explicit platform metadata.
+    /// </summary>
+    public PlatformBuildManifest(
+        int manifestVersion,
+        string projectId,
+        string projectVersion,
+        string requiredEngineVersion,
+        PlatformBuildScene[] scenes,
+        PlatformBuildAsset[] looseAssets)
+        : this(
+            manifestVersion,
+            projectId,
+            projectVersion,
+            requiredEngineVersion,
+            LegacyPlatformName,
+            LegacyPlatformVersion,
+            string.Empty,
+            scenes,
+            looseAssets,
+            Array.Empty<PlatformBuildArtifact>(),
+            Array.Empty<PlatformBuildCodeModule>(),
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>()) {
     }
 
     /// <summary>
@@ -116,7 +254,8 @@ public class PlatformBuildManifest {
             Array.Empty<PlatformBuildArtifact>(),
             Array.Empty<PlatformBuildCodeModule>(),
             Array.Empty<PlatformArtifactPlacement>(),
-            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>())) {
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>()) {
     }
 
     /// <summary>
@@ -183,4 +322,9 @@ public class PlatformBuildManifest {
     /// Gets the planned container layout for the cooked artifacts.
     /// </summary>
     public PlatformContainerWritePlan ContainerWritePlan { get; }
+
+    /// <summary>
+    /// Gets the builder-owned platform cook work items emitted by the build graph.
+    /// </summary>
+    public PlatformCookWorkItem[] PlatformCookWorkItems { get; }
 }

@@ -90,10 +90,14 @@ namespace helengine.editor {
                 selectedGraphicsProfileId,
                 ScriptTypeResolver);
             List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds);
-            packager.Package(orderedScenePaths, effectiveExecutionRootPath);
+            EditorPlatformBuildScenePackagerResult packagerResult = packager.Package(orderedScenePaths, effectiveExecutionRootPath);
+            PlatformCookWorkItem[] platformCookWorkItems = [.. packagerResult.PlatformCookWorkItems];
 
             PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedScenePaths, effectiveCookRootPath);
-            PlatformBuildArtifact[] cookedArtifacts = BuildCookedArtifacts(effectiveCookRootPath, targetIds);
+            PlatformBuildArtifact[] cookedArtifacts = BuildCookedArtifacts(
+                effectiveCookRootPath,
+                targetIds,
+                platformCookWorkItems);
 
             return new PlatformBuildManifest(
                 2,
@@ -108,7 +112,8 @@ namespace helengine.editor {
                 cookedArtifacts,
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                platformCookWorkItems);
         }
 
         /// <summary>
@@ -246,7 +251,14 @@ namespace helengine.editor {
             }
         }
 
-        PlatformBuildArtifact[] BuildCookedArtifacts(string cookRootPath, IReadOnlyList<string> targetIds) {
+        PlatformBuildArtifact[] BuildCookedArtifacts(
+            string cookRootPath,
+            IReadOnlyList<string> targetIds,
+            IReadOnlyList<PlatformCookWorkItem> platformCookWorkItems) {
+            if (platformCookWorkItems == null) {
+                throw new ArgumentNullException(nameof(platformCookWorkItems));
+            }
+
             string variantId = targetIds.Count == 1 && !string.IsNullOrWhiteSpace(targetIds[0])
                 ? targetIds[0]
                 : "shared";
@@ -254,14 +266,42 @@ namespace helengine.editor {
             EditorPlatformCookedArtifactPool artifactPool = new(FileHasher);
             string[] cookedFilePaths = Directory.GetFiles(cookRootPath, "*", SearchOption.AllDirectories);
             Array.Sort(cookedFilePaths, StringComparer.OrdinalIgnoreCase);
+            HashSet<string> builderOwnedOutputPaths = BuildBuilderOwnedOutputPathSet(platformCookWorkItems);
 
             for (int index = 0; index < cookedFilePaths.Length; index++) {
                 string fullPath = cookedFilePaths[index];
                 string relativePath = "cooked/" + NormalizeRelativePath(Path.GetRelativePath(cookRootPath, fullPath));
+                if (builderOwnedOutputPaths.Contains(relativePath)) {
+                    continue;
+                }
+
                 artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath), variantId);
             }
 
             return artifactPool.ToArray();
+        }
+
+        /// <summary>
+        /// Builds the set of cooked output paths that will be produced later by builder-owned platform cook work items.
+        /// </summary>
+        /// <param name="platformCookWorkItems">Builder-owned platform cook work items emitted by the editor build graph.</param>
+        /// <returns>Normalized runtime-relative output paths owned by the builder.</returns>
+        static HashSet<string> BuildBuilderOwnedOutputPathSet(IReadOnlyList<PlatformCookWorkItem> platformCookWorkItems) {
+            if (platformCookWorkItems == null) {
+                throw new ArgumentNullException(nameof(platformCookWorkItems));
+            }
+
+            HashSet<string> builderOwnedOutputPaths = new(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < platformCookWorkItems.Count; index++) {
+                PlatformCookWorkItem workItem = platformCookWorkItems[index];
+                if (workItem == null || string.IsNullOrWhiteSpace(workItem.OutputRelativePath)) {
+                    continue;
+                }
+
+                builderOwnedOutputPaths.Add(workItem.OutputRelativePath.Replace('\\', '/'));
+            }
+
+            return builderOwnedOutputPaths;
         }
 
         static string ResolveCookExecutionRootPath(string outputRootPath) {

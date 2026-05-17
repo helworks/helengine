@@ -19,6 +19,7 @@ public class PlatformDefinition {
     /// <param name="mediaProfiles">Media profiles exposed by the platform.</param>
     /// <param name="runtimeGenerationContract">Cross-platform runtime-generation behavior exposed by the platform.</param>
     /// <param name="hostDebugCapability">Cross-platform host-debug capability metadata exposed by the platform.</param>
+    /// <param name="assetCookCapabilities">Generic asset-kind cook capabilities exposed by the platform.</param>
     public PlatformDefinition(
         string platformId,
         string displayName,
@@ -31,7 +32,8 @@ public class PlatformDefinition {
         PlatformStorageProfileDefinition[] storageProfiles,
         PlatformMediaProfileDefinition[] mediaProfiles,
         RuntimeGenerationContract runtimeGenerationContract = null,
-        PlatformHostDebugCapability hostDebugCapability = null) {
+        PlatformHostDebugCapability hostDebugCapability = null,
+        PlatformAssetCookCapabilityDefinition[] assetCookCapabilities = null) {
         if (string.IsNullOrWhiteSpace(platformId)) {
             throw new ArgumentException("Platform id is required.", nameof(platformId));
         } else if (string.IsNullOrWhiteSpace(displayName)) {
@@ -68,6 +70,8 @@ public class PlatformDefinition {
             throw new ArgumentException("Storage profiles cannot contain null entries.", nameof(storageProfiles));
         } else if (Array.Exists(mediaProfiles, mediaProfile => mediaProfile == null)) {
             throw new ArgumentException("Media profiles cannot contain null entries.", nameof(mediaProfiles));
+        } else if (assetCookCapabilities != null && Array.Exists(assetCookCapabilities, assetCookCapability => assetCookCapability == null)) {
+            throw new ArgumentException("Asset cook capabilities cannot contain null entries.", nameof(assetCookCapabilities));
         }
 
         PlatformId = platformId;
@@ -82,6 +86,7 @@ public class PlatformDefinition {
         MediaProfiles = [.. mediaProfiles];
         RuntimeGenerationContract = runtimeGenerationContract ?? RuntimeGenerationContract.CreateDefault();
         HostDebugCapability = hostDebugCapability ?? PlatformHostDebugCapability.CreateDefault();
+        AssetCookCapabilities = assetCookCapabilities == null ? Array.Empty<PlatformAssetCookCapabilityDefinition>() : [.. assetCookCapabilities];
     }
 
     /// <summary>
@@ -111,6 +116,50 @@ public class PlatformDefinition {
             storageProfiles,
             mediaProfiles,
             runtimeGenerationContract,
+            null) {
+    }
+
+    /// <summary>
+    /// Initializes one platform definition while preserving the pre-asset-cook-capability constructor shape used by existing platform builders.
+    /// </summary>
+    /// <param name="platformId">Stable platform identifier.</param>
+    /// <param name="displayName">Human-readable platform name.</param>
+    /// <param name="buildProfiles">Build profiles exposed by the platform.</param>
+    /// <param name="graphicsProfiles">Graphics profiles exposed by the platform.</param>
+    /// <param name="assetRequirements">Asset requirements exposed by the platform.</param>
+    /// <param name="materialSchemas">Material authoring schemas exposed by the platform.</param>
+    /// <param name="componentSupportRules">Component support rules exposed by the platform.</param>
+    /// <param name="codegenProfiles">Codegen profiles exposed by the platform.</param>
+    /// <param name="storageProfiles">Storage/runtime profiles exposed by the platform.</param>
+    /// <param name="mediaProfiles">Media profiles exposed by the platform.</param>
+    /// <param name="runtimeGenerationContract">Cross-platform runtime-generation behavior exposed by the platform.</param>
+    /// <param name="hostDebugCapability">Cross-platform host-debug capability metadata exposed by the platform.</param>
+    public PlatformDefinition(
+        string platformId,
+        string displayName,
+        PlatformBuildProfileDefinition[] buildProfiles,
+        PlatformGraphicsProfileDefinition[] graphicsProfiles,
+        PlatformAssetRequirementDefinition[] assetRequirements,
+        PlatformMaterialSchemaDefinition[] materialSchemas,
+        PlatformComponentSupportRule[] componentSupportRules,
+        PlatformCodegenProfileDefinition[] codegenProfiles,
+        PlatformStorageProfileDefinition[] storageProfiles,
+        PlatformMediaProfileDefinition[] mediaProfiles,
+        RuntimeGenerationContract runtimeGenerationContract,
+        PlatformHostDebugCapability hostDebugCapability)
+        : this(
+            platformId,
+            displayName,
+            buildProfiles,
+            graphicsProfiles,
+            assetRequirements,
+            materialSchemas,
+            componentSupportRules,
+            codegenProfiles,
+            storageProfiles,
+            mediaProfiles,
+            runtimeGenerationContract,
+            hostDebugCapability,
             null) {
     }
 
@@ -365,6 +414,11 @@ public class PlatformDefinition {
     /// Gets the cross-platform host-debug capability metadata exposed by the platform.
     /// </summary>
     public PlatformHostDebugCapability HostDebugCapability { get; }
+
+    /// <summary>
+    /// Gets the generic asset-kind cook capabilities exposed by the platform.
+    /// </summary>
+    public PlatformAssetCookCapabilityDefinition[] AssetCookCapabilities { get; }
 }
 
 

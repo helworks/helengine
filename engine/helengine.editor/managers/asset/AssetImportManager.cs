@@ -1048,7 +1048,7 @@ namespace helengine.editor {
             }
 
             string sourcePath;
-            if (!TryResolveTextureSourcePath(assetId, out sourcePath)) {
+            if (!TryResolveImportedTextureSourcePath(assetId, out sourcePath)) {
                 asset = null;
                 return false;
             }
@@ -1071,7 +1071,13 @@ namespace helengine.editor {
         /// <param name="assetId">Imported texture asset identifier stored in serialized material data.</param>
         /// <param name="sourcePath">Resolved source texture file path when the asset can be found on disk.</param>
         /// <returns>True when the asset id maps to one source texture file.</returns>
-        bool TryResolveTextureSourcePath(string assetId, out string sourcePath) {
+        /// <summary>
+        /// Resolves one imported texture asset id back to the authored source texture file inside the project assets tree.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored in serialized material data.</param>
+        /// <param name="sourcePath">Resolved authored source texture file path when the asset can be found on disk.</param>
+        /// <returns>True when the asset id maps to one authored source texture file.</returns>
+        public bool TryResolveImportedTextureSourcePath(string assetId, out string sourcePath) {
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
             }
@@ -1084,8 +1090,7 @@ namespace helengine.editor {
 
             string fileName = Path.GetFileName(assetId);
             if (string.IsNullOrWhiteSpace(fileName)) {
-                sourcePath = string.Empty;
-                return false;
+                return TryResolveImportedTextureSourcePathByComputedAssetId(assetId, out sourcePath);
             }
 
             foreach (string candidatePath in EnumerateAssetSourceFiles()) {
@@ -1095,8 +1100,121 @@ namespace helengine.editor {
                 }
             }
 
+            return TryResolveImportedTextureSourcePathByComputedAssetId(assetId, out sourcePath);
+        }
+
+        /// <summary>
+        /// Resolves one imported texture asset id by recomputing asset ids for every authored texture source file.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored in serialized material data.</param>
+        /// <param name="sourcePath">Resolved authored source texture file path when the asset can be found on disk.</param>
+        /// <returns>True when the asset id maps to one authored source texture file.</returns>
+        bool TryResolveImportedTextureSourcePathByComputedAssetId(string assetId, out string sourcePath) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            foreach (string candidatePath in EnumerateAssetSourceFiles()) {
+                if (!IsTextureExtension(Path.GetExtension(candidatePath))) {
+                    continue;
+                }
+
+                TextureAssetImportSettings settings;
+                if (!TryLoadOrCreateTextureImportSettings(candidatePath, out settings) || settings == null) {
+                    continue;
+                }
+
+                if (!MatchesComputedTextureAssetId(candidatePath, settings, assetId)) {
+                    continue;
+                }
+
+                sourcePath = candidatePath;
+                return true;
+            }
+
             sourcePath = string.Empty;
             return false;
+        }
+
+        /// <summary>
+        /// Returns whether one authored texture source can produce the supplied imported texture asset id under any relevant platform texture settings.
+        /// </summary>
+        /// <param name="sourcePath">Absolute source texture path being evaluated.</param>
+        /// <param name="settings">Resolved texture import settings for the source file.</param>
+        /// <param name="assetId">Imported texture asset identifier being matched.</param>
+        /// <returns>True when the source/settings combination can produce the supplied imported texture asset id.</returns>
+        bool MatchesComputedTextureAssetId(string sourcePath, TextureAssetImportSettings settings, string assetId) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            string sourceChecksum = settings.Importer?.SourceChecksum;
+            if (string.IsNullOrWhiteSpace(sourceChecksum)) {
+                sourceChecksum = fileHasher.ComputeHash(sourcePath);
+            }
+
+            if (settings.Importer != null &&
+                !string.IsNullOrWhiteSpace(settings.Importer.ImporterId) &&
+                string.Equals(BuildImporterQualifiedAssetId(sourceChecksum, settings.Importer.ImporterId), assetId, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            List<string> candidatePlatformIds = BuildTextureAssetIdCandidatePlatformIds(settings);
+            for (int index = 0; index < candidatePlatformIds.Count; index++) {
+                string candidateAssetId = BuildTextureAssetId(sourcePath, settings, sourceChecksum, candidatePlatformIds[index]);
+                if (string.Equals(candidateAssetId, assetId, StringComparison.OrdinalIgnoreCase)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Builds the platform ids whose texture processor settings should be considered when matching one imported texture asset id back to its authored source file.
+        /// </summary>
+        /// <param name="settings">Resolved texture import settings for the candidate source file.</param>
+        /// <returns>Ordered platform ids that can produce texture cache identifiers for the candidate source.</returns>
+        List<string> BuildTextureAssetIdCandidatePlatformIds(TextureAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            List<string> platformIds = new List<string>();
+            AddTextureAssetIdCandidatePlatformId(platformIds, string.Empty);
+            AddTextureAssetIdCandidatePlatformId(platformIds, CurrentPlatformId);
+
+            if (settings.Processor != null && settings.Processor.Platforms != null) {
+                foreach (string platformId in settings.Processor.Platforms.Keys) {
+                    AddTextureAssetIdCandidatePlatformId(platformIds, platformId);
+                }
+            }
+
+            return platformIds;
+        }
+
+        /// <summary>
+        /// Adds one candidate platform id to the imported-texture source-resolution probe set when it has not been recorded already.
+        /// </summary>
+        /// <param name="platformIds">Mutable candidate platform id collection.</param>
+        /// <param name="platformId">Platform id to record.</param>
+        void AddTextureAssetIdCandidatePlatformId(List<string> platformIds, string platformId) {
+            if (platformIds == null) {
+                throw new ArgumentNullException(nameof(platformIds));
+            }
+
+            string normalizedPlatformId = platformId ?? string.Empty;
+            for (int index = 0; index < platformIds.Count; index++) {
+                if (string.Equals(platformIds[index], normalizedPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    return;
+                }
+            }
+
+            platformIds.Add(normalizedPlatformId);
         }
 
         /// <summary>
@@ -2416,6 +2534,18 @@ namespace helengine.editor {
         /// <param name="sourceChecksum">Checksum of the source file contents.</param>
         /// <returns>Processed asset identifier for the current configuration.</returns>
         string BuildTextureAssetId(string sourcePath, TextureAssetImportSettings settings, string sourceChecksum) {
+            return BuildTextureAssetId(sourcePath, settings, sourceChecksum, ResolveTextureProcessorPlatformId(settings));
+        }
+
+        /// <summary>
+        /// Builds the processed texture asset identifier for one explicit platform texture-settings context.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Resolved typed texture import settings for the source file.</param>
+        /// <param name="sourceChecksum">Checksum of the source file contents.</param>
+        /// <param name="platformId">Platform texture-settings key that should drive identity generation.</param>
+        /// <returns>Processed asset identifier for the supplied platform texture-settings context.</returns>
+        string BuildTextureAssetId(string sourcePath, TextureAssetImportSettings settings, string sourceChecksum, string platformId) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             } else if (settings == null) {
@@ -2424,8 +2554,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
             }
 
-            TextureAssetProcessorSettings processorSettings = GetCurrentPlatformTextureProcessorSettings(settings);
-            string platformId = ResolveTextureProcessorPlatformId(settings);
+            TextureAssetProcessorSettings processorSettings = GetTextureProcessorSettings(settings, platformId);
             string identity = string.Concat(
                 "texture", "\n",
                 sourceChecksum, "\n",
@@ -2437,6 +2566,34 @@ namespace helengine.editor {
             byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
             return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Resolves the texture processor settings for one explicit platform id, returning defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved typed texture settings for the source file.</param>
+        /// <param name="platformId">Platform texture-settings key that should drive the returned processor settings.</param>
+        /// <returns>Texture processor settings for the requested platform context.</returns>
+        TextureAssetProcessorSettings GetTextureProcessorSettings(TextureAssetImportSettings settings, string platformId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string normalizedPlatformId = platformId ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalizedPlatformId)) {
+                return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            TextureAssetProcessorSettings platformSettings;
+            if (!settings.Processor.Platforms.TryGetValue(normalizedPlatformId, out platformSettings) || platformSettings == null) {
+                return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            return platformSettings;
         }
 
         /// <summary>

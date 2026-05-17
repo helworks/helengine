@@ -4,6 +4,43 @@ namespace helengine.baseplatform.tests.Builders;
 
 public class PlatformBuildManifestTests {
     [Fact]
+    public void PlatformBuildManifest_preserves_platform_cook_work_items() {
+        PlatformCookWorkItem workItem = new(
+            "gc-texture:logo",
+            "Images/Menu/helengine-logo.png",
+            "texture",
+            "gamecube",
+            "runtime-texture",
+            "cooked/imported/helengine-logo.gc.hasset",
+            "texture:helengine-logo",
+            "sha256:source",
+            "sha256:settings",
+            "{\"colorFormat\":\"GxRgb5A3\",\"maxResolution\":256}",
+            [new PlatformCookWorkItemMetadata("source-asset-id", "Images/Menu/helengine-logo.png")]);
+
+        PlatformBuildManifest manifest = new(
+            1,
+            "city",
+            "1.0.0",
+            "1.0.0-engine",
+            "gamecube",
+            "1.0.0",
+            "Scenes/DemoDiscMainMenu.helen",
+            Array.Empty<PlatformBuildScene>(),
+            Array.Empty<PlatformBuildAsset>(),
+            Array.Empty<PlatformBuildArtifact>(),
+            Array.Empty<PlatformBuildCodeModule>(),
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            [workItem]);
+
+        Assert.Single(manifest.PlatformCookWorkItems);
+        Assert.Equal("gc-texture:logo", manifest.PlatformCookWorkItems[0].WorkItemId);
+        Assert.Equal("texture", manifest.PlatformCookWorkItems[0].SourceAssetKind);
+        Assert.Equal("runtime-texture", manifest.PlatformCookWorkItems[0].TargetArtifactKind);
+    }
+
+    [Fact]
     public void PlatformBuildManifest_preserves_artifact_placements_and_container_plan() {
         PlatformBuildManifest manifest = new(
             3,
@@ -51,5 +88,6 @@ public class PlatformBuildManifestTests {
         Assert.Equal("windows-loose-files", manifest.CodeModules[0].RuntimeSpecializationId);
         Assert.Equal("container-0", manifest.ArtifactPlacements[0].ContainerId);
         Assert.Equal("container-0", manifest.ContainerWritePlan.ContainerArtifacts[0].ContainerId);
+        Assert.Empty(manifest.PlatformCookWorkItems);
     }
 }

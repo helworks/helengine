@@ -77,7 +77,8 @@ namespace helengine.editor {
                 cookedArtifacts,
                 cookedManifest.CodeModules,
                 [.. placements],
-                containerWritePlan);
+                containerWritePlan,
+                cookedManifest.PlatformCookWorkItems);
         }
 
         static Dictionary<string, int> BuildScenePriorityByRelativePath(PlatformBuildManifest cookedManifest) {

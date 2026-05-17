@@ -2,6 +2,7 @@ using System.Reflection;
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Descriptors;
+using helengine.baseplatform.Manifest;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Reporting;
 using helengine.baseplatform.Results;
@@ -725,6 +726,51 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaged generated cube and standard-material references keep their generated identity so the player runtime can share them across scene entities.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneReferencesGeneratedCubeAndStandardMaterial_PreservesGeneratedIdentityForRuntimeSharedCaching() {
+            string sceneId = "Scenes/GeneratedPrimitiveScene.helen";
+
+            WriteSceneAsset(
+                sceneId,
+                CreateGeneratedCubeReference(),
+                CreateGeneratedStandardMaterialReference());
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+
+            MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
+            MeshComponent secondMeshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[1].Components, component => component is MeshComponent));
+
+            Assert.Same(firstMeshComponent.Model, secondMeshComponent.Model);
+            Assert.Same(firstMeshComponent.Material, secondMeshComponent.Material);
+        }
+
+        /// <summary>
         /// Ensures a city-style standard-shader material packages with a shader contract the player can resolve.
         /// </summary>
         [Fact]
@@ -825,6 +871,38 @@ namespace helengine.editor.tests {
 
             string cookedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", textureAssetId);
             Assert.True(File.Exists(cookedTexturePath));
+        }
+
+        /// <summary>
+        /// Ensures GameCube-style builder-owned texture capabilities emit explicit platform cook work items for imported diffuse textures.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPlatformOwnsImportedDiffuseTextureCooking_EmitsPlatformCookWorkItem() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
+            string textureRelativePath = "Textures/Cube00.png";
+            string textureAssetId = WriteSourceTextureAssetAndReturnAssetId(textureRelativePath, ".png", "gamecube");
+
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                [
+                    new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])
+                ],
+                CreateGameCubeBuilderOwnedTexturePlatformDefinition(),
+                defaultFont);
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+
+            PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
+            Assert.Equal("texture", workItem.SourceAssetKind);
+            Assert.Equal("runtime-texture", workItem.TargetArtifactKind);
+            Assert.Equal(
+                Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", textureRelativePath.Replace('/', Path.DirectorySeparatorChar))),
+                workItem.SourceAssetPath);
+            Assert.Equal($"cooked/imported/{textureAssetId}", workItem.OutputRelativePath);
         }
 
         /// <summary>
@@ -2343,6 +2421,63 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one serialized scene asset that references the supplied generated model and material from duplicated mesh component payloads.
+        /// </summary>
+        /// <param name="sceneId">Scene asset id to write.</param>
+        /// <param name="modelReference">Generated model reference to encode.</param>
+        /// <param name="materialReference">Generated material reference to encode.</param>
+        void WriteSceneAsset(string sceneId, SceneAssetReference modelReference, SceneAssetReference materialReference) {
+            if (modelReference == null) {
+                throw new ArgumentNullException(nameof(modelReference));
+            }
+            if (materialReference == null) {
+                throw new ArgumentNullException(nameof(materialReference));
+            }
+
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.MeshComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteMeshComponentPayload(modelReference, materialReference)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 2u,
+                        Name = "SecondRoot",
+                        LocalPosition = new float3(1f, 0f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.MeshComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteMeshComponentPayload(modelReference, materialReference)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
         /// Writes one serialized scene asset that contains a single component record with the supplied type id and payload.
         /// </summary>
         /// <param name="sceneId">Scene asset id to write.</param>
@@ -2418,6 +2553,19 @@ namespace helengine.editor.tests {
                 RelativePath = EngineGeneratedAssetProvider.StandardMaterialRelativePath,
                 ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
                 AssetId = EngineGeneratedMaterialCache.StandardAssetId
+            };
+        }
+
+        /// <summary>
+        /// Creates the generated scene reference used for the engine's built-in cube primitive.
+        /// </summary>
+        /// <returns>Generated engine cube scene reference.</returns>
+        static SceneAssetReference CreateGeneratedCubeReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = EngineGeneratedAssetProvider.CubeRelativePath,
+                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
+                AssetId = EngineGeneratedModelCache.CubeAssetId
             };
         }
 
@@ -2587,6 +2735,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one source texture file and returns the asset id that the editor importer settings resolve for it.
+        /// </summary>
+        /// <param name="textureRelativePath">Project-relative source texture path to create.</param>
+        /// <param name="extension">Texture extension registered for the test importer.</param>
+        /// <returns>Importer-resolved texture asset id for the written source texture.</returns>
+        string WriteSourceTextureAssetAndReturnAssetId(string textureRelativePath, string extension, string platformId) {
+            WriteSourceTextureAsset(textureRelativePath);
+
+            ContentManager contentManager = new(ProjectRootPath);
+            AssetImportManager assetImportManager = new(ProjectRootPath, contentManager);
+            assetImportManager.CurrentPlatformId = platformId;
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [extension]));
+
+            string textureSourcePath = Path.Combine(ProjectRootPath, "assets", textureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            TextureAssetImportSettings settings;
+            Assert.True(assetImportManager.TryLoadOrCreateTextureImportSettings(textureSourcePath, out settings));
+            Assert.NotNull(settings);
+            Assert.NotNull(settings.Importer);
+            Assert.False(string.IsNullOrWhiteSpace(settings.Importer.AssetId));
+            return settings.Importer.AssetId;
+        }
+
+        /// <summary>
         /// Writes one authored material document without explicit shader overrides so the packager must supply the standard defaults.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path to write.</param>
@@ -2642,6 +2813,46 @@ namespace helengine.editor.tests {
 
             using FileStream stream = new FileStream(texturePath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, textureAsset);
+        }
+
+        /// <summary>
+        /// Creates one minimal GameCube platform definition that publishes builder-owned runtime texture cooking.
+        /// </summary>
+        /// <returns>GameCube platform definition used by platform cook work-item packaging tests.</returns>
+        static PlatformDefinition CreateGameCubeBuilderOwnedTexturePlatformDefinition() {
+            return new PlatformDefinition(
+                "gamecube",
+                "GameCube",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "debug",
+                        "Debug",
+                        "Debug GameCube build",
+                        "gx",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "gx",
+                        "GX",
+                        "GameCube GX renderer",
+                        [])
+                ],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                null,
+                null,
+                [
+                    new PlatformAssetCookCapabilityDefinition(
+                        "texture",
+                        "runtime-texture",
+                        PlatformAssetCookOwnershipKind.BuilderOwned,
+                        "gamecube-texture")
+                ]);
         }
 
         /// <summary>
@@ -2822,6 +3033,33 @@ namespace helengine.editor.tests {
                 Material = new TestRuntimeMaterial()
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Material", materialReference);
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(meshComponent, 0, saveState);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one mesh-component payload that points at one generated model reference and one generated material reference.
+        /// </summary>
+        /// <param name="modelReference">Generated model reference to encode.</param>
+        /// <param name="materialReference">Generated material reference to encode.</param>
+        /// <returns>Serialized mesh component payload.</returns>
+        byte[] WriteMeshComponentPayload(SceneAssetReference modelReference, SceneAssetReference materialReference) {
+            if (modelReference == null) {
+                throw new ArgumentNullException(nameof(modelReference));
+            }
+            if (materialReference == null) {
+                throw new ArgumentNullException(nameof(materialReference));
+            }
+
+            MeshComponentPersistenceDescriptor descriptor = new MeshComponentPersistenceDescriptor();
+            MeshComponent meshComponent = new MeshComponent {
+                Model = new TestRuntimeModel(),
+                Material = new TestRuntimeMaterial()
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Model", modelReference);
             saveState.SetAssetReference("Material", materialReference);
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(meshComponent, 0, saveState);

@@ -50,6 +50,12 @@ namespace helengine.editor {
                 ];
             }
 
+            if (string.Equals(platformId, "gamecube", StringComparison.OrdinalIgnoreCase)) {
+                return [
+                    "GAMECUBE_PLATFORM"
+                ];
+            }
+
             return Array.Empty<string>();
         }
 

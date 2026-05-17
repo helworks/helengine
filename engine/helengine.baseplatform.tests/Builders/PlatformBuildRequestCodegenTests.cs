@@ -69,5 +69,6 @@ public class PlatformBuildRequestCodegenTests {
         Assert.Equal("false", request.SelectedGraphicsOptionValues["vsync"]);
         Assert.Equal("true", request.SelectedCodegenOptionValues["emit-symbols"]);
         Assert.Equal("generated-core", request.GeneratedCoreCppRootPath);
+        Assert.Empty(request.Manifest.PlatformCookWorkItems);
     }
 }

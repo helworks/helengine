@@ -77,5 +77,6 @@ public class PlatformBuildRequestMultiTargetTests {
         Assert.Equal("scene", request.Manifest.StartupSceneId);
         Assert.Single(request.Manifest.CookedArtifacts);
         Assert.Equal("windows-loose-files", request.Manifest.CodeModules[0].RuntimeSpecializationId);
+        Assert.Empty(request.Manifest.PlatformCookWorkItems);
     }
 }

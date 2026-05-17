@@ -90,7 +90,7 @@ namespace helengine.editor {
                 ValidateQueueItem(queueItem);
                 return BuildGraphRunner.Execute(queueItem);
             } catch (Exception ex) {
-                return EditorBuildExecutionResult.Failure($"Build for platform '{PlatformDescriptor.Id}' failed: {ex.Message}");
+                return EditorBuildExecutionResult.Failure($"Build for platform '{PlatformDescriptor.Id}' failed: {ex}");
             }
         }
 

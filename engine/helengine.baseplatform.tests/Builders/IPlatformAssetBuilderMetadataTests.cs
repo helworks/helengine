@@ -1,5 +1,6 @@
 using helengine;
 using helengine.baseplatform.Builders;
+using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Results;
 using Xunit;
@@ -22,6 +23,38 @@ public class IPlatformAssetBuilderMetadataTests {
         Assert.Equal("standard-shader", builder.Definition.MaterialSchemas[0].SchemaId);
         Assert.Equal("helengine.FPSComponent", builder.Definition.ComponentSupportRules[0].ComponentTypeId);
         Assert.Equal("default", builder.Definition.CodegenProfiles[0].ProfileId);
+        Assert.Empty(builder.Definition.AssetCookCapabilities);
+    }
+
+    /// <summary>
+    /// Verifies one platform definition preserves explicit builder-owned asset cook capabilities.
+    /// </summary>
+    [Fact]
+    public void PlatformDefinition_preserves_asset_cook_capabilities() {
+        PlatformDefinition definition = new(
+            "gamecube",
+            "Nintendo GameCube",
+            Array.Empty<PlatformBuildProfileDefinition>(),
+            Array.Empty<PlatformGraphicsProfileDefinition>(),
+            Array.Empty<PlatformAssetRequirementDefinition>(),
+            Array.Empty<PlatformMaterialSchemaDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
+            Array.Empty<PlatformCodegenProfileDefinition>(),
+            Array.Empty<PlatformStorageProfileDefinition>(),
+            Array.Empty<PlatformMediaProfileDefinition>(),
+            assetCookCapabilities: [
+                new PlatformAssetCookCapabilityDefinition(
+                    "texture",
+                    "runtime-texture",
+                    PlatformAssetCookOwnershipKind.BuilderOwned,
+                    "gamecube-texture")
+            ]);
+
+        PlatformAssetCookCapabilityDefinition capability = Assert.Single(definition.AssetCookCapabilities);
+        Assert.Equal("texture", capability.SourceAssetKind);
+        Assert.Equal("runtime-texture", capability.TargetArtifactKind);
+        Assert.Equal(PlatformAssetCookOwnershipKind.BuilderOwned, capability.OwnershipKind);
+        Assert.Equal("gamecube-texture", capability.SettingsContractId);
     }
 
     /// <summary>

@@ -25,6 +25,10 @@ namespace helengine.editor {
         /// Environment variable used by the Nintendo DS builder to resolve its native repository root when loaded from the editor app.
         /// </summary>
         const string DsRepositoryRootEnvironmentVariableName = "HELENGINE_DS_REPOSITORY_ROOT";
+        /// <summary>
+        /// Environment variable used by the GameCube builder to resolve its native repository root when loaded from the editor app.
+        /// </summary>
+        const string GameCubeRepositoryRootEnvironmentVariableName = "HELENGINE_GAMECUBE_REPOSITORY_ROOT";
 
         readonly string ProjectRootPath;
         readonly string RequiredEngineVersion;
@@ -627,7 +631,8 @@ namespace helengine.editor {
                 resolvedArtifacts,
                 cookedManifest.CodeModules,
                 cookedManifest.ArtifactPlacements,
-                cookedManifest.ContainerWritePlan);
+                cookedManifest.ContainerWritePlan,
+                cookedManifest.PlatformCookWorkItems);
         }
 
         /// <summary>
@@ -862,6 +867,7 @@ namespace helengine.editor {
             string previousWorkingDirectory = Directory.GetCurrentDirectory();
             string previousPs2RepositoryRootPath = Environment.GetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName) ?? string.Empty;
             string previousDsRepositoryRootPath = Environment.GetEnvironmentVariable(DsRepositoryRootEnvironmentVariableName) ?? string.Empty;
+            string previousGameCubeRepositoryRootPath = Environment.GetEnvironmentVariable(GameCubeRepositoryRootEnvironmentVariableName) ?? string.Empty;
             try {
                 StageBuilderPackageSourceRoot(workspace.PackageRootPath, workspace.BuilderWorkingRootPath);
                 Directory.SetCurrentDirectory(workspace.PackageRootPath);
@@ -876,7 +882,7 @@ namespace helengine.editor {
                         $"Build completed for platform '{PlatformDescriptor.Id}': {queueItem.OutputDirectoryPath}",
                         detectedFeatureSummary));
             } finally {
-                RestoreBuilderEnvironmentOverrides(previousPs2RepositoryRootPath, previousDsRepositoryRootPath);
+                RestoreBuilderEnvironmentOverrides(previousPs2RepositoryRootPath, previousDsRepositoryRootPath, previousGameCubeRepositoryRootPath);
                 Directory.SetCurrentDirectory(previousWorkingDirectory);
             }
         }
@@ -895,6 +901,11 @@ namespace helengine.editor {
                 Environment.SetEnvironmentVariable(
                     DsRepositoryRootEnvironmentVariableName,
                     Path.GetFullPath(PlatformDescriptor.PlayerSourceRootPath));
+            } else if (string.Equals(PlatformDescriptor.Id, "gamecube", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(PlatformDescriptor.PlayerSourceRootPath)) {
+                Environment.SetEnvironmentVariable(
+                    GameCubeRepositoryRootEnvironmentVariableName,
+                    Path.GetFullPath(PlatformDescriptor.PlayerSourceRootPath));
             }
         }
 
@@ -903,7 +914,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="previousPs2RepositoryRootPath">Previous PS2 repository-root environment variable value.</param>
         /// <param name="previousDsRepositoryRootPath">Previous Nintendo DS repository-root environment variable value.</param>
-        void RestoreBuilderEnvironmentOverrides(string previousPs2RepositoryRootPath, string previousDsRepositoryRootPath) {
+        /// <param name="previousGameCubeRepositoryRootPath">Previous GameCube repository-root environment variable value.</param>
+        void RestoreBuilderEnvironmentOverrides(string previousPs2RepositoryRootPath, string previousDsRepositoryRootPath, string previousGameCubeRepositoryRootPath) {
             if (string.Equals(PlatformDescriptor.Id, "ps2", StringComparison.OrdinalIgnoreCase)) {
                 if (string.IsNullOrWhiteSpace(previousPs2RepositoryRootPath)) {
                     Environment.SetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName, null);
@@ -919,6 +931,14 @@ namespace helengine.editor {
                 }
 
                 Environment.SetEnvironmentVariable(DsRepositoryRootEnvironmentVariableName, previousDsRepositoryRootPath);
+                return;
+            } else if (string.Equals(PlatformDescriptor.Id, "gamecube", StringComparison.OrdinalIgnoreCase)) {
+                if (string.IsNullOrWhiteSpace(previousGameCubeRepositoryRootPath)) {
+                    Environment.SetEnvironmentVariable(GameCubeRepositoryRootEnvironmentVariableName, null);
+                    return;
+                }
+
+                Environment.SetEnvironmentVariable(GameCubeRepositoryRootEnvironmentVariableName, previousGameCubeRepositoryRootPath);
             }
         }
 
@@ -1016,7 +1036,8 @@ namespace helengine.editor {
                 stagedCookedArtifacts,
                 cookedManifest.CodeModules,
                 cookedManifest.ArtifactPlacements,
-                cookedManifest.ContainerWritePlan);
+                cookedManifest.ContainerWritePlan,
+                cookedManifest.PlatformCookWorkItems);
 
             PlatformBuildTargetVariant[] targetVariants = [
                 new PlatformBuildTargetVariant(
@@ -1243,7 +1264,8 @@ namespace helengine.editor {
                 manifest.CookedArtifacts,
                 codeModules ?? [],
                 manifest.ArtifactPlacements,
-                manifest.ContainerWritePlan);
+                manifest.ContainerWritePlan,
+                manifest.PlatformCookWorkItems);
         }
 
         static string ResolveSelectedBuildProfileId(EditorBuildQueueItemDocument queueItem, EditorPlatformBuildSelectionModel selectionModel) {

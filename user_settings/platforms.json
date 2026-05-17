@@ -1,40 +1,49 @@
 {
-  "platforms": [
-    {
-      "engineVersion": "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
-      "platformId": "windows",
-      "displayName": "Windows DirectX",
-      "builderAssemblyPath": "../../helengine-windows/builder/bin/Debug/net9.0/helengine.windows.builder.dll",
-      "playerSourceRootPath": "../../helengine-windows",
-      "generatedCoreCppRootPath": "../tmp/helengine-core-cpp-regenerated",
-      "codegenToolPath": "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
-    },
-    {
-      "engineVersion": "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
-      "platformId": "ps2",
-      "displayName": "PS2",
-      "builderAssemblyPath": "../../helengine-ps2/builder/bin/Debug/net9.0/helengine.ps2.builder.dll",
-      "playerSourceRootPath": "../../helengine-ps2",
-      "generatedCoreCppRootPath": "../tmp/helengine-core-cpp-regenerated",
-      "codegenToolPath": "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
-    },
-    {
-      "engineVersion": "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
-      "platformId": "psp",
-      "displayName": "PSP",
-      "builderAssemblyPath": "../../helengine-psp/builder/bin/Debug/net9.0/helengine.psp.builder.dll",
-      "playerSourceRootPath": "../../helengine-psp",
-      "generatedCoreCppRootPath": "../tmp/helengine-core-cpp-regenerated",
-      "codegenToolPath": "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
-    },
-    {
-      "engineVersion": "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
-      "platformId": "ds",
-      "displayName": "Nintendo DS",
-      "builderAssemblyPath": "../../helengine-ds/builder/bin/Debug/net9.0/helengine.ds.builder.dll",
-      "playerSourceRootPath": "../../helengine-ds",
-      "generatedCoreCppRootPath": "../tmp/helengine-core-cpp-regenerated",
-      "codegenToolPath": "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
-    }
-  ]
+    "platforms":  [
+                      {
+                          "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+                          "platformId":  "windows",
+                          "displayName":  "Windows DirectX",
+                          "builderAssemblyPath":  "../../helengine-windows/builder/bin/Debug/net9.0/helengine.windows.builder.dll",
+                          "playerSourceRootPath":  "../../helengine-windows",
+                          "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+                      },
+                      {
+                          "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+                          "platformId":  "ps2",
+                          "displayName":  "PS2",
+                          "builderAssemblyPath":  "../../helengine-ps2/builder/bin/Debug/net9.0/helengine.ps2.builder.dll",
+                          "playerSourceRootPath":  "../../helengine-ps2",
+                          "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+                      },
+                      {
+                          "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+                          "platformId":  "psp",
+                          "displayName":  "PSP",
+                          "builderAssemblyPath":  "../../helengine-psp/builder/bin/Debug/net9.0/helengine.psp.builder.dll",
+                          "playerSourceRootPath":  "../../helengine-psp",
+                          "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+                      },
+                      {
+                          "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+                          "platformId":  "ds",
+                          "displayName":  "Nintendo DS",
+                          "builderAssemblyPath":  "../../helengine-ds/builder/bin/Debug/net9.0/helengine.ds.builder.dll",
+                          "playerSourceRootPath":  "../../helengine-ds",
+                          "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+                      },
+                      {
+                          "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+                          "platformId":  "gamecube",
+                          "displayName":  "Nintendo GameCube",
+                          "builderAssemblyPath":  "../../helengine-gc/builder/bin/Debug/net9.0-windows/helengine.gamecube.builder.dll",
+                          "playerSourceRootPath":  "../../helengine-gc",
+                          "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+                      }
+                  ]
 }

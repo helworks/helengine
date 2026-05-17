@@ -1,4 +1,10 @@
+using helengine.baseplatform.Builders;
+using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Descriptors;
 using helengine.baseplatform.Manifest;
+using helengine.baseplatform.Reporting;
+using helengine.baseplatform.Requests;
+using helengine.baseplatform.Results;
 using helengine.editor.tests.testing;
 using helengine.platforms;
 using Xunit;
@@ -246,6 +252,46 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.Equal("model", artifactKind);
     }
 
+    /// <summary>
+    /// Verifies builder-owned GameCube texture capabilities are emitted as manifest work items and removed from cooked artifacts.
+    /// </summary>
+    [Fact]
+        public void Cook_when_platform_owns_texture_cooking_emits_platform_cook_work_item_and_removes_generic_cooked_texture_artifact() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
+            string textureRelativePath = "Textures/Cube00.png";
+            string textureAssetId = WriteSourceTextureAssetAndReturnAssetId(textureRelativePath, ".png", "gamecube");
+
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
+            WriteSceneAssetWithMaterial(sceneId, materialRelativePath);
+
+            EditorPlatformAssetCookService service = new(
+                ProjectRootPath,
+                "1.0.0-engine",
+                "game",
+                "1.0.0",
+                [
+                    new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])
+                ],
+                PackagedFontAssetFactory.Create());
+
+        PlatformBuildManifest manifest = service.Cook(
+            CreateGameCubeTexturePlatformDefinition(),
+            ["TexturedMaterialScene"],
+            BuildRootPath,
+            ["gamecube"],
+            new DescriptorOnlyPlatformAssetBuilder(CreateGameCubeTexturePlatformDefinition()));
+
+        PlatformCookWorkItem workItem = Assert.Single(manifest.PlatformCookWorkItems);
+        Assert.Equal("texture", workItem.SourceAssetKind);
+        Assert.Equal("runtime-texture", workItem.TargetArtifactKind);
+        Assert.Equal($"cooked/imported/{textureAssetId}", workItem.OutputRelativePath);
+        Assert.DoesNotContain(
+            manifest.CookedArtifacts,
+            artifact => string.Equals(artifact.RelativePath, $"cooked/imported/{textureAssetId}", StringComparison.OrdinalIgnoreCase));
+        Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "imported", textureAssetId)));
+    }
+
     void WriteSceneAsset(string sceneId, SceneAssetReference[] assetReferences) {
         string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
@@ -384,6 +430,176 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     static void WriteSerializedAsset(string fullPath, Asset asset) {
         using FileStream stream = new(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
         AssetSerializer.Serialize(stream, asset);
+    }
+
+    /// <summary>
+    /// Writes one city-style standard material settings document that references one optional imported diffuse texture id.
+    /// </summary>
+    /// <param name="materialRelativePath">Project-relative material path to write.</param>
+    /// <param name="diffuseTextureAssetId">Optional imported texture asset id referenced by the material.</param>
+    void WriteCityStyleStandardMaterialAsset(string materialRelativePath, string diffuseTextureAssetId = "") {
+        string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(materialPath)!);
+
+        MaterialAssetImportSettings settings = new() {
+            Importer = new AssetImporterSettings {
+                ImporterId = "helengine.material",
+                SourceChecksum = string.Empty,
+                AssetId = materialRelativePath
+            },
+            Processor = new MaterialAssetProcessorPlatformSettings()
+        };
+        settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+            SchemaId = "standard-shader",
+            FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                ["use-custom-shader"] = "false",
+                ["texture-id"] = diffuseTextureAssetId ?? string.Empty,
+                ["casts-shadow"] = "true",
+                ["receives-shadow"] = "true",
+                ["base-color"] = "#FF4040FF"
+            }
+        };
+
+        MaterialAssetSettingsService settingsService = new();
+        settingsService.Save(materialPath, settings);
+    }
+
+    /// <summary>
+    /// Writes one cached imported texture asset at the project cache path expected by scene packaging.
+    /// </summary>
+    /// <param name="textureAssetId">Imported texture asset identifier to write.</param>
+    void WriteCachedTextureAsset(string textureAssetId) {
+        string texturePath = Path.Combine(ProjectRootPath, "cache", textureAssetId);
+        Directory.CreateDirectory(Path.GetDirectoryName(texturePath)!);
+
+        TextureAsset textureAsset = new() {
+            Width = 1,
+            Height = 1,
+            Colors = [255, 255, 255, 255]
+        };
+
+        using FileStream stream = new(texturePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        AssetSerializer.Serialize(stream, textureAsset);
+    }
+
+    /// <summary>
+    /// Creates one minimal GameCube platform definition that publishes builder-owned runtime texture cooking.
+    /// </summary>
+    /// <returns>GameCube platform definition used by the work-item emission test.</returns>
+    static PlatformDefinition CreateGameCubeTexturePlatformDefinition() {
+        return new PlatformDefinition(
+            "gamecube",
+            "GameCube",
+            [
+                new PlatformBuildProfileDefinition(
+                    "debug",
+                    "Debug",
+                    "Debug GameCube build",
+                    "gx",
+                    [])
+            ],
+            [
+                new PlatformGraphicsProfileDefinition(
+                    "gx",
+                    "GX",
+                    "GameCube GX renderer",
+                    [])
+            ],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            null,
+            null,
+            [
+                new PlatformAssetCookCapabilityDefinition(
+                    "texture",
+                    "runtime-texture",
+                    PlatformAssetCookOwnershipKind.BuilderOwned,
+                    "gamecube-texture")
+            ]);
+    }
+
+    /// <summary>
+    /// Writes one source texture file and returns the asset id that the editor importer settings resolve for it.
+    /// </summary>
+    /// <param name="textureRelativePath">Project-relative source texture path to create.</param>
+    /// <param name="extension">Texture extension registered for the test importer.</param>
+    /// <returns>Importer-resolved texture asset id for the written source texture.</returns>
+    string WriteSourceTextureAssetAndReturnAssetId(string textureRelativePath, string extension, string platformId) {
+        string textureSourcePath = Path.Combine(ProjectRootPath, "assets", textureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(textureSourcePath)!);
+        File.WriteAllBytes(textureSourcePath, [1, 2, 3, 4]);
+
+        ContentManager contentManager = new(ProjectRootPath);
+        AssetImportManager assetImportManager = new(ProjectRootPath, contentManager);
+        assetImportManager.CurrentPlatformId = platformId;
+        assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [extension]));
+
+        TextureAssetImportSettings settings;
+        Assert.True(assetImportManager.TryLoadOrCreateTextureImportSettings(textureSourcePath, out settings));
+        Assert.NotNull(settings);
+        Assert.NotNull(settings.Importer);
+        Assert.False(string.IsNullOrWhiteSpace(settings.Importer.AssetId));
+        return settings.Importer.AssetId;
+    }
+
+    /// <summary>
+    /// Provides one descriptor-only builder so the asset-cook service can stamp platform metadata without enabling builder-owned material translation.
+    /// </summary>
+    sealed class DescriptorOnlyPlatformAssetBuilder : helengine.baseplatform.Builders.IPlatformAssetBuilder {
+        /// <summary>
+        /// Initializes the descriptor-only builder with the supplied platform definition.
+        /// </summary>
+        /// <param name="definition">Platform definition exposed to the asset-cook service.</param>
+        public DescriptorOnlyPlatformAssetBuilder(PlatformDefinition definition) {
+            Definition = definition ?? throw new ArgumentNullException(nameof(definition));
+            Descriptor = new PlatformBuilderDescriptor(
+                "helengine.editor.tests.descriptor-only-builder",
+                "1.0.0",
+                definition.PlatformId,
+                new EngineCompatibilityRange("1.0.0", "999.0.0"),
+                new ManifestCompatibilityRange(1, 2),
+                [definition.PlatformId],
+                ["debug"]);
+        }
+
+        /// <summary>
+        /// Gets the descriptor exposed to the asset-cook service.
+        /// </summary>
+        public PlatformBuilderDescriptor Descriptor { get; }
+
+        /// <summary>
+        /// Gets the platform definition exposed to the asset-cook service.
+        /// </summary>
+        public PlatformDefinition Definition { get; }
+
+        /// <summary>
+        /// Descriptor-only test builders never cook materials.
+        /// </summary>
+        /// <param name="request">Material cook request that should never be issued.</param>
+        /// <returns>This method always throws because the test never expects material cooking.</returns>
+        public PlatformMaterialCookResult CookMaterial(PlatformMaterialCookRequest request) {
+            throw new NotSupportedException("Descriptor-only test builders do not support material cooking.");
+        }
+
+        /// <summary>
+        /// Descriptor-only test builders never execute full platform builds.
+        /// </summary>
+        /// <param name="request">Build request that should never be issued.</param>
+        /// <param name="progressReporter">Progress reporter supplied by the caller.</param>
+        /// <param name="diagnosticReporter">Diagnostic reporter supplied by the caller.</param>
+        /// <param name="cancellationToken">Cancellation token supplied by the caller.</param>
+        /// <returns>This method always throws because the test never expects full builder execution.</returns>
+        public Task<PlatformBuildReport> BuildAsync(
+            PlatformBuildRequest request,
+            IPlatformBuildProgressReporter progressReporter,
+            IPlatformBuildDiagnosticReporter diagnosticReporter,
+            CancellationToken cancellationToken) {
+            throw new NotSupportedException("Descriptor-only test builders do not support full build execution.");
+        }
     }
 
     /// <summary>
