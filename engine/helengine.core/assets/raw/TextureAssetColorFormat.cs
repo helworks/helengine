@@ -21,6 +21,11 @@ namespace helengine {
         /// <summary>
         /// Stores one texel as one 8-bit palette index.
         /// </summary>
-        Indexed8 = 3
+        Indexed8 = 3,
+
+        /// <summary>
+        /// Stores one texel as one prepacked GameCube GX RGB5A3 16-bit value.
+        /// </summary>
+        GxRgb5A3 = 4
     }
 }
