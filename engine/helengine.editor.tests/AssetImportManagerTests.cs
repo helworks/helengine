@@ -387,6 +387,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures changing the GameCube cooked texture format invalidates the cached texture asset id.
+        /// </summary>
+        [Fact]
+        public void TryLoadTextureAsset_WhenGameCubeColorFormatChanges_ReimportsWithANewAssetId() {
+            string sourcePath = WriteSourceTexture("gamecube-format-id.tga");
+            AssetImportManager manager = CreateTgaManager();
+            manager.CurrentPlatformId = "gamecube";
+
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["gamecube"] = new TextureAssetProcessorSettings {
+                MaxResolution = 256,
+                ColorFormat = TextureAssetColorFormat.Rgba32,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8
+            };
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["gamecube"].ColorFormat = TextureAssetColorFormat.GxRgb5A3;
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            Assert.NotEqual(firstAssetId, secondAssetId);
+        }
+
+        /// <summary>
         /// Ensures Nintendo DS texture imports use the compact default texture budget even when no explicit per-platform override was authored yet.
         /// </summary>
         [Fact]

@@ -36,5 +36,36 @@ namespace helengine.editor.tests.managers.asset {
             Assert.Equal(16, processed.PaletteColors.Length);
             Assert.Equal(2, processed.Colors.Length);
         }
+
+        /// <summary>
+        /// Verifies the texture processor converts RGBA32 source pixels into packed GameCube RGB5A3 bytes.
+        /// </summary>
+        [Fact]
+        public void Apply_WhenGxRgb5A3IsRequested_ProducesPackedGameCubeTextureBytes() {
+            TextureAsset source = new TextureAsset {
+                Id = "menu/logo",
+                Width = 4,
+                Height = 4,
+                ColorFormat = TextureAssetColorFormat.Rgba32,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                Colors = [
+                    255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+                    255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+                    255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+                    255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255
+                ]
+            };
+
+            TextureAsset processed = new TextureAssetProcessor().Apply(source, new TextureAssetProcessorSettings {
+                ColorFormat = TextureAssetColorFormat.GxRgb5A3,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                MaxResolution = 0
+            });
+
+            Assert.Equal(TextureAssetColorFormat.GxRgb5A3, processed.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, processed.AlphaPrecision);
+            Assert.Equal(4 * 4 * 2, processed.Colors.Length);
+            Assert.True(processed.PaletteColors == null || processed.PaletteColors.Length == 0);
+        }
     }
 }
