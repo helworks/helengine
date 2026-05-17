@@ -48,10 +48,11 @@ namespace helengine.editor {
             if (!ContainsSceneId(sceneIds, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId)) {
                 return;
             }
-            if (TryResolveExistingScenePath(PlatformMenuSceneResolver.NintendoDsMainMenuSceneId, out _)) {
-                return;
-            }
             if (ScriptTypeResolver == null) {
+                if (TryResolveExistingScenePath(PlatformMenuSceneResolver.NintendoDsMainMenuSceneId, out _)) {
+                    return;
+                }
+
                 throw new InvalidOperationException(
                     $"Generated menu scene '{PlatformMenuSceneResolver.NintendoDsMainMenuSceneId}' is missing and no script type resolver is available to rebuild it.");
             }

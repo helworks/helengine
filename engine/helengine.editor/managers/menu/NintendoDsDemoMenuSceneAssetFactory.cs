@@ -44,6 +44,11 @@ namespace helengine.editor {
         readonly RoundedRectComponentPersistenceDescriptor RoundedRectDescriptor;
 
         /// <summary>
+        /// Descriptor used to serialize the FPS overlay component.
+        /// </summary>
+        readonly FPSComponentPersistenceDescriptor FpsDescriptor;
+
+        /// <summary>
         /// Descriptor used to serialize automatic reflected component payloads such as viewport, clip, and scroll metadata.
         /// </summary>
         readonly AutomaticScriptComponentPersistenceDescriptor AutomaticDescriptor;
@@ -69,6 +74,7 @@ namespace helengine.editor {
             TextDescriptor = new TextComponentPersistenceDescriptor();
             SpriteDescriptor = new SpriteComponentPersistenceDescriptor();
             RoundedRectDescriptor = new RoundedRectComponentPersistenceDescriptor();
+            FpsDescriptor = new FPSComponentPersistenceDescriptor();
             AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             PlaceholderFont = new FontAsset(
                 new FontInfo("Placeholder", 16, 4f),
@@ -120,18 +126,19 @@ namespace helengine.editor {
                     }
                 },
                 RootEntities = [
-                    BuildTopCameraEntityAsset(definition),
-                    BuildBottomCameraEntityAsset(providerTypeName, definition)
+                    BuildTopCameraEntityAsset(providerTypeName, definition),
+                    BuildBottomCameraEntityAsset(definition)
                 ]
             };
         }
 
         /// <summary>
-        /// Builds the top-screen camera entity that owns the logo and title presentation.
+        /// Builds the top-screen camera entity that owns the interactive menu presentation during DS profiling.
         /// </summary>
+        /// <param name="providerTypeName">Assembly-qualified provider type name stored on the baked menu root component.</param>
         /// <param name="definition">Menu definition that supplies the top-screen visuals.</param>
         /// <returns>Serialized top-screen camera entity.</returns>
-        SceneEntityAsset BuildTopCameraEntityAsset(MenuDefinition definition) {
+        SceneEntityAsset BuildTopCameraEntityAsset(string providerTypeName, MenuDefinition definition) {
             return new SceneEntityAsset {
                 Id = AllocateSceneEntityId(),
                 Name = "DemoDiscTopScreenCamera",
@@ -144,18 +151,17 @@ namespace helengine.editor {
                         definition.BackgroundColor)
                 ],
                 Children = [
-                    BuildTopScreenRootEntityAsset(definition)
+                    BuildTopMenuRootEntityAsset(providerTypeName, definition)
                 ]
             };
         }
 
         /// <summary>
-        /// Builds the bottom-screen camera entity that owns the interactive menu list.
+        /// Builds the bottom-screen camera entity that owns the native-console viewport placeholder during DS profiling.
         /// </summary>
-        /// <param name="providerTypeName">Assembly-qualified provider type name stored on the baked menu root.</param>
-        /// <param name="definition">Menu definition that supplies the interactive menu content.</param>
+        /// <param name="definition">Menu definition that supplies the scene background color.</param>
         /// <returns>Serialized bottom-screen camera entity.</returns>
-        SceneEntityAsset BuildBottomCameraEntityAsset(string providerTypeName, MenuDefinition definition) {
+        SceneEntityAsset BuildBottomCameraEntityAsset(MenuDefinition definition) {
             return new SceneEntityAsset {
                 Id = AllocateSceneEntityId(),
                 Name = "DemoDiscBottomScreenCamera",
@@ -168,7 +174,7 @@ namespace helengine.editor {
                         definition.BackgroundColor)
                 ],
                 Children = [
-                    BuildBottomMenuRootEntityAsset(providerTypeName, definition)
+                    BuildBottomScreenConsoleRootEntityAsset()
                 ]
             };
         }
@@ -241,10 +247,21 @@ namespace helengine.editor {
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = [
-                    AutomaticDescriptor.SerializeComponent(viewportComponent, 0, null)
+                    AutomaticDescriptor.SerializeComponent(viewportComponent, 0, null),
+                    CreateFpsComponentRecord(definition.TitleFontPath, 1)
                 ],
                 Children = children.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Builds the top-screen menu root that hosts the runtime menu component during DS profiling.
+        /// </summary>
+        /// <param name="providerTypeName">Assembly-qualified provider type name stored on the baked menu root component.</param>
+        /// <param name="definition">Menu definition that should be baked into the interactive subtree.</param>
+        /// <returns>Serialized top-screen menu root entity.</returns>
+        SceneEntityAsset BuildTopMenuRootEntityAsset(string providerTypeName, MenuDefinition definition) {
+            return BuildBottomMenuRootEntityAsset(providerTypeName, definition);
         }
 
         /// <summary>
@@ -283,6 +300,32 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds the bottom-screen viewport root reserved for the native DS diagnostics console during profiling.
+        /// </summary>
+        /// <returns>Serialized bottom-screen viewport root.</returns>
+        SceneEntityAsset BuildBottomScreenConsoleRootEntityAsset() {
+            ViewportComponent viewportComponent = new ViewportComponent {
+                BindingMode = ViewportComponent.AncestorCameraBindingMode,
+                FixedSize = new int2(DemoMenuNintendoDsLayout.ScreenWidth, DemoMenuNintendoDsLayout.ScreenHeight),
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                ReferenceWidth = DemoMenuNintendoDsLayout.ScreenWidth,
+                ReferenceHeight = DemoMenuNintendoDsLayout.ScreenHeight
+            };
+
+            return new SceneEntityAsset {
+                Id = AllocateSceneEntityId(),
+                Name = "DemoDiscBottomScreenRoot",
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = [
+                    AutomaticDescriptor.SerializeComponent(viewportComponent, 0, null)
+                ],
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
         /// Builds the generated bottom-screen menu subtree root.
         /// </summary>
         /// <param name="definition">Menu definition that should be baked into the interactive subtree.</param>
@@ -316,6 +359,7 @@ namespace helengine.editor {
             };
 
             MenuItemDefinition firstItem = ResolveFirstEnabledItem(panelDefinition);
+            byte4 panelSurfaceFillColor = ResolveNintendoDsOpaqueCompositeColor(definition.BackgroundColor, definition.SurfaceColor);
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
             children.Add(BuildBackgroundEntityAsset(
                 $"panel-{panelDefinition.PanelId}-surface",
@@ -323,7 +367,7 @@ namespace helengine.editor {
                 new int2(DemoMenuNintendoDsLayout.PanelWidth, DemoMenuNintendoDsLayout.PanelHeight),
                 10f,
                 2f,
-                definition.SurfaceColor,
+                panelSurfaceFillColor,
                 definition.SurfaceBorderColor,
                 30));
             children.Add(BuildBackgroundEntityAsset(
@@ -545,6 +589,41 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one opaque Nintendo DS menu color by precompositing the authored fill color over the menu background.
+        /// </summary>
+        /// <param name="backgroundColor">Opaque background color that clears the DS menu camera.</param>
+        /// <param name="overlayColor">Authored overlay color that may still carry translucency.</param>
+        /// <returns>Opaque composite color matching the authored overlay over the supplied background.</returns>
+        byte4 ResolveNintendoDsOpaqueCompositeColor(byte4 backgroundColor, byte4 overlayColor) {
+            if (overlayColor.W >= 255) {
+                return overlayColor;
+            }
+
+            double alpha = overlayColor.W / 255d;
+            double inverseAlpha = 1d - alpha;
+            return new byte4(
+                ComposeOpaqueChannel(backgroundColor.X, overlayColor.X, alpha, inverseAlpha),
+                ComposeOpaqueChannel(backgroundColor.Y, overlayColor.Y, alpha, inverseAlpha),
+                ComposeOpaqueChannel(backgroundColor.Z, overlayColor.Z, alpha, inverseAlpha),
+                255);
+        }
+
+        /// <summary>
+        /// Resolves one 8-bit opaque color channel by compositing one translucent overlay channel over the supplied background channel.
+        /// </summary>
+        /// <param name="backgroundChannel">Opaque background channel value.</param>
+        /// <param name="overlayChannel">Overlay channel value that should be composited.</param>
+        /// <param name="alpha">Normalized overlay alpha.</param>
+        /// <param name="inverseAlpha">Inverse normalized overlay alpha.</param>
+        /// <returns>Composite 8-bit channel value rounded to the nearest integer.</returns>
+        byte ComposeOpaqueChannel(byte backgroundChannel, byte overlayChannel, double alpha, double inverseAlpha) {
+            return (byte)Math.Clamp(
+                (int)Math.Round((overlayChannel * alpha) + (backgroundChannel * inverseAlpha)),
+                0,
+                255);
+        }
+
+        /// <summary>
         /// Builds the decorative top-screen logo entity using the authored overlay image.
         /// </summary>
         /// <param name="overlayImage">Overlay image definition to bake into the top screen.</param>
@@ -675,6 +754,22 @@ namespace helengine.editor {
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, BuildFileFontReference(fontPath));
             return TextDescriptor.SerializeComponent(textComponent, 0, saveState);
+        }
+
+        /// <summary>
+        /// Serializes the Nintendo DS menu-scene FPS overlay using the authored body font reference.
+        /// </summary>
+        /// <param name="fontPath">Project-relative font path used by the overlay.</param>
+        /// <param name="componentIndex">Component index assigned within the owning entity.</param>
+        /// <returns>Serialized FPS overlay component record.</returns>
+        SceneComponentAssetRecord CreateFpsComponentRecord(string fontPath, int componentIndex) {
+            FPSComponent fpsComponent = new FPSComponent {
+                Font = PlaceholderFont,
+                RefreshIntervalSeconds = 0d
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, BuildFileFontReference(fontPath));
+            return FpsDescriptor.SerializeComponent(fpsComponent, componentIndex, saveState);
         }
 
         /// <summary>
