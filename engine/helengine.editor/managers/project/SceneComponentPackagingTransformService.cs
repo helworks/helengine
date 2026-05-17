@@ -26,6 +26,11 @@ namespace helengine.editor {
         const byte FPSComponentPayloadVersion = 2;
 
         /// <summary>
+        /// Current payload version for serialized debug component scene records.
+        /// </summary>
+        const byte DebugComponentPayloadVersion = 1;
+
+        /// <summary>
         /// Current payload version for serialized text component scene records.
         /// </summary>
         const byte TextComponentPayloadVersion = 1;
@@ -129,6 +134,31 @@ namespace helengine.editor {
         /// Stable serialized component id for text components.
         /// </summary>
         const string TextComponentTypeId = "helengine.TextComponent";
+
+        /// <summary>
+        /// Stable serialized component id for debug overlay components.
+        /// </summary>
+        const string DebugComponentTypeId = "helengine.DebugComponent";
+
+        /// <summary>
+        /// Stable tagged field name used for debug font-reference persistence.
+        /// </summary>
+        const string DebugFontReferenceFieldName = "FontReference";
+
+        /// <summary>
+        /// Stable tagged field name used for debug refresh-interval persistence.
+        /// </summary>
+        const string DebugRefreshIntervalSecondsFieldName = "RefreshIntervalSeconds";
+
+        /// <summary>
+        /// Stable tagged field name used for debug padding persistence.
+        /// </summary>
+        const string DebugPaddingFieldName = "Padding";
+
+        /// <summary>
+        /// Stable tagged field name used for debug 2D render-order persistence.
+        /// </summary>
+        const string DebugRenderOrder2DFieldName = "RenderOrder2D";
 
         /// <summary>
         /// Stable serialized component id for sprite components.
@@ -532,6 +562,7 @@ namespace helengine.editor {
             PersistenceRegistry.Register(new SpriteComponentPersistenceDescriptor());
             PersistenceRegistry.Register(RoundedRectComponentDescriptor);
             PersistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
+            PersistenceRegistry.Register(new DebugComponentPersistenceDescriptor());
             PersistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
             PersistenceRegistry.Register(new AmbientLightComponentPersistenceDescriptor());
             PersistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
@@ -555,6 +586,7 @@ namespace helengine.editor {
             if (string.Equals(componentTypeId, MeshComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, CameraComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, DebugComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, SpriteComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, RoundedRectComponentTypeId, StringComparison.OrdinalIgnoreCase)
@@ -608,6 +640,11 @@ namespace helengine.editor {
 
             if (string.Equals(record.ComponentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteFPSComponentRecord(record, buildRootPath);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, DebugComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteDebugComponentRecord(record, buildRootPath);
                 return true;
             }
 
@@ -1225,6 +1262,34 @@ namespace helengine.editor {
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = FPSComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Rewrites one serialized debug payload into the strict runtime debug payload shape.
+        /// </summary>
+        /// <param name="record">Serialized debug component record to rewrite.</param>
+        /// <returns>Rewritten debug component record.</returns>
+        SceneComponentAssetRecord RewriteDebugComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
+            ReadDebugComponentRecord(
+                record,
+                out SceneAssetReference fontReference,
+                out double refreshIntervalSeconds,
+                out int2 padding,
+                out byte renderOrder2D);
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(DebugComponentPayloadVersion);
+            WriteOptionalReference(writer, RewriteFontReference(fontReference, buildRootPath));
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(refreshIntervalSeconds));
+            writer.WriteInt2(padding);
+            writer.WriteByte(renderOrder2D);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = DebugComponentTypeId,
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
@@ -2485,6 +2550,100 @@ namespace helengine.editor {
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Reads one serialized debug payload from either the current tagged editor format or the current authored binary format.
+        /// </summary>
+        /// <param name="record">Serialized debug component record to interpret.</param>
+        /// <param name="fontReference">Persisted font reference.</param>
+        /// <param name="refreshIntervalSeconds">Persisted refresh interval.</param>
+        /// <param name="padding">Persisted overlay padding.</param>
+        /// <param name="renderOrder2D">Persisted 2D render order.</param>
+        void ReadDebugComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference fontReference,
+            out double refreshIntervalSeconds,
+            out int2 padding,
+            out byte renderOrder2D) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            if (TryReadTaggedDebugComponentRecord(payload, out fontReference, out refreshIntervalSeconds, out padding, out renderOrder2D)) {
+                return;
+            }
+
+            using MemoryStream readStream = new MemoryStream(payload, false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != DebugComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported Debug component payload version '{version}'.");
+            }
+
+            fontReference = FontAssetScenePersistenceSupport.ReadOptionalReference(reader);
+            refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
+            padding = reader.ReadInt2();
+            renderOrder2D = reader.ReadByte();
+        }
+
+        /// <summary>
+        /// Attempts to read one debug payload from the current tagged editor format.
+        /// </summary>
+        /// <param name="payload">Serialized payload bytes to inspect.</param>
+        /// <param name="fontReference">Persisted font reference when decoding succeeds.</param>
+        /// <param name="refreshIntervalSeconds">Persisted refresh interval when decoding succeeds.</param>
+        /// <param name="padding">Persisted overlay padding when decoding succeeds.</param>
+        /// <param name="renderOrder2D">Persisted 2D render order when decoding succeeds.</param>
+        /// <returns>True when the payload matched the tagged editor format; otherwise false.</returns>
+        bool TryReadTaggedDebugComponentRecord(
+            byte[] payload,
+            out SceneAssetReference fontReference,
+            out double refreshIntervalSeconds,
+            out int2 padding,
+            out byte renderOrder2D) {
+            fontReference = null;
+            refreshIntervalSeconds = 0d;
+            padding = int2.Zero;
+            renderOrder2D = 0;
+
+            try {
+                EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
+                bool foundTaggedField = false;
+                if (reader.TryGetFieldReader(DebugFontReferenceFieldName, out EngineBinaryReader fontReferenceReader)) {
+                    foundTaggedField = true;
+                    using (fontReferenceReader) {
+                        fontReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(fontReferenceReader);
+                    }
+                }
+                if (reader.TryGetFieldReader(DebugRefreshIntervalSecondsFieldName, out EngineBinaryReader refreshIntervalReader)) {
+                    foundTaggedField = true;
+                    using (refreshIntervalReader) {
+                        refreshIntervalSeconds = BitConverter.Int64BitsToDouble(refreshIntervalReader.ReadInt64());
+                    }
+                }
+                if (reader.TryGetFieldReader(DebugPaddingFieldName, out EngineBinaryReader paddingReader)) {
+                    foundTaggedField = true;
+                    using (paddingReader) {
+                        padding = paddingReader.ReadInt2();
+                    }
+                }
+                if (reader.TryGetFieldReader(DebugRenderOrder2DFieldName, out EngineBinaryReader renderOrderReader)) {
+                    foundTaggedField = true;
+                    using (renderOrderReader) {
+                        renderOrder2D = renderOrderReader.ReadByte();
+                    }
+                }
+
+                return foundTaggedField;
+            } catch (InvalidOperationException) {
+                fontReference = null;
+                refreshIntervalSeconds = 0d;
+                padding = int2.Zero;
+                renderOrder2D = 0;
+                return false;
+            }
         }
 
         /// <summary>

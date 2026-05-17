@@ -91,6 +91,19 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the catalog suppresses duplicate debug overlay descriptors on entities that already own one.
+        /// </summary>
+        [Fact]
+        public void GetAvailableComponents_WhenEntityAlreadyHasDebugComponent_DoesNotIncludeSecondDebugDescriptor() {
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(new DebugComponent());
+
+            IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
+
+            Assert.DoesNotContain(components, component => component.ComponentType == typeof(DebugComponent));
+        }
+
+        /// <summary>
         /// Ensures the reflected catalog never exposes the base component type as an addable option.
         /// </summary>
         [Fact]
