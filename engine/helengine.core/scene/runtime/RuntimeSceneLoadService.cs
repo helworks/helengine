@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Materializes packaged scene assets into live runtime entities for player builds.
+    /// Materializes packaged scene assets into live runtime entities for <see cref="SceneManager"/> and explicit raw-load test seams.
     /// </summary>
     public sealed class RuntimeSceneLoadService {
         /// <summary>

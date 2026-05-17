@@ -676,9 +676,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("#else", normalizedSource);
         Assert.Contains("#endif", normalizedSource);
         Assert.DoesNotContain("ComponentExecutionContext::get_CurrentMode() == ComponentExecutionMode::Editor", normalizedSource);
-        Assert.Contains("Core::get_Instance()->get_InitializationOptions()->get_ScenePathResolver()->ResolveScenePath(PlatformMenuSceneResolver::ResolveMainMenuSceneId());", normalizedSource);
-        Assert.Contains("Core::get_Instance()->get_ContentManager()->Load<SceneAsset*>(resolvedScenePath, RuntimeContentProcessorIds::SceneAsset);", normalizedSource);
         Assert.Contains("Core::get_Instance()->get_SceneManager()->LoadScene(PlatformMenuSceneResolver::ResolveMainMenuSceneId(), SceneLoadMode::Single);", normalizedSource);
+        Assert.DoesNotContain("Core::get_Instance()->get_SceneLoadService()->Load(sceneAsset);", normalizedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResolveScenePath(PlatformMenuSceneResolver::ResolveMainMenuSceneId())", normalizedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Load<SceneAsset*>(resolvedScenePath, RuntimeContentProcessorIds::SceneAsset)", normalizedSource, StringComparison.Ordinal);
         Assert.Contains("Parent->set_Enabled(false);", normalizedSource);
         Assert.Contains("#if DESKTOP_PLATFORM", normalizedSource);
         Assert.Contains("Keys::Escape", normalizedSource);

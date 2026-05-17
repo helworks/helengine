@@ -19,6 +19,11 @@ namespace helengine {
         readonly RuntimeSceneLoadService SceneLoadService;
 
         /// <summary>
+        /// Optional editor-side resolver used to map stable scene ids back to authored scene paths when no runtime scene catalog is available.
+        /// </summary>
+        readonly ISceneIdPathResolver ScenePathResolver;
+
+        /// <summary>
         /// Object manager that owns live runtime entities and allows teardown of untracked startup roots.
         /// </summary>
         readonly ObjectManager ObjectManager;
@@ -70,11 +75,22 @@ namespace helengine {
         /// <param name="contentManager">Runtime content manager used to read cooked scene payloads.</param>
         /// <param name="sceneLoadService">Runtime service used to materialize scene entities.</param>
         /// <param name="objectManager">Object manager that owns live runtime entities.</param>
-        public SceneManager(RuntimeSceneCatalog sceneCatalog, ContentManager contentManager, RuntimeSceneLoadService sceneLoadService, ObjectManager objectManager) {
-            SceneCatalog = sceneCatalog ?? throw new ArgumentNullException(nameof(sceneCatalog));
+        /// <param name="scenePathResolver">Optional editor-side resolver that maps stable scene ids to authored scene paths.</param>
+        public SceneManager(
+            RuntimeSceneCatalog sceneCatalog,
+            ContentManager contentManager,
+            RuntimeSceneLoadService sceneLoadService,
+            ObjectManager objectManager,
+            ISceneIdPathResolver scenePathResolver) {
+            if (sceneCatalog == null && scenePathResolver == null) {
+                throw new ArgumentNullException(nameof(sceneCatalog), "A runtime scene manager requires either a scene catalog or a scene path resolver.");
+            }
+
+            SceneCatalog = sceneCatalog;
             ContentManager = contentManager ?? throw new ArgumentNullException(nameof(contentManager));
             SceneLoadService = sceneLoadService ?? throw new ArgumentNullException(nameof(sceneLoadService));
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            ScenePathResolver = scenePathResolver;
             LoadedSceneRecords = new List<LoadedSceneRecord>();
             LoadedSceneRecordsById = new Dictionary<string, LoadedSceneRecord>(StringComparer.OrdinalIgnoreCase);
             PendingOperations = new List<PendingSceneOperation>();
@@ -226,9 +242,7 @@ namespace helengine {
         /// <param name="loadMode">Runtime load behavior to apply.</param>
         void LoadSceneImmediate(string sceneId, SceneLoadMode loadMode) {
             RecordTraceState("LoadSceneImmediateBegin", sceneId);
-            if (!SceneCatalog.TryGetEntry(sceneId, out RuntimeSceneCatalogEntry entry)) {
-                throw new InvalidOperationException($"Runtime scene '{sceneId}' was not found in the build scene catalog.");
-            }
+            string sceneContentPath = ResolveSceneContentPath(sceneId);
             if (loadMode == SceneLoadMode.Additive && LoadedSceneRecordsById.ContainsKey(sceneId)) {
                 throw new InvalidOperationException($"Runtime scene '{sceneId}' is already loaded.");
             }
@@ -246,14 +260,14 @@ namespace helengine {
                 FlushReleasedTextures();
             }
 
-            SceneLoading?.Invoke(this, new SceneLoadingEventArgs(entry.SceneId, entry.CookedRelativePath));
-            RecordTraceState("LoadSceneImmediateBeforeContentLoad", entry.SceneId);
-            SceneAsset sceneAsset = ContentManager.Load<SceneAsset>(entry.CookedRelativePath, RuntimeContentProcessorIds.SceneAsset);
-            RecordTraceState("LoadSceneImmediateBeforeSceneLoadServiceLoad", entry.SceneId);
+            SceneLoading?.Invoke(this, new SceneLoadingEventArgs(sceneId, sceneContentPath));
+            RecordTraceState("LoadSceneImmediateBeforeContentLoad", sceneId);
+            SceneAsset sceneAsset = ContentManager.Load<SceneAsset>(sceneContentPath, RuntimeContentProcessorIds.SceneAsset);
+            RecordTraceState("LoadSceneImmediateBeforeSceneLoadServiceLoad", sceneId);
             RuntimeSceneLoadResult loadResult = SceneLoadService.LoadTracked(sceneAsset);
-            RecordTraceState("LoadSceneImmediateAfterSceneLoadServiceLoad", entry.SceneId);
-            LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(entry.SceneId, entry.CookedRelativePath, loadResult.RootEntities, loadResult.OwnedAssets);
-            RecordTraceState("LoadSceneImmediateBeforeLoadedSceneRecordTrack", entry.SceneId);
+            RecordTraceState("LoadSceneImmediateAfterSceneLoadServiceLoad", sceneId);
+            LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(sceneId, sceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets);
+            RecordTraceState("LoadSceneImmediateBeforeLoadedSceneRecordTrack", sceneId);
             LoadedSceneRecords.Add(loadedSceneRecord);
             LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
             RegisterOwnedAssets(loadedSceneRecord.OwnedAssets);
@@ -261,7 +275,7 @@ namespace helengine {
                 loadedSceneRecord.SceneId,
                 loadedSceneRecord.CookedRelativePath,
                 loadedSceneRecord.RootEntities));
-            RecordTraceState("LoadSceneImmediateEnd", entry.SceneId);
+            RecordTraceState("LoadSceneImmediateEnd", sceneId);
         }
 
         /// <summary>
@@ -341,6 +355,26 @@ namespace helengine {
                 UnloadScene(LoadedSceneRecords[0].SceneId);
             }
             RecordTraceState("UnloadAllScenesEnd", string.Empty);
+        }
+
+        /// <summary>
+        /// Resolves the content path that should be materialized for one stable scene identifier.
+        /// </summary>
+        /// <param name="sceneId">Stable scene identifier to resolve.</param>
+        /// <returns>Content path that should be loaded for the supplied scene id.</returns>
+        string ResolveSceneContentPath(string sceneId) {
+            if (SceneCatalog != null && SceneCatalog.TryGetEntry(sceneId, out RuntimeSceneCatalogEntry entry)) {
+                return entry.CookedRelativePath;
+            } else if (ScenePathResolver != null) {
+                string authoredScenePath = ScenePathResolver.ResolveScenePath(sceneId);
+                if (string.IsNullOrWhiteSpace(authoredScenePath)) {
+                    throw new InvalidOperationException($"Runtime scene '{sceneId}' resolved to an empty authored scene path.");
+                }
+
+                return authoredScenePath;
+            }
+
+            throw new InvalidOperationException($"Runtime scene '{sceneId}' was not found in the build scene catalog and no scene path resolver was configured.");
         }
 
         /// <summary>
