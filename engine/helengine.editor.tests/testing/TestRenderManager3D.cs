@@ -21,6 +21,14 @@ namespace helengine.editor.tests.testing {
         /// Runtime materials released through this test renderer.
         /// </summary>
         readonly List<RuntimeMaterial> ReleasedMaterialsValue;
+        /// <summary>
+        /// Queued draw-call counts that should be published by subsequent draw calls.
+        /// </summary>
+        readonly Queue<int> QueuedDrawCallCountsValue;
+        /// <summary>
+        /// Most recent draw-call count published by the test renderer.
+        /// </summary>
+        int LastDrawCallCountValue;
 
         /// <summary>
         /// Initializes a new test render manager.
@@ -30,6 +38,7 @@ namespace helengine.editor.tests.testing {
             BuiltMaterialAssetsValue = new List<MaterialAsset>();
             ReleasedModelsValue = new List<RuntimeModel>();
             ReleasedMaterialsValue = new List<RuntimeMaterial>();
+            QueuedDrawCallCountsValue = new Queue<int>();
         }
 
         /// <summary>
@@ -66,6 +75,25 @@ namespace helengine.editor.tests.testing {
         }
 
         /// <summary>
+        /// Gets the draw-call count recorded by the most recent completed draw.
+        /// </summary>
+        public override int LastDrawCallCount => LastDrawCallCountValue;
+
+        /// <summary>
+        /// Queues deterministic draw-call counts for subsequent draw invocations.
+        /// </summary>
+        /// <param name="drawCallCounts">Draw-call counts that should be reported in order.</param>
+        public void QueueDrawCallCounts(IEnumerable<int> drawCallCounts) {
+            if (drawCallCounts == null) {
+                throw new ArgumentNullException(nameof(drawCallCounts));
+            }
+
+            foreach (int drawCallCount in drawCallCounts) {
+                QueuedDrawCallCountsValue.Enqueue(drawCallCount);
+            }
+        }
+
+        /// <summary>
         /// Creates a lightweight test render target with the requested dimensions.
         /// </summary>
         /// <param name="width">Requested target width.</param>
@@ -76,6 +104,13 @@ namespace helengine.editor.tests.testing {
                 Width = width,
                 Height = height
             };
+        }
+
+        /// <summary>
+        /// Records one deterministic draw-call count for the current frame.
+        /// </summary>
+        public override void Draw() {
+            LastDrawCallCountValue = QueuedDrawCallCountsValue.Count == 0 ? 0 : QueuedDrawCallCountsValue.Dequeue();
         }
 
         /// <summary>

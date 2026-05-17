@@ -129,6 +129,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures repeated draw calls continue to expose the latest render-manager draw-call count through the shared core contract.
+        /// </summary>
+        [Fact]
+        public void Draw_WhenCalledRepeatedly_StoresTheLatestDrawCallCount() {
+            TestClockDrivenCore core = CreateClockDrivenCore();
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(core.RenderManager3D);
+            renderManager.QueueDrawCallCounts(new[] { 9, 4 });
+
+            core.Draw();
+            Assert.Equal(9, core.LastRenderManager3DDrawCallCount);
+
+            core.Draw();
+            Assert.Equal(4, core.LastRenderManager3DDrawCallCount);
+        }
+
+        /// <summary>
         /// Ensures negative elapsed frame times are rejected instead of silently corrupting timing state.
         /// </summary>
         [Fact]
