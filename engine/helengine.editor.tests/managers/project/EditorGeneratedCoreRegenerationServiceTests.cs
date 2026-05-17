@@ -744,16 +744,12 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("RewriteGeneratedRenderManager2DFontOwnership", source, StringComparison.Ordinal);
         Assert.Contains("RewriteGeneratedRuntimeSceneAssetReferenceResolverTemporaryAssetOwnership", source, StringComparison.Ordinal);
         Assert.Contains("RewriteGeneratedSceneManagerTemporarySceneAssetOwnership", source, StringComparison.Ordinal);
-        Assert.Contains("RewriteGeneratedObjectManagerPendingUpdateOperationOwnership", source, StringComparison.Ordinal);
         Assert.Contains("RewriteGeneratedFontAssetSourceTextureOwnership", source, StringComparison.Ordinal);
-        Assert.Contains("RewriteGeneratedFontAssetBinarySerializerVersionConstants", source, StringComparison.Ordinal);
         Assert.Contains("if (string.Equals(fileName, \"ContentManager.cpp\"", source, StringComparison.Ordinal);
         Assert.Contains("if (string.Equals(fileName, \"RenderManager2D.cpp\"", source, StringComparison.Ordinal);
         Assert.Contains("if (string.Equals(fileName, \"RuntimeSceneAssetReferenceResolver.cpp\"", source, StringComparison.Ordinal);
         Assert.Contains("if (string.Equals(fileName, \"SceneManager.cpp\"", source, StringComparison.Ordinal);
-        Assert.Contains("if (string.Equals(fileName, \"ObjectManager.cpp\"", source, StringComparison.Ordinal);
         Assert.Contains("if (string.Equals(fileName, \"FontAsset.cpp\"", source, StringComparison.Ordinal);
-        Assert.Contains("if (string.Equals(fileName, \"FontAssetBinarySerializer.cpp\"", source, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -873,43 +869,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies generated object-manager deferred update operations are deleted after application so panel transitions do not leak native queue nodes.
-    /// </summary>
-    [Fact]
-    public void Normalize_generated_native_sources_rewrites_object_manager_pending_update_operation_ownership() {
-        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-object-manager-pending-update-ownership");
-        Directory.CreateDirectory(generatedCoreRootPath);
-        string objectManagerPath = Path.Combine(generatedCoreRootPath, "ObjectManager.cpp");
-
-        File.WriteAllText(
-            objectManagerPath,
-            "void ObjectManager::ApplyPendingUpdateOperations()\n"
-            + "{\n"
-            + "    if (this->pendingUpdateOperations->get_Count() == 0)\n"
-            + "    {\n"
-            + "return;    }\n"
-            + "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\n"
-            + "::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\n"
-            + "    if (op->get_IsAdd())\n"
-            + "    {\n"
-            + "this->AddUpdateableToList(op->get_Entity());\n"
-            + "    }\n"
-            + "else {\n"
-            + "this->RemoveUpdateableFromList(op->get_Entity());\n"
-            + "}\n"
-            + "}\n"
-            + "this->pendingUpdateOperations->Clear();\n"
-            + "}\n");
-
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
-
-        string normalizedObjectManager = File.ReadAllText(objectManagerPath);
-
-        Assert.Contains("delete op;", normalizedObjectManager);
-        Assert.Contains("this->pendingUpdateOperations->Clear();", normalizedObjectManager);
-    }
-
-    /// <summary>
     /// Verifies generated 2D font release frees native font allocations instead of leaving the disposed shell alive after scene unload.
     /// </summary>
     [Fact]
@@ -970,34 +929,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         Assert.Contains("ReleaseTransientSourceTextureAsset(", normalizedFontAsset);
         Assert.Contains("ReleaseTransientSourceTextureAsset(this->get_SourceTextureAsset());", normalizedFontAsset);
-    }
-
-    /// <summary>
-    /// Verifies generated font serializer version constants stay aligned with the latest packaged font format.
-    /// </summary>
-    [Fact]
-    public void Normalize_generated_native_sources_rewrites_font_asset_binary_serializer_version_constants() {
-        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-font-asset-binary-serializer-version-constants");
-        Directory.CreateDirectory(generatedCoreRootPath);
-        string serializerPath = Path.Combine(generatedCoreRootPath, "FontAssetBinarySerializer.cpp");
-
-        File.WriteAllText(
-            serializerPath,
-            "uint8_t FontAssetBinarySerializer::CurrentVersion = 4;\n"
-            + "uint8_t FontAssetBinarySerializer::RuntimeTextureIdVersion = 1;\n"
-            + "uint8_t FontAssetBinarySerializer::TextureColorFormatVersion = 2;\n"
-            + "uint8_t FontAssetBinarySerializer::PaletteTextureMetadataVersion = 3;\n"
-            + "uint8_t FontAssetBinarySerializer::ExternalCookedAtlasPathVersion = 4;\n");
-
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
-
-        string normalizedSerializer = File.ReadAllText(serializerPath);
-
-        Assert.Contains("uint8_t FontAssetBinarySerializer::CurrentVersion = 5;", normalizedSerializer);
-        Assert.Contains("uint8_t FontAssetBinarySerializer::RuntimeTextureIdVersion = 2;", normalizedSerializer);
-        Assert.Contains("uint8_t FontAssetBinarySerializer::TextureColorFormatVersion = 3;", normalizedSerializer);
-        Assert.Contains("uint8_t FontAssetBinarySerializer::PaletteTextureMetadataVersion = 4;", normalizedSerializer);
-        Assert.Contains("uint8_t FontAssetBinarySerializer::ExternalCookedAtlasPathVersion = 5;", normalizedSerializer);
     }
 
     /// <summary>
@@ -1146,36 +1077,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies generated dictionary runtime support gains a Clear helper required by converted menu code.
-    /// </summary>
-    [Fact]
-    public void Normalize_generated_native_sources_adds_clear_helper_to_native_dictionary_support() {
-        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-native-dictionary");
-        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
-        string dictionaryPath = Path.Combine(generatedCoreRootPath, "runtime", "native_dictionary.hpp");
-        File.WriteAllText(
-            dictionaryPath,
-            "#pragma once\n"
-            + "template<typename TKey, typename TValue>\n"
-            + "class Dictionary {\n"
-            + "public:\n"
-            + "    bool Remove(const TKey& key) {\n"
-            + "        return this->erase(key) > 0;\n"
-            + "    }\n"
-            + "\n"
-            + "    bool TryGetValue(const TKey& key, TValue& value) const {\n"
-            + "        return false;\n"
-            + "    }\n"
-            + "};\n");
-
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
-
-        string normalized = File.ReadAllText(dictionaryPath);
-        Assert.Contains("void Clear()", normalized);
-        Assert.Contains("this->clear();", normalized);
-    }
-
-    /// <summary>
     /// Verifies generated array runtime support value-initializes allocated storage so pointer elements start as null.
     /// </summary>
     [Fact]
@@ -1286,40 +1187,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("static std::string ChangeExtension(const std::string& path, const std::string& extension);", normalizedHeader);
         Assert.Contains("std::string Path::ChangeExtension(const std::string& path, const std::string& extension)", normalizedSource);
         Assert.Contains("replace_extension", normalizedSource);
-    }
-
-    /// <summary>
-    /// Verifies generated native string readers return empty strings for nullable payloads instead of invalid null conversions.
-    /// </summary>
-    [Fact]
-    public void Normalize_generated_native_sources_rewrites_nullable_native_strings_to_empty_strings() {
-        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-engine-binary-reader");
-        Directory.CreateDirectory(generatedCoreRootPath);
-        string sourcePath = Path.Combine(generatedCoreRootPath, "EngineBinaryReader.cpp");
-        File.WriteAllText(
-            sourcePath,
-            "std::string EngineBinaryReader::ReadString()\n"
-            + "{\n"
-            + "const int32_t length = this->ReadInt32();\n"
-            + "    if (length == -1)\n"
-            + "    {\n"
-            + "return nullptr;    }\n"
-            + "else     if (length < -1)\n"
-            + "    {\n"
-            + "throw new InvalidOperationException(\"String length cannot be negative.\");\n"
-            + "    }\n"
-            + "else     if (length == 0)\n"
-            + "    {\n"
-            + "return String::Empty;    }\n"
-            + "Array<uint8_t> *bytes = this->ReadBytes(length);\n"
-            + "return Encoding::GetString(Encoding::UTF8, bytes);\n"
-            + "}\n");
-
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "windows");
-
-        string normalizedSource = File.ReadAllText(sourcePath);
-        Assert.Contains("return String::Empty;    }", normalizedSource);
-        Assert.DoesNotContain("return nullptr;    }", normalizedSource);
     }
 
     /// <summary>

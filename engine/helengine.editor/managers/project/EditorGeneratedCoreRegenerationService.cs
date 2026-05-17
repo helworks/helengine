@@ -1360,11 +1360,6 @@ namespace helengine.editor {
                 return InsertPs2FileStreamSupport(contents);
             }
 
-            if (string.Equals(fileName, "EngineBinaryReader.cpp", StringComparison.OrdinalIgnoreCase)
-                && contents.Contains("std::string EngineBinaryReader::ReadString()", StringComparison.Ordinal)) {
-                return RewriteNativeReaderNullableStringReturns(contents);
-            }
-
             if (string.Equals(fileName, "ContentManager.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return RewriteGeneratedContentManagerTemporaryStreamOwnership(contents);
             }
@@ -1381,21 +1376,8 @@ namespace helengine.editor {
                 return RewriteGeneratedSceneManagerTemporarySceneAssetOwnership(contents);
             }
 
-            if (string.Equals(fileName, "ObjectManager.cpp", StringComparison.OrdinalIgnoreCase)) {
-                return RewriteGeneratedObjectManagerPendingUpdateOperationOwnership(contents);
-            }
-
             if (string.Equals(fileName, "FontAsset.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return RewriteGeneratedFontAssetSourceTextureOwnership(contents);
-            }
-
-            if (string.Equals(fileName, "FontAssetBinarySerializer.cpp", StringComparison.OrdinalIgnoreCase)) {
-                return RewriteGeneratedFontAssetBinarySerializerVersionConstants(contents);
-            }
-
-            if (string.Equals(fileName, "native_dictionary.hpp", StringComparison.OrdinalIgnoreCase)
-                && !contents.Contains("void Clear()", StringComparison.Ordinal)) {
-                return InsertNativeDictionaryClearHelper(contents);
             }
 
             if (string.Equals(fileName, "native_list.hpp", StringComparison.OrdinalIgnoreCase)
@@ -1907,28 +1889,6 @@ namespace {
         }
 
         /// <summary>
-        /// Rewrites the generated object manager so deferred native pending update operations are deleted after application.
-        /// </summary>
-        /// <param name="contents">Current generated object-manager source.</param>
-        /// <returns>Updated source with explicit pending update operation ownership cleanup.</returns>
-        static string RewriteGeneratedObjectManagerPendingUpdateOperationOwnership(string contents) {
-            if (string.IsNullOrEmpty(contents)) {
-                return contents;
-            }
-
-            string updatedContents = contents;
-            updatedContents = updatedContents.Replace(
-                "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\n::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\n    if (op->get_IsAdd())\n    {\nthis->AddUpdateableToList(op->get_Entity());\n    }\nelse {\nthis->RemoveUpdateableFromList(op->get_Entity());\n}\n}\nthis->pendingUpdateOperations->Clear();",
-                "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\n::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\n    if (op->get_IsAdd())\n    {\nthis->AddUpdateableToList(op->get_Entity());\n    }\nelse {\nthis->RemoveUpdateableFromList(op->get_Entity());\n}\ndelete op;\n}\nthis->pendingUpdateOperations->Clear();",
-                StringComparison.Ordinal);
-            updatedContents = updatedContents.Replace(
-                "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\r\n::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\r\n    if (op->get_IsAdd())\r\n    {\r\nthis->AddUpdateableToList(op->get_Entity());\r\n    }\r\nelse {\r\nthis->RemoveUpdateableFromList(op->get_Entity());\r\n}\r\n}\r\nthis->pendingUpdateOperations->Clear();",
-                "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\r\n::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\r\n    if (op->get_IsAdd())\r\n    {\r\nthis->AddUpdateableToList(op->get_Entity());\r\n    }\r\nelse {\r\nthis->RemoveUpdateableFromList(op->get_Entity());\r\n}\r\ndelete op;\r\n}\r\nthis->pendingUpdateOperations->Clear();",
-                StringComparison.Ordinal);
-            return updatedContents;
-        }
-
-        /// <summary>
         /// Rewrites the generated font asset so embedded source textures are released when the font is disposed.
         /// </summary>
         /// <param name="contents">Current generated font-asset source.</param>
@@ -1969,44 +1929,6 @@ this->set_SourceTextureAsset(nullptr);
 this->set_IsDisposed(true);
 """,
                 RegexOptions.Multiline);
-        }
-
-        /// <summary>
-        /// Rewrites generated font serializer version constants so native runtime readers accept the latest cooked font payload layout.
-        /// </summary>
-        /// <param name="contents">Current generated font serializer source.</param>
-        /// <returns>Updated serializer source with synchronized version constants.</returns>
-        static string RewriteGeneratedFontAssetBinarySerializerVersionConstants(string contents) {
-            if (string.IsNullOrEmpty(contents)) {
-                return contents;
-            }
-
-            string updatedContents = Regex.Replace(
-                contents,
-                """uint8_t FontAssetBinarySerializer::CurrentVersion = \d+;""",
-                "uint8_t FontAssetBinarySerializer::CurrentVersion = 5;",
-                RegexOptions.Multiline);
-            updatedContents = Regex.Replace(
-                updatedContents,
-                """uint8_t FontAssetBinarySerializer::RuntimeTextureIdVersion = \d+;""",
-                "uint8_t FontAssetBinarySerializer::RuntimeTextureIdVersion = 2;",
-                RegexOptions.Multiline);
-            updatedContents = Regex.Replace(
-                updatedContents,
-                """uint8_t FontAssetBinarySerializer::TextureColorFormatVersion = \d+;""",
-                "uint8_t FontAssetBinarySerializer::TextureColorFormatVersion = 3;",
-                RegexOptions.Multiline);
-            updatedContents = Regex.Replace(
-                updatedContents,
-                """uint8_t FontAssetBinarySerializer::PaletteTextureMetadataVersion = \d+;""",
-                "uint8_t FontAssetBinarySerializer::PaletteTextureMetadataVersion = 4;",
-                RegexOptions.Multiline);
-            updatedContents = Regex.Replace(
-                updatedContents,
-                """uint8_t FontAssetBinarySerializer::ExternalCookedAtlasPathVersion = \d+;""",
-                "uint8_t FontAssetBinarySerializer::ExternalCookedAtlasPathVersion = 5;",
-                RegexOptions.Multiline);
-            return updatedContents;
         }
 
         /// <summary>
@@ -2210,36 +2132,6 @@ this->set_IsDisposed(true);
             }
 
             return string.Join(Environment.NewLine, updatedLines);
-        }
-
-        /// <summary>
-        /// Inserts the missing dictionary Clear helper into bundled native dictionary support.
-        /// </summary>
-        /// <param name="contents">Current native dictionary support contents.</param>
-        /// <returns>Updated native dictionary support contents.</returns>
-        static string InsertNativeDictionaryClearHelper(string contents) {
-            if (string.IsNullOrEmpty(contents) || contents.Contains("void Clear()", StringComparison.Ordinal)) {
-                return contents;
-            }
-
-            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-            string clearMethod = "    void Clear() {" + newline
-                + "        this->clear();" + newline
-                + "    }" + newline + newline;
-
-            if (contents.Contains("    bool TryGetValue(", StringComparison.Ordinal)) {
-                return contents.Replace("    bool TryGetValue(", clearMethod + "    bool TryGetValue(", StringComparison.Ordinal);
-            }
-
-            if (contents.Contains("    std::vector<TKey> Keys() const {", StringComparison.Ordinal)) {
-                return contents.Replace("    std::vector<TKey> Keys() const {", clearMethod + "    std::vector<TKey> Keys() const {", StringComparison.Ordinal);
-            }
-
-            if (contents.Contains("};", StringComparison.Ordinal)) {
-                return contents.Replace("};", clearMethod + "};", StringComparison.Ordinal);
-            }
-
-            return contents + newline + clearMethod;
         }
 
         /// <summary>
@@ -2620,37 +2512,6 @@ this->set_IsDisposed(true);
             }
 
             return contents + newline + implementation;
-        }
-
-        /// <summary>
-        /// Rewrites the generated native reader so nullable strings become empty strings instead of invalid null conversions.
-        /// </summary>
-        /// <param name="contents">Current reader source contents.</param>
-        /// <returns>Updated reader source contents.</returns>
-        static string RewriteNativeReaderNullableStringReturns(string contents) {
-            if (string.IsNullOrEmpty(contents)
-                || !contents.Contains("std::string EngineBinaryReader::ReadString()", StringComparison.Ordinal)
-                || !contents.Contains("return nullptr;    }", StringComparison.Ordinal)) {
-                return contents;
-            }
-
-            string originalPattern = @"std::string EngineBinaryReader::ReadString\(\)\s*\{\s*const int32_t length = this->ReadInt32\(\);\s*if \(length == -1\)\s*\{\s*return nullptr;\s*\}\s*else\s+if \(length < -1\)\s*\{\s*throw new InvalidOperationException\(""String length cannot be negative\.""\);\s*\}\s*else\s+if \(length == 0\)\s*\{\s*return String::Empty;\s*\}\s*Array<uint8_t> \*bytes = this->ReadBytes\(length\);\s*return Encoding::GetString\(Encoding::UTF8, bytes\);\s*\}";
-            string replacement = @"std::string EngineBinaryReader::ReadString()
-{
-const int32_t length = this->ReadInt32();
-    if (length == -1)
-    {
-return String::Empty;    }
-else     if (length < -1)
-    {
-throw new InvalidOperationException(""String length cannot be negative."");
-    }
-else     if (length == 0)
-    {
-return String::Empty;    }
-Array<uint8_t> *bytes = this->ReadBytes(length);
-return Encoding::GetString(Encoding::UTF8, bytes);}";
-            return global::System.Text.RegularExpressions.Regex.Replace(contents, originalPattern, replacement, global::System.Text.RegularExpressions.RegexOptions.Singleline);
         }
 
         /// <summary>
