@@ -1360,10 +1360,6 @@ namespace helengine.editor {
                 return InsertPs2FileStreamSupport(contents);
             }
 
-            if (string.Equals(fileName, "ContentManager.cpp", StringComparison.OrdinalIgnoreCase)) {
-                return RewriteGeneratedContentManagerTemporaryStreamOwnership(contents);
-            }
-
             if (string.Equals(fileName, "RenderManager2D.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return RewriteGeneratedRenderManager2DFontOwnership(contents);
             }
@@ -1460,32 +1456,6 @@ namespace helengine.editor {
                     StringComparison.Ordinal);
             }
 
-            return updatedContents;
-        }
-
-        /// <summary>
-        /// Rewrites the generated native content manager so temporary file streams are disposed and deleted explicitly.
-        /// </summary>
-        /// <param name="contents">Current generated content-manager source.</param>
-        /// <returns>Updated source with explicit file-stream ownership cleanup.</returns>
-        static string RewriteGeneratedContentManagerTemporaryStreamOwnership(string contents) {
-            if (string.IsNullOrEmpty(contents)) {
-                return contents;
-            }
-
-            string updatedContents = contents;
-            if (!updatedContents.Contains("#include \"runtime/finally.hpp\"", StringComparison.Ordinal)) {
-                updatedContents = InsertIncludeAfterOwnHeader(updatedContents, "#include \"runtime/finally.hpp\"");
-            }
-
-            updatedContents = updatedContents.Replace(
-                "{\n::FileStream *stream = File::OpenRead(fullPath);\nreturn processor->Read(stream);}",
-                "{\n::FileStream *stream = File::OpenRead(fullPath);\nauto __disposeStreamGuard = he_cpp_make_scope_exit([&]() {\nif (stream != nullptr)\n{\nstream->Dispose();\ndelete stream;\n}\n});\nreturn processor->Read(stream);}",
-                StringComparison.Ordinal);
-            updatedContents = updatedContents.Replace(
-                "{\r\n::FileStream *stream = File::OpenRead(fullPath);\r\nreturn processor->Read(stream);}",
-                "{\r\n::FileStream *stream = File::OpenRead(fullPath);\r\nauto __disposeStreamGuard = he_cpp_make_scope_exit([&]() {\r\nif (stream != nullptr)\r\n{\r\nstream->Dispose();\r\ndelete stream;\r\n}\r\n});\r\nreturn processor->Read(stream);}",
-                StringComparison.Ordinal);
             return updatedContents;
         }
 

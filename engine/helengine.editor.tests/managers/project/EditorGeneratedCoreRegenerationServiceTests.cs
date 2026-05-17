@@ -740,12 +740,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         string source = File.ReadAllText(sourcePath);
 
-        Assert.Contains("RewriteGeneratedContentManagerTemporaryStreamOwnership", source, StringComparison.Ordinal);
         Assert.Contains("RewriteGeneratedRenderManager2DFontOwnership", source, StringComparison.Ordinal);
         Assert.Contains("RewriteGeneratedRuntimeSceneAssetReferenceResolverTemporaryAssetOwnership", source, StringComparison.Ordinal);
         Assert.Contains("RewriteGeneratedSceneManagerTemporarySceneAssetOwnership", source, StringComparison.Ordinal);
         Assert.Contains("RewriteGeneratedFontAssetSourceTextureOwnership", source, StringComparison.Ordinal);
-        Assert.Contains("if (string.Equals(fileName, \"ContentManager.cpp\"", source, StringComparison.Ordinal);
         Assert.Contains("if (string.Equals(fileName, \"RenderManager2D.cpp\"", source, StringComparison.Ordinal);
         Assert.Contains("if (string.Equals(fileName, \"RuntimeSceneAssetReferenceResolver.cpp\"", source, StringComparison.Ordinal);
         Assert.Contains("if (string.Equals(fileName, \"SceneManager.cpp\"", source, StringComparison.Ordinal);
