@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public class DebugComponent : UpdateComponent {
         /// <summary>
+        /// Byte count represented by one megabyte in the overlay formatter.
+        /// </summary>
+        const double BytesPerMegabyte = 1024d * 1024d;
+
+        /// <summary>
         /// Tracks every active debug component so later runtime metrics can broadcast shared render-frame ticks.
         /// </summary>
         static readonly List<DebugComponent> ActiveComponents = new List<DebugComponent>();
@@ -218,12 +223,14 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Leaves placeholder text intact until later tasks add live metric refresh behavior.
+        /// Refreshes the visible diagnostics once the configured sampling window has elapsed.
         /// </summary>
         public override void Update() {
             if (!Initialized) {
                 return;
             }
+
+            TryRefreshOverlay();
         }
 
         /// <summary>
@@ -463,6 +470,83 @@ namespace helengine {
             if (Drawables3DTextComponent != null) {
                 Drawables3DTextComponent.Text = Drawables3DText;
             }
+        }
+
+        /// <summary>
+        /// Formats the five overlay rows from the latest sampled runtime metrics.
+        /// </summary>
+        void TryRefreshOverlay() {
+            Core core = Core.Instance ?? throw new InvalidOperationException("DebugComponent requires an active Core instance.");
+            double elapsedSeconds = core.TotalElapsedSeconds - LastSampleElapsedSeconds;
+            if (RefreshIntervalSeconds > 0d && elapsedSeconds < RefreshIntervalSeconds) {
+                return;
+            }
+
+            RuntimeMemoryDiagnosticsSnapshot memorySnapshot = null;
+            if (core.InitializationOptions.RuntimeDiagnosticsProvider != null) {
+                memorySnapshot = core.RuntimeDiagnosticsService.CaptureSnapshot();
+            }
+
+            double safeElapsedSeconds = elapsedSeconds <= 0d ? 1d : elapsedSeconds;
+            double renderFps = RenderFrameCount / safeElapsedSeconds;
+
+            RenderFpsText = "Render FPS: " + FormatOneDecimal(renderFps);
+            ResidentMemoryText = ResolveResidentMemoryText(memorySnapshot);
+            CommittedMemoryText = ResolveCommittedMemoryText(memorySnapshot);
+            Drawables2DText = "Drawables 2D: " + core.ObjectManager.Drawables2D.Count;
+            Drawables3DText = "Drawables 3D: " + core.ObjectManager.Drawables3D.Count + " DrawCalls: " + core.LastRenderManager3DDrawCallCount;
+            ApplyVisibleText();
+
+            RenderFrameCount = 0;
+            LastSampleElapsedSeconds = core.TotalElapsedSeconds;
+        }
+
+        /// <summary>
+        /// Formats one resident-memory row from the latest runtime snapshot.
+        /// </summary>
+        /// <param name="memorySnapshot">Captured snapshot used by the current overlay refresh.</param>
+        /// <returns>Formatted resident-memory row or a placeholder when no provider is active.</returns>
+        string ResolveResidentMemoryText(RuntimeMemoryDiagnosticsSnapshot memorySnapshot) {
+            if (memorySnapshot == null) {
+                return "Memory Res: --";
+            }
+
+            return "Memory Res: " + FormatMegabytes(memorySnapshot.ResidentBytes);
+        }
+
+        /// <summary>
+        /// Formats one committed-memory row from the latest runtime snapshot.
+        /// </summary>
+        /// <param name="memorySnapshot">Captured snapshot used by the current overlay refresh.</param>
+        /// <returns>Formatted committed-memory row or a placeholder when no provider is active.</returns>
+        string ResolveCommittedMemoryText(RuntimeMemoryDiagnosticsSnapshot memorySnapshot) {
+            if (memorySnapshot == null) {
+                return "Memory Com: --";
+            }
+
+            return "Memory Com: " + FormatMegabytes(memorySnapshot.CommittedBytes);
+        }
+
+        /// <summary>
+        /// Formats one byte count as whole megabytes with exactly one decimal place.
+        /// </summary>
+        /// <param name="bytes">Byte count to format.</param>
+        /// <returns>Megabyte text such as <c>128.5 MB</c>.</returns>
+        string FormatMegabytes(ulong bytes) {
+            double megabytes = bytes / BytesPerMegabyte;
+            return FormatOneDecimal(megabytes) + " MB";
+        }
+
+        /// <summary>
+        /// Formats one numeric value with exactly one decimal place.
+        /// </summary>
+        /// <param name="value">Value that should be rounded for display.</param>
+        /// <returns>Rounded text such as <c>4.0</c>.</returns>
+        string FormatOneDecimal(double value) {
+            int tenths = (int)Math.Round(value * 10d, MidpointRounding.AwayFromZero);
+            int whole = tenths / 10;
+            int fractional = Math.Abs(tenths % 10);
+            return whole + "." + fractional;
         }
     }
 }

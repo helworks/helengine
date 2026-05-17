@@ -462,6 +462,7 @@ namespace helengine {
             LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
             LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
             FPSComponent.RecordRenderFrame();
+            DebugComponent.RecordRenderFrame();
         }
 
         /// <summary>

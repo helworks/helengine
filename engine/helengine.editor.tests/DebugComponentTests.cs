@@ -106,6 +106,64 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the overlay formats live sampled metrics after update and draw ticks have been recorded.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenSamplingFrames_FormatsAllRows() {
+            RuntimeMemoryDiagnosticsSnapshot snapshot = new RuntimeMemoryDiagnosticsSnapshot {
+                ResidentBytes = 128UL * 1024UL * 1024UL + 512UL * 1024UL,
+                CommittedBytes = 192UL * 1024UL * 1024UL
+            };
+            TestClockDrivenCore core = new TestClockDrivenCore(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath,
+                RuntimeDiagnosticsProvider = new FakeRuntimeDiagnosticsProvider(snapshot)
+            });
+            TestRenderManager3D renderManager = new TestRenderManager3D();
+            core.Initialize(renderManager, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            renderManager.QueueDrawCallCounts(new[] { 23 });
+            core.QueueMeasuredDrawMilliseconds(new[] { 12.3d });
+
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+            entity.AddComponent(debug);
+
+            Core.Instance.Update(0.25d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.25d);
+
+            Assert.Equal("Render FPS: 4.0", debug.RenderFpsText);
+            Assert.Equal("Memory Res: 128.5 MB", debug.ResidentMemoryText);
+            Assert.Equal("Memory Com: 192.0 MB", debug.CommittedMemoryText);
+            Assert.Equal("Drawables 2D: 5", debug.Drawables2DText);
+            Assert.Equal("Drawables 3D: 0 DrawCalls: 23", debug.Drawables3DText);
+        }
+
+        /// <summary>
+        /// Ensures memory rows stay on placeholder text when no runtime diagnostics provider was configured.
+        /// </summary>
+        [Fact]
+        public void ComponentAdded_WhenRuntimeDiagnosticsProviderIsMissing_UsesMemoryPlaceholders() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+            entity.AddComponent(debug);
+
+            Assert.Equal("Memory Res: --", debug.ResidentMemoryText);
+            Assert.Equal("Memory Com: --", debug.CommittedMemoryText);
+        }
+
+        /// <summary>
         /// Creates a deterministic font asset containing the glyphs needed by the overlay labels.
         /// </summary>
         /// <returns>Font asset with stable glyph metrics for the tests.</returns>
@@ -142,7 +200,15 @@ namespace helengine.editor.tests {
                 ['s'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
                 ['D'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['2'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['3'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
+                ['3'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['0'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['1'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['4'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['5'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['8'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['.'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+                ['B'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f)
             };
 
             return new FontAsset(
