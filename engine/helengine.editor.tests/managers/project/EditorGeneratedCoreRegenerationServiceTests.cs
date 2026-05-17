@@ -726,6 +726,86 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies the current engine-side generated native normalization inventory so the rewrite-removal migration has one explicit scope lock.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_currently_contains_native_cpp_rewrite_inventory() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.editor",
+            "managers",
+            "project",
+            "EditorGeneratedCoreRegenerationService.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("RewriteGeneratedContentManagerTemporaryStreamOwnership", source, StringComparison.Ordinal);
+        Assert.Contains("RewriteGeneratedRenderManager2DFontOwnership", source, StringComparison.Ordinal);
+        Assert.Contains("RewriteGeneratedRuntimeSceneAssetReferenceResolverTemporaryAssetOwnership", source, StringComparison.Ordinal);
+        Assert.Contains("RewriteGeneratedSceneManagerTemporarySceneAssetOwnership", source, StringComparison.Ordinal);
+        Assert.Contains("RewriteGeneratedObjectManagerPendingUpdateOperationOwnership", source, StringComparison.Ordinal);
+        Assert.Contains("RewriteGeneratedFontAssetSourceTextureOwnership", source, StringComparison.Ordinal);
+        Assert.Contains("RewriteGeneratedFontAssetBinarySerializerVersionConstants", source, StringComparison.Ordinal);
+        Assert.Contains("if (string.Equals(fileName, \"ContentManager.cpp\"", source, StringComparison.Ordinal);
+        Assert.Contains("if (string.Equals(fileName, \"RenderManager2D.cpp\"", source, StringComparison.Ordinal);
+        Assert.Contains("if (string.Equals(fileName, \"RuntimeSceneAssetReferenceResolver.cpp\"", source, StringComparison.Ordinal);
+        Assert.Contains("if (string.Equals(fileName, \"SceneManager.cpp\"", source, StringComparison.Ordinal);
+        Assert.Contains("if (string.Equals(fileName, \"ObjectManager.cpp\"", source, StringComparison.Ordinal);
+        Assert.Contains("if (string.Equals(fileName, \"FontAsset.cpp\"", source, StringComparison.Ordinal);
+        Assert.Contains("if (string.Equals(fileName, \"FontAssetBinarySerializer.cpp\"", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies the desired end state where engine-side normalization no longer mutates generated native C++ files.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_does_not_mutate_generated_native_cpp_files() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-generated-native-sources-no-native-mutation");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string contentManagerPath = Path.Combine(generatedCoreRootPath, "ContentManager.cpp");
+        string sceneManagerPath = Path.Combine(generatedCoreRootPath, "SceneManager.cpp");
+        string runtimeSceneResolverPath = Path.Combine(generatedCoreRootPath, "RuntimeSceneAssetReferenceResolver.cpp");
+
+        File.WriteAllText(
+            contentManagerPath,
+            "#include \"ContentManager.hpp\"\n"
+            + "TextContent* ContentManager::LoadText(std::string path)\n"
+            + "{\n"
+            + "using FileStream stream = File::OpenRead(path);\n"
+            + "return this->LoadProcessedContent(stream);\n"
+            + "}\n");
+        File.WriteAllText(
+            sceneManagerPath,
+            "#include \"SceneManager.hpp\"\n"
+            + "void SceneManager::FlushPendingOperations()\n"
+            + "{\n"
+            + "::PendingSceneOperation *operation = (*this->PendingOperations)[0];\n"
+            + "this->PendingOperations->RemoveAt(0);\n"
+            + "}\n");
+        File.WriteAllText(
+            runtimeSceneResolverPath,
+            "#include \"RuntimeSceneAssetReferenceResolver.hpp\"\n"
+            + "::RuntimeModel *RuntimeSceneAssetReferenceResolver::ResolveModel(::SceneAssetReference *reference)\n"
+            + "{\n"
+            + "::ModelAsset *modelAsset = this->AssetContentManager->Load<ModelAsset*>(fullPath, RuntimeContentProcessorIds::ModelAsset);\n"
+            + "::RuntimeModel *runtimeModel = Core::get_Instance()->get_RenderManager3D()->BuildModelFromRaw(modelAsset);\n"
+            + "this->TrackOwnedModel(runtimeModel);\n"
+            + "return runtimeModel;\n"
+            + "}\n");
+
+        string originalContentManager = File.ReadAllText(contentManagerPath);
+        string originalSceneManager = File.ReadAllText(sceneManagerPath);
+        string originalRuntimeSceneResolver = File.ReadAllText(runtimeSceneResolverPath);
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
+
+        Assert.Equal(originalContentManager, File.ReadAllText(contentManagerPath));
+        Assert.Equal(originalSceneManager, File.ReadAllText(sceneManagerPath));
+        Assert.Equal(originalRuntimeSceneResolver, File.ReadAllText(runtimeSceneResolverPath));
+    }
+
+    /// <summary>
     /// Verifies generated runtime scene resolver rewrites survive the current generated formatting and add transient asset release guards.
     /// </summary>
     [Fact]
@@ -2406,6 +2486,29 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("return true;", normalized);
         Assert.Contains("return path;", normalized);
         Assert.Contains("return left + \"/\" + right;", normalized);
+    }
+
+    /// <summary>
+    /// Resolves the helengine repository root from the current test assembly location.
+    /// </summary>
+    /// <returns>Absolute repository root path.</returns>
+    static string ResolveRepositoryRootPath() {
+        string currentPath = AppContext.BaseDirectory;
+        while (!string.IsNullOrWhiteSpace(currentPath)) {
+            string rootMarkerPath = Path.Combine(currentPath, "engine", "helengine.editor", "helengine.editor.csproj");
+            if (File.Exists(rootMarkerPath)) {
+                return currentPath;
+            }
+
+            DirectoryInfo parentDirectory = Directory.GetParent(currentPath);
+            if (parentDirectory == null) {
+                break;
+            }
+
+            currentPath = parentDirectory.FullName;
+        }
+
+        throw new InvalidOperationException("Could not resolve the helengine repository root from the current test assembly location.");
     }
 }
 
