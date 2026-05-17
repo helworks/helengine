@@ -242,10 +242,8 @@ namespace helengine {
                     UnloadAllScenes();
                 }
 
-#if HELENGINE_RUNTIME_SUPPORTS_RENDER_MANAGER_2D_TEXTURE_RELEASE_FLUSH
                 RecordTraceState("LoadSceneImmediateFlushReleasedTextures", sceneId);
                 FlushReleasedTextures();
-#endif
             }
 
             SceneLoading?.Invoke(this, new SceneLoadingEventArgs(entry.SceneId, entry.CookedRelativePath));
