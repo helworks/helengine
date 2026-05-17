@@ -116,5 +116,52 @@ namespace helengine.editor.tests.serialization {
             Assert.Equal(asset.SourceTextureAsset.PaletteColors, roundTripped.SourceTextureAsset.PaletteColors);
             Assert.Equal(asset.SourceTextureAsset.Colors, roundTripped.SourceTextureAsset.Colors);
         }
+
+        /// <summary>
+        /// Ensures packaged font atlases preserve GameCube RGB5A3 payload metadata through serialize and deserialize.
+        /// </summary>
+        [Fact]
+        public void SerializeDeserialize_whenSourceTextureUsesGxRgb5A3_preservesThatFormatAndPayload() {
+            using Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "version"));
+
+            FontAsset asset = new FontAsset(
+                new FontInfo("DemoDiscBody", 16, 4f),
+                new TestRuntimeTexture {
+                    Width = 2,
+                    Height = 2
+                },
+                new Dictionary<char, FontChar>(),
+                16f,
+                2,
+                2) {
+                SourceTextureAsset = new TextureAsset {
+                    Id = "fonts/demodiscbody.hefont#atlas",
+                    RuntimeAssetId = 99ul,
+                    Width = 2,
+                    Height = 2,
+                    ColorFormat = TextureAssetColorFormat.GxRgb5A3,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                    Colors = new byte[] {
+                        0x1F, 0x00,
+                        0xE0, 0x03,
+                        0x00, 0x7C,
+                        0xFF, 0x7F
+                    }
+                }
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            FilesFontAssetBinarySerializer.Serialize(stream, asset);
+            stream.Position = 0;
+
+            FontAsset roundTripped = FilesFontAssetBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(TextureAssetColorFormat.GxRgb5A3, roundTripped.SourceTextureAsset.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, roundTripped.SourceTextureAsset.AlphaPrecision);
+            Assert.Equal(asset.SourceTextureAsset.Colors, roundTripped.SourceTextureAsset.Colors);
+        }
     }
 }
