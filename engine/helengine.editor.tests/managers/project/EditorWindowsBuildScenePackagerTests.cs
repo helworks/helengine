@@ -906,6 +906,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures builder-owned font-atlas texture capabilities emit platform cook work items for source fonts and carry default platform texture settings.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPlatformOwnsFontAtlasTextureCooking_EmitsPlatformCookWorkItemWithDefaultTextureSettings() {
+            string sceneId = "Scenes/TextScene.helen";
+            string fontRelativePath = "Fonts/DemoDiscTitle.ttf";
+            const string defaultSerializedTextureSettings = "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\"}";
+
+            WriteSourceFont(fontRelativePath);
+            SceneAssetReference fontReference = CreateFileFontReference(fontRelativePath);
+            WriteSceneAsset(sceneId, "Helengine.TextComponent", WriteTextComponentPayload(fontReference), new[] { fontReference });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                [
+                    new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"])
+                ],
+                CreateGameCubeBuilderOwnedFontAtlasTexturePlatformDefinition(defaultSerializedTextureSettings),
+                CreatePackagedFontAsset());
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+
+            PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
+            Assert.Equal("font-atlas-texture", workItem.SourceAssetKind);
+            Assert.Equal("runtime-texture", workItem.TargetArtifactKind);
+            Assert.Equal(
+                Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", fontRelativePath.Replace('/', Path.DirectorySeparatorChar))),
+                workItem.SourceAssetPath);
+            Assert.Equal("cooked/Fonts/DemoDiscTitle.hefont", workItem.OutputRelativePath);
+            Assert.Equal(defaultSerializedTextureSettings, workItem.SerializedPlatformSettings);
+        }
+
+        /// <summary>
         /// Ensures source font references are imported into cooked `.hefont` outputs and rewritten in packaged payloads.
         /// </summary>
         [Fact]
@@ -2852,6 +2884,48 @@ namespace helengine.editor.tests {
                         "runtime-texture",
                         PlatformAssetCookOwnershipKind.BuilderOwned,
                         "gamecube-texture")
+                ]);
+        }
+
+        /// <summary>
+        /// Creates one platform definition that publishes builder-owned font-atlas texture cooking with one default serialized texture-settings payload.
+        /// </summary>
+        /// <param name="defaultSerializedTextureSettings">Default serialized texture settings emitted when the source font has no platform override.</param>
+        /// <returns>Platform definition used by builder-owned font-atlas texture packaging tests.</returns>
+        static PlatformDefinition CreateGameCubeBuilderOwnedFontAtlasTexturePlatformDefinition(string defaultSerializedTextureSettings) {
+            return new PlatformDefinition(
+                "gamecube",
+                "GameCube",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "debug",
+                        "Debug",
+                        "Debug GameCube build",
+                        "gx",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "gx",
+                        "GX",
+                        "GameCube GX renderer",
+                        [])
+                ],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                null,
+                null,
+                [
+                    new PlatformAssetCookCapabilityDefinition(
+                        "font-atlas-texture",
+                        "runtime-texture",
+                        PlatformAssetCookOwnershipKind.BuilderOwned,
+                        "gamecube-font-atlas-texture",
+                        defaultSerializedTextureSettings)
                 ]);
         }
 
