@@ -374,25 +374,14 @@ namespace helengine {
             if (Core.Instance == null) {
                 throw new InvalidOperationException("A core instance must exist before loading a scene from the baked menu.");
             }
-
-            if (ComponentExecutionContext.CurrentMode == ComponentExecutionMode.Editor) {
-                if (Core.Instance.SceneLoadService == null) {
-                    throw new InvalidOperationException("Core scene loading services must be initialized before loading a scene from the baked menu.");
-                }
-                if (Core.Instance.InitializationOptions.ScenePathResolver == null) {
-                    throw new InvalidOperationException("An editor scene-id path resolver must be configured before editor menu scene loading can occur.");
-                }
-
-                string authoredScenePath = Core.Instance.InitializationOptions.ScenePathResolver.ResolveScenePath(sceneId);
-                SceneAsset sceneAsset = Core.Instance.ContentManager.Load<SceneAsset>(authoredScenePath, RuntimeContentProcessorIds.SceneAsset);
-                Core.Instance.SceneLoadService.Load(sceneAsset);
-                if (Parent != null) {
-                    Parent.Enabled = false;
-                }
-            } else if (Core.Instance.SceneManager == null) {
+            if (Core.Instance.SceneManager == null) {
                 throw new InvalidOperationException("Core scene manager must be initialized before runtime menu scene loading can occur.");
-            } else {
-                Core.Instance.SceneManager.LoadScene(sceneId, SceneLoadMode.Single);
+            }
+
+            Core.Instance.SceneManager.LoadScene(sceneId, SceneLoadMode.Single);
+            if (ComponentExecutionContext.CurrentMode == ComponentExecutionMode.Editor
+                && Parent != null) {
+                Parent.Enabled = false;
             }
         }
 

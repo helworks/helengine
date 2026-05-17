@@ -1220,7 +1220,6 @@ namespace helengine.editor.tests.serialization.scene {
             menuHostComponent = Assert.IsType<MenuComponent>(Assert.Single(loadedRoot.Components, component => component is MenuComponent));
 
             TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
-            int initialEntityCount = Core.Instance.ObjectManager.Entities.Count;
 
             EnterEditorAndRun(() => {
                 input.SetKeyboardState(new KeyboardState());
@@ -1246,8 +1245,9 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Equal("TestPlayableScene", scenePathResolver.LastResolvedSceneId);
             Assert.Equal(1, scenePathResolver.ResolveCallCount);
-            Assert.False(menuHostComponent.Parent.Enabled);
-            Assert.True(Core.Instance.ObjectManager.Entities.Count > initialEntityCount);
+            Assert.NotNull(Core.Instance.SceneManager);
+            Assert.True(Core.Instance.SceneManager.IsSceneLoaded("TestPlayableScene"));
+            Assert.Contains("TestPlayableScene", Core.Instance.SceneManager.GetLoadedSceneIds(), StringComparer.Ordinal);
         }
 
         /// <summary>

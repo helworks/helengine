@@ -1200,6 +1200,12 @@ namespace helengine.editor {
                 updatedContents = updatedContents.Replace("->SceneManager", "->get_SceneManager()", StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("->ContentManager", "->get_ContentManager()", StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("ResolveScenePath(MainMenuSceneId)", "ResolveScenePath(PlatformMenuSceneResolver::ResolveMainMenuSceneId())", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "std::string resolvedScenePath = Core::get_Instance()->get_InitializationOptions()->get_ScenePathResolver()->ResolveScenePath(PlatformMenuSceneResolver::ResolveMainMenuSceneId());" + Environment.NewLine
+                    + "SceneAsset *sceneAsset = Core::get_Instance()->get_ContentManager()->Load<SceneAsset*>(resolvedScenePath, RuntimeContentProcessorIds->SceneAsset);" + Environment.NewLine
+                    + "Core::get_Instance()->get_SceneLoadService()->Load(sceneAsset);",
+                    "Core::get_Instance()->get_SceneManager()->LoadScene(PlatformMenuSceneResolver::ResolveMainMenuSceneId(), SceneLoadMode::Single);",
+                    StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("LoadScene(MainMenuSceneId, SceneLoadMode->Single)", "LoadScene(PlatformMenuSceneResolver::ResolveMainMenuSceneId(), SceneLoadMode->Single)", StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("LoadScene(MainMenuSceneId, SceneLoadMode::Single)", "LoadScene(PlatformMenuSceneResolver::ResolveMainMenuSceneId(), SceneLoadMode::Single)", StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("RuntimeContentProcessorIds->SceneAsset", "RuntimeContentProcessorIds::SceneAsset", StringComparison.Ordinal);

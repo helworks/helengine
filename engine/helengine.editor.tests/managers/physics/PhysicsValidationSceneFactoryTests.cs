@@ -280,7 +280,8 @@ namespace helengine.editor.tests.managers.physics {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
-            IReadOnlyList<Entity> rootEntities = core.SceneLoadService.Load(sceneAsset);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
 
@@ -322,7 +323,8 @@ namespace helengine.editor.tests.managers.physics {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
-            IReadOnlyList<Entity> rootEntities = core.SceneLoadService.Load(sceneAsset);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
 
@@ -362,7 +364,8 @@ namespace helengine.editor.tests.managers.physics {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
 
-            IReadOnlyList<Entity> rootEntities = core.SceneLoadService.Load(sceneAsset);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
 

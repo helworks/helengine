@@ -52,6 +52,21 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures core bootstrap initializes the runtime scene manager when an editor scene-id resolver is injected without a packaged runtime scene catalog.
+        /// </summary>
+        [Fact]
+        public void Initialize_whenRuntimeSceneCatalogIsNotProvidedButScenePathResolverIsProvided_createsSceneManager() {
+            Core core = CreateCore(
+                sceneCatalog: null,
+                scenePathResolver: new TestSceneIdPathResolver(new Dictionary<string, string>(StringComparer.Ordinal) {
+                    { "Scenes/AuthoredMenu.helen", "Scenes/AuthoredMenu.helen" }
+                }));
+
+            Assert.NotNull(core.SceneManager);
+            Assert.NotNull(core.RuntimeDiagnosticsService);
+        }
+
+        /// <summary>
         /// Ensures runtime diagnostics snapshots preserve provider memory counters and overlay loaded scene ids.
         /// </summary>
         [Fact]
@@ -87,6 +102,26 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.NotNull(capturedSnapshot);
             Assert.Empty(capturedSnapshot.TrackedSceneIds);
+        }
+
+        /// <summary>
+        /// Ensures authored scene ids can still load through the scene manager when an editor scene-id resolver is available instead of a packaged runtime scene catalog.
+        /// </summary>
+        [Fact]
+        public void LoadScene_whenRuntimeSceneCatalogIsUnavailableButScenePathResolverCanResolveSceneId_loadsTheAuthoredSceneThroughSceneManager() {
+            WriteSceneAsset("Scenes/AuthoredMenu.helen", 1u);
+            TestSceneIdPathResolver scenePathResolver = new TestSceneIdPathResolver(new Dictionary<string, string>(StringComparer.Ordinal) {
+                { "Scenes/AuthoredMenu.helen", "Scenes/AuthoredMenu.helen" }
+            });
+            Core core = CreateCore(sceneCatalog: null, scenePathResolver: scenePathResolver);
+
+            core.SceneManager.LoadScene("Scenes/AuthoredMenu.helen", SceneLoadMode.Single);
+
+            LoadedSceneRecord loadedScene = Assert.Single(core.SceneManager.LoadedScenes);
+            Assert.Equal("Scenes/AuthoredMenu.helen", loadedScene.SceneId);
+            Assert.Equal("Scenes/AuthoredMenu.helen", loadedScene.CookedRelativePath);
+            Assert.Equal("Scenes/AuthoredMenu.helen", scenePathResolver.LastResolvedSceneId);
+            Assert.Equal(1, scenePathResolver.ResolveCallCount);
         }
 
         /// <summary>
@@ -272,7 +307,8 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
             SceneAsset startupSceneAsset = core.ContentManager.Load<SceneAsset>("cooked/scenes/Bootstrap.hasset", RuntimeContentProcessorIds.SceneAsset);
 
-            IReadOnlyList<Entity> startupRoots = core.SceneLoadService.Load(startupSceneAsset);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> startupRoots = sceneLoadService.Load(startupSceneAsset);
             Entity previousRoot = Assert.Single(startupRoots);
             CameraComponent previousCamera = Assert.IsType<CameraComponent>(Assert.Single(previousRoot.Components));
             Assert.Single(core.ObjectManager.Cameras);
@@ -386,8 +422,11 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <param name="sceneCatalog">Optional runtime scene catalog to inject before initialization.</param>
         /// <returns>Initialized core instance for runtime scene-manager tests.</returns>
-        Core CreateCore(RuntimeSceneCatalog sceneCatalog = null, FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null) {
-            return CreateCore(new TestRenderManager2D(), sceneCatalog, runtimeDiagnosticsProvider);
+        Core CreateCore(
+            RuntimeSceneCatalog sceneCatalog = null,
+            FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null,
+            ISceneIdPathResolver scenePathResolver = null) {
+            return CreateCore(new TestRenderManager2D(), sceneCatalog, runtimeDiagnosticsProvider, scenePathResolver);
         }
 
         /// <summary>
@@ -396,8 +435,12 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="renderManager2D">2D render manager used by the initialized core.</param>
         /// <param name="sceneCatalog">Optional runtime scene catalog to inject before initialization.</param>
         /// <returns>Initialized core instance for runtime scene-manager tests.</returns>
-        Core CreateCore(RenderManager2D renderManager2D, RuntimeSceneCatalog sceneCatalog = null, FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null) {
-            return CreateCore(new TestRenderManager3D(), renderManager2D, sceneCatalog, runtimeDiagnosticsProvider);
+        Core CreateCore(
+            RenderManager2D renderManager2D,
+            RuntimeSceneCatalog sceneCatalog = null,
+            FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null,
+            ISceneIdPathResolver scenePathResolver = null) {
+            return CreateCore(new TestRenderManager3D(), renderManager2D, sceneCatalog, runtimeDiagnosticsProvider, scenePathResolver);
         }
 
         /// <summary>
@@ -411,11 +454,13 @@ namespace helengine.editor.tests.serialization.scene {
             RenderManager3D renderManager3D,
             RenderManager2D renderManager2D,
             RuntimeSceneCatalog sceneCatalog = null,
-            FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null) {
+            FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null,
+            ISceneIdPathResolver scenePathResolver = null) {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath,
                 SceneCatalog = sceneCatalog,
-                RuntimeDiagnosticsProvider = runtimeDiagnosticsProvider
+                RuntimeDiagnosticsProvider = runtimeDiagnosticsProvider,
+                ScenePathResolver = scenePathResolver
             });
             core.Initialize(renderManager3D, renderManager2D, new TestInputBackend(), new PlatformInfo("test", "test-version"));
             return core;

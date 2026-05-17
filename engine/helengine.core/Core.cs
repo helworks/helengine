@@ -216,8 +216,9 @@ namespace helengine {
 
         /// <summary>
         /// Gets the runtime scene loader configured for packaged player scene assets.
+        /// This service remains an internal collaborator of <see cref="SceneManager"/> and should not be used as a public transition seam.
         /// </summary>
-        public RuntimeSceneLoadService SceneLoadService { get; private set; }
+        internal RuntimeSceneLoadService SceneLoadService { get; private set; }
 
         /// <summary>
         /// Gets the runtime scene manager configured for built scene tracking and notifications.
@@ -573,11 +574,11 @@ namespace helengine {
             if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
             }
-            if (sceneCatalog == null) {
+            if (sceneCatalog == null && InitializationOptions.ScenePathResolver == null) {
                 return null;
             }
 
-            return new SceneManager(sceneCatalog, contentManager, SceneLoadService, ObjectManager);
+            return new SceneManager(sceneCatalog, contentManager, SceneLoadService, ObjectManager, InitializationOptions.ScenePathResolver);
         }
 
         /// <summary>
