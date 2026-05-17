@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Represents a deferred update list change requested during an active update pass.
     /// </summary>
-    public sealed class PendingUpdateOperation {
+    public struct PendingUpdateOperation {
         /// <summary>
         /// Initializes a new pending update operation.
         /// </summary>

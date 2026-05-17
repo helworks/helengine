@@ -63,6 +63,16 @@ namespace helengine {
         List<RuntimeMaterial> ActiveOwnedMaterials;
 
         /// <summary>
+        /// Reuses generated runtime models across scene loads so built-in engine primitives are not tracked as scene-owned assets.
+        /// </summary>
+        readonly Dictionary<string, RuntimeModel> ActiveGeneratedModelsByKey;
+
+        /// <summary>
+        /// Reuses generated runtime materials across scene loads so built-in engine materials are not tracked as scene-owned assets.
+        /// </summary>
+        readonly Dictionary<string, RuntimeMaterial> ActiveGeneratedMaterialsByKey;
+
+        /// <summary>
         /// Gets the last recorded text-load stage that passed through this resolver.
         /// </summary>
         public string LastTextLoadStage { get; set; }
@@ -94,6 +104,8 @@ namespace helengine {
             ContentRootPath = Path.GetFullPath(contentRootPath);
             AssetContentManager = assetContentManager;
             ShaderTarget = shaderTarget;
+            ActiveGeneratedModelsByKey = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
+            ActiveGeneratedMaterialsByKey = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -104,6 +116,19 @@ namespace helengine {
         public RuntimeModel ResolveModel(SceneAssetReference reference) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                string generatedAssetKey = BuildGeneratedAssetCacheKey(reference);
+                if (ActiveGeneratedModelsByKey.TryGetValue(generatedAssetKey, out RuntimeModel generatedRuntimeModel)) {
+                    return generatedRuntimeModel;
+                }
+
+                string generatedFullPath = ResolveFileBackedAssetPath(reference);
+                ModelAsset generatedModelAsset = AssetContentManager.Load<ModelAsset>(generatedFullPath, RuntimeContentProcessorIds.ModelAsset);
+                RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromRaw(generatedModelAsset);
+                ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
+                return generatedModel;
             }
 
             string fullPath = ResolveFileBackedAssetPath(reference);
@@ -121,6 +146,30 @@ namespace helengine {
         public RuntimeMaterial ResolveMaterial(SceneAssetReference reference) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                string generatedAssetKey = BuildGeneratedAssetCacheKey(reference);
+                if (ActiveGeneratedMaterialsByKey.TryGetValue(generatedAssetKey, out RuntimeMaterial generatedRuntimeMaterial)) {
+                    return generatedRuntimeMaterial;
+                }
+
+                string generatedFullPath = ResolveFileBackedAssetPath(reference);
+#if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
+                PlatformMaterialAsset generatedPlatformMaterialAsset = AssetContentManager.Load<PlatformMaterialAsset>(generatedFullPath, RuntimeContentProcessorIds.MaterialAsset);
+                RuntimeMaterial generatedCookedRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedPlatformMaterialAsset);
+                ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);
+                return generatedCookedRuntimeMaterial;
+#else
+                MaterialAsset generatedMaterialAsset = AssetContentManager.Load<MaterialAsset>(generatedFullPath, RuntimeContentProcessorIds.MaterialAsset);
+                ShaderAsset generatedShaderAsset = AssetContentManager.Load<ShaderAsset>(
+                    ResolveShaderPackagePath(generatedMaterialAsset.ShaderAssetId),
+                    RuntimeContentProcessorIds.ShaderAsset);
+                RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(generatedMaterialAsset, generatedShaderAsset);
+                ApplyMaterialDiffuseTexture(generatedRawRuntimeMaterial, generatedMaterialAsset, generatedFullPath);
+                ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
+                return generatedRawRuntimeMaterial;
+#endif
             }
 
             string fullPath = ResolveFileBackedAssetPath(reference);
@@ -286,12 +335,35 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Builds one stable cache key for a generated scene asset reference.
+        /// </summary>
+        /// <param name="reference">Generated scene asset reference to key.</param>
+        /// <returns>Stable cache key for the generated asset.</returns>
+        string BuildGeneratedAssetCacheKey(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.Generated) {
+                throw new InvalidOperationException("Generated asset cache keys require generated scene asset references.");
+            }
+            if (string.IsNullOrWhiteSpace(reference.ProviderId)) {
+                throw new InvalidOperationException("Generated scene asset references require a provider id.");
+            }
+            if (string.IsNullOrWhiteSpace(reference.AssetId)) {
+                throw new InvalidOperationException("Generated scene asset references require an asset id.");
+            }
+
+            return string.Concat(reference.ProviderId, "::", reference.AssetId);
+        }
+
+        /// <summary>
         /// Resolves one packaged file-backed scene asset reference to an absolute file path inside the packaged content root.
         /// </summary>
         /// <param name="reference">Scene asset reference to resolve.</param>
         /// <returns>Absolute packaged file path.</returns>
         string ResolveFileBackedAssetPath(SceneAssetReference reference) {
-            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem
+                && reference.SourceKind != SceneAssetReferenceSourceKind.Generated) {
                 throw new InvalidOperationException("Player builds currently require file-backed packaged scene references.");
             }
             if (string.IsNullOrWhiteSpace(reference.RelativePath)) {

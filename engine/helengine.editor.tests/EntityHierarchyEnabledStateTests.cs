@@ -112,6 +112,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures disposing a detached child subtree removes its render registrations instead of treating the detach as a normal reparent.
+        /// </summary>
+        [Fact]
+        public void Dispose_WhenChildIsDetachedDuringTeardown_DoesNotLeaveTransientDrawableRegistrations() {
+            InitializeCore();
+
+            Entity parent = CreateEntity();
+            Entity child = CreateEntity();
+            SpriteComponent sprite = new SpriteComponent();
+            child.AddComponent(sprite);
+            parent.AddChild(child);
+
+            Assert.Contains(sprite, Core.Instance.ObjectManager.Drawables2D);
+
+            child.Dispose();
+
+            Assert.DoesNotContain(child, parent.Children);
+            Assert.DoesNotContain(child, Core.Instance.ObjectManager.Entities);
+            Assert.DoesNotContain(sprite, Core.Instance.ObjectManager.Drawables2D);
+        }
+
+        /// <summary>
         /// Initializes the core services required for entity-registration tests.
         /// </summary>
         void InitializeCore() {

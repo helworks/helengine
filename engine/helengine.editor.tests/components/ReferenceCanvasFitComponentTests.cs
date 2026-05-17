@@ -319,6 +319,35 @@ namespace helengine.editor.tests.components {
         }
 
         /// <summary>
+        /// Ensures the fitted anchor-space instance is reused across updates instead of being replaced on each layout pass.
+        /// </summary>
+        [Fact]
+        public void ComponentAdded_WhenWindowResizes_ReusesTheExistingAnchorSpaceInstance() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            menuRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            ReferenceCanvasFitComponent fitComponent = new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            menuRoot.AddComponent(fitComponent);
+
+            AnchorSpace initialAnchorSpace = fitComponent.AnchorSpace;
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+            Core.Instance.Update();
+
+            Assert.Same(initialAnchorSpace, fitComponent.AnchorSpace);
+            Assert.Equal(new int2(640, 360), fitComponent.AnchorSpace.Size);
+        }
+
+        /// <summary>
         /// Creates one initialized entity with the supplied local position.
         /// </summary>
         /// <param name="localPosition">Local position assigned to the entity.</param>

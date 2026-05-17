@@ -66,6 +66,7 @@ namespace helengine.editor.tests.managers.asset {
             Assert.Equal(TextureAssetAlphaPrecision.A8, processed.AlphaPrecision);
             Assert.Equal(4 * 4 * 2, processed.Colors.Length);
             Assert.True(processed.PaletteColors == null || processed.PaletteColors.Length == 0);
+            Assert.Equal(new byte[] { 0x00, 0xFC, 0xE0, 0x83, 0x1F, 0x80, 0xFF, 0xFF }, processed.Colors.Take(8).ToArray());
         }
 
         /// <summary>

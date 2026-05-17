@@ -114,6 +114,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures repeated draw calls continue to use queued draw-duration measurements and update the exposed draw timing state.
+        /// </summary>
+        [Fact]
+        public void Draw_WhenCalledRepeatedly_StoresTheLatestMeasuredDrawDuration() {
+            TestClockDrivenCore core = CreateClockDrivenCore();
+            core.QueueMeasuredDrawMilliseconds(new[] { 12.5d, 7.25d });
+
+            core.Draw();
+            Assert.Equal(12.5d, core.LastRenderManager3DDrawMilliseconds, 10);
+
+            core.Draw();
+            Assert.Equal(7.25d, core.LastRenderManager3DDrawMilliseconds, 10);
+        }
+
+        /// <summary>
         /// Ensures negative elapsed frame times are rejected instead of silently corrupting timing state.
         /// </summary>
         [Fact]
@@ -146,7 +161,7 @@ namespace helengine.editor.tests {
             }
 
             TestClockDrivenCore core = new TestClockDrivenCore(measuredUpdateSeconds);
-            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), TestPlatformInfo.Shared);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), TestPlatformInfo.Shared);
             return core;
         }
     }

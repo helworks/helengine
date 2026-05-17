@@ -123,6 +123,32 @@ namespace helengine.editor.tests {
 
             Assert.Empty(entity.Children);
             Assert.Null(fps.Font);
+            Assert.Single(Core.Instance.ObjectManager.Entities);
+            Assert.Empty(Core.Instance.ObjectManager.Drawables2D);
+        }
+
+        /// <summary>
+        /// Ensures removing the component disposes the generated overlay subtree instead of leaving orphaned overlay entities registered.
+        /// </summary>
+        [Fact]
+        public void RemoveComponent_WhenOverlayWasBuilt_DisposesOverlayEntities() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont()
+            };
+            entity.AddComponent(fps);
+
+            Assert.Equal(4, Core.Instance.ObjectManager.Entities.Count);
+            Assert.Equal(2, Core.Instance.ObjectManager.Drawables2D.Count);
+
+            entity.RemoveComponent(fps);
+
+            Assert.Empty(entity.Children);
+            Assert.Single(Core.Instance.ObjectManager.Entities);
+            Assert.Empty(Core.Instance.ObjectManager.Drawables2D);
         }
 
         /// <summary>
@@ -173,6 +199,87 @@ namespace helengine.editor.tests {
 
             Assert.Equal("Update FPS: 4.0", fps.UpdateFpsText);
             Assert.Equal("Render FPS: 4.0 (12.3 ms)", fps.RenderFpsText);
+        }
+
+        /// <summary>
+        /// Ensures the FPS component prefers core-owned overlay metrics when the active runtime publishes custom diagnostics.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenRendererProvidesOverlayRows_UsesRendererOwnedOverlayText() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(fps);
+            Core.Instance.SetPerformanceOverlayMetrics(true, 7.0d, 1.5d, 0.5d, 8.0d, 0.8d, 0.2d, 12, 3);
+
+            Core.Instance.Update(0.25d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.25d);
+
+            Assert.Equal("Upd 4.0 Set 7.0 Prep 1.5 Emit 0.5", fps.UpdateFpsText);
+            Assert.Equal("Rdr 4.0 Drw 0.0 Enc 8.0 Sub 0.8 Wt 0.2 Tri 12 Disp 3", fps.RenderFpsText);
+        }
+
+        /// <summary>
+        /// Ensures the built overlay resolves core-owned metrics immediately instead of leaving placeholders visible until the first sample window completes.
+        /// </summary>
+        [Fact]
+        public void ComponentAdded_WhenRendererProvidesOverlayRows_UsesRendererOwnedTextImmediatelyAfterOverlayBuild() {
+            Core.Instance.SetPerformanceOverlayMetrics(true, 0d, 0d, 0d, 0d, 0d, 0d, 0, 0);
+
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont()
+            };
+
+            entity.AddComponent(fps);
+
+            Assert.Equal("Upd 0.0 Set 0.0 Prep 0.0 Emit 0.0", fps.UpdateFpsText);
+            Assert.Equal("Rdr 0.0 Drw 0.0 Enc 0.0 Sub 0.0 Wt 0.0 Tri 0 Disp 0", fps.RenderFpsText);
+        }
+
+        /// <summary>
+        /// Ensures the PS2 runtime always uses the performance-overlay row format even before the renderer publishes its first explicit overlay toggle.
+        /// </summary>
+        [Fact]
+        public void ComponentAdded_WhenPlatformIsPs2_UsesPerformanceOverlayTextImmediatelyAfterOverlayBuild() {
+            CoreInstance.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("ps2", "test-version"));
+
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont()
+            };
+
+            entity.AddComponent(fps);
+
+            Assert.StartsWith("Upd 0.0 Obj3D ", fps.UpdateFpsText, StringComparison.Ordinal);
+            Assert.Contains(" Cam ", fps.UpdateFpsText, StringComparison.Ordinal);
+            Assert.Contains(" Ent ", fps.UpdateFpsText, StringComparison.Ordinal);
+            Assert.Equal("Rdr 0.0 Drw 0.0 Ovr 0 Tri 0 Disp 0", fps.RenderFpsText);
+        }
+
+        /// <summary>
+        /// Ensures the FPS overlay metrics live on the core contract instead of relying on renderer virtual dispatch.
+        /// </summary>
+        [Fact]
+        public void PerformanceOverlayContract_UsesCoreOwnedMetricsInsteadOfRendererVirtuals() {
+            Assert.Null(typeof(RenderManager3D).GetMethod("UsesPerformanceOverlayMetrics"));
+            Assert.Null(typeof(RenderManager3D).GetMethod("GetPerformanceOverlayTriangleSetupMilliseconds"));
+            Assert.Null(typeof(RenderManager3D).GetMethod("GetPerformanceOverlayDispatchCount"));
+            Assert.NotNull(typeof(Core).GetProperty("UsesPerformanceOverlayMetrics"));
+            Assert.NotNull(typeof(Core).GetMethod("SetPerformanceOverlayMetrics"));
         }
 
         /// <summary>

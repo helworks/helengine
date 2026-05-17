@@ -6,6 +6,7 @@ namespace helengine {
         bool isEnabled;
         bool isStatic;
         bool isInitialized;
+        bool isDisposing;
         float3 position;
         float3 scale;
         float4 orientation;
@@ -222,7 +223,7 @@ namespace helengine {
             }
 
             entity.Parent = null;
-            if (wasHierarchyEnabled && entity.IsHierarchyEnabled) {
+            if (!ShouldSuppressRegistrationRefreshForDetachment(entity) && wasHierarchyEnabled && entity.IsHierarchyEnabled) {
                 entity.RefreshRegistrationsAfterParentChange();
             }
             bool isHierarchyEnabled = entity.IsHierarchyEnabled;
@@ -393,9 +394,27 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets whether detaching the provided child should skip registration rebuilding because one side is actively disposing.
+        /// </summary>
+        /// <param name="entity">Child entity being detached.</param>
+        /// <returns><c>true</c> when disposal is in progress and registration refresh should be suppressed.</returns>
+        bool ShouldSuppressRegistrationRefreshForDetachment(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            return isDisposing || entity.isDisposing;
+        }
+
+        /// <summary>
         /// Recursively tears down this entity subtree, detaches its components, removes it from any parent, and unregisters it from the object manager.
         /// </summary>
         public void Dispose() {
+            if (isDisposing) {
+                return;
+            }
+
+            isDisposing = true;
             if (Children != null) {
                 while (Children.Count > 0) {
                     Entity child = Children[Children.Count - 1];

@@ -44,6 +44,65 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
     }
 
     /// <summary>
+    /// Ensures packaged generated references can still resolve cooked file paths through the shared file-backed path helper.
+    /// </summary>
+    [Fact]
+    public void RuntimeSceneAssetReferenceResolver_source_accepts_generated_references_for_file_backed_packaged_paths() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "scene",
+            "runtime",
+            "RuntimeSceneAssetReferenceResolver.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem", source, StringComparison.Ordinal);
+        Assert.Contains("&& reference.SourceKind != SceneAssetReferenceSourceKind.Generated", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures generated model references use a shared runtime cache instead of being tracked as scene-owned models.
+    /// </summary>
+    [Fact]
+    public void RuntimeSceneAssetReferenceResolver_source_caches_generated_models_without_scene_owned_tracking() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "scene",
+            "runtime",
+            "RuntimeSceneAssetReferenceResolver.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated)", source, StringComparison.Ordinal);
+        Assert.Contains("ActiveGeneratedModelsByKey.TryGetValue", source, StringComparison.Ordinal);
+        Assert.Contains("ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures generated material references use a shared runtime cache instead of being tracked as scene-owned materials.
+    /// </summary>
+    [Fact]
+    public void RuntimeSceneAssetReferenceResolver_source_caches_generated_materials_without_scene_owned_tracking() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "scene",
+            "runtime",
+            "RuntimeSceneAssetReferenceResolver.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("ActiveGeneratedMaterialsByKey.TryGetValue", source, StringComparison.Ordinal);
+        Assert.Contains("ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);", source, StringComparison.Ordinal);
+        Assert.Contains("ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Resolves the helengine repository root from the current test assembly location.
     /// </summary>
     /// <returns>Absolute repository root path.</returns>

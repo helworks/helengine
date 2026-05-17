@@ -50,6 +50,16 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the cube-test authored scene factory includes the demo-disc return component so packaged console builds can navigate back to the main menu.
+        /// </summary>
+        [Fact]
+        public void ReadCityCubeTestSceneFactorySource_AttachesDemoDiscReturnToMenuComponent() {
+            string source = ReadCitySource("rendering.tools", "CubeTestSceneFactory.cs");
+
+            Assert.Contains("DemoDiscReturnToMenuComponent", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures the city demo-disc menu regeneration command is owned by project code instead of the editor-only engine regeneration service.
         /// </summary>
         [Fact]

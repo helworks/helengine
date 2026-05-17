@@ -317,6 +317,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures viewport-owned reference-canvas scaling reuses the same anchor-space instance across updates instead of replacing it.
+        /// </summary>
+        [Fact]
+        public void ViewportComponent_WhenReferenceCanvasScalingUpdates_ReusesTheExistingAnchorSpaceInstance() {
+            TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            viewportEntity.AddComponent(viewport);
+
+            AnchorSpace initialAnchorSpace = viewport.AnchorSpace;
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+            Core.Instance.Update();
+
+            Assert.Same(initialAnchorSpace, viewport.AnchorSpace);
+            Assert.Equal(new int2(640, 360), viewport.AnchorSpace.Size);
+        }
+
+        /// <summary>
         /// Asserts that two three-component floating-point vectors are equal within a caller-supplied tolerance.
         /// </summary>
         /// <param name="expected">Expected vector value.</param>

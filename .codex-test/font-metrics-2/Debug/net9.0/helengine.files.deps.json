@@ -1,0 +1,53 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "helengine.files/1.0.0": {
+        "dependencies": {
+          "helengine.baseplatform": "1.0.0",
+          "helengine.core": "1.0.0"
+        },
+        "runtime": {
+          "helengine.files.dll": {}
+        }
+      },
+      "helengine.baseplatform/1.0.0": {
+        "runtime": {
+          "helengine.baseplatform.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "helengine.core/1.0.0": {
+        "runtime": {
+          "helengine.core.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "helengine.files/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "helengine.baseplatform/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "helengine.core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

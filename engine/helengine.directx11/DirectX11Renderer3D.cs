@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using SharpDX;
 using SharpDX.D3DCompiler;
 using SharpDX.Direct3D;
@@ -28,6 +29,10 @@ namespace helengine.directx11 {
         /// Default up axis for cameras before rotation.
         /// </summary>
         static readonly float3 DefaultUp = new float3(0f, 1f, 0f);
+        /// <summary>
+        /// Temporary trace file used while comparing directional-shadow plaza face lighting between DirectX11 and PSP.
+        /// </summary>
+        static readonly string PlazaFaceTracePath = Path.Combine(Path.GetTempPath(), "helengine_windows_plaza_trace.log");
         /// <summary>
         /// Shader filename used for missing-material rendering.
         /// </summary>
@@ -197,6 +202,14 @@ namespace helengine.directx11 {
         /// </summary>
         float4x4 currentViewProjection;
         /// <summary>
+        /// Throttles plaza face trace writes so diagnostics stay bounded during renderer investigation.
+        /// </summary>
+        int plazaFaceTraceCounter;
+        /// <summary>
+        /// Limits unconditional plaza drawable trace writes so the parity log stays bounded.
+        /// </summary>
+        int plazaDrawableTraceCounter;
+        /// <summary>
         /// Shared extraction service used to build backend-neutral render frames.
         /// </summary>
         RenderFrameExtractionService FrameExtractionServiceValue;
@@ -269,6 +282,9 @@ namespace helengine.directx11 {
             ShadowResourcePlannerValue = new DirectX11ShadowResourcePlanner();
             PointShadowCubeResourcesValue = new List<DirectX11PointShadowCubeResources>();
             MaterialConstantBuffersBySlot = new Dictionary<int, Buffer>();
+            if (File.Exists(PlazaFaceTracePath)) {
+                File.Delete(PlazaFaceTracePath);
+            }
 
             WindowResized += OnWindowResized;
 
@@ -1541,6 +1557,108 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Returns whether one value is within a small tolerance of an expected authored showcase value.
+        /// </summary>
+        /// <param name="value">Actual value to compare.</param>
+        /// <param name="expectedValue">Expected authored showcase value.</param>
+        /// <param name="tolerance">Maximum absolute difference allowed.</param>
+        /// <returns>True when the value matches within the requested tolerance; otherwise false.</returns>
+        bool IsApproximately(float value, float expectedValue, float tolerance) {
+            return Math.Abs(value - expectedValue) <= tolerance;
+        }
+
+        /// <summary>
+        /// Returns whether one entity matches the authored central directional-shadow plaza tower used for parity tracing.
+        /// </summary>
+        /// <param name="entity">Entity under inspection.</param>
+        /// <returns>True when the entity transform is approximately equal to the central plaza tower; otherwise false.</returns>
+        bool IsDirectionalShadowCentralTower(Entity entity) {
+            if (entity == null) {
+                return false;
+            }
+
+            float3 position = entity.Position;
+            float3 scale = entity.Scale;
+            return IsApproximately(position.X, 0f, 0.5f)
+                && IsApproximately(position.Y, 9f, 0.5f)
+                && IsApproximately(position.Z, -12f, 0.5f)
+                && IsApproximately(scale.X, 7f, 0.5f)
+                && IsApproximately(scale.Y, 18f, 0.5f)
+                && IsApproximately(scale.Z, 7f, 0.5f);
+        }
+
+        /// <summary>
+        /// Resolves the first active directional light currently registered in the object manager.
+        /// </summary>
+        /// <returns>First enabled directional light with an enabled parent entity, or null when none is active.</returns>
+        DirectionalLightComponent ResolveActiveDirectionalLight() {
+            if (Core.Instance?.ObjectManager?.DirectionalLights == null) {
+                return null;
+            }
+
+            for (int index = 0; index < Core.Instance.ObjectManager.DirectionalLights.Count; index++) {
+                DirectionalLightComponent directionalLight = Core.Instance.ObjectManager.DirectionalLights[index];
+                if (directionalLight?.Parent == null || !directionalLight.Parent.IsHierarchyEnabled) {
+                    continue;
+                }
+
+                return directionalLight;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Appends one parity trace line for the authored central plaza tower so DirectX11 face lighting can be compared against PSP.
+        /// </summary>
+        /// <param name="entity">Tower entity currently being rendered.</param>
+        void WritePlazaTowerFaceDebugTrace(Entity entity) {
+            float3 entityPosition = entity.Position;
+            float3 entityScale = entity.Scale;
+            if (plazaDrawableTraceCounter < 40) {
+                plazaDrawableTraceCounter++;
+                string drawableLine =
+                    $"PlazaDrawableTrace position={entityPosition.X},{entityPosition.Y},{entityPosition.Z}" +
+                    $" scale={entityScale.X},{entityScale.Y},{entityScale.Z}";
+                File.AppendAllText(PlazaFaceTracePath, drawableLine + Environment.NewLine);
+            }
+
+            if (!IsDirectionalShadowCentralTower(entity)) {
+                return;
+            }
+
+            DirectionalLightComponent directionalLight = ResolveActiveDirectionalLight();
+            if (directionalLight?.Parent == null) {
+                return;
+            }
+
+            plazaFaceTraceCounter++;
+            if ((plazaFaceTraceCounter % 1) != 0) {
+                return;
+            }
+
+            float3 cameraToTower = float3.Normalize(currentCameraPosition - entityPosition);
+            float3 lightDirection = float3.Normalize(LightDirectionUtility.GetEntityForwardDirection(directionalLight.Parent)) * -1f;
+            float4 entityOrientation = entity.Orientation;
+
+            float3 positiveX = float4.RotateVector(new float3(1f, 0f, 0f), entityOrientation);
+            float3 negativeX = float4.RotateVector(new float3(-1f, 0f, 0f), entityOrientation);
+            float3 positiveZ = float4.RotateVector(new float3(0f, 0f, 1f), entityOrientation);
+            float3 negativeZ = float4.RotateVector(new float3(0f, 0f, -1f), entityOrientation);
+
+            string line =
+                $"PlazaTowerFaceDebug position={entityPosition.X},{entityPosition.Y},{entityPosition.Z}" +
+                $" scale={entityScale.X},{entityScale.Y},{entityScale.Z}" +
+                $" cameraToTower={cameraToTower.X},{cameraToTower.Y},{cameraToTower.Z}" +
+                $" light={lightDirection.X},{lightDirection.Y},{lightDirection.Z}" +
+                $" pxView={float3.Dot(positiveX, cameraToTower)} pxLight={float3.Dot(positiveX, lightDirection)}" +
+                $" nxView={float3.Dot(negativeX, cameraToTower)} nxLight={float3.Dot(negativeX, lightDirection)}" +
+                $" pzView={float3.Dot(positiveZ, cameraToTower)} pzLight={float3.Dot(positiveZ, lightDirection)}" +
+                $" nzView={float3.Dot(negativeZ, cameraToTower)} nzLight={float3.Dot(negativeZ, lightDirection)}";
+            File.AppendAllText(PlazaFaceTracePath, line + Environment.NewLine);
+        }
+
+        /// <summary>
         /// Uploads the packed forward-light shader data to the DirectX11 pixel-shader constant-buffer slot.
         /// </summary>
         /// <param name="data">Packed forward-light shader data prepared for the current frame.</param>
@@ -1611,6 +1729,7 @@ namespace helengine.directx11 {
             }
 
             Entity parent = drawable.Parent;
+            WritePlazaTowerFaceDebugTrace(parent);
             var data = (DirectX11ModelResource)drawable.Model;
 
             context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));

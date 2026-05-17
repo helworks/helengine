@@ -235,15 +235,16 @@ namespace helengine {
                 return;
             }
 
-            AnchorSpace resolvedAnchorSpace = ResolveCurrentAnchorSpace();
-            float2 resolvedCanvasOrigin = ResolveCurrentCanvasOrigin(resolvedAnchorSpace);
-            bool anchorSpaceChanged = DidAnchorSpaceChange(CurrentAnchorSpaceValue, resolvedAnchorSpace) ||
+            int2 resolvedAnchorSpaceSize = ResolveCurrentAnchorSpaceSize();
+            float2 resolvedAnchorSpaceOrigin = new float2(0f, 0f);
+            float2 resolvedCanvasOrigin = ResolveCurrentCanvasOrigin(resolvedAnchorSpaceSize);
+            bool anchorSpaceChanged = DidAnchorSpaceChange(CurrentAnchorSpaceValue, resolvedAnchorSpaceSize, resolvedAnchorSpaceOrigin) ||
                                       DidCanvasOriginChange(CurrentCanvasOriginValue, resolvedCanvasOrigin);
 
-            CurrentAnchorSpaceValue = resolvedAnchorSpace;
+            CurrentAnchorSpaceValue.Update(resolvedAnchorSpaceSize, resolvedAnchorSpaceOrigin);
             CurrentCanvasOriginValue = resolvedCanvasOrigin;
             for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
-                SnapshotsValue[snapshotIndex].Apply(resolvedAnchorSpace, resolvedCanvasOrigin, ReferenceWidthValue, ReferenceHeightValue);
+                SnapshotsValue[snapshotIndex].Apply(CurrentAnchorSpaceValue, resolvedCanvasOrigin, ReferenceWidthValue, ReferenceHeightValue);
             }
 
             for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
@@ -259,24 +260,24 @@ namespace helengine {
         /// Resolves the current fitted anchor space using the live main-window dimensions and the authored reference canvas.
         /// </summary>
         /// <returns>Anchor space that descendants should use for local anchoring.</returns>
-        AnchorSpace ResolveCurrentAnchorSpace() {
+        int2 ResolveCurrentAnchorSpaceSize() {
             int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
             double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
             double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
             if (LiveWindowMatchesReferenceAspect(liveWidth, liveHeight)) {
-                return new AnchorSpace(new int2((int)Math.Round(liveWidth), (int)Math.Round(liveHeight)), new float2(0f, 0f));
+                return new int2((int)Math.Round(liveWidth), (int)Math.Round(liveHeight));
             }
 
             double widthScale = liveWidth / ReferenceWidthValue;
             double heightScale = liveHeight / ReferenceHeightValue;
             double scale = Math.Min(widthScale, heightScale);
             if (scale <= 0d) {
-                return new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
+                return new int2(ReferenceWidthValue, ReferenceHeightValue);
             }
 
             int fittedWidth = Math.Max(1, (int)Math.Round(ReferenceWidthValue * scale));
             int fittedHeight = Math.Max(1, (int)Math.Round(ReferenceHeightValue * scale));
-            return new AnchorSpace(new int2(fittedWidth, fittedHeight), new float2(0f, 0f));
+            return new int2(fittedWidth, fittedHeight);
         }
 
         /// <summary>
@@ -284,12 +285,12 @@ namespace helengine {
         /// </summary>
         /// <param name="anchorSpace">Anchor space resolved for the current live window.</param>
         /// <returns>Root-entity offset that places the fitted canvas inside the live window.</returns>
-        float2 ResolveCurrentCanvasOrigin(AnchorSpace anchorSpace) {
+        float2 ResolveCurrentCanvasOrigin(int2 anchorSpaceSize) {
             int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
             double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
             double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
-            float originX = (float)((liveWidth - anchorSpace.Size.X) * 0.5d);
-            float originY = (float)((liveHeight - anchorSpace.Size.Y) * 0.5d);
+            float originX = (float)((liveWidth - anchorSpaceSize.X) * 0.5d);
+            float originY = (float)((liveHeight - anchorSpaceSize.Y) * 0.5d);
             return new float2(originX, originY);
         }
 
@@ -311,15 +312,15 @@ namespace helengine {
         /// <param name="currentAnchorSpace">Previously applied anchor space.</param>
         /// <param name="resolvedAnchorSpace">Newly resolved anchor space.</param>
         /// <returns>True when the size or origin changed.</returns>
-        bool DidAnchorSpaceChange(AnchorSpace currentAnchorSpace, AnchorSpace resolvedAnchorSpace) {
+        bool DidAnchorSpaceChange(AnchorSpace currentAnchorSpace, int2 resolvedAnchorSpaceSize, float2 resolvedAnchorSpaceOrigin) {
             if (currentAnchorSpace == null) {
                 return true;
             }
 
-            return currentAnchorSpace.Size.X != resolvedAnchorSpace.Size.X ||
-                   currentAnchorSpace.Size.Y != resolvedAnchorSpace.Size.Y ||
-                   currentAnchorSpace.Origin.X != resolvedAnchorSpace.Origin.X ||
-                   currentAnchorSpace.Origin.Y != resolvedAnchorSpace.Origin.Y;
+            return currentAnchorSpace.Size.X != resolvedAnchorSpaceSize.X ||
+                   currentAnchorSpace.Size.Y != resolvedAnchorSpaceSize.Y ||
+                   currentAnchorSpace.Origin.X != resolvedAnchorSpaceOrigin.X ||
+                   currentAnchorSpace.Origin.Y != resolvedAnchorSpaceOrigin.Y;
         }
 
         /// <summary>

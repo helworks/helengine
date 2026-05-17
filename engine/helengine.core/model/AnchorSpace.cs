@@ -14,13 +14,23 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Replaces the current resolved anchor-space values without allocating a new instance.
+        /// </summary>
+        /// <param name="size">Updated size of the anchor space in local pixels.</param>
+        /// <param name="origin">Updated origin of the anchor space in the parent local coordinate system.</param>
+        public void Update(int2 size, float2 origin) {
+            Size = size;
+            Origin = origin;
+        }
+
+        /// <summary>
         /// Gets the size of the anchor space in local pixels.
         /// </summary>
-        public int2 Size { get; }
+        public int2 Size { get; private set; }
 
         /// <summary>
         /// Gets the origin of the anchor space in the parent local coordinate system.
         /// </summary>
-        public float2 Origin { get; }
+        public float2 Origin { get; private set; }
     }
 }

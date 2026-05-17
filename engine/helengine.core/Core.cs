@@ -37,6 +37,10 @@ namespace helengine {
         /// </summary>
         readonly Stopwatch UpdateStopwatchValue;
         /// <summary>
+        /// Tracks elapsed wall-clock time for the draw-duration sampling path without allocating one new stopwatch each frame.
+        /// </summary>
+        readonly Stopwatch DrawStopwatchValue;
+        /// <summary>
         /// Stores whether one previous measured update timestamp has been captured yet.
         /// </summary>
         bool HasPreviousMeasuredUpdateSeconds;
@@ -70,6 +74,7 @@ namespace helengine {
             TextClipboardServiceValue = new NullTextClipboardService();
             TextBoxShortcutRegistryValue = new TextBoxShortcutRegistry();
             UpdateStopwatchValue = Stopwatch.StartNew();
+            DrawStopwatchValue = new Stopwatch();
         }
 
         /// <summary>
@@ -106,6 +111,51 @@ namespace helengine {
         /// Gets the most recent measured duration spent executing <see cref="RenderManager3D.Draw"/>.
         /// </summary>
         public double LastRenderManager3DDrawMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets whether the active runtime has published platform-specific performance overlay metrics.
+        /// </summary>
+        public bool UsesPerformanceOverlayMetrics { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent triangle-setup duration published for the FPS overlay.
+        /// </summary>
+        public double PerformanceOverlayTriangleSetupMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent triangle-preparation duration published for the FPS overlay.
+        /// </summary>
+        public double PerformanceOverlayTrianglePrepMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent triangle-emission duration published for the FPS overlay.
+        /// </summary>
+        public double PerformanceOverlayTriangleEmitMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent packet-encode duration published for the FPS overlay.
+        /// </summary>
+        public double PerformanceOverlayPacketEncodeMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent submit duration published for the FPS overlay.
+        /// </summary>
+        public double PerformanceOverlaySubmitMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent wait duration published for the FPS overlay.
+        /// </summary>
+        public double PerformanceOverlayWaitMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent submitted-triangle count published for the FPS overlay.
+        /// </summary>
+        public int PerformanceOverlaySubmittedTriangleCount { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent dispatch count published for the FPS overlay.
+        /// </summary>
+        public int PerformanceOverlayDispatchCount { get; private set; }
 
         /// <summary>
         /// Gets the 2D render manager.
@@ -198,6 +248,39 @@ namespace helengine {
         /// Gets the registry that stores the active textbox shortcut bindings.
         /// </summary>
         public TextBoxShortcutRegistry TextBoxShortcutRegistry => TextBoxShortcutRegistryValue;
+
+        /// <summary>
+        /// Updates the platform-specific performance overlay metrics consumed by the FPS component.
+        /// </summary>
+        /// <param name="usesPerformanceOverlayMetrics">Whether the active runtime wants the FPS overlay to show custom metrics.</param>
+        /// <param name="triangleSetupMilliseconds">Most recent triangle-setup duration in milliseconds.</param>
+        /// <param name="trianglePrepMilliseconds">Most recent triangle-preparation duration in milliseconds.</param>
+        /// <param name="triangleEmitMilliseconds">Most recent triangle-emission duration in milliseconds.</param>
+        /// <param name="packetEncodeMilliseconds">Most recent packet-encode duration in milliseconds.</param>
+        /// <param name="submitMilliseconds">Most recent submit duration in milliseconds.</param>
+        /// <param name="waitMilliseconds">Most recent wait duration in milliseconds.</param>
+        /// <param name="submittedTriangleCount">Most recent submitted-triangle count.</param>
+        /// <param name="dispatchCount">Most recent dispatch count.</param>
+        public void SetPerformanceOverlayMetrics(
+            bool usesPerformanceOverlayMetrics,
+            double triangleSetupMilliseconds,
+            double trianglePrepMilliseconds,
+            double triangleEmitMilliseconds,
+            double packetEncodeMilliseconds,
+            double submitMilliseconds,
+            double waitMilliseconds,
+            int submittedTriangleCount,
+            int dispatchCount) {
+            UsesPerformanceOverlayMetrics = usesPerformanceOverlayMetrics;
+            PerformanceOverlayTriangleSetupMilliseconds = triangleSetupMilliseconds;
+            PerformanceOverlayTrianglePrepMilliseconds = trianglePrepMilliseconds;
+            PerformanceOverlayTriangleEmitMilliseconds = triangleEmitMilliseconds;
+            PerformanceOverlayPacketEncodeMilliseconds = packetEncodeMilliseconds;
+            PerformanceOverlaySubmitMilliseconds = submitMilliseconds;
+            PerformanceOverlayWaitMilliseconds = waitMilliseconds;
+            PerformanceOverlaySubmittedTriangleCount = submittedTriangleCount;
+            PerformanceOverlayDispatchCount = dispatchCount;
+        }
 
         /// <summary>
         /// Initializes core systems with rendering and input capture.
@@ -411,9 +494,10 @@ namespace helengine {
         /// </summary>
         /// <returns>Measured draw duration in milliseconds.</returns>
         protected virtual double MeasureRenderManager3DDrawMilliseconds() {
-            Stopwatch drawStopwatch = Stopwatch.StartNew();
+            DrawStopwatchValue.Restart();
             RenderManager3D.Draw();
-            return drawStopwatch.Elapsed.TotalMilliseconds;
+            DrawStopwatchValue.Stop();
+            return DrawStopwatchValue.Elapsed.TotalMilliseconds;
         }
 
         /// <summary>

@@ -1363,6 +1363,10 @@ namespace helengine.editor {
                 return RewriteGeneratedContentManagerTemporaryStreamOwnership(contents);
             }
 
+            if (string.Equals(fileName, "RenderManager2D.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return RewriteGeneratedRenderManager2DFontOwnership(contents);
+            }
+
             if (string.Equals(fileName, "RuntimeSceneAssetReferenceResolver.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return RewriteGeneratedRuntimeSceneAssetReferenceResolverTemporaryAssetOwnership(contents);
             }
@@ -1371,8 +1375,16 @@ namespace helengine.editor {
                 return RewriteGeneratedSceneManagerTemporarySceneAssetOwnership(contents);
             }
 
+            if (string.Equals(fileName, "ObjectManager.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return RewriteGeneratedObjectManagerPendingUpdateOperationOwnership(contents);
+            }
+
             if (string.Equals(fileName, "FontAsset.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return RewriteGeneratedFontAssetSourceTextureOwnership(contents);
+            }
+
+            if (string.Equals(fileName, "FontAssetBinarySerializer.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return RewriteGeneratedFontAssetBinarySerializerVersionConstants(contents);
             }
 
             if (string.Equals(fileName, "native_dictionary.hpp", StringComparison.OrdinalIgnoreCase)
@@ -1487,6 +1499,37 @@ namespace helengine.editor {
                 "{\r\n::FileStream *stream = File::OpenRead(fullPath);\r\nauto __disposeStreamGuard = he_cpp_make_scope_exit([&]() {\r\nif (stream != nullptr)\r\n{\r\nstream->Dispose();\r\ndelete stream;\r\n}\r\n});\r\nreturn processor->Read(stream);}",
                 StringComparison.Ordinal);
             return updatedContents;
+        }
+
+        /// <summary>
+        /// Rewrites the generated 2D render manager so released font assets free native heap ownership instead of only flipping disposed state.
+        /// </summary>
+        /// <param name="contents">Current generated 2D render-manager source.</param>
+        /// <returns>Updated source with explicit native font ownership cleanup.</returns>
+        static string RewriteGeneratedRenderManager2DFontOwnership(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            return Regex.Replace(
+                contents,
+                """void RenderManager2D::ReleaseFont\(::FontAsset\* font\)\s*\{\s*if \(font == nullptr\)\s*\{\s*throw new ArgumentNullException\("font"\);\s*\}\s*font->Dispose\(\);\s*\}""",
+                """
+void RenderManager2D::ReleaseFont(::FontAsset* font)
+{
+    if (font == nullptr)
+    {
+throw new ArgumentNullException("font");
+    }
+Dictionary<char, ::FontChar> *characters = font->get_Characters();
+::FontInfo *fontInfo = font->get_FontInfo();
+font->Dispose();
+delete characters;
+delete fontInfo;
+delete font;
+}
+""",
+                RegexOptions.Multiline);
         }
 
         /// <summary>
@@ -1660,6 +1703,16 @@ namespace {
                 updatedContents,
                 @"::TextureAsset \*textureAsset = this->AssetContentManager->Load<TextureAsset\*>\(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset\);\s*::RuntimeTexture \*runtimeTexture = Core::get_Instance\(\)->get_RenderManager2D\(\)->BuildTextureFromRaw\(textureAsset\);\s*this->TrackOwnedTexture\(runtimeTexture\);\s*runtimeMaterial->get_Properties\(\)->SetTexture\(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, runtimeTexture\);\s*\}",
                 "::TextureAsset *textureAsset = this->AssetContentManager->Load<TextureAsset*>(diffuseTexturePath, RuntimeContentProcessorIds::TextureAsset);\nauto __releaseTextureAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientTextureAsset(textureAsset);\n});\n::RuntimeTexture *runtimeTexture = Core::get_Instance()->get_RenderManager2D()->BuildTextureFromRaw(textureAsset);\nthis->TrackOwnedTexture(runtimeTexture);\nruntimeMaterial->get_Properties()->SetTexture(StandardMaterialTextureBindingDefaults::DiffuseTextureBindingName, runtimeTexture);\n}");
+            updatedContents = Regex.Replace(
+                updatedContents,
+                @"void RuntimeSceneAssetReferenceResolver::CancelOwnedAssetTracking\(\)\s*\{\s*this->ActiveOwnedTextures = nullptr;\s*this->ActiveOwnedFonts = nullptr;\s*this->ActiveResolvedFontsByPath = nullptr;\s*this->ActiveOwnedModels = nullptr;\s*this->ActiveOwnedMaterials = nullptr;\s*\}",
+                "void RuntimeSceneAssetReferenceResolver::CancelOwnedAssetTracking()\n{\ndelete this->ActiveOwnedTextures;\ndelete this->ActiveOwnedFonts;\ndelete this->ActiveResolvedFontsByPath;\ndelete this->ActiveOwnedModels;\ndelete this->ActiveOwnedMaterials;\nthis->ActiveOwnedTextures = nullptr;\nthis->ActiveOwnedFonts = nullptr;\nthis->ActiveResolvedFontsByPath = nullptr;\nthis->ActiveOwnedModels = nullptr;\nthis->ActiveOwnedMaterials = nullptr;\n}",
+                RegexOptions.CultureInvariant);
+            updatedContents = Regex.Replace(
+                updatedContents,
+                @"List<::RuntimeTexture\*> \*ownedTextures = new List<::RuntimeTexture\*>\(this->ActiveOwnedTextures->get_Count\(\)\);\s*for \(int32_t index = 0; index < this->ActiveOwnedTextures->get_Count\(\); index\+\+\) \{\s*ownedTextures->Add\(\(\*this->ActiveOwnedTextures\)\[index\]\);\s*\}\s*List<::FontAsset\*> \*ownedFonts = new List<::FontAsset\*>\(this->ActiveOwnedFonts->get_Count\(\)\);\s*for \(int32_t index = 0; index < this->ActiveOwnedFonts->get_Count\(\); index\+\+\) \{\s*ownedFonts->Add\(\(\*this->ActiveOwnedFonts\)\[index\]\);\s*\}\s*List<::RuntimeModel\*> \*ownedModels = new List<::RuntimeModel\*>\(this->ActiveOwnedModels->get_Count\(\)\);\s*for \(int32_t index = 0; index < this->ActiveOwnedModels->get_Count\(\); index\+\+\) \{\s*ownedModels->Add\(\(\*this->ActiveOwnedModels\)\[index\]\);\s*\}\s*List<::RuntimeMaterial\*> \*ownedMaterials = new List<::RuntimeMaterial\*>\(this->ActiveOwnedMaterials->get_Count\(\)\);\s*for \(int32_t index = 0; index < this->ActiveOwnedMaterials->get_Count\(\); index\+\+\) \{\s*ownedMaterials->Add\(\(\*this->ActiveOwnedMaterials\)\[index\]\);\s*\}\s*this->ActiveOwnedTextures = nullptr;\s*this->ActiveOwnedFonts = nullptr;\s*this->ActiveResolvedFontsByPath = nullptr;\s*this->ActiveOwnedModels = nullptr;\s*this->ActiveOwnedMaterials = nullptr;\s*return new ::RuntimeSceneOwnedAssetSet\(ownedTextures, ownedFonts, ownedModels, ownedMaterials\);\}",
+                "List<::RuntimeTexture*> *ownedTextures = this->ActiveOwnedTextures;\nList<::FontAsset*> *ownedFonts = this->ActiveOwnedFonts;\nList<::RuntimeModel*> *ownedModels = this->ActiveOwnedModels;\nList<::RuntimeMaterial*> *ownedMaterials = this->ActiveOwnedMaterials;\ndelete this->ActiveResolvedFontsByPath;\nthis->ActiveOwnedTextures = nullptr;\nthis->ActiveOwnedFonts = nullptr;\nthis->ActiveResolvedFontsByPath = nullptr;\nthis->ActiveOwnedModels = nullptr;\nthis->ActiveOwnedMaterials = nullptr;\nreturn new ::RuntimeSceneOwnedAssetSet(ownedTextures, ownedFonts, ownedModels, ownedMaterials);}",
+                RegexOptions.CultureInvariant);
             return updatedContents;
         }
 
@@ -1834,6 +1887,38 @@ namespace {
                 "::SceneAsset *sceneAsset = this->ContentManager->Load<SceneAsset*>(entry->get_CookedRelativePath(), RuntimeContentProcessorIds::SceneAsset);\nthis->RecordTraceState(\"LoadSceneImmediateBeforeSceneLoadServiceLoad\", entry->get_SceneId());\n::RuntimeSceneLoadResult *loadResult = this->SceneLoadService->LoadTracked(sceneAsset);\nthis->RecordTraceState(\"LoadSceneImmediateAfterSceneLoadServiceLoad\", entry->get_SceneId());",
                 "::SceneAsset *sceneAsset = this->ContentManager->Load<SceneAsset*>(entry->get_CookedRelativePath(), RuntimeContentProcessorIds::SceneAsset);\nauto __releaseSceneAssetGuard = he_cpp_make_scope_exit([&]() {\nReleaseTransientSceneAsset(sceneAsset);\n});\nthis->RecordTraceState(\"LoadSceneImmediateBeforeSceneLoadServiceLoad\", entry->get_SceneId());\n::RuntimeSceneLoadResult *loadResult = this->SceneLoadService->LoadTracked(sceneAsset);\nthis->RecordTraceState(\"LoadSceneImmediateAfterSceneLoadServiceLoad\", entry->get_SceneId());",
                 StringComparison.Ordinal);
+            updatedContents = Regex.Replace(
+                updatedContents,
+                @"this->RecordTraceState\(""UnloadSceneImmediateBeforeDisposeSceneRoots"", loadedSceneRecord->get_SceneId\(\)\);\s*this->DisposeSceneRoots\(loadedSceneRecord->get_RootEntities\(\)\);\s*this->ReleaseOwnedAssets\(loadedSceneRecord->get_OwnedAssets\(\)\);\s*this->LoadedSceneRecordsById->Remove\(loadedSceneRecord->get_SceneId\(\)\);\s*this->LoadedSceneRecords->Remove\(loadedSceneRecord\);\s*this->SceneUnloaded.Invoke\(this, new ::SceneUnloadedEventArgs\(loadedSceneRecord->get_SceneId\(\), loadedSceneRecord->get_CookedRelativePath\(\)\)\);\s*this->RecordTraceState\(""UnloadSceneImmediateEnd"", loadedSceneRecord->get_SceneId\(\)\);",
+                "this->RecordTraceState(\"UnloadSceneImmediateBeforeDisposeSceneRoots\", loadedSceneRecord->get_SceneId());\nList<::Entity*> *releasedRootEntities = loadedSceneRecord->get_RootEntities();\n::RuntimeSceneOwnedAssetSet *releasedOwnedAssets = loadedSceneRecord->get_OwnedAssets();\nthis->DisposeSceneRoots(releasedRootEntities);\nthis->ReleaseOwnedAssets(releasedOwnedAssets);\nthis->LoadedSceneRecordsById->Remove(loadedSceneRecord->get_SceneId());\nthis->LoadedSceneRecords->Remove(loadedSceneRecord);\nthis->SceneUnloaded.Invoke(this, new ::SceneUnloadedEventArgs(loadedSceneRecord->get_SceneId(), loadedSceneRecord->get_CookedRelativePath()));\nthis->RecordTraceState(\"UnloadSceneImmediateEnd\", loadedSceneRecord->get_SceneId());\ndelete releasedRootEntities;\ndelete releasedOwnedAssets->get_OwnedTextures();\ndelete releasedOwnedAssets->get_OwnedFonts();\ndelete releasedOwnedAssets->get_OwnedModels();\ndelete releasedOwnedAssets->get_OwnedMaterials();\ndelete releasedOwnedAssets;\ndelete loadedSceneRecord;",
+                RegexOptions.CultureInvariant);
+            updatedContents = Regex.Replace(
+                updatedContents,
+                @"while \(this->PendingOperations->get_Count\(\) > 0\) \{\s*::PendingSceneOperation \*operation = \(\*this->PendingOperations\)\[0\];\s*this->PendingOperations->RemoveAt\(0\);\s*this->RecordTraceState\(""FlushPendingOperationsOperation"", operation->get_SceneId\(\)\);\s*if \(operation->get_OperationKind\(\) == PendingSceneOperationKind::Load\)\s*\{\s*this->LoadSceneImmediate\(operation->get_SceneId\(\), operation->get_LoadMode\(\)\);\s*\}\s*else \{\s*this->UnloadSceneImmediate\(operation->get_SceneId\(\)\);\s*\}\s*\}",
+                "while (this->PendingOperations->get_Count() > 0) {\n::PendingSceneOperation *operation = (*this->PendingOperations)[0];\nthis->PendingOperations->RemoveAt(0);\nthis->RecordTraceState(\"FlushPendingOperationsOperation\", operation->get_SceneId());\n    if (operation->get_OperationKind() == PendingSceneOperationKind::Load)\n    {\nthis->LoadSceneImmediate(operation->get_SceneId(), operation->get_LoadMode());\n    }\nelse {\nthis->UnloadSceneImmediate(operation->get_SceneId());\n}\ndelete operation;\n}",
+                RegexOptions.CultureInvariant);
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Rewrites the generated object manager so deferred native pending update operations are deleted after application.
+        /// </summary>
+        /// <param name="contents">Current generated object-manager source.</param>
+        /// <returns>Updated source with explicit pending update operation ownership cleanup.</returns>
+        static string RewriteGeneratedObjectManagerPendingUpdateOperationOwnership(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents;
+            updatedContents = updatedContents.Replace(
+                "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\n::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\n    if (op->get_IsAdd())\n    {\nthis->AddUpdateableToList(op->get_Entity());\n    }\nelse {\nthis->RemoveUpdateableFromList(op->get_Entity());\n}\n}\nthis->pendingUpdateOperations->Clear();",
+                "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\n::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\n    if (op->get_IsAdd())\n    {\nthis->AddUpdateableToList(op->get_Entity());\n    }\nelse {\nthis->RemoveUpdateableFromList(op->get_Entity());\n}\ndelete op;\n}\nthis->pendingUpdateOperations->Clear();",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\r\n::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\r\n    if (op->get_IsAdd())\r\n    {\r\nthis->AddUpdateableToList(op->get_Entity());\r\n    }\r\nelse {\r\nthis->RemoveUpdateableFromList(op->get_Entity());\r\n}\r\n}\r\nthis->pendingUpdateOperations->Clear();",
+                "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\r\n::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\r\n    if (op->get_IsAdd())\r\n    {\r\nthis->AddUpdateableToList(op->get_Entity());\r\n    }\r\nelse {\r\nthis->RemoveUpdateableFromList(op->get_Entity());\r\n}\r\ndelete op;\r\n}\r\nthis->pendingUpdateOperations->Clear();",
+                StringComparison.Ordinal);
             return updatedContents;
         }
 
@@ -1866,10 +1951,55 @@ namespace {
 """);
             }
 
-            updatedContents = updatedContents.Replace(
-                "this->set_Texture(nullptr);\nthis->set_Characters(nullptr);\nthis->set_FontInfo(nullptr);\nthis->set_SourceTextureAsset(nullptr);\nthis->set_IsDisposed(true);",
-                "this->set_Texture(nullptr);\nthis->set_Characters(nullptr);\nthis->set_FontInfo(nullptr);\nReleaseTransientSourceTextureAsset(this->get_SourceTextureAsset());\nthis->set_SourceTextureAsset(nullptr);\nthis->set_IsDisposed(true);",
-                StringComparison.Ordinal);
+            return Regex.Replace(
+                updatedContents,
+                """this->set_Texture\(nullptr\);\s*this->set_Characters\(nullptr\);\s*this->set_FontInfo\(nullptr\);\s*this->set_SourceTextureAsset\(nullptr\);\s*this->set_IsDisposed\(true\);""",
+                """
+this->set_Texture(nullptr);
+this->set_Characters(nullptr);
+this->set_FontInfo(nullptr);
+ReleaseTransientSourceTextureAsset(this->get_SourceTextureAsset());
+this->set_SourceTextureAsset(nullptr);
+this->set_IsDisposed(true);
+""",
+                RegexOptions.Multiline);
+        }
+
+        /// <summary>
+        /// Rewrites generated font serializer version constants so native runtime readers accept the latest cooked font payload layout.
+        /// </summary>
+        /// <param name="contents">Current generated font serializer source.</param>
+        /// <returns>Updated serializer source with synchronized version constants.</returns>
+        static string RewriteGeneratedFontAssetBinarySerializerVersionConstants(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = Regex.Replace(
+                contents,
+                """uint8_t FontAssetBinarySerializer::CurrentVersion = \d+;""",
+                "uint8_t FontAssetBinarySerializer::CurrentVersion = 5;",
+                RegexOptions.Multiline);
+            updatedContents = Regex.Replace(
+                updatedContents,
+                """uint8_t FontAssetBinarySerializer::RuntimeTextureIdVersion = \d+;""",
+                "uint8_t FontAssetBinarySerializer::RuntimeTextureIdVersion = 2;",
+                RegexOptions.Multiline);
+            updatedContents = Regex.Replace(
+                updatedContents,
+                """uint8_t FontAssetBinarySerializer::TextureColorFormatVersion = \d+;""",
+                "uint8_t FontAssetBinarySerializer::TextureColorFormatVersion = 3;",
+                RegexOptions.Multiline);
+            updatedContents = Regex.Replace(
+                updatedContents,
+                """uint8_t FontAssetBinarySerializer::PaletteTextureMetadataVersion = \d+;""",
+                "uint8_t FontAssetBinarySerializer::PaletteTextureMetadataVersion = 4;",
+                RegexOptions.Multiline);
+            updatedContents = Regex.Replace(
+                updatedContents,
+                """uint8_t FontAssetBinarySerializer::ExternalCookedAtlasPathVersion = \d+;""",
+                "uint8_t FontAssetBinarySerializer::ExternalCookedAtlasPathVersion = 5;",
+                RegexOptions.Multiline);
             return updatedContents;
         }
 

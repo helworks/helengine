@@ -301,6 +301,36 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures prepacked GameCube RGB5A3 texture payloads round-trip through the HELE asset serializer.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_TextureAsset_WhenGxRgb5A3_preservesPackedPayload() {
+            TextureAsset asset = new TextureAsset {
+                Id = "texture/gxrgb5a3",
+                RuntimeAssetId = 0x2223242526272829UL,
+                Width = 2,
+                Height = 2,
+                ColorFormat = TextureAssetColorFormat.GxRgb5A3,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                Colors = new byte[] {
+                    0x00, 0xFC, 0xE0, 0x83, 0xE0, 0x83, 0xE0, 0x83,
+                    0x1F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                    0x1F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                    0x1F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+                }
+            };
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            TextureAsset deserialized = (TextureAsset)AssetSerializer.DeserializeFromBytes(data);
+
+            Assert.Equal(asset.Id, deserialized.Id);
+            Assert.Equal(asset.RuntimeAssetId, deserialized.RuntimeAssetId);
+            Assert.Equal(TextureAssetColorFormat.GxRgb5A3, deserialized.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, deserialized.AlphaPrecision);
+            Assert.Equal(asset.Colors, deserialized.Colors);
+        }
+
+        /// <summary>
         /// Ensures text assets round-trip through the HELE asset serializer.
         /// </summary>
         [Fact]
@@ -527,6 +557,31 @@ namespace helengine.editor.tests {
             Assert.Equal(256, deserialized.Processor.Platforms["android"].Texture.MaxResolution);
             Assert.Equal(TextureAssetColorFormat.Indexed8, deserialized.Processor.Platforms["android"].Texture.ColorFormat);
             Assert.Equal(TextureAssetAlphaPrecision.A8, deserialized.Processor.Platforms["android"].Texture.AlphaPrecision);
+        }
+
+        /// <summary>
+        /// Ensures generic asset import settings preserve the GameCube RGB5A3 texture choice.
+        /// </summary>
+        [Fact]
+        public void AssetImportSettingsBinarySerializer_WhenGameCubeUsesGxRgb5A3_PreservesThatFormat() {
+            AssetImportSettings settings = CreateAssetImportSettings();
+            settings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 256,
+                    ColorFormat = TextureAssetColorFormat.GxRgb5A3,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                }
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            stream.Position = 0;
+
+            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(256, deserialized.Processor.Platforms["gamecube"].Texture.MaxResolution);
+            Assert.Equal(TextureAssetColorFormat.GxRgb5A3, deserialized.Processor.Platforms["gamecube"].Texture.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, deserialized.Processor.Platforms["gamecube"].Texture.AlphaPrecision);
         }
 
         /// <summary>

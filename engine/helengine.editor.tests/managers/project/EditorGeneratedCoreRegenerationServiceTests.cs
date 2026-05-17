@@ -792,6 +792,279 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated object-manager deferred update operations are deleted after application so panel transitions do not leak native queue nodes.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_object_manager_pending_update_operation_ownership() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-object-manager-pending-update-ownership");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string objectManagerPath = Path.Combine(generatedCoreRootPath, "ObjectManager.cpp");
+
+        File.WriteAllText(
+            objectManagerPath,
+            "void ObjectManager::ApplyPendingUpdateOperations()\n"
+            + "{\n"
+            + "    if (this->pendingUpdateOperations->get_Count() == 0)\n"
+            + "    {\n"
+            + "return;    }\n"
+            + "for (int32_t i = 0; i < this->pendingUpdateOperations->get_Count(); i++) {\n"
+            + "::PendingUpdateOperation *op = (*this->pendingUpdateOperations)[i];\n"
+            + "    if (op->get_IsAdd())\n"
+            + "    {\n"
+            + "this->AddUpdateableToList(op->get_Entity());\n"
+            + "    }\n"
+            + "else {\n"
+            + "this->RemoveUpdateableFromList(op->get_Entity());\n"
+            + "}\n"
+            + "}\n"
+            + "this->pendingUpdateOperations->Clear();\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
+
+        string normalizedObjectManager = File.ReadAllText(objectManagerPath);
+
+        Assert.Contains("delete op;", normalizedObjectManager);
+        Assert.Contains("this->pendingUpdateOperations->Clear();", normalizedObjectManager);
+    }
+
+    /// <summary>
+    /// Verifies generated 2D font release frees native font allocations instead of leaving the disposed shell alive after scene unload.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_render_manager_2d_font_ownership() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-render-manager-2d-font-ownership");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string renderManagerPath = Path.Combine(generatedCoreRootPath, "RenderManager2D.cpp");
+
+        File.WriteAllText(
+            renderManagerPath,
+            "void RenderManager2D::ReleaseFont(::FontAsset* font)\n"
+            + "{\n"
+            + "    if (font == nullptr)\n"
+            + "    {\n"
+            + "throw new ArgumentNullException(\"font\");\n"
+            + "    }\n"
+            + "font->Dispose();\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
+
+        string normalizedRenderManager = File.ReadAllText(renderManagerPath);
+
+        Assert.Contains("Dictionary<char, ::FontChar> *characters = font->get_Characters();", normalizedRenderManager);
+        Assert.Contains("::FontInfo *fontInfo = font->get_FontInfo();", normalizedRenderManager);
+        Assert.Contains("delete characters;", normalizedRenderManager);
+        Assert.Contains("delete fontInfo;", normalizedRenderManager);
+        Assert.Contains("delete font;", normalizedRenderManager);
+    }
+
+    /// <summary>
+    /// Verifies generated font assets release their transient source texture payloads during disposal.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_font_asset_source_texture_ownership() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-font-asset-source-texture-ownership");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string fontAssetPath = Path.Combine(generatedCoreRootPath, "FontAsset.cpp");
+
+        File.WriteAllText(
+            fontAssetPath,
+            "#include \"FontAsset.hpp\"\n\n"
+            + "void FontAsset::Dispose()\n"
+            + "{\n"
+            + "    if (this->IsDisposed)\n"
+            + "    {\n"
+            + "return;    }\n"
+            + "this->set_Texture(nullptr);\n"
+            + "this->set_Characters(nullptr);\n"
+            + "this->set_FontInfo(nullptr);\n"
+            + "this->set_SourceTextureAsset(nullptr);\n"
+            + "this->set_IsDisposed(true);\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
+
+        string normalizedFontAsset = File.ReadAllText(fontAssetPath);
+
+        Assert.Contains("ReleaseTransientSourceTextureAsset(", normalizedFontAsset);
+        Assert.Contains("ReleaseTransientSourceTextureAsset(this->get_SourceTextureAsset());", normalizedFontAsset);
+    }
+
+    /// <summary>
+    /// Verifies generated font serializer version constants stay aligned with the latest packaged font format.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_font_asset_binary_serializer_version_constants() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-font-asset-binary-serializer-version-constants");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string serializerPath = Path.Combine(generatedCoreRootPath, "FontAssetBinarySerializer.cpp");
+
+        File.WriteAllText(
+            serializerPath,
+            "uint8_t FontAssetBinarySerializer::CurrentVersion = 4;\n"
+            + "uint8_t FontAssetBinarySerializer::RuntimeTextureIdVersion = 1;\n"
+            + "uint8_t FontAssetBinarySerializer::TextureColorFormatVersion = 2;\n"
+            + "uint8_t FontAssetBinarySerializer::PaletteTextureMetadataVersion = 3;\n"
+            + "uint8_t FontAssetBinarySerializer::ExternalCookedAtlasPathVersion = 4;\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
+
+        string normalizedSerializer = File.ReadAllText(serializerPath);
+
+        Assert.Contains("uint8_t FontAssetBinarySerializer::CurrentVersion = 5;", normalizedSerializer);
+        Assert.Contains("uint8_t FontAssetBinarySerializer::RuntimeTextureIdVersion = 2;", normalizedSerializer);
+        Assert.Contains("uint8_t FontAssetBinarySerializer::TextureColorFormatVersion = 3;", normalizedSerializer);
+        Assert.Contains("uint8_t FontAssetBinarySerializer::PaletteTextureMetadataVersion = 4;", normalizedSerializer);
+        Assert.Contains("uint8_t FontAssetBinarySerializer::ExternalCookedAtlasPathVersion = 5;", normalizedSerializer);
+    }
+
+    /// <summary>
+    /// Verifies generated runtime scene asset resolver stops leaking per-scene ownership tracking containers after scene materialization completes or is cancelled.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_runtime_scene_asset_reference_resolver_tracking_container_ownership() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-runtime-scene-asset-reference-resolver-tracking-ownership");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string runtimeSceneAssetReferenceResolverPath = Path.Combine(generatedCoreRootPath, "RuntimeSceneAssetReferenceResolver.cpp");
+
+        File.WriteAllText(
+            runtimeSceneAssetReferenceResolverPath,
+            "void RuntimeSceneAssetReferenceResolver::CancelOwnedAssetTracking()\n"
+            + "{\n"
+            + "this->ActiveOwnedTextures = nullptr;\n"
+            + "this->ActiveOwnedFonts = nullptr;\n"
+            + "this->ActiveResolvedFontsByPath = nullptr;\n"
+            + "this->ActiveOwnedModels = nullptr;\n"
+            + "this->ActiveOwnedMaterials = nullptr;\n"
+            + "}\n"
+            + "::RuntimeSceneOwnedAssetSet* RuntimeSceneAssetReferenceResolver::CompleteOwnedAssetTracking()\n"
+            + "{\n"
+            + "    if (this->ActiveOwnedTextures == nullptr || this->ActiveOwnedFonts == nullptr || this->ActiveOwnedModels == nullptr || this->ActiveOwnedMaterials == nullptr)\n"
+            + "    {\n"
+            + "throw new InvalidOperationException(\"Runtime scene asset tracking is not active.\");\n"
+            + "    }\n"
+            + "List<::RuntimeTexture*> *ownedTextures = new List<::RuntimeTexture*>(this->ActiveOwnedTextures->get_Count());\n"
+            + "for (int32_t index = 0; index < this->ActiveOwnedTextures->get_Count(); index++) {\n"
+            + "ownedTextures->Add((*this->ActiveOwnedTextures)[index]);\n"
+            + "}\n"
+            + "List<::FontAsset*> *ownedFonts = new List<::FontAsset*>(this->ActiveOwnedFonts->get_Count());\n"
+            + "for (int32_t index = 0; index < this->ActiveOwnedFonts->get_Count(); index++) {\n"
+            + "ownedFonts->Add((*this->ActiveOwnedFonts)[index]);\n"
+            + "}\n"
+            + "List<::RuntimeModel*> *ownedModels = new List<::RuntimeModel*>(this->ActiveOwnedModels->get_Count());\n"
+            + "for (int32_t index = 0; index < this->ActiveOwnedModels->get_Count(); index++) {\n"
+            + "ownedModels->Add((*this->ActiveOwnedModels)[index]);\n"
+            + "}\n"
+            + "List<::RuntimeMaterial*> *ownedMaterials = new List<::RuntimeMaterial*>(this->ActiveOwnedMaterials->get_Count());\n"
+            + "for (int32_t index = 0; index < this->ActiveOwnedMaterials->get_Count(); index++) {\n"
+            + "ownedMaterials->Add((*this->ActiveOwnedMaterials)[index]);\n"
+            + "}\n"
+            + "this->ActiveOwnedTextures = nullptr;\n"
+            + "this->ActiveOwnedFonts = nullptr;\n"
+            + "this->ActiveResolvedFontsByPath = nullptr;\n"
+            + "this->ActiveOwnedModels = nullptr;\n"
+            + "this->ActiveOwnedMaterials = nullptr;\n"
+            + "return new ::RuntimeSceneOwnedAssetSet(ownedTextures, ownedFonts, ownedModels, ownedMaterials);}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
+
+        string normalizedResolver = File.ReadAllText(runtimeSceneAssetReferenceResolverPath);
+
+        Assert.Contains("delete this->ActiveOwnedTextures;", normalizedResolver);
+        Assert.Contains("delete this->ActiveOwnedFonts;", normalizedResolver);
+        Assert.Contains("delete this->ActiveResolvedFontsByPath;", normalizedResolver);
+        Assert.Contains("List<::RuntimeTexture*> *ownedTextures = this->ActiveOwnedTextures;", normalizedResolver);
+        Assert.DoesNotContain("new List<::RuntimeTexture*>", normalizedResolver, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies generated scene unload tears down loaded-scene record containers after scene-owned assets and roots are released.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_scene_manager_loaded_scene_record_container_ownership() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-scene-manager-loaded-scene-record-container-ownership");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string sceneManagerPath = Path.Combine(generatedCoreRootPath, "SceneManager.cpp");
+
+        File.WriteAllText(
+            sceneManagerPath,
+            "void SceneManager::UnloadSceneImmediate(std::string sceneId)\n"
+            + "{\n"
+            + "this->RecordTraceState(\"UnloadSceneImmediateBegin\", sceneId);\n"
+            + "::LoadedSceneRecord* loadedSceneRecord;\n"
+            + "    if (!this->LoadedSceneRecordsById->TryGetValue(sceneId, loadedSceneRecord))\n"
+            + "    {\n"
+            + "throw new InvalidOperationException(std::string(\"Runtime scene '\") + sceneId + std::string(\"' is not currently loaded.\"));\n"
+            + "    }\n"
+            + "this->SceneUnloading.Invoke(this, new ::SceneUnloadingEventArgs(loadedSceneRecord->get_SceneId(), loadedSceneRecord->get_CookedRelativePath(), loadedSceneRecord->get_RootEntities()));\n"
+            + "this->RecordTraceState(\"UnloadSceneImmediateBeforeDisposeSceneRoots\", loadedSceneRecord->get_SceneId());\n"
+            + "this->DisposeSceneRoots(loadedSceneRecord->get_RootEntities());\n"
+            + "this->ReleaseOwnedAssets(loadedSceneRecord->get_OwnedAssets());\n"
+            + "this->LoadedSceneRecordsById->Remove(loadedSceneRecord->get_SceneId());\n"
+            + "this->LoadedSceneRecords->Remove(loadedSceneRecord);\n"
+            + "this->SceneUnloaded.Invoke(this, new ::SceneUnloadedEventArgs(loadedSceneRecord->get_SceneId(), loadedSceneRecord->get_CookedRelativePath()));\n"
+            + "this->RecordTraceState(\"UnloadSceneImmediateEnd\", loadedSceneRecord->get_SceneId());\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
+
+        string normalizedSceneManager = File.ReadAllText(sceneManagerPath);
+
+        Assert.Contains("List<::Entity*> *releasedRootEntities = loadedSceneRecord->get_RootEntities();", normalizedSceneManager);
+        Assert.Contains("::RuntimeSceneOwnedAssetSet *releasedOwnedAssets = loadedSceneRecord->get_OwnedAssets();", normalizedSceneManager);
+        Assert.Contains("delete releasedRootEntities;", normalizedSceneManager);
+        Assert.Contains("delete releasedOwnedAssets->get_OwnedTextures();", normalizedSceneManager);
+        Assert.Contains("delete releasedOwnedAssets;", normalizedSceneManager);
+        Assert.Contains("delete loadedSceneRecord;", normalizedSceneManager);
+    }
+
+    /// <summary>
+    /// Verifies generated scene managers delete deferred pending scene operations after they are flushed.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_scene_manager_pending_scene_operation_ownership() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-scene-manager-pending-scene-operation-ownership");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string sceneManagerPath = Path.Combine(generatedCoreRootPath, "SceneManager.cpp");
+
+        File.WriteAllText(
+            sceneManagerPath,
+            "void SceneManager::FlushPendingOperations()\n"
+            + "{\n"
+            + "    if (this->PendingOperations->get_Count() == 0)\n"
+            + "    {\n"
+            + "return;    }\n"
+            + "this->RecordTraceState(\"FlushPendingOperationsBegin\", String::Empty);\n"
+            + "this->IsFlushingPendingOperations = true;\n"
+            + "{\n"
+            + "auto __finallyGuard_0000019B = he_cpp_make_scope_exit([&]() {\n"
+            + "this->IsFlushingPendingOperations = false;\n"
+            + "});\n"
+            + "while (this->PendingOperations->get_Count() > 0) {\n"
+            + "::PendingSceneOperation *operation = (*this->PendingOperations)[0];\n"
+            + "this->PendingOperations->RemoveAt(0);\n"
+            + "this->RecordTraceState(\"FlushPendingOperationsOperation\", operation->get_SceneId());\n"
+            + "    if (operation->get_OperationKind() == PendingSceneOperationKind::Load)\n"
+            + "    {\n"
+            + "this->LoadSceneImmediate(operation->get_SceneId(), operation->get_LoadMode());\n"
+            + "    }\n"
+            + "else {\n"
+            + "this->UnloadSceneImmediate(operation->get_SceneId());\n"
+            + "}\n"
+            + "}\n"
+            + "}\n"
+            + "this->RecordTraceState(\"FlushPendingOperationsEnd\", String::Empty);\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ds");
+
+        string normalizedSceneManager = File.ReadAllText(sceneManagerPath);
+
+        Assert.Contains("delete operation;", normalizedSceneManager);
+    }
+
+    /// <summary>
     /// Verifies generated dictionary runtime support gains a Clear helper required by converted menu code.
     /// </summary>
     [Fact]
