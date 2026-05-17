@@ -53,6 +53,31 @@ public sealed class EditorGeneratedMenuScenePreparationServiceTests : IDisposabl
     }
 
     /// <summary>
+    /// Ensures Nintendo DS build preparation refreshes an existing generated DS menu scene so generator changes are picked up by later builds.
+    /// </summary>
+    [Fact]
+    public void EnsurePrepared_WhenNintendoDsMenuSceneAlreadyExists_RegeneratesItFromDesktopMenuProvider() {
+        ScriptTypeResolver resolver = new ScriptTypeResolver();
+        resolver.Register("gameplay", typeof(TestMenuDefinitionProvider).Assembly);
+        EditorMenuSceneRegenerationService regenerationService = new EditorMenuSceneRegenerationService(ProjectRootPath, resolver);
+        regenerationService.Regenerate("Scenes/DemoDiscMainMenu.helen", typeof(TestMenuDefinitionProvider).FullName + ", gameplay");
+        WriteStaleNintendoDsMenuScene();
+
+        EditorGeneratedMenuScenePreparationService service = new EditorGeneratedMenuScenePreparationService(ProjectRootPath, resolver);
+
+        service.EnsurePrepared([PlatformMenuSceneResolver.NintendoDsMainMenuSceneId]);
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenuDs.helen");
+        using FileStream stream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+
+        Assert.Collection(
+            sceneAsset.RootEntities,
+            entity => Assert.Equal("DemoDiscTopScreenCamera", entity.Name),
+            entity => Assert.Equal("DemoDiscBottomScreenCamera", entity.Name));
+    }
+
+    /// <summary>
     /// Ensures Nintendo DS build preparation fails clearly when the generated DS menu scene is missing and no script resolver is available.
     /// </summary>
     [Fact]
@@ -68,5 +93,29 @@ public sealed class EditorGeneratedMenuScenePreparationServiceTests : IDisposabl
             service.EnsurePrepared([PlatformMenuSceneResolver.NintendoDsMainMenuSceneId]));
 
         Assert.Contains("DemoDiscMainMenuDs", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Writes one stale placeholder Nintendo DS menu scene so regeneration behavior can be verified against an existing file.
+    /// </summary>
+    void WriteStaleNintendoDsMenuScene() {
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenuDs.helen");
+        SceneAsset staleSceneAsset = new SceneAsset {
+            Id = "scenes/DemoDiscMainMenuDs.helen",
+            RootEntities = [
+                new SceneEntityAsset {
+                    Id = 1,
+                    Name = "StaleNintendoDsMenuRoot",
+                    LocalPosition = float3.Zero,
+                    LocalScale = float3.One,
+                    LocalOrientation = float4.Identity,
+                    Components = Array.Empty<SceneComponentAssetRecord>(),
+                    Children = Array.Empty<SceneEntityAsset>()
+                }
+            ]
+        };
+
+        using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        AssetSerializer.Serialize(stream, staleSceneAsset);
     }
 }

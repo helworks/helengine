@@ -742,6 +742,76 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the packaged runtime menu responds to primary-gamepad navigation and confirm input using the shared gamepad button contract.
+        /// </summary>
+        [Fact]
+        public void Load_WhenMenuReceivesGamepadNavigationAndConfirm_OpensTheSelectedPanel() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-gamepad-confirm-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-gamepad-confirm-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+
+            input.SetGamepadStates(new[] { CreateConnectedGamepadState() });
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetGamepadStates(new[] { CreateConnectedGamepadState(InputGamepadButton.South) });
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.Equal("options", menuHostComponent.ActivePanelId);
+        }
+
+        /// <summary>
+        /// Ensures the packaged runtime menu responds to primary-gamepad directional navigation and back actions.
+        /// </summary>
+        [Fact]
+        public void Load_WhenMenuReceivesGamepadNavigationAndBack_UpdatesSelectionAndReturnsToPreviousPanel() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-gamepad-back-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-gamepad-back-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+
+            input.SetGamepadStates(new[] { CreateConnectedGamepadState() });
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetGamepadStates(new[] { CreateConnectedGamepadState(InputGamepadButton.DPadDown) });
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetGamepadStates(new[] { CreateConnectedGamepadState() });
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.Equal("open-scene-select", menuHostComponent.SelectedItemId);
+
+            input.SetGamepadStates(new[] { CreateConnectedGamepadState(InputGamepadButton.South) });
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.Equal("scene-select", menuHostComponent.ActivePanelId);
+
+            input.SetGamepadStates(new[] { CreateConnectedGamepadState() });
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetGamepadStates(new[] { CreateConnectedGamepadState(InputGamepadButton.East) });
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.Equal("main", menuHostComponent.ActivePanelId);
+        }
+
+        /// <summary>
         /// Ensures the packaged runtime menu responds to mouse activation over a visible menu row.
         /// </summary>
         [Fact]
@@ -1885,6 +1955,26 @@ namespace helengine.editor.tests.serialization.scene {
             int pointerX = (int)viewportEntity.Position.X + (clipComponent.Size.X / 2);
             int pointerY = (int)viewportEntity.Position.Y + (clipComponent.Size.Y / 2);
             return new MouseState(pointerX, pointerY, wheelDelta, leftButtonState, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        }
+
+        /// <summary>
+        /// Creates one connected gamepad state with the supplied buttons marked active.
+        /// </summary>
+        /// <param name="buttons">Buttons to mark active in the created state.</param>
+        /// <returns>Connected gamepad state configured for the current test step.</returns>
+        InputGamepadState CreateConnectedGamepadState(params InputGamepadButton[] buttons) {
+            InputGamepadState gamepadState = new InputGamepadState {
+                Connected = true
+            };
+            if (buttons == null) {
+                throw new ArgumentNullException(nameof(buttons));
+            }
+
+            for (int buttonIndex = 0; buttonIndex < buttons.Length; buttonIndex++) {
+                gamepadState.SetButtonDown(buttons[buttonIndex], true);
+            }
+
+            return gamepadState;
         }
 
         /// <summary>

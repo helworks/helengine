@@ -92,6 +92,28 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the Nintendo DS menu generator flattens the large translucent panel surface against the menu background so the DS software renderer can blit it through the opaque rounded-rect cache.
+    /// </summary>
+    [Fact]
+    public void Regenerate_WhenInvokedForNintendoDs_FlattensPanelSurfaceFillToOpaqueBackgroundComposite() {
+        ScriptTypeResolver resolver = new ScriptTypeResolver();
+        resolver.Register("gameplay", typeof(TestMenuDefinitionProvider).Assembly);
+        EditorMenuSceneRegenerationService service = new EditorMenuSceneRegenerationService(ProjectRootPath, resolver);
+
+        service.Regenerate("Scenes/DemoDiscMainMenuDs.helen", typeof(TestMenuDefinitionProvider).FullName + ", gameplay");
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenuDs.helen");
+        using FileStream stream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+        SceneEntityAsset panelSurfaceEntity = FindEntityByName(sceneAsset.RootEntities, "panel-main-surface");
+        SceneComponentAssetRecord roundedRectRecord = Assert.Single(panelSurfaceEntity.Components, component => component.ComponentTypeId == "helengine.RoundedRectComponent");
+        RoundedRectComponent roundedRectComponent = ReadRoundedRectComponent(roundedRectRecord);
+
+        Assert.Equal(new byte4(60, 40, 80, 255), roundedRectComponent.FillColor);
+        Assert.Equal(new byte4(120, 86, 153, 255), roundedRectComponent.BorderColor);
+    }
+
+    /// <summary>
     /// Counts matching component records throughout one scene hierarchy.
     /// </summary>
     /// <param name="entities">Scene entities to inspect.</param>
@@ -245,5 +267,54 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
         FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
         FPSComponent fpsComponent = Assert.IsType<FPSComponent>(descriptor.DeserializeComponent(record, saveComponent, referenceResolver));
         return fpsComponent.RefreshIntervalSeconds;
+    }
+
+    /// <summary>
+    /// Finds one scene entity by name across the supplied hierarchy.
+    /// </summary>
+    /// <param name="entities">Scene entities to search.</param>
+    /// <param name="name">Entity name to resolve.</param>
+    /// <returns>Matching scene entity.</returns>
+    static SceneEntityAsset FindEntityByName(SceneEntityAsset[] entities, string name) {
+        if (entities == null) {
+            throw new ArgumentNullException(nameof(entities));
+        }
+        if (string.IsNullOrWhiteSpace(name)) {
+            throw new ArgumentException("Entity name must be provided.", nameof(name));
+        }
+
+        for (int index = 0; index < entities.Length; index++) {
+            SceneEntityAsset entity = entities[index];
+            if (entity == null) {
+                continue;
+            }
+
+            if (string.Equals(entity.Name, name, StringComparison.Ordinal)) {
+                return entity;
+            }
+
+            try {
+                return FindEntityByName(entity.Children ?? Array.Empty<SceneEntityAsset>(), name);
+            } catch (InvalidOperationException) {
+            }
+        }
+
+        throw new InvalidOperationException("Expected scene entity '" + name + "' to exist.");
+    }
+
+    /// <summary>
+    /// Deserializes one rounded-rectangle component record from the generated scene payload.
+    /// </summary>
+    /// <param name="record">Serialized rounded-rectangle component record.</param>
+    /// <returns>Deserialized rounded-rectangle component.</returns>
+    static RoundedRectComponent ReadRoundedRectComponent(SceneComponentAssetRecord record) {
+        if (record == null) {
+            throw new ArgumentNullException(nameof(record));
+        }
+
+        RoundedRectComponentPersistenceDescriptor descriptor = new RoundedRectComponentPersistenceDescriptor();
+        EntitySaveComponent saveComponent = new EntitySaveComponent();
+        TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
+        return Assert.IsType<RoundedRectComponent>(descriptor.DeserializeComponent(record, saveComponent, referenceResolver));
     }
 }

@@ -359,6 +359,7 @@ namespace helengine.editor {
             };
 
             MenuItemDefinition firstItem = ResolveFirstEnabledItem(panelDefinition);
+            byte4 panelSurfaceFillColor = ResolveNintendoDsOpaqueCompositeColor(definition.BackgroundColor, definition.SurfaceColor);
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
             children.Add(BuildBackgroundEntityAsset(
                 $"panel-{panelDefinition.PanelId}-surface",
@@ -366,7 +367,7 @@ namespace helengine.editor {
                 new int2(DemoMenuNintendoDsLayout.PanelWidth, DemoMenuNintendoDsLayout.PanelHeight),
                 10f,
                 2f,
-                definition.SurfaceColor,
+                panelSurfaceFillColor,
                 definition.SurfaceBorderColor,
                 30));
             children.Add(BuildBackgroundEntityAsset(
@@ -585,6 +586,41 @@ namespace helengine.editor {
             }
 
             return panelDefinition.VisibleItemCount;
+        }
+
+        /// <summary>
+        /// Resolves one opaque Nintendo DS menu color by precompositing the authored fill color over the menu background.
+        /// </summary>
+        /// <param name="backgroundColor">Opaque background color that clears the DS menu camera.</param>
+        /// <param name="overlayColor">Authored overlay color that may still carry translucency.</param>
+        /// <returns>Opaque composite color matching the authored overlay over the supplied background.</returns>
+        byte4 ResolveNintendoDsOpaqueCompositeColor(byte4 backgroundColor, byte4 overlayColor) {
+            if (overlayColor.W >= 255) {
+                return overlayColor;
+            }
+
+            double alpha = overlayColor.W / 255d;
+            double inverseAlpha = 1d - alpha;
+            return new byte4(
+                ComposeOpaqueChannel(backgroundColor.X, overlayColor.X, alpha, inverseAlpha),
+                ComposeOpaqueChannel(backgroundColor.Y, overlayColor.Y, alpha, inverseAlpha),
+                ComposeOpaqueChannel(backgroundColor.Z, overlayColor.Z, alpha, inverseAlpha),
+                255);
+        }
+
+        /// <summary>
+        /// Resolves one 8-bit opaque color channel by compositing one translucent overlay channel over the supplied background channel.
+        /// </summary>
+        /// <param name="backgroundChannel">Opaque background channel value.</param>
+        /// <param name="overlayChannel">Overlay channel value that should be composited.</param>
+        /// <param name="alpha">Normalized overlay alpha.</param>
+        /// <param name="inverseAlpha">Inverse normalized overlay alpha.</param>
+        /// <returns>Composite 8-bit channel value rounded to the nearest integer.</returns>
+        byte ComposeOpaqueChannel(byte backgroundChannel, byte overlayChannel, double alpha, double inverseAlpha) {
+            return (byte)Math.Clamp(
+                (int)Math.Round((overlayChannel * alpha) + (backgroundChannel * inverseAlpha)),
+                0,
+                255);
         }
 
         /// <summary>
