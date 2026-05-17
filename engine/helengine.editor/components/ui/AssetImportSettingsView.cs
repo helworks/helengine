@@ -1,3 +1,5 @@
+using helengine.baseplatform.Definitions;
+
 namespace helengine.editor {
     /// <summary>
     /// Presents editable importer and processor settings inside the properties panel.
@@ -121,6 +123,10 @@ namespace helengine.editor {
         /// </summary>
         readonly List<string> SupportedPlatformIds;
         /// <summary>
+        /// Platform definitions available for the current import-settings session, keyed by platform identifier.
+        /// </summary>
+        readonly Dictionary<string, PlatformDefinition> PlatformDefinitionsById;
+        /// <summary>
         /// Available texture color-format values shown in the processor combo box.
         /// </summary>
         readonly List<string> TextureColorFormatValues;
@@ -238,6 +244,14 @@ namespace helengine.editor {
         /// </summary>
         AssetEntryKind CurrentEntryKind;
         /// <summary>
+        /// Texture capability source asset kind used for image entries.
+        /// </summary>
+        const string ImageTextureCapabilitySourceAssetKind = "texture";
+        /// <summary>
+        /// Texture capability source asset kind used for font atlas texture entries.
+        /// </summary>
+        const string FontTextureCapabilitySourceAssetKind = "font-atlas-texture";
+        /// <summary>
         /// Cached height of the view in pixels.
         /// </summary>
         int LayoutHeightValue;
@@ -272,6 +286,7 @@ namespace helengine.editor {
             Font = font;
             ImporterIds = new List<string>(8);
             SupportedPlatformIds = new List<string>(4);
+            PlatformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.Ordinal);
             TextureColorFormatValues = new List<string>(Enum.GetNames<TextureAssetColorFormat>());
             TextureAlphaPrecisionValues = new List<string>(Enum.GetNames<TextureAssetAlphaPrecision>());
             TextOrder = RenderOrder2D.PanelForeground;
@@ -495,13 +510,15 @@ namespace helengine.editor {
         /// <param name="supportedPlatforms">Project-supported platform identifiers.</param>
         /// <param name="activePlatformId">Currently active platform identifier.</param>
         /// <param name="entryKind">Kind of asset entry being edited.</param>
+        /// <param name="platformDefinitionsById">Platform definitions available for the supported platform identifiers.</param>
         public void Show(
             IReadOnlyList<string> importerIds,
             string importerId,
             AssetProcessorSettings processorSettings,
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId,
-            AssetEntryKind entryKind) {
+            AssetEntryKind entryKind,
+            IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = null) {
             if (importerIds == null) {
                 throw new ArgumentNullException(nameof(importerIds));
             } else if (string.IsNullOrWhiteSpace(importerId)) {
@@ -518,6 +535,7 @@ namespace helengine.editor {
 
             SetImporterIds(importerIds);
             SetSupportedPlatforms(supportedPlatforms);
+            SetPlatformDefinitions(platformDefinitionsById);
 
             ActiveImporterId = importerId;
             PendingImporterId = importerId;
@@ -551,6 +569,7 @@ namespace helengine.editor {
             ComboBox.IsOpen = false;
             StatusText.Text = string.Empty;
             SupportedPlatformIds.Clear();
+            PlatformDefinitionsById.Clear();
             CurrentPlatformId = string.Empty;
         }
 
@@ -719,7 +738,9 @@ namespace helengine.editor {
 
             AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
             platformSettings.Texture.ColorFormat = Enum.Parse<TextureAssetColorFormat>(selectedValue, false);
+            RepairTextureFormatSelection(platformSettings.Texture);
             UpdateStatusText();
+            SyncTextureProcessorControlsFromPendingSettings();
         }
 
         /// <summary>
@@ -736,7 +757,9 @@ namespace helengine.editor {
 
             AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
             platformSettings.Texture.AlphaPrecision = Enum.Parse<TextureAssetAlphaPrecision>(selectedValue, false);
+            RepairTextureFormatSelection(platformSettings.Texture);
             UpdateStatusText();
+            SyncTextureProcessorControlsFromPendingSettings();
         }
 
         /// <summary>
@@ -924,12 +947,170 @@ namespace helengine.editor {
         /// </summary>
         void SyncTextureProcessorControlsFromPendingSettings() {
             TextureAssetProcessorSettings textureSettings = GetPendingPlatformSettings(CurrentPlatformId).Texture;
+            RepairTextureFormatSelection(textureSettings);
+            SyncTextureFormatValues();
 
             IsUpdatingTextureControls = true;
             TextureMaxResolutionTextBox.Text = textureSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture);
             TextureColorFormatComboBox.SetItems(TextureColorFormatValues, GetTextureColorFormatIndex(textureSettings.ColorFormat));
             TextureAlphaPrecisionComboBox.SetItems(TextureAlphaPrecisionValues, GetTextureAlphaPrecisionIndex(textureSettings.AlphaPrecision));
             IsUpdatingTextureControls = false;
+        }
+
+        /// <summary>
+        /// Replaces the cached platform-definition map for the current import-settings session.
+        /// </summary>
+        /// <param name="platformDefinitionsById">Platform definitions available for the supported platform identifiers.</param>
+        void SetPlatformDefinitions(IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById) {
+            PlatformDefinitionsById.Clear();
+            if (platformDefinitionsById == null) {
+                return;
+            }
+
+            foreach (KeyValuePair<string, PlatformDefinition> pair in platformDefinitionsById) {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null) {
+                    continue;
+                }
+
+                PlatformDefinitionsById[pair.Key] = pair.Value;
+            }
+        }
+
+        /// <summary>
+        /// Synchronizes texture color-format and alpha-precision option lists with the active platform capability metadata.
+        /// </summary>
+        void SyncTextureFormatValues() {
+            TextureColorFormatValues.Clear();
+            TextureAlphaPrecisionValues.Clear();
+
+            PlatformTextureFormatCapabilityDefinition textureCapability = ResolveActiveTextureFormatCapability();
+            if (textureCapability == null) {
+                TextureColorFormatValues.AddRange(Enum.GetNames<TextureAssetColorFormat>());
+                TextureAlphaPrecisionValues.AddRange(Enum.GetNames<TextureAssetAlphaPrecision>());
+                return;
+            }
+
+            for (int i = 0; i < textureCapability.SupportedColorFormats.Length; i++) {
+                TextureColorFormatValues.Add(textureCapability.SupportedColorFormats[i].ToString());
+            }
+
+            for (int i = 0; i < textureCapability.SupportedAlphaPrecisions.Length; i++) {
+                TextureAlphaPrecisionValues.Add(textureCapability.SupportedAlphaPrecisions[i].ToString());
+            }
+        }
+
+        /// <summary>
+        /// Repairs the selected texture color-format and alpha-precision pair so it matches the active platform capability.
+        /// </summary>
+        /// <param name="textureSettings">Texture processor settings to validate and repair.</param>
+        void RepairTextureFormatSelection(TextureAssetProcessorSettings textureSettings) {
+            if (textureSettings == null) {
+                throw new ArgumentNullException(nameof(textureSettings));
+            }
+
+            PlatformTextureFormatCapabilityDefinition textureCapability = ResolveActiveTextureFormatCapability();
+            if (textureCapability == null || textureCapability.SupportedCombinations.Length == 0) {
+                return;
+            }
+
+            if (IsSupportedTextureFormatCombination(textureCapability, textureSettings.ColorFormat, textureSettings.AlphaPrecision)) {
+                return;
+            }
+
+            PlatformTextureFormatCombinationDefinition repairedCombination = ResolveRepairedTextureFormatCombination(textureCapability, textureSettings.ColorFormat);
+            textureSettings.ColorFormat = repairedCombination.ColorFormat;
+            textureSettings.AlphaPrecision = repairedCombination.AlphaPrecision;
+        }
+
+        /// <summary>
+        /// Resolves the active texture format capability metadata for the current asset kind and platform.
+        /// </summary>
+        /// <returns>The active platform texture format capability definition, or <c>null</c> when none exists.</returns>
+        PlatformTextureFormatCapabilityDefinition ResolveActiveTextureFormatCapability() {
+            PlatformDefinition platformDefinition;
+            if (string.IsNullOrWhiteSpace(CurrentPlatformId)) {
+                return null;
+            } else if (!PlatformDefinitionsById.TryGetValue(CurrentPlatformId, out platformDefinition)) {
+                return null;
+            }
+
+            string sourceAssetKind = ResolveTextureCapabilitySourceAssetKind();
+            if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
+                return null;
+            }
+
+            for (int i = 0; i < platformDefinition.AssetCookCapabilities.Length; i++) {
+                PlatformAssetCookCapabilityDefinition capability = platformDefinition.AssetCookCapabilities[i];
+                if (string.Equals(capability.SourceAssetKind, sourceAssetKind, StringComparison.Ordinal)) {
+                    return capability.TextureFormatCapabilities;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the texture capability source asset kind that matches the current asset entry kind.
+        /// </summary>
+        /// <returns>The texture capability source asset kind for the current asset entry, or an empty string when texture settings are not applicable.</returns>
+        string ResolveTextureCapabilitySourceAssetKind() {
+            if (CurrentEntryKind == AssetEntryKind.Image) {
+                return ImageTextureCapabilitySourceAssetKind;
+            } else if (CurrentEntryKind == AssetEntryKind.Font) {
+                return FontTextureCapabilitySourceAssetKind;
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Determines whether one texture color-format and alpha-precision pair is supported by the active platform capability.
+        /// </summary>
+        /// <param name="textureCapability">Capability metadata to evaluate.</param>
+        /// <param name="colorFormat">Texture color format to validate.</param>
+        /// <param name="alphaPrecision">Texture alpha precision to validate.</param>
+        /// <returns><c>true</c> when the combination is supported; otherwise <c>false</c>.</returns>
+        bool IsSupportedTextureFormatCombination(
+            PlatformTextureFormatCapabilityDefinition textureCapability,
+            TextureAssetColorFormat colorFormat,
+            TextureAssetAlphaPrecision alphaPrecision) {
+            if (textureCapability == null) {
+                throw new ArgumentNullException(nameof(textureCapability));
+            }
+
+            for (int i = 0; i < textureCapability.SupportedCombinations.Length; i++) {
+                PlatformTextureFormatCombinationDefinition supportedCombination = textureCapability.SupportedCombinations[i];
+                if (supportedCombination.ColorFormat == colorFormat && supportedCombination.AlphaPrecision == alphaPrecision) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Resolves the repaired valid texture color-format and alpha-precision pair for one invalid selection.
+        /// </summary>
+        /// <param name="textureCapability">Capability metadata that defines valid combinations.</param>
+        /// <param name="currentColorFormat">Current color format the user selected.</param>
+        /// <returns>The repaired valid combination.</returns>
+        PlatformTextureFormatCombinationDefinition ResolveRepairedTextureFormatCombination(
+            PlatformTextureFormatCapabilityDefinition textureCapability,
+            TextureAssetColorFormat currentColorFormat) {
+            if (textureCapability == null) {
+                throw new ArgumentNullException(nameof(textureCapability));
+            } else if (textureCapability.SupportedCombinations.Length == 0) {
+                throw new InvalidOperationException("Texture capability must publish at least one supported combination.");
+            }
+
+            for (int i = 0; i < textureCapability.SupportedCombinations.Length; i++) {
+                PlatformTextureFormatCombinationDefinition supportedCombination = textureCapability.SupportedCombinations[i];
+                if (supportedCombination.ColorFormat == currentColorFormat) {
+                    return supportedCombination;
+                }
+            }
+
+            return textureCapability.SupportedCombinations[0];
         }
 
         /// <summary>

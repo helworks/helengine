@@ -1,3 +1,4 @@
+using helengine.baseplatform.Definitions;
 using helengine.platforms;
 using helengine.projectfile;
 
@@ -2928,6 +2929,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves platform definitions for the currently supported project platforms.
+        /// </summary>
+        /// <returns>Platform definitions keyed by stable platform identifier.</returns>
+        IReadOnlyDictionary<string, PlatformDefinition> CreateSupportedPlatformDefinitionsById() {
+            Dictionary<string, PlatformDefinition> platformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.Ordinal);
+            for (int i = 0; i < SupportedPlatforms.Count; i++) {
+                string platformId = SupportedPlatforms[i];
+                EditorPlatformBuildSelectionModel selectionModel = ResolvePlatformSelectionModel(platformId);
+                if (selectionModel == null || selectionModel.Definition == null) {
+                    continue;
+                }
+
+                platformDefinitionsById[platformId] = selectionModel.Definition;
+            }
+
+            return platformDefinitionsById;
+        }
+
+        /// <summary>
         /// Persists one queued build item from the active Build dialog tab and refreshes the visible queue.
         /// </summary>
         /// <param name="request">Queued build request captured from the active tab.</param>
@@ -3556,7 +3576,7 @@ namespace helengine.editor {
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
                     AssetProcessorSettings processorSettings = CreateModelImportViewProcessorSettings(settings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
                     }
                 } else if (entry.EntryKind == AssetEntryKind.Image) {
                     TextureAssetImportSettings settings;
@@ -3570,7 +3590,7 @@ namespace helengine.editor {
 
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
                     }
                 } else {
                     AssetImportSettings settings;
@@ -3584,7 +3604,7 @@ namespace helengine.editor {
 
                     assetImportManager.SaveImportSettings(entry.FullPath, settings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
                     }
                 }
                 RefreshPreviewSource();
@@ -3661,17 +3681,17 @@ namespace helengine.editor {
                     ModelAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
                     AssetProcessorSettings processorSettings = CreateModelImportViewProcessorSettings(refreshedSettings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
                     }
                 } else if (entry.EntryKind == AssetEntryKind.Image) {
                     TextureAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
                     }
                 } else {
                     AssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, refreshedSettings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, refreshedSettings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
                     }
                 }
             } catch (Exception ex) {
@@ -4123,7 +4143,7 @@ namespace helengine.editor {
                     }
 
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
-                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, CreateModelImportViewProcessorSettings(settings), importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, CreateModelImportViewProcessorSettings(settings), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
                 } else if (entry.EntryKind == AssetEntryKind.Image) {
                     TextureAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateTextureImportSettings(entry.FullPath, out settings)) {
@@ -4132,7 +4152,7 @@ namespace helengine.editor {
                     }
 
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
-                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
                 } else {
                     AssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
@@ -4141,7 +4161,7 @@ namespace helengine.editor {
                     }
 
                     assetImportManager.SaveImportSettings(entry.FullPath, settings);
-                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
                 }
             } catch (Exception ex) {
                 panel.ShowImportError(entry, ex.Message);

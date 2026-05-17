@@ -12,12 +12,14 @@ public sealed class PlatformAssetCookCapabilityDefinition {
     /// <param name="ownershipKind">Which side of the build graph owns the final cook for this asset kind.</param>
     /// <param name="settingsContractId">Stable settings-contract identifier the editor resolves for the builder.</param>
     /// <param name="defaultSerializedPlatformSettings">Optional serialized default settings payload used when the source asset has no explicit platform override.</param>
+    /// <param name="textureFormatCapabilities">Optional texture format capability metadata used to constrain generic texture settings for this cook capability.</param>
     public PlatformAssetCookCapabilityDefinition(
         string sourceAssetKind,
         string targetArtifactKind,
         PlatformAssetCookOwnershipKind ownershipKind,
         string settingsContractId,
-        string defaultSerializedPlatformSettings = "") {
+        string defaultSerializedPlatformSettings = "",
+        PlatformTextureFormatCapabilityDefinition textureFormatCapabilities = null) {
         if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
             throw new ArgumentException("Source asset kind is required.", nameof(sourceAssetKind));
         } else if (string.IsNullOrWhiteSpace(targetArtifactKind)) {
@@ -33,6 +35,7 @@ public sealed class PlatformAssetCookCapabilityDefinition {
         OwnershipKind = ownershipKind;
         SettingsContractId = settingsContractId;
         DefaultSerializedPlatformSettings = defaultSerializedPlatformSettings;
+        TextureFormatCapabilities = textureFormatCapabilities;
     }
 
     /// <summary>
@@ -59,4 +62,9 @@ public sealed class PlatformAssetCookCapabilityDefinition {
     /// Gets the optional serialized default settings payload used when the source asset has no explicit platform override.
     /// </summary>
     public string DefaultSerializedPlatformSettings { get; }
+
+    /// <summary>
+    /// Gets the optional generic texture format capability metadata used to constrain texture settings for this cook capability.
+    /// </summary>
+    public PlatformTextureFormatCapabilityDefinition TextureFormatCapabilities { get; }
 }

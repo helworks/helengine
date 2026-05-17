@@ -1,3 +1,5 @@
+using helengine.baseplatform.Definitions;
+
 namespace helengine.editor {
     /// <summary>
     /// Dockable panel intended to show editable properties for the current selection.
@@ -595,13 +597,15 @@ namespace helengine.editor {
         /// <param name="importerId">Importer identifier to display.</param>
         /// <param name="processorSettings">Processor settings to display.</param>
         /// <param name="importerIds">Registered importer identifiers.</param>
+        /// <param name="platformDefinitionsById">Platform definitions available for the supported project platforms.</param>
         public void ShowImportSettings(
             AssetBrowserEntry entry,
             string importerId,
             AssetProcessorSettings processorSettings,
             IReadOnlyList<string> importerIds,
             IReadOnlyList<string> supportedPlatforms,
-            string activePlatformId) {
+            string activePlatformId,
+            IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = null) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
@@ -624,7 +628,7 @@ namespace helengine.editor {
             DeactivateSelectedEntityTransformProjection();
             currentEntry = entry;
             HideRemoveComponentDialog();
-            importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, entry.EntryKind);
+            importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, entry.EntryKind, platformDefinitionsById);
             MaterialView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);

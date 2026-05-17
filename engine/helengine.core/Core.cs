@@ -108,6 +108,51 @@ namespace helengine {
         public double LastRenderManager3DDrawMilliseconds { get; private set; }
 
         /// <summary>
+        /// Gets whether the active runtime publishes performance overlay metrics instead of the legacy FPS-only rows.
+        /// </summary>
+        public bool UsesPerformanceOverlayMetrics { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent triangle setup duration reported by the active runtime performance overlay, in milliseconds.
+        /// </summary>
+        public double PerformanceOverlayTriangleSetupMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent triangle preparation duration reported by the active runtime performance overlay, in milliseconds.
+        /// </summary>
+        public double PerformanceOverlayTrianglePrepMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent triangle emit duration reported by the active runtime performance overlay, in milliseconds.
+        /// </summary>
+        public double PerformanceOverlayTriangleEmitMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent packet encode duration reported by the active runtime performance overlay, in milliseconds.
+        /// </summary>
+        public double PerformanceOverlayPacketEncodeMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent submit duration reported by the active runtime performance overlay, in milliseconds.
+        /// </summary>
+        public double PerformanceOverlaySubmitMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent wait duration reported by the active runtime performance overlay, in milliseconds.
+        /// </summary>
+        public double PerformanceOverlayWaitMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent submitted triangle count reported by the active runtime performance overlay.
+        /// </summary>
+        public int PerformanceOverlaySubmittedTriangleCount { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent dispatch count reported by the active runtime performance overlay.
+        /// </summary>
+        public int PerformanceOverlayDispatchCount { get; private set; }
+
+        /// <summary>
         /// Gets the 2D render manager.
         /// </summary>
         public RenderManager2D RenderManager2D { get; private set; }

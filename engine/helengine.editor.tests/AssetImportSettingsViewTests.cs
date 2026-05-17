@@ -1,4 +1,5 @@
 using System.Reflection;
+using helengine.baseplatform.Definitions;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -143,6 +144,100 @@ namespace helengine.editor.tests {
             Assert.True(view.IsTextureProcessorVisible);
             Assert.Equal(256, view.CurrentTextureMaxResolutionValue);
             Assert.Equal(TextureAssetColorFormat.Indexed8, view.CurrentTextureColorFormatValue);
+            Assert.Equal(TextureAssetAlphaPrecision.A4, view.CurrentTextureAlphaPrecisionValue);
+        }
+
+        /// <summary>
+        /// Ensures image textures only expose color formats and alpha precisions published by the active platform texture capability.
+        /// </summary>
+        [Fact]
+        public void Show_WhenImageTextureCapabilityMetadataExists_ConstrainsTextureFormatOptions() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["psp"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Rgba4444,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A4
+                }
+            };
+
+            view.Show(
+                ["pfim"],
+                "pfim",
+                settings,
+                ["psp"],
+                "psp",
+                AssetEntryKind.Image,
+                CreatePlatformDefinitionsById());
+
+            ComboBoxComponent colorComboBox = GetPrivateField<ComboBoxComponent>(view, "TextureColorFormatComboBox");
+            ComboBoxComponent alphaComboBox = GetPrivateField<ComboBoxComponent>(view, "TextureAlphaPrecisionComboBox");
+            List<string> colorItems = GetPrivateField<List<string>>(colorComboBox, "items");
+            List<string> alphaItems = GetPrivateField<List<string>>(alphaComboBox, "items");
+
+            Assert.Equal([TextureAssetColorFormat.Rgba4444.ToString(), TextureAssetColorFormat.Indexed8.ToString()], colorItems);
+            Assert.Equal([TextureAssetAlphaPrecision.A4.ToString(), TextureAssetAlphaPrecision.A8.ToString()], alphaItems);
+        }
+
+        /// <summary>
+        /// Ensures font atlas texture settings use the font-atlas texture capability instead of the generic image texture capability.
+        /// </summary>
+        [Fact]
+        public void Show_WhenFontTextureCapabilityMetadataExists_ConstrainsFontTextureFormatOptions() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["psp"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 64,
+                    ColorFormat = TextureAssetColorFormat.Indexed8,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                }
+            };
+
+            view.Show(
+                ["test-font"],
+                "test-font",
+                settings,
+                ["psp"],
+                "psp",
+                AssetEntryKind.Font,
+                CreatePlatformDefinitionsById());
+
+            ComboBoxComponent colorComboBox = GetPrivateField<ComboBoxComponent>(view, "TextureColorFormatComboBox");
+            ComboBoxComponent alphaComboBox = GetPrivateField<ComboBoxComponent>(view, "TextureAlphaPrecisionComboBox");
+            List<string> colorItems = GetPrivateField<List<string>>(colorComboBox, "items");
+            List<string> alphaItems = GetPrivateField<List<string>>(alphaComboBox, "items");
+
+            Assert.Equal([TextureAssetColorFormat.Indexed8.ToString()], colorItems);
+            Assert.Equal([TextureAssetAlphaPrecision.A8.ToString()], alphaItems);
+        }
+
+        /// <summary>
+        /// Ensures invalid texture color-format and alpha-precision combinations are repaired to a valid platform-supported pair.
+        /// </summary>
+        [Fact]
+        public void Show_WhenTextureCapabilityCombinationIsInvalid_RepairsPendingSelection() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["psp"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Rgba4444,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                }
+            };
+
+            view.Show(
+                ["pfim"],
+                "pfim",
+                settings,
+                ["psp"],
+                "psp",
+                AssetEntryKind.Image,
+                CreatePlatformDefinitionsById());
+
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, view.CurrentTextureColorFormatValue);
             Assert.Equal(TextureAssetAlphaPrecision.A4, view.CurrentTextureAlphaPrecisionValue);
         }
 
@@ -319,6 +414,51 @@ namespace helengine.editor.tests {
                 }
             };
             return settings;
+        }
+
+        /// <summary>
+        /// Creates one platform-definition map that publishes different capability-constrained texture formats for images and font atlases.
+        /// </summary>
+        /// <returns>Platform definitions keyed by platform id.</returns>
+        IReadOnlyDictionary<string, PlatformDefinition> CreatePlatformDefinitionsById() {
+            return new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase) {
+                ["psp"] = new PlatformDefinition(
+                    "psp",
+                    "PlayStation Portable",
+                    Array.Empty<PlatformBuildProfileDefinition>(),
+                    Array.Empty<PlatformGraphicsProfileDefinition>(),
+                    Array.Empty<PlatformAssetRequirementDefinition>(),
+                    Array.Empty<PlatformMaterialSchemaDefinition>(),
+                    Array.Empty<PlatformComponentSupportRule>(),
+                    Array.Empty<PlatformCodegenProfileDefinition>(),
+                    Array.Empty<PlatformStorageProfileDefinition>(),
+                    Array.Empty<PlatformMediaProfileDefinition>(),
+                    assetCookCapabilities: [
+                        new PlatformAssetCookCapabilityDefinition(
+                            "texture",
+                            "runtime-texture",
+                            PlatformAssetCookOwnershipKind.BuilderOwned,
+                            "psp-texture",
+                            textureFormatCapabilities: new PlatformTextureFormatCapabilityDefinition(
+                                [TextureAssetColorFormat.Rgba4444, TextureAssetColorFormat.Indexed8],
+                                [TextureAssetAlphaPrecision.A4, TextureAssetAlphaPrecision.A8],
+                                [
+                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Rgba4444, TextureAssetAlphaPrecision.A4),
+                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8, TextureAssetAlphaPrecision.A8)
+                                ])),
+                        new PlatformAssetCookCapabilityDefinition(
+                            "font-atlas-texture",
+                            "runtime-texture",
+                            PlatformAssetCookOwnershipKind.BuilderOwned,
+                            "psp-font-atlas-texture",
+                            textureFormatCapabilities: new PlatformTextureFormatCapabilityDefinition(
+                                [TextureAssetColorFormat.Indexed8],
+                                [TextureAssetAlphaPrecision.A8],
+                                [
+                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8, TextureAssetAlphaPrecision.A8)
+                                ]))
+                    ])
+            };
         }
 
         /// <summary>

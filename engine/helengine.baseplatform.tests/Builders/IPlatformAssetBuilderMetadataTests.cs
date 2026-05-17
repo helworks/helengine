@@ -47,7 +47,14 @@ public class IPlatformAssetBuilderMetadataTests {
                     "texture",
                     "runtime-texture",
                     PlatformAssetCookOwnershipKind.BuilderOwned,
-                    "gamecube-texture")
+                    "gamecube-texture",
+                    textureFormatCapabilities: new PlatformTextureFormatCapabilityDefinition(
+                        [TextureAssetColorFormat.Rgba4444, TextureAssetColorFormat.Indexed8],
+                        [TextureAssetAlphaPrecision.A4, TextureAssetAlphaPrecision.A8],
+                        [
+                            new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Rgba4444, TextureAssetAlphaPrecision.A4),
+                            new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8, TextureAssetAlphaPrecision.A8)
+                        ]))
             ]);
 
         PlatformAssetCookCapabilityDefinition capability = Assert.Single(definition.AssetCookCapabilities);
@@ -55,6 +62,23 @@ public class IPlatformAssetBuilderMetadataTests {
         Assert.Equal("runtime-texture", capability.TargetArtifactKind);
         Assert.Equal(PlatformAssetCookOwnershipKind.BuilderOwned, capability.OwnershipKind);
         Assert.Equal("gamecube-texture", capability.SettingsContractId);
+        Assert.NotNull(capability.TextureFormatCapabilities);
+        Assert.Equal(
+            [TextureAssetColorFormat.Rgba4444, TextureAssetColorFormat.Indexed8],
+            capability.TextureFormatCapabilities.SupportedColorFormats);
+        Assert.Equal(
+            [TextureAssetAlphaPrecision.A4, TextureAssetAlphaPrecision.A8],
+            capability.TextureFormatCapabilities.SupportedAlphaPrecisions);
+        Assert.Collection(
+            capability.TextureFormatCapabilities.SupportedCombinations,
+            combination => {
+                Assert.Equal(TextureAssetColorFormat.Rgba4444, combination.ColorFormat);
+                Assert.Equal(TextureAssetAlphaPrecision.A4, combination.AlphaPrecision);
+            },
+            combination => {
+                Assert.Equal(TextureAssetColorFormat.Indexed8, combination.ColorFormat);
+                Assert.Equal(TextureAssetAlphaPrecision.A8, combination.AlphaPrecision);
+            });
     }
 
     /// <summary>
