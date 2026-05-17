@@ -67,5 +67,40 @@ namespace helengine.editor.tests.managers.asset {
             Assert.Equal(4 * 4 * 2, processed.Colors.Length);
             Assert.True(processed.PaletteColors == null || processed.PaletteColors.Length == 0);
         }
+
+        /// <summary>
+        /// Verifies the GameCube cook emits padded 4x4 GX tile memory instead of tightly packed linear texels.
+        /// </summary>
+        [Fact]
+        public void Apply_WhenGxRgb5A3IsRequested_ProducesPaddedGxTileLayout() {
+            TextureAsset source = new TextureAsset {
+                Id = "menu/logo",
+                Width = 2,
+                Height = 2,
+                ColorFormat = TextureAssetColorFormat.Rgba32,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                Colors = [
+                    255, 0, 0, 255,
+                    0, 255, 0, 255,
+                    0, 0, 255, 255,
+                    255, 255, 255, 255
+                ]
+            };
+
+            TextureAsset processed = new TextureAssetProcessor().Apply(source, new TextureAssetProcessorSettings {
+                ColorFormat = TextureAssetColorFormat.GxRgb5A3,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                MaxResolution = 0
+            });
+
+            Assert.Equal(TextureAssetColorFormat.GxRgb5A3, processed.ColorFormat);
+            Assert.Equal(4 * 4 * 2, processed.Colors.Length);
+            Assert.Equal([
+                0x00, 0xFC, 0xE0, 0x83, 0xE0, 0x83, 0xE0, 0x83,
+                0x1F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                0x1F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                0x1F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+            ], processed.Colors);
+        }
     }
 }

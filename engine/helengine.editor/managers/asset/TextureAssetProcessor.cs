@@ -146,18 +146,27 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(asset));
             }
 
-            int pixelCount = asset.Width * asset.Height;
-            byte[] packedColors = new byte[pixelCount * 2];
-            for (int pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++) {
-                int sourceIndex = pixelIndex * 4;
-                ushort packedPixel = PackGxRgb5A3(
-                    asset.Colors[sourceIndex],
-                    asset.Colors[sourceIndex + 1],
-                    asset.Colors[sourceIndex + 2],
-                    QuantizeAlpha(asset.Colors[sourceIndex + 3], alphaPrecision));
-                int targetIndex = pixelIndex * 2;
-                packedColors[targetIndex] = (byte)(packedPixel & 0xFF);
-                packedColors[targetIndex + 1] = (byte)((packedPixel >> 8) & 0xFF);
+            int paddedWidth = (asset.Width + 3) & ~3;
+            int paddedHeight = (asset.Height + 3) & ~3;
+            byte[] packedColors = new byte[paddedWidth * paddedHeight * 2];
+            int targetIndex = 0;
+            for (int blockY = 0; blockY < paddedHeight; blockY += 4) {
+                for (int blockX = 0; blockX < paddedWidth; blockX += 4) {
+                    for (int innerY = 0; innerY < 4; innerY++) {
+                        for (int innerX = 0; innerX < 4; innerX++) {
+                            int sampleX = Math.Min(blockX + innerX, asset.Width - 1);
+                            int sampleY = Math.Min(blockY + innerY, asset.Height - 1);
+                            int sourceIndex = ((sampleY * asset.Width) + sampleX) * 4;
+                            ushort packedPixel = PackGxRgb5A3(
+                                asset.Colors[sourceIndex],
+                                asset.Colors[sourceIndex + 1],
+                                asset.Colors[sourceIndex + 2],
+                                QuantizeAlpha(asset.Colors[sourceIndex + 3], alphaPrecision));
+                            packedColors[targetIndex++] = (byte)(packedPixel & 0xFF);
+                            packedColors[targetIndex++] = (byte)((packedPixel >> 8) & 0xFF);
+                        }
+                    }
+                }
             }
 
             return new TextureAsset {
