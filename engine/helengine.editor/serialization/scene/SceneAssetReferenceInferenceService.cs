@@ -71,7 +71,12 @@ namespace helengine.editor {
             }
 
             if (component is FPSComponent fpsComponent) {
-                PopulateFpsAssetReferences(fpsComponent, saveState);
+                PopulateOverlayFontAssetReferences(nameof(FPSComponent), fpsComponent.Font, saveState);
+                return;
+            }
+
+            if (component is DebugComponent debugComponent) {
+                PopulateOverlayFontAssetReferences(nameof(DebugComponent), debugComponent.Font, saveState);
             }
         }
 
@@ -97,13 +102,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Populates any missing FPS font reference from the current runtime assignment.
+        /// Populates any missing overlay font reference from the current runtime assignment.
         /// </summary>
-        /// <param name="fpsComponent">FPS component being prepared for serialization.</param>
+        /// <param name="componentName">Friendly component name used for diagnostics.</param>
+        /// <param name="font">Runtime font currently assigned to the overlay component.</param>
         /// <param name="saveState">Save-state container that should receive inferred references.</param>
-        void PopulateFpsAssetReferences(FPSComponent fpsComponent, EntityComponentSaveState saveState) {
-            if (fpsComponent == null) {
-                throw new ArgumentNullException(nameof(fpsComponent));
+        void PopulateOverlayFontAssetReferences(string componentName, FontAsset font, EntityComponentSaveState saveState) {
+            if (string.IsNullOrWhiteSpace(componentName)) {
+                throw new ArgumentException("Component name must be provided.", nameof(componentName));
             }
             if (saveState == null) {
                 throw new ArgumentNullException(nameof(saveState));
@@ -111,15 +117,15 @@ namespace helengine.editor {
             if (saveState.TryGetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, out _)) {
                 return;
             }
-            if (fpsComponent.Font == null) {
+            if (font == null) {
                 return;
             }
-            if (FontAssetScenePersistenceSupport.TryResolveEditorCoreFont(fpsComponent.Font, out SceneAssetReference fontReference)) {
+            if (FontAssetScenePersistenceSupport.TryResolveEditorCoreFont(font, out SceneAssetReference fontReference)) {
                 saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, fontReference);
                 return;
             }
 
-            throw new InvalidOperationException("FPSComponent Font is assigned but could not be inferred into a stable scene asset reference.");
+            throw new InvalidOperationException(componentName + " Font is assigned but could not be inferred into a stable scene asset reference.");
         }
 
         /// <summary>
