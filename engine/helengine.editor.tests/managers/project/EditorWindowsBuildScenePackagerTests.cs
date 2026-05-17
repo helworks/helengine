@@ -631,6 +631,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaged scenes preserve debug overlay components for the player runtime loader.
+        /// </summary>
+        [Fact]
+        public void PackageBuild_WhenSceneContainsDebugComponent_RewritesRuntimePayloadAndFontReference() {
+            string sceneId = "Scenes/DebugScene.helen";
+
+            WriteSceneAsset(sceneId, "Helengine.DebugComponent", WriteDebugComponentPayload(), new[] { CreateEditorFontReference() });
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord componentRecord = packagedScene.RootEntities[0].Components[0];
+            Assert.Equal("helengine.DebugComponent", componentRecord.ComponentTypeId);
+
+            using MemoryStream payloadStream = new MemoryStream(componentRecord.Payload, false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(1, reader.ReadByte());
+            Assert.NotNull(ReadOptionalReference(reader));
+        }
+
+        /// <summary>
         /// Ensures packaged scenes rewrite text component font references into file-backed assets.
         /// </summary>
         [Fact]
@@ -3245,6 +3276,25 @@ namespace helengine.editor.tests {
             saveState.SetAssetReference("Font", CreateEditorFontReference());
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(fpsComponent, 0, saveState);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized debug component payload.
+        /// </summary>
+        /// <returns>Serialized debug component payload.</returns>
+        byte[] WriteDebugComponentPayload() {
+            DebugComponentPersistenceDescriptor descriptor = new DebugComponentPersistenceDescriptor();
+            DebugComponent debugComponent = new DebugComponent {
+                Font = CreatePackagedFontAsset(),
+                RefreshIntervalSeconds = 0.5d,
+                Padding = new int2(8, 6),
+                RenderOrder2D = 250
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Font", CreateEditorFontReference());
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(debugComponent, 0, saveState);
             return record.Payload;
         }
 

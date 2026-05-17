@@ -218,6 +218,80 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime scene loading materializes debug overlay components on the player side.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsDebugComponent_MaterializesTheComponent() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            WriteFontAsset("fonts/default.hefont", CreateFont());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "Helengine.DebugComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteDebugComponentPayload()
+                            }
+                        }
+                    }
+                }
+            };
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            DebugComponent debugComponent = Assert.IsType<DebugComponent>(Assert.Single(loadedRoot.Components, component => component is DebugComponent));
+
+            Assert.Equal(0.5d, debugComponent.RefreshIntervalSeconds);
+            Assert.Equal(new int2(8, 6), debugComponent.Padding);
+            Assert.Equal((byte)250, debugComponent.RenderOrder2D);
+            Assert.NotNull(debugComponent.Font);
+            Assert.Equal(16f, debugComponent.Font.LineHeight);
+        }
+
+        /// <summary>
+        /// Ensures packaged runtime scene loading accepts debug overlays whose payload omits the packaged font reference.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsDebugComponentWithoutFontReference_LoadsComponentWithNullFont() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "Helengine.DebugComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteDebugComponentPayloadWithoutFontReference()
+                            }
+                        }
+                    }
+                }
+            };
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            DebugComponent debugComponent = Assert.IsType<DebugComponent>(Assert.Single(loadedRoot.Components, component => component is DebugComponent));
+
+            Assert.Null(debugComponent.Font);
+            Assert.Equal(0.5d, debugComponent.RefreshIntervalSeconds);
+            Assert.Equal(new int2(8, 6), debugComponent.Padding);
+            Assert.Equal((byte)250, debugComponent.RenderOrder2D);
+        }
+
+        /// <summary>
         /// Ensures older packaged FPS payload versions are rejected during runtime scene loading.
         /// </summary>
         [Fact]
@@ -1494,6 +1568,36 @@ namespace helengine.editor.tests.serialization.scene {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(2);
+            writer.WriteByte(0);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
+            writer.WriteInt2(new int2(8, 6));
+            writer.WriteByte(250);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized debug component payload.
+        /// </summary>
+        /// <returns>Serialized debug component payload.</returns>
+        byte[] WriteDebugComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            WriteFontReference(writer);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
+            writer.WriteInt2(new int2(8, 6));
+            writer.WriteByte(250);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized debug component payload that omits the packaged font reference.
+        /// </summary>
+        /// <returns>Serialized debug component payload.</returns>
+        byte[] WriteDebugComponentPayloadWithoutFontReference() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
             writer.WriteByte(0);
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
             writer.WriteInt2(new int2(8, 6));

@@ -379,6 +379,11 @@ namespace helengine.directx11 {
         internal int LastDrawCalls => lastDrawCalls;
 
         /// <summary>
+        /// Gets the draw-call count recorded by the most recent completed draw.
+        /// </summary>
+        public override int LastDrawCallCount => lastDrawCalls;
+
+        /// <summary>
         /// Gets the last frame time in milliseconds.
         /// </summary>
         internal double LastFrameTimeMs => lastFrameTimeMs;

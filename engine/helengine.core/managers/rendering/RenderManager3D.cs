@@ -110,6 +110,11 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the draw-call count recorded by the most recent completed draw.
+        /// </summary>
+        public virtual int LastDrawCallCount => 0;
+
+        /// <summary>
         /// Performs per-frame update for 3D rendering systems.
         /// </summary>
         public virtual void Update() { }

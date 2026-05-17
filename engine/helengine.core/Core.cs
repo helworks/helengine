@@ -113,6 +113,11 @@ namespace helengine {
         public double LastRenderManager3DDrawMilliseconds { get; private set; }
 
         /// <summary>
+        /// Gets the draw-call count reported by the most recent render-manager draw.
+        /// </summary>
+        public int LastRenderManager3DDrawCallCount { get; private set; }
+
+        /// <summary>
         /// Gets whether the active runtime has published platform-specific performance overlay metrics.
         /// </summary>
         public bool UsesPerformanceOverlayMetrics { get; private set; }
@@ -456,7 +461,9 @@ namespace helengine {
         /// </summary>
         public virtual void Draw() {
             LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
+            LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
             FPSComponent.RecordRenderFrame();
+            DebugComponent.RecordRenderFrame();
         }
 
         /// <summary>
