@@ -1344,15 +1344,64 @@ namespace helengine.editor {
             if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
                 if (!SupportsBuilderOwnedPlatformCookKind("font-atlas-texture")) {
                     CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+                } else {
+                    string cookedAtlasTextureRelativePath = BuildCookedFontAtlasTextureRelativePath(reference.RelativePath);
+                    FontAsset sourceFontAsset = LoadPackagedFontAssetForPackaging(sourcePath);
+                    FontAsset packagedFontAsset = PrepareFontAssetForExternalCookedAtlas(sourceFontAsset, cookedAtlasTextureRelativePath);
+                    WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), packagedFontAsset);
                 }
-                RememberFontCookWorkItem(reference.RelativePath, sourcePath, cookedRelativePath);
+                RememberFontCookWorkItem(reference.RelativePath, sourcePath, BuildCookedFontAtlasTextureRelativePath(reference.RelativePath));
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
             FontAsset fontAsset = LoadImportedFontAssetForPackaging(reference, sourcePath);
             WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
-            RememberFontCookWorkItem(reference.RelativePath, sourcePath, cookedRelativePath);
             return CreateFileSystemReference(cookedRelativePath);
+        }
+
+        /// <summary>
+        /// Loads one packaged source font asset from disk so the packaging step can rewrite it for one platform-owned atlas path.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the packaged source font.</param>
+        /// <returns>Loaded packaged font asset.</returns>
+        FontAsset LoadPackagedFontAssetForPackaging(string sourcePath) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return helengine.files.FontAssetBinarySerializer.Deserialize(stream);
+        }
+
+        /// <summary>
+        /// Creates one packaged font asset clone that resolves its atlas through one external cooked texture path instead of embedded raw atlas bytes.
+        /// </summary>
+        /// <param name="fontAsset">Source font asset that still carries the raw atlas payload.</param>
+        /// <param name="cookedAtlasTextureRelativePath">Runtime-relative cooked atlas texture path that the packaged font should reference.</param>
+        /// <returns>Packaged font asset rewritten for one external cooked atlas texture.</returns>
+        FontAsset PrepareFontAssetForExternalCookedAtlas(FontAsset fontAsset, string cookedAtlasTextureRelativePath) {
+            if (fontAsset == null) {
+                throw new ArgumentNullException(nameof(fontAsset));
+            } else if (fontAsset.FontInfo == null) {
+                throw new InvalidOperationException("Packaged fonts must include font metrics before atlas externalization.");
+            } else if (string.IsNullOrWhiteSpace(cookedAtlasTextureRelativePath)) {
+                throw new ArgumentException("Cooked atlas texture relative path must be provided.", nameof(cookedAtlasTextureRelativePath));
+            }
+
+            Dictionary<char, FontChar> characters = fontAsset.Characters == null
+                ? new Dictionary<char, FontChar>()
+                : new Dictionary<char, FontChar>(fontAsset.Characters);
+
+            return new FontAsset(
+                new FontInfo(fontAsset.FontInfo.Name, fontAsset.FontInfo.LineSpacing, fontAsset.FontInfo.SpaceWidth),
+                null,
+                characters,
+                fontAsset.LineHeight,
+                fontAsset.AtlasWidth,
+                fontAsset.AtlasHeight) {
+                SourceTextureAsset = null,
+                CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
+            };
         }
 
         /// <summary>
@@ -1596,16 +1645,16 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sourceRelativePath">Project-relative source font path.</param>
         /// <param name="sourcePath">Absolute source font path.</param>
-        /// <param name="cookedRelativePath">Runtime-relative cooked font path the builder must produce.</param>
-        void RememberFontCookWorkItem(string sourceRelativePath, string sourcePath, string cookedRelativePath) {
+        /// <param name="cookedAtlasTextureRelativePath">Runtime-relative cooked atlas texture path the builder must produce.</param>
+        void RememberFontCookWorkItem(string sourceRelativePath, string sourcePath, string cookedAtlasTextureRelativePath) {
             if (!SupportsBuilderOwnedPlatformCookKind("font-atlas-texture")) {
                 return;
             } else if (string.IsNullOrWhiteSpace(sourceRelativePath)) {
                 throw new ArgumentException("Source relative path must be provided.", nameof(sourceRelativePath));
             } else if (string.IsNullOrWhiteSpace(sourcePath)) {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            } else if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
-                throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
+            } else if (string.IsNullOrWhiteSpace(cookedAtlasTextureRelativePath)) {
+                throw new ArgumentException("Cooked atlas texture relative path must be provided.", nameof(cookedAtlasTextureRelativePath));
             }
 
             AssetImportSettings settings;
@@ -1618,7 +1667,7 @@ namespace helengine.editor {
                 TargetPlatformId,
                 ProjectRootPath,
                 NormalizeRelativePath(sourceRelativePath),
-                cookedRelativePath,
+                cookedAtlasTextureRelativePath,
                 settings,
                 FileHasher);
             RememberPlatformCookWorkItem(workItem);
@@ -2128,6 +2177,17 @@ namespace helengine.editor {
         string BuildCookedFontRelativePath(string relativePath) {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hefont");
+            return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Builds one cooked PS2 atlas-texture relative path for an authored source-font reference.
+        /// </summary>
+        /// <param name="relativePath">Original project-relative source-font path.</param>
+        /// <returns>Cooked packaged atlas-texture relative path.</returns>
+        string BuildCookedFontAtlasTextureRelativePath(string relativePath) {
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".ps2tex");
             return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
         }
 

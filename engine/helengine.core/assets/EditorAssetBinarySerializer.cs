@@ -109,6 +109,8 @@ namespace helengine {
                     return ReadMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.Ps2MaterialAsset:
                     return ReadPs2MaterialAsset(reader, version);
+                case EditorAssetBinaryValueKind.Ps2TextureAsset:
+                    return ReadPs2TextureAsset(reader, version);
                 case EditorAssetBinaryValueKind.AnimationClipAsset:
                     return ReadAnimationClipAsset(reader, version);
                 case EditorAssetBinaryValueKind.PlatformMaterialAsset:
@@ -162,6 +164,8 @@ namespace helengine {
                 return TextureAssetColorFormat.Indexed4;
             } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
                 return TextureAssetColorFormat.Indexed8;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.GxRgb5A3) {
+                return TextureAssetColorFormat.GxRgb5A3;
             }
 
             throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
@@ -307,6 +311,24 @@ namespace helengine {
             asset.Roughness = reader.ReadSingle();
             asset.SpecularStrength = reader.ReadSingle();
             asset.EmissiveStrength = reader.ReadSingle();
+            return asset;
+        }
+
+        /// <summary>
+        /// Reads a PS2-native runtime texture asset payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <param name="version">Serialized asset format version.</param>
+        /// <returns>Deserialized PS2-native runtime texture asset.</returns>
+        static Ps2TextureAsset ReadPs2TextureAsset(EngineBinaryReader reader, byte version) {
+            Ps2TextureAsset asset = new Ps2TextureAsset();
+            ReadAssetIdentity(reader, asset, version);
+            asset.Width = reader.ReadUInt16();
+            asset.Height = reader.ReadUInt16();
+            asset.Format = (Ps2TextureFormat)reader.ReadByte();
+            asset.AlphaMode = (Ps2TextureAlphaMode)reader.ReadByte();
+            asset.PaletteData = reader.ReadByteArray();
+            asset.PixelData = reader.ReadByteArray();
             return asset;
         }
 

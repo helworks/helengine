@@ -139,6 +139,8 @@ namespace helengine.files {
                 return EditorAssetBinaryValueKind.MaterialAsset;
             } else if (asset is Ps2MaterialAsset) {
                 return EditorAssetBinaryValueKind.Ps2MaterialAsset;
+            } else if (asset is Ps2TextureAsset) {
+                return EditorAssetBinaryValueKind.Ps2TextureAsset;
             } else if (asset is PlatformMaterialAsset) {
                 return EditorAssetBinaryValueKind.PlatformMaterialAsset;
             } else if (asset is AnimationClipAsset) {
@@ -174,6 +176,9 @@ namespace helengine.files {
             } else if (asset is Ps2MaterialAsset ps2MaterialAsset) {
                 WritePs2MaterialAsset(writer, ps2MaterialAsset);
                 return;
+            } else if (asset is Ps2TextureAsset ps2TextureAsset) {
+                WritePs2TextureAsset(writer, ps2TextureAsset);
+                return;
             } else if (asset is PlatformMaterialAsset platformMaterialAsset) {
                 WritePlatformMaterialAsset(writer, platformMaterialAsset);
                 return;
@@ -208,6 +213,8 @@ namespace helengine.files {
                     return ReadMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.Ps2MaterialAsset:
                     return ReadPs2MaterialAsset(reader, version);
+                case EditorAssetBinaryValueKind.Ps2TextureAsset:
+                    return ReadPs2TextureAsset(reader, version);
                 case EditorAssetBinaryValueKind.PlatformMaterialAsset:
                     return ReadPlatformMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.AnimationClipAsset:
@@ -277,6 +284,8 @@ namespace helengine.files {
                 return TextureAssetColorFormat.Indexed4;
             } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
                 return TextureAssetColorFormat.Indexed8;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.GxRgb5A3) {
+                return TextureAssetColorFormat.GxRgb5A3;
             }
 
             throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
@@ -512,6 +521,40 @@ namespace helengine.files {
             asset.Roughness = reader.ReadSingle();
             asset.SpecularStrength = reader.ReadSingle();
             asset.EmissiveStrength = reader.ReadSingle();
+            return asset;
+        }
+
+        /// <summary>
+        /// Writes a PS2-native runtime texture asset payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">PS2-native runtime texture asset to serialize.</param>
+        static void WritePs2TextureAsset(EngineBinaryWriter writer, Ps2TextureAsset asset) {
+            EnsureRuntimeAssetIdentity(asset);
+            WriteAssetIdentity(writer, asset);
+            writer.WriteUInt16(asset.Width);
+            writer.WriteUInt16(asset.Height);
+            writer.WriteByte((byte)asset.Format);
+            writer.WriteByte((byte)asset.AlphaMode);
+            writer.WriteByteArray(asset.PaletteData);
+            writer.WriteByteArray(asset.PixelData);
+        }
+
+        /// <summary>
+        /// Reads a PS2-native runtime texture asset payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <param name="version">Serialized asset format version.</param>
+        /// <returns>Deserialized PS2-native runtime texture asset.</returns>
+        static Ps2TextureAsset ReadPs2TextureAsset(EngineBinaryReader reader, byte version) {
+            Ps2TextureAsset asset = new Ps2TextureAsset();
+            ReadAssetIdentity(reader, asset, version);
+            asset.Width = reader.ReadUInt16();
+            asset.Height = reader.ReadUInt16();
+            asset.Format = (Ps2TextureFormat)reader.ReadByte();
+            asset.AlphaMode = (Ps2TextureAlphaMode)reader.ReadByte();
+            asset.PaletteData = reader.ReadByteArray();
+            asset.PixelData = reader.ReadByteArray();
             return asset;
         }
 

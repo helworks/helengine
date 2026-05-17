@@ -163,5 +163,38 @@ namespace helengine.editor.tests.serialization {
             Assert.Equal(TextureAssetAlphaPrecision.A8, roundTripped.SourceTextureAsset.AlphaPrecision);
             Assert.Equal(asset.SourceTextureAsset.Colors, roundTripped.SourceTextureAsset.Colors);
         }
+
+        /// <summary>
+        /// Ensures packaged fonts can reference one external cooked atlas texture without embedding raw atlas bytes.
+        /// </summary>
+        [Fact]
+        public void SerializeDeserialize_whenFontUsesExternalCookedAtlasPath_preservesPathWithoutBuildingRawTexture() {
+            using Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath
+            });
+            TestRenderManager2D renderManager2D = new TestRenderManager2D();
+            core.Initialize(new TestRenderManager3D(), renderManager2D, new TestInputBackend(), new PlatformInfo("test", "version"));
+
+            FontAsset asset = new FontAsset(
+                new FontInfo("DemoDiscBody", 16, 4f),
+                null,
+                new Dictionary<char, FontChar>(),
+                16f,
+                128,
+                64) {
+                CookedAtlasTextureRelativePath = "cooked/fonts/body-atlas.ps2tex"
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            FilesFontAssetBinarySerializer.Serialize(stream, asset);
+            stream.Position = 0;
+
+            FontAsset roundTripped = FilesFontAssetBinarySerializer.Deserialize(stream);
+
+            Assert.Equal("cooked/fonts/body-atlas.ps2tex", roundTripped.CookedAtlasTextureRelativePath);
+            Assert.Null(roundTripped.SourceTextureAsset);
+            Assert.Null(roundTripped.Texture);
+            Assert.Equal(0, renderManager2D.BuildTextureFromRawCallCount);
+        }
     }
 }

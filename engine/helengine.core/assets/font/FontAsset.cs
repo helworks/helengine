@@ -58,6 +58,11 @@ namespace helengine {
         public TextureAsset SourceTextureAsset { get; set; }
 
         /// <summary>
+        /// Gets or sets the runtime-relative cooked atlas texture path when one platform owns the final atlas texture payload.
+        /// </summary>
+        public string CookedAtlasTextureRelativePath { get; set; }
+
+        /// <summary>
         /// Gets whether this font asset has already released its scene-owned references.
         /// </summary>
         public bool IsDisposed { get; private set; }

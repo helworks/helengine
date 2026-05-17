@@ -46,6 +46,11 @@ namespace helengine {
         /// <summary>
         /// The payload stores a <see cref="PlatformMaterialAsset"/>.
         /// </summary>
-        PlatformMaterialAsset = 9
+        PlatformMaterialAsset = 9,
+
+        /// <summary>
+        /// The payload stores a <see cref="Ps2TextureAsset"/>.
+        /// </summary>
+        Ps2TextureAsset = 10
     }
 }

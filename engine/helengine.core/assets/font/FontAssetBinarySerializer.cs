@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current packaged font payload layout.
         /// </summary>
-        public const byte CurrentVersion = 4;
+        public const byte CurrentVersion = 5;
 
         /// <summary>
         /// First packaged font version that stored source-texture runtime ids.
@@ -32,6 +32,11 @@ namespace helengine {
         /// First packaged font version that stored texture alpha precision and palette payloads.
         /// </summary>
         const byte PaletteTextureMetadataVersion = 4;
+
+        /// <summary>
+        /// First packaged font version that stored an external cooked atlas texture path.
+        /// </summary>
+        const byte ExternalCookedAtlasPathVersion = 5;
 
         /// <summary>
         /// Gets the most recent font-deserialization stage reached by the packaged runtime loader.
@@ -75,35 +80,75 @@ namespace helengine {
 
             LastDeserializeStage = "CreateReader";
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
-            LastDeserializeStage = "ReadFontInfo";
-            FontInfo fontInfo = new FontInfo(
-                reader.ReadString(),
-                reader.ReadInt32(),
-                reader.ReadSingle());
-
-            LastDeserializeStage = "ReadAtlasMetrics";
-            float lineHeight = reader.ReadSingle();
-            int atlasWidth = reader.ReadInt32();
-            int atlasHeight = reader.ReadInt32();
-
-            LastDeserializeStage = "ReadSourceTextureHeader";
+            string cookedAtlasTextureRelativePath = string.Empty;
             TextureAsset sourceTexture = new TextureAsset();
-            sourceTexture.RuntimeAssetId = header.Version >= RuntimeTextureIdVersion
-                ? (ulong)reader.ReadInt64()
-                : 0ul;
-            sourceTexture.Width = reader.ReadUInt16();
-            sourceTexture.Height = reader.ReadUInt16();
-            sourceTexture.ColorFormat = header.Version >= TextureColorFormatVersion
-                ? ReadTextureAssetColorFormat(reader)
-                : TextureAssetColorFormat.Rgba32;
-            sourceTexture.AlphaPrecision = header.Version >= PaletteTextureMetadataVersion
-                ? ReadTextureAssetAlphaPrecision(reader)
-                : GetDefaultTextureAssetAlphaPrecision(sourceTexture.ColorFormat);
-            sourceTexture.PaletteColors = header.Version >= PaletteTextureMetadataVersion
-                ? reader.ReadByteArray()
-                : Array.Empty<byte>();
-            LastDeserializeStage = "ReadSourceTextureColors";
-            sourceTexture.Colors = reader.ReadByteArray();
+            FontInfo fontInfo;
+            float lineHeight;
+            int atlasWidth;
+            int atlasHeight;
+
+            if (header.Version >= ExternalCookedAtlasPathVersion) {
+                LastDeserializeStage = "ReadCookedAtlasTexturePath";
+                cookedAtlasTextureRelativePath = reader.ReadString();
+
+                LastDeserializeStage = "ReadSourceTextureHeader";
+                sourceTexture.RuntimeAssetId = header.Version >= RuntimeTextureIdVersion
+                    ? (ulong)reader.ReadInt64()
+                    : 0ul;
+                sourceTexture.Width = reader.ReadUInt16();
+                sourceTexture.Height = reader.ReadUInt16();
+                sourceTexture.ColorFormat = header.Version >= TextureColorFormatVersion
+                    ? ReadTextureAssetColorFormat(reader)
+                    : TextureAssetColorFormat.Rgba32;
+                sourceTexture.AlphaPrecision = header.Version >= PaletteTextureMetadataVersion
+                    ? ReadTextureAssetAlphaPrecision(reader)
+                    : GetDefaultTextureAssetAlphaPrecision(sourceTexture.ColorFormat);
+                sourceTexture.PaletteColors = header.Version >= PaletteTextureMetadataVersion
+                    ? reader.ReadByteArray()
+                    : Array.Empty<byte>();
+                LastDeserializeStage = "ReadSourceTextureColors";
+                sourceTexture.Colors = reader.ReadByteArray();
+
+                LastDeserializeStage = "ReadFontInfo";
+                fontInfo = new FontInfo(
+                    reader.ReadString(),
+                    reader.ReadInt32(),
+                    reader.ReadSingle());
+
+                LastDeserializeStage = "ReadAtlasMetrics";
+                lineHeight = reader.ReadSingle();
+                atlasWidth = reader.ReadInt32();
+                atlasHeight = reader.ReadInt32();
+            } else {
+                LastDeserializeStage = "ReadFontInfo";
+                fontInfo = new FontInfo(
+                    reader.ReadString(),
+                    reader.ReadInt32(),
+                    reader.ReadSingle());
+
+                LastDeserializeStage = "ReadAtlasMetrics";
+                lineHeight = reader.ReadSingle();
+                atlasWidth = reader.ReadInt32();
+                atlasHeight = reader.ReadInt32();
+
+                LastDeserializeStage = "ReadSourceTextureHeader";
+                sourceTexture.RuntimeAssetId = header.Version >= RuntimeTextureIdVersion
+                    ? (ulong)reader.ReadInt64()
+                    : 0ul;
+                sourceTexture.Width = reader.ReadUInt16();
+                sourceTexture.Height = reader.ReadUInt16();
+                sourceTexture.ColorFormat = header.Version >= TextureColorFormatVersion
+                    ? ReadTextureAssetColorFormat(reader)
+                    : TextureAssetColorFormat.Rgba32;
+                sourceTexture.AlphaPrecision = header.Version >= PaletteTextureMetadataVersion
+                    ? ReadTextureAssetAlphaPrecision(reader)
+                    : GetDefaultTextureAssetAlphaPrecision(sourceTexture.ColorFormat);
+                sourceTexture.PaletteColors = header.Version >= PaletteTextureMetadataVersion
+                    ? reader.ReadByteArray()
+                    : Array.Empty<byte>();
+                LastDeserializeStage = "ReadSourceTextureColors";
+                sourceTexture.Colors = reader.ReadByteArray();
+            }
 
             LastDeserializeStage = "ReadCharacterCount";
             int characterCount = reader.ReadInt32();
@@ -122,10 +167,17 @@ namespace helengine {
             }
 
             LastDeserializeStage = "BuildRuntimeTexture";
-            RuntimeTexture texture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTexture);
+            RuntimeTexture texture = null;
+            TextureAsset storedSourceTextureAsset = null;
+            if (sourceTexture.Width > 0 && sourceTexture.Height > 0 && sourceTexture.Colors != null && sourceTexture.Colors.Length > 0) {
+                texture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTexture);
+                storedSourceTextureAsset = sourceTexture;
+            }
+
             LastDeserializeStage = "ConstructFontAsset";
             FontAsset asset = new FontAsset(fontInfo, texture, characters, lineHeight, atlasWidth, atlasHeight) {
-                SourceTextureAsset = sourceTexture
+                SourceTextureAsset = storedSourceTextureAsset,
+                CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
             };
             LastDeserializeStage = "Complete";
             return asset;
