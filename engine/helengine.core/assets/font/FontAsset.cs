@@ -129,10 +129,16 @@ namespace helengine {
                 return;
             }
 
+            Dictionary<char, FontChar> characters = Characters;
+            FontInfo fontInfo = FontInfo;
+            TextureAsset sourceTextureAsset = SourceTextureAsset;
             Texture = null;
             Characters = null;
             FontInfo = null;
             SourceTextureAsset = null;
+            NativeOwnership.Delete(characters);
+            NativeOwnership.Delete(fontInfo);
+            NativeOwnership.Delete(sourceTextureAsset);
             IsDisposed = true;
         }
 

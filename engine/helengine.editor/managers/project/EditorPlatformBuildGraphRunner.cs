@@ -367,8 +367,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
         void FinalizeGeneratedCoreSources(string generatedCoreRootPath) {
-            EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, PlatformDescriptor.Id);
-            EditorGeneratedCoreRegenerationService.RewriteAmalgamatedTranslationUnit(generatedCoreRootPath);
+            EditorGeneratedCoreRegenerationService.EnsureGeneratedRuntimeComponentDeserializerSupport(generatedCoreRootPath, PlatformDescriptor.Id);
+            EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
         }
 
         /// <summary>
