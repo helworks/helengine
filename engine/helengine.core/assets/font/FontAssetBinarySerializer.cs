@@ -41,7 +41,7 @@ namespace helengine {
         /// <summary>
         /// Gets the most recent font-deserialization stage reached by the packaged runtime loader.
         /// </summary>
-        public static string LastDeserializeStage { get; private set; }
+        public static string LastDeserializeStage { get; private set; } = string.Empty;
 
         /// <summary>
         /// Deserializes a font asset from the supplied stream.

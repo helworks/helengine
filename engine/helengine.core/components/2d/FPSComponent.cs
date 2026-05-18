@@ -249,6 +249,7 @@ namespace helengine {
 
             UpdateTextComponent = new TextComponent();
             UpdateTextComponent.Color = new byte4(255, 255, 255, 255);
+            UpdateTextComponent.Font = Font;
             UpdateRowHost.AddComponent(UpdateTextComponent);
 
             RenderRowHost = new Entity();
@@ -259,6 +260,7 @@ namespace helengine {
 
             RenderTextComponent = new TextComponent();
             RenderTextComponent.Color = new byte4(255, 255, 255, 255);
+            RenderTextComponent.Font = Font;
             RenderRowHost.AddComponent(RenderTextComponent);
 
             Initialized = true;

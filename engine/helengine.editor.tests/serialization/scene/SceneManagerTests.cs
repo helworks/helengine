@@ -29,6 +29,22 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures scene-manager diagnostics expose safe empty strings before any transition occurs.
+        /// </summary>
+        [Fact]
+        public void Initialize_whenCreated_initializesDiagnosticStringsToEmptyValues() {
+            Core core = CreateCore(
+                sceneCatalog: null,
+                scenePathResolver: new TestSceneIdPathResolver(new Dictionary<string, string>(StringComparer.Ordinal) {
+                    { "Scenes/AuthoredMenu.helen", "Scenes/AuthoredMenu.helen" }
+                }));
+
+            Assert.NotNull(core.SceneManager);
+            Assert.Equal(string.Empty, core.SceneManager.LastTraceStage);
+            Assert.Equal(string.Empty, core.SceneManager.LastTraceSceneId);
+        }
+
+        /// <summary>
         /// Ensures core bootstrap initializes the runtime scene manager when packaged scene metadata is injected.
         /// </summary>
         [Fact]

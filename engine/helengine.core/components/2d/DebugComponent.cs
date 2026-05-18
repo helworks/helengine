@@ -344,6 +344,7 @@ namespace helengine {
 
             TextComponent textComponent = new TextComponent();
             textComponent.Color = new byte4(255, 255, 255, 255);
+            textComponent.Font = Font;
             rowHost.AddComponent(textComponent);
             return textComponent;
         }

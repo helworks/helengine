@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <BaseIntermediateOutputPath>C:\dev\helworks\helengine\test-project\user_settings\generated_code\obj\gameplay\</BaseIntermediateOutputPath>
+    <BaseOutputPath>C:\dev\helworks\helengine\test-project\user_settings\generated_code\bin\gameplay\</BaseOutputPath>
+    <AssemblyName>gameplay</AssemblyName>
+    <RootNamespace>gameplay</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="helengine.core">
+      <HintPath>C:\dev\helworks\helengine\helengine.ui\helengine.editor.app\bin\Debug\net9.0-windows\helengine.core.dll</HintPath>
+    </Reference>
+    <Reference Include="helengine.input">
+      <HintPath>C:\dev\helworks\helengine\helengine.ui\helengine.editor.app\bin\Debug\net9.0-windows\helengine.core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="C:\dev\helworks\helengine\test-project\user_settings\generated_code\projects\gameplay\GlobalUsings.g.cs" />
+    <Compile Include="C:\dev\helworks\helengine\test-project\assets\**\*.cs" />
+  </ItemGroup>
+</Project>

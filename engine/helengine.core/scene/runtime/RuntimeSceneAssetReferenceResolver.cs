@@ -75,12 +75,12 @@ namespace helengine {
         /// <summary>
         /// Gets the last recorded text-load stage that passed through this resolver.
         /// </summary>
-        public string LastTextLoadStage { get; set; }
+        public string LastTextLoadStage { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets the last recorded packaged font relative path that passed through this resolver.
         /// </summary>
-        public string LastTextFontRelativePath { get; set; }
+        public string LastTextFontRelativePath { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets the most recent packaged font-deserialization stage reached by the active content loader.
@@ -394,8 +394,8 @@ namespace helengine {
             byte[] paletteColors = asset.PaletteColors;
             asset.Colors = null;
             asset.PaletteColors = null;
-            NativeOwnership.Delete(colors);
-            NativeOwnership.Delete(paletteColors);
+            DeleteTransientArray(colors);
+            DeleteTransientArray(paletteColors);
             NativeOwnership.Delete(asset);
         }
 
@@ -410,7 +410,7 @@ namespace helengine {
 
             byte[] data = asset.Data;
             asset.Data = null;
-            NativeOwnership.Delete(data);
+            DeleteTransientArray(data);
             NativeOwnership.Delete(asset);
         }
 
@@ -433,7 +433,7 @@ namespace helengine {
                 }
             }
 
-            NativeOwnership.Delete(constantBuffers);
+            DeleteTransientArray(constantBuffers);
             NativeOwnership.Delete(renderState);
             NativeOwnership.Delete(asset);
         }
@@ -467,7 +467,7 @@ namespace helengine {
                 }
             }
 
-            NativeOwnership.Delete(members);
+            DeleteTransientArray(members);
             NativeOwnership.Delete(asset);
         }
 
@@ -482,7 +482,7 @@ namespace helengine {
 
             string[] defines = asset.Defines;
             asset.Defines = null;
-            NativeOwnership.Delete(defines);
+            DeleteTransientArray(defines);
             NativeOwnership.Delete(asset);
         }
 
@@ -524,10 +524,10 @@ namespace helengine {
                 }
             }
 
-            NativeOwnership.Delete(bindings);
-            NativeOwnership.Delete(inputs);
-            NativeOwnership.Delete(outputs);
-            NativeOwnership.Delete(variants);
+            DeleteTransientArray(bindings);
+            DeleteTransientArray(inputs);
+            DeleteTransientArray(outputs);
+            DeleteTransientArray(variants);
             NativeOwnership.Delete(asset);
         }
 
@@ -542,7 +542,7 @@ namespace helengine {
 
             byte[] bytecode = asset.Bytecode;
             asset.Bytecode = null;
-            NativeOwnership.Delete(bytecode);
+            DeleteTransientArray(bytecode);
             NativeOwnership.Delete(asset);
         }
 
@@ -570,8 +570,8 @@ namespace helengine {
                 }
             }
 
-            NativeOwnership.Delete(programs);
-            NativeOwnership.Delete(binaries);
+            DeleteTransientArray(programs);
+            DeleteTransientArray(binaries);
             NativeOwnership.Delete(asset);
         }
 
@@ -604,14 +604,27 @@ namespace helengine {
                 }
             }
 
-            NativeOwnership.Delete(positions);
-            NativeOwnership.Delete(normals);
-            NativeOwnership.Delete(texCoords);
-            NativeOwnership.Delete(indices16);
-            NativeOwnership.Delete(indices32);
-            NativeOwnership.Delete(submeshes);
-            NativeOwnership.Delete(ps2PackedMeshBytes);
+            DeleteTransientArray(positions);
+            DeleteTransientArray(normals);
+            DeleteTransientArray(texCoords);
+            DeleteTransientArray(indices16);
+            DeleteTransientArray(indices32);
+            DeleteTransientArray(submeshes);
+            DeleteTransientArray(ps2PackedMeshBytes);
             NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Deletes one transient array only when it is backed by heap allocation instead of the shared empty-array singleton.
+        /// </summary>
+        /// <typeparam name="T">Element type stored in the transient array.</typeparam>
+        /// <param name="values">Transient array to delete on the native side.</param>
+        static void DeleteTransientArray<T>(T[] values) {
+            if (values == null || ReferenceEquals(values, Array.Empty<T>())) {
+                return;
+            }
+
+            NativeOwnership.Delete(values);
         }
 
         /// <summary>

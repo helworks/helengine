@@ -91,6 +91,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures null serialized strings normalize to empty strings so native builds never materialize invalid `std::string` values.
+        /// </summary>
+        [Fact]
+        public void EngineBinaryReader_ReadString_WhenPayloadIsNull_ReturnsEmptyString() {
+            using MemoryStream stream = new MemoryStream();
+            using (BinaryWriterLE writer = new BinaryWriterLE(stream)) {
+                writer.WriteString(null);
+            }
+
+            stream.Position = 0;
+
+            using BinaryReaderLE reader = new BinaryReaderLE(stream);
+            Assert.Equal(string.Empty, reader.ReadString());
+        }
+
+        /// <summary>
         /// Ensures scene assets round-trip through the HELE asset serializer and emit the expected file header.
         /// </summary>
         [Fact]

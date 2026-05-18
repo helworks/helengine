@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Gets the most recent runtime scene-load stage recorded for diagnostics.
         /// </summary>
-        public string LastTraceStage { get; private set; }
+        public string LastTraceStage { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets the current root-entity index being materialized for diagnostics.
@@ -31,7 +31,7 @@ namespace helengine {
         /// <summary>
         /// Gets the current component type id being materialized for diagnostics.
         /// </summary>
-        public string LastTraceComponentTypeId { get; private set; }
+        public string LastTraceComponentTypeId { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets the last recorded text-load stage emitted by the shared scene asset reference resolver.

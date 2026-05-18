@@ -171,12 +171,12 @@ namespace helengine {
         /// <summary>
         /// Gets the most recent scene-manager transition stage recorded for runtime diagnostics.
         /// </summary>
-        public string LastTraceStage { get; private set; }
+        public string LastTraceStage { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets the most recent stable scene identifier associated with the recorded transition stage.
         /// </summary>
-        public string LastTraceSceneId { get; private set; }
+        public string LastTraceSceneId { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets the loaded-scene count captured at the recorded transition stage.
@@ -439,7 +439,7 @@ namespace helengine {
 
             byte[] payload = asset.Payload;
             asset.Payload = null;
-            NativeOwnership.Delete(payload);
+            DeleteTransientArray(payload);
             NativeOwnership.Delete(asset);
         }
 
@@ -477,8 +477,8 @@ namespace helengine {
                 }
             }
 
-            NativeOwnership.Delete(removedComponentKeys);
-            NativeOwnership.Delete(addedComponents);
+            DeleteTransientArray(removedComponentKeys);
+            DeleteTransientArray(addedComponents);
             NativeOwnership.Delete(asset);
         }
 
@@ -532,10 +532,10 @@ namespace helengine {
                 }
             }
 
-            NativeOwnership.Delete(components);
-            NativeOwnership.Delete(platformTransformOverrides);
-            NativeOwnership.Delete(platformComponentOverrides);
-            NativeOwnership.Delete(children);
+            DeleteTransientArray(components);
+            DeleteTransientArray(platformTransformOverrides);
+            DeleteTransientArray(platformComponentOverrides);
+            DeleteTransientArray(children);
             NativeOwnership.Delete(asset);
         }
 
@@ -580,10 +580,23 @@ namespace helengine {
                 }
             }
 
-            NativeOwnership.Delete(rootEntities);
-            NativeOwnership.Delete(assetReferences);
+            DeleteTransientArray(rootEntities);
+            DeleteTransientArray(assetReferences);
             ReleaseTransientSceneSettingsAsset(sceneSettings);
             NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Deletes one transient array only when it is backed by heap allocation instead of the shared empty-array singleton.
+        /// </summary>
+        /// <typeparam name="T">Element type stored in the transient array.</typeparam>
+        /// <param name="values">Transient array to delete on the native side.</param>
+        static void DeleteTransientArray<T>(T[] values) {
+            if (values == null || ReferenceEquals(values, Array.Empty<T>())) {
+                return;
+            }
+
+            NativeOwnership.Delete(values);
         }
 
         /// <summary>

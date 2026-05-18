@@ -145,7 +145,7 @@ namespace helengine {
         public string ReadString() {
             int length = ReadInt32();
             if (length == -1) {
-                return null;
+                return string.Empty;
             } else if (length < -1) {
                 throw new InvalidOperationException("String length cannot be negative.");
             } else if (length == 0) {
