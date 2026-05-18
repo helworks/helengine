@@ -221,6 +221,18 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Sets the label text displayed by the button.
+        /// </summary>
+        /// <param name="newText">New label text to render.</param>
+        public void SetText(string newText) {
+            text = newText ?? string.Empty;
+
+            if (textComponent != null) {
+                textComponent.Text = text;
+            }
+        }
+
+        /// <summary>
         /// Sets the visual palette used for the button's idle, hover, pressed, and focused states.
         /// </summary>
         /// <param name="idleFillColor">Fill color used while idle and unfocused.</param>

@@ -99,6 +99,22 @@ namespace helengine.editor {
         /// </summary>
         const string MaterialExtension = EditorFileTemplateRegistry.MaterialExtension;
         /// <summary>
+        /// Nested member identifier used by scene-map source-entry rows.
+        /// </summary>
+        const string SceneMapSourceEntryMemberName = "SourceSceneId";
+        /// <summary>
+        /// Nested member identifier used by scene-map target-entry rows.
+        /// </summary>
+        const string SceneMapTargetEntryMemberName = "TargetSceneId";
+        /// <summary>
+        /// Nested member identifier used by scene-map draft source rows.
+        /// </summary>
+        const string SceneMapDraftSourceMemberName = "DraftSourceSceneId";
+        /// <summary>
+        /// Nested member identifier used by scene-map draft target rows.
+        /// </summary>
+        const string SceneMapDraftTargetMemberName = "DraftTargetSceneId";
+        /// <summary>
         /// Extension used for font assets.
         /// </summary>
         static readonly string[] FontExtensions = new[] { ".ttf", ".otf" };
@@ -187,6 +203,14 @@ namespace helengine.editor {
         /// Tracks nested provider-backed section expansion state for visible components.
         /// </summary>
         readonly Dictionary<string, bool> CustomEditorExpandedStates;
+        /// <summary>
+        /// Tracks pending draft source scene ids for scene-map custom editors.
+        /// </summary>
+        readonly Dictionary<Component, string> SceneMapDraftSourcesByComponent;
+        /// <summary>
+        /// Tracks pending draft target scene ids for scene-map custom editors.
+        /// </summary>
+        readonly Dictionary<Component, string> SceneMapDraftTargetsByComponent;
         /// <summary>
         /// Tracks whether the view is updating text fields internally.
         /// </summary>
@@ -302,6 +326,8 @@ namespace helengine.editor {
             PlatformEditingService = new ComponentPlatformEditingService();
             CollapsedStates = new Dictionary<Component, bool>();
             CustomEditorExpandedStates = new Dictionary<string, bool>();
+            SceneMapDraftSourcesByComponent = new Dictionary<Component, string>();
+            SceneMapDraftTargetsByComponent = new Dictionary<Component, string>();
             TextOrder = RenderOrder2D.PanelForeground;
             CurrentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
         }
@@ -492,9 +518,13 @@ namespace helengine.editor {
                 row.ValueType = null;
                 row.CustomEditorTypeId = null;
                 row.NestedMemberName = null;
+                row.CustomEditorEntryKey = null;
                 row.IndentLevel = 0;
                 row.IsExpanded = false;
                 row.IsOverrideActive = false;
+                if (row.ActionButtonHost != null) {
+                    row.ActionButtonHost.Enabled = false;
+                }
                 if (row.RevertButtonHost != null) {
                     row.RevertButtonHost.Enabled = false;
                 }
@@ -607,6 +637,10 @@ namespace helengine.editor {
 
             if (string.Equals(sectionRow.CustomEditorTypeId, CameraClearSettingsPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
                 AddCameraClearSettingsRows(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow);
+                return;
+            }
+            if (string.Equals(sectionRow.CustomEditorTypeId, SceneMapPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
+                AddSceneMapRows(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow);
             }
         }
 
@@ -709,6 +743,142 @@ namespace helengine.editor {
             AddNestedScalarRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Clear Depth", nameof(CameraClearSettings.ClearDepth), typeof(float));
             AddNestedBooleanRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Clear Stencil Enabled", nameof(CameraClearSettings.ClearStencilEnabled));
             AddNestedScalarRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Clear Stencil", nameof(CameraClearSettings.ClearStencil), typeof(byte));
+        }
+
+        /// <summary>
+        /// Adds the nested rows used by the scene-map custom editor.
+        /// </summary>
+        /// <param name="section">Section receiving the rows.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
+        /// <param name="descriptor">Provider-backed property descriptor.</param>
+        /// <param name="sectionRow">Top-level custom section row.</param>
+        void AddSceneMapRows(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor,
+            ComponentPropertyRow sectionRow) {
+            if (editableComponent is not SceneMapComponent sceneMapComponent) {
+                throw new InvalidOperationException("Scene map rows require a SceneMapComponent target.");
+            }
+
+            List<KeyValuePair<string, string>> mappings = sceneMapComponent.Mappings.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToList();
+            for (int index = 0; index < mappings.Count; index++) {
+                KeyValuePair<string, string> mapping = mappings[index];
+                string displayIndex = (index + 1).ToString(CultureInfo.InvariantCulture);
+                AddSceneMapScalarRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Source " + displayIndex, SceneMapSourceEntryMemberName, mapping.Key, false);
+                AddSceneMapScalarRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Target " + displayIndex, SceneMapTargetEntryMemberName, mapping.Key, true);
+            }
+
+            AddSceneMapScalarRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "New Source", SceneMapDraftSourceMemberName, string.Empty, false);
+            AddSceneMapScalarRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "New Target", SceneMapDraftTargetMemberName, string.Empty, true);
+        }
+
+        /// <summary>
+        /// Adds one scalar row inside the scene-map custom section.
+        /// </summary>
+        /// <param name="section">Section receiving the row.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
+        /// <param name="descriptor">Provider-backed property descriptor.</param>
+        /// <param name="sectionRow">Owning scene-map section row.</param>
+        /// <param name="label">Visible row label.</param>
+        /// <param name="nestedMemberName">Stable nested member identifier.</param>
+        /// <param name="entryKey">Stable dictionary key associated with the row when it edits an existing entry.</param>
+        /// <param name="usesActionButton">True when the row should expose an action button.</param>
+        void AddSceneMapScalarRow(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor,
+            ComponentPropertyRow sectionRow,
+            string label,
+            string nestedMemberName,
+            string entryKey,
+            bool usesActionButton) {
+            ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Scalar);
+            BindSceneMapScalarRow(row, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, label, nestedMemberName, entryKey);
+            if (usesActionButton) {
+                EnsureSceneMapActionButton(row);
+                ConfigureSceneMapActionButton(row);
+            }
+
+            UpdateRowValue(row);
+            section.Rows.Add(row);
+            ActiveRows.Add(row);
+        }
+
+        /// <summary>
+        /// Associates one scalar row with the scene-map custom editor metadata.
+        /// </summary>
+        /// <param name="row">Row to bind.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
+        /// <param name="descriptor">Provider-backed property descriptor.</param>
+        /// <param name="sectionRow">Owning scene-map section row.</param>
+        /// <param name="label">Visible row label.</param>
+        /// <param name="nestedMemberName">Stable nested member identifier.</param>
+        /// <param name="entryKey">Stable dictionary key associated with the row when it edits an existing entry.</param>
+        void BindSceneMapScalarRow(
+            ComponentPropertyRow row,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor,
+            ComponentPropertyRow sectionRow,
+            string label,
+            string nestedMemberName,
+            string entryKey) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+            if (descriptor == null) {
+                throw new ArgumentNullException(nameof(descriptor));
+            }
+            if (sectionRow == null) {
+                throw new ArgumentNullException(nameof(sectionRow));
+            }
+            if (string.IsNullOrWhiteSpace(label)) {
+                throw new ArgumentException("Label must be provided.", nameof(label));
+            }
+            if (string.IsNullOrWhiteSpace(nestedMemberName)) {
+                throw new ArgumentException("Nested member name must be provided.", nameof(nestedMemberName));
+            }
+
+            row.CommonComponent = commonComponent;
+            row.TargetComponent = editableComponent;
+            row.SaveComponent = saveComponent;
+            row.EditingPlatformId = platformId;
+            row.Property = descriptor.Property;
+            row.ValueType = typeof(string);
+            row.CustomEditorTypeId = sectionRow.CustomEditorTypeId;
+            row.NestedMemberName = nestedMemberName;
+            row.CustomEditorEntryKey = entryKey ?? string.Empty;
+            row.IndentLevel = 1;
+            row.Label.Text = label;
+            row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
+            row.Entity.Enabled = true;
         }
 
         /// <summary>
@@ -953,6 +1123,9 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(row.NestedMemberName)) {
                 return row.Property.Name;
             }
+            if (string.Equals(row.CustomEditorTypeId, SceneMapPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
+                return row.Property.Name;
+            }
 
             return string.Concat(row.Property.Name, ".", row.NestedMemberName);
         }
@@ -1155,8 +1328,53 @@ namespace helengine.editor {
                 CameraClearSettings settings = ReadCameraClearSettings(row);
                 return ReadCameraClearSettingsNestedValue(row, settings);
             }
+            if (!string.IsNullOrWhiteSpace(row.NestedMemberName)
+                && string.Equals(row.CustomEditorTypeId, SceneMapPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
+                return ReadSceneMapRowValue(row);
+            }
 
             return GetPropertyValue(row);
+        }
+
+        /// <summary>
+        /// Reads the effective scalar value represented by one scene-map custom-editor row.
+        /// </summary>
+        /// <param name="row">Row being queried.</param>
+        /// <returns>Effective scene-map row value.</returns>
+        object ReadSceneMapRowValue(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            Component componentKey = ResolveSceneMapDraftComponentKey(row);
+            if (string.Equals(row.NestedMemberName, SceneMapSourceEntryMemberName, StringComparison.Ordinal)) {
+                return row.CustomEditorEntryKey ?? string.Empty;
+            }
+            if (string.Equals(row.NestedMemberName, SceneMapTargetEntryMemberName, StringComparison.Ordinal)) {
+                if (row.TargetComponent is SceneMapComponent sceneMapComponent
+                    && !string.IsNullOrWhiteSpace(row.CustomEditorEntryKey)
+                    && sceneMapComponent.Mappings.TryGetValue(row.CustomEditorEntryKey, out string targetSceneId)) {
+                    return targetSceneId;
+                }
+
+                return string.Empty;
+            }
+            if (string.Equals(row.NestedMemberName, SceneMapDraftSourceMemberName, StringComparison.Ordinal)) {
+                if (componentKey != null && SceneMapDraftSourcesByComponent.TryGetValue(componentKey, out string draftSourceSceneId)) {
+                    return draftSourceSceneId;
+                }
+
+                return string.Empty;
+            }
+            if (string.Equals(row.NestedMemberName, SceneMapDraftTargetMemberName, StringComparison.Ordinal)) {
+                if (componentKey != null && SceneMapDraftTargetsByComponent.TryGetValue(componentKey, out string draftTargetSceneId)) {
+                    return draftTargetSceneId;
+                }
+
+                return string.Empty;
+            }
+
+            throw new InvalidOperationException($"Unsupported scene map row member '{row.NestedMemberName}'.");
         }
 
         /// <summary>
@@ -1492,6 +1710,10 @@ namespace helengine.editor {
             if (row.TargetComponent == null || row.Property == null) {
                 return;
             }
+            if (string.Equals(row.CustomEditorTypeId, SceneMapPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
+                HandleSceneMapScalarSubmitted(row, field.Text);
+                return;
+            }
 
             Type targetType = row.ValueType ?? row.Property.PropertyType;
             if (!TryParseScalar(field.Text, targetType, out object parsed)) {
@@ -1508,6 +1730,78 @@ namespace helengine.editor {
             SetRowValue(row, parsed);
             UpdateScalarField(row, FormatScalarValue(parsed));
             EditorSceneMutationService.MarkSceneMutated();
+        }
+
+        /// <summary>
+        /// Handles submit events for scene-map scalar rows.
+        /// </summary>
+        /// <param name="row">Row that owns the submitted scalar field.</param>
+        /// <param name="text">Submitted text value.</param>
+        void HandleSceneMapScalarSubmitted(ComponentPropertyRow row, string text) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            EnsureEditableComponentForRow(row);
+            if (row.TargetComponent is not SceneMapComponent sceneMapComponent) {
+                return;
+            }
+
+            string submittedText = text ?? string.Empty;
+            if (string.Equals(row.NestedMemberName, SceneMapDraftSourceMemberName, StringComparison.Ordinal)) {
+                SetSceneMapDraftValue(SceneMapDraftSourcesByComponent, ResolveSceneMapDraftComponentKey(row), submittedText);
+                UpdateScalarField(row, submittedText);
+                return;
+            }
+            if (string.Equals(row.NestedMemberName, SceneMapDraftTargetMemberName, StringComparison.Ordinal)) {
+                SetSceneMapDraftValue(SceneMapDraftTargetsByComponent, ResolveSceneMapDraftComponentKey(row), submittedText);
+                UpdateScalarField(row, submittedText);
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(submittedText)) {
+                UpdateScalarField(row, row.ScalarCache);
+                return;
+            }
+            if (string.Equals(row.NestedMemberName, SceneMapSourceEntryMemberName, StringComparison.Ordinal)) {
+                if (string.Equals(row.CustomEditorEntryKey, submittedText, StringComparison.Ordinal)) {
+                    UpdateScalarField(row, submittedText);
+                    return;
+                }
+                if (sceneMapComponent.Mappings.ContainsKey(submittedText)) {
+                    UpdateScalarField(row, row.CustomEditorEntryKey);
+                    return;
+                }
+                if (!sceneMapComponent.Mappings.TryGetValue(row.CustomEditorEntryKey, out string targetSceneId)) {
+                    UpdateScalarField(row, row.CustomEditorEntryKey);
+                    return;
+                }
+
+                sceneMapComponent.Mappings.Remove(row.CustomEditorEntryKey);
+                sceneMapComponent.Mappings.Add(submittedText, targetSceneId);
+                row.CustomEditorEntryKey = submittedText;
+                PersistPlatformOverrideIfNeeded(row);
+                EditorSceneMutationService.MarkSceneMutated();
+                RefreshCurrentView();
+                return;
+            }
+            if (string.Equals(row.NestedMemberName, SceneMapTargetEntryMemberName, StringComparison.Ordinal)) {
+                if (!sceneMapComponent.Mappings.TryGetValue(row.CustomEditorEntryKey, out string existingTargetSceneId)) {
+                    UpdateScalarField(row, row.ScalarCache);
+                    return;
+                }
+                if (string.Equals(existingTargetSceneId, submittedText, StringComparison.Ordinal)) {
+                    UpdateScalarField(row, submittedText);
+                    return;
+                }
+
+                sceneMapComponent.Mappings[row.CustomEditorEntryKey] = submittedText;
+                PersistPlatformOverrideIfNeeded(row);
+                UpdateScalarField(row, submittedText);
+                EditorSceneMutationService.MarkSceneMutated();
+                return;
+            }
+
+            UpdateScalarField(row, row.ScalarCache);
         }
 
         /// <summary>
@@ -2298,10 +2592,17 @@ namespace helengine.editor {
                 return;
             }
 
-            int fieldWidth = Math.Max(48, width - labelWidth - FieldSpacing);
+            int actionButtonWidth = row.ActionButtonHost != null && row.ActionButton != null && row.ActionButtonHost.Enabled
+                ? PickButtonWidth + FieldSpacing
+                : 0;
+            int fieldWidth = Math.Max(48, width - labelWidth - FieldSpacing - actionButtonWidth);
             float fieldY = (float)Math.Round((height - FieldHeight) * 0.5);
             row.ScalarField.Parent.Position = new float3(labelWidth + FieldSpacing, fieldY, 0.2f);
             row.ScalarField.Size = new int2(fieldWidth, FieldHeight);
+            if (row.ActionButtonHost != null && row.ActionButton != null && row.ActionButtonHost.Enabled) {
+                float buttonY = (float)Math.Round((height - PickButtonHeight) * 0.5);
+                row.ActionButtonHost.Position = new float3(labelWidth + FieldSpacing + fieldWidth + FieldSpacing, buttonY, 0.2f);
+            }
         }
 
         /// <summary>
@@ -2532,6 +2833,99 @@ namespace helengine.editor {
             bool nextExpanded = !row.IsExpanded;
             row.IsExpanded = nextExpanded;
             CustomEditorExpandedStates[stateKey] = nextExpanded;
+            if (CurrentEntity == null) {
+                return;
+            }
+
+            ShowComponents(CurrentEntity);
+            if (HasLayoutState) {
+                UpdateLayout(LastLayoutLeft, LastLayoutTop, LastLayoutWidth);
+            }
+        }
+
+        /// <summary>
+        /// Handles the shared scene-map action button for one scalar row.
+        /// </summary>
+        /// <param name="row">Row that owns the pressed action button.</param>
+        void HandleSceneMapActionButtonPressed(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            if (string.Equals(row.NestedMemberName, SceneMapTargetEntryMemberName, StringComparison.Ordinal)) {
+                HandleSceneMapRemoveRequested(row);
+                return;
+            }
+            if (string.Equals(row.NestedMemberName, SceneMapDraftTargetMemberName, StringComparison.Ordinal)) {
+                HandleSceneMapAddRequested(row);
+            }
+        }
+
+        /// <summary>
+        /// Commits the current scene-map draft rows into the component dictionary when both values are valid.
+        /// </summary>
+        /// <param name="row">Row that supplied the add request context.</param>
+        void HandleSceneMapAddRequested(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            EnsureEditableComponentForRow(row);
+            if (row.TargetComponent is not SceneMapComponent sceneMapComponent) {
+                return;
+            }
+
+            Component componentKey = ResolveSceneMapDraftComponentKey(row);
+            if (componentKey == null) {
+                return;
+            }
+            if (!SceneMapDraftSourcesByComponent.TryGetValue(componentKey, out string sourceSceneId) || string.IsNullOrWhiteSpace(sourceSceneId)) {
+                return;
+            }
+            if (!SceneMapDraftTargetsByComponent.TryGetValue(componentKey, out string targetSceneId) || string.IsNullOrWhiteSpace(targetSceneId)) {
+                return;
+            }
+            if (sceneMapComponent.Mappings.ContainsKey(sourceSceneId)) {
+                return;
+            }
+
+            sceneMapComponent.Mappings.Add(sourceSceneId, targetSceneId);
+            SceneMapDraftSourcesByComponent.Remove(componentKey);
+            SceneMapDraftTargetsByComponent.Remove(componentKey);
+            PersistPlatformOverrideIfNeeded(row);
+            EditorSceneMutationService.MarkSceneMutated();
+            RefreshCurrentView();
+        }
+
+        /// <summary>
+        /// Removes one existing scene-map entry from the component dictionary.
+        /// </summary>
+        /// <param name="row">Row that supplied the remove request context.</param>
+        void HandleSceneMapRemoveRequested(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            EnsureEditableComponentForRow(row);
+            if (row.TargetComponent is not SceneMapComponent sceneMapComponent) {
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(row.CustomEditorEntryKey)) {
+                return;
+            }
+            if (!sceneMapComponent.Mappings.Remove(row.CustomEditorEntryKey)) {
+                return;
+            }
+
+            PersistPlatformOverrideIfNeeded(row);
+            EditorSceneMutationService.MarkSceneMutated();
+            RefreshCurrentView();
+        }
+
+        /// <summary>
+        /// Rebuilds the current inspected view while preserving the last-known layout bounds.
+        /// </summary>
+        void RefreshCurrentView() {
             if (CurrentEntity == null) {
                 return;
             }
@@ -3204,6 +3598,94 @@ namespace helengine.editor {
             row.ScalarField = field;
             row.ScalarCache = string.Empty;
             ScalarFieldRows[field] = row;
+        }
+
+        /// <summary>
+        /// Ensures one scalar row owns a reusable scene-map action button.
+        /// </summary>
+        /// <param name="row">Row that should expose the action button.</param>
+        void EnsureSceneMapActionButton(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.ActionButtonHost != null && row.ActionButton != null) {
+                row.ActionButtonHost.Enabled = true;
+                return;
+            }
+
+            EditorEntity buttonHost = new EditorEntity();
+            buttonHost.LayerMask = RootEntity.LayerMask;
+            buttonHost.Position = float3.Zero;
+            row.Entity.AddChild(buttonHost);
+
+            ButtonComponent button = new ButtonComponent("Action", new int2(PickButtonWidth, PickButtonHeight), Font, () => HandleSceneMapActionButtonPressed(row), 0f);
+            button.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
+            button.UseHoverOnlyBackground();
+            button.UseSquareCorners();
+            button.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            buttonHost.AddComponent(button);
+
+            row.ActionButtonHost = buttonHost;
+            row.ActionButton = button;
+        }
+
+        /// <summary>
+        /// Updates one scalar row scene-map action button to match its current role.
+        /// </summary>
+        /// <param name="row">Row whose action button should be refreshed.</param>
+        void ConfigureSceneMapActionButton(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.ActionButtonHost == null || row.ActionButton == null) {
+                return;
+            }
+
+            row.ActionButtonHost.Enabled = true;
+            if (string.Equals(row.NestedMemberName, SceneMapDraftTargetMemberName, StringComparison.Ordinal)) {
+                row.ActionButton.SetText("Add");
+                return;
+            }
+            if (string.Equals(row.NestedMemberName, SceneMapTargetEntryMemberName, StringComparison.Ordinal)) {
+                row.ActionButton.SetText("Remove");
+                return;
+            }
+
+            row.ActionButton.SetText("Action");
+        }
+
+        /// <summary>
+        /// Resolves the component identity used to store scene-map draft values for one row.
+        /// </summary>
+        /// <param name="row">Row whose draft component identity should be resolved.</param>
+        /// <returns>Component identity used for draft storage, or null when unavailable.</returns>
+        Component ResolveSceneMapDraftComponentKey(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            if (row.TargetComponent != null) {
+                return row.TargetComponent;
+            }
+
+            return row.CommonComponent;
+        }
+
+        /// <summary>
+        /// Stores one scene-map draft scalar value for the supplied component identity.
+        /// </summary>
+        /// <param name="draftValues">Dictionary that stores the draft values.</param>
+        /// <param name="componentKey">Component identity that owns the draft value.</param>
+        /// <param name="value">Draft text to store.</param>
+        void SetSceneMapDraftValue(Dictionary<Component, string> draftValues, Component componentKey, string value) {
+            if (draftValues == null) {
+                throw new ArgumentNullException(nameof(draftValues));
+            }
+            if (componentKey == null) {
+                return;
+            }
+
+            draftValues[componentKey] = value ?? string.Empty;
         }
 
         /// <summary>

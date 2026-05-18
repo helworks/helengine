@@ -84,6 +84,11 @@ namespace helengine.editor {
         public string NestedMemberName { get; set; }
 
         /// <summary>
+        /// Gets or sets the stable custom-editor entry key used by provider-backed rows that edit keyed collections.
+        /// </summary>
+        public string CustomEditorEntryKey { get; set; }
+
+        /// <summary>
         /// Gets or sets the indentation level applied during layout.
         /// </summary>
         public int IndentLevel { get; set; }

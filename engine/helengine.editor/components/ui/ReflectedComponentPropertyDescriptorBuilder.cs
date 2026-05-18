@@ -15,7 +15,8 @@ namespace helengine.editor {
         /// </summary>
         public ReflectedComponentPropertyDescriptorBuilder() {
             Providers = new List<IComponentPropertyEditorProvider> {
-                new CameraClearSettingsPropertyEditorProvider()
+                new CameraClearSettingsPropertyEditorProvider(),
+                new SceneMapPropertyEditorProvider()
             };
         }
 
@@ -76,6 +77,9 @@ namespace helengine.editor {
                 return false;
             }
             if (string.Equals(property.Name, "Parent", StringComparison.Ordinal)) {
+                return false;
+            }
+            if (string.Equals(property.Name, nameof(Component.IsEditorUpdateExecutionSuppressionMarker), StringComparison.Ordinal)) {
                 return false;
             }
 

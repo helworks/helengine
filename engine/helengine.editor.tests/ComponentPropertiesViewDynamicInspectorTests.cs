@@ -168,6 +168,131 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the reflected inspector exposes a custom section for scene-map component entries.
+        /// </summary>
+        [Fact]
+        public void ShowComponents_WhenInspectingSceneMapComponent_RendersSceneMapCustomSection() {
+            SceneMapComponent sceneMapComponent = new SceneMapComponent();
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(sceneMapComponent);
+
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+
+            List<ComponentPropertyRow> rows = GetActiveRows(view);
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Scene Mappings", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures expanding the scene-map custom section reveals the authored entry rows and draft rows.
+        /// </summary>
+        [Fact]
+        public void ShowComponents_WhenSceneMapSectionIsExpanded_RendersExistingMappingRows() {
+            SceneMapComponent sceneMapComponent = new SceneMapComponent();
+            sceneMapComponent.Mappings.Add("MainMenu", "DemoDiscMainMenu");
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(sceneMapComponent);
+
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+            view.UpdateLayout(0, 0, 420);
+
+            ComponentPropertyRow sceneMappingsRow = GetSingleRow(view, "Scene Mappings");
+            InvokeNestedSectionToggle(view, sceneMappingsRow);
+
+            List<ComponentPropertyRow> rows = GetActiveRows(view);
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Source 1", StringComparison.Ordinal));
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Target 1", StringComparison.Ordinal));
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "New Source", StringComparison.Ordinal));
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "New Target", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures editing one scene-map target row updates the component and marks the scene mutated.
+        /// </summary>
+        [Fact]
+        public void EditSceneMapEntry_WhenValueChanges_UpdatesComponentAndMarksSceneMutated() {
+            SceneMapComponent sceneMapComponent = new SceneMapComponent();
+            sceneMapComponent.Mappings.Add("MainMenu", "DemoDiscMainMenu");
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(sceneMapComponent);
+            bool wasSceneMutated = false;
+            Action handleSceneMutated = () => wasSceneMutated = true;
+
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+            view.UpdateLayout(0, 0, 420);
+
+            ComponentPropertyRow sceneMappingsRow = GetSingleRow(view, "Scene Mappings");
+            InvokeNestedSectionToggle(view, sceneMappingsRow);
+
+            ComponentPropertyRow targetRow = GetSingleRow(view, "Target 1");
+            targetRow.ScalarField.Text = "DemoDiscMainMenuDs";
+            MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
+            EditorSceneMutationService.SceneMutated += handleSceneMutated;
+            try {
+                submitMethod.Invoke(view, new object[] { targetRow.ScalarField });
+            } finally {
+                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
+            }
+
+            Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings["MainMenu"]);
+            Assert.True(wasSceneMutated);
+        }
+
+        /// <summary>
+        /// Ensures adding one scene-map entry through the custom editor appends a new dictionary entry.
+        /// </summary>
+        [Fact]
+        public void AddSceneMapEntry_WhenConfirmed_AddsDictionaryEntry() {
+            SceneMapComponent sceneMapComponent = new SceneMapComponent();
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(sceneMapComponent);
+
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+            view.UpdateLayout(0, 0, 420);
+
+            ComponentPropertyRow sceneMappingsRow = GetSingleRow(view, "Scene Mappings");
+            InvokeNestedSectionToggle(view, sceneMappingsRow);
+
+            ComponentPropertyRow newSourceRow = GetSingleRow(view, "New Source");
+            ComponentPropertyRow newTargetRow = GetSingleRow(view, "New Target");
+            newSourceRow.ScalarField.Text = "MainMenu";
+            newTargetRow.ScalarField.Text = "DemoDiscMainMenu";
+
+            MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
+            submitMethod.Invoke(view, new object[] { newSourceRow.ScalarField });
+            submitMethod.Invoke(view, new object[] { newTargetRow.ScalarField });
+            InvokeSceneMapAdd(view, newTargetRow);
+
+            Assert.Equal("DemoDiscMainMenu", sceneMapComponent.Mappings["MainMenu"]);
+        }
+
+        /// <summary>
+        /// Ensures removing one scene-map entry through the custom editor removes the dictionary entry.
+        /// </summary>
+        [Fact]
+        public void RemoveSceneMapEntry_WhenPressed_RemovesDictionaryEntry() {
+            SceneMapComponent sceneMapComponent = new SceneMapComponent();
+            sceneMapComponent.Mappings.Add("MainMenu", "DemoDiscMainMenu");
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(sceneMapComponent);
+
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+            view.UpdateLayout(0, 0, 420);
+
+            ComponentPropertyRow sceneMappingsRow = GetSingleRow(view, "Scene Mappings");
+            InvokeNestedSectionToggle(view, sceneMappingsRow);
+
+            ComponentPropertyRow targetRow = GetSingleRow(view, "Target 1");
+            InvokeSceneMapRemove(view, targetRow);
+
+            Assert.Empty(sceneMapComponent.Mappings);
+        }
+
+        /// <summary>
         /// Reads the active rows from the reflected properties view.
         /// </summary>
         /// <param name="view">Properties view under test.</param>
@@ -196,6 +321,26 @@ namespace helengine.editor.tests {
         void InvokeNestedSectionToggle(ComponentPropertiesView view, ComponentPropertyRow row) {
             MethodInfo toggleMethod = typeof(ComponentPropertiesView).GetMethod("HandleCustomSectionPressed", BindingFlags.Instance | BindingFlags.NonPublic);
             toggleMethod.Invoke(view, new object[] { row });
+        }
+
+        /// <summary>
+        /// Invokes the private scene-map add handler on one row in the custom editor.
+        /// </summary>
+        /// <param name="view">Properties view under test.</param>
+        /// <param name="row">Row supplying the add request context.</param>
+        void InvokeSceneMapAdd(ComponentPropertiesView view, ComponentPropertyRow row) {
+            MethodInfo addMethod = typeof(ComponentPropertiesView).GetMethod("HandleSceneMapAddRequested", BindingFlags.Instance | BindingFlags.NonPublic);
+            addMethod.Invoke(view, new object[] { row });
+        }
+
+        /// <summary>
+        /// Invokes the private scene-map remove handler on one row in the custom editor.
+        /// </summary>
+        /// <param name="view">Properties view under test.</param>
+        /// <param name="row">Row supplying the remove request context.</param>
+        void InvokeSceneMapRemove(ComponentPropertiesView view, ComponentPropertyRow row) {
+            MethodInfo removeMethod = typeof(ComponentPropertiesView).GetMethod("HandleSceneMapRemoveRequested", BindingFlags.Instance | BindingFlags.NonPublic);
+            removeMethod.Invoke(view, new object[] { row });
         }
 
         /// <summary>

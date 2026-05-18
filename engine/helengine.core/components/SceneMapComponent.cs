@@ -23,6 +23,8 @@ namespace helengine {
         /// <summary>
         /// Gets the authored mapping entries keyed by logical source scene id.
         /// </summary>
+        [EditorPropertyDisplayName("Scene Mappings")]
+        [EditorPropertyOrder(0)]
         public Dictionary<string, string> Mappings { get; }
     }
 }
