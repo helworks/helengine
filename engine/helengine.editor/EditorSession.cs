@@ -4284,6 +4284,7 @@ namespace helengine.editor {
             persistenceRegistry.Register(new MenuPanelComponentPersistenceDescriptor());
             persistenceRegistry.Register(new MenuItemComponentPersistenceDescriptor());
             persistenceRegistry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new SceneMapComponentPersistenceDescriptor());
             return persistenceRegistry;
         }
 

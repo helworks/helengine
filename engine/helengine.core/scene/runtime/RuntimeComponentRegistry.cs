@@ -42,6 +42,7 @@ namespace helengine {
             registry.Register(new RuntimeMenuSelectedDescriptionComponentDeserializer());
             registry.Register(new RuntimePlatformInfoTextComponentDeserializer());
             registry.Register(new RuntimeDemoDiscReturnToMenuComponentDeserializer());
+            registry.Register(new RuntimeSceneMapComponentDeserializer());
             RegisterGeneratedRuntimeComponentDeserializers(registry);
             return registry;
         }
