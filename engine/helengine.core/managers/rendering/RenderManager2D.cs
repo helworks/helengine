@@ -27,6 +27,7 @@ namespace helengine {
             }
 
             font.Dispose();
+            NativeOwnership.Delete(font);
         }
 
         /// <summary>

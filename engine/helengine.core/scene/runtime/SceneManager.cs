@@ -227,6 +227,8 @@ namespace helengine {
                     } else {
                         UnloadSceneImmediate(operation.SceneId);
                     }
+
+                    NativeOwnership.Delete(operation);
                 }
             } finally {
                 IsFlushingPendingOperations = false;
@@ -263,19 +265,27 @@ namespace helengine {
             SceneLoading?.Invoke(this, new SceneLoadingEventArgs(sceneId, sceneContentPath));
             RecordTraceState("LoadSceneImmediateBeforeContentLoad", sceneId);
             SceneAsset sceneAsset = ContentManager.Load<SceneAsset>(sceneContentPath, RuntimeContentProcessorIds.SceneAsset);
-            RecordTraceState("LoadSceneImmediateBeforeSceneLoadServiceLoad", sceneId);
-            RuntimeSceneLoadResult loadResult = SceneLoadService.LoadTracked(sceneAsset);
-            RecordTraceState("LoadSceneImmediateAfterSceneLoadServiceLoad", sceneId);
-            LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(sceneId, sceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets);
-            RecordTraceState("LoadSceneImmediateBeforeLoadedSceneRecordTrack", sceneId);
-            LoadedSceneRecords.Add(loadedSceneRecord);
-            LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
-            RegisterOwnedAssets(loadedSceneRecord.OwnedAssets);
-            SceneLoaded?.Invoke(this, new SceneLoadedEventArgs(
-                loadedSceneRecord.SceneId,
-                loadedSceneRecord.CookedRelativePath,
-                loadedSceneRecord.RootEntities));
-            RecordTraceState("LoadSceneImmediateEnd", sceneId);
+            try {
+                RecordTraceState("LoadSceneImmediateBeforeSceneLoadServiceLoad", sceneId);
+                RuntimeSceneLoadResult loadResult = SceneLoadService.LoadTracked(sceneAsset);
+                try {
+                    RecordTraceState("LoadSceneImmediateAfterSceneLoadServiceLoad", sceneId);
+                    LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(sceneId, sceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets);
+                    RecordTraceState("LoadSceneImmediateBeforeLoadedSceneRecordTrack", sceneId);
+                    LoadedSceneRecords.Add(loadedSceneRecord);
+                    LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
+                    RegisterOwnedAssets(loadedSceneRecord.OwnedAssets);
+                    SceneLoaded?.Invoke(this, new SceneLoadedEventArgs(
+                        loadedSceneRecord.SceneId,
+                        loadedSceneRecord.CookedRelativePath,
+                        loadedSceneRecord.RootEntities));
+                    RecordTraceState("LoadSceneImmediateEnd", sceneId);
+                } finally {
+                    NativeOwnership.Delete(loadResult);
+                }
+            } finally {
+                ReleaseTransientSceneAsset(sceneAsset);
+            }
         }
 
         /// <summary>
@@ -309,14 +319,23 @@ namespace helengine {
                 loadedSceneRecord.CookedRelativePath,
                 loadedSceneRecord.RootEntities));
             RecordTraceState("UnloadSceneImmediateBeforeDisposeSceneRoots", loadedSceneRecord.SceneId);
-            DisposeSceneRoots(loadedSceneRecord.RootEntities);
-            ReleaseOwnedAssets(loadedSceneRecord.OwnedAssets);
+            IReadOnlyList<Entity> releasedRootEntities = loadedSceneRecord.RootEntities;
+            RuntimeSceneOwnedAssetSet releasedOwnedAssets = loadedSceneRecord.OwnedAssets;
+            DisposeSceneRoots(releasedRootEntities);
+            ReleaseOwnedAssets(releasedOwnedAssets);
             LoadedSceneRecordsById.Remove(loadedSceneRecord.SceneId);
             LoadedSceneRecords.Remove(loadedSceneRecord);
             SceneUnloaded?.Invoke(this, new SceneUnloadedEventArgs(
                 loadedSceneRecord.SceneId,
                 loadedSceneRecord.CookedRelativePath));
             RecordTraceState("UnloadSceneImmediateEnd", loadedSceneRecord.SceneId);
+            NativeOwnership.Delete(releasedRootEntities);
+            NativeOwnership.Delete(releasedOwnedAssets.OwnedTextures);
+            NativeOwnership.Delete(releasedOwnedAssets.OwnedFonts);
+            NativeOwnership.Delete(releasedOwnedAssets.OwnedModels);
+            NativeOwnership.Delete(releasedOwnedAssets.OwnedMaterials);
+            NativeOwnership.Delete(releasedOwnedAssets);
+            NativeOwnership.Delete(loadedSceneRecord);
         }
 
         /// <summary>
@@ -406,6 +425,164 @@ namespace helengine {
             for (int index = rootEntities.Count - 1; index >= 0; index--) {
                 rootEntities[index].Dispose();
             }
+        }
+
+        /// <summary>
+        /// Releases one transient serialized scene-component record and its payload bytes after materialization completes.
+        /// </summary>
+        /// <param name="asset">Transient scene-component record to release.</param>
+        static void ReleaseTransientSceneComponentAssetRecord(SceneComponentAssetRecord asset) {
+            if (asset == null) {
+                return;
+            }
+
+            byte[] payload = asset.Payload;
+            asset.Payload = null;
+            NativeOwnership.Delete(payload);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient platform-only added component asset after materialization completes.
+        /// </summary>
+        /// <param name="asset">Transient platform-only added component asset to release.</param>
+        static void ReleaseTransientSceneEntityPlatformAddedComponentAsset(SceneEntityPlatformAddedComponentAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            SceneComponentAssetRecord component = asset.Component;
+            asset.Component = null;
+            ReleaseTransientSceneComponentAssetRecord(component);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient platform-specific component override asset and all nested authored component data.
+        /// </summary>
+        /// <param name="asset">Transient platform component override asset to release.</param>
+        static void ReleaseTransientSceneEntityPlatformComponentOverrideAsset(SceneEntityPlatformComponentOverrideAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            string[] removedComponentKeys = asset.RemovedComponentKeys;
+            SceneEntityPlatformAddedComponentAsset[] addedComponents = asset.AddedComponents;
+            asset.RemovedComponentKeys = null;
+            asset.AddedComponents = null;
+            if (addedComponents != null) {
+                for (int index = 0; index < addedComponents.Length; index++) {
+                    ReleaseTransientSceneEntityPlatformAddedComponentAsset(addedComponents[index]);
+                }
+            }
+
+            NativeOwnership.Delete(removedComponentKeys);
+            NativeOwnership.Delete(addedComponents);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient platform-specific transform override asset.
+        /// </summary>
+        /// <param name="asset">Transient platform transform override asset to release.</param>
+        static void ReleaseTransientSceneEntityPlatformTransformOverrideAsset(SceneEntityPlatformTransformOverrideAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient serialized entity asset and all nested scene component and child-entity data.
+        /// </summary>
+        /// <param name="asset">Transient entity asset to release.</param>
+        static void ReleaseTransientSceneEntityAsset(SceneEntityAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            SceneComponentAssetRecord[] components = asset.Components;
+            SceneEntityPlatformTransformOverrideAsset[] platformTransformOverrides = asset.PlatformTransformOverrides;
+            SceneEntityPlatformComponentOverrideAsset[] platformComponentOverrides = asset.PlatformComponentOverrides;
+            SceneEntityAsset[] children = asset.Children;
+            asset.Components = null;
+            asset.PlatformTransformOverrides = null;
+            asset.PlatformComponentOverrides = null;
+            asset.Children = null;
+            if (components != null) {
+                for (int index = 0; index < components.Length; index++) {
+                    ReleaseTransientSceneComponentAssetRecord(components[index]);
+                }
+            }
+            if (platformTransformOverrides != null) {
+                for (int index = 0; index < platformTransformOverrides.Length; index++) {
+                    ReleaseTransientSceneEntityPlatformTransformOverrideAsset(platformTransformOverrides[index]);
+                }
+            }
+            if (platformComponentOverrides != null) {
+                for (int index = 0; index < platformComponentOverrides.Length; index++) {
+                    ReleaseTransientSceneEntityPlatformComponentOverrideAsset(platformComponentOverrides[index]);
+                }
+            }
+            if (children != null) {
+                for (int index = 0; index < children.Length; index++) {
+                    ReleaseTransientSceneEntityAsset(children[index]);
+                }
+            }
+
+            NativeOwnership.Delete(components);
+            NativeOwnership.Delete(platformTransformOverrides);
+            NativeOwnership.Delete(platformComponentOverrides);
+            NativeOwnership.Delete(children);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient scene-settings asset and its authored canvas profile.
+        /// </summary>
+        /// <param name="asset">Transient scene-settings asset to release.</param>
+        static void ReleaseTransientSceneSettingsAsset(SceneSettingsAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            SceneCanvasProfile canvasProfile = asset.CanvasProfile;
+            asset.CanvasProfile = null;
+            NativeOwnership.Delete(canvasProfile);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient serialized scene asset and every nested authored entity and reference payload.
+        /// </summary>
+        /// <param name="asset">Transient scene asset to release.</param>
+        static void ReleaseTransientSceneAsset(SceneAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            SceneEntityAsset[] rootEntities = asset.RootEntities;
+            SceneAssetReference[] assetReferences = asset.AssetReferences;
+            SceneSettingsAsset sceneSettings = asset.SceneSettings;
+            asset.RootEntities = null;
+            asset.AssetReferences = null;
+            asset.SceneSettings = null;
+            if (rootEntities != null) {
+                for (int index = 0; index < rootEntities.Length; index++) {
+                    ReleaseTransientSceneEntityAsset(rootEntities[index]);
+                }
+            }
+            if (assetReferences != null) {
+                for (int index = 0; index < assetReferences.Length; index++) {
+                    NativeOwnership.Delete(assetReferences[index]);
+                }
+            }
+
+            NativeOwnership.Delete(rootEntities);
+            NativeOwnership.Delete(assetReferences);
+            ReleaseTransientSceneSettingsAsset(sceneSettings);
+            NativeOwnership.Delete(asset);
         }
 
         /// <summary>

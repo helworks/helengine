@@ -126,16 +126,24 @@ namespace helengine {
 
                 string generatedFullPath = ResolveFileBackedAssetPath(reference);
                 ModelAsset generatedModelAsset = AssetContentManager.Load<ModelAsset>(generatedFullPath, RuntimeContentProcessorIds.ModelAsset);
-                RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromRaw(generatedModelAsset);
-                ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
-                return generatedModel;
+                try {
+                    RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromRaw(generatedModelAsset);
+                    ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
+                    return generatedModel;
+                } finally {
+                    ReleaseTransientModelAsset(generatedModelAsset);
+                }
             }
 
             string fullPath = ResolveFileBackedAssetPath(reference);
             ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, RuntimeContentProcessorIds.ModelAsset);
-            RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
-            TrackOwnedModel(runtimeModel);
-            return runtimeModel;
+            try {
+                RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+                TrackOwnedModel(runtimeModel);
+                return runtimeModel;
+            } finally {
+                ReleaseTransientModelAsset(modelAsset);
+            }
         }
 
         /// <summary>
@@ -165,10 +173,15 @@ namespace helengine {
                 ShaderAsset generatedShaderAsset = AssetContentManager.Load<ShaderAsset>(
                     ResolveShaderPackagePath(generatedMaterialAsset.ShaderAssetId),
                     RuntimeContentProcessorIds.ShaderAsset);
-                RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(generatedMaterialAsset, generatedShaderAsset);
-                ApplyMaterialDiffuseTexture(generatedRawRuntimeMaterial, generatedMaterialAsset, generatedFullPath);
-                ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
-                return generatedRawRuntimeMaterial;
+                try {
+                    RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(generatedMaterialAsset, generatedShaderAsset);
+                    ApplyMaterialDiffuseTexture(generatedRawRuntimeMaterial, generatedMaterialAsset, generatedFullPath);
+                    ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
+                    return generatedRawRuntimeMaterial;
+                } finally {
+                    ReleaseTransientShaderAsset(generatedShaderAsset);
+                    ReleaseTransientMaterialAsset(generatedMaterialAsset);
+                }
 #endif
             }
 
@@ -181,10 +194,15 @@ namespace helengine {
             ShaderAsset shaderAsset = AssetContentManager.Load<ShaderAsset>(
                 ResolveShaderPackagePath(materialAsset.ShaderAssetId),
                 RuntimeContentProcessorIds.ShaderAsset);
-            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            TrackOwnedMaterial(runtimeMaterial);
-            ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);
-            return runtimeMaterial;
+            try {
+                RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+                TrackOwnedMaterial(runtimeMaterial);
+                ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);
+                return runtimeMaterial;
+            } finally {
+                ReleaseTransientShaderAsset(shaderAsset);
+                ReleaseTransientMaterialAsset(materialAsset);
+            }
 #endif
         }
 
@@ -211,17 +229,25 @@ namespace helengine {
             string diffuseTexturePath;
             if (TryResolveSourceTexturePath(materialPath, materialAsset.DiffuseTextureAssetId, out diffuseTexturePath)) {
                 TextureAsset sourceTextureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
-                RuntimeTexture sourceRuntimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTextureAsset);
-                TrackOwnedTexture(sourceRuntimeTexture);
-                runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, sourceRuntimeTexture);
-                return;
+                try {
+                    RuntimeTexture sourceRuntimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTextureAsset);
+                    TrackOwnedTexture(sourceRuntimeTexture);
+                    runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, sourceRuntimeTexture);
+                    return;
+                } finally {
+                    ReleaseTransientTextureAsset(sourceTextureAsset);
+                }
             }
 
             diffuseTexturePath = ResolveImportedTexturePackagePath(materialAsset.DiffuseTextureAssetId);
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
-            TrackOwnedTexture(runtimeTexture);
-            runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
+            try {
+                RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+                TrackOwnedTexture(runtimeTexture);
+                runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
+            } finally {
+                ReleaseTransientTextureAsset(textureAsset);
+            }
         }
 
         /// <summary>
@@ -269,9 +295,13 @@ namespace helengine {
 
             string fullPath = ResolveFileBackedAssetPath(reference);
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(fullPath, RuntimeContentProcessorIds.TextureAsset);
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
-            TrackOwnedTexture(runtimeTexture);
-            return runtimeTexture;
+            try {
+                RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+                TrackOwnedTexture(runtimeTexture);
+                return runtimeTexture;
+            } finally {
+                ReleaseTransientTextureAsset(textureAsset);
+            }
         }
 
         /// <summary>
@@ -298,28 +328,17 @@ namespace helengine {
                 throw new InvalidOperationException("Runtime scene asset tracking is not active.");
             }
 
-            List<RuntimeTexture> ownedTextures = new List<RuntimeTexture>(ActiveOwnedTextures.Count);
-            for (int index = 0; index < ActiveOwnedTextures.Count; index++) {
-                ownedTextures.Add(ActiveOwnedTextures[index]);
-            }
-            List<FontAsset> ownedFonts = new List<FontAsset>(ActiveOwnedFonts.Count);
-            for (int index = 0; index < ActiveOwnedFonts.Count; index++) {
-                ownedFonts.Add(ActiveOwnedFonts[index]);
-            }
-            List<RuntimeModel> ownedModels = new List<RuntimeModel>(ActiveOwnedModels.Count);
-            for (int index = 0; index < ActiveOwnedModels.Count; index++) {
-                ownedModels.Add(ActiveOwnedModels[index]);
-            }
-            List<RuntimeMaterial> ownedMaterials = new List<RuntimeMaterial>(ActiveOwnedMaterials.Count);
-            for (int index = 0; index < ActiveOwnedMaterials.Count; index++) {
-                ownedMaterials.Add(ActiveOwnedMaterials[index]);
-            }
-
+            List<RuntimeTexture> ownedTextures = ActiveOwnedTextures;
+            List<FontAsset> ownedFonts = ActiveOwnedFonts;
+            List<RuntimeModel> ownedModels = ActiveOwnedModels;
+            List<RuntimeMaterial> ownedMaterials = ActiveOwnedMaterials;
+            Dictionary<string, FontAsset> resolvedFontsByPath = ActiveResolvedFontsByPath;
             ActiveOwnedTextures = null;
             ActiveOwnedFonts = null;
             ActiveResolvedFontsByPath = null;
             ActiveOwnedModels = null;
             ActiveOwnedMaterials = null;
+            NativeOwnership.Delete(resolvedFontsByPath);
             return new RuntimeSceneOwnedAssetSet(ownedTextures, ownedFonts, ownedModels, ownedMaterials);
         }
 
@@ -327,11 +346,254 @@ namespace helengine {
         /// Cancels the active scene-owned asset tracking scope after one failed materialization attempt.
         /// </summary>
         public void CancelOwnedAssetTracking() {
+            List<RuntimeTexture> activeOwnedTextures = ActiveOwnedTextures;
+            List<FontAsset> activeOwnedFonts = ActiveOwnedFonts;
+            Dictionary<string, FontAsset> activeResolvedFontsByPath = ActiveResolvedFontsByPath;
+            List<RuntimeModel> activeOwnedModels = ActiveOwnedModels;
+            List<RuntimeMaterial> activeOwnedMaterials = ActiveOwnedMaterials;
             ActiveOwnedTextures = null;
             ActiveOwnedFonts = null;
             ActiveResolvedFontsByPath = null;
             ActiveOwnedModels = null;
             ActiveOwnedMaterials = null;
+            NativeOwnership.Delete(activeOwnedTextures);
+            NativeOwnership.Delete(activeOwnedFonts);
+            NativeOwnership.Delete(activeResolvedFontsByPath);
+            NativeOwnership.Delete(activeOwnedModels);
+            NativeOwnership.Delete(activeOwnedMaterials);
+        }
+
+        /// <summary>
+        /// Releases one transient texture asset that exists only long enough to build a runtime texture.
+        /// </summary>
+        /// <param name="asset">Transient texture asset to release.</param>
+        static void ReleaseTransientTextureAsset(TextureAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            byte[] colors = asset.Colors;
+            byte[] paletteColors = asset.PaletteColors;
+            asset.Colors = null;
+            asset.PaletteColors = null;
+            NativeOwnership.Delete(colors);
+            NativeOwnership.Delete(paletteColors);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient material constant-buffer asset and its packed byte payload.
+        /// </summary>
+        /// <param name="asset">Transient material constant-buffer asset to release.</param>
+        static void ReleaseTransientMaterialConstantBufferAsset(MaterialConstantBufferAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            byte[] data = asset.Data;
+            asset.Data = null;
+            NativeOwnership.Delete(data);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient material asset and any authored constant-buffer payloads that were deserialized for conversion.
+        /// </summary>
+        /// <param name="asset">Transient material asset to release.</param>
+        static void ReleaseTransientMaterialAsset(MaterialAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            MaterialConstantBufferAsset[] constantBuffers = asset.ConstantBuffers;
+            MaterialRenderState renderState = asset.RenderState;
+            asset.ConstantBuffers = null;
+            asset.RenderState = null;
+            if (constantBuffers != null) {
+                for (int index = 0; index < constantBuffers.Length; index++) {
+                    ReleaseTransientMaterialConstantBufferAsset(constantBuffers[index]);
+                }
+            }
+
+            NativeOwnership.Delete(constantBuffers);
+            NativeOwnership.Delete(renderState);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient shader constant-member asset.
+        /// </summary>
+        /// <param name="asset">Transient shader constant-member asset to release.</param>
+        static void ReleaseTransientShaderConstantMemberAsset(ShaderConstantMemberAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient shader binding asset and any deserialized constant-member metadata it owns.
+        /// </summary>
+        /// <param name="asset">Transient shader binding asset to release.</param>
+        static void ReleaseTransientShaderBindingAsset(ShaderBindingAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            ShaderConstantMemberAsset[] members = asset.Members;
+            asset.Members = null;
+            if (members != null) {
+                for (int index = 0; index < members.Length; index++) {
+                    ReleaseTransientShaderConstantMemberAsset(members[index]);
+                }
+            }
+
+            NativeOwnership.Delete(members);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient shader variant asset and its define array.
+        /// </summary>
+        /// <param name="asset">Transient shader variant asset to release.</param>
+        static void ReleaseTransientShaderVariantAsset(ShaderVariantAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            string[] defines = asset.Defines;
+            asset.Defines = null;
+            NativeOwnership.Delete(defines);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient shader program asset and all nested binding, signature, and variant metadata.
+        /// </summary>
+        /// <param name="asset">Transient shader program asset to release.</param>
+        static void ReleaseTransientShaderProgramAsset(ShaderProgramAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            ShaderBindingAsset[] bindings = asset.Bindings;
+            ShaderVertexElementAsset[] inputs = asset.Inputs;
+            ShaderVertexElementAsset[] outputs = asset.Outputs;
+            ShaderVariantAsset[] variants = asset.Variants;
+            asset.Bindings = null;
+            asset.Inputs = null;
+            asset.Outputs = null;
+            asset.Variants = null;
+            if (bindings != null) {
+                for (int index = 0; index < bindings.Length; index++) {
+                    ReleaseTransientShaderBindingAsset(bindings[index]);
+                }
+            }
+            if (inputs != null) {
+                for (int index = 0; index < inputs.Length; index++) {
+                    NativeOwnership.Delete(inputs[index]);
+                }
+            }
+            if (outputs != null) {
+                for (int index = 0; index < outputs.Length; index++) {
+                    NativeOwnership.Delete(outputs[index]);
+                }
+            }
+            if (variants != null) {
+                for (int index = 0; index < variants.Length; index++) {
+                    ReleaseTransientShaderVariantAsset(variants[index]);
+                }
+            }
+
+            NativeOwnership.Delete(bindings);
+            NativeOwnership.Delete(inputs);
+            NativeOwnership.Delete(outputs);
+            NativeOwnership.Delete(variants);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient shader binary asset and its bytecode payload.
+        /// </summary>
+        /// <param name="asset">Transient shader binary asset to release.</param>
+        static void ReleaseTransientShaderBinaryAsset(ShaderBinaryAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            byte[] bytecode = asset.Bytecode;
+            asset.Bytecode = null;
+            NativeOwnership.Delete(bytecode);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient shader asset and every deserialized nested program and binary payload.
+        /// </summary>
+        /// <param name="asset">Transient shader asset to release.</param>
+        static void ReleaseTransientShaderAsset(ShaderAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            ShaderProgramAsset[] programs = asset.Programs;
+            ShaderBinaryAsset[] binaries = asset.Binaries;
+            asset.Programs = null;
+            asset.Binaries = null;
+            if (programs != null) {
+                for (int index = 0; index < programs.Length; index++) {
+                    ReleaseTransientShaderProgramAsset(programs[index]);
+                }
+            }
+            if (binaries != null) {
+                for (int index = 0; index < binaries.Length; index++) {
+                    ReleaseTransientShaderBinaryAsset(binaries[index]);
+                }
+            }
+
+            NativeOwnership.Delete(programs);
+            NativeOwnership.Delete(binaries);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient model asset and all deserialized mesh buffers used only during runtime-model construction.
+        /// </summary>
+        /// <param name="asset">Transient model asset to release.</param>
+        static void ReleaseTransientModelAsset(ModelAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            float3[] positions = asset.Positions;
+            float3[] normals = asset.Normals;
+            float2[] texCoords = asset.TexCoords;
+            ushort[] indices16 = asset.Indices16;
+            uint[] indices32 = asset.Indices32;
+            ModelSubmeshAsset[] submeshes = asset.Submeshes;
+            byte[] ps2PackedMeshBytes = asset.Ps2PackedMeshBytes;
+            asset.Positions = null;
+            asset.Normals = null;
+            asset.TexCoords = null;
+            asset.Indices16 = null;
+            asset.Indices32 = null;
+            asset.Submeshes = null;
+            asset.Ps2PackedMeshBytes = null;
+            if (submeshes != null) {
+                for (int index = 0; index < submeshes.Length; index++) {
+                    NativeOwnership.Delete(submeshes[index]);
+                }
+            }
+
+            NativeOwnership.Delete(positions);
+            NativeOwnership.Delete(normals);
+            NativeOwnership.Delete(texCoords);
+            NativeOwnership.Delete(indices16);
+            NativeOwnership.Delete(indices32);
+            NativeOwnership.Delete(submeshes);
+            NativeOwnership.Delete(ps2PackedMeshBytes);
+            NativeOwnership.Delete(asset);
         }
 
         /// <summary>

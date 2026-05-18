@@ -42,7 +42,16 @@ namespace helengine {
             registry.Register(new RuntimeMenuSelectedDescriptionComponentDeserializer());
             registry.Register(new RuntimePlatformInfoTextComponentDeserializer());
             registry.Register(new RuntimeDemoDiscReturnToMenuComponentDeserializer());
+            RegisterGeneratedRuntimeComponentDeserializers(registry);
             return registry;
+        }
+
+        /// <summary>
+        /// Registers any generated cooked-scene runtime component deserializers that are supplied by native build generation.
+        /// </summary>
+        /// <param name="registry">Registry that should receive generated runtime deserializers.</param>
+        [NativeFreeFunction("RegisterGeneratedRuntimeComponentDeserializers", "GeneratedRuntimeComponentDeserializerRegistration.hpp")]
+        static void RegisterGeneratedRuntimeComponentDeserializers(RuntimeComponentRegistry registry) {
         }
 
         /// <summary>
