@@ -415,18 +415,29 @@ namespace helengine {
             }
 
             isDisposing = true;
+            if (Components != null) {
+                while (Components.Count > 0) {
+                    Component component = Components[Components.Count - 1];
+                    RemoveComponent(component);
+                    component.Dispose();
+                    NativeOwnership.Delete(component);
+                }
+
+                List<Component> components = Components;
+                Components = null;
+                NativeOwnership.Delete(components);
+            }
+
             if (Children != null) {
                 while (Children.Count > 0) {
                     Entity child = Children[Children.Count - 1];
                     RemoveChild(child);
-                    child.Dispose();
+                    NativeOwnership.DisposeAndDelete(child);
                 }
-            }
 
-            if (Components != null) {
-                while (Components.Count > 0) {
-                    RemoveComponent(Components[Components.Count - 1]);
-                }
+                List<Entity> children = Children;
+                Children = null;
+                NativeOwnership.Delete(children);
             }
 
             if (Parent != null) {
