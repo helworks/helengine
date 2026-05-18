@@ -133,6 +133,28 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures scene loading returns the authored dont-unload scene setting stored in the scene file.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneFileContainsDontUnload_ReturnsSceneSettingsFlag() {
+            SceneAssetReference modelReference = CreateGeneratedModelReference();
+            SceneAssetReference materialReference = CreateGeneratedMaterialReference();
+            SceneSettingsAsset sceneSettings = new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = 1600,
+                    Height = 900
+                },
+                DontUnload = true
+            };
+            string scenePath = SaveSceneAsset("Persistent.helen", "Loaded Cube", modelReference, materialReference, sceneSettings);
+            SceneFileLoadService loadService = CreateLoadService(modelReference, materialReference);
+
+            LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
+
+            Assert.True(loaded.SceneSettings.DontUnload);
+        }
+
+        /// <summary>
         /// Creates a scene-load service with runtime references registered for a saved mesh component.
         /// </summary>
         /// <param name="modelReference">Model reference to resolve during load.</param>
@@ -162,6 +184,7 @@ namespace helengine.editor.tests.serialization.scene {
         ComponentPersistenceRegistry CreateDemoMenuPersistenceRegistry() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             registry.Register(new CameraComponentPersistenceDescriptor());
+            registry.Register(new DebugComponentPersistenceDescriptor());
             registry.Register(new MenuComponentPersistenceDescriptor());
             registry.Register(new MenuPanelComponentPersistenceDescriptor());
             registry.Register(new MenuItemComponentPersistenceDescriptor());

@@ -443,6 +443,29 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures scene save persists the dont-unload scene setting into the serialized scene asset.
+        /// </summary>
+        [Fact]
+        public void Save_WhenSceneSettingsDontUnloadIsTrue_PersistsTheFlag() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            SceneSettingsAsset sceneSettings = new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = 1920,
+                    Height = 1080
+                },
+                DontUnload = true
+            };
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Persistent.helen");
+
+            saveService.Save(scenePath, sceneSettings);
+
+            using FileStream stream = File.OpenRead(scenePath);
+            SceneAsset asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            Assert.True(asset.SceneSettings.DontUnload);
+        }
+
+        /// <summary>
         /// Ensures scene save persists common entity transforms separately from projected platform overrides and load restores those overrides for later editing.
         /// </summary>
         [Fact]

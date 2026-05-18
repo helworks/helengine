@@ -529,7 +529,8 @@ namespace helengine.editor {
                 CanvasProfile = new SceneCanvasProfile {
                     Width = sceneSettings.CanvasProfile.Width,
                     Height = sceneSettings.CanvasProfile.Height
-                }
+                },
+                DontUnload = sceneSettings.DontUnload
             };
         }
     }
