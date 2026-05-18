@@ -6,6 +6,16 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorBuildQueueItemFactory {
         /// <summary>
+        /// Stores the Windows platform id that forces the desktop demo-disc main menu to become the startup scene.
+        /// </summary>
+        const string WindowsPlatformId = "windows";
+
+        /// <summary>
+        /// Stores the project scene id that Windows builds must stage first as their startup scene.
+        /// </summary>
+        const string WindowsStartupSceneId = PlatformMenuSceneResolver.DesktopMainMenuSceneId;
+
+        /// <summary>
         /// Stores the Nintendo DS platform id that forces the demo-disc main menu to become the startup scene.
         /// </summary>
         const string NintendoDsPlatformId = "ds";
@@ -335,25 +345,35 @@ namespace helengine.editor {
             if (orderedSceneIds == null) {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
+
+            if (string.Equals(platformId, WindowsPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                EnsureStartupSceneFirst(orderedSceneIds, WindowsStartupSceneId);
+                return;
+            }
+
             if (!string.Equals(platformId, NintendoDsPlatformId, StringComparison.OrdinalIgnoreCase)) {
                 return;
             }
 
-            EnsureNintendoDsStartupSceneFirst(orderedSceneIds);
+            EnsureStartupSceneFirst(orderedSceneIds, NintendoDsStartupSceneId);
         }
 
         /// <summary>
-        /// Ensures Nintendo DS builds always cook and stage the demo-disc main menu scene first.
+        /// Ensures platform startup-scene overrides always cook and stage the required scene first.
         /// </summary>
         /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
-        void EnsureNintendoDsStartupSceneFirst(List<string> orderedSceneIds) {
+        /// <param name="startupSceneId">Stable startup scene identifier that must be staged first.</param>
+        void EnsureStartupSceneFirst(List<string> orderedSceneIds, string startupSceneId) {
             if (orderedSceneIds == null) {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
+            if (string.IsNullOrWhiteSpace(startupSceneId)) {
+                throw new ArgumentException("Startup scene id must be provided.", nameof(startupSceneId));
+            }
 
-            int startupSceneIndex = IndexOf(orderedSceneIds, NintendoDsStartupSceneId);
+            int startupSceneIndex = IndexOf(orderedSceneIds, startupSceneId);
             if (startupSceneIndex < 0) {
-                orderedSceneIds.Insert(0, NintendoDsStartupSceneId);
+                orderedSceneIds.Insert(0, startupSceneId);
                 return;
             }
             if (startupSceneIndex == 0) {
@@ -361,7 +381,7 @@ namespace helengine.editor {
             }
 
             orderedSceneIds.RemoveAt(startupSceneIndex);
-            orderedSceneIds.Insert(0, NintendoDsStartupSceneId);
+            orderedSceneIds.Insert(0, startupSceneId);
         }
 
         /// <summary>

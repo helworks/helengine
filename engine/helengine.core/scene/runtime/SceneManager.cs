@@ -83,7 +83,7 @@ namespace helengine {
             ObjectManager objectManager,
             ISceneIdPathResolver scenePathResolver) {
             if (sceneCatalog == null && scenePathResolver == null) {
-                throw new ArgumentNullException(nameof(sceneCatalog), "A runtime scene manager requires either a scene catalog or a scene path resolver.");
+                throw new InvalidOperationException("A runtime scene manager requires either a scene catalog or a scene path resolver.");
             }
 
             SceneCatalog = sceneCatalog;
@@ -382,7 +382,8 @@ namespace helengine {
         /// <param name="sceneId">Stable scene identifier to resolve.</param>
         /// <returns>Content path that should be loaded for the supplied scene id.</returns>
         string ResolveSceneContentPath(string sceneId) {
-            if (SceneCatalog != null && SceneCatalog.TryGetEntry(sceneId, out RuntimeSceneCatalogEntry entry)) {
+            RuntimeSceneCatalogEntry entry;
+            if (SceneCatalog != null && SceneCatalog.TryGetEntry(sceneId, out entry)) {
                 return entry.CookedRelativePath;
             } else if (ScenePathResolver != null) {
                 string authoredScenePath = ScenePathResolver.ResolveScenePath(sceneId);

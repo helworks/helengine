@@ -189,6 +189,122 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
     }
 
     /// <summary>
+    /// Verifies loading settings for one platform remaps an authored schema that the current platform did not publish.
+    /// </summary>
+    [Fact]
+    public void MaterialAssetSettingsService_loads_or_creates_platform_material_settings_when_authored_schema_is_not_published_remaps_to_platform_default() {
+        string materialAssetPath = Path.Combine(TempRootPath, "Test.hasset");
+        MaterialAssetCommonSettingsDocument commonDocument = new MaterialAssetCommonSettingsDocument();
+        commonDocument.Importer.ImporterId = "helengine.material";
+        commonDocument.Importer.AssetId = "Materials/Test.hasset";
+        commonDocument.Processor.SchemaId = "gamecube-standard-textured";
+        commonDocument.Processor.FieldValues["use-custom-shader"] = "false";
+        commonDocument.Processor.FieldValues["texture-id"] = "Textures/Common.png";
+        commonDocument.Processor.FieldValues["casts-shadow"] = "true";
+        commonDocument.Processor.FieldValues["receives-shadow"] = "true";
+        using (FileStream stream = File.Create(materialAssetPath)) {
+            MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, commonDocument);
+        }
+
+        PlatformDefinition definition = new(
+            "windows",
+            "Windows",
+            [
+                new PlatformBuildProfileDefinition(
+                    "debug",
+                    "Debug",
+                    "Debug build",
+                    "directx11",
+                    [])
+            ],
+            [
+                new PlatformGraphicsProfileDefinition(
+                    "directx11",
+                    "DirectX 11",
+                    "Default graphics profile",
+                    [])
+            ],
+            [],
+            [
+                new PlatformMaterialSchemaDefinition(
+                    "standard-shader",
+                    "Standard Shader",
+                    ["directx11"],
+                    [
+                        new PlatformMaterialFieldDefinition(
+                            "use-custom-shader",
+                            "Use Custom Shader",
+                            PlatformMaterialFieldKind.Boolean,
+                            "false",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "shader-asset-id",
+                            "Shader Asset",
+                            PlatformMaterialFieldKind.AssetReference,
+                            string.Empty,
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "texture-id",
+                            "Texture",
+                            PlatformMaterialFieldKind.AssetReference,
+                            string.Empty,
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "casts-shadow",
+                            "Casts Shadow",
+                            PlatformMaterialFieldKind.Boolean,
+                            "true",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "receives-shadow",
+                            "Receives Shadow",
+                            PlatformMaterialFieldKind.Boolean,
+                            "true",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "vertex-program",
+                            "Vertex Program",
+                            PlatformMaterialFieldKind.Text,
+                            string.Empty,
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "pixel-program",
+                            "Pixel Program",
+                            PlatformMaterialFieldKind.Text,
+                            string.Empty,
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "base-color",
+                            "Base Color",
+                            PlatformMaterialFieldKind.Color,
+                            "#ffffff",
+                            false,
+                            [])
+                    ])
+            ]);
+
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+        MaterialAssetImportSettings settings = service.LoadOrCreate(
+            materialAssetPath,
+            ["windows"],
+            platformId => EditorPlatformBuildSelectionModel.From(definition));
+
+        Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].SchemaId);
+        Assert.Equal("false", settings.Processor.Platforms["windows"].FieldValues["use-custom-shader"]);
+        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].FieldValues["shader-asset-id"]);
+        Assert.Equal("Textures/Common.png", settings.Processor.Platforms["windows"].FieldValues["texture-id"]);
+        Assert.Equal("true", settings.Processor.Platforms["windows"].FieldValues["casts-shadow"]);
+        Assert.Equal("true", settings.Processor.Platforms["windows"].FieldValues["receives-shadow"]);
+    }
+
+    /// <summary>
     /// Verifies base material authoring now lives directly in the material `.hasset` file and platform overrides live in `*.platform.hasset`.
     /// </summary>
     [Fact]

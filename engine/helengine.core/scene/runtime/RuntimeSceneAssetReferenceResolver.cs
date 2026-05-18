@@ -63,12 +63,12 @@ namespace helengine {
         List<RuntimeMaterial> ActiveOwnedMaterials;
 
         /// <summary>
-        /// Reuses generated runtime models across scene loads so built-in engine primitives are not tracked as scene-owned assets.
+        /// Reuses generated runtime models during the active scene materialization scope so repeated generated references share one runtime model instance.
         /// </summary>
         readonly Dictionary<string, RuntimeModel> ActiveGeneratedModelsByKey;
 
         /// <summary>
-        /// Reuses generated runtime materials across scene loads so built-in engine materials are not tracked as scene-owned assets.
+        /// Reuses generated runtime materials during the active scene materialization scope so repeated generated references share one runtime material instance.
         /// </summary>
         readonly Dictionary<string, RuntimeMaterial> ActiveGeneratedMaterialsByKey;
 
@@ -121,6 +121,7 @@ namespace helengine {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 string generatedAssetKey = BuildGeneratedAssetCacheKey(reference);
                 if (ActiveGeneratedModelsByKey.TryGetValue(generatedAssetKey, out RuntimeModel generatedRuntimeModel)) {
+                    TrackOwnedModel(generatedRuntimeModel);
                     return generatedRuntimeModel;
                 }
 
@@ -129,6 +130,7 @@ namespace helengine {
                 try {
                     RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromRaw(generatedModelAsset);
                     ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
+                    TrackOwnedModel(generatedModel);
                     return generatedModel;
                 } finally {
                     ReleaseTransientModelAsset(generatedModelAsset);
@@ -159,6 +161,7 @@ namespace helengine {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 string generatedAssetKey = BuildGeneratedAssetCacheKey(reference);
                 if (ActiveGeneratedMaterialsByKey.TryGetValue(generatedAssetKey, out RuntimeMaterial generatedRuntimeMaterial)) {
+                    TrackOwnedMaterial(generatedRuntimeMaterial);
                     return generatedRuntimeMaterial;
                 }
 
@@ -167,6 +170,7 @@ namespace helengine {
                 PlatformMaterialAsset generatedPlatformMaterialAsset = AssetContentManager.Load<PlatformMaterialAsset>(generatedFullPath, RuntimeContentProcessorIds.MaterialAsset);
                 RuntimeMaterial generatedCookedRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedPlatformMaterialAsset);
                 ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);
+                TrackOwnedMaterial(generatedCookedRuntimeMaterial);
                 return generatedCookedRuntimeMaterial;
 #else
                 MaterialAsset generatedMaterialAsset = AssetContentManager.Load<MaterialAsset>(generatedFullPath, RuntimeContentProcessorIds.MaterialAsset);
@@ -177,6 +181,7 @@ namespace helengine {
                     RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(generatedMaterialAsset, generatedShaderAsset);
                     ApplyMaterialDiffuseTexture(generatedRawRuntimeMaterial, generatedMaterialAsset, generatedFullPath);
                     ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
+                    TrackOwnedMaterial(generatedRawRuntimeMaterial);
                     return generatedRawRuntimeMaterial;
                 } finally {
                     ReleaseTransientShaderAsset(generatedShaderAsset);
@@ -188,7 +193,9 @@ namespace helengine {
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
             PlatformMaterialAsset materialAsset = AssetContentManager.Load<PlatformMaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
-            return Core.Instance.RenderManager3D.BuildMaterialFromCooked(materialAsset);
+            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(materialAsset);
+            TrackOwnedMaterial(runtimeMaterial);
+            return runtimeMaterial;
 #else
             MaterialAsset materialAsset = AssetContentManager.Load<MaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
             ShaderAsset shaderAsset = AssetContentManager.Load<ShaderAsset>(
@@ -312,6 +319,7 @@ namespace helengine {
                 throw new InvalidOperationException("Runtime scene asset tracking is already active.");
             }
 
+            ResetGeneratedRuntimeAssetCaches();
             ActiveOwnedTextures = new List<RuntimeTexture>();
             ActiveOwnedFonts = new List<FontAsset>();
             ActiveResolvedFontsByPath = new Dictionary<string, FontAsset>(StringComparer.OrdinalIgnoreCase);
@@ -338,6 +346,7 @@ namespace helengine {
             ActiveResolvedFontsByPath = null;
             ActiveOwnedModels = null;
             ActiveOwnedMaterials = null;
+            ResetGeneratedRuntimeAssetCaches();
             NativeOwnership.Delete(resolvedFontsByPath);
             return new RuntimeSceneOwnedAssetSet(ownedTextures, ownedFonts, ownedModels, ownedMaterials);
         }
@@ -356,11 +365,20 @@ namespace helengine {
             ActiveResolvedFontsByPath = null;
             ActiveOwnedModels = null;
             ActiveOwnedMaterials = null;
+            ResetGeneratedRuntimeAssetCaches();
             NativeOwnership.Delete(activeOwnedTextures);
             NativeOwnership.Delete(activeOwnedFonts);
             NativeOwnership.Delete(activeResolvedFontsByPath);
             NativeOwnership.Delete(activeOwnedModels);
             NativeOwnership.Delete(activeOwnedMaterials);
+        }
+
+        /// <summary>
+        /// Clears the per-load generated runtime asset caches so generated references participate in normal scene ownership across transitions.
+        /// </summary>
+        void ResetGeneratedRuntimeAssetCaches() {
+            ActiveGeneratedModelsByKey.Clear();
+            ActiveGeneratedMaterialsByKey.Clear();
         }
 
         /// <summary>

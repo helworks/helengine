@@ -63,10 +63,10 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
     }
 
     /// <summary>
-    /// Ensures generated model references use a shared runtime cache instead of being tracked as scene-owned models.
+    /// Ensures generated model references are tracked as scene-owned runtime models and only use the generated cache within one load scope.
     /// </summary>
     [Fact]
-    public void RuntimeSceneAssetReferenceResolver_source_caches_generated_models_without_scene_owned_tracking() {
+    public void RuntimeSceneAssetReferenceResolver_source_tracks_generated_models_and_clears_generated_cache_between_loads() {
         string sourcePath = Path.Combine(
             ResolveRepositoryRootPath(),
             "engine",
@@ -80,13 +80,16 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
         Assert.Contains("if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated)", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedModelsByKey.TryGetValue", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);", source, StringComparison.Ordinal);
+        Assert.Contains("TrackOwnedModel(generatedRuntimeModel);", source, StringComparison.Ordinal);
+        Assert.Contains("TrackOwnedModel(generatedModel);", source, StringComparison.Ordinal);
+        Assert.Contains("ActiveGeneratedModelsByKey.Clear();", source, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Ensures generated material references use a shared runtime cache instead of being tracked as scene-owned materials.
+    /// Ensures generated and cooked material references are tracked as scene-owned runtime materials and generated caches are cleared between loads.
     /// </summary>
     [Fact]
-    public void RuntimeSceneAssetReferenceResolver_source_caches_generated_materials_without_scene_owned_tracking() {
+    public void RuntimeSceneAssetReferenceResolver_source_tracks_generated_and_cooked_materials_and_clears_generated_cache_between_loads() {
         string sourcePath = Path.Combine(
             ResolveRepositoryRootPath(),
             "engine",
@@ -100,6 +103,11 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
         Assert.Contains("ActiveGeneratedMaterialsByKey.TryGetValue", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);", source, StringComparison.Ordinal);
+        Assert.Contains("TrackOwnedMaterial(generatedRuntimeMaterial);", source, StringComparison.Ordinal);
+        Assert.Contains("TrackOwnedMaterial(generatedCookedRuntimeMaterial);", source, StringComparison.Ordinal);
+        Assert.Contains("TrackOwnedMaterial(generatedRawRuntimeMaterial);", source, StringComparison.Ordinal);
+        Assert.Contains("TrackOwnedMaterial(runtimeMaterial);", source, StringComparison.Ordinal);
+        Assert.Contains("ActiveGeneratedMaterialsByKey.Clear();", source, StringComparison.Ordinal);
     }
 
     /// <summary>

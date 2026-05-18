@@ -43,9 +43,9 @@ namespace helengine.editor {
         readonly RoundedRectComponentPersistenceDescriptor RoundedRectDescriptor;
 
         /// <summary>
-        /// Descriptor used to serialize the FPS overlay component.
+        /// Descriptor used to serialize the debug overlay component.
         /// </summary>
-        readonly FPSComponentPersistenceDescriptor FpsDescriptor;
+        readonly DebugComponentPersistenceDescriptor DebugDescriptor;
 
         /// <summary>
         /// Descriptor used to serialize automatic reflected component payloads such as clip and scroll metadata.
@@ -73,7 +73,7 @@ namespace helengine.editor {
             TextDescriptor = new TextComponentPersistenceDescriptor();
             SpriteDescriptor = new SpriteComponentPersistenceDescriptor();
             RoundedRectDescriptor = new RoundedRectComponentPersistenceDescriptor();
-            FpsDescriptor = new FPSComponentPersistenceDescriptor();
+            DebugDescriptor = new DebugComponentPersistenceDescriptor();
             AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             PlaceholderFont = new FontAsset(
                 new FontInfo("Placeholder", 16, 4f),
@@ -243,7 +243,7 @@ namespace helengine.editor {
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = new[] {
-                    CreateFpsComponentRecord(definition.BodyFontPath)
+                    CreateDebugComponentRecord(definition.BodyFontPath)
                 },
                 Children = children.ToArray()
             };
@@ -615,17 +615,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Serializes the menu-scene FPS overlay using the authored body font reference.
+        /// Serializes the menu-scene debug overlay using the authored body font reference.
         /// </summary>
         /// <param name="fontPath">Project-relative font path used by the overlay.</param>
-        /// <returns>Serialized FPS overlay component record.</returns>
-        SceneComponentAssetRecord CreateFpsComponentRecord(string fontPath) {
-            FPSComponent fpsComponent = new FPSComponent {
+        /// <returns>Serialized debug overlay component record.</returns>
+        SceneComponentAssetRecord CreateDebugComponentRecord(string fontPath) {
+            DebugComponent debugComponent = new DebugComponent {
                 Font = PlaceholderFont
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, BuildFileFontReference(fontPath));
-            return FpsDescriptor.SerializeComponent(fpsComponent, 3, saveState);
+            return DebugDescriptor.SerializeComponent(debugComponent, 3, saveState);
         }
 
         /// <summary>

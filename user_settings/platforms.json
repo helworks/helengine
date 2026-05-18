@@ -7,7 +7,7 @@
                           "builderAssemblyPath":  "../../helengine-windows/builder/bin/Debug/net9.0/helengine.windows.builder.dll",
                           "playerSourceRootPath":  "../../helengine-windows",
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
-                          "codegenToolPath":  "../../../csharpcodegen/.worktrees/cpp-ownership-generator-fix/codegen/bin/Debug/net9.0/codegen.exe"
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
                       },
                       {
                           "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
@@ -16,7 +16,7 @@
                           "builderAssemblyPath":  "../../helengine-ps2/builder/bin/Debug/net9.0/helengine.ps2.builder.dll",
                           "playerSourceRootPath":  "../../helengine-ps2",
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
-                          "codegenToolPath":  "../../../csharpcodegen/.worktrees/cpp-ownership-generator-fix/codegen/bin/Debug/net9.0/codegen.exe"
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
                       },
                       {
                           "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
@@ -25,7 +25,7 @@
                           "builderAssemblyPath":  "../../helengine-psp/builder/bin/Debug/net9.0/helengine.psp.builder.dll",
                           "playerSourceRootPath":  "../../helengine-psp",
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
-                          "codegenToolPath":  "../../../csharpcodegen/.worktrees/cpp-ownership-generator-fix/codegen/bin/Debug/net9.0/codegen.exe"
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
                       },
                       {
                           "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
@@ -34,7 +34,7 @@
                           "builderAssemblyPath":  "../../helengine-ds/builder/bin/Debug/net9.0/helengine.ds.builder.dll",
                           "playerSourceRootPath":  "../../helengine-ds",
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
-                          "codegenToolPath":  "../../../csharpcodegen/.worktrees/cpp-ownership-generator-fix/codegen/bin/Debug/net9.0/codegen.exe"
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
                       },
                       {
                           "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
@@ -43,7 +43,7 @@
                           "builderAssemblyPath":  "../../helengine-gc/builder/bin/Debug/net9.0-windows/helengine.gamecube.builder.dll",
                           "playerSourceRootPath":  "../../helengine-gc",
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
-                          "codegenToolPath":  "../../../csharpcodegen/.worktrees/cpp-ownership-generator-fix/codegen/bin/Debug/net9.0/codegen.exe"
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
                       }
                   ]
 }

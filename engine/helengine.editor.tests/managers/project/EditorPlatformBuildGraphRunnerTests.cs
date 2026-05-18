@@ -740,6 +740,75 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the build graph finalizer collapses duplicate transient scene-load-result deletes in generated scene managers before native packaging.
+    /// </summary>
+    [Fact]
+    public void FinalizeGeneratedCoreSources_collapses_duplicate_scene_manager_load_result_deletes() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(rootPath);
+
+        try {
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    "builder.dll",
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+
+            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+            Directory.CreateDirectory(generatedCoreRootPath);
+            string sceneManagerPath = Path.Combine(generatedCoreRootPath, "SceneManager.cpp");
+            File.WriteAllText(
+                sceneManagerPath,
+                "#include \"SceneManager.hpp\"\n"
+                + "#include \"runtime/finally.hpp\"\n"
+                + "void SceneManager::LoadSceneImmediate(std::string sceneId, ::SceneLoadMode loadMode)\n"
+                + "{\n"
+                + "this->RecordTraceState(\"LoadSceneImmediateBegin\", sceneId);\n"
+                + "const std::string sceneContentPath = this->ResolveSceneContentPath(sceneId);\n"
+                + "this->SceneLoading.Invoke(this, new ::SceneLoadingEventArgs(sceneId, sceneContentPath));\n"
+                + "this->RecordTraceState(\"LoadSceneImmediateBeforeContentLoad\", sceneId);\n"
+                + "::SceneAsset *sceneAsset = this->ContentManager->Load<SceneAsset*>(sceneContentPath, RuntimeContentProcessorIds::SceneAsset);\n"
+                + "auto __releaseSceneAssetGuard = he_cpp_make_scope_exit([&]() {\n"
+                + "ReleaseTransientSceneAsset(sceneAsset);\n"
+                + "});\n"
+                + "this->RecordTraceState(\"LoadSceneImmediateBeforeSceneLoadServiceLoad\", sceneId);\n"
+                + "::RuntimeSceneLoadResult *loadResult = this->SceneLoadService->LoadTracked(sceneAsset);\n"
+                + "this->RecordTraceState(\"LoadSceneImmediateAfterSceneLoadServiceLoad\", sceneId);\n"
+                + "::LoadedSceneRecord *loadedSceneRecord = new ::LoadedSceneRecord(sceneId, sceneContentPath, loadResult->get_RootEntities(), loadResult->get_OwnedAssets());\n"
+                + "delete loadResult;\n"
+                + "delete loadResult;\n"
+                + "this->RecordTraceState(\"LoadSceneImmediateBeforeLoadedSceneRecordTrack\", sceneId);\n"
+                + "}\n");
+
+            MethodInfo finalizeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "FinalizeGeneratedCoreSources",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(finalizeMethod);
+            finalizeMethod.Invoke(runner, [generatedCoreRootPath]);
+
+            string normalizedSceneManager = File.ReadAllText(sceneManagerPath);
+            Assert.Equal(1, normalizedSceneManager.Split("delete loadResult;").Length - 1);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies the build runner can summarize detected runtime features from the generated conversion report.
     /// </summary>
     [Fact]

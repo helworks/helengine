@@ -52,6 +52,33 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures regenerating the desktop menu scene attaches one debug overlay under the generated root and removes the FPS overlay.
+    /// </summary>
+    [Fact]
+    public void Regenerate_WhenInvokedForDesktop_WritesDebugOverlayOnGeneratedRoot() {
+        ScriptTypeResolver resolver = new ScriptTypeResolver();
+        resolver.Register("gameplay", typeof(TestMenuDefinitionProvider).Assembly);
+        EditorMenuSceneRegenerationService service = new EditorMenuSceneRegenerationService(ProjectRootPath, resolver);
+
+        service.Regenerate("Scenes/DemoDiscMainMenu.helen", typeof(TestMenuDefinitionProvider).FullName + ", gameplay");
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenu.helen");
+        using FileStream stream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+
+        SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+        SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+        SceneComponentAssetRecord debugRecord = Assert.Single(
+            generatedRoot.Components,
+            component => component.ComponentTypeId == "helengine.DebugComponent");
+
+        Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.DebugComponent"));
+        Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "helengine.FPSComponent"));
+        Assert.Equal("fonts/body.hefont", ReadDebugFontRelativePath(debugRecord));
+        Assert.Equal(0.5d, ReadDebugRefreshIntervalSeconds(debugRecord));
+    }
+
+    /// <summary>
     /// Ensures regenerating the Nintendo DS menu scene writes the dual-screen camera structure and viewport-backed menu root.
     /// </summary>
     [Fact]
@@ -182,11 +209,11 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Reads the file-backed font reference assigned to one serialized FPS component.
+    /// Reads the file-backed font reference assigned to one serialized debug component.
     /// </summary>
-    /// <param name="record">Serialized FPS component record to inspect.</param>
-    /// <returns>Project-relative font path referenced by the FPS component.</returns>
-    static string ReadFpsFontRelativePath(SceneComponentAssetRecord record) {
+    /// <param name="record">Serialized debug component record to inspect.</param>
+    /// <returns>Project-relative font path referenced by the debug component.</returns>
+    static string ReadDebugFontRelativePath(SceneComponentAssetRecord record) {
         if (record == null) {
             throw new ArgumentNullException(nameof(record));
         }
@@ -212,26 +239,26 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
         referenceResolver.RegisterFont(
             new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "fonts/title.hefont",
+                RelativePath = "fonts/body.hefont",
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             },
             placeholderFont);
         EntitySaveComponent saveComponent = new EntitySaveComponent();
-        FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
-        FPSComponent fpsComponent = Assert.IsType<FPSComponent>(descriptor.DeserializeComponent(record, saveComponent, referenceResolver));
-        Assert.Same(placeholderFont, fpsComponent.Font);
-        Assert.True(saveComponent.TryGetComponentState(fpsComponent, out EntityComponentSaveState saveState));
+        DebugComponentPersistenceDescriptor descriptor = new DebugComponentPersistenceDescriptor();
+        DebugComponent debugComponent = Assert.IsType<DebugComponent>(descriptor.DeserializeComponent(record, saveComponent, referenceResolver));
+        Assert.Same(placeholderFont, debugComponent.Font);
+        Assert.True(saveComponent.TryGetComponentState(debugComponent, out EntityComponentSaveState saveState));
         Assert.True(saveState.TryGetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, out SceneAssetReference fontReference));
         return fontReference.RelativePath;
     }
 
     /// <summary>
-    /// Reads the serialized refresh interval assigned to one FPS component record.
+    /// Reads the serialized refresh interval assigned to one debug component record.
     /// </summary>
-    /// <param name="record">Serialized FPS component record to inspect.</param>
+    /// <param name="record">Serialized debug component record to inspect.</param>
     /// <returns>Refresh interval seconds deserialized from the component payload.</returns>
-    static double ReadFpsRefreshIntervalSeconds(SceneComponentAssetRecord record) {
+    static double ReadDebugRefreshIntervalSeconds(SceneComponentAssetRecord record) {
         if (record == null) {
             throw new ArgumentNullException(nameof(record));
         }
@@ -258,15 +285,15 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
         referenceResolver.RegisterFont(
             new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "fonts/title.hefont",
+                RelativePath = "fonts/body.hefont",
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             },
             placeholderFont);
         EntitySaveComponent saveComponent = new EntitySaveComponent();
-        FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
-        FPSComponent fpsComponent = Assert.IsType<FPSComponent>(descriptor.DeserializeComponent(record, saveComponent, referenceResolver));
-        return fpsComponent.RefreshIntervalSeconds;
+        DebugComponentPersistenceDescriptor descriptor = new DebugComponentPersistenceDescriptor();
+        DebugComponent debugComponent = Assert.IsType<DebugComponent>(descriptor.DeserializeComponent(record, saveComponent, referenceResolver));
+        return debugComponent.RefreshIntervalSeconds;
     }
 
     /// <summary>

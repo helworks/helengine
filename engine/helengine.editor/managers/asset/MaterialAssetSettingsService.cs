@@ -512,7 +512,8 @@ namespace helengine.editor {
                 }
 
                 EditorPlatformBuildSelectionModel selectionModel = selectionModelResolver(platformId);
-                PlatformMaterialSchemaDefinition materialSchema = ResolveDefaultMaterialSchema(selectionModel);
+                MaterialAssetSchemaSettingsService schemaSettingsService = new MaterialAssetSchemaSettingsService();
+                PlatformMaterialSchemaDefinition materialSchema = schemaSettingsService.EnsureSelectedSchema(platformSettings, selectionModel.MaterialSchemas);
                 NormalizeEffectivePlatformSettings(platformSettings, materialSchema, materialAsset);
                 settings.Processor.Platforms[platformId] = platformSettings;
             }

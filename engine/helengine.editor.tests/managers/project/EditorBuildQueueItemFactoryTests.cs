@@ -30,7 +30,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures one queued build snapshot preserves scene ordering and seeds builder defaults.
+        /// Ensures one queued Windows build snapshot seeds builder defaults and inserts the desktop main menu before the ordered authored scenes.
         /// </summary>
         [Fact]
         public void Create_WhenPlatformConfigOmitsProfileSelections_SeedsDefaultsAndOrdersScenes() {
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "B", "A" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "DemoDiscMainMenu", "B", "A" }, queueItem.SelectedSceneIds);
             Assert.Equal("debug", queueItem.SelectedBuildProfileId);
             Assert.Equal("directx11", queueItem.SelectedGraphicsProfileId);
             Assert.Equal("default", queueItem.SelectedCodegenProfileId);
@@ -140,6 +140,28 @@ namespace helengine.editor.tests {
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
             Assert.Equal(new[] { "DemoDiscMainMenuDs", "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
+        /// Ensures Windows queued builds insert the desktop demo-disc main menu scene first even when it was not selected explicitly.
+        /// </summary>
+        [Fact]
+        public void Create_WhenWindowsBuildOmitsDemoDiscMainMenu_InsertsItAsStartupScene() {
+            WriteScene("Scenes/ColoredCubeGrid.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "windows",
+                SelectedSceneIds = [
+                    "ColoredCubeGrid"
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
+            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal(new[] { "DemoDiscMainMenu", "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
