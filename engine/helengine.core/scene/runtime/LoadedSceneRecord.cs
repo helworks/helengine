@@ -10,7 +10,8 @@ namespace helengine {
         /// <param name="cookedRelativePath">Cooked content-relative scene payload path.</param>
         /// <param name="rootEntities">Tracked root entities materialized from the scene payload.</param>
         /// <param name="ownedAssets">Scene-owned runtime assets resolved during materialization.</param>
-        public LoadedSceneRecord(string sceneId, string cookedRelativePath, IReadOnlyList<Entity> rootEntities, RuntimeSceneOwnedAssetSet ownedAssets) {
+        /// <param name="dontUnload">True when the scene should survive normal single-scene transitions.</param>
+        public LoadedSceneRecord(string sceneId, string cookedRelativePath, IReadOnlyList<Entity> rootEntities, RuntimeSceneOwnedAssetSet ownedAssets, bool dontUnload) {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
@@ -28,6 +29,7 @@ namespace helengine {
             CookedRelativePath = cookedRelativePath;
             RootEntities = rootEntities;
             OwnedAssets = ownedAssets;
+            DontUnload = dontUnload;
         }
 
         /// <summary>
@@ -49,5 +51,10 @@ namespace helengine {
         /// Gets the scene-owned runtime assets resolved during materialization.
         /// </summary>
         public RuntimeSceneOwnedAssetSet OwnedAssets { get; }
+
+        /// <summary>
+        /// Gets whether the scene should survive normal single-scene transitions.
+        /// </summary>
+        public bool DontUnload { get; }
     }
 }

@@ -226,7 +226,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("Scenes/TestPlayableScene.helen", loadedScene.SceneId);
             Assert.Same(loadedCamera, Assert.Single(core.ObjectManager.Cameras));
             Assert.Same(loadedRoot, Assert.Single(core.ObjectManager.Entities));
-            Assert.Empty(previousRoot.Components);
+            Assert.True(previousRoot.Components == null || previousRoot.Components.Count == 0);
             Assert.Null(previousCamera.Parent);
             Assert.DoesNotContain(previousRoot, core.ObjectManager.Entities);
             Assert.DoesNotContain(previousCamera, core.ObjectManager.Cameras);
@@ -257,6 +257,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Assert.Single(previousRoot.Components, component => component is TextComponent));
             FontAsset previousFont = previousText.Font;
             RuntimeTexture previousFontTexture = previousText.Font.Texture;
+            TextureAsset previousSourceTexture = previousText.Font.SourceTextureAsset;
             Assert.Empty(renderManager2D.ReleasedTextures);
             int flushReleasedTexturesCallCountBeforeReload = renderManager2D.FlushReleasedTexturesCallCount;
 
@@ -266,6 +267,9 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Same(previousFontTexture, releasedTexture);
             Assert.True(previousFont.IsDisposed);
             Assert.True(previousFontTexture.IsDisposed);
+            Assert.NotNull(previousSourceTexture);
+            Assert.Null(previousSourceTexture.Colors);
+            Assert.Null(previousSourceTexture.PaletteColors);
             Assert.Equal(flushReleasedTexturesCallCountBeforeReload + 1, renderManager2D.FlushReleasedTexturesCallCount);
         }
 
@@ -339,7 +343,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("Scenes/TestPlayableScene.helen", loadedScene.SceneId);
             Assert.Same(loadedCamera, Assert.Single(core.ObjectManager.Cameras));
             Assert.Same(loadedRoot, Assert.Single(core.ObjectManager.Entities));
-            Assert.Empty(previousRoot.Components);
+            Assert.True(previousRoot.Components == null || previousRoot.Components.Count == 0);
             Assert.Null(previousCamera.Parent);
             Assert.DoesNotContain(previousRoot, core.ObjectManager.Entities);
             Assert.DoesNotContain(previousCamera, core.ObjectManager.Cameras);
@@ -401,15 +405,81 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures single-mode loads preserve previously loaded scenes marked dont-unload.
+        /// </summary>
+        [Fact]
+        public void LoadScene_WhenSingleLoadTargetsAnotherScene_PreservesPreviouslyLoadedDontUnloadScene() {
+            WriteSceneAsset("cooked/scenes/Persistent.hasset", 1u, true);
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/Persistent.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
+            core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+
+            Assert.Equal(2, core.SceneManager.LoadedScenes.Count);
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Persistent.helen"));
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+        }
+
+        /// <summary>
+        /// Ensures explicit unload requests still unload scenes marked dont-unload.
+        /// </summary>
+        [Fact]
+        public void UnloadScene_WhenSceneIsMarkedDontUnload_StillUnloadsWhenExplicitlyRequested() {
+            WriteSceneAsset("cooked/scenes/Persistent.hasset", 1u, true);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/Persistent.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
+            core.SceneManager.UnloadScene("Scenes/Persistent.helen");
+
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/Persistent.helen"));
+            Assert.Empty(core.SceneManager.LoadedScenes);
+        }
+
+        /// <summary>
+        /// Ensures reloading an already loaded dont-unload scene still throws an already-loaded error.
+        /// </summary>
+        [Fact]
+        public void LoadScene_WhenPersistentSceneIsAlreadyLoadedAndLoadModeIsSingle_ThrowsAlreadyLoaded() {
+            WriteSceneAsset("cooked/scenes/Persistent.hasset", 1u, true);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/Persistent.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single));
+            Assert.Contains("already loaded", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Writes one packaged scene asset into the temporary content root.
         /// </summary>
         /// <param name="relativePath">Content-relative packaged scene path.</param>
         /// <param name="rootEntityId">Stable root entity identifier to persist.</param>
         void WriteSceneAsset(string relativePath, uint rootEntityId, params SceneComponentAssetRecord[] components) {
+            WriteSceneAsset(relativePath, rootEntityId, false, components);
+        }
+
+        /// <summary>
+        /// Writes one packaged scene asset into the temporary content root with the supplied dont-unload setting.
+        /// </summary>
+        /// <param name="relativePath">Content-relative packaged scene path.</param>
+        /// <param name="rootEntityId">Stable root entity identifier to persist.</param>
+        /// <param name="dontUnload">True when the packaged scene should survive normal single-scene transitions.</param>
+        /// <param name="components">Serialized root components to persist.</param>
+        void WriteSceneAsset(string relativePath, uint rootEntityId, bool dontUnload, params SceneComponentAssetRecord[] components) {
             string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
             SceneAsset sceneAsset = new SceneAsset {
                 Id = relativePath,
+                SceneSettings = new SceneSettingsAsset {
+                    CanvasProfile = new SceneCanvasProfile(),
+                    DontUnload = dontUnload
+                },
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = rootEntityId,
@@ -547,7 +617,8 @@ namespace helengine.editor.tests.serialization.scene {
             TextureAsset sourceTexture = new TextureAsset {
                 Width = 1,
                 Height = 1,
-                Colors = new byte[] { 255, 255, 255, 255 }
+                Colors = new byte[] { 255, 255, 255, 255 },
+                PaletteColors = new byte[] { 0, 0, 0, 255 }
             };
 
             FontAsset font = new FontAsset(

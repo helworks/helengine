@@ -245,7 +245,7 @@ namespace helengine {
         void LoadSceneImmediate(string sceneId, SceneLoadMode loadMode) {
             RecordTraceState("LoadSceneImmediateBegin", sceneId);
             string sceneContentPath = ResolveSceneContentPath(sceneId);
-            if (loadMode == SceneLoadMode.Additive && LoadedSceneRecordsById.ContainsKey(sceneId)) {
+            if (LoadedSceneRecordsById.ContainsKey(sceneId)) {
                 throw new InvalidOperationException($"Runtime scene '{sceneId}' is already loaded.");
             }
 
@@ -254,8 +254,8 @@ namespace helengine {
                     RecordTraceState("LoadSceneImmediateDisposeUntrackedRoots", sceneId);
                     DisposeUntrackedRootEntities();
                 } else {
-                    RecordTraceState("LoadSceneImmediateUnloadAllScenes", sceneId);
-                    UnloadAllScenes();
+                    RecordTraceState("LoadSceneImmediateUnloadSingleModeScenes", sceneId);
+                    UnloadScenesForSingleLoad();
                 }
 
                 RecordTraceState("LoadSceneImmediateFlushReleasedTextures", sceneId);
@@ -266,11 +266,12 @@ namespace helengine {
             RecordTraceState("LoadSceneImmediateBeforeContentLoad", sceneId);
             SceneAsset sceneAsset = ContentManager.Load<SceneAsset>(sceneContentPath, RuntimeContentProcessorIds.SceneAsset);
             try {
+                bool dontUnload = sceneAsset.SceneSettings != null && sceneAsset.SceneSettings.DontUnload;
                 RecordTraceState("LoadSceneImmediateBeforeSceneLoadServiceLoad", sceneId);
                 RuntimeSceneLoadResult loadResult = SceneLoadService.LoadTracked(sceneAsset);
                 try {
                     RecordTraceState("LoadSceneImmediateAfterSceneLoadServiceLoad", sceneId);
-                    LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(sceneId, sceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets);
+                    LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(sceneId, sceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets, dontUnload);
                     RecordTraceState("LoadSceneImmediateBeforeLoadedSceneRecordTrack", sceneId);
                     LoadedSceneRecords.Add(loadedSceneRecord);
                     LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
@@ -377,6 +378,23 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Unloads only the currently tracked scenes that should not survive a single-scene transition.
+        /// </summary>
+        void UnloadScenesForSingleLoad() {
+            List<string> sceneIdsToUnload = new List<string>();
+            for (int index = 0; index < LoadedSceneRecords.Count; index++) {
+                LoadedSceneRecord loadedSceneRecord = LoadedSceneRecords[index];
+                if (!loadedSceneRecord.DontUnload) {
+                    sceneIdsToUnload.Add(loadedSceneRecord.SceneId);
+                }
+            }
+
+            for (int index = 0; index < sceneIdsToUnload.Count; index++) {
+                UnloadScene(sceneIdsToUnload[index]);
+            }
+        }
+
+        /// <summary>
         /// Resolves the content path that should be materialized for one stable scene identifier.
         /// </summary>
         /// <param name="sceneId">Stable scene identifier to resolve.</param>
@@ -407,7 +425,7 @@ namespace helengine {
             }
 
             for (int index = rootEntities.Count - 1; index >= 0; index--) {
-                rootEntities[index].Dispose();
+                NativeOwnership.DisposeAndDelete(rootEntities[index]);
             }
         }
 
@@ -416,15 +434,19 @@ namespace helengine {
         /// </summary>
         void DisposeUntrackedRootEntities() {
             List<Entity> rootEntities = new List<Entity>();
-            for (int index = 0; index < ObjectManager.Entities.Count; index++) {
-                Entity entity = ObjectManager.Entities[index];
-                if (entity.Parent == null) {
-                    rootEntities.Add(entity);
+            try {
+                for (int index = 0; index < ObjectManager.Entities.Count; index++) {
+                    Entity entity = ObjectManager.Entities[index];
+                    if (entity.Parent == null) {
+                        rootEntities.Add(entity);
+                    }
                 }
-            }
 
-            for (int index = rootEntities.Count - 1; index >= 0; index--) {
-                rootEntities[index].Dispose();
+                for (int index = rootEntities.Count - 1; index >= 0; index--) {
+                    NativeOwnership.DisposeAndDelete(rootEntities[index]);
+                }
+            } finally {
+                NativeOwnership.Delete(rootEntities);
             }
         }
 
