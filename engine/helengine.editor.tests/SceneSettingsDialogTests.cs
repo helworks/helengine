@@ -26,6 +26,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures showing scene settings with dont-unload enabled populates the checkbox state.
+        /// </summary>
+        [Fact]
+        public void Show_WhenSceneSettingsDontUnloadIsTrue_PopulatesTheDontUnloadCheckbox() {
+            InitializeCore();
+            SceneSettingsDialog dialog = new SceneSettingsDialog(CreateFont(), EditorUiMetrics.Default);
+            SceneSettingsAsset sceneSettings = new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = 1280,
+                    Height = 720
+                },
+                DontUnload = true
+            };
+
+            dialog.Show(sceneSettings);
+
+            CheckBoxComponent dontUnloadCheckBox = GetNonPublicField<CheckBoxComponent>(dialog, "DontUnloadCheckBox");
+            Assert.True(dontUnloadCheckBox.IsChecked);
+        }
+
+        /// <summary>
         /// Initializes the shared core services required by editor-entity dialog tests.
         /// </summary>
         void InitializeCore() {

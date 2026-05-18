@@ -104,6 +104,26 @@ namespace helengine.editor {
         readonly TextBoxComponent CanvasHeightField;
 
         /// <summary>
+        /// Host entity for the dont-unload label.
+        /// </summary>
+        readonly EditorEntity DontUnloadLabelHost;
+
+        /// <summary>
+        /// Label that describes the dont-unload checkbox.
+        /// </summary>
+        readonly TextComponent DontUnloadLabel;
+
+        /// <summary>
+        /// Host entity for the dont-unload checkbox.
+        /// </summary>
+        readonly EditorEntity DontUnloadCheckBoxHost;
+
+        /// <summary>
+        /// Checkbox used to control whether the scene survives normal single-scene transitions.
+        /// </summary>
+        readonly CheckBoxComponent DontUnloadCheckBox;
+
+        /// <summary>
         /// Host entity for the status text.
         /// </summary>
         readonly EditorEntity StatusHost;
@@ -178,6 +198,17 @@ namespace helengine.editor {
             CanvasHeightField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CanvasHeightFieldHost.AddComponent(CanvasHeightField);
 
+            DontUnloadLabelHost = CreateDialogHost();
+            DialogPanelRoot.AddChild(DontUnloadLabelHost);
+            DontUnloadLabel = CreateDialogLabel("Dont Unload");
+            DontUnloadLabelHost.AddComponent(DontUnloadLabel);
+
+            DontUnloadCheckBoxHost = CreateDialogHost();
+            DialogPanelRoot.AddChild(DontUnloadCheckBoxHost);
+            DontUnloadCheckBox = new CheckBoxComponent(GetCheckBoxSize(), DialogFont);
+            DontUnloadCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            DontUnloadCheckBoxHost.AddComponent(DontUnloadCheckBox);
+
             StatusHost = CreateDialogHost();
             DialogPanelRoot.AddChild(StatusHost);
             StatusText = new TextComponent {
@@ -220,6 +251,7 @@ namespace helengine.editor {
             StatusText.Text = string.Empty;
             CanvasWidthField.Text = sceneSettings.CanvasProfile.Width.ToString(System.Globalization.CultureInfo.InvariantCulture);
             CanvasHeightField.Text = sceneSettings.CanvasProfile.Height.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DontUnloadCheckBox.IsChecked = sceneSettings.DontUnload;
             ResetDialogPositioning();
             Enabled = true;
             ShowDialogImmediately();
@@ -272,25 +304,34 @@ namespace helengine.editor {
             int sectionSpacingPixels = GetSectionSpacingPixels();
             int labelFieldSpacingPixels = GetLabelFieldSpacingPixels();
             int fieldWidthPixels = GetFieldSize().X;
+            int checkBoxWidthPixels = GetCheckBoxSize().X;
+            int checkBoxHeightPixels = GetCheckBoxSize().Y;
             int widthLabelY = headerHeightPixels + panelPaddingPixels;
             int widthFieldY = widthLabelY + labelHeightPixels + labelFieldSpacingPixels;
             int heightLabelY = widthFieldY + fieldHeightPixels + sectionSpacingPixels;
             int heightFieldY = heightLabelY + labelHeightPixels + labelFieldSpacingPixels;
-            int statusY = heightFieldY + fieldHeightPixels + sectionSpacingPixels;
+            int dontUnloadRowY = heightFieldY + fieldHeightPixels + sectionSpacingPixels;
+            int dontUnloadLabelInsetY = Math.Max(0, (checkBoxHeightPixels - labelHeightPixels) / 2);
+            int dontUnloadRowHeight = Math.Max(checkBoxHeightPixels, labelHeightPixels);
+            int statusY = dontUnloadRowY + dontUnloadRowHeight + sectionSpacingPixels;
             int footerY = AnchorBounds.Y - panelPaddingPixels - footerHeightPixels;
             int cancelX = AnchorBounds.X - panelPaddingPixels - GetCancelButtonSize().X;
             int applyX = cancelX - DialogMetrics.ScalePixels(8) - GetApplyButtonSize().X;
+            int dontUnloadCheckBoxX = panelPaddingPixels + fieldWidthPixels - checkBoxWidthPixels;
 
             CanvasWidthLabelHost.Position = new float3(panelPaddingPixels, widthLabelY, 0f);
             CanvasWidthFieldHost.Position = new float3(panelPaddingPixels, widthFieldY, 0f);
             CanvasHeightLabelHost.Position = new float3(panelPaddingPixels, heightLabelY, 0f);
             CanvasHeightFieldHost.Position = new float3(panelPaddingPixels, heightFieldY, 0f);
+            DontUnloadLabelHost.Position = new float3(panelPaddingPixels, dontUnloadRowY + dontUnloadLabelInsetY, 0f);
+            DontUnloadCheckBoxHost.Position = new float3(dontUnloadCheckBoxX, dontUnloadRowY, 0f);
             StatusHost.Position = new float3(panelPaddingPixels, statusY, 0f);
             ApplyButtonHost.Position = new float3(applyX, footerY, 0f);
             CancelButtonHost.Position = new float3(cancelX, footerY, 0f);
 
             CanvasWidthLabel.Size = new int2(fieldWidthPixels, labelHeightPixels);
             CanvasHeightLabel.Size = new int2(fieldWidthPixels, labelHeightPixels);
+            DontUnloadLabel.Size = new int2(Math.Max(1, fieldWidthPixels - checkBoxWidthPixels - DialogMetrics.ScalePixels(8)), labelHeightPixels);
             StatusText.Size = new int2(Math.Max(1, AnchorBounds.X - (panelPaddingPixels * 2)), labelHeightPixels);
         }
 
@@ -329,6 +370,16 @@ namespace helengine.editor {
             return new int2(
                 DialogMetrics.ScalePixels(FieldWidth),
                 GetFieldHeightPixels());
+        }
+
+        /// <summary>
+        /// Gets the scaled checkbox size.
+        /// </summary>
+        /// <returns>Scaled checkbox size.</returns>
+        int2 GetCheckBoxSize() {
+            return new int2(
+                DialogMetrics.ScalePixels(EditorPlatformSettingsSection.CheckBoxSize.X),
+                DialogMetrics.ScalePixels(EditorPlatformSettingsSection.CheckBoxSize.Y));
         }
 
         /// <summary>
@@ -423,7 +474,8 @@ namespace helengine.editor {
                 CanvasProfile = new SceneCanvasProfile {
                     Width = canvasWidth,
                     Height = canvasHeight
-                }
+                },
+                DontUnload = DontUnloadCheckBox.IsChecked
             };
         }
 

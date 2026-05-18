@@ -244,6 +244,57 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures confirmed scene settings mark the scene dirty when the dont-unload flag changes.
+        /// </summary>
+        [Fact]
+        public void HandleSceneSettingsDialogConfirmed_WhenDontUnloadChanges_UpdatesStateAndMarksSceneDirty() {
+            EditorSession session = CreateSessionForSceneSave();
+            SceneSettingsAsset updatedSettings = new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = SceneCanvasProfile.DefaultWidth,
+                    Height = SceneCanvasProfile.DefaultHeight
+                },
+                DontUnload = true
+            };
+            Action handleSceneMutated = () => InvokePrivate(session, "HandleSceneMutated");
+
+            try {
+                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+                InvokePrivate(session, "HandleSceneSettingsDialogConfirmed", updatedSettings);
+            } finally {
+                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
+            }
+
+            SceneSettingsAsset currentSceneSettings = GetPrivateField<SceneSettingsAsset>(session, "CurrentSceneSettings");
+            bool isSceneDirty = GetPrivateField<bool>(session, "IsSceneDirty");
+            Assert.True(currentSceneSettings.DontUnload);
+            Assert.True(isSceneDirty);
+        }
+
+        /// <summary>
+        /// Ensures successful scene saves persist the dont-unload scene setting.
+        /// </summary>
+        [Fact]
+        public void HandleSceneSaveRequested_WhenDontUnloadIsEnabled_PersistsSceneSettingsFlag() {
+            EditorSession session = CreateSessionForSceneSave();
+            string expectedPath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Persistent.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(expectedPath));
+            SetPrivateField(session, "CurrentSceneSettings", new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = 1600,
+                    Height = 900
+                },
+                DontUnload = true
+            });
+
+            InvokePrivate(session, "HandleSceneSaveRequested", expectedPath);
+
+            using FileStream stream = File.OpenRead(expectedPath);
+            SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            Assert.True(sceneAsset.SceneSettings.DontUnload);
+        }
+
+        /// <summary>
         /// Creates a partially initialized editor session containing only the collaborators used by scene save handlers.
         /// </summary>
         /// <returns>Editor session instance configured for scene save tests.</returns>

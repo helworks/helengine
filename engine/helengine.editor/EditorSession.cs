@@ -4694,11 +4694,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Determines whether two scene settings payloads describe the same scene-owned canvas profile.
+        /// Determines whether two scene settings payloads describe the same scene-owned settings state.
         /// </summary>
         /// <param name="left">Left scene settings payload.</param>
         /// <param name="right">Right scene settings payload.</param>
-        /// <returns>True when both payloads describe the same canvas profile.</returns>
+        /// <returns>True when both payloads describe the same scene settings.</returns>
         static bool AreSceneSettingsEquivalent(SceneSettingsAsset left, SceneSettingsAsset right) {
             if (left == null) {
                 throw new ArgumentNullException(nameof(left));
@@ -4714,7 +4714,8 @@ namespace helengine.editor {
             }
 
             return left.CanvasProfile.Width == right.CanvasProfile.Width &&
-                   left.CanvasProfile.Height == right.CanvasProfile.Height;
+                   left.CanvasProfile.Height == right.CanvasProfile.Height &&
+                   left.DontUnload == right.DontUnload;
         }
 
         /// <summary>
