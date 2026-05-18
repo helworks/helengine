@@ -198,14 +198,66 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures older scene-asset payload versions are rejected instead of being normalized forward.
+        /// Ensures scene assets round-trip the dont-unload scene setting through the HELE asset serializer.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_SceneAsset_WhenDontUnloadIsTrue_RoundTripsSceneSettingsFlag() {
+            SceneAsset asset = new SceneAsset {
+                Id = "Scenes/Persistent.helen",
+                SceneSettings = new SceneSettingsAsset {
+                    CanvasProfile = new SceneCanvasProfile {
+                        Width = 1920,
+                        Height = 1080
+                    },
+                    DontUnload = true
+                },
+                RootEntities = Array.Empty<SceneEntityAsset>()
+            };
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            SceneAsset deserialized = Assert.IsType<SceneAsset>(AssetSerializer.DeserializeFromBytes(data));
+
+            Assert.True(deserialized.SceneSettings.DontUnload);
+        }
+
+        /// <summary>
+        /// Ensures legacy version-fourteen scene payloads default the dont-unload scene setting to false.
+        /// </summary>
+        [Fact]
+        public void DeserializeSceneAsset_WhenPayloadVersionIsFourteen_DefaultsDontUnloadToFalse() {
+            using MemoryStream stream = new MemoryStream();
+            EngineBinaryHeader header = new EngineBinaryHeader(
+                EngineBinaryEndianness.LittleEndian,
+                14,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)EditorAssetBinarySerializer.RecordKind,
+                (ushort)EditorAssetBinaryValueKind.SceneAsset);
+            EngineBinaryHeaderSerializer.Write(stream, header);
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
+                writer.WriteString("scene-id");
+                writer.WriteInt64(0L);
+                writer.WriteArray(Array.Empty<SceneEntityAsset>(), static (arrayWriter, entity) => throw new InvalidOperationException($"Unexpected entity payload write for '{entity.Id}'"));
+                writer.WriteArray(Array.Empty<SceneAssetReference>(), static (arrayWriter, reference) => throw new InvalidOperationException($"Unexpected reference payload write for '{reference.AssetId}'"));
+                writer.WriteUInt32(0u);
+                writer.WriteInt32(1280);
+                writer.WriteInt32(720);
+            }
+
+            stream.Position = 0;
+
+            SceneAsset deserialized = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
+            Assert.False(deserialized.SceneSettings.DontUnload);
+        }
+
+        /// <summary>
+        /// Ensures unsupported scene-asset payload versions are rejected instead of being normalized forward.
         /// </summary>
         [Fact]
         public void DeserializeSceneAsset_WhenPayloadVersionIsLegacy_ThrowsUnsupportedAssetBinaryVersion() {
             using MemoryStream stream = new MemoryStream();
             EngineBinaryHeader header = new EngineBinaryHeader(
                 EngineBinaryEndianness.LittleEndian,
-                5,
+                1,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)EditorAssetBinarySerializer.RecordKind,
                 (ushort)EditorAssetBinaryValueKind.SceneAsset);

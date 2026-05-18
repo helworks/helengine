@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 14;
+        public const byte CurrentVersion = 15;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -808,7 +808,7 @@ namespace helengine.files {
                 ? reader.ReadUInt32()
                 : 0u;
             asset.SceneSettings = version >= 6
-                ? ReadSceneSettingsAsset(reader)
+                ? ReadSceneSettingsAsset(reader, version)
                 : new SceneSettingsAsset();
             return asset;
         }
@@ -820,17 +820,25 @@ namespace helengine.files {
         /// <param name="sceneSettings">Scene settings to serialize.</param>
         static void WriteSceneSettingsAsset(EngineBinaryWriter writer, SceneSettingsAsset sceneSettings) {
             WriteSceneCanvasProfile(writer, sceneSettings.CanvasProfile);
+            writer.WriteByte(sceneSettings.DontUnload ? (byte)1 : (byte)0);
         }
 
         /// <summary>
         /// Reads scene-level settings persisted by the editor scene asset format.
         /// </summary>
         /// <param name="reader">Source reader positioned at the scene settings payload.</param>
+        /// <param name="version">Scene asset binary version being read.</param>
         /// <returns>Deserialized scene settings.</returns>
-        static SceneSettingsAsset ReadSceneSettingsAsset(EngineBinaryReader reader) {
-            return new SceneSettingsAsset {
+        static SceneSettingsAsset ReadSceneSettingsAsset(EngineBinaryReader reader, byte version) {
+            SceneSettingsAsset sceneSettings = new SceneSettingsAsset {
                 CanvasProfile = ReadSceneCanvasProfile(reader)
             };
+
+            if (version >= 15) {
+                sceneSettings.DontUnload = ReadBooleanByte(reader, "scene settings");
+            }
+
+            return sceneSettings;
         }
 
         /// <summary>
@@ -853,6 +861,31 @@ namespace helengine.files {
                 Width = reader.ReadInt32(),
                 Height = reader.ReadInt32()
             };
+        }
+
+        /// <summary>
+        /// Reads a boolean encoded as one byte where zero means false and one means true.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the encoded boolean value.</param>
+        /// <param name="context">Description of the payload being decoded.</param>
+        /// <returns>Decoded boolean value.</returns>
+        static bool ReadBooleanByte(EngineBinaryReader reader, string context) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+            if (string.IsNullOrWhiteSpace(context)) {
+                throw new ArgumentException("Boolean read context is required.", nameof(context));
+            }
+
+            byte value = reader.ReadByte();
+            if (value == 0) {
+                return false;
+            }
+            if (value == 1) {
+                return true;
+            }
+
+            throw new InvalidOperationException($"Unsupported {context} boolean value '{value}'.");
         }
 
         /// <summary>
@@ -896,7 +929,7 @@ namespace helengine.files {
             }
 
             uint id = 0u;
-            if (payloadVersion >= 4) {
+            if (payloadVersion >= 3) {
                 id = reader.ReadUInt32();
             } else {
                 reader.ReadString();

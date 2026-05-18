@@ -7,5 +7,10 @@ namespace helengine {
         /// Gets or sets the authored canvas profile used to evaluate 2D layout and previews for the scene.
         /// </summary>
         public SceneCanvasProfile CanvasProfile { get; set; } = new SceneCanvasProfile();
+
+        /// <summary>
+        /// Gets or sets whether the scene remains loaded during normal single-scene transitions.
+        /// </summary>
+        public bool DontUnload { get; set; }
     }
 }
