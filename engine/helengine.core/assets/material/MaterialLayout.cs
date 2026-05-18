@@ -2,11 +2,51 @@ namespace helengine {
     /// <summary>
     /// Describes the shader bindings and render state that a runtime material exposes to the engine.
     /// </summary>
-    public class MaterialLayout {
+    public class MaterialLayout : IDisposable {
         /// <summary>
         /// Shared empty layout used by runtime materials that have not yet been configured from shader metadata.
         /// </summary>
         static readonly MaterialLayout EmptyValue = CreateEmptyValue();
+
+        /// <summary>
+        /// Shader asset identifier that owns the selected programs.
+        /// </summary>
+        string ShaderAssetIdValue;
+
+        /// <summary>
+        /// Vertex program selected by the material.
+        /// </summary>
+        string VertexProgramValue;
+
+        /// <summary>
+        /// Pixel program selected by the material.
+        /// </summary>
+        string PixelProgramValue;
+
+        /// <summary>
+        /// Shader variant selected by the material.
+        /// </summary>
+        string VariantValue;
+
+        /// <summary>
+        /// Render state associated with this layout.
+        /// </summary>
+        MaterialRenderState RenderStateValue;
+
+        /// <summary>
+        /// Texture bindings exposed by the selected shader programs.
+        /// </summary>
+        MaterialLayoutBinding[] TextureBindingsValue;
+
+        /// <summary>
+        /// Constant-buffer bindings exposed by the selected shader programs.
+        /// </summary>
+        MaterialLayoutBinding[] ConstantBufferBindingsValue;
+
+        /// <summary>
+        /// Sampler bindings exposed by the selected shader programs.
+        /// </summary>
+        MaterialLayoutBinding[] SamplerBindingsValue;
 
         /// <summary>
         /// Initializes a new material layout.
@@ -28,14 +68,14 @@ namespace helengine {
             MaterialLayoutBinding[] textureBindings,
             MaterialLayoutBinding[] constantBufferBindings,
             MaterialLayoutBinding[] samplerBindings) {
-            ShaderAssetId = shaderAssetId ?? throw new ArgumentNullException(nameof(shaderAssetId));
-            VertexProgram = vertexProgram ?? throw new ArgumentNullException(nameof(vertexProgram));
-            PixelProgram = pixelProgram ?? throw new ArgumentNullException(nameof(pixelProgram));
-            Variant = variant ?? throw new ArgumentNullException(nameof(variant));
-            RenderState = renderState ?? throw new ArgumentNullException(nameof(renderState));
-            TextureBindings = textureBindings ?? throw new ArgumentNullException(nameof(textureBindings));
-            ConstantBufferBindings = constantBufferBindings ?? throw new ArgumentNullException(nameof(constantBufferBindings));
-            SamplerBindings = samplerBindings ?? throw new ArgumentNullException(nameof(samplerBindings));
+            ShaderAssetIdValue = shaderAssetId ?? throw new ArgumentNullException(nameof(shaderAssetId));
+            VertexProgramValue = vertexProgram ?? throw new ArgumentNullException(nameof(vertexProgram));
+            PixelProgramValue = pixelProgram ?? throw new ArgumentNullException(nameof(pixelProgram));
+            VariantValue = variant ?? throw new ArgumentNullException(nameof(variant));
+            RenderStateValue = renderState ?? throw new ArgumentNullException(nameof(renderState));
+            TextureBindingsValue = textureBindings ?? throw new ArgumentNullException(nameof(textureBindings));
+            ConstantBufferBindingsValue = constantBufferBindings ?? throw new ArgumentNullException(nameof(constantBufferBindings));
+            SamplerBindingsValue = samplerBindings ?? throw new ArgumentNullException(nameof(samplerBindings));
         }
 
         /// <summary>
@@ -62,42 +102,61 @@ namespace helengine {
         /// <summary>
         /// Gets the shader asset identifier that owns the selected programs.
         /// </summary>
-        public string ShaderAssetId { get; }
+        public string ShaderAssetId => ShaderAssetIdValue;
 
         /// <summary>
         /// Gets the vertex program selected by the material.
         /// </summary>
-        public string VertexProgram { get; }
+        public string VertexProgram => VertexProgramValue;
 
         /// <summary>
         /// Gets the pixel program selected by the material.
         /// </summary>
-        public string PixelProgram { get; }
+        public string PixelProgram => PixelProgramValue;
 
         /// <summary>
         /// Gets the shader variant selected by the material.
         /// </summary>
-        public string Variant { get; }
+        public string Variant => VariantValue;
 
         /// <summary>
         /// Gets the render state associated with the material layout.
         /// </summary>
-        public MaterialRenderState RenderState { get; }
+        public MaterialRenderState RenderState => RenderStateValue;
 
         /// <summary>
         /// Gets the texture bindings exposed by the selected shader programs.
         /// </summary>
-        public MaterialLayoutBinding[] TextureBindings { get; }
+        public MaterialLayoutBinding[] TextureBindings => TextureBindingsValue;
 
         /// <summary>
         /// Gets the constant-buffer bindings exposed by the selected shader programs.
         /// </summary>
-        public MaterialLayoutBinding[] ConstantBufferBindings { get; }
+        public MaterialLayoutBinding[] ConstantBufferBindings => ConstantBufferBindingsValue;
 
         /// <summary>
         /// Gets the sampler bindings exposed by the selected shader programs.
         /// </summary>
-        public MaterialLayoutBinding[] SamplerBindings { get; }
+        public MaterialLayoutBinding[] SamplerBindings => SamplerBindingsValue;
+
+        /// <summary>
+        /// Releases layout-owned native containers for bindings and render state.
+        /// </summary>
+        public void Dispose() {
+            if (ReferenceEquals(this, EmptyValue)) {
+                return;
+            }
+
+            NativeOwnership.Delete(RenderStateValue);
+            RenderStateValue = null;
+            ReleaseBindings(ref TextureBindingsValue);
+            ReleaseBindings(ref ConstantBufferBindingsValue);
+            ReleaseBindings(ref SamplerBindingsValue);
+            ShaderAssetIdValue = null;
+            VertexProgramValue = null;
+            PixelProgramValue = null;
+            VariantValue = null;
+        }
 
         /// <summary>
         /// Locates the texture-binding index for the supplied binding name.
@@ -153,6 +212,18 @@ namespace helengine {
             }
 
             return -1;
+        }
+
+        /// <summary>
+        /// Releases one binding array unless it points at the shared framework empty-array singleton.
+        /// </summary>
+        /// <param name="bindings">Binding array to release.</param>
+        static void ReleaseBindings(ref MaterialLayoutBinding[] bindings) {
+            if (!ReferenceEquals(bindings, Array.Empty<MaterialLayoutBinding>())) {
+                NativeOwnership.DeleteItemsAndRelease(ref bindings);
+            }
+
+            bindings = null;
         }
     }
 }

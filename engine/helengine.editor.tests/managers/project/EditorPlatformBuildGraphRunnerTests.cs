@@ -450,7 +450,7 @@ public class EditorPlatformBuildGraphRunnerTests {
 
             Assert.Equal(Path.GetFullPath(repositoryRootPath), Environment.GetEnvironmentVariable(environmentVariableName));
 
-            restoreMethod.Invoke(runner, [string.Empty, string.Empty]);
+            restoreMethod.Invoke(runner, [string.Empty, string.Empty, string.Empty]);
 
             Assert.True(string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(environmentVariableName)));
         } finally {
@@ -959,6 +959,7 @@ public class EditorPlatformBuildGraphRunnerTests {
             EditorPlatformBuildSelectionModel selectionModel = bootstrap.ResolveSelectionModel("windows");
             EditorBuildQueueItemFactory queueItemFactory = new EditorBuildQueueItemFactory(bootstrap.SceneCatalogService);
             EditorBuildQueueItemDocument queueItem = queueItemFactory.Create(platformConfig, selectionModel, outputRootPath);
+            queueItem.SelectedSceneIds = ["point-shadow"];
             AvailablePlatformDescriptor platformDescriptor = bootstrap.ResolvePlatformDescriptor("windows");
             EditorPlatformBuildGraphRunner runner = new(
                 bootstrap.ProjectRootPath,

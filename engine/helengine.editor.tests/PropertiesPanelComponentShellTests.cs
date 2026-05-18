@@ -235,10 +235,13 @@ namespace helengine.editor.tests {
                 Name = "Cube"
             };
 
+            panel.UpdateModalLayout(1280, 720);
             panel.ShowEntityProperties(entity);
             InvokePrivate(panel, "HandleAddComponentClicked");
 
             ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
+            TextBoxComponent searchField = GetPrivateField<TextBoxComponent>(dialog, "SearchField");
+            searchField.Text = "mesh";
             List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(dialog, "Rows");
             ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Mesh", StringComparison.Ordinal));
             byte4 beforeHover = row.Background.Color;
@@ -261,11 +264,14 @@ namespace helengine.editor.tests {
             };
             bool componentSelected = false;
 
+            panel.UpdateModalLayout(1280, 720);
             panel.ShowEntityProperties(entity);
             InvokePrivate(panel, "HandleAddComponentClicked");
 
             ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
             dialog.ComponentSelected += _ => componentSelected = true;
+            TextBoxComponent searchField = GetPrivateField<TextBoxComponent>(dialog, "SearchField");
+            searchField.Text = "mesh";
             List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(dialog, "Rows");
             ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Mesh", StringComparison.Ordinal));
             byte4 beforeClick = row.Background.Color;
@@ -293,10 +299,13 @@ namespace helengine.editor.tests {
                 Name = "Cube"
             };
 
+            panel.UpdateModalLayout(1280, 720);
             panel.ShowEntityProperties(entity);
             InvokePrivate(panel, "HandleAddComponentClicked");
 
             ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
+            TextBoxComponent searchField = GetPrivateField<TextBoxComponent>(dialog, "SearchField");
+            searchField.Text = "mesh";
             List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(dialog, "Rows");
             ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Mesh", StringComparison.Ordinal));
 
@@ -321,10 +330,13 @@ namespace helengine.editor.tests {
                 Name = "Cube"
             };
 
+            panel.UpdateModalLayout(1280, 720);
             panel.ShowEntityProperties(entity);
             InvokePrivate(panel, "HandleAddComponentClicked");
 
             ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
+            TextBoxComponent searchField = GetPrivateField<TextBoxComponent>(dialog, "SearchField");
+            searchField.Text = "mesh";
             List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(dialog, "Rows");
             ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Mesh", StringComparison.Ordinal));
 

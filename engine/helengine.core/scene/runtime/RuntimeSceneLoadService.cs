@@ -97,19 +97,23 @@ namespace helengine {
             System.Diagnostics.Stopwatch loadStopwatch = System.Diagnostics.Stopwatch.StartNew();
             SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
             List<Entity> rootEntities = new List<Entity>(rootEntityAssets.Length);
-            for (int index = 0; index < rootEntityAssets.Length; index++) {
-                RecordTraceState("BeforeRootEntityLoad", index, 0, string.Empty);
-                rootEntities.Add(LoadEntity(rootEntityAssets[index], index, 0));
-            }
-            for (int index = 0; index < rootEntities.Count; index++) {
-                rootEntities[index].InitializeHierarchy();
-            }
+            try {
+                for (int index = 0; index < rootEntityAssets.Length; index++) {
+                    RecordTraceState("BeforeRootEntityLoad", index, 0, string.Empty);
+                    rootEntities.Add(LoadEntity(rootEntityAssets[index], index, 0));
+                }
+                for (int index = 0; index < rootEntities.Count; index++) {
+                    rootEntities[index].InitializeHierarchy();
+                }
 
-            loadStopwatch.Stop();
-            RecordTraceState("LoadEnd", rootEntities.Count - 1, 0, string.Empty);
-            Logger.WriteLine($"Loaded packaged scene assets in {loadStopwatch.Elapsed.TotalMilliseconds:0.###} ms ({rootEntities.Count} root entities).");
+                loadStopwatch.Stop();
+                RecordTraceState("LoadEnd", rootEntities.Count - 1, 0, string.Empty);
+                Logger.WriteLine($"Loaded packaged scene assets in {loadStopwatch.Elapsed.TotalMilliseconds:0.###} ms ({rootEntities.Count} root entities).");
 
-            return rootEntities;
+                return rootEntities;
+            } finally {
+                NativeOwnership.Delete(loadStopwatch);
+            }
         }
 
         /// <summary>

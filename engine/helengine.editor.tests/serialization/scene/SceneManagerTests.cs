@@ -307,6 +307,10 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeMaterial releasedMaterial = Assert.Single(renderManager3D.ReleasedMaterials);
             Assert.Same(previousModel, releasedModel);
             Assert.Same(previousMaterial, releasedMaterial);
+            Assert.Null(releasedModel.Submeshes);
+            Assert.Null(releasedMaterial.Layout);
+            Assert.Null(releasedMaterial.RenderState);
+            Assert.Null(releasedMaterial.Properties);
         }
 
         /// <summary>

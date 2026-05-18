@@ -36,19 +36,23 @@ namespace helengine {
             }
 
             SceneAssetReference textureReference = ReadOptionalReference(reader);
-            if (textureReference == null) {
-                throw new InvalidOperationException("SpriteComponent requires a packaged texture reference before deserialization.");
-            }
+            try {
+                if (textureReference == null) {
+                    throw new InvalidOperationException("SpriteComponent requires a packaged texture reference before deserialization.");
+                }
 
-            return new SpriteComponent {
-                Texture = referenceResolver.ResolveTexture(textureReference),
-                SourceRect = reader.ReadFloat4(),
-                Size = reader.ReadInt2(),
-                Color = ReadByte4(reader),
-                Rotation = reader.ReadSingle(),
-                RenderOrder2D = reader.ReadByte(),
-                LayerMask = reader.ReadByte()
-            };
+                return new SpriteComponent {
+                    Texture = referenceResolver.ResolveTexture(textureReference),
+                    SourceRect = reader.ReadFloat4(),
+                    Size = reader.ReadInt2(),
+                    Color = ReadByte4(reader),
+                    Rotation = reader.ReadSingle(),
+                    RenderOrder2D = reader.ReadByte(),
+                    LayerMask = reader.ReadByte()
+                };
+            } finally {
+                NativeOwnership.Delete(textureReference);
+            }
         }
 
         /// <summary>

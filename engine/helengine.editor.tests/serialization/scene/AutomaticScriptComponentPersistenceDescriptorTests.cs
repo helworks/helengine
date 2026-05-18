@@ -67,6 +67,85 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures reflected automatic persistence can round-trip arrays of simple authored classes, enums, and double values used by the planned memory probe.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenScriptComponentContainsStepArray_RoundTripsDoubleEnumAndNestedObjects() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestSceneMemoryProbeSerializableComponent component = new TestSceneMemoryProbeSerializableComponent {
+                ProbeName = "menu-soak",
+                Loop = true,
+                Steps = new[] {
+                    new TestSceneMemoryProbeSerializableStep {
+                        ActionKind = TestSceneMemoryProbeSerializableActionKind.Wait,
+                        SceneId = "Scenes/DemoDiscMainMenu.helen",
+                        DurationSeconds = 5.0d,
+                        Label = "idle-menu"
+                    },
+                    new TestSceneMemoryProbeSerializableStep {
+                        ActionKind = TestSceneMemoryProbeSerializableActionKind.LoadSceneSingle,
+                        SceneId = "Scenes/AxisTest.helen",
+                        DurationSeconds = 0d,
+                        Label = "load-axis"
+                    }
+                }
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            TestSceneMemoryProbeSerializableComponent restored = Assert.IsType<TestSceneMemoryProbeSerializableComponent>(
+                descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal("menu-soak", restored.ProbeName);
+            Assert.True(restored.Loop);
+            Assert.Equal(2, restored.Steps.Length);
+            Assert.Equal(TestSceneMemoryProbeSerializableActionKind.Wait, restored.Steps[0].ActionKind);
+            Assert.Equal(5.0d, restored.Steps[0].DurationSeconds);
+            Assert.Equal("load-axis", restored.Steps[1].Label);
+        }
+
+        /// <summary>
+        /// Ensures the real scene-memory probe runtime component round-trips through the automatic reflected persistence path.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenSceneMemoryProbeComponentUsesStepArray_RoundTripsThroughAutomaticPersistence() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
+                ProbeName = "menu-memory-probe",
+                Loop = true,
+                StartAutomatically = true,
+                InitialDelaySeconds = 2.0d,
+                Steps = new[] {
+                    new SceneMemoryProbeStep {
+                        ActionKind = SceneMemoryProbeActionKind.Wait,
+                        SceneId = string.Empty,
+                        DurationSeconds = 5.0d,
+                        Label = "idle-menu"
+                    },
+                    new SceneMemoryProbeStep {
+                        ActionKind = SceneMemoryProbeActionKind.LoadSceneSingle,
+                        SceneId = "Scenes/DemoDiscMainMenu.helen",
+                        DurationSeconds = 0d,
+                        Label = "load-menu"
+                    }
+                }
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            SceneMemoryProbeComponent restored = Assert.IsType<SceneMemoryProbeComponent>(
+                descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal("menu-memory-probe", restored.ProbeName);
+            Assert.True(restored.Loop);
+            Assert.True(restored.StartAutomatically);
+            Assert.Equal(2.0d, restored.InitialDelaySeconds);
+            Assert.Equal(2, restored.Steps.Length);
+            Assert.Equal(SceneMemoryProbeActionKind.Wait, restored.Steps[0].ActionKind);
+            Assert.Equal(5.0d, restored.Steps[0].DurationSeconds);
+            Assert.Equal("Scenes/DemoDiscMainMenu.helen", restored.Steps[1].SceneId);
+            Assert.Equal("load-menu", restored.Steps[1].Label);
+        }
+
+        /// <summary>
         /// Ensures runtime-only scroll bindings are ignored while the remaining reflected members still round-trip.
         /// </summary>
         [Fact]

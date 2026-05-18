@@ -132,12 +132,26 @@ namespace helengine {
             Dictionary<char, FontChar> characters = Characters;
             FontInfo fontInfo = FontInfo;
             TextureAsset sourceTextureAsset = SourceTextureAsset;
+            byte[] sourceTextureColors = sourceTextureAsset == null ? null : sourceTextureAsset.Colors;
+            byte[] sourceTexturePaletteColors = sourceTextureAsset == null ? null : sourceTextureAsset.PaletteColors;
+            bool sourceTextureColorsUsesSharedEmptyArray = ReferenceEquals(sourceTextureColors, Array.Empty<byte>());
+            bool sourceTexturePaletteColorsUsesSharedEmptyArray = ReferenceEquals(sourceTexturePaletteColors, Array.Empty<byte>());
             Texture = null;
             Characters = null;
             FontInfo = null;
             SourceTextureAsset = null;
+            if (sourceTextureAsset != null) {
+                sourceTextureAsset.Colors = null;
+                sourceTextureAsset.PaletteColors = null;
+            }
             NativeOwnership.Delete(characters);
             NativeOwnership.Delete(fontInfo);
+            if (!sourceTextureColorsUsesSharedEmptyArray) {
+                NativeOwnership.Delete(sourceTextureColors);
+            }
+            if (!sourceTexturePaletteColorsUsesSharedEmptyArray) {
+                NativeOwnership.Delete(sourceTexturePaletteColors);
+            }
             NativeOwnership.Delete(sourceTextureAsset);
             IsDisposed = true;
         }

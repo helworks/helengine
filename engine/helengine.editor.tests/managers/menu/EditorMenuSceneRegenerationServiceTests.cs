@@ -55,7 +55,7 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
     /// Ensures regenerating the desktop menu scene attaches one debug overlay under the generated root and removes the FPS overlay.
     /// </summary>
     [Fact]
-    public void Regenerate_WhenInvokedForDesktop_WritesDebugOverlayOnGeneratedRoot() {
+    public void Regenerate_WhenInvokedForDesktop_DoesNotWriteDebugOverlayOnGeneratedRoot() {
         ScriptTypeResolver resolver = new ScriptTypeResolver();
         resolver.Register("gameplay", typeof(TestMenuDefinitionProvider).Assembly);
         EditorMenuSceneRegenerationService service = new EditorMenuSceneRegenerationService(ProjectRootPath, resolver);
@@ -68,14 +68,12 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
 
         SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
         SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
-        SceneComponentAssetRecord debugRecord = Assert.Single(
-            generatedRoot.Components,
+        Assert.DoesNotContain(
+            generatedRoot.Components ?? Array.Empty<SceneComponentAssetRecord>(),
             component => component.ComponentTypeId == "helengine.DebugComponent");
 
-        Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.DebugComponent"));
+        Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "helengine.DebugComponent"));
         Assert.Equal(0, CountComponents(sceneAsset.RootEntities, "helengine.FPSComponent"));
-        Assert.Equal("fonts/body.hefont", ReadDebugFontRelativePath(debugRecord));
-        Assert.Equal(0.5d, ReadDebugRefreshIntervalSeconds(debugRecord));
     }
 
     /// <summary>

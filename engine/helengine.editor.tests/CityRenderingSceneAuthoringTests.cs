@@ -84,7 +84,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the authored demo-disc runtime binder component populates the platform name and version strings.
+        /// Ensures the authored demo-disc runtime binder component populates the platform name and version strings on the generated child text rows.
         /// </summary>
         [Fact]
         public void ReadCityPlatformInfoTextComponentSource_UsesPlatformInfoValues() {
@@ -92,8 +92,8 @@ namespace helengine.editor.tests {
 
             Assert.Contains("Core.Instance.PlatformInfo.Name", source, StringComparison.Ordinal);
             Assert.Contains("Core.Instance.PlatformInfo.Version", source, StringComparison.Ordinal);
-            Assert.Contains("DemoDiscPlatformInfoNameText", source, StringComparison.Ordinal);
-            Assert.Contains("DemoDiscPlatformInfoVersionText", source, StringComparison.Ordinal);
+            Assert.Contains("FindRequiredChildEntity(entity, 0)", source, StringComparison.Ordinal);
+            Assert.Contains("FindRequiredChildEntity(entity, 1)", source, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -135,17 +135,51 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the authored top-level demo-disc menu scene carries the FPS overlay under the generated fitted UI subtree.
+        /// Ensures the authored city probe scene contains one fixed non-looping main-menu versus cube-test memory probe sequence.
         /// </summary>
         [Fact]
-        public void DeserializeCityDemoDiscMainMenuSceneAsset_GeneratedRootContainsFpsComponent() {
+        public void DeserializeCitySceneMemoryProbeSceneAsset_RootContainsSceneMemoryProbeComponentWithSteps() {
+            SceneAsset sceneAsset = ReadSceneAsset("scene_memory_probe.helen");
+            string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SceneMemoryProbeComponent));
+            SceneEntityAsset probeRoot = Assert.Single(
+                sceneAsset.RootEntities,
+                entity => (entity.Components ?? Array.Empty<SceneComponentAssetRecord>())
+                    .Any(component => string.Equals(component.ComponentTypeId, componentTypeId, StringComparison.Ordinal)));
+            SceneComponentAssetRecord componentRecord = Assert.Single(
+                probeRoot.Components ?? Array.Empty<SceneComponentAssetRecord>(),
+                component => string.Equals(component.ComponentTypeId, componentTypeId, StringComparison.Ordinal));
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneMemoryProbeComponent component = Assert.IsType<SceneMemoryProbeComponent>(
+                descriptor.DeserializeComponent(componentRecord, null, null));
+
+            Assert.False(component.Loop);
+            Assert.True(component.StartAutomatically);
+            Assert.Equal("menu-cube-memory-probe", component.ProbeName);
+            Assert.Equal(82, component.Steps.Length);
+            for (int roundTripIndex = 1; roundTripIndex <= 20; roundTripIndex++) {
+                int stepIndex = (roundTripIndex - 1) * 4;
+                AssertProbeStep(component.Steps[stepIndex], SceneMemoryProbeActionKind.LoadSceneSingle, "DemoDiscMainMenu", 0d, "load-menu-" + roundTripIndex);
+                AssertProbeStep(component.Steps[stepIndex + 1], SceneMemoryProbeActionKind.Wait, string.Empty, 10.0d, "idle-menu-" + roundTripIndex);
+                AssertProbeStep(component.Steps[stepIndex + 2], SceneMemoryProbeActionKind.LoadSceneSingle, "cube_test", 0d, "load-cube-" + roundTripIndex);
+                AssertProbeStep(component.Steps[stepIndex + 3], SceneMemoryProbeActionKind.Wait, string.Empty, 10.0d, "idle-cube-" + roundTripIndex);
+            }
+
+            AssertProbeStep(component.Steps[80], SceneMemoryProbeActionKind.LoadSceneSingle, "DemoDiscMainMenu", 0d, "load-menu-21");
+            AssertProbeStep(component.Steps[81], SceneMemoryProbeActionKind.Wait, string.Empty, 10.0d, "idle-menu-21");
+        }
+
+        /// <summary>
+        /// Ensures the authored top-level demo-disc menu scene no longer carries the debug overlay under the generated fitted UI subtree.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityDemoDiscMainMenuSceneAsset_GeneratedRootDoesNotContainDebugComponent() {
             SceneAsset sceneAsset = ReadTopLevelSceneAsset("DemoDiscMainMenu.helen");
             SceneEntityAsset menuRoot = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
             SceneEntityAsset generatedRoot = Assert.Single(menuRoot.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
 
-            Assert.Contains(
+            Assert.DoesNotContain(
                 generatedRoot.Components ?? Array.Empty<SceneComponentAssetRecord>(),
-                component => string.Equals(component.ComponentTypeId, "helengine.FPSComponent", StringComparison.Ordinal));
+                component => string.Equals(component.ComponentTypeId, "helengine.DebugComponent", StringComparison.Ordinal));
         }
 
         /// <summary>
@@ -233,6 +267,22 @@ namespace helengine.editor.tests {
             }
 
             return count;
+        }
+
+        /// <summary>
+        /// Verifies one authored probe step matches the expected action, scene id, duration, and label.
+        /// </summary>
+        /// <param name="step">Authored probe step to validate.</param>
+        /// <param name="actionKind">Expected action kind.</param>
+        /// <param name="sceneId">Expected scene id.</param>
+        /// <param name="durationSeconds">Expected duration in seconds.</param>
+        /// <param name="label">Expected stable step label.</param>
+        static void AssertProbeStep(SceneMemoryProbeStep step, SceneMemoryProbeActionKind actionKind, string sceneId, double durationSeconds, string label) {
+            Assert.NotNull(step);
+            Assert.Equal(actionKind, step.ActionKind);
+            Assert.Equal(sceneId, step.SceneId);
+            Assert.Equal(durationSeconds, step.DurationSeconds);
+            Assert.Equal(label, step.Label);
         }
     }
 }

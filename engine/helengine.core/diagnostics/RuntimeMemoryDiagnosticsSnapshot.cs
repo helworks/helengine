@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Stores one portable runtime memory snapshot captured for diagnostics.
     /// </summary>
-    public sealed class RuntimeMemoryDiagnosticsSnapshot {
+    public sealed class RuntimeMemoryDiagnosticsSnapshot : IDisposable {
         /// <summary>
         /// Gets or sets the current resident memory size in bytes.
         /// </summary>
@@ -42,5 +42,26 @@ namespace helengine {
         /// Gets or sets optional platform-specific detail metrics attached to this snapshot.
         /// </summary>
         public List<RuntimeDiagnosticsMetric> DetailMetrics { get; set; } = new List<RuntimeDiagnosticsMetric>();
+
+        /// <summary>
+        /// Releases the transient lists owned by this snapshot so native exports can delete the full object graph deterministically.
+        /// </summary>
+        public void Dispose() {
+            if (DetailMetrics != null) {
+                for (int index = 0; index < DetailMetrics.Count; index++) {
+                    NativeOwnership.Delete(DetailMetrics[index]);
+                }
+
+                DetailMetrics.Clear();
+                NativeOwnership.Delete(DetailMetrics);
+                DetailMetrics = null;
+            }
+
+            if (TrackedSceneIds != null) {
+                TrackedSceneIds.Clear();
+                NativeOwnership.Delete(TrackedSceneIds);
+                TrackedSceneIds = null;
+            }
+        }
     }
 }

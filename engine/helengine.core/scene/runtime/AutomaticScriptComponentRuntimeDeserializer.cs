@@ -1,6 +1,5 @@
 #if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
 using System.Reflection;
-
 namespace helengine {
     /// <summary>
     /// Deserializes packaged scripted component payloads that were rewritten into strict ordinal runtime form.
@@ -233,53 +232,216 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(valueType));
             }
 
-            if (valueType == typeof(string)) {
-                return reader.ReadString();
+            if (TryReadLeafValue(reader, valueType, out object leafValue)) {
+                return leafValue;
             }
-            if (valueType == typeof(bool)) {
-                return reader.ReadByte() != 0;
+            if (valueType.IsEnum) {
+                return ReadEnumValue(reader, valueType);
             }
-            if (valueType == typeof(byte)) {
-                return reader.ReadByte();
+            if (TryReadArrayValue(reader, valueType, out object arrayValue)) {
+                return arrayValue;
             }
-            if (valueType == typeof(ushort)) {
-                return reader.ReadUInt16();
-            }
-            if (valueType == typeof(int)) {
-                return reader.ReadInt32();
-            }
-            if (valueType == typeof(uint)) {
-                return reader.ReadUInt32();
-            }
-            if (valueType == typeof(long)) {
-                return reader.ReadInt64();
-            }
-            if (valueType == typeof(float)) {
-                return reader.ReadSingle();
-            }
-            if (valueType == typeof(int2)) {
-                return reader.ReadInt2();
-            }
-            if (valueType == typeof(int4)) {
-                return reader.ReadInt4();
-            }
-            if (valueType == typeof(float2)) {
-                return reader.ReadFloat2();
-            }
-            if (valueType == typeof(float3)) {
-                return reader.ReadFloat3();
-            }
-            if (valueType == typeof(float4)) {
-                return reader.ReadFloat4();
-            }
-            if (valueType == typeof(byte4)) {
-                return new byte4(reader.ReadByte(), reader.ReadByte(), reader.ReadByte(), reader.ReadByte());
-            }
-            if (valueType == typeof(SceneEntityReference)) {
-                return reader.ReadSceneEntityReference();
+            if (IsSupportedNestedObjectType(valueType)) {
+                return ReadNestedObjectValue(reader, valueType);
             }
 
             throw new InvalidOperationException($"Automatic scripted runtime deserialization does not support member type '{valueType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Attempts to read one directly supported leaf value without any recursive member traversal.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the value payload.</param>
+        /// <param name="valueType">Runtime value type expected for the payload.</param>
+        /// <param name="value">Decoded leaf value when supported.</param>
+        /// <returns>True when the value type was handled as one direct leaf value.</returns>
+        static bool TryReadLeafValue(EngineBinaryReader reader, Type valueType, out object value) {
+            if (valueType == typeof(string)) {
+                value = reader.ReadString();
+                return true;
+            }
+            if (valueType == typeof(bool)) {
+                value = reader.ReadByte() != 0;
+                return true;
+            }
+            if (valueType == typeof(byte)) {
+                value = reader.ReadByte();
+                return true;
+            }
+            if (valueType == typeof(ushort)) {
+                value = reader.ReadUInt16();
+                return true;
+            }
+            if (valueType == typeof(int)) {
+                value = reader.ReadInt32();
+                return true;
+            }
+            if (valueType == typeof(uint)) {
+                value = reader.ReadUInt32();
+                return true;
+            }
+            if (valueType == typeof(long)) {
+                value = reader.ReadInt64();
+                return true;
+            }
+            if (valueType == typeof(float)) {
+                value = reader.ReadSingle();
+                return true;
+            }
+            if (valueType == typeof(double)) {
+                value = reader.ReadDouble();
+                return true;
+            }
+            if (valueType == typeof(int2)) {
+                value = reader.ReadInt2();
+                return true;
+            }
+            if (valueType == typeof(int4)) {
+                value = reader.ReadInt4();
+                return true;
+            }
+            if (valueType == typeof(float2)) {
+                value = reader.ReadFloat2();
+                return true;
+            }
+            if (valueType == typeof(float3)) {
+                value = reader.ReadFloat3();
+                return true;
+            }
+            if (valueType == typeof(float4)) {
+                value = reader.ReadFloat4();
+                return true;
+            }
+            if (valueType == typeof(byte4)) {
+                value = new byte4(reader.ReadByte(), reader.ReadByte(), reader.ReadByte(), reader.ReadByte());
+                return true;
+            }
+            if (valueType == typeof(SceneEntityReference)) {
+                value = reader.ReadSceneEntityReference();
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Reads one enum member value using its declared underlying integral storage type.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the enum payload.</param>
+        /// <param name="enumType">Declared enum type expected for the payload.</param>
+        /// <returns>Decoded enum value.</returns>
+        static object ReadEnumValue(EngineBinaryReader reader, Type enumType) {
+            Type underlyingType = Enum.GetUnderlyingType(enumType);
+            object underlyingValue = ReadSupportedValue(reader, underlyingType);
+            return Enum.ToObject(enumType, underlyingValue);
+        }
+
+        /// <summary>
+        /// Attempts to read one array value whose element type is recursively supported by automatic scripted runtime deserialization.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the array payload.</param>
+        /// <param name="valueType">Runtime value type expected for the payload.</param>
+        /// <param name="value">Decoded array value when supported.</param>
+        /// <returns>True when the supplied type was an array handled by automatic scripted runtime deserialization.</returns>
+        static bool TryReadArrayValue(EngineBinaryReader reader, Type valueType, out object value) {
+            if (!valueType.IsArray || valueType.GetArrayRank() != 1) {
+                value = null;
+                return false;
+            }
+
+            Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
+            int length = reader.ReadInt32();
+            if (length == -1) {
+                value = null;
+                return true;
+            }
+            if (length < -1) {
+                throw new InvalidOperationException("Array length cannot be negative.");
+            }
+
+            Array values = Array.CreateInstance(elementType, length);
+            for (int index = 0; index < length; index++) {
+                values.SetValue(ReadSupportedValue(reader, elementType), index);
+            }
+
+            value = values;
+            return true;
+        }
+
+        /// <summary>
+        /// Returns whether the supplied type can be deserialized as one nested authored object by recursively traversing writable public members.
+        /// </summary>
+        /// <param name="valueType">Runtime value type to inspect.</param>
+        /// <returns>True when the type can be deserialized as one nested authored object.</returns>
+        static bool IsSupportedNestedObjectType(Type valueType) {
+            if (valueType == null) {
+                return false;
+            }
+            if (valueType == typeof(string) || !valueType.IsClass || valueType.IsAbstract) {
+                return false;
+            }
+            if (typeof(Component).IsAssignableFrom(valueType) || typeof(Entity).IsAssignableFrom(valueType)) {
+                return false;
+            }
+
+            return valueType.GetConstructor(Type.EmptyTypes) != null;
+        }
+
+        /// <summary>
+        /// Reads one nested authored object by recursively deserializing its writable public members in deterministic ordinal order.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the nested object payload.</param>
+        /// <param name="valueType">Runtime object type expected for the payload.</param>
+        /// <returns>Decoded nested object instance or null when the payload omitted the object.</returns>
+        static object ReadNestedObjectValue(EngineBinaryReader reader, Type valueType) {
+            if (reader.ReadByte() == 0) {
+                return null;
+            }
+
+            object value = Activator.CreateInstance(valueType) ?? throw new InvalidOperationException($"Nested authored object type '{valueType.FullName}' could not be instantiated.");
+            IReadOnlyList<MemberInfo> members = GetSerializableMembers(valueType);
+            for (int index = 0; index < members.Count; index++) {
+                MemberInfo member = members[index];
+                SetObjectMemberValue(value, member, ReadSupportedValue(reader, GetMemberType(member)));
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        /// Gets the deterministically ordered writable public members that participate in nested authored-object deserialization.
+        /// </summary>
+        /// <param name="valueType">Runtime object type whose writable public members should be returned.</param>
+        /// <returns>Deterministically ordered writable public members.</returns>
+        static IReadOnlyList<MemberInfo> GetSerializableMembers(Type valueType) {
+            return valueType
+                .GetMembers(BindingFlags.Instance | BindingFlags.Public)
+                .Where(IsSupportedMember)
+                .OrderBy(member => member.Name, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Assigns one decoded nested-object member value onto the supplied object instance.
+        /// </summary>
+        /// <param name="instance">Object instance receiving the decoded member value.</param>
+        /// <param name="memberInfo">Writable reflected member that should receive the value.</param>
+        /// <param name="value">Decoded value to assign.</param>
+        static void SetObjectMemberValue(object instance, MemberInfo memberInfo, object value) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            }
+            if (memberInfo is PropertyInfo propertyInfo) {
+                propertyInfo.SetValue(instance, value);
+                return;
+            }
+            if (memberInfo is FieldInfo fieldInfo) {
+                fieldInfo.SetValue(instance, value);
+                return;
+            }
+
+            throw new InvalidOperationException($"Reflected member '{memberInfo?.Name}' is not a supported property or field.");
         }
     }
 }

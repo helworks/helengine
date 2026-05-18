@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Reflection;
+
 namespace helengine.editor {
     /// <summary>
     /// Persists eligible scripted components through reflected named editor payloads when no explicit descriptor exists.
@@ -245,39 +248,22 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(valueType));
             }
 
-            if (valueType == typeof(string)) {
-                writer.WriteString((string)value);
-            } else if (valueType == typeof(bool)) {
-                writer.WriteByte((bool)value ? (byte)1 : (byte)0);
-            } else if (valueType == typeof(byte)) {
-                writer.WriteByte((byte)value);
-            } else if (valueType == typeof(ushort)) {
-                writer.WriteUInt16((ushort)value);
-            } else if (valueType == typeof(int)) {
-                writer.WriteInt32((int)value);
-            } else if (valueType == typeof(uint)) {
-                writer.WriteUInt32((uint)value);
-            } else if (valueType == typeof(long)) {
-                writer.WriteInt64((long)value);
-            } else if (valueType == typeof(float)) {
-                writer.WriteSingle((float)value);
-            } else if (valueType == typeof(int2)) {
-                writer.WriteInt2((int2)value);
-            } else if (valueType == typeof(int4)) {
-                writer.WriteInt4((int4)value);
-            } else if (valueType == typeof(float2)) {
-                writer.WriteFloat2((float2)value);
-            } else if (valueType == typeof(float3)) {
-                writer.WriteFloat3((float3)value);
-            } else if (valueType == typeof(float4)) {
-                writer.WriteFloat4((float4)value);
-            } else if (valueType == typeof(byte4)) {
-                SceneComponentBinaryFieldEncoding.WriteByte4(writer, (byte4)value);
-            } else if (valueType == typeof(SceneEntityReference)) {
-                writer.WriteSceneEntityReference((SceneEntityReference)value);
-            } else {
-                throw new InvalidOperationException($"Automatic script-component persistence does not support member type '{valueType.FullName}'.");
+            if (TryWriteLeafValue(writer, valueType, value)) {
+                return;
             }
+            if (valueType.IsEnum) {
+                WriteEnumValue(writer, valueType, value);
+                return;
+            }
+            if (TryWriteArrayValue(writer, valueType, value)) {
+                return;
+            }
+            if (IsSupportedNestedObjectType(valueType)) {
+                WriteNestedObjectValue(writer, valueType, value);
+                return;
+            }
+
+            throw new InvalidOperationException($"Automatic script-component persistence does not support member type '{valueType.FullName}'.");
         }
 
         /// <summary>
@@ -294,53 +280,414 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(valueType));
             }
 
-            if (valueType == typeof(string)) {
-                return reader.ReadString();
+            if (TryReadLeafValue(reader, valueType, out object leafValue)) {
+                return leafValue;
             }
-            if (valueType == typeof(bool)) {
-                return reader.ReadByte() != 0;
+            if (valueType.IsEnum) {
+                return ReadEnumValue(reader, valueType);
             }
-            if (valueType == typeof(byte)) {
-                return reader.ReadByte();
+            if (TryReadArrayValue(reader, valueType, out object arrayValue)) {
+                return arrayValue;
             }
-            if (valueType == typeof(ushort)) {
-                return reader.ReadUInt16();
-            }
-            if (valueType == typeof(int)) {
-                return reader.ReadInt32();
-            }
-            if (valueType == typeof(uint)) {
-                return reader.ReadUInt32();
-            }
-            if (valueType == typeof(long)) {
-                return reader.ReadInt64();
-            }
-            if (valueType == typeof(float)) {
-                return reader.ReadSingle();
-            }
-            if (valueType == typeof(int2)) {
-                return reader.ReadInt2();
-            }
-            if (valueType == typeof(int4)) {
-                return reader.ReadInt4();
-            }
-            if (valueType == typeof(float2)) {
-                return reader.ReadFloat2();
-            }
-            if (valueType == typeof(float3)) {
-                return reader.ReadFloat3();
-            }
-            if (valueType == typeof(float4)) {
-                return reader.ReadFloat4();
-            }
-            if (valueType == typeof(byte4)) {
-                return SceneComponentBinaryFieldEncoding.ReadByte4(reader);
-            }
-            if (valueType == typeof(SceneEntityReference)) {
-                return reader.ReadSceneEntityReference();
+            if (IsSupportedNestedObjectType(valueType)) {
+                return ReadNestedObjectValue(reader, valueType);
             }
 
             throw new InvalidOperationException($"Automatic script-component persistence does not support member type '{valueType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Attempts to write one directly supported leaf value without any recursive member traversal.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the value payload.</param>
+        /// <param name="valueType">Runtime value type being serialized.</param>
+        /// <param name="value">Current member value.</param>
+        /// <returns>True when the value type was handled as one direct leaf value.</returns>
+        static bool TryWriteLeafValue(EngineBinaryWriter writer, Type valueType, object value) {
+            if (valueType == typeof(string)) {
+                writer.WriteString((string)value);
+                return true;
+            }
+            if (valueType == typeof(bool)) {
+                writer.WriteByte((bool)value ? (byte)1 : (byte)0);
+                return true;
+            }
+            if (valueType == typeof(byte)) {
+                writer.WriteByte((byte)value);
+                return true;
+            }
+            if (valueType == typeof(ushort)) {
+                writer.WriteUInt16((ushort)value);
+                return true;
+            }
+            if (valueType == typeof(int)) {
+                writer.WriteInt32((int)value);
+                return true;
+            }
+            if (valueType == typeof(uint)) {
+                writer.WriteUInt32((uint)value);
+                return true;
+            }
+            if (valueType == typeof(long)) {
+                writer.WriteInt64((long)value);
+                return true;
+            }
+            if (valueType == typeof(float)) {
+                writer.WriteSingle((float)value);
+                return true;
+            }
+            if (valueType == typeof(double)) {
+                writer.WriteDouble((double)value);
+                return true;
+            }
+            if (valueType == typeof(int2)) {
+                writer.WriteInt2((int2)value);
+                return true;
+            }
+            if (valueType == typeof(int4)) {
+                writer.WriteInt4((int4)value);
+                return true;
+            }
+            if (valueType == typeof(float2)) {
+                writer.WriteFloat2((float2)value);
+                return true;
+            }
+            if (valueType == typeof(float3)) {
+                writer.WriteFloat3((float3)value);
+                return true;
+            }
+            if (valueType == typeof(float4)) {
+                writer.WriteFloat4((float4)value);
+                return true;
+            }
+            if (valueType == typeof(byte4)) {
+                SceneComponentBinaryFieldEncoding.WriteByte4(writer, (byte4)value);
+                return true;
+            }
+            if (valueType == typeof(SceneEntityReference)) {
+                writer.WriteSceneEntityReference((SceneEntityReference)value);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to read one directly supported leaf value without any recursive member traversal.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the value payload.</param>
+        /// <param name="valueType">Runtime value type expected for the payload.</param>
+        /// <param name="value">Decoded leaf value when supported.</param>
+        /// <returns>True when the value type was handled as one direct leaf value.</returns>
+        static bool TryReadLeafValue(EngineBinaryReader reader, Type valueType, out object value) {
+            if (valueType == typeof(string)) {
+                value = reader.ReadString();
+                return true;
+            }
+            if (valueType == typeof(bool)) {
+                value = reader.ReadByte() != 0;
+                return true;
+            }
+            if (valueType == typeof(byte)) {
+                value = reader.ReadByte();
+                return true;
+            }
+            if (valueType == typeof(ushort)) {
+                value = reader.ReadUInt16();
+                return true;
+            }
+            if (valueType == typeof(int)) {
+                value = reader.ReadInt32();
+                return true;
+            }
+            if (valueType == typeof(uint)) {
+                value = reader.ReadUInt32();
+                return true;
+            }
+            if (valueType == typeof(long)) {
+                value = reader.ReadInt64();
+                return true;
+            }
+            if (valueType == typeof(float)) {
+                value = reader.ReadSingle();
+                return true;
+            }
+            if (valueType == typeof(double)) {
+                value = reader.ReadDouble();
+                return true;
+            }
+            if (valueType == typeof(int2)) {
+                value = reader.ReadInt2();
+                return true;
+            }
+            if (valueType == typeof(int4)) {
+                value = reader.ReadInt4();
+                return true;
+            }
+            if (valueType == typeof(float2)) {
+                value = reader.ReadFloat2();
+                return true;
+            }
+            if (valueType == typeof(float3)) {
+                value = reader.ReadFloat3();
+                return true;
+            }
+            if (valueType == typeof(float4)) {
+                value = reader.ReadFloat4();
+                return true;
+            }
+            if (valueType == typeof(byte4)) {
+                value = SceneComponentBinaryFieldEncoding.ReadByte4(reader);
+                return true;
+            }
+            if (valueType == typeof(SceneEntityReference)) {
+                value = reader.ReadSceneEntityReference();
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Writes one enum member value using its declared underlying integral storage type.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the enum payload.</param>
+        /// <param name="enumType">Declared enum type being serialized.</param>
+        /// <param name="value">Current enum value.</param>
+        static void WriteEnumValue(EngineBinaryWriter writer, Type enumType, object value) {
+            Type underlyingType = Enum.GetUnderlyingType(enumType);
+            object underlyingValue = Convert.ChangeType(value, underlyingType, CultureInfo.InvariantCulture);
+            WriteSupportedValue(writer, underlyingType, underlyingValue);
+        }
+
+        /// <summary>
+        /// Reads one enum member value using its declared underlying integral storage type.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the enum payload.</param>
+        /// <param name="enumType">Declared enum type expected for the payload.</param>
+        /// <returns>Decoded enum value.</returns>
+        static object ReadEnumValue(EngineBinaryReader reader, Type enumType) {
+            Type underlyingType = Enum.GetUnderlyingType(enumType);
+            object underlyingValue = ReadSupportedValue(reader, underlyingType);
+            return Enum.ToObject(enumType, underlyingValue);
+        }
+
+        /// <summary>
+        /// Attempts to write one array value whose element type is recursively supported by automatic reflected persistence.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the array payload.</param>
+        /// <param name="valueType">Runtime value type being serialized.</param>
+        /// <param name="value">Current member value.</param>
+        /// <returns>True when the supplied type was an array handled by reflected persistence.</returns>
+        static bool TryWriteArrayValue(EngineBinaryWriter writer, Type valueType, object value) {
+            if (!valueType.IsArray || valueType.GetArrayRank() != 1) {
+                return false;
+            }
+
+            Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
+            Array values = value as Array;
+            if (values == null) {
+                writer.WriteInt32(-1);
+                return true;
+            }
+
+            writer.WriteInt32(values.Length);
+            for (int index = 0; index < values.Length; index++) {
+                WriteSupportedValue(writer, elementType, values.GetValue(index));
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to read one array value whose element type is recursively supported by automatic reflected persistence.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the array payload.</param>
+        /// <param name="valueType">Runtime value type expected for the payload.</param>
+        /// <param name="value">Decoded array value when supported.</param>
+        /// <returns>True when the supplied type was an array handled by reflected persistence.</returns>
+        static bool TryReadArrayValue(EngineBinaryReader reader, Type valueType, out object value) {
+            if (!valueType.IsArray || valueType.GetArrayRank() != 1) {
+                value = null;
+                return false;
+            }
+
+            Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
+            int length = reader.ReadInt32();
+            if (length == -1) {
+                value = null;
+                return true;
+            }
+            if (length < -1) {
+                throw new InvalidOperationException("Array length cannot be negative.");
+            }
+
+            Array values = Array.CreateInstance(elementType, length);
+            for (int index = 0; index < length; index++) {
+                values.SetValue(ReadSupportedValue(reader, elementType), index);
+            }
+
+            value = values;
+            return true;
+        }
+
+        /// <summary>
+        /// Returns whether the supplied type can be serialized as one nested authored object by recursively traversing writable public members.
+        /// </summary>
+        /// <param name="valueType">Runtime value type to inspect.</param>
+        /// <returns>True when the type can be serialized as one nested authored object.</returns>
+        static bool IsSupportedNestedObjectType(Type valueType) {
+            if (valueType == null) {
+                return false;
+            }
+            if (valueType == typeof(string) || !valueType.IsClass || valueType.IsAbstract) {
+                return false;
+            }
+            if (typeof(Component).IsAssignableFrom(valueType) || typeof(Entity).IsAssignableFrom(valueType)) {
+                return false;
+            }
+
+            return valueType.GetConstructor(Type.EmptyTypes) != null;
+        }
+
+        /// <summary>
+        /// Writes one nested authored object by recursively serializing its writable public members in deterministic ordinal order.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the nested object payload.</param>
+        /// <param name="valueType">Runtime object type being serialized.</param>
+        /// <param name="value">Current nested object value.</param>
+        static void WriteNestedObjectValue(EngineBinaryWriter writer, Type valueType, object value) {
+            writer.WriteByte(value == null ? (byte)0 : (byte)1);
+            if (value == null) {
+                return;
+            }
+
+            IReadOnlyList<MemberInfo> members = GetSerializableMembers(valueType);
+            for (int index = 0; index < members.Count; index++) {
+                MemberInfo member = members[index];
+                WriteSupportedValue(writer, GetMemberValueType(member), GetMemberValue(member, value));
+            }
+        }
+
+        /// <summary>
+        /// Reads one nested authored object by recursively deserializing its writable public members in deterministic ordinal order.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the nested object payload.</param>
+        /// <param name="valueType">Runtime object type expected for the payload.</param>
+        /// <returns>Decoded nested object instance or null when the payload omitted the object.</returns>
+        static object ReadNestedObjectValue(EngineBinaryReader reader, Type valueType) {
+            if (reader.ReadByte() == 0) {
+                return null;
+            }
+
+            object value = Activator.CreateInstance(valueType) ?? throw new InvalidOperationException($"Nested authored object type '{valueType.FullName}' could not be instantiated.");
+            IReadOnlyList<MemberInfo> members = GetSerializableMembers(valueType);
+            for (int index = 0; index < members.Count; index++) {
+                MemberInfo member = members[index];
+                SetMemberValue(member, value, ReadSupportedValue(reader, GetMemberValueType(member)));
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        /// Gets the deterministically ordered writable public members that participate in nested authored-object serialization.
+        /// </summary>
+        /// <param name="valueType">Runtime object type whose writable public members should be returned.</param>
+        /// <returns>Deterministically ordered writable public members.</returns>
+        static IReadOnlyList<MemberInfo> GetSerializableMembers(Type valueType) {
+            return valueType
+                .GetMembers(BindingFlags.Instance | BindingFlags.Public)
+                .Where(IsSerializableMember)
+                .OrderBy(member => member.Name, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns whether one public instance member is eligible for nested authored-object serialization.
+        /// </summary>
+        /// <param name="memberInfo">Member to inspect.</param>
+        /// <returns>True when the member should participate in nested authored-object serialization.</returns>
+        static bool IsSerializableMember(MemberInfo memberInfo) {
+            if (memberInfo.IsDefined(typeof(ScenePersistenceIgnoreAttribute), false)) {
+                return false;
+            }
+
+            if (memberInfo is PropertyInfo propertyInfo) {
+                if (propertyInfo.GetMethod == null || !propertyInfo.GetMethod.IsPublic) {
+                    return false;
+                }
+                if (propertyInfo.SetMethod == null || !propertyInfo.SetMethod.IsPublic) {
+                    return false;
+                }
+                if (propertyInfo.GetIndexParameters().Length != 0) {
+                    return false;
+                }
+
+                return true;
+            }
+            if (memberInfo is FieldInfo fieldInfo) {
+                if (!fieldInfo.IsPublic || fieldInfo.IsStatic || fieldInfo.IsInitOnly) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Gets the runtime value type stored by one writable reflected member.
+        /// </summary>
+        /// <param name="memberInfo">Writable public instance member whose value type should be returned.</param>
+        /// <returns>Runtime value type stored by the member.</returns>
+        static Type GetMemberValueType(MemberInfo memberInfo) {
+            if (memberInfo is PropertyInfo propertyInfo) {
+                return propertyInfo.PropertyType;
+            }
+            if (memberInfo is FieldInfo fieldInfo) {
+                return fieldInfo.FieldType;
+            }
+
+            throw new InvalidOperationException($"Reflected member '{memberInfo?.Name}' is not a supported property or field.");
+        }
+
+        /// <summary>
+        /// Reads the current value from one writable reflected member.
+        /// </summary>
+        /// <param name="memberInfo">Writable public instance member whose value should be read.</param>
+        /// <param name="instance">Object instance whose current member value should be returned.</param>
+        /// <returns>Current member value.</returns>
+        static object GetMemberValue(MemberInfo memberInfo, object instance) {
+            if (memberInfo is PropertyInfo propertyInfo) {
+                return propertyInfo.GetValue(instance);
+            }
+            if (memberInfo is FieldInfo fieldInfo) {
+                return fieldInfo.GetValue(instance);
+            }
+
+            throw new InvalidOperationException($"Reflected member '{memberInfo?.Name}' is not a supported property or field.");
+        }
+
+        /// <summary>
+        /// Assigns one value onto one writable reflected member.
+        /// </summary>
+        /// <param name="memberInfo">Writable public instance member that should receive the value.</param>
+        /// <param name="instance">Object instance receiving the value.</param>
+        /// <param name="value">Decoded value to assign.</param>
+        static void SetMemberValue(MemberInfo memberInfo, object instance, object value) {
+            if (memberInfo is PropertyInfo propertyInfo) {
+                propertyInfo.SetValue(instance, value);
+                return;
+            }
+            if (memberInfo is FieldInfo fieldInfo) {
+                fieldInfo.SetValue(instance, value);
+                return;
+            }
+
+            throw new InvalidOperationException($"Reflected member '{memberInfo?.Name}' is not a supported property or field.");
         }
     }
 }

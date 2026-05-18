@@ -326,6 +326,48 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures pointer button bindings continue to report the same pressed, held, and released action transitions across frames.
+        /// This protects input-binding behavior while the runtime path is optimized to reduce per-frame allocations.
+        /// </summary>
+        [Fact]
+        public void EarlyUpdate_WhenPointerActionBindingTransitionsAcrossFrames_PreservesActionStateTransitions() {
+            TestInputBackend input = InitializeCore();
+            InputContextId contextId = new InputContextId(7);
+            InputActionId actionId = new InputActionId(13);
+
+            Core.Instance.InputSystem.RegisterBinding(CreatePrimaryPointerButtonBinding(contextId, actionId, 1f));
+            Core.Instance.InputSystem.PushContext(contextId);
+
+            CaptureInputFrame(input, CreateReleasedMouseState(40, 40));
+
+            input.SetMouseState(CreatePressedMouseState(40, 40));
+            input.EarlyUpdate();
+
+            Assert.True(Core.Instance.InputSystem.IsActionDown(actionId));
+            Assert.True(Core.Instance.InputSystem.WasActionPressed(actionId));
+            Assert.False(Core.Instance.InputSystem.WasActionReleased(actionId));
+            Assert.Equal(1f, Core.Instance.InputSystem.GetActionValue(actionId));
+
+            input.Update();
+            input.SetMouseState(CreatePressedMouseState(40, 40));
+            input.EarlyUpdate();
+
+            Assert.True(Core.Instance.InputSystem.IsActionDown(actionId));
+            Assert.False(Core.Instance.InputSystem.WasActionPressed(actionId));
+            Assert.False(Core.Instance.InputSystem.WasActionReleased(actionId));
+            Assert.Equal(1f, Core.Instance.InputSystem.GetActionValue(actionId));
+
+            input.Update();
+            input.SetMouseState(CreateReleasedMouseState(40, 40));
+            input.EarlyUpdate();
+
+            Assert.False(Core.Instance.InputSystem.IsActionDown(actionId));
+            Assert.False(Core.Instance.InputSystem.WasActionPressed(actionId));
+            Assert.True(Core.Instance.InputSystem.WasActionReleased(actionId));
+            Assert.Equal(0f, Core.Instance.InputSystem.GetActionValue(actionId));
+        }
+
+        /// <summary>
         /// Initializes a core instance with the minimum services required for input-routing tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
@@ -433,6 +475,39 @@ namespace helengine.editor.tests {
                 ButtonState.Released,
                 ButtonState.Released,
                 ButtonState.Released);
+        }
+
+        /// <summary>
+        /// Creates one pressed primary-button mouse state at the supplied pointer coordinates.
+        /// </summary>
+        /// <param name="x">Pointer X coordinate in window pixels.</param>
+        /// <param name="y">Pointer Y coordinate in window pixels.</param>
+        /// <returns>Mouse state with the primary button pressed.</returns>
+        MouseState CreatePressedMouseState(int x, int y) {
+            return new MouseState(
+                x,
+                y,
+                0,
+                ButtonState.Pressed,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released);
+        }
+
+        /// <summary>
+        /// Creates one pointer-button binding that maps the primary button to a logical action.
+        /// </summary>
+        /// <param name="contextId">Context that owns the binding.</param>
+        /// <param name="actionId">Action driven by the primary button.</param>
+        /// <param name="scale">Scalar applied to the resolved value.</param>
+        /// <returns>Binding that maps pointer primary-button input to the supplied action.</returns>
+        InputBinding CreatePrimaryPointerButtonBinding(InputContextId contextId, InputActionId actionId, float scale) {
+            return new InputBinding(
+                contextId,
+                actionId,
+                new InputControlId(InputDeviceKind.Pointer, InputControlKind.Button, 0, (int)InputPointerButton.Primary),
+                scale);
         }
     }
 }

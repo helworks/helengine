@@ -122,6 +122,24 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Releases runtime-only menu binding state before the native backend deletes the component instance.
+        /// </summary>
+        public override void Dispose() {
+            ReleasePanelRuntimes();
+            PanelsById.Clear();
+            PanelRuntimes.Clear();
+            PanelHistory.Clear();
+            NativeOwnership.Delete(PanelsById);
+            NativeOwnership.Delete(PanelRuntimes);
+            NativeOwnership.Delete(PanelHistory);
+            ActivePanel = null;
+            PressedPointerItem = null;
+            ActivePanelIdValue = string.Empty;
+            SelectedItemIdValue = string.Empty;
+            IsInitialized = false;
+        }
+
+        /// <summary>
         /// Routes keyboard and gamepad input through the baked menu hierarchy.
         /// </summary>
         public override void Update() {
@@ -171,34 +189,38 @@ namespace helengine {
             }
 
             List<Entity> panelEntities = new List<Entity>();
-            CollectEntitiesWithComponent<MenuPanelComponent>(generatedRootEntity, panelEntities);
-            for (int panelIndex = 0; panelIndex < panelEntities.Count; panelIndex++) {
-                Entity panelEntity = panelEntities[panelIndex];
-                MenuPanelComponent panelComponent = FindRequiredComponent<MenuPanelComponent>(panelEntity);
-                TextComponent selectedDescriptionText = ResolveSelectedDescriptionText(panelEntity);
-                MenuItemRuntime[] itemRuntimes = BindItems(panelEntity, panelComponent.PanelId);
-                ScrollComponent itemsScrollComponent = ResolveItemsScrollComponent(panelEntity, panelComponent.PanelId);
-                itemsScrollComponent.ItemCount = itemRuntimes.Length;
-                itemsScrollComponent.ClipOriginEntity = ResolveItemsViewportEntity(itemsScrollComponent, panelComponent.PanelId);
-                MenuPanelRuntime panelRuntime = new MenuPanelRuntime(
-                    panelComponent,
-                    panelEntity,
-                    selectedDescriptionText,
-                    itemsScrollComponent.Parent,
-                    itemsScrollComponent,
-                    itemRuntimes);
-                panelRuntime.ItemsScrollComponent.ScrollOffsetChanged += HandleItemsScrollOffsetChanged;
-                ApplyItemsScrollOffset(panelRuntime.ItemsRootEntity, panelRuntime.ItemsScrollComponent.ScrollOffset);
-                if (PanelsById.ContainsKey(panelComponent.PanelId)) {
-                    throw new InvalidOperationException($"Duplicate baked menu panel id '{panelComponent.PanelId}' was found.");
+            try {
+                CollectEntitiesWithComponent<MenuPanelComponent>(generatedRootEntity, panelEntities);
+                for (int panelIndex = 0; panelIndex < panelEntities.Count; panelIndex++) {
+                    Entity panelEntity = panelEntities[panelIndex];
+                    MenuPanelComponent panelComponent = FindRequiredComponent<MenuPanelComponent>(panelEntity);
+                    TextComponent selectedDescriptionText = ResolveSelectedDescriptionText(panelEntity);
+                    MenuItemRuntime[] itemRuntimes = BindItems(panelEntity, panelComponent.PanelId);
+                    ScrollComponent itemsScrollComponent = ResolveItemsScrollComponent(panelEntity, panelComponent.PanelId);
+                    itemsScrollComponent.ItemCount = itemRuntimes.Length;
+                    itemsScrollComponent.ClipOriginEntity = ResolveItemsViewportEntity(itemsScrollComponent, panelComponent.PanelId);
+                    MenuPanelRuntime panelRuntime = new MenuPanelRuntime(
+                        panelComponent,
+                        panelEntity,
+                        selectedDescriptionText,
+                        itemsScrollComponent.Parent,
+                        itemsScrollComponent,
+                        itemRuntimes);
+                    panelRuntime.ItemsScrollComponent.ScrollOffsetChanged += HandleItemsScrollOffsetChanged;
+                    ApplyItemsScrollOffset(panelRuntime.ItemsRootEntity, panelRuntime.ItemsScrollComponent.ScrollOffset);
+                    if (PanelsById.ContainsKey(panelComponent.PanelId)) {
+                        throw new InvalidOperationException($"Duplicate baked menu panel id '{panelComponent.PanelId}' was found.");
+                    }
+
+                    PanelsById.Add(panelComponent.PanelId, panelRuntime);
+                    PanelRuntimes.Add(panelRuntime);
                 }
 
-                PanelsById.Add(panelComponent.PanelId, panelRuntime);
-                PanelRuntimes.Add(panelRuntime);
-            }
-
-            if (PanelsById.Count == 0) {
-                throw new InvalidOperationException("The baked menu scene does not contain any panel metadata.");
+                if (PanelsById.Count == 0) {
+                    throw new InvalidOperationException("The baked menu scene does not contain any panel metadata.");
+                }
+            } finally {
+                NativeOwnership.Delete(panelEntities);
             }
         }
 
@@ -210,24 +232,28 @@ namespace helengine {
         /// <returns>Bound baked item runtime records.</returns>
         MenuItemRuntime[] BindItems(Entity panelEntity, string panelId) {
             List<Entity> itemEntities = new List<Entity>();
-            CollectEntitiesWithComponent<MenuItemComponent>(panelEntity, itemEntities);
-            MenuItemRuntime[] itemRuntimes = new MenuItemRuntime[itemEntities.Count];
-            for (int itemIndex = 0; itemIndex < itemEntities.Count; itemIndex++) {
-                Entity itemEntity = itemEntities[itemIndex];
-                MenuItemComponent itemComponent = FindRequiredComponent<MenuItemComponent>(itemEntity);
-                if (!string.Equals(itemComponent.PanelId, panelId, StringComparison.Ordinal)) {
-                    throw new InvalidOperationException($"Baked menu item '{itemComponent.ItemId}' does not match panel '{panelId}'.");
+            try {
+                CollectEntitiesWithComponent<MenuItemComponent>(panelEntity, itemEntities);
+                MenuItemRuntime[] itemRuntimes = new MenuItemRuntime[itemEntities.Count];
+                for (int itemIndex = 0; itemIndex < itemEntities.Count; itemIndex++) {
+                    Entity itemEntity = itemEntities[itemIndex];
+                    MenuItemComponent itemComponent = FindRequiredComponent<MenuItemComponent>(itemEntity);
+                    if (!string.Equals(itemComponent.PanelId, panelId, StringComparison.Ordinal)) {
+                        throw new InvalidOperationException($"Baked menu item '{itemComponent.ItemId}' does not match panel '{panelId}'.");
+                    }
+
+                    RoundedRectComponent backgroundComponent = FindRequiredComponent<RoundedRectComponent>(itemEntity);
+                    itemRuntimes[itemIndex] = new MenuItemRuntime(itemComponent, itemIndex, itemEntity, backgroundComponent);
                 }
 
-                RoundedRectComponent backgroundComponent = FindRequiredComponent<RoundedRectComponent>(itemEntity);
-                itemRuntimes[itemIndex] = new MenuItemRuntime(itemComponent, itemIndex, itemEntity, backgroundComponent);
-            }
+                if (itemRuntimes.Length == 0) {
+                    throw new InvalidOperationException($"Baked menu panel '{panelId}' does not contain any items.");
+                }
 
-            if (itemRuntimes.Length == 0) {
-                throw new InvalidOperationException($"Baked menu panel '{panelId}' does not contain any items.");
+                return itemRuntimes;
+            } finally {
+                NativeOwnership.Delete(itemEntities);
             }
-
-            return itemRuntimes;
         }
 
         /// <summary>
@@ -596,12 +622,16 @@ namespace helengine {
         /// <returns>Selected-description text component for the panel.</returns>
         TextComponent ResolveSelectedDescriptionText(Entity panelEntity) {
             List<Entity> markerEntities = new List<Entity>();
-            CollectEntitiesWithComponent<MenuSelectedDescriptionComponent>(panelEntity, markerEntities);
-            if (markerEntities.Count != 1) {
-                throw new InvalidOperationException("Each baked menu panel must contain exactly one selected-description marker.");
-            }
+            try {
+                CollectEntitiesWithComponent<MenuSelectedDescriptionComponent>(panelEntity, markerEntities);
+                if (markerEntities.Count != 1) {
+                    throw new InvalidOperationException("Each baked menu panel must contain exactly one selected-description marker.");
+                }
 
-            return FindRequiredComponent<TextComponent>(markerEntities[0]);
+                return FindRequiredComponent<TextComponent>(markerEntities[0]);
+            } finally {
+                NativeOwnership.Delete(markerEntities);
+            }
         }
 
         /// <summary>
@@ -612,17 +642,59 @@ namespace helengine {
         /// <returns>Resolved scroll component.</returns>
         ScrollComponent ResolveItemsScrollComponent(Entity panelEntity, string panelId) {
             List<Entity> scrollEntities = new List<Entity>();
-            CollectEntitiesWithComponent<ScrollComponent>(panelEntity, scrollEntities);
-            if (scrollEntities.Count != 1) {
-                throw new InvalidOperationException($"Baked menu panel '{panelId}' must contain exactly one scroll component.");
+            try {
+                CollectEntitiesWithComponent<ScrollComponent>(panelEntity, scrollEntities);
+                if (scrollEntities.Count != 1) {
+                    throw new InvalidOperationException($"Baked menu panel '{panelId}' must contain exactly one scroll component.");
+                }
+
+                ScrollComponent scrollComponent = FindRequiredComponent<ScrollComponent>(scrollEntities[0]);
+                if (scrollComponent.VisibleItemCount < 1) {
+                    throw new InvalidOperationException($"Baked menu panel '{panelId}' must expose at least one visible item row.");
+                }
+
+                return scrollComponent;
+            } finally {
+                NativeOwnership.Delete(scrollEntities);
+            }
+        }
+
+        /// <summary>
+        /// Releases every bound menu panel runtime together with the nested baked item runtime records.
+        /// </summary>
+        void ReleasePanelRuntimes() {
+            for (int panelIndex = 0; panelIndex < PanelRuntimes.Count; panelIndex++) {
+                ReleasePanelRuntime(PanelRuntimes[panelIndex]);
+            }
+        }
+
+        /// <summary>
+        /// Releases one bound menu panel runtime and its owned baked item runtime records.
+        /// </summary>
+        /// <param name="panelRuntime">Bound panel runtime to release.</param>
+        void ReleasePanelRuntime(MenuPanelRuntime panelRuntime) {
+            if (panelRuntime == null) {
+                return;
             }
 
-            ScrollComponent scrollComponent = FindRequiredComponent<ScrollComponent>(scrollEntities[0]);
-            if (scrollComponent.VisibleItemCount < 1) {
-                throw new InvalidOperationException($"Baked menu panel '{panelId}' must expose at least one visible item row.");
+            panelRuntime.ItemsScrollComponent.ScrollOffsetChanged -= HandleItemsScrollOffsetChanged;
+            ReleaseItemRuntimes(panelRuntime.Items);
+            NativeOwnership.Delete(panelRuntime.Items);
+            NativeOwnership.Delete(panelRuntime);
+        }
+
+        /// <summary>
+        /// Releases every baked menu item runtime contained by one panel runtime array.
+        /// </summary>
+        /// <param name="itemRuntimes">Baked menu item runtime array to release.</param>
+        void ReleaseItemRuntimes(MenuItemRuntime[] itemRuntimes) {
+            if (itemRuntimes == null) {
+                return;
             }
 
-            return scrollComponent;
+            for (int itemIndex = 0; itemIndex < itemRuntimes.Length; itemIndex++) {
+                NativeOwnership.Delete(itemRuntimes[itemIndex]);
+            }
         }
 
         /// <summary>

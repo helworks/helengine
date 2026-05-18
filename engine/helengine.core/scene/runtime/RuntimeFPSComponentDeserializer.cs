@@ -36,18 +36,21 @@ namespace helengine {
             }
 
             SceneAssetReference fontReference = ReadOptionalReference(reader);
+            try {
+                FPSComponent fpsComponent = new FPSComponent {
+                    RefreshIntervalSeconds = reader.ReadDouble(),
+                    Padding = reader.ReadInt2(),
+                    RenderOrder2D = reader.ReadByte()
+                };
 
-            FPSComponent fpsComponent = new FPSComponent {
-                RefreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64()),
-                Padding = reader.ReadInt2(),
-                RenderOrder2D = reader.ReadByte()
-            };
+                if (fontReference != null) {
+                    fpsComponent.Font = referenceResolver.ResolveFont(fontReference);
+                }
 
-            if (fontReference != null) {
-                fpsComponent.Font = referenceResolver.ResolveFont(fontReference);
+                return fpsComponent;
+            } finally {
+                NativeOwnership.Delete(fontReference);
             }
-
-            return fpsComponent;
         }
 
         /// <summary>

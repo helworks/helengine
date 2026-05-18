@@ -139,6 +139,12 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Reads a double-precision floating point value using the reader's endianness.
+        /// </summary>
+        /// <returns>Decoded floating point value.</returns>
+        public abstract double ReadDouble();
+
+        /// <summary>
         /// Reads a UTF-8 string prefixed by a 32-bit length.
         /// </summary>
         /// <returns>Decoded string value.</returns>
@@ -153,7 +159,11 @@ namespace helengine {
             }
 
             byte[] bytes = ReadBytes(length);
-            return Encoding.UTF8.GetString(bytes);
+            try {
+                return Encoding.UTF8.GetString(bytes);
+            } finally {
+                NativeOwnership.Delete(bytes);
+            }
         }
 
         /// <summary>

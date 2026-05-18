@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor.tests.testing;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -22,11 +23,8 @@ namespace helengine.editor.tests {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-add-menu-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempProjectRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
-            });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            EditorSelectionService.ClearSelection();
+            EnsureEditorCoreHost();
+            EditorSelectionService.Reset();
             EditorSceneMutationService.Reset();
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
@@ -37,7 +35,7 @@ namespace helengine.editor.tests {
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
+            EditorSelectionService.Reset();
             EditorSceneMutationService.Reset();
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
@@ -201,6 +199,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Editor session instance configured for add-command tests.</returns>
         EditorSession CreateSessionForAddCommands() {
+            EnsureEditorCoreHost();
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CreateFont());
             EditorSceneCreationService sceneCreationService = new EditorSceneCreationService();
@@ -209,6 +208,25 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "SceneCreationService", sceneCreationService);
 
             return session;
+        }
+
+        /// <summary>
+        /// Ensures the active core host is an initialized editor core for the temporary project root used by these tests.
+        /// </summary>
+        void EnsureEditorCoreHost() {
+            if (Core.Instance is EditorCore editorCore
+                && editorCore.Project != null
+                && string.Equals(editorCore.Project.Path, TempProjectRootPath, StringComparison.Ordinal)) {
+                return;
+            }
+
+            EditorCore core = new EditorCore(new Project {
+                Name = "Editor Session Add Menu",
+                Path = TempProjectRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+                ContentRootPath = TempProjectRootPath
+            });
         }
 
         /// <summary>

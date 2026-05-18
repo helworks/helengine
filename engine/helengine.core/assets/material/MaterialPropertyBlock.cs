@@ -2,19 +2,19 @@ namespace helengine {
     /// <summary>
     /// Stores resolved runtime values for the shader bindings exposed by a material layout.
     /// </summary>
-    public class MaterialPropertyBlock {
+    public class MaterialPropertyBlock : IDisposable {
         /// <summary>
         /// Layout that defines which bindings may be stored by this property block.
         /// </summary>
-        readonly MaterialLayout LayoutValue;
+        MaterialLayout LayoutValue;
         /// <summary>
         /// Runtime textures assigned to the layout's texture bindings.
         /// </summary>
-        readonly RuntimeTexture[] TextureValues;
+        RuntimeTexture[] TextureValues;
         /// <summary>
         /// Packed constant-buffer payloads assigned to the layout's constant-buffer bindings.
         /// </summary>
-        readonly byte[][] ConstantBufferValues;
+        byte[][] ConstantBufferValues;
 
         /// <summary>
         /// Initializes a new property block for the supplied material layout.
@@ -30,6 +30,15 @@ namespace helengine {
         /// Gets the material layout that defines the allowed bindings.
         /// </summary>
         public MaterialLayout Layout => LayoutValue;
+
+        /// <summary>
+        /// Releases property-block-owned native containers while leaving referenced textures under renderer or scene-manager ownership.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.DeleteItemsAndRelease(ref ConstantBufferValues);
+            NativeOwnership.Release(ref TextureValues);
+            LayoutValue = null;
+        }
 
         /// <summary>
         /// Assigns a runtime texture to the supplied texture-binding name.

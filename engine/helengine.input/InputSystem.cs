@@ -830,6 +830,16 @@ public sealed class InputSystem {
     /// Resolves the registered bindings against the current frame and active contexts.
     /// </summary>
     void ResolveBindings() {
+        if (Bindings.Count == 0 || ActiveContextStack.Count == 0) {
+            if (CurrentActionStates.Count == 0 && PreviousActionStates.Count == 0) {
+                SeenActionIds.Clear();
+                return;
+            }
+
+            ClearActionStatesWithoutBindings();
+            return;
+        }
+
         List<int> previousActionKeys = new List<int>();
         foreach (int actionKey in PreviousActionStates.Keys) {
             previousActionKeys.Add(actionKey);
@@ -954,6 +964,16 @@ public sealed class InputSystem {
             currentState.WasReleased = !currentState.IsDown && previousState.IsDown;
             CurrentActionStates[actionKey] = currentState;
         }
+    }
+
+    /// <summary>
+    /// Clears resolved action state when no bindings or contexts remain active.
+    /// This avoids the steady-state binding-resolution work during scenes that only use direct key and pointer queries.
+    /// </summary>
+    void ClearActionStatesWithoutBindings() {
+        CurrentActionStates.Clear();
+        PreviousActionStates.Clear();
+        SeenActionIds.Clear();
     }
 
     /// <summary>

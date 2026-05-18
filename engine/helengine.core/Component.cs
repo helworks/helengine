@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Base class for entity components that participate in the engine lifecycle.
     /// </summary>
-    public class Component {
+    public class Component : IDisposable {
         /// <summary>
         /// Gets the entity this component is attached to.
         /// </summary>
@@ -61,6 +61,12 @@ namespace helengine {
         /// </summary>
         /// <param name="newEnabled">True when marked static; otherwise false.</param>
         public virtual void ParentStaticChange(bool newEnabled) {
+        }
+
+        /// <summary>
+        /// Releases runtime-owned resources held directly by the component before the native backend deletes the component instance.
+        /// </summary>
+        public virtual void Dispose() {
         }
     }
 }

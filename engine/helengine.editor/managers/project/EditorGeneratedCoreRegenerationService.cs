@@ -474,6 +474,7 @@ namespace helengine.editor {
                 BuildGeneratedRuntimeComponentDeserializerRegistrationSource(schemas, generator));
         }
 
+
         /// <summary>
         /// Regenerates automatic native runtime component deserializers for the assembly-qualified scripted component types referenced by cooked scenes.
         /// </summary>

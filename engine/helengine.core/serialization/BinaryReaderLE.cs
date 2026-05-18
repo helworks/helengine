@@ -59,5 +59,15 @@ namespace helengine {
             return BinaryPrimitives.ReadInt64LittleEndian(buffer);
         }
 
+        /// <summary>
+        /// Reads a double-precision floating point value in little-endian order.
+        /// </summary>
+        /// <returns>Decoded floating point value.</returns>
+        public override double ReadDouble() {
+            Span<byte> buffer = stackalloc byte[sizeof(double)];
+            ReadRequiredBytes(buffer);
+            return BinaryPrimitives.ReadDoubleLittleEndian(buffer);
+        }
+
     }
 }

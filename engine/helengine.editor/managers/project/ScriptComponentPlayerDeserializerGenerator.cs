@@ -1,4 +1,5 @@
 using System.Text;
+using System.Reflection;
 
 namespace helengine.editor {
     /// <summary>
@@ -67,7 +68,7 @@ namespace helengine.editor {
 
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                if (!TryBuildNativeReadExpression(member.ValueType, out _)) {
+                if (!TryBuildNativeReadExpression(member.ValueType, BuildNativeReaderVariableName(), BuildNativeNestedHelperMap(schema), out _)) {
                     return false;
                 }
             }
@@ -122,6 +123,11 @@ namespace helengine.editor {
             builder.AppendLine("#include \"Component.hpp\"");
             builder.AppendLine("#include \"SceneComponentAssetRecord.hpp\"");
             builder.AppendLine("#include \"RuntimeSceneAssetReferenceResolver.hpp\"");
+            foreach (Type includeType in CollectNativeIncludeTypes(schema)) {
+                if (includeType != schema.ComponentType) {
+                    builder.AppendLine($"#include \"{includeType.Name}.hpp\"");
+                }
+            }
             builder.AppendLine();
             builder.AppendLine($"class {className} : public IRuntimeComponentDeserializer");
             builder.AppendLine("{");
@@ -137,6 +143,10 @@ namespace helengine.editor {
             builder.AppendLine("    static uint8_t CurrentVersion;");
             builder.AppendLine();
             builder.AppendLine("    static int32_t MemberCount;");
+            foreach (KeyValuePair<Type, string> helperEntry in BuildNativeNestedHelperMap(schema).OrderBy(entry => entry.Value, StringComparer.Ordinal)) {
+                builder.AppendLine();
+                builder.AppendLine($"    static {BuildNativeValueTypeName(helperEntry.Key)} {helperEntry.Value}(::EngineBinaryReader* reader);");
+            }
             builder.AppendLine("};");
             return builder.ToString();
         }
@@ -168,6 +178,11 @@ namespace helengine.editor {
             builder.AppendLine("#include \"EngineBinaryEndianness.hpp\"");
             builder.AppendLine("#include \"runtime/array.hpp\"");
             builder.AppendLine($"#include \"{schema.ComponentType.Name}.hpp\"");
+            foreach (Type includeType in CollectNativeIncludeTypes(schema)) {
+                if (includeType != schema.ComponentType) {
+                    builder.AppendLine($"#include \"{includeType.Name}.hpp\"");
+                }
+            }
             builder.AppendLine();
             builder.AppendLine($"const std::string& {className}::get_ComponentTypeId()");
             builder.AppendLine("{");
@@ -206,14 +221,19 @@ namespace helengine.editor {
             builder.AppendLine("throw new InvalidOperationException(std::string(\"Expected \") + std::to_string(MemberCount) + std::string(\" packaged scripted members but payload contained \") + std::to_string(memberCount) + std::string(\".\"));");
             builder.AppendLine("    }");
             builder.AppendLine($"::{schema.ComponentType.Name} *component = new ::{schema.ComponentType.Name}();");
+            Dictionary<Type, string> nativeNestedHelperNames = BuildNativeNestedHelperMap(schema);
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                builder.AppendLine(BuildNativeAssignmentStatement(member, BuildNativeReadExpression(member.ValueType)));
+                builder.AppendLine(BuildNativeAssignmentStatement(member, BuildNativeReadExpression(member.ValueType, BuildNativeReaderVariableName(), nativeNestedHelperNames)));
             }
 
             builder.AppendLine("return component;}");
             builder.AppendLine("}");
             builder.AppendLine("}");
+            foreach (KeyValuePair<Type, string> helperEntry in nativeNestedHelperNames.OrderBy(entry => entry.Value, StringComparer.Ordinal)) {
+                builder.AppendLine();
+                builder.Append(BuildNativeNestedHelperMethodSource(className, helperEntry.Key, helperEntry.Value));
+            }
             builder.AppendLine();
             builder.AppendLine($"std::string {className}::ComponentType = \"{EscapeForCppString(componentTypeId)}\";");
             builder.AppendLine();
@@ -229,54 +249,80 @@ namespace helengine.editor {
         /// <param name="valueType">Runtime member value type that should be read from the ordinal payload.</param>
         /// <returns>Generated reader expression.</returns>
         string BuildReadExpression(Type valueType) {
+            return BuildManagedReadExpression(valueType, "reader");
+        }
+
+        /// <summary>
+        /// Builds one managed runtime reader expression for the supplied member value type using the supplied reader variable name.
+        /// </summary>
+        /// <param name="valueType">Runtime member value type that should be read from the ordinal payload.</param>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <returns>Generated managed reader expression.</returns>
+        string BuildManagedReadExpression(Type valueType, string readerVariableName) {
             if (valueType == null) {
                 throw new ArgumentNullException(nameof(valueType));
             }
+            if (string.IsNullOrWhiteSpace(readerVariableName)) {
+                throw new ArgumentException("Reader variable name must be provided.", nameof(readerVariableName));
+            }
 
             if (valueType == typeof(string)) {
-                return "reader.ReadString()";
+                return readerVariableName + ".ReadString()";
             }
             if (valueType == typeof(bool)) {
-                return "reader.ReadByte() != 0";
+                return readerVariableName + ".ReadByte() != 0";
             }
             if (valueType == typeof(byte)) {
-                return "reader.ReadByte()";
+                return readerVariableName + ".ReadByte()";
             }
             if (valueType == typeof(ushort)) {
-                return "reader.ReadUInt16()";
+                return readerVariableName + ".ReadUInt16()";
             }
             if (valueType == typeof(int)) {
-                return "reader.ReadInt32()";
+                return readerVariableName + ".ReadInt32()";
             }
             if (valueType == typeof(uint)) {
-                return "reader.ReadUInt32()";
+                return readerVariableName + ".ReadUInt32()";
             }
             if (valueType == typeof(long)) {
-                return "reader.ReadInt64()";
+                return readerVariableName + ".ReadInt64()";
             }
             if (valueType == typeof(float)) {
-                return "reader.ReadSingle()";
+                return readerVariableName + ".ReadSingle()";
+            }
+            if (valueType == typeof(double)) {
+                return readerVariableName + ".ReadDouble()";
             }
             if (valueType == typeof(int2)) {
-                return "reader.ReadInt2()";
+                return readerVariableName + ".ReadInt2()";
             }
             if (valueType == typeof(int4)) {
-                return "reader.ReadInt4()";
+                return readerVariableName + ".ReadInt4()";
             }
             if (valueType == typeof(float2)) {
-                return "reader.ReadFloat2()";
+                return readerVariableName + ".ReadFloat2()";
             }
             if (valueType == typeof(float3)) {
-                return "reader.ReadFloat3()";
+                return readerVariableName + ".ReadFloat3()";
             }
             if (valueType == typeof(float4)) {
-                return "reader.ReadFloat4()";
+                return readerVariableName + ".ReadFloat4()";
             }
             if (valueType == typeof(byte4)) {
-                return "new byte4(reader.ReadByte(), reader.ReadByte(), reader.ReadByte(), reader.ReadByte())";
+                return $"new byte4({readerVariableName}.ReadByte(), {readerVariableName}.ReadByte(), {readerVariableName}.ReadByte(), {readerVariableName}.ReadByte())";
             }
             if (valueType == typeof(SceneEntityReference)) {
-                return "reader.ReadSceneEntityReference()";
+                return readerVariableName + ".ReadSceneEntityReference()";
+            }
+            if (valueType.IsEnum) {
+                return $"({BuildManagedTypeName(valueType)}){BuildManagedReadExpression(Enum.GetUnderlyingType(valueType), readerVariableName)}";
+            }
+            if (valueType.IsArray && valueType.GetArrayRank() == 1) {
+                Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
+                return $"{readerVariableName}.ReadArray(innerReader => {BuildManagedReadExpression(elementType, "innerReader")})";
+            }
+            if (IsSupportedNestedObjectType(valueType)) {
+                return BuildManagedNestedObjectReadExpression(valueType, readerVariableName);
             }
 
             throw new InvalidOperationException($"Ordinal scripted component deserializer generation does not support member type '{valueType.FullName}'.");
@@ -287,8 +333,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="valueType">Runtime member value type that should be read from the ordinal payload.</param>
         /// <returns>Generated native reader expression.</returns>
-        string BuildNativeReadExpression(Type valueType) {
-            if (!TryBuildNativeReadExpression(valueType, out string expression)) {
+        string BuildNativeReadExpression(Type valueType, string readerVariableName, IReadOnlyDictionary<Type, string> nativeNestedHelperNames) {
+            if (!TryBuildNativeReadExpression(valueType, readerVariableName, nativeNestedHelperNames, out string expression)) {
                 throw new InvalidOperationException($"Native scripted component deserializer generation does not support member type '{valueType?.FullName}'.");
             }
 
@@ -301,74 +347,487 @@ namespace helengine.editor {
         /// <param name="valueType">Runtime member value type that should be read from the ordinal payload.</param>
         /// <param name="expression">Generated native reader expression when supported.</param>
         /// <returns>True when the supplied member value type is supported by native generation.</returns>
-        bool TryBuildNativeReadExpression(Type valueType, out string expression) {
+        bool TryBuildNativeReadExpression(Type valueType, string readerVariableName, IReadOnlyDictionary<Type, string> nativeNestedHelperNames, out string expression) {
             expression = string.Empty;
             if (valueType == null) {
                 return false;
             }
+            if (string.IsNullOrWhiteSpace(readerVariableName)) {
+                return false;
+            }
+            if (nativeNestedHelperNames == null) {
+                return false;
+            }
 
             if (valueType == typeof(string)) {
-                expression = "reader->ReadString()";
+                expression = readerVariableName + "->ReadString()";
                 return true;
             }
             if (valueType == typeof(bool)) {
-                expression = "reader->ReadByte() != 0";
+                expression = readerVariableName + "->ReadByte() != 0";
                 return true;
             }
             if (valueType == typeof(byte)) {
-                expression = "reader->ReadByte()";
+                expression = readerVariableName + "->ReadByte()";
                 return true;
             }
             if (valueType == typeof(ushort)) {
-                expression = "reader->ReadUInt16()";
+                expression = readerVariableName + "->ReadUInt16()";
                 return true;
             }
             if (valueType == typeof(int)) {
-                expression = "reader->ReadInt32()";
+                expression = readerVariableName + "->ReadInt32()";
                 return true;
             }
             if (valueType == typeof(uint)) {
-                expression = "reader->ReadUInt32()";
+                expression = readerVariableName + "->ReadUInt32()";
                 return true;
             }
             if (valueType == typeof(long)) {
-                expression = "reader->ReadInt64()";
+                expression = readerVariableName + "->ReadInt64()";
                 return true;
             }
             if (valueType == typeof(float)) {
-                expression = "reader->ReadSingle()";
+                expression = readerVariableName + "->ReadSingle()";
+                return true;
+            }
+            if (valueType == typeof(double)) {
+                expression = readerVariableName + "->ReadDouble()";
                 return true;
             }
             if (valueType == typeof(int2)) {
-                expression = "reader->ReadInt2()";
+                expression = readerVariableName + "->ReadInt2()";
                 return true;
             }
             if (valueType == typeof(int4)) {
-                expression = "reader->ReadInt4()";
+                expression = readerVariableName + "->ReadInt4()";
                 return true;
             }
             if (valueType == typeof(float2)) {
-                expression = "reader->ReadFloat2()";
+                expression = readerVariableName + "->ReadFloat2()";
                 return true;
             }
             if (valueType == typeof(float3)) {
-                expression = "reader->ReadFloat3()";
+                expression = readerVariableName + "->ReadFloat3()";
                 return true;
             }
             if (valueType == typeof(float4)) {
-                expression = "reader->ReadFloat4()";
+                expression = readerVariableName + "->ReadFloat4()";
                 return true;
             }
             if (valueType == typeof(byte4)) {
-                expression = "::byte4(reader->ReadByte(), reader->ReadByte(), reader->ReadByte(), reader->ReadByte())";
+                expression = $"::byte4({readerVariableName}->ReadByte(), {readerVariableName}->ReadByte(), {readerVariableName}->ReadByte(), {readerVariableName}->ReadByte())";
                 return true;
             }
             if (valueType == typeof(SceneEntityReference)) {
-                expression = "reader->ReadSceneEntityReference()";
+                expression = readerVariableName + "->ReadSceneEntityReference()";
+                return true;
+            }
+            if (valueType.IsEnum) {
+                if (!TryBuildNativeReadExpression(Enum.GetUnderlyingType(valueType), readerVariableName, nativeNestedHelperNames, out string underlyingExpression)) {
+                    return false;
+                }
+
+                expression = $"static_cast<{BuildNativeValueTypeName(valueType)}>({underlyingExpression})";
+                return true;
+            }
+            if (valueType.IsArray && valueType.GetArrayRank() == 1) {
+                Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
+                if (!TryBuildNativeArrayReadExpression(elementType, readerVariableName, nativeNestedHelperNames, out expression)) {
+                    return false;
+                }
+                return true;
+            }
+            if (nativeNestedHelperNames.TryGetValue(valueType, out string helperName)) {
+                expression = helperName + "(" + readerVariableName + ")";
                 return true;
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Attempts to build one native array reader expression for the supplied element value type.
+        /// </summary>
+        /// <param name="elementType">Array element type that should be read from the ordinal payload.</param>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <param name="nativeNestedHelperNames">Known helper method names for nested authored object types.</param>
+        /// <param name="expression">Generated native array reader expression when supported.</param>
+        /// <returns>True when the supplied array element type is supported by native generation.</returns>
+        bool TryBuildNativeArrayReadExpression(
+            Type elementType,
+            string readerVariableName,
+            IReadOnlyDictionary<Type, string> nativeNestedHelperNames,
+            out string expression) {
+            expression = string.Empty;
+            if (elementType == null) {
+                return false;
+            }
+
+            if (TryBuildNativeReadExpression(elementType, BuildNativeReaderVariableName(), nativeNestedHelperNames, out _)) {
+                expression = BuildNativeInlineArrayExpression(elementType, readerVariableName, nativeNestedHelperNames);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Builds one inline native array reader expression for element types that do not require nested object helper methods.
+        /// </summary>
+        /// <param name="elementType">Array element type that should be read from the ordinal payload.</param>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <param name="nativeNestedHelperNames">Known helper method names for nested authored object types.</param>
+        /// <returns>Generated native array reader expression.</returns>
+        string BuildNativeInlineArrayExpression(Type elementType, string readerVariableName, IReadOnlyDictionary<Type, string> nativeNestedHelperNames) {
+            string elementValueTypeName = BuildNativeValueTypeName(elementType);
+            string elementReadExpression = BuildNativeReadExpression(elementType, BuildNativeReaderVariableName(), nativeNestedHelperNames);
+            return "([&]() { "
+                + "const int32_t length = " + readerVariableName + "->ReadInt32(); "
+                + "if (length == -1) { return static_cast<Array<" + elementValueTypeName + ">*>(nullptr); } "
+                + "if (length < -1) { throw new InvalidOperationException(\"Array length cannot be negative.\"); } "
+                + "if (length == 0) { return Array<" + elementValueTypeName + ">::Empty(); } "
+                + "Array<" + elementValueTypeName + "> *values = new Array<" + elementValueTypeName + ">(length); "
+                + "for (int32_t index = 0; index < length; index++) { (*values)[index] = " + elementReadExpression + "; } "
+                + "return values; "
+                + "})()";
+        }
+
+        /// <summary>
+        /// Builds one managed nested-object reader expression for the supplied authored object type.
+        /// </summary>
+        /// <param name="valueType">Nested authored object type that should be materialized.</param>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <returns>Generated managed nested-object reader expression.</returns>
+        string BuildManagedNestedObjectReadExpression(Type valueType, string readerVariableName) {
+            IReadOnlyList<MemberInfo> members = GetSerializableMembers(valueType);
+            StringBuilder builder = new StringBuilder();
+            builder.Append('(');
+            builder.Append(readerVariableName);
+            builder.Append(".ReadByte() == 0 ? null : new ");
+            builder.Append(BuildManagedTypeName(valueType));
+            builder.Append(" { ");
+            for (int index = 0; index < members.Count; index++) {
+                MemberInfo member = members[index];
+                if (index > 0) {
+                    builder.Append(", ");
+                }
+
+                builder.Append(member.Name);
+                builder.Append(" = ");
+                builder.Append(BuildManagedReadExpression(GetSerializableMemberType(member), readerVariableName));
+            }
+
+            builder.Append(" })");
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Builds the helper-method declarations required to materialize nested authored object types in generated native deserializers.
+        /// </summary>
+        /// <param name="schema">Reflected component schema that drives the generated native deserializer.</param>
+        /// <returns>Stable mapping from nested authored object type to generated helper method name.</returns>
+        Dictionary<Type, string> BuildNativeNestedHelperMap(ScriptComponentReflectionSchema schema) {
+            Dictionary<Type, string> helperNames = new Dictionary<Type, string>();
+            CollectNativeNestedHelperTypes(schema.ComponentType, helperNames);
+            return helperNames;
+        }
+
+        /// <summary>
+        /// Recursively discovers nested authored object types that require helper methods in generated native deserializers.
+        /// </summary>
+        /// <param name="rootType">Root reflected type whose member graph should be inspected.</param>
+        /// <param name="helperNames">Accumulated helper method names keyed by nested authored object type.</param>
+        void CollectNativeNestedHelperTypes(Type rootType, IDictionary<Type, string> helperNames) {
+            IReadOnlyList<MemberInfo> members = GetSerializableMembers(rootType);
+            for (int index = 0; index < members.Count; index++) {
+                Type memberType = GetSerializableMemberType(members[index]);
+                CollectNativeNestedHelperTypesForValue(memberType, helperNames);
+            }
+        }
+
+        /// <summary>
+        /// Recursively discovers helper-backed nested authored object types inside one reflected member value type.
+        /// </summary>
+        /// <param name="valueType">Reflected member value type to inspect.</param>
+        /// <param name="helperNames">Accumulated helper method names keyed by nested authored object type.</param>
+        void CollectNativeNestedHelperTypesForValue(Type valueType, IDictionary<Type, string> helperNames) {
+            if (valueType == null) {
+                return;
+            }
+            if (valueType.IsArray && valueType.GetArrayRank() == 1) {
+                CollectNativeNestedHelperTypesForValue(valueType.GetElementType(), helperNames);
+                return;
+            }
+            if (!IsSupportedNestedObjectType(valueType)) {
+                return;
+            }
+            if (helperNames.ContainsKey(valueType)) {
+                return;
+            }
+
+            helperNames.Add(valueType, "Read" + SanitizeIdentifier(valueType.Name));
+            CollectNativeNestedHelperTypes(valueType, helperNames);
+        }
+
+        /// <summary>
+        /// Collects the additional generated native header includes required by recursively supported member value types.
+        /// </summary>
+        /// <param name="schema">Reflected component schema that drives the generated native deserializer.</param>
+        /// <returns>Deterministically ordered generated native include types.</returns>
+        IReadOnlyList<Type> CollectNativeIncludeTypes(ScriptComponentReflectionSchema schema) {
+            HashSet<Type> includeTypes = new HashSet<Type>();
+            for (int index = 0; index < schema.Members.Count; index++) {
+                CollectNativeIncludeTypesForValue(schema.Members[index].ValueType, includeTypes);
+            }
+
+            return includeTypes.OrderBy(type => type.Name, StringComparer.Ordinal).ToArray();
+        }
+
+        /// <summary>
+        /// Recursively collects generated native header includes required by one reflected member value type.
+        /// </summary>
+        /// <param name="valueType">Reflected member value type to inspect.</param>
+        /// <param name="includeTypes">Accumulated generated native include types.</param>
+        void CollectNativeIncludeTypesForValue(Type valueType, ISet<Type> includeTypes) {
+            if (valueType == null) {
+                return;
+            }
+            if (valueType.IsArray && valueType.GetArrayRank() == 1) {
+                CollectNativeIncludeTypesForValue(valueType.GetElementType(), includeTypes);
+                return;
+            }
+            if (valueType.IsEnum || IsSupportedNestedObjectType(valueType) || valueType == typeof(SceneEntityReference)) {
+                includeTypes.Add(valueType);
+            }
+            if (IsSupportedNestedObjectType(valueType)) {
+                IReadOnlyList<MemberInfo> members = GetSerializableMembers(valueType);
+                for (int index = 0; index < members.Count; index++) {
+                    CollectNativeIncludeTypesForValue(GetSerializableMemberType(members[index]), includeTypes);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Builds one generated native helper-method source block that materializes one nested authored object type.
+        /// </summary>
+        /// <param name="className">Generated native deserializer class name that owns the helper method.</param>
+        /// <param name="valueType">Nested authored object type materialized by the helper method.</param>
+        /// <param name="helperName">Generated helper method name.</param>
+        /// <returns>Generated native helper-method source block.</returns>
+        string BuildNativeNestedHelperMethodSource(string className, Type valueType, string helperName) {
+            IReadOnlyList<MemberInfo> members = GetSerializableMembers(valueType);
+            Dictionary<Type, string> nativeNestedHelperNames = new Dictionary<Type, string>();
+            CollectNativeNestedHelperTypes(valueType, nativeNestedHelperNames);
+            nativeNestedHelperNames[valueType] = helperName;
+
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine($"{BuildNativeValueTypeName(valueType)} {className}::{helperName}(::EngineBinaryReader* reader)");
+            builder.AppendLine("{");
+            builder.AppendLine("    if (reader == nullptr)");
+            builder.AppendLine("    {");
+            builder.AppendLine("throw new ArgumentNullException(\"reader\");");
+            builder.AppendLine("    }");
+            builder.AppendLine("    if (reader->ReadByte() == 0)");
+            builder.AppendLine("    {");
+            builder.AppendLine("return nullptr;");
+            builder.AppendLine("    }");
+            builder.AppendLine($"    {BuildNativeValueTypeName(valueType)} value = new ::{valueType.Name}();");
+            for (int index = 0; index < members.Count; index++) {
+                MemberInfo member = members[index];
+                string assignmentTarget = BuildNativeMemberAssignmentTarget(member);
+                string expression = BuildNativeReadExpression(GetSerializableMemberType(member), "reader", nativeNestedHelperNames);
+                if (member is PropertyInfo) {
+                    builder.AppendLine($"    value->{assignmentTarget}({expression});");
+                } else {
+                    builder.AppendLine($"    value->{assignmentTarget} = {expression};");
+                }
+            }
+            builder.AppendLine("    return value;");
+            builder.AppendLine("}");
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Gets the stable native reader variable name used inside generated helper expressions.
+        /// </summary>
+        /// <returns>Stable native reader variable name.</returns>
+        static string BuildNativeReaderVariableName() {
+            return "reader";
+        }
+
+        /// <summary>
+        /// Builds the native value type name used by generated deserializer expressions.
+        /// </summary>
+        /// <param name="valueType">Managed reflected member type whose generated native value type name should be returned.</param>
+        /// <returns>Generated native value type name.</returns>
+        static string BuildNativeValueTypeName(Type valueType) {
+            if (valueType == typeof(string)) {
+                return "std::string";
+            }
+            if (valueType == typeof(bool)) {
+                return "bool";
+            }
+            if (valueType == typeof(byte)) {
+                return "uint8_t";
+            }
+            if (valueType == typeof(ushort)) {
+                return "uint16_t";
+            }
+            if (valueType == typeof(int)) {
+                return "int32_t";
+            }
+            if (valueType == typeof(uint)) {
+                return "uint32_t";
+            }
+            if (valueType == typeof(long)) {
+                return "int64_t";
+            }
+            if (valueType == typeof(float)) {
+                return "float";
+            }
+            if (valueType == typeof(double)) {
+                return "double";
+            }
+            if (valueType == typeof(int2)) {
+                return "::int2";
+            }
+            if (valueType == typeof(int4)) {
+                return "::int4";
+            }
+            if (valueType == typeof(float2)) {
+                return "::float2";
+            }
+            if (valueType == typeof(float3)) {
+                return "::float3";
+            }
+            if (valueType == typeof(float4)) {
+                return "::float4";
+            }
+            if (valueType == typeof(byte4)) {
+                return "::byte4";
+            }
+            if (valueType == typeof(SceneEntityReference)) {
+                return "::SceneEntityReference*";
+            }
+            if (valueType.IsArray && valueType.GetArrayRank() == 1) {
+                Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
+                return $"Array<{BuildNativeValueTypeName(elementType)}>*";
+            }
+            if (valueType.IsEnum) {
+                return $"::{valueType.Name}";
+            }
+            if (IsSupportedNestedObjectType(valueType)) {
+                return $"::{valueType.Name}*";
+            }
+
+            throw new InvalidOperationException($"Native scripted component deserializer generation does not support member type '{valueType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Builds the managed type name used by generated ordinal runtime deserializer source.
+        /// </summary>
+        /// <param name="valueType">Managed reflected member type whose managed type name should be returned.</param>
+        /// <returns>Generated managed type name.</returns>
+        static string BuildManagedTypeName(Type valueType) {
+            return valueType.FullName?.Replace('+', '.') ?? valueType.Name;
+        }
+
+        /// <summary>
+        /// Returns whether the supplied type can be deserialized as one nested authored object by recursively traversing writable public members.
+        /// </summary>
+        /// <param name="valueType">Runtime value type to inspect.</param>
+        /// <returns>True when the type can be deserialized as one nested authored object.</returns>
+        static bool IsSupportedNestedObjectType(Type valueType) {
+            if (valueType == null) {
+                return false;
+            }
+            if (valueType == typeof(string) || !valueType.IsClass || valueType.IsAbstract) {
+                return false;
+            }
+            if (typeof(Component).IsAssignableFrom(valueType) || typeof(Entity).IsAssignableFrom(valueType)) {
+                return false;
+            }
+
+            return valueType.GetConstructor(Type.EmptyTypes) != null;
+        }
+
+        /// <summary>
+        /// Gets the deterministically ordered writable public members that participate in nested authored-object deserializer generation.
+        /// </summary>
+        /// <param name="valueType">Runtime object type whose writable public members should be returned.</param>
+        /// <returns>Deterministically ordered writable public members.</returns>
+        static IReadOnlyList<MemberInfo> GetSerializableMembers(Type valueType) {
+            return valueType
+                .GetMembers(BindingFlags.Instance | BindingFlags.Public)
+                .Where(IsSerializableMember)
+                .OrderBy(member => member.Name, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns whether one public instance member is eligible for nested authored-object deserializer generation.
+        /// </summary>
+        /// <param name="memberInfo">Member to inspect.</param>
+        /// <returns>True when the member should participate in nested authored-object deserializer generation.</returns>
+        static bool IsSerializableMember(MemberInfo memberInfo) {
+            if (memberInfo.IsDefined(typeof(ScenePersistenceIgnoreAttribute), false)) {
+                return false;
+            }
+
+            if (memberInfo is PropertyInfo propertyInfo) {
+                if (propertyInfo.GetMethod == null || !propertyInfo.GetMethod.IsPublic) {
+                    return false;
+                }
+                if (propertyInfo.SetMethod == null || !propertyInfo.SetMethod.IsPublic) {
+                    return false;
+                }
+                if (propertyInfo.GetIndexParameters().Length != 0) {
+                    return false;
+                }
+
+                return true;
+            }
+            if (memberInfo is FieldInfo fieldInfo) {
+                if (!fieldInfo.IsPublic || fieldInfo.IsStatic || fieldInfo.IsInitOnly) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Gets the runtime value type stored by one writable reflected member.
+        /// </summary>
+        /// <param name="memberInfo">Writable public instance member whose value type should be returned.</param>
+        /// <returns>Runtime value type stored by the member.</returns>
+        static Type GetSerializableMemberType(MemberInfo memberInfo) {
+            if (memberInfo is PropertyInfo propertyInfo) {
+                return propertyInfo.PropertyType;
+            }
+            if (memberInfo is FieldInfo fieldInfo) {
+                return fieldInfo.FieldType;
+            }
+
+            throw new InvalidOperationException($"Reflected member '{memberInfo?.Name}' is not a supported property or field.");
+        }
+
+        /// <summary>
+        /// Builds the generated native assignment target for one nested authored-object member.
+        /// </summary>
+        /// <param name="memberInfo">Writable reflected member that should receive the decoded runtime value.</param>
+        /// <returns>Generated native assignment target.</returns>
+        static string BuildNativeMemberAssignmentTarget(MemberInfo memberInfo) {
+            if (memberInfo == null) {
+                throw new ArgumentNullException(nameof(memberInfo));
+            }
+
+            return memberInfo is PropertyInfo
+                ? "set_" + memberInfo.Name
+                : memberInfo.Name;
         }
 
         /// <summary>

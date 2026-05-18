@@ -262,7 +262,12 @@ namespace helengine {
                 FlushReleasedTextures();
             }
 
-            SceneLoading?.Invoke(this, new SceneLoadingEventArgs(sceneId, sceneContentPath));
+            SceneLoadingEventArgs sceneLoadingEventArgs = new SceneLoadingEventArgs(sceneId, sceneContentPath);
+            try {
+                SceneLoading?.Invoke(this, sceneLoadingEventArgs);
+            } finally {
+                NativeOwnership.Delete(sceneLoadingEventArgs);
+            }
             RecordTraceState("LoadSceneImmediateBeforeContentLoad", sceneId);
             SceneAsset sceneAsset = ContentManager.Load<SceneAsset>(sceneContentPath, RuntimeContentProcessorIds.SceneAsset);
             try {
@@ -276,10 +281,15 @@ namespace helengine {
                     LoadedSceneRecords.Add(loadedSceneRecord);
                     LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
                     RegisterOwnedAssets(loadedSceneRecord.OwnedAssets);
-                    SceneLoaded?.Invoke(this, new SceneLoadedEventArgs(
+                    SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(
                         loadedSceneRecord.SceneId,
                         loadedSceneRecord.CookedRelativePath,
-                        loadedSceneRecord.RootEntities));
+                        loadedSceneRecord.RootEntities);
+                    try {
+                        SceneLoaded?.Invoke(this, sceneLoadedEventArgs);
+                    } finally {
+                        NativeOwnership.Delete(sceneLoadedEventArgs);
+                    }
                     RecordTraceState("LoadSceneImmediateEnd", sceneId);
                 } finally {
                     NativeOwnership.Delete(loadResult);
@@ -315,10 +325,15 @@ namespace helengine {
                 throw new InvalidOperationException($"Runtime scene '{sceneId}' is not currently loaded.");
             }
 
-            SceneUnloading?.Invoke(this, new SceneUnloadingEventArgs(
+            SceneUnloadingEventArgs sceneUnloadingEventArgs = new SceneUnloadingEventArgs(
                 loadedSceneRecord.SceneId,
                 loadedSceneRecord.CookedRelativePath,
-                loadedSceneRecord.RootEntities));
+                loadedSceneRecord.RootEntities);
+            try {
+                SceneUnloading?.Invoke(this, sceneUnloadingEventArgs);
+            } finally {
+                NativeOwnership.Delete(sceneUnloadingEventArgs);
+            }
             RecordTraceState("UnloadSceneImmediateBeforeDisposeSceneRoots", loadedSceneRecord.SceneId);
             IReadOnlyList<Entity> releasedRootEntities = loadedSceneRecord.RootEntities;
             RuntimeSceneOwnedAssetSet releasedOwnedAssets = loadedSceneRecord.OwnedAssets;
@@ -326,9 +341,14 @@ namespace helengine {
             ReleaseOwnedAssets(releasedOwnedAssets);
             LoadedSceneRecordsById.Remove(loadedSceneRecord.SceneId);
             LoadedSceneRecords.Remove(loadedSceneRecord);
-            SceneUnloaded?.Invoke(this, new SceneUnloadedEventArgs(
+            SceneUnloadedEventArgs sceneUnloadedEventArgs = new SceneUnloadedEventArgs(
                 loadedSceneRecord.SceneId,
-                loadedSceneRecord.CookedRelativePath));
+                loadedSceneRecord.CookedRelativePath);
+            try {
+                SceneUnloaded?.Invoke(this, sceneUnloadedEventArgs);
+            } finally {
+                NativeOwnership.Delete(sceneUnloadedEventArgs);
+            }
             RecordTraceState("UnloadSceneImmediateEnd", loadedSceneRecord.SceneId);
             NativeOwnership.Delete(releasedRootEntities);
             NativeOwnership.Delete(releasedOwnedAssets.OwnedTextures);
@@ -905,6 +925,7 @@ namespace helengine {
             }
 
             Core.Instance.RenderManager3D.ReleaseModel(ownedAsset);
+            NativeOwnership.DisposeAndDelete(ownedAsset);
         }
 
         /// <summary>
@@ -920,6 +941,7 @@ namespace helengine {
             }
 
             Core.Instance.RenderManager3D.ReleaseMaterial(ownedAsset);
+            NativeOwnership.DisposeAndDelete(ownedAsset);
         }
 
         /// <summary>

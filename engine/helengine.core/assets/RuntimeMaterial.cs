@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Represents runtime material data that may either own concrete GPU resources directly or inherit from a parent material.
     /// </summary>
-    public class RuntimeMaterial : RuntimeData {
+    public class RuntimeMaterial : RuntimeData, IDisposable {
         /// <summary>
         /// Child materials that inherit layout and render-state values from this material.
         /// </summary>
@@ -11,14 +11,26 @@ namespace helengine {
         /// Parent material that this material inherits from, when this material acts as an override instance.
         /// </summary>
         RuntimeMaterial ParentMaterialValue;
+        /// <summary>
+        /// Resolved material layout that describes the bindings exposed by this material.
+        /// </summary>
+        MaterialLayout LayoutValue;
+        /// <summary>
+        /// Fixed-function render state applied while drawing this material.
+        /// </summary>
+        MaterialRenderState RenderStateValue;
+        /// <summary>
+        /// Property values bound to this material.
+        /// </summary>
+        MaterialPropertyBlock PropertiesValue;
 
         /// <summary>
         /// Initializes a new runtime material with an empty layout, default render state, and an empty property block.
         /// </summary>
         public RuntimeMaterial() {
-            Layout = MaterialLayout.Empty;
-            RenderState = new MaterialRenderState();
-            Properties = new MaterialPropertyBlock(Layout);
+            LayoutValue = MaterialLayout.Empty;
+            RenderStateValue = new MaterialRenderState();
+            PropertiesValue = new MaterialPropertyBlock(LayoutValue);
             ChildMaterialsValue = new List<RuntimeMaterial>();
             LightingModel = RuntimeMaterialLightingModel.Unlit;
             SupportsNormalMapping = false;
@@ -30,17 +42,26 @@ namespace helengine {
         /// <summary>
         /// Gets the resolved material layout that describes the shader bindings exposed by this material.
         /// </summary>
-        public MaterialLayout Layout { get; private set; }
+        public MaterialLayout Layout {
+            get => LayoutValue;
+            private set => LayoutValue = value;
+        }
 
         /// <summary>
         /// Gets the fixed-function render state used while drawing the material.
         /// </summary>
-        public MaterialRenderState RenderState { get; private set; }
+        public MaterialRenderState RenderState {
+            get => RenderStateValue;
+            private set => RenderStateValue = value;
+        }
 
         /// <summary>
         /// Gets the material-scoped property block that stores texture and constant-buffer values for the layout.
         /// </summary>
-        public MaterialPropertyBlock Properties { get; private set; }
+        public MaterialPropertyBlock Properties {
+            get => PropertiesValue;
+            private set => PropertiesValue = value;
+        }
 
         /// <summary>
         /// Gets or sets the lighting model expected by this runtime material.
@@ -71,6 +92,25 @@ namespace helengine {
         /// Gets the parent material whose layout, render state, and default values are inherited by this material.
         /// </summary>
         public RuntimeMaterial ParentMaterial => ParentMaterialValue;
+
+        /// <summary>
+        /// Releases runtime-material-owned native resources and nested containers.
+        /// </summary>
+        public virtual void Dispose() {
+            ParentMaterialValue = null;
+
+            if (OwnsLayout(LayoutValue)) {
+                NativeOwnership.DisposeAndDelete(LayoutValue);
+            }
+
+            LayoutValue = null;
+            NativeOwnership.Delete(RenderStateValue);
+            RenderStateValue = null;
+            NativeOwnership.DisposeAndDelete(PropertiesValue);
+            PropertiesValue = null;
+            ChildMaterialsValue.Clear();
+            NativeOwnership.Delete(ChildMaterialsValue);
+        }
 
         /// <summary>
         /// Replaces the resolved material layout and recreates the property block to match its bindings.
@@ -179,7 +219,9 @@ namespace helengine {
                 throw new InvalidOperationException("Parented runtime materials inherit their render state from the parent material.");
             }
 
+            MaterialRenderState previousRenderState = RenderState;
             RenderState = renderState.Clone();
+            NativeOwnership.Delete(previousRenderState);
             SynchronizeChildMaterials();
         }
 
@@ -213,6 +255,11 @@ namespace helengine {
             Properties = new MaterialPropertyBlock(layout);
             RestoreTextureBindings(previousLayout, previousProperties);
             RestoreConstantBufferBindings(previousLayout, previousProperties);
+            if (OwnsLayout(previousLayout)) {
+                NativeOwnership.DisposeAndDelete(previousLayout);
+            }
+
+            NativeOwnership.DisposeAndDelete(previousProperties);
         }
 
         /// <summary>
@@ -331,6 +378,23 @@ namespace helengine {
 
                 childMaterial.SynchronizeWithParentMaterial();
             }
+        }
+
+        /// <summary>
+        /// Determines whether this runtime material owns one resolved layout instance and may dispose it safely.
+        /// </summary>
+        /// <param name="layout">Layout instance to inspect.</param>
+        /// <returns>True when the layout is owned by this material; otherwise false.</returns>
+        bool OwnsLayout(MaterialLayout layout) {
+            if (layout == null) {
+                return false;
+            } else if (ReferenceEquals(layout, MaterialLayout.Empty)) {
+                return false;
+            } else if (ParentMaterialValue != null && ReferenceEquals(layout, ParentMaterialValue.Layout)) {
+                return false;
+            }
+
+            return true;
         }
     }
 }

@@ -157,6 +157,7 @@ namespace helengine.editor.tests {
         ComponentPersistenceRegistry CreateDemoMenuPersistenceRegistry() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             registry.Register(new CameraComponentPersistenceDescriptor());
+            registry.Register(new DebugComponentPersistenceDescriptor());
             registry.Register(new MenuComponentPersistenceDescriptor());
             registry.Register(new MenuPanelComponentPersistenceDescriptor());
             registry.Register(new MenuItemComponentPersistenceDescriptor());

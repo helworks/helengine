@@ -144,6 +144,12 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Writes a double-precision floating point value using the writer's endianness.
+        /// </summary>
+        /// <param name="value">Value to write.</param>
+        public abstract void WriteDouble(double value);
+
+        /// <summary>
         /// Writes a UTF-8 string prefixed by a 32-bit length.
         /// </summary>
         /// <param name="value">String value to write.</param>

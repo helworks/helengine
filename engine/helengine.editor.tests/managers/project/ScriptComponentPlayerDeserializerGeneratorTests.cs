@@ -40,6 +40,23 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures native runtime deserializer generation can emit nested array reader source for the planned memory-probe component shape.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsStepArray_EmitsNestedArrayReaderPath() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TestSceneMemoryProbeSerializableComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            Assert.True(generator.CanGenerateNativeDeserializer(schema));
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("ReadDouble()", source, StringComparison.Ordinal);
+            Assert.Contains("for (int32_t", source, StringComparison.Ordinal);
+            Assert.Contains("new ::TestSceneMemoryProbeSerializableStep()", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures generated native deserializer component-type accessors return constant string references so the interface contract matches generated const-reference string getters.
         /// </summary>
         [Fact]

@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public sealed class DemoDiscReturnToMenuRuntimeComponent : UpdateComponent {
         /// <summary>
+        /// Stable logical scene id requested by the return-to-menu flow before optional scene-map remapping.
+        /// </summary>
+        const string MainMenuSceneId = "DemoDiscMainMenu";
+
+        /// <summary>
         /// Performs per-frame input polling for the temporary return-to-menu bind.
         /// </summary>
         public override void Update() {
@@ -12,7 +17,8 @@ namespace helengine {
                 || WasGamepadReturnPressed(inputSystem);
 
             if (wasReturnPressed) {
-                Core.Instance.SceneManager.LoadScene(PlatformMenuSceneResolver.ResolveMainMenuSceneId(), SceneLoadMode.Single);
+                string resolvedSceneId = Core.Instance.SceneMapService.MapSceneId(MainMenuSceneId);
+                Core.Instance.SceneManager.LoadScene(resolvedSceneId, SceneLoadMode.Single);
             }
         }
 

@@ -31,17 +31,21 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             MeshComponentScenePayloadSerializer.Read(reader, out SceneAssetReference modelReference, out SceneAssetReference[] materialReferences, out byte renderOrder3D);
+            try {
+                MeshComponent meshComponent = new MeshComponent {
+                    RenderOrder3D = renderOrder3D
+                };
 
-            MeshComponent meshComponent = new MeshComponent {
-                RenderOrder3D = renderOrder3D
-            };
+                if (modelReference != null) {
+                    meshComponent.Model = referenceResolver.ResolveModel(modelReference);
+                }
 
-            if (modelReference != null) {
-                meshComponent.Model = referenceResolver.ResolveModel(modelReference);
+                meshComponent.SetMaterials(ResolveMaterials(materialReferences, referenceResolver));
+                return meshComponent;
+            } finally {
+                NativeOwnership.Delete(modelReference);
+                NativeOwnership.DeleteItemsAndRelease(ref materialReferences);
             }
-
-            meshComponent.SetMaterials(ResolveMaterials(materialReferences, referenceResolver));
-            return meshComponent;
         }
 
         /// <summary>

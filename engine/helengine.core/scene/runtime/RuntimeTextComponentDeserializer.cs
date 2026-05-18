@@ -33,28 +33,32 @@ namespace helengine {
 
             referenceResolver.LastTextLoadStage = "BeforeReadFontReference";
             SceneAssetReference fontReference = ReadOptionalReference(reader);
-            referenceResolver.LastTextLoadStage = "AfterReadFontReference";
-            referenceResolver.LastTextFontRelativePath = fontReference != null ? fontReference.RelativePath : string.Empty;
-            referenceResolver.LastTextLoadStage = "BeforeConstructTextComponent";
-            TextComponent textComponent = new TextComponent {
-                Text = reader.ReadString(),
-                WrapText = reader.ReadByte() != 0,
-                Size = reader.ReadInt2(),
-                Color = ReadByte4(reader),
-                SourceRect = reader.ReadFloat4(),
-                Rotation = reader.ReadSingle(),
-                RenderOrder2D = reader.ReadByte(),
-                LayerMask = reader.ReadByte(),
-                SelectionEnabled = reader.ReadByte() != 0
-            };
-            if (fontReference == null) {
-                throw new InvalidOperationException("TextComponent requires a packaged font reference before deserialization.");
-            }
+            try {
+                referenceResolver.LastTextLoadStage = "AfterReadFontReference";
+                referenceResolver.LastTextFontRelativePath = fontReference != null ? fontReference.RelativePath : string.Empty;
+                referenceResolver.LastTextLoadStage = "BeforeConstructTextComponent";
+                TextComponent textComponent = new TextComponent {
+                    Text = reader.ReadString(),
+                    WrapText = reader.ReadByte() != 0,
+                    Size = reader.ReadInt2(),
+                    Color = ReadByte4(reader),
+                    SourceRect = reader.ReadFloat4(),
+                    Rotation = reader.ReadSingle(),
+                    RenderOrder2D = reader.ReadByte(),
+                    LayerMask = reader.ReadByte(),
+                    SelectionEnabled = reader.ReadByte() != 0
+                };
+                if (fontReference == null) {
+                    throw new InvalidOperationException("TextComponent requires a packaged font reference before deserialization.");
+                }
 
-            referenceResolver.LastTextLoadStage = "BeforeResolveFont";
-            textComponent.Font = referenceResolver.ResolveFont(fontReference);
-            referenceResolver.LastTextLoadStage = "AfterResolveFont";
-            return textComponent;
+                referenceResolver.LastTextLoadStage = "BeforeResolveFont";
+                textComponent.Font = referenceResolver.ResolveFont(fontReference);
+                referenceResolver.LastTextLoadStage = "AfterResolveFont";
+                return textComponent;
+            } finally {
+                NativeOwnership.Delete(fontReference);
+            }
         }
 
         /// <summary>

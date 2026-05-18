@@ -43,11 +43,6 @@ namespace helengine.editor {
         readonly RoundedRectComponentPersistenceDescriptor RoundedRectDescriptor;
 
         /// <summary>
-        /// Descriptor used to serialize the debug overlay component.
-        /// </summary>
-        readonly DebugComponentPersistenceDescriptor DebugDescriptor;
-
-        /// <summary>
         /// Descriptor used to serialize automatic reflected component payloads such as clip and scroll metadata.
         /// </summary>
         readonly AutomaticScriptComponentPersistenceDescriptor AutomaticDescriptor;
@@ -73,7 +68,6 @@ namespace helengine.editor {
             TextDescriptor = new TextComponentPersistenceDescriptor();
             SpriteDescriptor = new SpriteComponentPersistenceDescriptor();
             RoundedRectDescriptor = new RoundedRectComponentPersistenceDescriptor();
-            DebugDescriptor = new DebugComponentPersistenceDescriptor();
             AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             PlaceholderFont = new FontAsset(
                 new FontInfo("Placeholder", 16, 4f),
@@ -242,9 +236,7 @@ namespace helengine.editor {
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
-                Components = new[] {
-                    CreateDebugComponentRecord(definition.BodyFontPath)
-                },
+                Components = Array.Empty<SceneComponentAssetRecord>(),
                 Children = children.ToArray()
             };
         }
@@ -612,20 +604,6 @@ namespace helengine.editor {
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, BuildFileFontReference(fontPath));
             return TextDescriptor.SerializeComponent(textComponent, 0, saveState);
-        }
-
-        /// <summary>
-        /// Serializes the menu-scene debug overlay using the authored body font reference.
-        /// </summary>
-        /// <param name="fontPath">Project-relative font path used by the overlay.</param>
-        /// <returns>Serialized debug overlay component record.</returns>
-        SceneComponentAssetRecord CreateDebugComponentRecord(string fontPath) {
-            DebugComponent debugComponent = new DebugComponent {
-                Font = PlaceholderFont
-            };
-            EntityComponentSaveState saveState = new EntityComponentSaveState();
-            saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, BuildFileFontReference(fontPath));
-            return DebugDescriptor.SerializeComponent(debugComponent, 3, saveState);
         }
 
         /// <summary>

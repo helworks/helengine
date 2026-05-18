@@ -24,6 +24,11 @@ namespace helengine {
         Entity UpdateRowHost;
 
         /// <summary>
+        /// Lifetime sentinel attached to the overlay root so stale cached references are cleared when the overlay subtree is disposed externally.
+        /// </summary>
+        FPSComponentOverlayLifetimeComponent OverlayLifetimeComponent;
+
+        /// <summary>
         /// Child entity that hosts the render-FPS text component.
         /// </summary>
         Entity RenderRowHost;
@@ -196,6 +201,10 @@ namespace helengine {
                 return;
             }
 
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+            }
+
             if (Font == null) {
                 TearDownOverlay();
                 return;
@@ -240,6 +249,8 @@ namespace helengine {
             OverlayHost.InitChildren();
             OverlayHost.InitComponents();
             Parent.AddChild(OverlayHost);
+            OverlayLifetimeComponent = new FPSComponentOverlayLifetimeComponent(this);
+            OverlayHost.AddComponent(OverlayLifetimeComponent);
 
             UpdateRowHost = new Entity();
             UpdateRowHost.LayerMask = Parent.LayerMask;
@@ -272,12 +283,20 @@ namespace helengine {
         /// Removes the overlay hierarchy and unregisters the component from frame sampling.
         /// </summary>
         void TearDownOverlay() {
-            ActiveComponents.Remove(this);
-            if (OverlayHost != null) {
-                OverlayHost.Dispose();
+            Entity overlayHost = OverlayHost;
+            ReleaseOverlayReferences();
+            if (overlayHost != null) {
+                overlayHost.Dispose();
             }
+        }
 
+        /// <summary>
+        /// Clears the cached overlay hierarchy references without attempting to dispose the overlay root.
+        /// </summary>
+        void ReleaseOverlayReferences() {
+            ActiveComponents.Remove(this);
             OverlayHost = null;
+            OverlayLifetimeComponent = null;
             UpdateRowHost = null;
             RenderRowHost = null;
             UpdateTextComponent = null;
@@ -313,6 +332,11 @@ namespace helengine {
         /// Applies the configured padding to the overlay root.
         /// </summary>
         void ApplyPadding() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             if (OverlayHost == null) {
                 return;
             }
@@ -324,6 +348,11 @@ namespace helengine {
         /// Applies the configured render order to the overlay text rows.
         /// </summary>
         void ApplyRenderOrder() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.RenderOrder2D = RenderOrder2D;
             }
@@ -337,6 +366,11 @@ namespace helengine {
         /// Applies the configured font to both overlay text rows and repositions the second line.
         /// </summary>
         void ApplyFont() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Font = Font;
             }
@@ -354,6 +388,10 @@ namespace helengine {
         /// Resets the current sampling window and restores the placeholder text.
         /// </summary>
         void ResetSamplingWindow() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+            }
+
             UpdateFrameCount = 0;
             RenderFrameCount = 0;
             Core core = Core.Instance;
@@ -383,6 +421,11 @@ namespace helengine {
                 return;
             }
 
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             Core core = Core.Instance;
             if (core == null) {
                 return;
@@ -404,6 +447,11 @@ namespace helengine {
         /// Formats the latest FPS values once the configured refresh interval has elapsed.
         /// </summary>
         void TryRefreshOverlay() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             Core core = Core.Instance;
             double elapsedSeconds = core.TotalElapsedSeconds - LastSampleElapsedSeconds;
             if (refreshIntervalSeconds > 0d && elapsedSeconds < refreshIntervalSeconds) {
@@ -646,6 +694,42 @@ namespace helengine {
             }
 
             return FormatRenderFpsText(renderFps, drawMilliseconds);
+        }
+
+        /// <summary>
+        /// Returns whether the cached overlay entity hierarchy is still attached exactly where the component expects it to be.
+        /// </summary>
+        /// <returns>True when the cached row hosts and text components are still live and parented correctly.</returns>
+        bool EnsureOverlayHierarchyIsLive() {
+            if (!Initialized) {
+                return false;
+            }
+
+            return OverlayHost != null
+                && OverlayHost.Parent == Parent
+                && IsLiveRow(UpdateRowHost, OverlayHost, UpdateTextComponent)
+                && IsLiveRow(RenderRowHost, OverlayHost, RenderTextComponent);
+        }
+
+        /// <summary>
+        /// Returns whether one cached overlay row host and text component pair is still attached to the expected overlay hierarchy.
+        /// </summary>
+        /// <param name="rowHost">Cached row host entity.</param>
+        /// <param name="overlayHost">Cached overlay root entity.</param>
+        /// <param name="textComponent">Cached text component attached to the row host.</param>
+        /// <returns>True when the row host and text component are still parented to the expected live owners.</returns>
+        bool IsLiveRow(Entity rowHost, Entity overlayHost, TextComponent textComponent) {
+            return rowHost != null
+                && rowHost.Parent == overlayHost
+                && textComponent != null
+                && textComponent.Parent == rowHost;
+        }
+
+        /// <summary>
+        /// Clears cached overlay references when the overlay-host subtree is being removed externally during parent-driven disposal.
+        /// </summary>
+        internal void ReleaseOverlayReferencesFromDisposedHierarchy() {
+            ReleaseOverlayReferences();
         }
     }
 }

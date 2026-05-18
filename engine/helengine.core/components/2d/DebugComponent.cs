@@ -24,6 +24,11 @@ namespace helengine {
         Entity OverlayHost;
 
         /// <summary>
+        /// Lifetime sentinel attached to the overlay root so stale cached references are cleared before native deletion completes.
+        /// </summary>
+        DebugComponentOverlayLifetimeComponent OverlayLifetimeComponent;
+
+        /// <summary>
         /// Child entity that hosts the render-FPS text row.
         /// </summary>
         Entity RenderFpsRowHost;
@@ -89,6 +94,11 @@ namespace helengine {
         bool Initialized;
 
         /// <summary>
+        /// Reusable scalar memory counters captured during steady-state overlay refreshes.
+        /// </summary>
+        RuntimeMemoryCounters MemoryCountersValue;
+
+        /// <summary>
         /// Stores the current refresh interval.
         /// </summary>
         double RefreshIntervalSecondsValue = 0.5d;
@@ -107,6 +117,7 @@ namespace helengine {
         /// Initializes a new debug overlay with no implicit font fallback.
         /// </summary>
         public DebugComponent() {
+            MemoryCountersValue = new RuntimeMemoryCounters();
             ResetSamplingWindow();
         }
 
@@ -209,6 +220,8 @@ namespace helengine {
         /// <param name="entity">Owning entity.</param>
         public override void ComponentRemoved(Entity entity) {
             TearDownOverlay();
+            NativeOwnership.Delete(MemoryCountersValue);
+            MemoryCountersValue = null;
             base.ComponentRemoved(entity);
         }
 
@@ -251,6 +264,10 @@ namespace helengine {
         void RefreshOverlayActivation() {
             if (Parent == null) {
                 return;
+            }
+
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
             }
 
             if (Font == null) {
@@ -298,6 +315,8 @@ namespace helengine {
             OverlayHost.InitChildren();
             OverlayHost.InitComponents();
             Parent.AddChild(OverlayHost);
+            OverlayLifetimeComponent = new DebugComponentOverlayLifetimeComponent(this);
+            OverlayHost.AddComponent(OverlayLifetimeComponent);
 
             RenderFpsRowHost = CreateRowHost();
             RenderFpsTextComponent = CreateRowTextComponent(RenderFpsRowHost);
@@ -353,12 +372,20 @@ namespace helengine {
         /// Removes the overlay hierarchy and unregisters the component from shared tracking.
         /// </summary>
         void TearDownOverlay() {
-            ActiveComponents.Remove(this);
-            if (OverlayHost != null) {
-                OverlayHost.Dispose();
+            Entity overlayHost = OverlayHost;
+            ReleaseOverlayReferences();
+            if (overlayHost != null) {
+                overlayHost.Dispose();
             }
+        }
 
+        /// <summary>
+        /// Clears the cached overlay hierarchy references without attempting to dispose the overlay root.
+        /// </summary>
+        void ReleaseOverlayReferences() {
+            ActiveComponents.Remove(this);
             OverlayHost = null;
+            OverlayLifetimeComponent = null;
             RenderFpsRowHost = null;
             ResidentMemoryRowHost = null;
             CommittedMemoryRowHost = null;
@@ -376,6 +403,11 @@ namespace helengine {
         /// Applies the configured font to every overlay row and positions each row beneath the previous one.
         /// </summary>
         void ApplyFont() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             if (RenderFpsTextComponent != null) {
                 RenderFpsTextComponent.Font = Font;
             }
@@ -410,6 +442,11 @@ namespace helengine {
         /// Applies the configured padding to the overlay root.
         /// </summary>
         void ApplyPadding() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             if (OverlayHost == null) {
                 return;
             }
@@ -421,6 +458,11 @@ namespace helengine {
         /// Applies the configured render order to every overlay row.
         /// </summary>
         void ApplyRenderOrder() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             if (RenderFpsTextComponent != null) {
                 RenderFpsTextComponent.RenderOrder2D = RenderOrder2D;
             }
@@ -456,6 +498,11 @@ namespace helengine {
         /// Pushes the current row text into the live overlay text components.
         /// </summary>
         void ApplyVisibleText() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             if (RenderFpsTextComponent != null) {
                 RenderFpsTextComponent.Text = RenderFpsText;
             }
@@ -477,23 +524,29 @@ namespace helengine {
         /// Formats the five overlay rows from the latest sampled runtime metrics.
         /// </summary>
         void TryRefreshOverlay() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
             Core core = Core.Instance ?? throw new InvalidOperationException("DebugComponent requires an active Core instance.");
             double elapsedSeconds = core.TotalElapsedSeconds - LastSampleElapsedSeconds;
             if (RefreshIntervalSeconds > 0d && elapsedSeconds < RefreshIntervalSeconds) {
                 return;
             }
 
-            RuntimeMemoryDiagnosticsSnapshot memorySnapshot = null;
+            RuntimeMemoryCounters memoryCounters = null;
             if (core.InitializationOptions.RuntimeDiagnosticsProvider != null) {
-                memorySnapshot = core.RuntimeDiagnosticsService.CaptureSnapshot();
+                memoryCounters = MemoryCountersValue ?? throw new InvalidOperationException("DebugComponent requires reusable memory counters while attached.");
+                core.RuntimeDiagnosticsService.CaptureMemoryCounters(memoryCounters);
             }
 
             double safeElapsedSeconds = elapsedSeconds <= 0d ? 1d : elapsedSeconds;
             double renderFps = RenderFrameCount / safeElapsedSeconds;
 
             RenderFpsText = "Render FPS: " + FormatOneDecimal(renderFps);
-            ResidentMemoryText = ResolveResidentMemoryText(memorySnapshot);
-            CommittedMemoryText = ResolveCommittedMemoryText(memorySnapshot);
+            ResidentMemoryText = ResolveResidentMemoryText(memoryCounters);
+            CommittedMemoryText = ResolveCommittedMemoryText(memoryCounters);
             Drawables2DText = "Drawables 2D: " + core.ObjectManager.Drawables2D.Count;
             Drawables3DText = "Drawables 3D: " + core.ObjectManager.Drawables3D.Count + " DrawCalls: " + core.LastRenderManager3DDrawCallCount;
             ApplyVisibleText();
@@ -505,27 +558,27 @@ namespace helengine {
         /// <summary>
         /// Formats one resident-memory row from the latest runtime snapshot.
         /// </summary>
-        /// <param name="memorySnapshot">Captured snapshot used by the current overlay refresh.</param>
+        /// <param name="memoryCounters">Captured counters used by the current overlay refresh.</param>
         /// <returns>Formatted resident-memory row or a placeholder when no provider is active.</returns>
-        string ResolveResidentMemoryText(RuntimeMemoryDiagnosticsSnapshot memorySnapshot) {
-            if (memorySnapshot == null) {
+        string ResolveResidentMemoryText(RuntimeMemoryCounters memoryCounters) {
+            if (memoryCounters == null) {
                 return "Memory Res: --";
             }
 
-            return "Memory Res: " + FormatMegabytes(memorySnapshot.ResidentBytes);
+            return "Memory Res: " + FormatMegabytes(memoryCounters.ResidentBytes);
         }
 
         /// <summary>
         /// Formats one committed-memory row from the latest runtime snapshot.
         /// </summary>
-        /// <param name="memorySnapshot">Captured snapshot used by the current overlay refresh.</param>
+        /// <param name="memoryCounters">Captured counters used by the current overlay refresh.</param>
         /// <returns>Formatted committed-memory row or a placeholder when no provider is active.</returns>
-        string ResolveCommittedMemoryText(RuntimeMemoryDiagnosticsSnapshot memorySnapshot) {
-            if (memorySnapshot == null) {
+        string ResolveCommittedMemoryText(RuntimeMemoryCounters memoryCounters) {
+            if (memoryCounters == null) {
                 return "Memory Com: --";
             }
 
-            return "Memory Com: " + FormatMegabytes(memorySnapshot.CommittedBytes);
+            return "Memory Com: " + FormatMegabytes(memoryCounters.CommittedBytes);
         }
 
         /// <summary>
@@ -548,6 +601,45 @@ namespace helengine {
             int whole = tenths / 10;
             int fractional = Math.Abs(tenths % 10);
             return whole + "." + fractional;
+        }
+
+        /// <summary>
+        /// Returns whether the cached overlay entity hierarchy is still attached exactly where the component expects it to be.
+        /// </summary>
+        /// <returns>True when the cached overlay row hosts and text components are still live and parented correctly.</returns>
+        bool EnsureOverlayHierarchyIsLive() {
+            if (!Initialized) {
+                return false;
+            }
+
+            return OverlayHost != null
+                && OverlayHost.Parent == Parent
+                && IsLiveRow(RenderFpsRowHost, OverlayHost, RenderFpsTextComponent)
+                && IsLiveRow(ResidentMemoryRowHost, OverlayHost, ResidentMemoryTextComponent)
+                && IsLiveRow(CommittedMemoryRowHost, OverlayHost, CommittedMemoryTextComponent)
+                && IsLiveRow(Drawables2DRowHost, OverlayHost, Drawables2DTextComponent)
+                && IsLiveRow(Drawables3DRowHost, OverlayHost, Drawables3DTextComponent);
+        }
+
+        /// <summary>
+        /// Returns whether one cached overlay row host and text component pair is still attached to the expected overlay hierarchy.
+        /// </summary>
+        /// <param name="rowHost">Cached row host entity.</param>
+        /// <param name="overlayHost">Cached overlay root entity.</param>
+        /// <param name="textComponent">Cached text component attached to the row host.</param>
+        /// <returns>True when the row host and text component are still parented to the expected live owners.</returns>
+        bool IsLiveRow(Entity rowHost, Entity overlayHost, TextComponent textComponent) {
+            return rowHost != null
+                && rowHost.Parent == overlayHost
+                && textComponent != null
+                && textComponent.Parent == rowHost;
+        }
+
+        /// <summary>
+        /// Clears cached overlay references when the overlay-host subtree is being removed externally during parent-driven disposal.
+        /// </summary>
+        internal void ReleaseOverlayReferencesFromDisposedHierarchy() {
+            ReleaseOverlayReferences();
         }
     }
 }

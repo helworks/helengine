@@ -59,5 +59,15 @@ namespace helengine {
             BaseStream.Write(buffer);
         }
 
+        /// <summary>
+        /// Writes a double-precision floating point value in little-endian order.
+        /// </summary>
+        /// <param name="value">Value to write.</param>
+        public override void WriteDouble(double value) {
+            Span<byte> buffer = stackalloc byte[sizeof(double)];
+            BinaryPrimitives.WriteDoubleLittleEndian(buffer, value);
+            BaseStream.Write(buffer);
+        }
+
     }
 }

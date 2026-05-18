@@ -2,18 +2,26 @@ namespace helengine {
     /// <summary>
     /// Represents a GPU-resident model resource.
     /// </summary>
-    public abstract class RuntimeModel : RuntimeData {
+    public abstract class RuntimeModel : RuntimeData, IDisposable {
         /// <summary>
         /// Initializes a new runtime model with an empty submesh collection.
         /// </summary>
         protected RuntimeModel() {
-            Submeshes = Array.Empty<RuntimeSubmesh>();
+            SubmeshesValue = Array.Empty<RuntimeSubmesh>();
         }
+
+        /// <summary>
+        /// Runtime submesh draw ranges exposed by this model resource.
+        /// </summary>
+        RuntimeSubmesh[] SubmeshesValue;
 
         /// <summary>
         /// Gets the runtime submesh draw ranges exposed by the model resource.
         /// </summary>
-        public RuntimeSubmesh[] Submeshes { get; private set; }
+        public RuntimeSubmesh[] Submeshes {
+            get => SubmeshesValue;
+            private set => SubmeshesValue = value;
+        }
 
         /// <summary>
         /// Gets the minimum vertex position observed when the runtime model was built.
@@ -24,6 +32,17 @@ namespace helengine {
         /// Gets the maximum vertex position observed when the runtime model was built.
         /// </summary>
         public float3 BoundsMax { get; private set; }
+
+        /// <summary>
+        /// Releases model-owned submesh containers that native builds cannot reclaim through the top-level object delete alone.
+        /// </summary>
+        public virtual void Dispose() {
+            if (!ReferenceEquals(SubmeshesValue, Array.Empty<RuntimeSubmesh>())) {
+                NativeOwnership.DeleteItemsAndRelease(ref SubmeshesValue);
+            }
+
+            SubmeshesValue = null;
+        }
 
         /// <summary>
         /// Replaces the runtime submesh collection exposed by the model resource.

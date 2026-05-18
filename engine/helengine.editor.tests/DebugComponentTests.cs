@@ -66,6 +66,67 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures steady-state overlay refreshes do not rely on the allocating full diagnostics snapshot path.
+        /// </summary>
+        [Fact]
+        public void Update_WhenRefreshIntervalElapses_DoesNotUseFullDiagnosticsSnapshotCapturePath() {
+            RuntimeMemoryDiagnosticsSnapshot snapshot = new RuntimeMemoryDiagnosticsSnapshot {
+                ResidentBytes = 1024u,
+                CommittedBytes = 2048u
+            };
+            FakeRuntimeDiagnosticsProvider provider = new FakeRuntimeDiagnosticsProvider(snapshot);
+            TestClockDrivenCore core = new TestClockDrivenCore(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath,
+                RuntimeDiagnosticsProvider = provider
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0.5d
+            };
+
+            entity.AddComponent(debug);
+
+            core.Update(0.6d);
+
+            Assert.Equal(0, provider.SnapshotCaptureCount);
+        }
+
+        /// <summary>
+        /// Ensures the debug overlay tears down stale child references when the overlay subtree is disposed before the owning component receives its disable callback.
+        /// </summary>
+        [Fact]
+        public void ParentEnabledChange_WhenOverlaySubtreeWasDisposedExternally_TearsDownStaleOverlayReferences() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont()
+            };
+
+            entity.AddComponent(debug);
+
+            Entity overlayHost = Assert.IsType<Entity>(GetPrivateFieldValue(debug, "OverlayHost"));
+            overlayHost.Dispose();
+
+            debug.ParentEnabledChange(false);
+
+            Assert.False((bool)GetPrivateFieldValue(debug, "Initialized"));
+            Assert.Null(GetPrivateFieldValue(debug, "OverlayHost"));
+            Assert.Null(GetPrivateFieldValue(debug, "RenderFpsTextComponent"));
+            Assert.Null(GetPrivateFieldValue(debug, "ResidentMemoryTextComponent"));
+            Assert.Null(GetPrivateFieldValue(debug, "CommittedMemoryTextComponent"));
+            Assert.Null(GetPrivateFieldValue(debug, "Drawables2DTextComponent"));
+            Assert.Null(GetPrivateFieldValue(debug, "Drawables3DTextComponent"));
+        }
+
+        /// <summary>
         /// Creates one runtime font asset with glyph metrics that cover the debug overlay text set.
         /// </summary>
         /// <returns>Font asset suitable for overlay-component tests.</returns>
@@ -119,6 +180,32 @@ namespace helengine.editor.tests {
                 24f,
                 64,
                 64);
+        }
+
+        /// <summary>
+        /// Reads one private instance field value from the supplied test subject.
+        /// </summary>
+        /// <param name="target">Object that owns the requested field.</param>
+        /// <param name="fieldName">Exact private field name to read.</param>
+        /// <returns>Current field value.</returns>
+        static object GetPrivateFieldValue(object target, string fieldName) {
+            if (target == null) {
+                throw new ArgumentNullException(nameof(target));
+            } else if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+
+            Type currentType = target.GetType();
+            while (currentType != null) {
+                var field = currentType.GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (field != null) {
+                    return field.GetValue(target);
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            throw new InvalidOperationException($"Field '{fieldName}' was not found on type '{target.GetType().FullName}'.");
         }
     }
 }

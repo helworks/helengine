@@ -51,11 +51,49 @@ namespace helengine {
                 snapshot = new RuntimeMemoryDiagnosticsSnapshot();
             }
 
-            snapshot.TrackedSceneIds = RuntimeSceneManager != null
-                ? RuntimeSceneManager.GetLoadedSceneIds()
-                : new List<string>();
+            List<string> trackedSceneIds = snapshot.TrackedSceneIds ?? new List<string>();
+            trackedSceneIds.Clear();
+            if (RuntimeSceneManager != null) {
+                List<string> loadedSceneIds = RuntimeSceneManager.GetLoadedSceneIds();
+                for (int index = 0; index < loadedSceneIds.Count; index++) {
+                    trackedSceneIds.Add(loadedSceneIds[index]);
+                }
+
+                NativeOwnership.Delete(loadedSceneIds);
+            }
+
+            snapshot.TrackedSceneIds = trackedSceneIds;
             AppendEngineCollectionMetrics(snapshot);
             return snapshot;
+        }
+
+        /// <summary>
+        /// Captures reusable scalar memory counters without materializing the full diagnostics snapshot graph when the provider supports that path.
+        /// </summary>
+        /// <param name="counters">Reusable counter container that should receive the latest values.</param>
+        public void CaptureMemoryCounters(RuntimeMemoryCounters counters) {
+            if (counters == null) {
+                throw new ArgumentNullException(nameof(counters));
+            }
+
+            counters.Reset();
+            if (RuntimeDiagnosticsProvider is IRuntimeMemoryCounterProvider memoryCounterProvider) {
+                memoryCounterProvider.CaptureMemoryCounters(counters);
+                return;
+            }
+
+            if (RuntimeDiagnosticsProvider == null) {
+                return;
+            }
+
+            RuntimeMemoryDiagnosticsSnapshot snapshot = RuntimeDiagnosticsProvider.CaptureSnapshot();
+            try {
+                if (snapshot != null) {
+                    counters.CopyFromSnapshot(snapshot);
+                }
+            } finally {
+                NativeOwnership.DisposeAndDelete(snapshot);
+            }
         }
 
         /// <summary>

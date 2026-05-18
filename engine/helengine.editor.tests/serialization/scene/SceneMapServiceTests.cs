@@ -96,18 +96,78 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the demo-disc return-to-menu component loads the mapped scene id when one scene-map entry exists.
+        /// </summary>
+        [Fact]
+        public void Update_WhenReturnToMenuIsTriggeredAndMappingExists_LoadsMappedSceneId() {
+            WriteSceneAsset("cooked/scenes/DemoDiscMainMenu.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/DemoDiscMainMenuDs.hasset", 2u);
+
+            TestInputBackend inputBackend = new TestInputBackend();
+            inputBackend.Gamepads = new[] { CreatePressedGamepadState(InputGamepadButton.Select) };
+            inputBackend.GamepadCount = 1;
+
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("DemoDiscMainMenu", "cooked/scenes/DemoDiscMainMenu.hasset"),
+                new RuntimeSceneCatalogEntry("DemoDiscMainMenuDs", "cooked/scenes/DemoDiscMainMenuDs.hasset")), inputBackend);
+
+            SceneMapComponent sceneMapComponent = new SceneMapComponent();
+            sceneMapComponent.Mappings.Add("DemoDiscMainMenu", "DemoDiscMainMenuDs");
+            AddLoadedScene(core.SceneManager, "Scenes/Persistent.helen", CreateRootEntityWithComponent(sceneMapComponent));
+            CreateRootEntityWithComponent(new DemoDiscReturnToMenuRuntimeComponent());
+
+            core.Update(1d / 60d);
+
+            Assert.True(core.SceneManager.IsSceneLoaded("DemoDiscMainMenuDs"));
+            Assert.False(core.SceneManager.IsSceneLoaded("DemoDiscMainMenu"));
+        }
+
+        /// <summary>
+        /// Ensures the demo-disc return-to-menu component falls back to the original scene id when no mapping exists.
+        /// </summary>
+        [Fact]
+        public void Update_WhenReturnToMenuIsTriggeredAndNoMappingExists_LoadsOriginalSceneId() {
+            WriteSceneAsset("cooked/scenes/DemoDiscMainMenu.hasset", 1u);
+
+            TestInputBackend inputBackend = new TestInputBackend();
+            inputBackend.Gamepads = new[] { CreatePressedGamepadState(InputGamepadButton.Select) };
+            inputBackend.GamepadCount = 1;
+
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("DemoDiscMainMenu", "cooked/scenes/DemoDiscMainMenu.hasset")), inputBackend);
+
+            CreateRootEntityWithComponent(new DemoDiscReturnToMenuRuntimeComponent());
+
+            core.Update(1d / 60d);
+
+            Assert.True(core.SceneManager.IsSceneLoaded("DemoDiscMainMenu"));
+        }
+
+        /// <summary>
         /// Creates one initialized core rooted at the temporary content path.
         /// </summary>
+        /// <param name="sceneCatalog">Optional runtime scene catalog exposed to the core bootstrap path.</param>
+        /// <param name="inputBackend">Input backend supplying deterministic test input.</param>
         /// <returns>Initialized core instance for scene-map service tests.</returns>
-        Core CreateCore() {
+        Core CreateCore(RuntimeSceneCatalog sceneCatalog = null, TestInputBackend inputBackend = null) {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath,
+                SceneCatalog = sceneCatalog,
                 ScenePathResolver = new TestSceneIdPathResolver(new Dictionary<string, string>(StringComparer.Ordinal) {
                     { "Scenes/AuthoredMenu.helen", "Scenes/AuthoredMenu.helen" }
                 })
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), inputBackend ?? new TestInputBackend(), new PlatformInfo("test", "test-version"));
             return core;
+        }
+
+        /// <summary>
+        /// Creates one runtime scene catalog for the supplied entries.
+        /// </summary>
+        /// <param name="entries">Runtime scene entries that should be exposed to the core bootstrap path.</param>
+        /// <returns>Runtime scene catalog instance.</returns>
+        RuntimeSceneCatalog CreateSceneCatalog(params RuntimeSceneCatalogEntry[] entries) {
+            return new RuntimeSceneCatalog(entries);
         }
 
         /// <summary>
@@ -122,6 +182,46 @@ namespace helengine.editor.tests.serialization.scene {
             entity.AddComponent(component);
             entity.InitializeHierarchy();
             return entity;
+        }
+
+        /// <summary>
+        /// Creates one connected gamepad state with a single pressed button.
+        /// </summary>
+        /// <param name="button">Gamepad button that should report as down.</param>
+        /// <returns>Configured connected gamepad state.</returns>
+        InputGamepadState CreatePressedGamepadState(InputGamepadButton button) {
+            InputGamepadState state = new InputGamepadState {
+                Connected = true
+            };
+            state.SetButtonDown(button, true);
+            return state;
+        }
+
+        /// <summary>
+        /// Writes one packaged scene asset into the temporary content root.
+        /// </summary>
+        /// <param name="relativePath">Content-relative packaged scene path.</param>
+        /// <param name="rootEntityId">Stable root entity identifier to persist.</param>
+        void WriteSceneAsset(string relativePath, uint rootEntityId) {
+            string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = relativePath,
+                SceneSettings = new SceneSettingsAsset {
+                    CanvasProfile = new SceneCanvasProfile()
+                },
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = rootEntityId,
+                        Name = "Entity" + rootEntityId.ToString(),
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, sceneAsset);
         }
 
         /// <summary>

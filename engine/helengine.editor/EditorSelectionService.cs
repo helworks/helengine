@@ -40,6 +40,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Clears the current selection and removes all subscribers between tests or editor shutdown.
+        /// </summary>
+        public static void Reset() {
+            SelectedEntityValue = null;
+            SelectionChanged = null;
+        }
+
+        /// <summary>
         /// Raises the selection changed event.
         /// </summary>
         /// <param name="args">Selection change data.</param>

@@ -210,7 +210,7 @@ namespace helengine.vulkan {
         /// <summary>
         /// Releases Vulkan resources owned by this material.
         /// </summary>
-        public void Dispose() {
+        public override void Dispose() {
             if (Disposed) {
                 return;
             }
@@ -218,6 +218,7 @@ namespace helengine.vulkan {
             Disposed = true;
             DestroyPipeline();
             DestroyShaderModules();
+            base.Dispose();
         }
 
         /// <summary>

@@ -1320,6 +1320,98 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaged scene-memory probe components rewrite their authored step-array payload into one runtime payload that loads back through the default runtime registry.
+        /// </summary>
+        [Fact]
+        public void PackageBuild_WhenSceneContainsSceneMemoryProbeComponent_RewritesRuntimePayloadForStepArray() {
+            string sceneId = "Scenes/SceneMemoryProbeScene.helen";
+            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
+            SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
+                ProbeName = "menu-memory-probe",
+                Loop = true,
+                StartAutomatically = true,
+                InitialDelaySeconds = 2.0d,
+                Steps = new[] {
+                    new SceneMemoryProbeStep {
+                        ActionKind = SceneMemoryProbeActionKind.Wait,
+                        SceneId = string.Empty,
+                        DurationSeconds = 5.0d,
+                        Label = "idle-menu"
+                    },
+                    new SceneMemoryProbeStep {
+                        ActionKind = SceneMemoryProbeActionKind.LoadSceneSingle,
+                        SceneId = "Scenes/DemoDiscMainMenu.helen",
+                        DurationSeconds = 0d,
+                        Label = "load-menu"
+                    }
+                }
+            };
+            SceneComponentAssetRecord componentRecord = persistenceRegistry.GetDescriptor(component)
+                .SerializeComponent(component, 0, new EntityComponentSaveState());
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "ProbeRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            componentRecord
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition);
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+
+            using (MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false))
+            using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
+                Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+                Assert.Equal(6, reader.ReadInt32());
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            SceneMemoryProbeComponent loadedComponent = Assert.IsType<SceneMemoryProbeComponent>(
+                Assert.Single(loadedRoot.Components, loadedComponent => loadedComponent is SceneMemoryProbeComponent));
+
+            Assert.Equal("menu-memory-probe", loadedComponent.ProbeName);
+            Assert.True(loadedComponent.Loop);
+            Assert.True(loadedComponent.StartAutomatically);
+            Assert.Equal(2.0d, loadedComponent.InitialDelaySeconds);
+            Assert.Equal(2, loadedComponent.Steps.Length);
+            Assert.Equal(SceneMemoryProbeActionKind.Wait, loadedComponent.Steps[0].ActionKind);
+            Assert.Equal(5.0d, loadedComponent.Steps[0].DurationSeconds);
+            Assert.Equal(SceneMemoryProbeActionKind.LoadSceneSingle, loadedComponent.Steps[1].ActionKind);
+            Assert.Equal("Scenes/DemoDiscMainMenu.helen", loadedComponent.Steps[1].SceneId);
+            Assert.Equal("load-menu", loadedComponent.Steps[1].Label);
+        }
+
+        /// <summary>
         /// Ensures the Windows packager rewrites directional-shadow motion script components into built-in player component types.
         /// </summary>
         [Fact]

@@ -272,6 +272,36 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies cooked scenes that reference the real scene-memory probe component emit generated runtime deserializers that include nested step-array support.
+    /// </summary>
+    [Fact]
+    public void Regenerate_WhenCoreContainsSceneMemoryProbeComponent_EmitsGeneratedRuntimeDeserializerSupport() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-scene-memory-probe");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        string scenePath = CreateCookedScene(
+            "scene-memory-probe-scene.hasset",
+            AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SceneMemoryProbeComponent)));
+
+        EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            [scenePath],
+            null);
+
+        string headerPath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSceneMemoryProbeComponentDeserializer.hpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSceneMemoryProbeComponentDeserializer.cpp");
+        Assert.True(File.Exists(headerPath));
+        Assert.True(File.Exists(sourcePath));
+
+        string headerSource = File.ReadAllText(headerPath);
+        string source = File.ReadAllText(sourcePath);
+        Assert.Contains("SceneMemoryProbeComponent", headerSource, StringComparison.Ordinal);
+        Assert.Contains("SceneMemoryProbeStep", source, StringComparison.Ordinal);
+        Assert.Contains("ReadDouble()", source, StringComparison.Ordinal);
+        Assert.Contains("SceneMemoryProbeActionKind", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies scene-referenced compatibility component ids that already have built-in runtime deserializers do not emit duplicate generated registrations.
     /// </summary>
     [Fact]
@@ -347,8 +377,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies the end-state inventory where engine-side native ownership rewrites and registry patching have been removed completely.
-    /// </summary>
+     /// Verifies the end-state inventory where engine-side native ownership rewrites and registry patching have been removed completely.
+     /// </summary>
     [Fact]
     public void Generated_core_regeneration_service_contains_no_native_cpp_rewrite_inventory() {
         string sourcePath = Path.Combine(
