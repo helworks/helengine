@@ -38,5 +38,20 @@ namespace helengine.editor.tests.managers.project {
             Assert.Contains("component->set_Size(reader->ReadInt2());", source, StringComparison.Ordinal);
             Assert.Contains("int32_t GeneratedRuntimeClipRectComponentDeserializer::MemberCount = 1;", source, StringComparison.Ordinal);
         }
+
+        /// <summary>
+        /// Ensures generated native deserializer component-type accessors return constant string references so the interface contract matches generated const-reference string getters.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsClipRectComponent_EmitsConstReferenceComponentTypeGetter() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ClipRectComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("const std::string& get_ComponentTypeId();", header, StringComparison.Ordinal);
+            Assert.Contains("const std::string& GeneratedRuntimeClipRectComponentDeserializer::get_ComponentTypeId()", source, StringComparison.Ordinal);
+        }
     }
 }
