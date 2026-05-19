@@ -65,6 +65,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the component list delegates visible-row resolution to the scroll component using the current viewport height and row stride.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_UsesAutomaticVisibleRowResolutionFromScrollComponent() {
+            ComponentAddDialog dialog = new ComponentAddDialog(CreateFont());
+            EditorEntity targetEntity = new EditorEntity {
+                Name = "Cube"
+            };
+
+            dialog.Show(targetEntity);
+
+            ScrollComponent listScrollComponent = GetPrivateField<ScrollComponent>(dialog, "ListScrollComponent");
+            int rowStride = ComponentAddDialog.RowHeight + ComponentAddDialog.RowSpacing;
+            int expectedVisibleRowCount = Math.Max(1, (listScrollComponent.Size.Y + rowStride - 1) / rowStride);
+
+            Assert.True(listScrollComponent.UsesAutomaticVisibleItemCount);
+            Assert.Equal(expectedVisibleRowCount, listScrollComponent.VisibleItemCount);
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>

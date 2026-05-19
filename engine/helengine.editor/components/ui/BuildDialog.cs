@@ -1295,9 +1295,11 @@ namespace helengine.editor {
         /// </summary>
         void RebuildQueueRows() {
             int queueItemCount = CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count;
-            QueueScrollComponent.ItemCount = queueItemCount;
-            QueueScrollComponent.VisibleItemCount = GetQueueVisibleRowCount();
-            QueueScrollComponent.Size = new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight());
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                QueueScrollComponent,
+                new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight()),
+                GetQueueCardHeight(),
+                queueItemCount);
             QueueScrollComponent.ClampScrollOffset();
             EnsureQueueRowCount(QueueScrollComponent.VisibleItemCount);
             UpdateQueueRowsLayout();
@@ -1308,9 +1310,11 @@ namespace helengine.editor {
         /// </summary>
         void RebuildBuildLogs() {
             List<string> buildLogLines = BuildBuildLogLines();
-            BuildLogsScrollComponent.ItemCount = buildLogLines.Count;
-            BuildLogsScrollComponent.VisibleItemCount = GetBuildLogVisibleLineCount();
-            BuildLogsScrollComponent.Size = new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight());
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                BuildLogsScrollComponent,
+                new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight()),
+                GetBuildLogLineHeightPixels(),
+                buildLogLines.Count);
             BuildLogsScrollComponent.ClampScrollOffset();
             UpdateBuildLogsText(buildLogLines);
         }
@@ -1319,13 +1323,12 @@ namespace helengine.editor {
         /// Refreshes the visible scene rows after the scroll offset or active platform scene order changes.
         /// </summary>
         void UpdateSceneListRowsLayout() {
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                SceneListScrollComponent,
+                new int2(GetSceneListViewportWidth(), GetSceneListViewportHeight()),
+                GetSceneRowHeightPixels(),
+                DisplayedSceneIds.Count);
             int visibleRowCount = SceneListScrollComponent.VisibleItemCount;
-            if (SceneListScrollComponent.UsesAutomaticVisibleItemCount) {
-                visibleRowCount = GetSceneListVisibleRowCount();
-            }
-
-            SceneListScrollComponent.VisibleItemCount = visibleRowCount;
-            SceneListScrollComponent.Size = new int2(GetSceneListViewportWidth(), GetSceneListViewportHeight());
             EnsureSceneRowCount(visibleRowCount);
 
             MapLabelHosts.Clear();
@@ -1389,13 +1392,12 @@ namespace helengine.editor {
         /// </summary>
         void UpdateQueueRowsLayout() {
             int queueItemCount = CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count;
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                QueueScrollComponent,
+                new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight()),
+                GetQueueCardHeight(),
+                queueItemCount);
             int visibleRowCount = QueueScrollComponent.VisibleItemCount;
-            if (visibleRowCount < 1) {
-                visibleRowCount = GetQueueVisibleRowCount();
-            }
-
-            QueueScrollComponent.VisibleItemCount = visibleRowCount;
-            QueueScrollComponent.Size = new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight());
             EnsureQueueRowCount(visibleRowCount);
 
             QueueItemHosts.Clear();
@@ -1450,13 +1452,12 @@ namespace helengine.editor {
                 buildLogLines = BuildBuildLogLines();
             }
 
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                BuildLogsScrollComponent,
+                new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight()),
+                GetBuildLogLineHeightPixels(),
+                buildLogLines.Count);
             int visibleLineCount = BuildLogsScrollComponent.VisibleItemCount;
-            if (visibleLineCount < 1) {
-                visibleLineCount = GetBuildLogVisibleLineCount();
-            }
-
-            BuildLogsScrollComponent.VisibleItemCount = visibleLineCount;
-            BuildLogsScrollComponent.Size = new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight());
             BuildLogsText.Size = new int2(GetBuildLogsTextViewportWidth(), Math.Max(GetBuildLogLineHeightPixels(), GetBuildLogsTextViewportHeight()));
             BuildLogsText.Text = BuildBuildLogText(buildLogLines, BuildLogsScrollComponent.ScrollOffset, visibleLineCount);
         }
@@ -1575,8 +1576,11 @@ namespace helengine.editor {
             SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight + DialogMetrics.ScalePixels(1));
             SceneListItemsRoot.Position = new float3(0f, DialogMetrics.ScalePixels(1), 0f);
             UpdateSceneListContentViewport();
-            SceneListScrollComponent.VisibleItemCount = GetSceneListVisibleRowCount();
-            SceneListScrollComponent.Size = new int2(GetSceneListViewportWidth(), GetSceneListViewportHeight());
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                SceneListScrollComponent,
+                new int2(GetSceneListViewportWidth(), GetSceneListViewportHeight()),
+                GetSceneRowHeightPixels(),
+                DisplayedSceneIds.Count);
             SceneListScrollComponent.ClampScrollOffset();
             UpdateSceneListRowsLayout();
             CopySettingsButtonHost.Position = new float3(0f, copySettingsButtonY, 0.1f);
@@ -1686,8 +1690,11 @@ namespace helengine.editor {
             int queueRowsTopY = GetQueueHeaderHeightPixels() + GetQueueListPaddingPixels();
 
             QueueItemsRoot.Position = new float3(0f, queueRowsTopY, 0.1f);
-            QueueScrollComponent.Size = new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight());
-            QueueScrollComponent.VisibleItemCount = GetQueueVisibleRowCount();
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                QueueScrollComponent,
+                new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight()),
+                GetQueueCardHeight(),
+                CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count);
             UpdateQueueRowsLayout();
         }
 
@@ -1716,8 +1723,11 @@ namespace helengine.editor {
             BuildLogsProgressFill.Size = new int2(progressFillWidth, Math.Max(1, GetBuildLogsProgressBarHeightPixels() - (DialogMetrics.ScalePixels(1) * 2)));
 
             BuildLogsTextHost.Position = new float3(GetBuildLogsPaddingPixels(), logTextY, 0.1f);
-            BuildLogsScrollComponent.Size = new int2(GetBuildLogsTextViewportWidth(), logTextHeight);
-            BuildLogsScrollComponent.VisibleItemCount = GetBuildLogVisibleLineCount();
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                BuildLogsScrollComponent,
+                new int2(GetBuildLogsTextViewportWidth(), logTextHeight),
+                GetBuildLogLineHeightPixels(),
+                CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : BuildBuildLogLines().Count);
             UpdateBuildLogsText(null);
         }
 
@@ -2227,16 +2237,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Gets the number of visible scene rows that fit within the current scene-list viewport.
-        /// </summary>
-        /// <returns>Visible scene-row count.</returns>
-        int GetSceneListVisibleRowCount() {
-            int rowHeight = Math.Max(1, GetSceneRowHeightPixels());
-            int contentHeight = Math.Max(1, GetSceneListViewportHeight() - (GetSceneListPaddingPixels() * 2));
-            return Math.Max(1, (contentHeight + rowHeight - 1) / rowHeight);
-        }
-
-        /// <summary>
         /// Gets the local x offset used by visible scene labels inside each pooled row.
         /// </summary>
         /// <returns>Local x offset used by scene labels.</returns>
@@ -2349,14 +2349,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Gets the number of visible queue rows that fit within the current queue viewport.
-        /// </summary>
-        /// <returns>Visible queue row count.</returns>
-        int GetQueueVisibleRowCount() {
-            return Math.Max(1, GetQueueRowsViewportHeight() / Math.Max(1, GetQueueCardHeight()));
-        }
-
-        /// <summary>
         /// Gets the width available for the build-log text viewport.
         /// </summary>
         /// <returns>Width available for visible build-log lines.</returns>
@@ -2372,14 +2364,6 @@ namespace helengine.editor {
             int progressTrackY = GetBuildLogsPaddingPixels() + GetBuildLogsTitleHeightPixels() + DialogMetrics.ScalePixels(6);
             int logTextY = progressTrackY + GetBuildLogsProgressBarHeightPixels() + DialogMetrics.ScalePixels(10);
             return Math.Max(1, GetBuildLogsSectionHeightPixels() - logTextY - GetBuildLogsPaddingPixels());
-        }
-
-        /// <summary>
-        /// Gets the number of visible build-log lines that fit within the current build-log viewport.
-        /// </summary>
-        /// <returns>Visible build-log line count.</returns>
-        int GetBuildLogVisibleLineCount() {
-            return Math.Max(1, GetBuildLogsTextViewportHeight() / GetBuildLogLineHeightPixels());
         }
 
         /// <summary>
@@ -2631,15 +2615,6 @@ namespace helengine.editor {
             }
 
             return string.Join("\n", visibleLines);
-        }
-
-        /// <summary>
-        /// Builds the multiline log text shown in the dedicated build-log section.
-        /// </summary>
-        /// <returns>Queued-build status summary text.</returns>
-        string BuildBuildLogText() {
-            List<string> lines = BuildBuildLogLines();
-            return BuildBuildLogText(lines, 0, GetBuildLogVisibleLineCount());
         }
 
         /// <summary>

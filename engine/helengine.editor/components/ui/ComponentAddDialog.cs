@@ -442,10 +442,13 @@ namespace helengine.editor {
             int listHeight = Math.Max(0, footerTop - listTop - SectionSpacing);
             int rowStride = RowHeight + RowSpacing;
 
-            int visibleRowCount = Math.Max(1, rowStride == 0 ? 1 : (listHeight / rowStride));
-            ListScrollComponent.VisibleItemCount = visibleRowCount;
-            ListScrollComponent.Size = new int2(contentWidth, listHeight);
             RebuildFilteredDescriptors();
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                ListScrollComponent,
+                new int2(contentWidth, listHeight),
+                Math.Max(1, rowStride),
+                FilteredDescriptors.Count);
+            int visibleRowCount = ListScrollComponent.VisibleItemCount;
 
             ListHost.Position = new float3(PanelPadding, listTop, 0.2f);
             EmptyStateHost.Position = new float3(PanelPadding, listTop + SectionSpacing, 0.2f);

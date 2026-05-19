@@ -66,6 +66,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the logger rounds visible rows up when the viewport has enough remaining space to show part of the next row.
+        /// </summary>
+        [Fact]
+        public void FlushPendingEntries_WhenViewportHasPartialRemainingRow_RoundsVisibleRowsUp() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3", "row-4", "row-5", "row-6", "row-7");
+            panel.MinSize = new int2(0, 0);
+            panel.Size = new int2(320, (LoggerPanel.RowHeight * 3) + (LoggerPanel.RowHeight / 2));
+
+            try {
+                panel.FlushPendingEntries();
+
+                ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(panel, "ScrollComponent");
+
+                Assert.Equal(4, scrollComponent.VisibleItemCount);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
         /// Ensures a plain row click focuses and selects only the clicked row.
         /// </summary>
         [Fact]

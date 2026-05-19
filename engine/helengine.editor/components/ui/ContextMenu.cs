@@ -176,6 +176,7 @@ namespace helengine.editor {
             BackgroundBlockerEntity.AddComponent(BackgroundBlockerInteractable);
 
             ScrollComponent.Size = new int2(0, 0);
+            ScrollComponent.ItemExtent = Math.Max(1, RowHeight + RowSpacing);
             ScrollComponent.VisibleItemCount = 1;
             ScrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
             Root.AddComponent(ScrollComponent);
@@ -432,9 +433,12 @@ namespace helengine.editor {
             int width = ComputeMenuWidth();
             int visibleRowCount = ResolveVisibleRowCount();
             EnsureRowCount(visibleRowCount);
-            ScrollComponent.Size = new int2(width, ComputeMenuHeight(visibleRowCount));
-            ScrollComponent.ItemCount = ActiveItems.Count;
-            ScrollComponent.VisibleItemCount = visibleRowCount;
+            EditorScrollComponentLayout.ConfigureExplicitVisibleItems(
+                ScrollComponent,
+                new int2(width, ComputeMenuHeight(visibleRowCount)),
+                Math.Max(1, RowHeight + RowSpacing),
+                ActiveItems.Count,
+                visibleRowCount);
             ScrollComponent.ClampScrollOffset();
             FirstVisibleItemIndex = ScrollComponent.ScrollOffset;
             MenuSize = new int2(width, ComputeMenuHeight(visibleRowCount));
@@ -541,7 +545,7 @@ namespace helengine.editor {
 
             int availableHeight = Math.Max(0, HostSize.Y - (PaddingY * 2));
             int rowStride = RowHeight + RowSpacing;
-            int visibleRowCount = rowStride <= 0 ? ActiveItems.Count : availableHeight / rowStride;
+            int visibleRowCount = rowStride <= 0 ? ActiveItems.Count : (availableHeight + rowStride - 1) / rowStride;
             if (visibleRowCount < 1) {
                 visibleRowCount = 1;
             }

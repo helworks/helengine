@@ -1519,15 +1519,62 @@ namespace helengine.editor.tests {
             InvokePrivate(dialog, "UpdateSceneListRowsLayout");
 
             List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
+            int expectedVisibleRowCount = sceneListScrollComponent.VisibleItemCount;
+            string expectedLastVisibleSceneId = "Scenes/Map" + (expectedVisibleRowCount - 1).ToString("00") + ".helen";
 
-            Assert.Equal(4, sceneListScrollComponent.VisibleItemCount);
-            Assert.Equal(4, mapLabelTexts.Count);
-            Assert.Equal("Scenes/Map03.helen", mapLabelTexts[^1].Text);
+            Assert.Equal(expectedVisibleRowCount, mapLabelTexts.Count);
+            Assert.Equal(expectedLastVisibleSceneId, mapLabelTexts[^1].Text);
 
             Assert.True(sceneListScrollComponent.ScrollTo(1));
 
             Assert.Equal("Scenes/Map01.helen", mapLabelTexts[0].Text);
-            Assert.Equal("Scenes/Map04.helen", mapLabelTexts[^1].Text);
+            Assert.Equal("Scenes/Map" + expectedVisibleRowCount.ToString("00") + ".helen", mapLabelTexts[^1].Text);
+        }
+
+        /// <summary>
+        /// Ensures the queue viewport rounds visible rows up when the queue body clips into the next card.
+        /// </summary>
+        [Fact]
+        public void RebuildQueueRows_WhenViewportClipsNextRow_RoundsVisibleRowsUp() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            List<EditorBuildQueueItemDocument> queueItems = [];
+
+            for (int index = 0; index < 9; index++) {
+                queueItems.Add(new EditorBuildQueueItemDocument {
+                    QueueItemId = "queue-" + index.ToString(),
+                    PlatformId = "platform-" + index.ToString(),
+                    SelectedSceneIds = [
+                        "Scenes/City.helen"
+                    ],
+                    OutputDirectoryPath = @"C:\builds\windows",
+                    Status = EditorBuildQueueItemStatus.Pending
+                });
+            }
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = queueItems
+                });
+
+            ScrollComponent queueScrollComponent = GetPrivateField<ScrollComponent>(dialog, "QueueScrollComponent");
+            int queueRowsViewportHeight = InvokePrivateInt(dialog, "GetQueueRowsViewportHeight");
+            int queueCardHeight = InvokePrivateInt(dialog, "GetQueueCardHeight");
+            int expectedVisibleRowCount = Math.Max(1, (queueRowsViewportHeight + queueCardHeight - 1) / queueCardHeight);
+
+            Assert.Equal(expectedVisibleRowCount, queueScrollComponent.VisibleItemCount);
         }
 
         /// <summary>
@@ -1580,7 +1627,10 @@ namespace helengine.editor.tests {
 
             Assert.DoesNotContain("Progress:", buildLogsText.Text);
             Assert.StartsWith("platform-1 | Pending | log line 1", buildLogsText.Text);
-            Assert.DoesNotContain("platform-6 | Pending | log line 6", buildLogsText.Text);
+            int firstHiddenBuildLogIndex = buildLogsScrollComponent.VisibleItemCount + 1;
+            Assert.DoesNotContain(
+                "platform-" + firstHiddenBuildLogIndex.ToString() + " | Pending | log line " + firstHiddenBuildLogIndex.ToString(),
+                buildLogsText.Text);
 
             dialog.Show(
                 ["windows"],
@@ -1602,6 +1652,53 @@ namespace helengine.editor.tests {
 
             Assert.Equal(0, buildLogsScrollComponent.ScrollOffset);
             Assert.StartsWith("Progress:", buildLogsText.Text);
+        }
+
+        /// <summary>
+        /// Ensures the build-log viewport rounds visible lines up when the text body clips into the next line.
+        /// </summary>
+        [Fact]
+        public void RebuildBuildLogs_WhenViewportClipsNextLine_RoundsVisibleLinesUp() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            List<EditorBuildQueueItemDocument> queueItems = [];
+
+            for (int index = 0; index < 8; index++) {
+                queueItems.Add(new EditorBuildQueueItemDocument {
+                    QueueItemId = "queue-" + index.ToString(),
+                    PlatformId = "platform-" + index.ToString(),
+                    SelectedSceneIds = [
+                        "Scenes/City.helen"
+                    ],
+                    OutputDirectoryPath = @"C:\builds\windows",
+                    Status = EditorBuildQueueItemStatus.Pending,
+                    StatusMessage = "log line " + index.ToString()
+                });
+            }
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = queueItems
+                });
+
+            ScrollComponent buildLogsScrollComponent = GetPrivateField<ScrollComponent>(dialog, "BuildLogsScrollComponent");
+            int buildLogsTextViewportHeight = InvokePrivateInt(dialog, "GetBuildLogsTextViewportHeight");
+            int buildLogLineHeight = InvokePrivateInt(dialog, "GetBuildLogLineHeightPixels");
+            int expectedVisibleLineCount = Math.Max(1, (buildLogsTextViewportHeight + buildLogLineHeight - 1) / buildLogLineHeight);
+
+            Assert.Equal(expectedVisibleLineCount, buildLogsScrollComponent.VisibleItemCount);
         }
 
         /// <summary>
@@ -2308,6 +2405,18 @@ namespace helengine.editor.tests {
         void InvokePrivate(object target, string methodName, params object[] arguments) {
             MethodInfo method = FindPrivateMethod(target.GetType(), methodName);
             method.Invoke(target, arguments);
+        }
+
+        /// <summary>
+        /// Invokes one non-public instance method that returns an integer.
+        /// </summary>
+        /// <param name="target">Object that owns the method.</param>
+        /// <param name="methodName">Exact private method name.</param>
+        /// <returns>Integer value returned by the method.</returns>
+        int InvokePrivateInt(object target, string methodName) {
+            MethodInfo method = FindPrivateMethod(target.GetType(), methodName);
+            object value = method.Invoke(target, []);
+            return Assert.IsType<int>(value);
         }
 
         /// <summary>

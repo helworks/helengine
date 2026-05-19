@@ -323,14 +323,17 @@ namespace helengine.editor {
         /// Lays out all rows based on the current node list and panel size.
         /// </summary>
         void LayoutRows() {
-            int visibleRowCount = GetVisibleRowCount();
             int rowHeight = GetRowHeightPixels();
             int rowWidth = Math.Max(Size.X, MinSize.X);
             int contentHeight = GetContentHeightPixels();
             int scrollOffset = scrollComponent.ScrollOffset;
 
-            scrollComponent.VisibleItemCount = visibleRowCount;
-            scrollComponent.Size = new int2(rowWidth, contentHeight);
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                scrollComponent,
+                new int2(rowWidth, contentHeight),
+                rowHeight,
+                nodes.Count);
+            int visibleRowCount = scrollComponent.VisibleItemCount;
 
             EnsureRowCount(visibleRowCount);
 
@@ -948,19 +951,6 @@ namespace helengine.editor {
         /// <returns>Content viewport height in pixels.</returns>
         int GetContentHeightPixels() {
             return Math.Max(Size.Y, MinSize.Y);
-        }
-
-        /// <summary>
-        /// Gets the maximum number of full hierarchy rows that fit inside the current viewport.
-        /// </summary>
-        /// <returns>Visible hierarchy row count.</returns>
-        int GetVisibleRowCount() {
-            int rowHeight = GetRowHeightPixels();
-            if (rowHeight <= 0) {
-                return 1;
-            }
-
-            return Math.Max(1, GetContentHeightPixels() / rowHeight);
         }
 
         /// <summary>

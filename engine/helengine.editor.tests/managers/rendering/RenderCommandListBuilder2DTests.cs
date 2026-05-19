@@ -186,6 +186,37 @@ namespace helengine.editor.tests.managers.rendering {
         }
 
         /// <summary>
+        /// Ensures drawables that lie fully outside the active clip chain do not emit clip or draw commands.
+        /// </summary>
+        [Fact]
+        public void Build_WhenDrawableIsFullyOutsideActiveClip_SkipsCommandEmission() {
+            Entity clipHost = CreateEntity(new float3(0f, 0f, 0f), true);
+            clipHost.InitChildren();
+            clipHost.AddComponent(new ClipRectComponent {
+                Size = new int2(20, 20)
+            });
+
+            Entity child = CreateEntity(new float3(30f, 0f, 0f), true);
+            SpriteComponent sprite = new SpriteComponent {
+                Texture = new TestRuntimeTexture {
+                    Width = 16,
+                    Height = 16
+                },
+                Size = new int2(16, 16)
+            };
+            child.AddComponent(sprite);
+            clipHost.AddChild(child);
+
+            RenderList2D queue = new RenderList2D(1);
+            queue.Add(sprite);
+
+            RenderCommandListBuilder2D builder = new RenderCommandListBuilder2D();
+            RenderCommandList2D commandList = builder.Build(queue);
+
+            Assert.Equal(0, commandList.Count);
+        }
+
+        /// <summary>
         /// Creates one initialized entity configured for the supplied position and enabled state.
         /// </summary>
         /// <param name="position">World position assigned to the entity.</param>

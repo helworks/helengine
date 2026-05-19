@@ -65,6 +65,10 @@ namespace helengine {
             }
 
             ClipRegionStackBuilder.BuildClipChain(drawable, NextClipChain);
+            if (ShouldSkipDrawableBecauseItIsFullyClipped(drawable)) {
+                return;
+            }
+
             SyncClipTransitions();
 
             if (drawable is ISpriteDrawable2D sprite) {
@@ -142,6 +146,108 @@ namespace helengine {
 
             float4 currentRect = ActiveClipChain[ActiveClipChain.Count - 1].GetClipRect();
             return ClipRegionStackBuilder.Intersect(currentRect, resolvedRect);
+        }
+
+        /// <summary>
+        /// Determines whether one drawable lies completely outside the effective clip chain that would constrain it.
+        /// </summary>
+        /// <param name="drawable">Drawable candidate being visited.</param>
+        /// <returns>True when the drawable can be skipped because it contributes no visible pixels inside its effective clip rectangle.</returns>
+        bool ShouldSkipDrawableBecauseItIsFullyClipped(IDrawable2D drawable) {
+            if (drawable == null) {
+                return true;
+            }
+            if (NextClipChain.Count <= 0) {
+                return false;
+            }
+            if (!TryResolveDrawableBounds(drawable, out float4 drawableBounds)) {
+                return false;
+            }
+
+            float4 effectiveClipRect = ResolveEffectiveClipRectForNextDrawable();
+            return !RectsOverlap(drawableBounds, effectiveClipRect);
+        }
+
+        /// <summary>
+        /// Resolves the effective clip rectangle that will constrain the drawable currently stored in <see cref="NextClipChain"/>.
+        /// </summary>
+        /// <returns>Effective clip rectangle for the next drawable.</returns>
+        float4 ResolveEffectiveClipRectForNextDrawable() {
+            float4 effectiveRect = NextClipChain[0].GetClipRect();
+            for (int index = 1; index < NextClipChain.Count; index++) {
+                effectiveRect = ClipRegionStackBuilder.Intersect(effectiveRect, NextClipChain[index].GetClipRect());
+            }
+
+            return effectiveRect;
+        }
+
+        /// <summary>
+        /// Attempts to resolve conservative screen-space bounds for one 2D drawable.
+        /// </summary>
+        /// <param name="drawable">Drawable whose bounds should be resolved.</param>
+        /// <param name="bounds">Resolved bounds when available.</param>
+        /// <returns>True when conservative bounds were resolved successfully.</returns>
+        bool TryResolveDrawableBounds(IDrawable2D drawable, out float4 bounds) {
+            bounds = default;
+            if (drawable == null || drawable.Parent == null) {
+                return false;
+            }
+
+            if (drawable is ISpriteDrawable2D sprite) {
+                if (sprite.Texture == null) {
+                    return false;
+                }
+
+                int2 size = sprite.Size;
+                float width = size.X > 0 ? size.X : sprite.Texture.Width;
+                float height = size.Y > 0 ? size.Y : sprite.Texture.Height;
+                float3 position = sprite.Parent.Position;
+                bounds = new float4(position.X, position.Y, width, height);
+                return true;
+            }
+
+            if (drawable is ITextDrawable2D text) {
+                if (text.Size.X <= 0 || text.Size.Y <= 0) {
+                    return false;
+                }
+
+                float3 position = text.Parent.Position;
+                bounds = new float4(position.X, position.Y, text.Size.X, text.Size.Y);
+                return true;
+            }
+
+            if (drawable is IRoundedRectDrawable2D roundedRect) {
+                if (roundedRect.Size.X <= 0 || roundedRect.Size.Y <= 0) {
+                    return false;
+                }
+
+                float3 position = roundedRect.Parent.Position;
+                bounds = new float4(position.X, position.Y, roundedRect.Size.X, roundedRect.Size.Y);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Determines whether two axis-aligned rectangles overlap with positive area.
+        /// </summary>
+        /// <param name="first">First rectangle expressed as X, Y, Width, Height.</param>
+        /// <param name="second">Second rectangle expressed as X, Y, Width, Height.</param>
+        /// <returns>True when the rectangles overlap with positive width and height.</returns>
+        bool RectsOverlap(float4 first, float4 second) {
+            if (first.Z <= 0f || first.W <= 0f || second.Z <= 0f || second.W <= 0f) {
+                return false;
+            }
+
+            float firstRight = first.X + first.Z;
+            float firstBottom = first.Y + first.W;
+            float secondRight = second.X + second.Z;
+            float secondBottom = second.Y + second.W;
+            return first.X < secondRight &&
+                   firstRight > second.X &&
+                   first.Y < secondBottom &&
+                   firstBottom > second.Y;
         }
 
         /// <summary>

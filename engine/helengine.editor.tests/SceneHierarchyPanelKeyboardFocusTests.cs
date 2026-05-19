@@ -94,6 +94,39 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the hierarchy uses ceiling semantics for partially visible rows so remaining viewport space shows the next scene entity instead of empty space.
+        /// </summary>
+        [Fact]
+        public void SceneHierarchyPanel_WhenViewportHasPartialRemainingRow_RoundsVisibleRowsUp() {
+            InitializeCore();
+            int panelHeight = (SceneHierarchyPanel.RowHeight * 7) + (SceneHierarchyPanel.RowHeight / 2);
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+                Size = new int2(280, panelHeight)
+            };
+            new EditorEntity {
+                Name = "First"
+            };
+            new EditorEntity {
+                Name = "Second"
+            };
+            new EditorEntity {
+                Name = "Third"
+            };
+            new EditorEntity {
+                Name = "Fourth"
+            };
+            new EditorEntity {
+                Name = "Fifth"
+            };
+
+            panel.RefreshHierarchy();
+
+            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(panel, "scrollComponent");
+
+            Assert.Equal(8, scrollComponent.VisibleItemCount);
+        }
+
+        /// <summary>
         /// Ensures pressing the right arrow on a collapsed focused parent expands its visible branch.
         /// </summary>
         [Fact]

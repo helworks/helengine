@@ -648,9 +648,11 @@ namespace helengine.editor {
 
             ListHitHost.Position = new float3(0f, toolbarHeight, 0.05f);
             ListHitInteractable.Size = new int2(rowWidth, listHeight);
-            ListScrollComponent.Size = new int2(rowWidth, listHeight);
-            ListScrollComponent.ItemExtent = rowHeight;
-            ListScrollComponent.ItemCount = Entries.Count;
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                ListScrollComponent,
+                new int2(rowWidth, listHeight),
+                rowHeight,
+                Entries.Count);
             ListScrollComponent.ClampScrollOffset();
 
             for (int i = 0; i < Rows.Count; i++) {

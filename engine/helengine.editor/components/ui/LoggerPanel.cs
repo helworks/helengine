@@ -147,8 +147,11 @@ namespace helengine.editor {
             RowContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             AddChild(RowContextMenu.Entity);
             ScrollComponent = new ScrollComponent();
-            ScrollComponent.Size = new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y));
-            ScrollComponent.VisibleItemCount = GetVisibleRowCapacity();
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                ScrollComponent,
+                new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y)),
+                GetRowHeightPixels(),
+                0);
             ScrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
             contentRoot.AddComponent(ScrollComponent);
 
@@ -243,8 +246,11 @@ namespace helengine.editor {
                 ShiftSelectionStateAfterTrim(removeCount);
             }
 
-            ScrollComponent.ItemCount = entries.Count;
-            ScrollComponent.VisibleItemCount = GetVisibleRowCapacity();
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                ScrollComponent,
+                new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y)),
+                GetRowHeightPixels(),
+                entries.Count);
             ScrollComponent.ClampScrollOffset();
             FirstVisibleRowIndex = ScrollComponent.ScrollOffset;
             UpdateContentRootPosition();
@@ -332,9 +338,11 @@ namespace helengine.editor {
         void LayoutRows() {
             EnsureRowCount(entries.Count);
 
-            ScrollComponent.Size = new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y));
-            ScrollComponent.ItemCount = entries.Count;
-            ScrollComponent.VisibleItemCount = GetVisibleRowCapacity();
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                ScrollComponent,
+                new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y)),
+                GetRowHeightPixels(),
+                entries.Count);
             ScrollComponent.ClampScrollOffset();
             FirstVisibleRowIndex = ScrollComponent.ScrollOffset;
             UpdateContentRootPosition();
@@ -743,25 +751,12 @@ namespace helengine.editor {
                 return;
             }
 
-            int visibleRowCapacity = GetVisibleRowCapacity();
+            int visibleRowCapacity = ScrollComponent.VisibleItemCount;
             if (FocusedRowIndex < FirstVisibleRowIndex) {
                 ScrollComponent.ScrollTo(FocusedRowIndex);
             } else if (FocusedRowIndex >= FirstVisibleRowIndex + visibleRowCapacity) {
                 ScrollComponent.ScrollTo(FocusedRowIndex - visibleRowCapacity + 1);
             }
-        }
-
-        /// <summary>
-        /// Returns the number of full rows visible inside the current logger body viewport.
-        /// </summary>
-        /// <returns>Visible logger row capacity.</returns>
-        int GetVisibleRowCapacity() {
-            int rowHeight = GetRowHeightPixels();
-            if (rowHeight <= 0) {
-                return 1;
-            }
-
-            return Math.Max(1, Math.Max(Size.Y, MinSize.Y) / rowHeight);
         }
 
         /// <summary>

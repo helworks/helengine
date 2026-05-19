@@ -73,6 +73,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the menu rounds visible rows up when the host height leaves room for part of another row.
+        /// </summary>
+        [Fact]
+        public void Show_WhenHostHasPartialRemainingRow_RoundsVisibleRowsUp() {
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            menu.Show(
+                new[] {
+                    new ContextMenuItem("One", HandleMenuItemActivated),
+                    new ContextMenuItem("Two", HandleMenuItemActivated),
+                    new ContextMenuItem("Three", HandleMenuItemActivated),
+                    new ContextMenuItem("Four", HandleMenuItemActivated),
+                    new ContextMenuItem("Five", HandleMenuItemActivated)
+                },
+                new int2(40, 24),
+                new int2(320, (ContextMenu.PaddingY * 2) + (ContextMenu.RowHeight * 3) + (ContextMenu.RowHeight / 2)));
+
+            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(menu, "ScrollComponent");
+
+            Assert.Equal(4, scrollComponent.VisibleItemCount);
+        }
+
+        /// <summary>
         /// Ensures clicking a context-menu row still invokes the assigned action when the menu is parented under an offset entity and updated through the core loop.
         /// </summary>
         [Fact]

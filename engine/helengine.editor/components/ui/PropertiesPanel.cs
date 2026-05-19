@@ -1001,9 +1001,12 @@ namespace helengine.editor {
         void UpdateContentScrollMetrics(int contentHeightPixels) {
             int viewportWidth = GetContentViewportWidthPixels();
             int viewportHeight = GetContentViewportHeightPixels();
-            ContentScrollComponent.Size = new int2(viewportWidth, viewportHeight);
-            ContentScrollComponent.VisibleItemCount = viewportHeight;
-            ContentScrollComponent.ItemCount = Math.Max(0, contentHeightPixels);
+            EditorScrollComponentLayout.ConfigureExplicitVisibleItems(
+                ContentScrollComponent,
+                new int2(viewportWidth, viewportHeight),
+                1,
+                Math.Max(0, contentHeightPixels),
+                viewportHeight);
             ContentScrollComponent.ScrollStepCount = GetContentScrollStepPixels();
             ContentScrollComponent.ClampScrollOffset();
             UpdateScrollContentPosition();
