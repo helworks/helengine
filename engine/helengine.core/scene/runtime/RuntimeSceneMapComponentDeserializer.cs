@@ -15,8 +15,13 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != SceneMapComponent.CurrentVersion) {
+            if (version < 1 || version > SceneMapComponent.CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported scene map component payload version '{version}'.");
+            }
+
+            SceneMapComponent component = new SceneMapComponent();
+            if (version >= 2) {
+                component.InitialSceneId = reader.ReadString() ?? string.Empty;
             }
 
             int mappingCount = reader.ReadInt32();
@@ -24,7 +29,6 @@ namespace helengine {
                 throw new InvalidOperationException("Scene map component payload mapping counts cannot be negative.");
             }
 
-            SceneMapComponent component = new SceneMapComponent();
             for (int index = 0; index < mappingCount; index++) {
                 string sourceSceneId = reader.ReadString();
                 string targetSceneId = reader.ReadString();

@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public sealed class SceneMapComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
         /// <summary>
+        /// Stable tagged field name used for the optional authored initial scene id.
+        /// </summary>
+        const string InitialSceneIdFieldName = "InitialSceneId";
+
+        /// <summary>
         /// Stable tagged field name used for the mapping count.
         /// </summary>
         const string MappingCountFieldName = "MappingCount";
@@ -32,6 +37,7 @@ namespace helengine.editor {
 
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
             List<KeyValuePair<string, string>> mappings = sceneMapComponent.Mappings.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToList();
+            writer.WriteField(InitialSceneIdFieldName, fieldWriter => fieldWriter.WriteString(sceneMapComponent.InitialSceneId ?? string.Empty));
             writer.WriteField(MappingCountFieldName, fieldWriter => fieldWriter.WriteInt32(mappings.Count));
             for (int index = 0; index < mappings.Count; index++) {
                 KeyValuePair<string, string> mapping = mappings[index];
@@ -80,6 +86,12 @@ namespace helengine.editor {
                 }
 
                 SceneMapComponent component = new SceneMapComponent();
+                if (reader.TryGetFieldReader(InitialSceneIdFieldName, out EngineBinaryReader initialSceneIdReader)) {
+                    using (initialSceneIdReader) {
+                        component.InitialSceneId = initialSceneIdReader.ReadString() ?? string.Empty;
+                    }
+                }
+
                 for (int index = 0; index < mappingCount; index++) {
                     string sourceSceneId = ReadRequiredTaggedField(reader, MappingSourceFieldNamePrefix + index);
                     string targetSceneId = ReadRequiredTaggedField(reader, MappingTargetFieldNamePrefix + index);

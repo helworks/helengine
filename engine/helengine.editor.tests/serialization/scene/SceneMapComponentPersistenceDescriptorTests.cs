@@ -26,6 +26,24 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the scene-map descriptor round-trips one authored initial scene id alongside the mapping table.
+        /// </summary>
+        [Fact]
+        public void SerializeComponent_WhenInitialSceneIdExists_RoundTripsInitialSceneIdAndMappings() {
+            SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
+            SceneMapComponent sceneMapComponent = new SceneMapComponent {
+                InitialSceneId = "DemoDiscMainMenu"
+            };
+            sceneMapComponent.Mappings.Add("DemoDiscMainMenu", "DemoDiscMainMenuDs");
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(sceneMapComponent, 3, null);
+            SceneMapComponent loadedComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal("DemoDiscMainMenu", loadedComponent.InitialSceneId);
+            Assert.Equal("DemoDiscMainMenuDs", loadedComponent.Mappings["DemoDiscMainMenu"]);
+        }
+
+        /// <summary>
         /// Ensures the scene-map descriptor restores mappings from the tolerant tagged editor payload shape.
         /// </summary>
         [Fact]
@@ -55,7 +73,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = SceneMapComponent.SerializedComponentTypeId,
                 ComponentIndex = 0,
-                Payload = WriteCookedRuntimePayload(SceneMapComponent.CurrentVersion, CreateMapping("MainMenu", "DemoDiscMainMenuDs"))
+                Payload = WriteCookedRuntimePayload(SceneMapComponent.CurrentVersion, string.Empty, CreateMapping("MainMenu", "DemoDiscMainMenuDs"))
             };
 
             SceneMapComponent loadedComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(record, null, null));
@@ -73,7 +91,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = SceneMapComponent.SerializedComponentTypeId,
                 ComponentIndex = 0,
-                Payload = WriteCookedRuntimePayload(99, CreateMapping("MainMenu", "DemoDiscMainMenuDs"))
+                Payload = WriteCookedRuntimePayload(99, string.Empty, CreateMapping("MainMenu", "DemoDiscMainMenuDs"))
             };
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => descriptor.DeserializeComponent(record, null, null));
@@ -90,11 +108,12 @@ namespace helengine.editor.tests.serialization.scene {
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = SceneMapComponent.SerializedComponentTypeId,
                 ComponentIndex = 0,
-                Payload = WriteCookedRuntimePayload(SceneMapComponent.CurrentVersion, CreateMapping("MainMenu", "DemoDiscMainMenu"))
+                Payload = WriteCookedRuntimePayload(SceneMapComponent.CurrentVersion, "DemoDiscMainMenu", CreateMapping("MainMenu", "DemoDiscMainMenu"))
             };
 
             SceneMapComponent loadedComponent = Assert.IsType<SceneMapComponent>(deserializer.Deserialize(record, null));
 
+            Assert.Equal("DemoDiscMainMenu", loadedComponent.InitialSceneId);
             Assert.Equal("DemoDiscMainMenu", loadedComponent.Mappings["MainMenu"]);
         }
 
@@ -114,6 +133,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// <returns>Tagged editor payload bytes.</returns>
         byte[] WriteTaggedEditorPayload(params KeyValuePair<string, string>[] mappings) {
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("InitialSceneId", fieldWriter => fieldWriter.WriteString(string.Empty));
             writer.WriteField("MappingCount", fieldWriter => fieldWriter.WriteInt32(mappings.Length));
 
             for (int index = 0; index < mappings.Length; index++) {
@@ -131,10 +151,13 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="version">Cooked runtime payload version to encode.</param>
         /// <param name="mappings">Mappings to encode into the payload.</param>
         /// <returns>Cooked runtime payload bytes.</returns>
-        byte[] WriteCookedRuntimePayload(byte version, params KeyValuePair<string, string>[] mappings) {
+        byte[] WriteCookedRuntimePayload(byte version, string initialSceneId, params KeyValuePair<string, string>[] mappings) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(version);
+            if (version >= 2) {
+                writer.WriteString(initialSceneId);
+            }
             writer.WriteInt32(mappings.Length);
 
             for (int index = 0; index < mappings.Length; index++) {

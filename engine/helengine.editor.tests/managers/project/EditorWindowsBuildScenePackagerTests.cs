@@ -138,6 +138,53 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaged boot scenes rewrite scene-map helper payloads into the strict runtime format consumed by player builds.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsSceneMapComponent_WritesRuntimeSceneMapPayload() {
+            string sceneId = "Scenes/GeneratedBootScene.helen";
+            SceneMapComponent sceneMapComponent = new SceneMapComponent {
+                InitialSceneId = "DemoDiscMainMenu"
+            };
+            sceneMapComponent.Mappings.Add("DemoDiscMainMenu", "DemoDiscMainMenuDs");
+            SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "GeneratedBootSceneRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            descriptor.SerializeComponent(sceneMapComponent, 0, null)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+            SceneComponentAssetRecord packagedRecord = Assert.Single(packagedRoot.Components);
+            Assert.Equal(SceneMapComponent.SerializedComponentTypeId, packagedRecord.ComponentTypeId);
+
+            RuntimeSceneMapComponentDeserializer deserializer = new RuntimeSceneMapComponentDeserializer();
+            SceneMapComponent packagedComponent = Assert.IsType<SceneMapComponent>(deserializer.Deserialize(packagedRecord, null));
+            Assert.Equal("DemoDiscMainMenu", packagedComponent.InitialSceneId);
+            Assert.Equal("DemoDiscMainMenuDs", packagedComponent.Mappings["DemoDiscMainMenu"]);
+        }
+
+        /// <summary>
         /// Loads the editor host's default importer registrations so the repro test matches the real Windows build path.
         /// </summary>
         /// <returns>Importer registrations used by the editor host.</returns>

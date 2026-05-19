@@ -17,7 +17,7 @@ namespace helengine {
                 || WasGamepadReturnPressed(inputSystem);
 
             if (wasReturnPressed) {
-                string resolvedSceneId = Core.Instance.SceneMapService.MapSceneId(MainMenuSceneId);
+                string resolvedSceneId = SceneMapComponent.ResolveSceneId(MainMenuSceneId);
                 Core.Instance.SceneManager.LoadScene(resolvedSceneId, SceneLoadMode.Single);
             }
         }

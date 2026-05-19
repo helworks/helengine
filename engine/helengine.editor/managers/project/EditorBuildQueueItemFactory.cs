@@ -13,7 +13,7 @@ namespace helengine.editor {
         /// <summary>
         /// Stores the project scene id that Windows builds must stage first as their startup scene.
         /// </summary>
-        const string WindowsStartupSceneId = PlatformMenuSceneResolver.DesktopMainMenuSceneId;
+        const string WindowsStartupSceneId = PlatformMenuSceneResolver.GeneratedBootSceneId;
 
         /// <summary>
         /// Stores the Nintendo DS platform id that forces the demo-disc main menu to become the startup scene.
@@ -23,7 +23,7 @@ namespace helengine.editor {
         /// <summary>
         /// Stores the project scene id that Nintendo DS builds must stage first as their startup scene.
         /// </summary>
-        const string NintendoDsStartupSceneId = PlatformMenuSceneResolver.NintendoDsMainMenuSceneId;
+        const string NintendoDsStartupSceneId = PlatformMenuSceneResolver.GeneratedBootSceneId;
 
         /// <summary>
         /// Project scene catalog used to preserve stable scene ordering.

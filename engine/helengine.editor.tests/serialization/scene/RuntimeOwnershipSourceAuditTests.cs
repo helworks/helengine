@@ -79,6 +79,23 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures menu-driven scene transitions resolve logical ids through the optional scene-map singleton helper instead of the removed scene-map service seam.
+        /// </summary>
+        [Fact]
+        public void Load_whenMenuTransitionsScenes_usesSceneMapComponentHelperAndDoesNotReferenceSceneMapService() {
+            string coreSource = ReadSource("helengine.core", "Core.cs");
+            string menuComponentSource = ReadSource("helengine.core", "components", "2d", "menu", "MenuComponent.cs");
+            string returnToMenuSource = ReadSource("helengine.core", "components", "2d", "menu", "DemoDiscReturnToMenuRuntimeComponent.cs");
+
+            Assert.DoesNotContain("SceneMapService", coreSource, StringComparison.Ordinal);
+            Assert.Contains("string resolvedSceneId = SceneMapComponent.ResolveSceneId(sceneId);", menuComponentSource);
+            Assert.Contains("Core.Instance.SceneManager.LoadScene(resolvedSceneId, SceneLoadMode.Single);", menuComponentSource);
+            Assert.DoesNotContain("Core.Instance.SceneManager.LoadScene(sceneId, SceneLoadMode.Single);", menuComponentSource, StringComparison.Ordinal);
+            Assert.Contains("string resolvedSceneId = SceneMapComponent.ResolveSceneId(MainMenuSceneId);", returnToMenuSource);
+            Assert.DoesNotContain("Core.Instance.SceneMapService", returnToMenuSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures runtime material, layout, property-block, and model ownership seams release nested native containers instead of only deleting the top-level wrapper objects.
         /// </summary>
         [Fact]

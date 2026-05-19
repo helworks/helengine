@@ -4,99 +4,116 @@ using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
     /// <summary>
-    /// Verifies runtime scene-map lookup behavior against currently loaded scene records.
+    /// Verifies singleton scene-map behavior and startup redirect handling for menu scene resolution.
     /// </summary>
     public sealed class SceneMapServiceTests : IDisposable {
         /// <summary>
-        /// Temporary content root used by the scene-map service tests.
+        /// Temporary content root used by the scene-map tests.
         /// </summary>
         readonly string TempRootPath;
 
         /// <summary>
-        /// Initializes one isolated temporary content root.
+        /// Initializes one isolated temporary content root and resets the singleton state.
         /// </summary>
         public SceneMapServiceTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-map-service-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
+            ResetSceneMapComponentSingleton();
         }
 
         /// <summary>
-        /// Deletes the temporary content root after each test.
+        /// Deletes the temporary content root and resets singleton state after each test.
         /// </summary>
         public void Dispose() {
+            ResetSceneMapComponentSingleton();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
         }
 
         /// <summary>
-        /// Ensures the runtime scene-map service returns the original scene id when no scene-map component is loaded.
+        /// Ensures one logical scene id falls back unchanged when no singleton instance exists.
         /// </summary>
         [Fact]
-        public void MapSceneId_WhenNoSceneMapComponentIsLoaded_ReturnsOriginalSceneId() {
-            Core core = CreateCore();
+        public void ResolveSceneId_WhenNoSingletonExists_ReturnsOriginalSceneId() {
+            string resolvedSceneId = SceneMapComponent.ResolveSceneId("DemoDiscMainMenu");
 
-            string mappedSceneId = core.SceneMapService.MapSceneId("MainMenu");
-
-            Assert.Equal("MainMenu", mappedSceneId);
+            Assert.Equal("DemoDiscMainMenu", resolvedSceneId);
         }
 
         /// <summary>
-        /// Ensures the runtime scene-map service returns the mapped scene id when the key exists.
+        /// Ensures one logical scene id resolves through the active singleton mapping table.
         /// </summary>
         [Fact]
-        public void MapSceneId_WhenMappingExists_ReturnsMappedSceneId() {
-            Core core = CreateCore();
+        public void ResolveSceneId_WhenMappingExists_ReturnsMappedSceneId() {
+            Entity rootEntity = CreateRootEntity();
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
-            sceneMapComponent.Mappings.Add("MainMenu", "DemoDiscMainMenuDs");
-            AddLoadedScene(core.SceneManager, "Scenes/Persistent.helen", CreateRootEntityWithComponent(sceneMapComponent));
+            sceneMapComponent.Mappings.Add("DemoDiscMainMenu", "DemoDiscMainMenuDs");
 
-            string mappedSceneId = core.SceneMapService.MapSceneId("MainMenu");
+            rootEntity.AddComponent(sceneMapComponent);
 
-            Assert.Equal("DemoDiscMainMenuDs", mappedSceneId);
+            string resolvedSceneId = SceneMapComponent.ResolveSceneId("DemoDiscMainMenu");
+
+            Assert.Equal("DemoDiscMainMenuDs", resolvedSceneId);
         }
 
         /// <summary>
-        /// Ensures the runtime scene-map service returns the original scene id when the key is not present.
+        /// Ensures one second active singleton fails immediately.
         /// </summary>
         [Fact]
-        public void MapSceneId_WhenMappingIsMissing_ReturnsOriginalSceneId() {
-            Core core = CreateCore();
+        public void ComponentAdded_WhenSecondSceneMapComponentAppears_ThrowsInvalidOperationException() {
+            Entity rootEntity = CreateRootEntity();
+            SceneMapComponent first = new SceneMapComponent();
+            SceneMapComponent second = new SceneMapComponent();
+
+            rootEntity.AddComponent(first);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => rootEntity.AddComponent(second));
+
+            Assert.Contains("Only one active SceneMapComponent may exist at a time.", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures disposing the owned singleton clears the active instance.
+        /// </summary>
+        [Fact]
+        public void Dispose_WhenSingletonOwnsInstance_ClearsActiveInstance() {
+            Entity rootEntity = CreateRootEntity();
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
-            sceneMapComponent.Mappings.Add("OptionsMenu", "OptionsMenuDs");
-            AddLoadedScene(core.SceneManager, "Scenes/Persistent.helen", CreateRootEntityWithComponent(sceneMapComponent));
+            rootEntity.AddComponent(sceneMapComponent);
 
-            string mappedSceneId = core.SceneMapService.MapSceneId("MainMenu");
+            sceneMapComponent.Dispose();
 
-            Assert.Equal("MainMenu", mappedSceneId);
+            Assert.Null(SceneMapComponent.Instance);
         }
 
         /// <summary>
-        /// Ensures the runtime scene-map service throws when multiple scene-map components are loaded globally.
+        /// Ensures an authored initial scene id triggers one startup redirect through the mapped target.
         /// </summary>
         [Fact]
-        public void MapSceneId_WhenMultipleSceneMapComponentsAreLoaded_ThrowsInvalidOperationException() {
-            Core core = CreateCore();
-            AddLoadedScene(core.SceneManager, "Scenes/Persistent.helen", CreateRootEntityWithComponent(new SceneMapComponent()));
-            AddLoadedScene(core.SceneManager, "Scenes/SecondPersistent.helen", CreateRootEntityWithComponent(new SceneMapComponent()));
+        public void Update_WhenInitialSceneIdIsPresent_LoadsResolvedSceneIdOnce() {
+            WriteSceneAsset("cooked/scenes/DemoDiscMainMenu.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/DemoDiscMainMenuDs.hasset", 2u);
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => core.SceneMapService.MapSceneId("MainMenu"));
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("DemoDiscMainMenu", "cooked/scenes/DemoDiscMainMenu.hasset"),
+                new RuntimeSceneCatalogEntry("DemoDiscMainMenuDs", "cooked/scenes/DemoDiscMainMenuDs.hasset")));
 
-            Assert.Contains("SceneMapComponent", exception.Message, StringComparison.Ordinal);
+            SceneMapComponent sceneMapComponent = new SceneMapComponent {
+                InitialSceneId = "DemoDiscMainMenu"
+            };
+            sceneMapComponent.Mappings.Add("DemoDiscMainMenu", "DemoDiscMainMenuDs");
+            AddLoadedScene(core.SceneManager, "Scenes/GeneratedBoot.helen", CreateRootEntityWithComponent(sceneMapComponent));
+
+            core.Update(1d / 60d);
+            core.Update(1d / 60d);
+
+            Assert.True(core.SceneManager.IsSceneLoaded("DemoDiscMainMenuDs"));
+            Assert.False(core.SceneManager.IsSceneLoaded("DemoDiscMainMenu"));
         }
 
         /// <summary>
-        /// Ensures the runtime scene-map service rejects empty scene ids.
-        /// </summary>
-        [Fact]
-        public void MapSceneId_WhenSceneIdIsEmpty_ThrowsArgumentException() {
-            Core core = CreateCore();
-
-            Assert.Throws<ArgumentException>(() => core.SceneMapService.MapSceneId(string.Empty));
-        }
-
-        /// <summary>
-        /// Ensures the demo-disc return-to-menu component loads the mapped scene id when one scene-map entry exists.
+        /// Ensures return-to-menu resolves the logical menu id through the singleton mapping table.
         /// </summary>
         [Fact]
         public void Update_WhenReturnToMenuIsTriggeredAndMappingExists_LoadsMappedSceneId() {
@@ -123,7 +140,7 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures the demo-disc return-to-menu component falls back to the original scene id when no mapping exists.
+        /// Ensures return-to-menu falls back to the original scene id when no mapping exists.
         /// </summary>
         [Fact]
         public void Update_WhenReturnToMenuIsTriggeredAndNoMappingExists_LoadsOriginalSceneId() {
@@ -148,7 +165,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <param name="sceneCatalog">Optional runtime scene catalog exposed to the core bootstrap path.</param>
         /// <param name="inputBackend">Input backend supplying deterministic test input.</param>
-        /// <returns>Initialized core instance for scene-map service tests.</returns>
+        /// <returns>Initialized core instance for scene-map tests.</returns>
         Core CreateCore(RuntimeSceneCatalog sceneCatalog = null, TestInputBackend inputBackend = null) {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath,
@@ -171,16 +188,25 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Creates one initialized root entity with no attached components.
+        /// </summary>
+        /// <returns>Initialized empty root entity.</returns>
+        Entity CreateRootEntity() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+            entity.InitializeHierarchy();
+            return entity;
+        }
+
+        /// <summary>
         /// Creates one initialized root entity with the supplied component attached.
         /// </summary>
         /// <param name="component">Component to attach to the root entity.</param>
         /// <returns>Initialized root entity containing the component.</returns>
         Entity CreateRootEntityWithComponent(Component component) {
-            Entity entity = new Entity();
-            entity.InitComponents();
-            entity.InitChildren();
+            Entity entity = CreateRootEntity();
             entity.AddComponent(component);
-            entity.InitializeHierarchy();
             return entity;
         }
 
@@ -225,7 +251,7 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Appends one loaded-scene record directly to the scene manager for service-level tests.
+        /// Appends one loaded-scene record directly to the scene manager for singleton-level tests.
         /// </summary>
         /// <param name="sceneManager">Scene manager that should receive the loaded scene record.</param>
         /// <param name="sceneId">Stable scene id stored on the record.</param>
@@ -233,8 +259,7 @@ namespace helengine.editor.tests.serialization.scene {
         void AddLoadedScene(SceneManager sceneManager, string sceneId, Entity rootEntity) {
             if (sceneManager == null) {
                 throw new ArgumentNullException(nameof(sceneManager));
-            }
-            if (rootEntity == null) {
+            } else if (rootEntity == null) {
                 throw new ArgumentNullException(nameof(rootEntity));
             }
 
@@ -251,6 +276,20 @@ namespace helengine.editor.tests.serialization.scene {
             Dictionary<string, LoadedSceneRecord> loadedSceneRecordsById = Assert.IsType<Dictionary<string, LoadedSceneRecord>>(recordsByIdField.GetValue(sceneManager));
             loadedSceneRecords.Add(loadedSceneRecord);
             loadedSceneRecordsById.Add(sceneId, loadedSceneRecord);
+        }
+
+        /// <summary>
+        /// Resets static singleton and startup redirect state between tests.
+        /// </summary>
+        static void ResetSceneMapComponentSingleton() {
+            PropertyInfo instanceProperty = typeof(SceneMapComponent).GetProperty(nameof(SceneMapComponent.Instance), BindingFlags.Static | BindingFlags.Public);
+            MethodInfo instanceSetter = instanceProperty.GetSetMethod(true);
+            instanceSetter.Invoke(null, [null]);
+
+            FieldInfo startupSceneWasRequestedField = typeof(SceneMapComponent).GetField("StartupSceneWasRequested", BindingFlags.Static | BindingFlags.NonPublic);
+            if (startupSceneWasRequestedField != null) {
+                startupSceneWasRequestedField.SetValue(null, false);
+            }
         }
     }
 }

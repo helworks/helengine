@@ -404,7 +404,8 @@ namespace helengine {
                 throw new InvalidOperationException("Core scene manager must be initialized before runtime menu scene loading can occur.");
             }
 
-            Core.Instance.SceneManager.LoadScene(sceneId, SceneLoadMode.Single);
+            string resolvedSceneId = SceneMapComponent.ResolveSceneId(sceneId);
+            Core.Instance.SceneManager.LoadScene(resolvedSceneId, SceneLoadMode.Single);
             if (ComponentExecutionContext.CurrentMode == ComponentExecutionMode.Editor
                 && Parent != null) {
                 Parent.Enabled = false;
