@@ -4,6 +4,37 @@ namespace helengine.editor {
     /// </summary>
     public static class EditorWorldSpace2DPreviewMapper {
         /// <summary>
+        /// Attempts to resolve the supported authored 2D component that should drive one world-space preview proxy.
+        /// </summary>
+        /// <param name="entity">Authored scene entity to inspect.</param>
+        /// <param name="sourceComponent">Resolved preview-supported 2D component when present.</param>
+        /// <returns>True when the entity exposes one supported 2D component that should create a preview proxy.</returns>
+        public static bool TryResolveSupportedSourceComponent(Entity entity, out Component sourceComponent) {
+            sourceComponent = null;
+            if (entity == null) {
+                return false;
+            } else if (IsPreviewProxyEntity(entity)) {
+                return false;
+            } else if (entity is EditorEntity editorEntity && editorEntity.InternalEntity) {
+                return false;
+            } else if (!EditorViewportSceneSelectionFilter.ShouldSelectEntity(entity)) {
+                return false;
+            }
+
+            for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                Component candidateComponent = entity.Components[componentIndex];
+                if (candidateComponent is SpriteComponent ||
+                    candidateComponent is TextComponent ||
+                    candidateComponent is RoundedRectComponent) {
+                    sourceComponent = candidateComponent;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Determines whether one entity is currently acting as an internal 2D world-preview proxy.
         /// </summary>
         /// <param name="entity">Entity to evaluate.</param>
