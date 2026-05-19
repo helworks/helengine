@@ -19,9 +19,9 @@ namespace helengine {
             builder.Append("[SceneMemoryProbe] probe=");
             builder.Append(measurement.ProbeName);
             builder.Append(" cycle=");
-            builder.Append(measurement.CycleIndex);
+            builder.Append(FormatInt32(measurement.CycleIndex));
             builder.Append(" step=");
-            builder.Append(measurement.StepIndex);
+            builder.Append(FormatInt32(measurement.StepIndex));
             builder.Append(" label=");
             builder.Append(measurement.Label);
             builder.Append(" action=");
@@ -33,19 +33,19 @@ namespace helengine {
             builder.Append(" scenes=");
             builder.Append(measurement.LoadedSceneIds);
             builder.Append(" drawables2d=");
-            builder.Append(measurement.Drawables2DCount);
+            builder.Append(FormatInt32(measurement.Drawables2DCount));
             builder.Append(" drawables3d=");
-            builder.Append(measurement.Drawables3DCount);
+            builder.Append(FormatInt32(measurement.Drawables3DCount));
             builder.Append(" draw_calls=");
-            builder.Append(measurement.DrawCallCount);
+            builder.Append(FormatInt32(measurement.DrawCallCount));
             builder.Append(" owned_textures=");
-            builder.Append(measurement.ActiveOwnedTextureCount);
+            builder.Append(FormatInt32(measurement.ActiveOwnedTextureCount));
             builder.Append(" owned_fonts=");
-            builder.Append(measurement.ActiveOwnedFontCount);
+            builder.Append(FormatInt32(measurement.ActiveOwnedFontCount));
             builder.Append(" owned_models=");
-            builder.Append(measurement.ActiveOwnedModelCount);
+            builder.Append(FormatInt32(measurement.ActiveOwnedModelCount));
             builder.Append(" owned_materials=");
-            builder.Append(measurement.ActiveOwnedMaterialCount);
+            builder.Append(FormatInt32(measurement.ActiveOwnedMaterialCount));
             return builder.ToString();
         }
 
@@ -74,6 +74,15 @@ namespace helengine {
         /// <param name="value">Unsigned 64-bit value that should be formatted.</param>
         /// <returns>Stable decimal string representation.</returns>
         static string FormatUInt64(ulong value) {
+            return value.ToString();
+        }
+
+        /// <summary>
+        /// Formats one signed 32-bit counter into a stable decimal token that can be appended by every runtime backend.
+        /// </summary>
+        /// <param name="value">Signed 32-bit value that should be formatted.</param>
+        /// <returns>Stable decimal string representation.</returns>
+        static string FormatInt32(int value) {
             return value.ToString();
         }
     }

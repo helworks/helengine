@@ -188,7 +188,7 @@ namespace helengine {
         /// <param name="bounds">Resolved bounds when available.</param>
         /// <returns>True when conservative bounds were resolved successfully.</returns>
         bool TryResolveDrawableBounds(IDrawable2D drawable, out float4 bounds) {
-            bounds = default;
+            bounds = new float4();
             if (drawable == null || drawable.Parent == null) {
                 return false;
             }

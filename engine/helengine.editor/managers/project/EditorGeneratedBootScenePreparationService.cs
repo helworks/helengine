@@ -4,6 +4,16 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorGeneratedBootScenePreparationService {
         /// <summary>
+        /// Stable Windows platform id used by shared startup routing.
+        /// </summary>
+        const string WindowsPlatformId = "windows";
+
+        /// <summary>
+        /// Stable Nintendo DS platform id used by shared startup routing.
+        /// </summary>
+        const string NintendoDsPlatformId = "ds";
+
+        /// <summary>
         /// Absolute project root path that owns the assets directory.
         /// </summary>
         readonly string ProjectRootPath;
@@ -36,19 +46,17 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             } else if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
-            } else if (!string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
-                return;
-            } else if (!ContainsSceneId(sceneIds, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId)
-                && !ContainsSceneId(sceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId)) {
+            }
+
+            Dictionary<string, string> mappings = BuildMappings(platformId, sceneIds);
+            if (mappings == null) {
                 return;
             }
 
             SceneAsset sceneAsset = BootSceneAssetFactory.BuildSceneAsset(
                 "Scenes/" + PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen",
                 PlatformMenuSceneResolver.DesktopMainMenuSceneId,
-                new Dictionary<string, string>(StringComparer.Ordinal) {
-                    { PlatformMenuSceneResolver.DesktopMainMenuSceneId, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId }
-                });
+                mappings);
             string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
             string directoryPath = Path.GetDirectoryName(scenePath)
                 ?? throw new InvalidOperationException("Generated boot scene path did not include a writable directory.");
@@ -56,6 +64,40 @@ namespace helengine.editor {
 
             using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
+        /// Builds the authored boot-scene remapping table for one platform when startup should route through the helper scene.
+        /// </summary>
+        /// <param name="platformId">Target platform identifier.</param>
+        /// <param name="sceneIds">Stable scene ids selected for the build.</param>
+        /// <returns>Authored remapping table, or null when the platform should not use the boot scene.</returns>
+        static Dictionary<string, string> BuildMappings(string platformId, IReadOnlyList<string> sceneIds) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (sceneIds == null) {
+                throw new ArgumentNullException(nameof(sceneIds));
+            }
+
+            if (string.Equals(platformId, WindowsPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (!ContainsSceneId(sceneIds, PlatformMenuSceneResolver.DesktopMainMenuSceneId)
+                    && !ContainsSceneId(sceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId)) {
+                    return null;
+                }
+
+                return new Dictionary<string, string>(StringComparer.Ordinal);
+            } else if (string.Equals(platformId, NintendoDsPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (!ContainsSceneId(sceneIds, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId)
+                    && !ContainsSceneId(sceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId)) {
+                    return null;
+                }
+
+                return new Dictionary<string, string>(StringComparer.Ordinal) {
+                    { PlatformMenuSceneResolver.DesktopMainMenuSceneId, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId }
+                };
+            }
+
+            return null;
         }
 
         /// <summary>

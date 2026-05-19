@@ -231,11 +231,6 @@ namespace helengine {
         public SceneManager SceneManager { get; private set; }
 
         /// <summary>
-        /// Gets the optional runtime scene-id mapping service used by explicit caller-owned scene transitions.
-        /// </summary>
-        public SceneMapService SceneMapService { get; private set; }
-
-        /// <summary>
         /// Gets the runtime diagnostics service used to capture shared diagnostics snapshots.
         /// </summary>
         public RuntimeDiagnosticsService RuntimeDiagnosticsService { get; private set; }
@@ -350,7 +345,6 @@ namespace helengine {
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
             SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
             SceneManager = CreateSceneManager(contentManager, InitializationOptions.SceneCatalog);
-            SceneMapService = new SceneMapService(SceneManager);
             RuntimeDiagnosticsService = new RuntimeDiagnosticsService(
                 InitializationOptions.RuntimeDiagnosticsProvider,
                 SceneManager,

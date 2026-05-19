@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Stores authored scene-id remapping entries and can optionally redirect startup through one logical initial scene id.
     /// </summary>
-    public sealed class SceneMapComponent : Component {
+    public sealed class SceneMapComponent : UpdateComponent {
         /// <summary>
         /// Current cooked payload version used by runtime scene persistence.
         /// </summary>
@@ -51,11 +51,12 @@ namespace helengine {
         /// <param name="sceneId">Logical scene id requested by gameplay or menu code.</param>
         /// <returns>Mapped scene id when a mapping exists; otherwise the original scene id.</returns>
         public static string ResolveSceneId(string sceneId) {
+            string mappedSceneId;
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
             } else if (Instance == null) {
                 return sceneId;
-            } else if (Instance.Mappings.TryGetValue(sceneId, out string mappedSceneId) && !string.IsNullOrWhiteSpace(mappedSceneId)) {
+            } else if (Instance.Mappings.TryGetValue(sceneId, out mappedSceneId) && !string.IsNullOrWhiteSpace(mappedSceneId)) {
                 return mappedSceneId;
             }
 
@@ -72,21 +73,20 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Requests one startup scene load after the owning entity has completed initialization.
-        /// </summary>
-        /// <param name="entity">Entity that owns the initialized scene-map component.</param>
-        public override void ComponentInitialized(Entity entity) {
-            base.ComponentInitialized(entity);
-            RequestInitialSceneLoad();
-        }
-
-        /// <summary>
         /// Clears the singleton when the component is removed from its entity.
         /// </summary>
         /// <param name="entity">Entity losing the scene-map component.</param>
         public override void ComponentRemoved(Entity entity) {
             ClearSingletonIfOwned();
             base.ComponentRemoved(entity);
+        }
+
+        /// <summary>
+        /// Requests the authored startup scene once the runtime update loop begins.
+        /// </summary>
+        public override void Update() {
+            base.Update();
+            RequestInitialSceneLoad();
         }
 
         /// <summary>

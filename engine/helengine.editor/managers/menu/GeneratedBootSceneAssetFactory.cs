@@ -41,7 +41,8 @@ namespace helengine.editor {
             return new SceneAsset {
                 Id = scenePath,
                 SceneSettings = new SceneSettingsAsset {
-                    CanvasProfile = new SceneCanvasProfile()
+                    CanvasProfile = new SceneCanvasProfile(),
+                    DontUnload = true
                 },
                 RootEntities = [
                     new SceneEntityAsset {

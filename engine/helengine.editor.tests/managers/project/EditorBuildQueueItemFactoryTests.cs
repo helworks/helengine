@@ -30,7 +30,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures one queued Windows build snapshot seeds builder defaults and inserts the desktop main menu before the ordered authored scenes.
+        /// Ensures one queued Windows build snapshot seeds builder defaults and inserts the generated boot scene before the ordered authored scenes.
         /// </summary>
         [Fact]
         public void Create_WhenPlatformConfigOmitsProfileSelections_SeedsDefaultsAndOrdersScenes() {
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "DemoDiscMainMenu", "B", "A" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "GeneratedBootScene", "B", "A" }, queueItem.SelectedSceneIds);
             Assert.Equal("debug", queueItem.SelectedBuildProfileId);
             Assert.Equal("directx11", queueItem.SelectedGraphicsProfileId);
             Assert.Equal("default", queueItem.SelectedCodegenProfileId);
@@ -121,10 +121,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures Nintendo DS queued builds insert the demo-disc main menu scene first even when it was not selected explicitly.
+        /// Ensures Nintendo DS queued builds insert the generated boot scene first even when it was not selected explicitly.
         /// </summary>
         [Fact]
-        public void Create_WhenDsBuildOmitsDemoDiscMainMenu_InsertsItAsStartupScene() {
+        public void Create_WhenDsBuildOmitsGeneratedBootScene_InsertsItAsStartupScene() {
             WriteScene("Scenes/ColoredCubeGrid.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
@@ -139,14 +139,14 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "DemoDiscMainMenuDs", "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "GeneratedBootScene", "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
-        /// Ensures Windows queued builds insert the desktop demo-disc main menu scene first even when it was not selected explicitly.
+        /// Ensures Windows queued builds insert the generated boot scene first even when it was not selected explicitly.
         /// </summary>
         [Fact]
-        public void Create_WhenWindowsBuildOmitsDemoDiscMainMenu_InsertsItAsStartupScene() {
+        public void Create_WhenWindowsBuildOmitsGeneratedBootScene_InsertsItAsStartupScene() {
             WriteScene("Scenes/ColoredCubeGrid.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
@@ -161,7 +161,7 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "DemoDiscMainMenu", "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "GeneratedBootScene", "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
