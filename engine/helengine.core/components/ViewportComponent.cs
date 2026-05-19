@@ -226,6 +226,28 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the resolved viewport rectangle in pixel-space coordinates.
+        /// </summary>
+        public float4 ResolvedViewportBounds {
+            get {
+                RefreshSubscriptions();
+                return ResolveViewportBounds();
+            }
+        }
+
+        /// <summary>
+        /// Gets the resolved viewport size in pixels.
+        /// </summary>
+        public int2 ResolvedViewportSize {
+            get {
+                float4 viewport = ResolvedViewportBounds;
+                return new int2(
+                    Math.Max(1, (int)Math.Round(viewport.Z)),
+                    Math.Max(1, (int)Math.Round(viewport.W)));
+            }
+        }
+
+        /// <summary>
         /// Rebinds the viewport listeners when the component is attached to an entity.
         /// </summary>
         /// <param name="entity">Entity receiving the component.</param>
@@ -271,6 +293,7 @@ namespace helengine {
         /// </summary>
         public override void Update() {
             base.Update();
+            RefreshSubscriptions();
 
             if (Parent == null || ScalingModeValue != ReferenceCanvasScalingMode) {
                 return;
@@ -384,28 +407,36 @@ namespace helengine {
         /// </summary>
         /// <returns>Resolved viewport bounds in local pixels.</returns>
         int2 ResolveAnchorBounds() {
+            float4 viewport = ResolveViewportBounds();
+            return new int2(
+                Math.Max(1, (int)Math.Round(viewport.Z)),
+                Math.Max(1, (int)Math.Round(viewport.W)));
+        }
+
+        /// <summary>
+        /// Resolves the active viewport rectangle without forcing another subscription refresh.
+        /// </summary>
+        /// <returns>Resolved viewport rectangle in pixel-space coordinates.</returns>
+        float4 ResolveViewportBounds() {
             if (BindingModeValue == ScreenBindingMode) {
                 int2 screenSize = Core.Instance.RenderManager3D.MainWindowSize;
                 if (screenSize.X > 0 && screenSize.Y > 0) {
-                    return screenSize;
+                    return new float4(0f, 0f, screenSize.X, screenSize.Y);
                 }
 
-                return FixedSizeValue;
+                return new float4(0f, 0f, FixedSizeValue.X, FixedSizeValue.Y);
             }
 
             if (BindingModeValue == AncestorCameraBindingMode || BindingModeValue == ExplicitCameraBindingMode) {
                 CameraComponent cameraComponent = ResolveBoundCameraComponent();
                 if (cameraComponent != null) {
-                    float4 viewport = ResolveCameraViewportBounds(cameraComponent);
-                    int viewportWidth = Math.Max(1, (int)Math.Round(viewport.Z));
-                    int viewportHeight = Math.Max(1, (int)Math.Round(viewport.W));
-                    return new int2(viewportWidth, viewportHeight);
+                    return ResolveCameraViewportBounds(cameraComponent);
                 }
 
-                return FixedSizeValue;
+                return new float4(0f, 0f, FixedSizeValue.X, FixedSizeValue.Y);
             }
 
-            return FixedSizeValue;
+            return new float4(0f, 0f, FixedSizeValue.X, FixedSizeValue.Y);
         }
 
         /// <summary>

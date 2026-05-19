@@ -103,6 +103,66 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures camera-bound viewports expose the resolved viewport size needed by direct 2D-in-3D presentation.
+        /// </summary>
+        [Fact]
+        public void ViewportComponent_WhenViewportBindsToAncestorCamera_ExposesResolvedViewportSize() {
+            Entity cameraEntity = new Entity();
+            cameraEntity.InitComponents();
+            cameraEntity.InitChildren();
+            CameraComponent camera = new CameraComponent {
+                Viewport = new float4(0f, 0f, 1280f, 720f)
+            };
+            cameraEntity.AddComponent(camera);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.AncestorCameraBindingMode
+            };
+            viewportEntity.AddComponent(viewport);
+            cameraEntity.AddChild(viewportEntity);
+
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(1280, 720), viewport.ResolvedViewportSize);
+        }
+
+        /// <summary>
+        /// Ensures camera-bound viewports raise one bounds-change notification when the driving camera viewport changes.
+        /// </summary>
+        [Fact]
+        public void ViewportComponent_WhenBoundCameraViewportChanges_RaisesAnchorBoundsChangedOnce() {
+            Entity cameraEntity = new Entity();
+            cameraEntity.InitComponents();
+            cameraEntity.InitChildren();
+            CameraComponent camera = new CameraComponent {
+                Viewport = new float4(0f, 0f, 320f, 180f)
+            };
+            cameraEntity.AddComponent(camera);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.AncestorCameraBindingMode
+            };
+            viewportEntity.AddComponent(viewport);
+            cameraEntity.AddChild(viewportEntity);
+
+            int anchorBoundsChangedCount = 0;
+            viewport.AnchorBoundsChanged += () => anchorBoundsChangedCount++;
+
+            Core.Instance.Update();
+            anchorBoundsChangedCount = 0;
+
+            camera.Viewport = new float4(0f, 0f, 640f, 360f);
+
+            Assert.Equal(1, anchorBoundsChangedCount);
+        }
+
+        /// <summary>
         /// Ensures anchored sizing can be resolved from a text component on the same entity.
         /// </summary>
         [Fact]

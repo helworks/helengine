@@ -9,6 +9,16 @@ namespace helengine {
         byte BindingMode { get; }
 
         /// <summary>
+        /// Gets the resolved viewport rectangle in pixel-space coordinates.
+        /// </summary>
+        float4 ResolvedViewportBounds { get; }
+
+        /// <summary>
+        /// Gets the resolved viewport size in pixels.
+        /// </summary>
+        int2 ResolvedViewportSize { get; }
+
+        /// <summary>
         /// Resolves the camera currently targeted by the viewport owner, or null when no camera is bound.
         /// </summary>
         /// <returns>Bound camera for rendering decisions, or null when no camera is currently targeted.</returns>
