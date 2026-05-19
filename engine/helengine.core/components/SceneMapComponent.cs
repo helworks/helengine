@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Current cooked payload version used by runtime scene persistence.
         /// </summary>
-        public const byte CurrentVersion = 1;
+        public const byte CurrentVersion = 2;
 
         /// <summary>
         /// Stable serialized component type id used by scene persistence.
