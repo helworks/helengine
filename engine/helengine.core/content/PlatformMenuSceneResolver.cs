@@ -12,5 +12,10 @@ namespace helengine {
         /// Stable scene id used by Nintendo DS builds once the DS-specific menu scene is generated.
         /// </summary>
         public const string NintendoDsMainMenuSceneId = "DemoDiscMainMenuDs";
+
+        /// <summary>
+        /// Stable scene id used by generated boot scenes that redirect startup through SceneMapComponent.
+        /// </summary>
+        public const string GeneratedBootSceneId = "GeneratedBootScene";
     }
 }
