@@ -21,6 +21,8 @@ namespace helengine.editor.tests {
         /// Disposes the active core instance after each test.
         /// </summary>
         public void Dispose() {
+            EditorWorldSpace2DPreviewRegistry.Clear();
+            EditorWorldSpace2DPreviewMeshResources.ResetForTests();
             Core.Instance?.Dispose();
         }
 
@@ -50,10 +52,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures authored scene 2D drawables stay on the scene camera queue when the viewport uses direct 2D presentation.
+        /// Ensures non-viewport-owned authored text drawables leave the scene camera queue when an exact world-preview path is available.
         /// </summary>
         [Fact]
-        public void Update_WhenDirectPresenterIsActive_KeepsScene2DDrawablesOnTheSceneCameraQueue() {
+        public void Update_WhenTextHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
             EditorEntity sceneCameraEntity = new EditorEntity();
             sceneCameraEntity.InitComponents();
             sceneCameraEntity.InitChildren();
@@ -74,15 +76,108 @@ namespace helengine.editor.tests {
             drawableEntity.InitComponents();
             drawableEntity.InitChildren();
             drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;
-            drawableEntity.AddComponent(new RoundedRectComponent {
-                Size = new int2(32, 32)
+            drawableEntity.AddComponent(new TextComponent {
+                Size = new int2(120, 24),
+                Text = "Preview"
             });
-            sceneCameraEntity.AddChild(drawableEntity);
 
             Core.Instance.Update();
 
             Assert.Equal(new int2(640, 360), presenter.PresentedWorldSize);
-            Assert.Equal(1, sceneCamera.RenderQueue2D.Count);
+            Assert.Equal(0, sceneCamera.RenderQueue2D.Count);
+        }
+
+        /// <summary>
+        /// Ensures viewport-owned sprite drawables leave the scene camera queue when a world-space preview proxy is available.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportOwnedSpriteHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
+            EditorEntity sceneCameraEntity = new EditorEntity();
+            sceneCameraEntity.InitComponents();
+            sceneCameraEntity.InitChildren();
+            CameraComponent sceneCamera = new CameraComponent {
+                Viewport = new float4(0f, 0f, 640f, 360f),
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            sceneCameraEntity.AddComponent(sceneCamera);
+            ViewportComponent sceneViewportComponent = new ViewportComponent {
+                BindingMode = ViewportComponent.ExplicitCameraBindingMode,
+                BoundCameraComponent = sceneCamera
+            };
+            sceneCameraEntity.AddComponent(sceneViewportComponent);
+            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
+            sceneCameraEntity.AddComponent(presenter);
+
+            Entity viewportOwnedRoot = new Entity();
+            viewportOwnedRoot.InitComponents();
+            viewportOwnedRoot.InitChildren();
+            viewportOwnedRoot.LayerMask = EditorLayerMasks.SceneObjects;
+            viewportOwnedRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ExplicitCameraBindingMode,
+                BoundCameraComponent = sceneCamera
+            });
+            sceneCameraEntity.AddChild(viewportOwnedRoot);
+
+            Entity drawableEntity = new Entity();
+            drawableEntity.InitComponents();
+            drawableEntity.InitChildren();
+            drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;
+            drawableEntity.AddComponent(new SpriteComponent {
+                Size = new int2(32, 32),
+                Texture = TextureUtils.PixelTexture
+            });
+            viewportOwnedRoot.AddChild(drawableEntity);
+
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(640, 360), presenter.PresentedWorldSize);
+            Assert.Equal(0, sceneCamera.RenderQueue2D.Count);
+        }
+
+        /// <summary>
+        /// Ensures viewport-owned rounded-rectangle drawables leave the scene camera queue when an exact world-preview path is available.
+        /// </summary>
+        [Fact]
+        public void Update_WhenRoundedRectHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
+            EditorEntity sceneCameraEntity = new EditorEntity();
+            sceneCameraEntity.InitComponents();
+            sceneCameraEntity.InitChildren();
+            CameraComponent sceneCamera = new CameraComponent {
+                Viewport = new float4(0f, 0f, 640f, 360f),
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            sceneCameraEntity.AddComponent(sceneCamera);
+            ViewportComponent sceneViewportComponent = new ViewportComponent {
+                BindingMode = ViewportComponent.ExplicitCameraBindingMode,
+                BoundCameraComponent = sceneCamera
+            };
+            sceneCameraEntity.AddComponent(sceneViewportComponent);
+            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
+            sceneCameraEntity.AddComponent(presenter);
+
+            Entity viewportOwnedRoot = new Entity();
+            viewportOwnedRoot.InitComponents();
+            viewportOwnedRoot.InitChildren();
+            viewportOwnedRoot.LayerMask = EditorLayerMasks.SceneObjects;
+            viewportOwnedRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ExplicitCameraBindingMode,
+                BoundCameraComponent = sceneCamera
+            });
+            sceneCameraEntity.AddChild(viewportOwnedRoot);
+
+            Entity drawableEntity = new Entity();
+            drawableEntity.InitComponents();
+            drawableEntity.InitChildren();
+            drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;
+            drawableEntity.AddComponent(new RoundedRectComponent {
+                Size = new int2(32, 32)
+            });
+            viewportOwnedRoot.AddChild(drawableEntity);
+
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(640, 360), presenter.PresentedWorldSize);
+            Assert.Equal(0, sceneCamera.RenderQueue2D.Count);
         }
     }
 }
