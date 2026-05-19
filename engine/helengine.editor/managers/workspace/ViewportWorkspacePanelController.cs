@@ -194,10 +194,15 @@ namespace helengine.editor {
             RenderManager3D render3D = Core.Instance.RenderManager3D;
             EditorEntity sceneCameraEntity = CreateSceneCameraEntity();
             CameraComponent sceneCamera = CreateSceneCamera(sceneCameraEntity);
+            ViewportComponent sceneViewportComponent = new ViewportComponent {
+                BindingMode = ViewportComponent.ExplicitCameraBindingMode,
+                BoundCameraComponent = sceneCamera
+            };
+            sceneCameraEntity.AddComponent(sceneViewportComponent);
+            EditorViewportDirect2DScenePresenterComponent direct2DScenePresenterComponent = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
+            sceneCameraEntity.AddComponent(direct2DScenePresenterComponent);
             CameraComponent gizmoCamera = CreateGizmoCamera(sceneCameraEntity, sceneCamera);
             EditorViewport viewport = new EditorViewport(sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics);
-            EditorViewportCanvasPlanePreviewComponent canvasPlanePreviewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, viewport.CanvasPreviewSettings, render3D);
-            sceneCameraEntity.AddComponent(canvasPlanePreviewComponent);
             EditorViewportCameraController cameraController = new EditorViewportCameraController(sceneCamera);
             sceneCameraEntity.AddComponent(cameraController);
             RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial(render3D);
@@ -235,11 +240,12 @@ namespace helengine.editor {
                 viewport,
                 sceneCameraEntity,
                 sceneCamera,
+                sceneViewportComponent,
+                direct2DScenePresenterComponent,
                 gizmoCamera,
                 pickerCameraEntity,
                 pickerCamera,
                 pickerRenderTarget,
-                canvasPlanePreviewComponent,
                 cameraController,
                 translationGizmoRoot,
                 rotationGizmoRoot,

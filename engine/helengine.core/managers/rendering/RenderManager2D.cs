@@ -26,6 +26,12 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(font));
             }
 
+            RuntimeTexture texture = font.Texture;
+            if (texture != null && !texture.IsDisposed) {
+                ReleaseTexture(texture);
+                texture.Dispose();
+            }
+
             font.Dispose();
             NativeOwnership.Delete(font);
         }

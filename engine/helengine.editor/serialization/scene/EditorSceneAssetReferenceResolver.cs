@@ -39,6 +39,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorFileSystemFontResolver FileSystemFontResolver;
         /// <summary>
+        /// Resolves file-system texture source files through the imported texture cache.
+        /// </summary>
+        readonly EditorFileSystemTextureResolver FileSystemTextureResolver;
+        /// <summary>
         /// Loads per-platform material settings sidecars for file-backed scene materials.
         /// </summary>
         readonly MaterialAssetSettingsService MaterialSettingsService;
@@ -126,6 +130,47 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Initializes a new runtime asset resolver for scene loading with support for file-system model, font, and texture source resolution.
+        /// </summary>
+        /// <param name="assetContentManager">Content manager used to load file-backed assets.</param>
+        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
+        /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
+        /// <param name="fileSystemFontResolver">Resolver that imports or loads processed font assets for file-system font sources.</param>
+        /// <param name="fileSystemTextureResolver">Resolver that imports or loads processed texture assets for file-system texture sources.</param>
+        public EditorSceneAssetReferenceResolver(
+            ContentManager assetContentManager,
+            string projectRootPath,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            EditorFileSystemFontResolver fileSystemFontResolver,
+            EditorFileSystemTextureResolver fileSystemTextureResolver) {
+            if (assetContentManager == null) {
+                throw new ArgumentNullException(nameof(assetContentManager));
+            }
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (fileSystemModelResolver == null) {
+                throw new ArgumentNullException(nameof(fileSystemModelResolver));
+            }
+            if (fileSystemFontResolver == null) {
+                throw new ArgumentNullException(nameof(fileSystemFontResolver));
+            }
+            if (fileSystemTextureResolver == null) {
+                throw new ArgumentNullException(nameof(fileSystemTextureResolver));
+            }
+
+            string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            ProjectRootPath = fullProjectRootPath;
+            AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
+            ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
+            AssetContentManager = assetContentManager;
+            FileSystemModelResolver = fileSystemModelResolver;
+            FileSystemFontResolver = fileSystemFontResolver;
+            FileSystemTextureResolver = fileSystemTextureResolver;
+            MaterialSettingsService = new MaterialAssetSettingsService();
+        }
+
+        /// <summary>
         /// Resolves one persisted model reference into a runtime model instance.
         /// </summary>
         /// <param name="reference">Persisted asset reference to resolve.</param>
@@ -196,8 +241,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported texture reference source kind '{reference.SourceKind}'.");
             }
 
-            string fullPath = ResolveFileSystemAssetPath(reference);
-            TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(fullPath, EditorContentProcessorIds.TextureAsset);
+            TextureAsset textureAsset = ResolveFileSystemTexture(reference);
             return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
         }
 
@@ -257,6 +301,24 @@ namespace helengine.editor {
             RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
             ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);
             return runtimeMaterial;
+        }
+
+        /// <summary>
+        /// Resolves one file-backed texture reference by importing or loading the processed cached texture asset for the source file.
+        /// </summary>
+        /// <param name="reference">File-backed texture reference to resolve.</param>
+        /// <returns>Texture asset loaded from cache or freshly imported from the source file.</returns>
+        TextureAsset ResolveFileSystemTexture(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            string fullPath = ResolveFileSystemAssetPath(reference);
+            if (FileSystemTextureResolver != null) {
+                return FileSystemTextureResolver.ResolveTextureAsset(fullPath);
+            }
+
+            return AssetContentManager.Load<TextureAsset>(fullPath, EditorContentProcessorIds.TextureAsset);
         }
 
         /// <summary>

@@ -292,9 +292,6 @@ namespace helengine {
                 ActiveResolvedFontsByPath.Add(fullPath, fontAsset);
             }
             TrackOwnedFont(fontAsset);
-            if (fontAsset.Texture != null) {
-                TrackOwnedTexture(fontAsset.Texture);
-            }
             return fontAsset;
         }
 

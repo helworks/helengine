@@ -200,10 +200,6 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorViewport mainViewport;
         /// <summary>
-        /// Editor-only component that renders the authored 2D canvas into the world-space viewport plane.
-        /// </summary>
-        readonly EditorViewportCanvasPlanePreviewComponent canvasPlanePreviewComponent;
-        /// <summary>
         /// Scene-owned canvas profile shared by viewport previews and scene settings UI.
         /// </summary>
         readonly EditorSceneCanvasProfileState sceneCanvasProfileState;
@@ -541,7 +537,6 @@ namespace helengine.editor {
             hiddenCameraEntity = primaryViewportState.PickerCameraEntity;
             hiddenCameraComponent = primaryViewportState.PickerCamera;
             hiddenCameraTarget = primaryViewportState.PickerRenderTarget;
-            canvasPlanePreviewComponent = primaryViewportState.CanvasPlanePreviewComponent;
             ApplyEditorTheme(CurrentThemeId);
             keyboardFocusEntity = new EditorEntity {
                 InternalEntity = true,
@@ -563,6 +558,7 @@ namespace helengine.editor {
             dockingManager = new DockingManager();
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
+            EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
@@ -598,7 +594,7 @@ namespace helengine.editor {
             sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
             sceneAssetReferenceFactory = new SceneAssetReferenceFactory();
-            sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver);
+            sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,

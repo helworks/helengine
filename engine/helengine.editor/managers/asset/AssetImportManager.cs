@@ -1405,12 +1405,44 @@ namespace helengine.editor {
 
             try {
                 using FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                asset = FontAssetBinarySerializer.Deserialize(stream);
+                asset = RestoreRuntimeTextureForCachedFontAsset(FontAssetBinarySerializer.Deserialize(stream));
                 return true;
             } catch {
                 asset = null;
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Rebuilds the runtime atlas texture required by editor rendering when a cached font asset was deserialized without one.
+        /// </summary>
+        /// <param name="asset">Cached font asset that may need its runtime atlas restored.</param>
+        /// <returns>The original asset when it already owns a runtime texture; otherwise a replacement asset with a rebuilt runtime atlas.</returns>
+        FontAsset RestoreRuntimeTextureForCachedFontAsset(FontAsset asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+
+            if (asset.Texture != null || asset.SourceTextureAsset == null) {
+                return asset;
+            }
+
+            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+                throw new InvalidOperationException("Cached font assets require an initialized 2D renderer before their runtime atlas can be restored.");
+            }
+
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(asset.SourceTextureAsset);
+            FontAsset restoredAsset = new FontAsset(
+                asset.FontInfo,
+                runtimeTexture,
+                asset.Characters,
+                asset.LineHeight,
+                asset.AtlasWidth,
+                asset.AtlasHeight) {
+                SourceTextureAsset = asset.SourceTextureAsset,
+                CookedAtlasTextureRelativePath = asset.CookedAtlasTextureRelativePath
+            };
+            return restoredAsset;
         }
 
         /// <summary>

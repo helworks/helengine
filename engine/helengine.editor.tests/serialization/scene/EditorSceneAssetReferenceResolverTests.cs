@@ -108,6 +108,64 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures cached filesystem-backed source fonts rebuild their runtime atlas texture before the editor renderer consumes them.
+        /// </summary>
+        [Fact]
+        public void ResolveFont_WhenSourceFontIsLoadedFromCache_RebuildsRuntimeTexture() {
+            string fontPath = Path.Combine(TempProjectRootPath, "assets", "Fonts", "DemoDiscBody.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(fontPath));
+            File.WriteAllBytes(fontPath, new byte[] { 1, 2, 3, 4 });
+            AssetImportManager assetImportManager = CreateAssetImportManager();
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
+                new ContentManager(TempProjectRootPath),
+                TempProjectRootPath,
+                new EditorFileSystemModelResolver(assetImportManager),
+                new EditorFileSystemFontResolver(assetImportManager));
+
+            FontAsset importedFont = resolver.ResolveFont(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Fonts/DemoDiscBody.ttf"
+            });
+            FontAsset cachedFont = resolver.ResolveFont(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Fonts/DemoDiscBody.ttf"
+            });
+
+            TestRenderManager2D renderManager = Assert.IsType<TestRenderManager2D>(Core.Instance.RenderManager2D);
+            Assert.NotNull(importedFont.Texture);
+            Assert.NotNull(cachedFont.Texture);
+            Assert.Equal(1, renderManager.BuildTextureFromRawCallCount);
+        }
+
+        /// <summary>
+        /// Ensures filesystem-backed source texture references resolve through the imported texture cache instead of loading raw source bytes as a packaged texture asset.
+        /// </summary>
+        [Fact]
+        public void ResolveTexture_WhenReferenceIsSourceTexture_UsesImportedTextureAsset() {
+            string texturePath = Path.Combine(TempProjectRootPath, "assets", "Images", "Menu", "helengine-logo.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(texturePath));
+            File.WriteAllBytes(texturePath, new byte[] { 1, 2, 3, 4 });
+            AssetImportManager assetImportManager = CreateAssetImportManager();
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
+                new ContentManager(TempProjectRootPath),
+                TempProjectRootPath,
+                new EditorFileSystemModelResolver(assetImportManager),
+                new EditorFileSystemFontResolver(assetImportManager),
+                new EditorFileSystemTextureResolver(assetImportManager));
+
+            RuntimeTexture texture = resolver.ResolveTexture(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Images/Menu/helengine-logo.png"
+            });
+
+            TestRenderManager2D renderManager = Assert.IsType<TestRenderManager2D>(Core.Instance.RenderManager2D);
+            Assert.NotNull(texture);
+            Assert.Equal(1, renderManager.BuildTextureFromRawCallCount);
+            Assert.Equal(1, texture.Width);
+            Assert.Equal(1, texture.Height);
+        }
+
+        /// <summary>
         /// Ensures file-backed materials that point at built-in shaders can still resolve in the editor when no cached shader package exists yet.
         /// </summary>
         [Fact]
@@ -196,6 +254,7 @@ namespace helengine.editor.tests.serialization.scene {
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
             return assetImportManager;
         }
 

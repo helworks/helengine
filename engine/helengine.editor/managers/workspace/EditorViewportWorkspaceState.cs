@@ -9,11 +9,12 @@ namespace helengine.editor {
         /// <param name="viewport">Dockable viewport panel shown in the workspace.</param>
         /// <param name="sceneCameraEntity">Entity that owns the scene and gizmo cameras.</param>
         /// <param name="sceneCamera">Primary camera that renders scene geometry for the viewport.</param>
+        /// <param name="sceneViewportComponent">Viewport component that resolves the scene camera viewport rectangle.</param>
+        /// <param name="direct2DScenePresenterComponent">Component that exposes the viewport's direct 2D scene-presentation space.</param>
         /// <param name="gizmoCamera">Overlay camera that renders gizmos on top of scene geometry.</param>
         /// <param name="pickerCameraEntity">Hidden entity used for picker rendering.</param>
         /// <param name="pickerCamera">Hidden camera used for picker rendering.</param>
         /// <param name="pickerRenderTarget">Render target used by the picker camera when supported.</param>
-        /// <param name="canvasPlanePreviewComponent">Component that renders the shared scene canvas into the viewport plane.</param>
         /// <param name="cameraController">Viewport-local camera controller that owns orbit state and input-driven navigation.</param>
         /// <param name="translationGizmoRoot">Root entity for the viewport-local translation gizmo.</param>
         /// <param name="rotationGizmoRoot">Root entity for the viewport-local rotation gizmo.</param>
@@ -22,11 +23,12 @@ namespace helengine.editor {
             EditorViewport viewport,
             EditorEntity sceneCameraEntity,
             CameraComponent sceneCamera,
+            ViewportComponent sceneViewportComponent,
+            EditorViewportDirect2DScenePresenterComponent direct2DScenePresenterComponent,
             CameraComponent gizmoCamera,
             EditorEntity pickerCameraEntity,
             CameraComponent pickerCamera,
             RenderTarget pickerRenderTarget,
-            EditorViewportCanvasPlanePreviewComponent canvasPlanePreviewComponent,
             EditorViewportCameraController cameraController,
             EditorEntity translationGizmoRoot,
             EditorEntity rotationGizmoRoot,
@@ -34,11 +36,12 @@ namespace helengine.editor {
             Viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
             SceneCameraEntity = sceneCameraEntity ?? throw new ArgumentNullException(nameof(sceneCameraEntity));
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
+            SceneViewportComponent = sceneViewportComponent ?? throw new ArgumentNullException(nameof(sceneViewportComponent));
+            Direct2DScenePresenterComponent = direct2DScenePresenterComponent ?? throw new ArgumentNullException(nameof(direct2DScenePresenterComponent));
             GizmoCamera = gizmoCamera ?? throw new ArgumentNullException(nameof(gizmoCamera));
             PickerCameraEntity = pickerCameraEntity ?? throw new ArgumentNullException(nameof(pickerCameraEntity));
             PickerCamera = pickerCamera ?? throw new ArgumentNullException(nameof(pickerCamera));
             PickerRenderTarget = pickerRenderTarget;
-            CanvasPlanePreviewComponent = canvasPlanePreviewComponent ?? throw new ArgumentNullException(nameof(canvasPlanePreviewComponent));
             CameraController = cameraController ?? throw new ArgumentNullException(nameof(cameraController));
             TranslationGizmoRoot = translationGizmoRoot ?? throw new ArgumentNullException(nameof(translationGizmoRoot));
             RotationGizmoRoot = rotationGizmoRoot ?? throw new ArgumentNullException(nameof(rotationGizmoRoot));
@@ -58,6 +61,14 @@ namespace helengine.editor {
         /// </summary>
         public CameraComponent SceneCamera { get; }
         /// <summary>
+        /// Gets the viewport component that resolves the scene camera viewport rectangle.
+        /// </summary>
+        public ViewportComponent SceneViewportComponent { get; }
+        /// <summary>
+        /// Gets the component that exposes the viewport's direct 2D scene-presentation space.
+        /// </summary>
+        public EditorViewportDirect2DScenePresenterComponent Direct2DScenePresenterComponent { get; }
+        /// <summary>
         /// Gets the overlay camera that renders gizmos for the viewport.
         /// </summary>
         public CameraComponent GizmoCamera { get; }
@@ -73,10 +84,6 @@ namespace helengine.editor {
         /// Gets the picker render target when picker rendering is supported by the active renderer.
         /// </summary>
         public RenderTarget PickerRenderTarget { get; }
-        /// <summary>
-        /// Gets the canvas-plane preview component owned by the viewport stack.
-        /// </summary>
-        public EditorViewportCanvasPlanePreviewComponent CanvasPlanePreviewComponent { get; }
         /// <summary>
         /// Gets the viewport-local camera controller that owns orbit state and camera navigation.
         /// </summary>

@@ -685,7 +685,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Same(firstTextComponent.Font.Texture, secondTextComponent.Font.Texture);
             Assert.Equal(buildTextureFromRawCallCountBeforeLoad + 1, renderManager2D.BuildTextureFromRawCallCount);
             Assert.Single(loadResult.OwnedAssets.OwnedFonts);
-            Assert.Single(loadResult.OwnedAssets.OwnedTextures);
+            Assert.Empty(loadResult.OwnedAssets.OwnedTextures);
         }
 
         /// <summary>
