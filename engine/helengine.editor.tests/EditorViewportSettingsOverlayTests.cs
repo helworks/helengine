@@ -63,8 +63,51 @@ namespace helengine.editor.tests {
 
             EditorKeyboardFocusService.HandleTab(true);
             Assert.Same(
+                overlayComponent.CameraSpeedModeFocusTarget,
+                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+
+            EditorKeyboardFocusService.HandleTab(true);
+            Assert.Same(
+                overlayComponent.ManualCameraSpeedFocusTarget,
+                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+
+            EditorKeyboardFocusService.HandleTab(true);
+            Assert.Same(
                 overlayComponent.CloseButtonFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+        }
+
+        /// <summary>
+        /// Ensures opening the overlay exposes camera speed controls for viewport-local navigation settings.
+        /// </summary>
+        [Fact]
+        public void Open_WhenOverlayBecomesVisible_ExposesCameraSpeedControls() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+
+            overlayComponent.Open();
+
+            Assert.NotNull(overlayComponent.CameraSpeedModeFocusTarget);
+            Assert.NotNull(overlayComponent.ManualCameraSpeedFocusTarget);
+            Assert.NotNull(overlayComponent.ManualCameraSpeedSlider);
+        }
+
+        /// <summary>
+        /// Ensures camera speed controls update the viewport camera controller state.
+        /// </summary>
+        [Fact]
+        public void SetCameraSpeedControls_WhenManualOverrideIsSelected_UpdatesViewportController() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+
+            overlayComponent.Open();
+            overlayComponent.CameraSpeedModeFocusTarget.ActivateFromKey(Keys.Enter);
+            overlayComponent.ManualCameraSpeedSlider.SetValue(8.0);
+
+            Assert.Equal(EditorViewportCameraSpeedMode.ManualOverride, viewport.CameraSpeedMode);
+            Assert.Equal(8.0, viewport.ManualCameraSpeedOverride, 3);
         }
 
         /// <summary>
@@ -332,6 +375,7 @@ namespace helengine.editor.tests {
                 CreateFont(),
                 CreateFont(),
                 CreateToolbarIcons());
+            viewport.CameraController = new EditorViewportCameraController(camera);
             viewport.Position = new float3(20f, 20f, 0f);
             viewport.Size = new int2(400, 280);
             return viewport;

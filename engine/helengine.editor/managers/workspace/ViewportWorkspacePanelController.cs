@@ -27,6 +27,10 @@ namespace helengine.editor {
         /// </summary>
         const byte GizmoCameraDrawOrder = 1;
         /// <summary>
+        /// Default far clip plane used by workspace scene cameras so large editor-authored scene aids remain visible.
+        /// </summary>
+        const float DefaultSceneCameraFarPlaneDistance = 5000f;
+        /// <summary>
         /// Default picker render target width used before the viewport lays out.
         /// </summary>
         const int DefaultPickerRenderTargetWidth = 640;
@@ -45,6 +49,10 @@ namespace helengine.editor {
         /// Runtime stack owned by this viewport panel instance.
         /// </summary>
         readonly EditorViewportWorkspaceState State;
+        /// <summary>
+        /// Frames the current editor selection inside the viewport scene camera on demand.
+        /// </summary>
+        readonly EditorViewportSelectionFramingService SelectionFramingService;
 
         /// <summary>
         /// Initializes one workspace controller and its independent viewport runtime stack.
@@ -76,6 +84,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(metrics));
             }
 
+            SelectionFramingService = new EditorViewportSelectionFramingService();
             State = CreateViewportState(font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics);
         }
 
@@ -84,7 +93,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="state">Existing viewport runtime stack owned by the controller.</param>
         public ViewportWorkspacePanelController(EditorViewportWorkspaceState state) {
+            SelectionFramingService = new EditorViewportSelectionFramingService();
             State = state ?? throw new ArgumentNullException(nameof(state));
+            WireViewportCallbacks(State);
         }
 
         /// <summary>
@@ -112,6 +123,8 @@ namespace helengine.editor {
                 ToolMode = State.Viewport.ToolMode,
                 NearPlaneDistance = State.SceneCamera.NearPlaneDistance,
                 FarPlaneDistance = State.SceneCamera.FarPlaneDistance,
+                CameraSpeedMode = State.Viewport.CameraSpeedMode,
+                ManualCameraSpeedOverride = State.Viewport.ManualCameraSpeedOverride,
                 CanvasWidth = State.Viewport.CanvasPreviewSettings.CanvasWidth,
                 CanvasHeight = State.Viewport.CanvasPreviewSettings.CanvasHeight,
                 PixelsPerWorldUnit = State.Viewport.CanvasPreviewSettings.PixelsPerWorldUnit,
@@ -148,6 +161,10 @@ namespace helengine.editor {
             State.Viewport.ToolMode = document.ToolMode;
             State.SceneCamera.NearPlaneDistance = document.NearPlaneDistance;
             State.SceneCamera.FarPlaneDistance = document.FarPlaneDistance;
+            State.Viewport.CameraSpeedMode = document.CameraSpeedMode;
+            State.Viewport.ManualCameraSpeedOverride = document.ManualCameraSpeedOverride <= 0.0
+                ? EditorViewportCameraController.DefaultMoveSpeed
+                : document.ManualCameraSpeedOverride;
             State.Viewport.CanvasPreviewSettings.CanvasWidth = document.CanvasWidth;
             State.Viewport.CanvasPreviewSettings.CanvasHeight = document.CanvasHeight;
             State.Viewport.CanvasPreviewSettings.PixelsPerWorldUnit = document.PixelsPerWorldUnit;
@@ -201,10 +218,16 @@ namespace helengine.editor {
             sceneCameraEntity.AddComponent(sceneViewportComponent);
             EditorViewportDirect2DScenePresenterComponent direct2DScenePresenterComponent = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
             sceneCameraEntity.AddComponent(direct2DScenePresenterComponent);
+            EditorWorldSpace2DPreviewSyncComponent worldSpace2DPreviewSyncComponent = new EditorWorldSpace2DPreviewSyncComponent();
+            sceneCameraEntity.AddComponent(worldSpace2DPreviewSyncComponent);
+            EditorViewportBorderGizmoSyncComponent viewportBorderGizmoSyncComponent = new EditorViewportBorderGizmoSyncComponent();
+            sceneCameraEntity.AddComponent(viewportBorderGizmoSyncComponent);
             CameraComponent gizmoCamera = CreateGizmoCamera(sceneCameraEntity, sceneCamera);
             EditorViewport viewport = new EditorViewport(sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics);
             EditorViewportCameraController cameraController = new EditorViewportCameraController(sceneCamera);
+            viewport.CameraController = cameraController;
             sceneCameraEntity.AddComponent(cameraController);
+            viewport.FocusSelectionRequested = HandleFocusSelectionRequested;
             RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial(render3D);
             RuntimeMaterial transformGizmoHighlightMaterial = BuildTransformGizmoHighlightMaterial(render3D);
             RuntimeMaterial transformGizmoPlaneMaterial = TransformGizmoPlaneMaterialFactory.CreateNormal(render3D);
@@ -236,12 +259,14 @@ namespace helengine.editor {
                 pickerCamera.RenderTarget = null;
             }
 
-            return new EditorViewportWorkspaceState(
+            EditorViewportWorkspaceState state = new EditorViewportWorkspaceState(
                 viewport,
                 sceneCameraEntity,
                 sceneCamera,
                 sceneViewportComponent,
                 direct2DScenePresenterComponent,
+                worldSpace2DPreviewSyncComponent,
+                viewportBorderGizmoSyncComponent,
                 gizmoCamera,
                 pickerCameraEntity,
                 pickerCamera,
@@ -250,6 +275,27 @@ namespace helengine.editor {
                 translationGizmoRoot,
                 rotationGizmoRoot,
                 scaleGizmoRoot);
+            WireViewportCallbacks(state);
+            return state;
+        }
+
+        /// <summary>
+        /// Wires viewport callbacks that depend on the fully constructed runtime viewport state.
+        /// </summary>
+        /// <param name="state">Viewport runtime state that should receive callbacks.</param>
+        void WireViewportCallbacks(EditorViewportWorkspaceState state) {
+            if (state == null) {
+                throw new ArgumentNullException(nameof(state));
+            }
+
+            state.Viewport.FocusSelectionRequested = HandleFocusSelectionRequested;
+        }
+
+        /// <summary>
+        /// Frames the current editor selection inside this viewport's scene camera.
+        /// </summary>
+        void HandleFocusSelectionRequested() {
+            SelectionFramingService.FocusSelection(State.SceneCamera, State.CameraController, EditorSelectionService.SelectedEntity);
         }
 
         /// <summary>
@@ -273,6 +319,7 @@ namespace helengine.editor {
             CameraComponent sceneCamera = new CameraComponent();
             sceneCamera.LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGrid | EditorLayerMasks.SceneCameraVisuals | EditorLayerMasks.SceneCanvasPlane;
             sceneCamera.CameraDrawOrder = SceneCameraDrawOrder;
+            sceneCamera.FarPlaneDistance = DefaultSceneCameraFarPlaneDistance;
             sceneCamera.ClearSettings = new CameraClearSettings(true, new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f), true, 1.0f, false, 0);
             sceneCameraEntity.AddComponent(sceneCamera);
             sceneCameraEntity.AddComponent(new TransformTranslationGizmoDragComponent(sceneCamera));

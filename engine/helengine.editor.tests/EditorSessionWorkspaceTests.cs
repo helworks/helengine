@@ -291,6 +291,61 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures newly created workspace viewports start with an editor-scale far clip plane instead of the generic runtime camera default.
+        /// </summary>
+        [Fact]
+        public void ViewportCreation_WhenWorkspaceViewportOpens_UsesExtendedSceneFarPlane() {
+            using EditorSessionHarness harness = EditorSessionHarness.Create();
+
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowViewport);
+            EditorWorkspacePanelInstance instance = Assert.Single(harness.Session.GetPanelInstancesForTest("viewport"));
+            ViewportWorkspacePanelController controller = harness.GetViewportControllerForTest(instance);
+
+            Assert.Equal(5000f, controller.ViewportState.SceneCamera.FarPlaneDistance);
+        }
+
+        /// <summary>
+        /// Ensures freshly created workspace viewports default to adaptive selection-size camera speed mode.
+        /// </summary>
+        [Fact]
+        public void ViewportCreation_WhenWorkspaceViewportOpens_DefaultsToAutoSelectionSpeedMode() {
+            using EditorSessionHarness harness = EditorSessionHarness.Create();
+
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowViewport);
+            EditorWorkspacePanelInstance instance = Assert.Single(harness.Session.GetPanelInstancesForTest("viewport"));
+
+            Assert.Equal(EditorViewportCameraSpeedMode.AutoFromSelection, harness.GetViewportCameraSpeedMode(instance));
+            Assert.Equal(EditorViewportCameraController.DefaultMoveSpeed, harness.GetViewportManualCameraSpeed(instance));
+        }
+
+        /// <summary>
+        /// Ensures one viewport focus request frames the selected authored viewport and expands the scene far plane when necessary.
+        /// </summary>
+        [Fact]
+        public void ViewportFocus_WhenFocusSelectionIsRequested_FramesSelectedViewportAndExpandsFarPlane() {
+            using EditorSessionHarness harness = EditorSessionHarness.Create();
+
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowViewport);
+            EditorWorkspacePanelInstance instance = Assert.Single(harness.Session.GetPanelInstancesForTest("viewport"));
+            ViewportWorkspacePanelController controller = harness.GetViewportControllerForTest(instance);
+            controller.ViewportState.Viewport.Size = new int2(1280, 720);
+
+            Entity selectedViewportEntity = new Entity();
+            selectedViewportEntity.InitComponents();
+            selectedViewportEntity.InitChildren();
+            selectedViewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.FixedBindingMode,
+                FixedSize = new int2(40000, 20000)
+            });
+            EditorSelectionService.SetSelectedEntity(selectedViewportEntity);
+
+            controller.ViewportState.Viewport.FocusSelectionRequested();
+
+            Assert.Equal(new float3(20000f, 10000f, 0f), controller.ViewportState.CameraController.GetOrbitTarget());
+            Assert.True(controller.ViewportState.SceneCamera.FarPlaneDistance > 5000f);
+        }
+
+        /// <summary>
         /// Ensures closing the first tracked viewport retargets the session viewport accessors to the next surviving viewport instance.
         /// </summary>
         [Fact]
@@ -333,6 +388,28 @@ namespace helengine.editor.tests {
             Assert.NotNull(harness.Session.MainViewport);
             Assert.NotNull(harness.Session.SceneCamera);
             Assert.Equal(0.25, harness.GetViewportSnapValue(reopened, EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
+        }
+
+        /// <summary>
+        /// Ensures viewport camera speed mode and manual override value round-trip through workspace save and load.
+        /// </summary>
+        [Fact]
+        public void UiSaveAndLoad_WhenViewportUsesManualCameraSpeed_RestoresSpeedModeAndManualValue() {
+            using EditorSessionHarness harness = EditorSessionHarness.Create();
+
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowViewport);
+            EditorWorkspacePanelInstance viewportInstance = Assert.Single(harness.Session.GetPanelInstancesForTest("viewport"));
+            ViewportWorkspacePanelController controller = harness.GetViewportControllerForTest(viewportInstance);
+            controller.ViewportState.Viewport.CameraSpeedMode = EditorViewportCameraSpeedMode.ManualOverride;
+            controller.ViewportState.Viewport.ManualCameraSpeedOverride = 6.5;
+
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.SaveSlot1);
+            viewportInstance.Dockable.ActivatePanelMenuActionForTest(DockableEntityPanelMenuAction.Close);
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.LoadSlot1);
+
+            EditorWorkspacePanelInstance restoredViewport = Assert.Single(harness.Session.GetPanelInstancesForTest("viewport"));
+            Assert.Equal(EditorViewportCameraSpeedMode.ManualOverride, harness.GetViewportCameraSpeedMode(restoredViewport));
+            Assert.Equal(6.5, harness.GetViewportManualCameraSpeed(restoredViewport));
         }
 
         /// <summary>
@@ -684,6 +761,7 @@ namespace helengine.editor.tests {
                 }
 
                 EditorKeyboardFocusService.Reset();
+                EditorSelectionService.ClearSelection();
                 Core.Instance.Dispose();
                 if (Directory.Exists(TempProjectRootPath)) {
                     Directory.Delete(TempProjectRootPath, true);
@@ -881,6 +959,26 @@ namespace helengine.editor.tests {
             public float GetViewportFarPlane(EditorWorkspacePanelInstance instance) {
                 ViewportWorkspacePanelController controller = GetViewportController(instance);
                 return controller.ViewportState.SceneCamera.FarPlaneDistance;
+            }
+
+            /// <summary>
+            /// Reads the viewport-local camera speed mode for one tracked viewport instance.
+            /// </summary>
+            /// <param name="instance">Tracked viewport instance to inspect.</param>
+            /// <returns>Viewport-local camera speed mode.</returns>
+            public byte GetViewportCameraSpeedMode(EditorWorkspacePanelInstance instance) {
+                ViewportWorkspacePanelController controller = GetViewportController(instance);
+                return controller.ViewportState.Viewport.CameraSpeedMode;
+            }
+
+            /// <summary>
+            /// Reads the viewport-local manual camera speed override for one tracked viewport instance.
+            /// </summary>
+            /// <param name="instance">Tracked viewport instance to inspect.</param>
+            /// <returns>Viewport-local manual camera speed override value.</returns>
+            public double GetViewportManualCameraSpeed(EditorWorkspacePanelInstance instance) {
+                ViewportWorkspacePanelController controller = GetViewportController(instance);
+                return controller.ViewportState.Viewport.ManualCameraSpeedOverride;
             }
 
             /// <summary>

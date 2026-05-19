@@ -23,6 +23,14 @@ namespace helengine.editor {
         /// Default orbit distance used to derive a virtual target before the user selects one.
         /// </summary>
         public const double DefaultOrbitDistance = 10.0;
+        /// <summary>
+        /// Minimum effective movement speed allowed by adaptive viewport navigation.
+        /// </summary>
+        public const float MinimumAdaptiveMoveSpeed = 0.02f;
+        /// <summary>
+        /// Maximum effective movement speed allowed by adaptive viewport navigation.
+        /// </summary>
+        public const float MaximumAdaptiveMoveSpeed = 64f;
 
         /// <summary>
         /// Minimum length squared used to avoid normalizing a zero vector.
@@ -55,6 +63,10 @@ namespace helengine.editor {
         /// Camera supplying viewport bounds for activation checks.
         /// </summary>
         readonly CameraComponent camera;
+        /// <summary>
+        /// Shared editor-only bounds resolver used to derive adaptive speed from the current selection.
+        /// </summary>
+        readonly EditorViewportSelectionFramingService selectionFramingService;
 
         /// <summary>
         /// Tracks whether a right-click started inside the viewport.
@@ -104,6 +116,42 @@ namespace helengine.editor {
         /// Current virtual target used when no scene entity is selected.
         /// </summary>
         float3 virtualTarget;
+        /// <summary>
+        /// Selected entity that owns the current explicit orbit-target override, when one has been authored by the editor.
+        /// </summary>
+        Entity selectionOrbitTargetOverrideEntity;
+        /// <summary>
+        /// Orbit target that should override the selected entity position while the same selection remains active.
+        /// </summary>
+        float3 selectionOrbitTargetOverride;
+        /// <summary>
+        /// Tracks whether a selected-entity orbit-target override is currently active.
+        /// </summary>
+        bool hasSelectionOrbitTargetOverride;
+        /// <summary>
+        /// Effective movement speed applied by the current viewport camera mode.
+        /// </summary>
+        float moveSpeed;
+        /// <summary>
+        /// Effective pan speed applied by the current viewport camera mode.
+        /// </summary>
+        double panSpeed;
+        /// <summary>
+        /// Effective wheel zoom speed applied by the current viewport camera mode.
+        /// </summary>
+        double wheelZoomSpeed;
+        /// <summary>
+        /// Configured movement speed baseline used by manual override and unsupported-selection fallback.
+        /// </summary>
+        float configuredMoveSpeed;
+        /// <summary>
+        /// Configured pan speed baseline used by manual override and unsupported-selection fallback.
+        /// </summary>
+        double configuredPanSpeed;
+        /// <summary>
+        /// Configured wheel zoom speed baseline used by manual override and unsupported-selection fallback.
+        /// </summary>
+        double configuredWheelZoomSpeed;
 
         /// <summary>
         /// Initializes a new controller for the specified camera.
@@ -111,6 +159,9 @@ namespace helengine.editor {
         /// <param name="camera">Camera to move.</param>
         public EditorViewportCameraController(CameraComponent camera) {
             this.camera = camera ?? throw new ArgumentNullException(nameof(camera));
+            selectionFramingService = new EditorViewportSelectionFramingService();
+            SpeedMode = EditorViewportCameraSpeedMode.AutoFromSelection;
+            ManualSpeedOverride = DefaultMoveSpeed;
             MoveSpeed = DefaultMoveSpeed;
             LookSensitivity = DefaultLookSensitivity;
             PanSpeed = DefaultPanSpeed;
@@ -146,9 +197,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Replaces the current orbit pivot with one explicit override tied to the supplied selected entity.
+        /// </summary>
+        /// <param name="selectedEntity">Selected entity that owns the orbit override.</param>
+        /// <param name="orbitTarget">World-space orbit target that should remain active while the same selection remains active.</param>
+        public void SetSelectionOrbitTargetOverride(Entity selectedEntity, float3 orbitTarget) {
+            if (selectedEntity == null) {
+                throw new ArgumentNullException(nameof(selectedEntity));
+            }
+
+            selectionOrbitTargetOverrideEntity = selectedEntity;
+            selectionOrbitTargetOverride = orbitTarget;
+            hasSelectionOrbitTargetOverride = true;
+            SetOrbitTarget(orbitTarget);
+        }
+
+        /// <summary>
         /// Gets or sets the movement speed applied per update tick.
         /// </summary>
-        public float MoveSpeed { get; set; }
+        public float MoveSpeed {
+            get { return moveSpeed; }
+            set {
+                moveSpeed = value;
+                configuredMoveSpeed = value;
+            }
+        }
         /// <summary>
         /// Gets or sets the mouse-look sensitivity in radians per pixel.
         /// </summary>
@@ -156,11 +229,31 @@ namespace helengine.editor {
         /// <summary>
         /// Gets or sets the pan speed in world units per pixel.
         /// </summary>
-        public double PanSpeed { get; set; }
+        public double PanSpeed {
+            get { return panSpeed; }
+            set {
+                panSpeed = value;
+                configuredPanSpeed = value;
+            }
+        }
         /// <summary>
         /// Gets or sets the zoom speed in world units per scroll-wheel notch.
         /// </summary>
-        public double WheelZoomSpeed { get; set; }
+        public double WheelZoomSpeed {
+            get { return wheelZoomSpeed; }
+            set {
+                wheelZoomSpeed = value;
+                configuredWheelZoomSpeed = value;
+            }
+        }
+        /// <summary>
+        /// Gets or sets how this viewport derives effective camera speed.
+        /// </summary>
+        public byte SpeedMode { get; set; }
+        /// <summary>
+        /// Gets or sets the viewport-local authored manual movement speed override.
+        /// </summary>
+        public double ManualSpeedOverride { get; set; }
 
         /// <summary>
         /// Updates camera position based on right-click state and keyboard input.
@@ -168,6 +261,7 @@ namespace helengine.editor {
         public override void Update() {
             InputSystem input = Core.Instance.Input;
             bool isPointerBlocked = EditorInputCaptureService.IsPointerBlocked(input.GetMousePosition());
+            UpdateEffectiveSpeeds(selectionFramingService);
 
             if (!hasOrientationState) {
                 InitializeYawPitchFromOrientation();
@@ -259,7 +353,7 @@ namespace helengine.editor {
                 } else {
                     int2 delta = input.GetMouseDelta();
                     if (delta.X != 0 || delta.Y != 0) {
-                        double panScale = PanSpeed;
+                        double panScale = panSpeed;
                         float3 panMove =
                             right * (float)(-delta.X * panScale) +
                             up * (float)(delta.Y * panScale);
@@ -276,7 +370,7 @@ namespace helengine.editor {
             }
 
             move = NormalizeSafe(move, forward);
-            Parent.Position += move * MoveSpeed;
+            Parent.Position += move * moveSpeed;
             if (isActive) {
                 UpdateVirtualTargetFromCamera();
             }
@@ -301,9 +395,62 @@ namespace helengine.editor {
             }
 
             double notchDelta = wheelDelta / WheelDeltaPerNotch;
-            double zoomDistance = notchDelta * WheelZoomSpeed;
+            double zoomDistance = notchDelta * wheelZoomSpeed;
             Parent.Position += forward * (float)zoomDistance;
             UpdateOrbitDistanceFromTarget();
+        }
+
+        /// <summary>
+        /// Updates the effective camera movement speeds from the current mode and selection extent.
+        /// </summary>
+        /// <param name="selectionBounds">Editor-only selection bounds resolver used for adaptive speed.</param>
+        void UpdateEffectiveSpeeds(EditorViewportSelectionFramingService selectionBounds) {
+            if (selectionBounds == null) {
+                throw new ArgumentNullException(nameof(selectionBounds));
+            }
+
+            if (SpeedMode == EditorViewportCameraSpeedMode.ManualOverride) {
+                ApplyManualSpeedOverride();
+                return;
+            }
+
+            double selectionExtent = selectionBounds.ResolveSelectionExtentForTest(EditorSelectionService.SelectedEntity);
+            if (selectionExtent <= 0.0) {
+                ApplyConfiguredSpeeds();
+                return;
+            }
+
+            double configuredMove = Math.Max(configuredMoveSpeed, MinimumAdaptiveMoveSpeed);
+            double derivedMoveSpeed = Math.Clamp(selectionExtent * (configuredMove / DefaultMoveSpeed) * 0.001, MinimumAdaptiveMoveSpeed, MaximumAdaptiveMoveSpeed);
+            moveSpeed = (float)derivedMoveSpeed;
+            panSpeed = derivedMoveSpeed * (configuredPanSpeed / configuredMoveSpeed);
+            wheelZoomSpeed = derivedMoveSpeed * (configuredWheelZoomSpeed / configuredMoveSpeed);
+        }
+
+        /// <summary>
+        /// Updates the effective camera movement speeds to match the manual viewport override.
+        /// </summary>
+        void ApplyManualSpeedOverride() {
+            moveSpeed = (float)ManualSpeedOverride;
+            panSpeed = ManualSpeedOverride * (configuredPanSpeed / configuredMoveSpeed);
+            wheelZoomSpeed = ManualSpeedOverride * (configuredWheelZoomSpeed / configuredMoveSpeed);
+        }
+
+        /// <summary>
+        /// Restores the effective camera movement speeds to the configured baseline values.
+        /// </summary>
+        void ApplyConfiguredSpeeds() {
+            moveSpeed = configuredMoveSpeed;
+            panSpeed = configuredPanSpeed;
+            wheelZoomSpeed = configuredWheelZoomSpeed;
+        }
+
+        /// <summary>
+        /// Runs effective speed derivation explicitly for controller tests.
+        /// </summary>
+        /// <param name="selectionBounds">Editor-only selection bounds resolver used for adaptive speed.</param>
+        public void UpdateEffectiveSpeedsForTest(EditorViewportSelectionFramingService selectionBounds) {
+            UpdateEffectiveSpeeds(selectionBounds);
         }
 
         /// <summary>
@@ -397,7 +544,12 @@ namespace helengine.editor {
         float3 ResolveOrbitTarget() {
             Entity selectedEntity = EditorSelectionService.SelectedEntity;
             if (selectedEntity != null) {
-                virtualTarget = selectedEntity.Position;
+                if (hasSelectionOrbitTargetOverride && ReferenceEquals(selectedEntity, selectionOrbitTargetOverrideEntity)) {
+                    virtualTarget = selectionOrbitTargetOverride;
+                } else {
+                    virtualTarget = selectedEntity.Position;
+                }
+
                 orbitDistance = GetDistance(Parent.Position, virtualTarget);
                 if (orbitDistance < MinOrbitDistance) {
                     orbitDistance = MinOrbitDistance;

@@ -40,6 +40,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the focused viewport content target routes F to the viewport selection-focus action.
+        /// </summary>
+        [Fact]
+        public void EditorViewport_WhenContentTargetIsFocused_FInvokesSelectionFocusRequest() {
+            TestInputBackend inputManager = InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorFocusTarget contentTarget = GetPrivateField<EditorFocusTarget>(viewport, "ViewportContentFocusTarget");
+            inputManager.SetMouseState(CreateMouseState(ButtonState.Released));
+            Core.Instance.InputSystem.EarlyUpdate();
+
+            bool wasRequested = false;
+            viewport.FocusSelectionRequested = () => wasRequested = true;
+            EditorKeyboardFocusService.SetFocusedTarget(contentTarget);
+
+            EditorKeyboardFocusService.HandleActivationKey(Keys.F);
+
+            Assert.True(wasRequested);
+        }
+
+        /// <summary>
         /// Ensures scale shortcuts are ignored while the right mouse button is pressed for viewport camera input.
         /// </summary>
         [Fact]

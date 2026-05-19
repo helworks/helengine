@@ -10,7 +10,7 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed overlay height in pixels.
         /// </summary>
-        const int PanelHeight = 226;
+        const int PanelHeight = 306;
         /// <summary>
         /// Horizontal panel padding in pixels.
         /// </summary>
@@ -68,9 +68,21 @@ namespace helengine.editor {
         /// </summary>
         const double FarPlaneKeyboardStep = 1.0;
         /// <summary>
+        /// Minimum authored keyboard step used by the manual camera speed slider.
+        /// </summary>
+        const double ManualCameraSpeedKeyboardStep = 0.1;
+        /// <summary>
         /// Maximum pixels-per-world-unit value exposed by the first-pass preview settings overlay.
         /// </summary>
         const double MaximumPixelsPerWorldUnit = 1000.0;
+        /// <summary>
+        /// Minimum manual camera speed override exposed by the viewport settings overlay.
+        /// </summary>
+        const double MinimumManualCameraSpeed = EditorViewportCameraController.MinimumAdaptiveMoveSpeed;
+        /// <summary>
+        /// Maximum manual camera speed override exposed by the viewport settings overlay.
+        /// </summary>
+        const double MaximumManualCameraSpeed = EditorViewportCameraController.MaximumAdaptiveMoveSpeed;
 
         /// <summary>
         /// Camera whose viewport settings are edited by this overlay.
@@ -154,6 +166,26 @@ namespace helengine.editor {
         /// </summary>
         TextComponent FarPlaneValueText;
         /// <summary>
+        /// Label text for the camera speed mode row.
+        /// </summary>
+        TextComponent CameraSpeedModeLabelText;
+        /// <summary>
+        /// Host entity for the camera speed mode checkbox.
+        /// </summary>
+        EditorEntity CameraSpeedModeCheckBoxHost;
+        /// <summary>
+        /// Checkbox used to toggle manual camera speed override mode.
+        /// </summary>
+        CheckBoxComponent CameraSpeedModeCheckBoxInternal;
+        /// <summary>
+        /// Label text for the manual camera speed slider row.
+        /// </summary>
+        TextComponent ManualCameraSpeedLabelText;
+        /// <summary>
+        /// Value text for the manual camera speed slider row.
+        /// </summary>
+        TextComponent ManualCameraSpeedValueText;
+        /// <summary>
         /// Root entity for the close button.
         /// </summary>
         EditorEntity CloseButtonRoot;
@@ -190,6 +222,14 @@ namespace helengine.editor {
         /// </summary>
         EditorFocusTarget FarPlaneFocusTargetInternal;
         /// <summary>
+        /// Focus target for the camera speed mode checkbox.
+        /// </summary>
+        EditorFocusTarget CameraSpeedModeFocusTargetInternal;
+        /// <summary>
+        /// Focus target for the manual camera speed slider.
+        /// </summary>
+        EditorFocusTarget ManualCameraSpeedFocusTargetInternal;
+        /// <summary>
         /// Focus target for the close button.
         /// </summary>
         EditorFocusTarget CloseButtonFocusTargetInternal;
@@ -205,6 +245,10 @@ namespace helengine.editor {
         /// Slider used to edit the camera far plane.
         /// </summary>
         EditorSlider FarPlaneSliderInternal;
+        /// <summary>
+        /// Slider used to edit the manual camera speed override.
+        /// </summary>
+        EditorSlider ManualCameraSpeedSliderInternal;
         /// <summary>
         /// Settings button focus target that should regain focus when the overlay closes.
         /// </summary>
@@ -296,6 +340,14 @@ namespace helengine.editor {
         /// Gets the focus target used by the far-plane slider row.
         /// </summary>
         public EditorFocusTarget FarPlaneFocusTarget => FarPlaneFocusTargetInternal;
+        /// <summary>
+        /// Gets the focus target used by the camera speed mode row.
+        /// </summary>
+        public EditorFocusTarget CameraSpeedModeFocusTarget => CameraSpeedModeFocusTargetInternal;
+        /// <summary>
+        /// Gets the focus target used by the manual camera speed slider row.
+        /// </summary>
+        public EditorFocusTarget ManualCameraSpeedFocusTarget => ManualCameraSpeedFocusTargetInternal;
 
         /// <summary>
         /// Gets the focus target used by the close button row.
@@ -316,6 +368,14 @@ namespace helengine.editor {
         /// Gets the far-plane slider entity.
         /// </summary>
         public EditorSlider FarPlaneSlider => FarPlaneSliderInternal;
+        /// <summary>
+        /// Gets the checkbox that toggles manual camera speed override mode.
+        /// </summary>
+        public CheckBoxComponent CameraSpeedModeCheckBox => CameraSpeedModeCheckBoxInternal;
+        /// <summary>
+        /// Gets the manual camera speed slider entity.
+        /// </summary>
+        public EditorSlider ManualCameraSpeedSlider => ManualCameraSpeedSliderInternal;
 
         /// <summary>
         /// Creates the overlay hierarchy and registers focus targets when attached to one viewport.
@@ -338,6 +398,8 @@ namespace helengine.editor {
             CreatePixelsPerWorldUnitRow();
             CreateNearPlaneRow();
             CreateFarPlaneRow();
+            CreateCameraSpeedModeRow();
+            CreateManualCameraSpeedRow();
             CreateCloseButtonRow();
             CreateFocusTargets();
             LayoutOverlay();
@@ -669,6 +731,69 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates the camera speed mode row and binds viewport-local manual-speed mode updates.
+        /// </summary>
+        void CreateCameraSpeedModeRow() {
+            EditorEntity labelRoot = CreateChildRoot();
+            OverlayRoot.AddChild(labelRoot);
+
+            CameraSpeedModeLabelText = new TextComponent {
+                Font = Font,
+                Text = "Manual Speed",
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                Size = new int2(120, GridToggleRowHeight),
+                RenderOrder2D = RenderOrder2D.OverlayForeground
+            };
+            labelRoot.AddComponent(CameraSpeedModeLabelText);
+
+            CameraSpeedModeCheckBoxHost = CreateChildRoot();
+            OverlayRoot.AddChild(CameraSpeedModeCheckBoxHost);
+
+            CameraSpeedModeCheckBoxInternal = new CheckBoxComponent(EditorPlatformSettingsSection.CheckBoxSize, Font);
+            CameraSpeedModeCheckBoxInternal.CheckedChanged += (component, isChecked) => HandleCameraSpeedModeCheckedChanged(isChecked);
+            CameraSpeedModeCheckBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            CameraSpeedModeCheckBoxHost.AddComponent(CameraSpeedModeCheckBoxInternal);
+        }
+
+        /// <summary>
+        /// Creates the manual camera speed slider row and binds viewport-local camera speed updates.
+        /// </summary>
+        void CreateManualCameraSpeedRow() {
+            EditorEntity labelRoot = CreateChildRoot();
+            OverlayRoot.AddChild(labelRoot);
+
+            ManualCameraSpeedLabelText = new TextComponent {
+                Font = Font,
+                Text = "Camera Speed",
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                Size = new int2(PanelWidth - PanelPadding * 2, SectionLabelHeight),
+                RenderOrder2D = RenderOrder2D.OverlayForeground
+            };
+            labelRoot.AddComponent(ManualCameraSpeedLabelText);
+
+            ManualCameraSpeedSliderInternal = new EditorSlider(MinimumManualCameraSpeed, MaximumManualCameraSpeed, OwnerViewport.ManualCameraSpeedOverride, EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
+                InternalEntity = true
+            };
+            ManualCameraSpeedSliderInternal.ApplyLayerMask(OverlayLayerMask);
+            ManualCameraSpeedSliderInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ManualCameraSpeedSliderInternal.KeyboardStep = ManualCameraSpeedKeyboardStep;
+            ManualCameraSpeedSliderInternal.ValueChanged += HandleManualCameraSpeedSliderChanged;
+            OverlayRoot.AddChild(ManualCameraSpeedSliderInternal);
+
+            EditorEntity valueRoot = CreateChildRoot();
+            OverlayRoot.AddChild(valueRoot);
+
+            ManualCameraSpeedValueText = new TextComponent {
+                Font = Font,
+                Text = string.Empty,
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                Size = new int2(SliderValueWidth, SliderHeight),
+                RenderOrder2D = RenderOrder2D.OverlayForeground
+            };
+            valueRoot.AddComponent(ManualCameraSpeedValueText);
+        }
+
+        /// <summary>
         /// Creates the close button row and pointer wiring.
         /// </summary>
         void CreateCloseButtonRow() {
@@ -760,9 +885,31 @@ namespace helengine.editor {
                 ActivateFarPlaneFromKey);
             EditorKeyboardFocusService.RegisterTarget(FarPlaneFocusTargetInternal);
 
-            CloseButtonFocusTargetInternal = new EditorFocusTarget(
+            CameraSpeedModeFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
                 4,
+                false,
+                () => IsOpen && CameraSpeedModeCheckBoxHost != null && CameraSpeedModeCheckBoxHost.Enabled,
+                ContainsCameraSpeedModePoint,
+                HandleCameraSpeedModeFocusedChanged,
+                CanActivateButtonWithKey,
+                ActivateCameraSpeedModeFromKey);
+            EditorKeyboardFocusService.RegisterTarget(CameraSpeedModeFocusTargetInternal);
+
+            ManualCameraSpeedFocusTargetInternal = new EditorFocusTarget(
+                OverlayFocusGroup,
+                5,
+                false,
+                () => IsOpen && ManualCameraSpeedSliderInternal.Enabled,
+                ContainsManualCameraSpeedSliderPoint,
+                HandleManualCameraSpeedFocusedChanged,
+                CanAdjustSliderWithKey,
+                ActivateManualCameraSpeedFromKey);
+            EditorKeyboardFocusService.RegisterTarget(ManualCameraSpeedFocusTargetInternal);
+
+            CloseButtonFocusTargetInternal = new EditorFocusTarget(
+                OverlayFocusGroup,
+                6,
                 false,
                 () => IsOpen && CloseButtonRoot.Enabled,
                 ContainsCloseButtonPoint,
@@ -787,6 +934,12 @@ namespace helengine.editor {
             }
             if (FarPlaneFocusTargetInternal != null) {
                 EditorKeyboardFocusService.UnregisterTarget(FarPlaneFocusTargetInternal);
+            }
+            if (CameraSpeedModeFocusTargetInternal != null) {
+                EditorKeyboardFocusService.UnregisterTarget(CameraSpeedModeFocusTargetInternal);
+            }
+            if (ManualCameraSpeedFocusTargetInternal != null) {
+                EditorKeyboardFocusService.UnregisterTarget(ManualCameraSpeedFocusTargetInternal);
             }
             if (CloseButtonFocusTargetInternal != null) {
                 EditorKeyboardFocusService.UnregisterTarget(CloseButtonFocusTargetInternal);
@@ -818,12 +971,17 @@ namespace helengine.editor {
             int nearSliderY = nearLabelY + SectionLabelHeight + SectionLabelSpacing;
             int farLabelY = nearSliderY + SliderHeight + SectionSpacing;
             int farSliderY = farLabelY + SectionLabelHeight + SectionLabelSpacing;
+            int cameraSpeedModeRowY = farSliderY + SliderHeight + SectionSpacing;
+            int manualCameraSpeedLabelY = cameraSpeedModeRowY + GridToggleRowHeight + SectionSpacing;
+            int manualCameraSpeedSliderY = manualCameraSpeedLabelY + SectionLabelHeight + SectionLabelSpacing;
             int closeY = PanelHeight - PanelPadding - CloseButtonHeight;
 
             LayoutGridRow(gridRowY);
             LayoutSliderRow(PixelsPerWorldUnitSliderInternal, PixelsPerWorldUnitValueText, pixelsPerWorldUnitLabelY, pixelsPerWorldUnitSliderY);
             LayoutSliderRow(NearPlaneSliderInternal, NearPlaneValueText, nearLabelY, nearSliderY);
             LayoutSliderRow(FarPlaneSliderInternal, FarPlaneValueText, farLabelY, farSliderY);
+            LayoutCameraSpeedModeRow(cameraSpeedModeRowY);
+            LayoutSliderRow(ManualCameraSpeedSliderInternal, ManualCameraSpeedValueText, manualCameraSpeedLabelY, manualCameraSpeedSliderY);
             LayoutCloseButton(closeY);
         }
 
@@ -847,6 +1005,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Positions the camera speed mode label and checkbox on their row.
+        /// </summary>
+        /// <param name="cameraSpeedModeRowY">Top coordinate of the camera speed mode row inside the overlay.</param>
+        void LayoutCameraSpeedModeRow(int cameraSpeedModeRowY) {
+            if (CameraSpeedModeLabelText == null || CameraSpeedModeCheckBoxHost == null || CameraSpeedModeCheckBoxInternal == null) {
+                return;
+            }
+
+            float rowInsetY = (GridToggleRowHeight - EditorPlatformSettingsSection.CheckBoxSize.Y) / 2f;
+
+            if (CameraSpeedModeLabelText.Parent != null) {
+                CameraSpeedModeLabelText.Parent.Position = new float3(PanelPadding, cameraSpeedModeRowY + rowInsetY, 0.1f);
+            }
+
+            int checkboxX = PanelWidth - PanelPadding - EditorPlatformSettingsSection.CheckBoxSize.X;
+            CameraSpeedModeCheckBoxHost.Position = new float3(checkboxX, cameraSpeedModeRowY + rowInsetY, 0.1f);
+        }
+
+        /// <summary>
         /// Positions one label, slider, and numeric value row.
         /// </summary>
         /// <param name="slider">Slider entity to position.</param>
@@ -865,6 +1042,8 @@ namespace helengine.editor {
                 labelText = NearPlaneLabelText;
             } else if (ReferenceEquals(slider, FarPlaneSliderInternal)) {
                 labelText = FarPlaneLabelText;
+            } else if (ReferenceEquals(slider, ManualCameraSpeedSliderInternal)) {
+                labelText = ManualCameraSpeedLabelText;
             }
 
             if (labelText != null && labelText.Parent != null) {
@@ -948,6 +1127,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Applies one camera speed mode checkbox change to the viewport-local camera controller state.
+        /// </summary>
+        /// <param name="isChecked">True when manual speed override mode should be active.</param>
+        void HandleCameraSpeedModeCheckedChanged(bool isChecked) {
+            if (IsSynchronizingState) {
+                return;
+            }
+
+            OwnerViewport.CameraSpeedMode = isChecked
+                ? EditorViewportCameraSpeedMode.ManualOverride
+                : EditorViewportCameraSpeedMode.AutoFromSelection;
+            SynchronizeFromState();
+        }
+
+        /// <summary>
         /// Applies keyboard-focus styling to the near-plane slider target.
         /// </summary>
         /// <param name="isFocused">True when keyboard focus currently targets the near-plane slider.</param>
@@ -961,6 +1155,21 @@ namespace helengine.editor {
         /// <param name="isFocused">True when keyboard focus currently targets the far-plane slider.</param>
         void HandleFarPlaneFocusedChanged(bool isFocused) {
             FarPlaneSliderInternal.SetKeyboardFocused(isFocused);
+        }
+
+        /// <summary>
+        /// Exists so the manual camera speed mode checkbox can participate in focus changes without custom visuals.
+        /// </summary>
+        /// <param name="isFocused">True when keyboard focus currently targets the manual camera speed mode row.</param>
+        void HandleCameraSpeedModeFocusedChanged(bool isFocused) {
+        }
+
+        /// <summary>
+        /// Applies keyboard-focus styling to the manual camera speed slider target.
+        /// </summary>
+        /// <param name="isFocused">True when keyboard focus currently targets the manual camera speed slider.</param>
+        void HandleManualCameraSpeedFocusedChanged(bool isFocused) {
+            ManualCameraSpeedSliderInternal.SetKeyboardFocused(isFocused);
         }
 
         /// <summary>
@@ -1046,6 +1255,32 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Toggles the manual camera speed override mode from keyboard activation of the checkbox row.
+        /// </summary>
+        /// <param name="key">Activation key routed by the focus service.</param>
+        void ActivateCameraSpeedModeFromKey(Keys key) {
+            if (!CanActivateButtonWithKey(key)) {
+                return;
+            }
+
+            bool nextChecked = !CameraSpeedModeCheckBoxInternal.IsChecked;
+            CameraSpeedModeCheckBoxInternal.IsChecked = nextChecked;
+            HandleCameraSpeedModeCheckedChanged(nextChecked);
+        }
+
+        /// <summary>
+        /// Applies one keyboard adjustment to the manual camera speed slider.
+        /// </summary>
+        /// <param name="key">Adjustment key routed by the focus service.</param>
+        void ActivateManualCameraSpeedFromKey(Keys key) {
+            if (!CanAdjustSliderWithKey(key)) {
+                return;
+            }
+
+            ManualCameraSpeedSliderInternal.AdjustFromKey(key);
+        }
+
+        /// <summary>
         /// Closes the overlay from keyboard activation of the close button.
         /// </summary>
         /// <param name="key">Activation key routed by the focus service.</param>
@@ -1103,6 +1338,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Applies one viewport-local manual camera speed override value from the slider.
+        /// </summary>
+        /// <param name="value">New authored manual camera speed from the slider.</param>
+        void HandleManualCameraSpeedSliderChanged(double value) {
+            if (IsSynchronizingState) {
+                return;
+            }
+
+            OwnerViewport.ManualCameraSpeedOverride = value;
+            SynchronizeFromState();
+        }
+
+        /// <summary>
         /// Synchronizes overlay control state, slider positions, and numeric readouts from the current viewport state.
         /// </summary>
         void SynchronizeFromState() {
@@ -1111,7 +1359,9 @@ namespace helengine.editor {
                 PixelsPerWorldUnitSliderInternal.SetValue(CanvasPreviewSettings.PixelsPerWorldUnit);
                 NearPlaneSliderInternal.SetValue(Camera.NearPlaneDistance);
                 FarPlaneSliderInternal.SetValue(Camera.FarPlaneDistance);
+                ManualCameraSpeedSliderInternal.SetValue(OwnerViewport.ManualCameraSpeedOverride);
                 UpdateGridToggleVisuals();
+                UpdateCameraSpeedModeVisuals();
                 UpdateSliderValueTexts();
             } finally {
                 IsSynchronizingState = false;
@@ -1127,6 +1377,17 @@ namespace helengine.editor {
             }
 
             GridToggleCheckBox.IsChecked = IsGridVisibleResolver();
+        }
+
+        /// <summary>
+        /// Synchronizes the manual camera speed mode checkbox from the current viewport camera settings.
+        /// </summary>
+        void UpdateCameraSpeedModeVisuals() {
+            if (CameraSpeedModeCheckBoxInternal == null) {
+                return;
+            }
+
+            CameraSpeedModeCheckBoxInternal.IsChecked = OwnerViewport.CameraSpeedMode == EditorViewportCameraSpeedMode.ManualOverride;
         }
 
         /// <summary>
@@ -1167,6 +1428,9 @@ namespace helengine.editor {
             }
             if (FarPlaneValueText != null) {
                 FarPlaneValueText.Text = FormatDistance(Camera.FarPlaneDistance);
+            }
+            if (ManualCameraSpeedValueText != null) {
+                ManualCameraSpeedValueText.Text = FormatDistance(OwnerViewport.ManualCameraSpeedOverride);
             }
         }
 
@@ -1234,6 +1498,24 @@ namespace helengine.editor {
         /// <returns>True when the point lies inside the far-plane slider.</returns>
         bool ContainsFarPlaneSliderPoint(int2 point) {
             return ContainsChildPoint(FarPlaneSliderInternal, SliderWidth, SliderHeight, point);
+        }
+
+        /// <summary>
+        /// Returns true when the supplied point lies inside the manual camera speed mode checkbox.
+        /// </summary>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the checkbox.</returns>
+        bool ContainsCameraSpeedModePoint(int2 point) {
+            return ContainsChildPoint(CameraSpeedModeCheckBoxHost, EditorPlatformSettingsSection.CheckBoxSize.X, EditorPlatformSettingsSection.CheckBoxSize.Y, point);
+        }
+
+        /// <summary>
+        /// Returns true when the supplied point lies inside the manual camera speed slider.
+        /// </summary>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the manual camera speed slider.</returns>
+        bool ContainsManualCameraSpeedSliderPoint(int2 point) {
+            return ContainsChildPoint(ManualCameraSpeedSliderInternal, SliderWidth, SliderHeight, point);
         }
 
         /// <summary>

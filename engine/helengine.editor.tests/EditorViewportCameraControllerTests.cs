@@ -98,6 +98,81 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures auto speed mode scales movement, pan, and zoom upward for large selections.
+        /// </summary>
+        [Fact]
+        public void UpdateEffectiveSpeeds_WhenAutoModeAndLargeSelection_IncreasesMovementPanAndZoom() {
+            EditorViewportSelectionFramingService selectionBounds = new EditorViewportSelectionFramingService();
+            EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            Entity selectedViewportEntity = CreateFixedViewportEntity(new int2(2000, 1200));
+            EditorSelectionService.SetSelectedEntity(selectedViewportEntity);
+
+            controller.UpdateEffectiveSpeedsForTest(selectionBounds);
+
+            Assert.True(controller.MoveSpeed > EditorViewportCameraController.DefaultMoveSpeed);
+            Assert.True(controller.PanSpeed > EditorViewportCameraController.DefaultPanSpeed);
+            Assert.True(controller.WheelZoomSpeed > EditorViewportCameraController.DefaultWheelZoomSpeed);
+        }
+
+        /// <summary>
+        /// Ensures auto speed mode scales movement, pan, and zoom downward for tiny selections.
+        /// </summary>
+        [Fact]
+        public void UpdateEffectiveSpeeds_WhenAutoModeAndTinySelection_DecreasesMovementPanAndZoom() {
+            EditorViewportSelectionFramingService selectionBounds = new EditorViewportSelectionFramingService();
+            EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            Entity spriteEntity = CreateSpriteEntity(new int2(8, 8));
+            EditorSelectionService.SetSelectedEntity(spriteEntity);
+
+            controller.UpdateEffectiveSpeedsForTest(selectionBounds);
+
+            Assert.True(controller.MoveSpeed < EditorViewportCameraController.DefaultMoveSpeed);
+            Assert.True(controller.PanSpeed < EditorViewportCameraController.DefaultPanSpeed);
+            Assert.True(controller.WheelZoomSpeed < EditorViewportCameraController.DefaultWheelZoomSpeed);
+        }
+
+        /// <summary>
+        /// Ensures manual speed mode ignores selection size and uses the authored override value instead.
+        /// </summary>
+        [Fact]
+        public void UpdateEffectiveSpeeds_WhenManualMode_IgnoresSelectionExtent() {
+            EditorViewportSelectionFramingService selectionBounds = new EditorViewportSelectionFramingService();
+            EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            controller.SpeedMode = EditorViewportCameraSpeedMode.ManualOverride;
+            controller.ManualSpeedOverride = 12.5;
+            EditorSelectionService.SetSelectedEntity(CreateFixedViewportEntity(new int2(40000, 20000)));
+
+            controller.UpdateEffectiveSpeedsForTest(selectionBounds);
+
+            Assert.Equal(12.5f, controller.MoveSpeed);
+            Assert.Equal(12.5 * (EditorViewportCameraController.DefaultPanSpeed / EditorViewportCameraController.DefaultMoveSpeed), controller.PanSpeed, 4);
+            Assert.Equal(12.5 * (EditorViewportCameraController.DefaultWheelZoomSpeed / EditorViewportCameraController.DefaultMoveSpeed), controller.WheelZoomSpeed, 4);
+        }
+
+        /// <summary>
+        /// Ensures unsupported selections fall back to the current default viewport camera speed values.
+        /// </summary>
+        [Fact]
+        public void UpdateEffectiveSpeeds_WhenNoSupportedSelection_FallsBackToDefaults() {
+            EditorViewportSelectionFramingService selectionBounds = new EditorViewportSelectionFramingService();
+            EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            Entity unsupportedEntity = new Entity();
+            unsupportedEntity.InitComponents();
+            unsupportedEntity.InitChildren();
+            EditorSelectionService.SetSelectedEntity(unsupportedEntity);
+
+            controller.UpdateEffectiveSpeedsForTest(selectionBounds);
+
+            Assert.Equal(EditorViewportCameraController.DefaultMoveSpeed, controller.MoveSpeed);
+            Assert.Equal(EditorViewportCameraController.DefaultPanSpeed, controller.PanSpeed);
+            Assert.Equal(EditorViewportCameraController.DefaultWheelZoomSpeed, controller.WheelZoomSpeed);
+        }
+
+        /// <summary>
         /// Ensures Alt plus middle mouse orbits around the selected entity while preserving the selected pivot distance.
         /// </summary>
         [Fact]
@@ -282,6 +357,37 @@ namespace helengine.editor.tests {
             EditorViewportCameraController controller = new EditorViewportCameraController(camera);
             cameraEntity.AddComponent(controller);
             return controller;
+        }
+
+        /// <summary>
+        /// Creates one fixed-size viewport entity for adaptive speed tests.
+        /// </summary>
+        /// <param name="viewportSize">Fixed viewport size exposed by the authored viewport component.</param>
+        /// <returns>Configured viewport entity.</returns>
+        Entity CreateFixedViewportEntity(int2 viewportSize) {
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.FixedBindingMode,
+                FixedSize = viewportSize
+            });
+            return viewportEntity;
+        }
+
+        /// <summary>
+        /// Creates one sprite entity for adaptive speed tests.
+        /// </summary>
+        /// <param name="size">Authored sprite size.</param>
+        /// <returns>Configured sprite entity.</returns>
+        Entity CreateSpriteEntity(int2 size) {
+            Entity spriteEntity = new Entity();
+            spriteEntity.InitComponents();
+            spriteEntity.InitChildren();
+            spriteEntity.AddComponent(new SpriteComponent {
+                Size = size
+            });
+            return spriteEntity;
         }
 
         /// <summary>

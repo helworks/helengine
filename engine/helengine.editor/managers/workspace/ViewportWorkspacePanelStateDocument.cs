@@ -44,6 +44,14 @@ namespace helengine.editor {
         /// </summary>
         public float FarPlaneDistance { get; set; }
         /// <summary>
+        /// Viewport-local camera speed mode.
+        /// </summary>
+        public byte CameraSpeedMode { get; set; }
+        /// <summary>
+        /// Viewport-local manual camera speed override value.
+        /// </summary>
+        public double ManualCameraSpeedOverride { get; set; }
+        /// <summary>
         /// Viewport-local simulated canvas width.
         /// </summary>
         public int CanvasWidth { get; set; }

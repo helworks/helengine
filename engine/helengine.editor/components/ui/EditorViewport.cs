@@ -415,13 +415,59 @@ namespace helengine.editor {
         /// </summary>
         public CameraComponent Camera { get; private set; }
         /// <summary>
+        /// Gets or sets the viewport-local camera controller that owns editor navigation state.
+        /// </summary>
+        public EditorViewportCameraController CameraController { get; set; }
+        /// <summary>
         /// Gets the shared scene-owned canvas profile state used by viewport previews.
         /// </summary>
         public EditorSceneCanvasProfileState SceneCanvasProfileState => SceneCanvasProfileStateValue;
         /// <summary>
+        /// Gets or sets the callback invoked when the viewport content requests selection framing.
+        /// </summary>
+        public Action FocusSelectionRequested { get; set; }
+        /// <summary>
         /// Gets the viewport-local simulated canvas settings used by the world-space 2D preview plane.
         /// </summary>
         public EditorViewportCanvasPreviewSettings CanvasPreviewSettings => CanvasPreviewSettingsValue;
+        /// <summary>
+        /// Gets or sets how this viewport derives effective camera speed.
+        /// </summary>
+        public byte CameraSpeedMode {
+            get {
+                if (CameraController == null) {
+                    return EditorViewportCameraSpeedMode.AutoFromSelection;
+                }
+
+                return CameraController.SpeedMode;
+            }
+            set {
+                if (CameraController == null) {
+                    throw new InvalidOperationException("Viewport camera speed mode cannot be assigned before a camera controller is attached.");
+                }
+
+                CameraController.SpeedMode = value;
+            }
+        }
+        /// <summary>
+        /// Gets or sets the viewport-local authored manual movement speed override.
+        /// </summary>
+        public double ManualCameraSpeedOverride {
+            get {
+                if (CameraController == null) {
+                    return EditorViewportCameraController.DefaultMoveSpeed;
+                }
+
+                return CameraController.ManualSpeedOverride;
+            }
+            set {
+                if (CameraController == null) {
+                    throw new InvalidOperationException("Viewport manual camera speed cannot be assigned before a camera controller is attached.");
+                }
+
+                CameraController.ManualSpeedOverride = value;
+            }
+        }
         /// <summary>
         /// Returns the world-space scene-gizmo entities owned by this viewport, such as axis-label billboards.
         /// </summary>
@@ -1255,7 +1301,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return key == Keys.W || key == Keys.R || key == Keys.S;
+            return key == Keys.W || key == Keys.R || key == Keys.S || key == Keys.F;
         }
 
         /// <summary>
@@ -1269,6 +1315,8 @@ namespace helengine.editor {
                 ToolMode = EditorViewportToolMode.Rotate;
             } else if (key == Keys.S) {
                 ToolMode = EditorViewportToolMode.Scale;
+            } else if (key == Keys.F) {
+                FocusSelectionRequested?.Invoke();
             }
         }
 
