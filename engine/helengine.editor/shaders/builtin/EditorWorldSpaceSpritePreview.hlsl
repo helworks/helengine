@@ -3,8 +3,8 @@ cbuffer TransformBuffer : register(b0)
     float4x4 worldViewProj;
 };
 
-Texture2D CanvasTexture : register(t0);
-SamplerState CanvasSampler : register(s0);
+Texture2D PreviewTexture : register(t0);
+SamplerState PreviewSampler : register(s0);
 
 struct VS_IN
 {
@@ -29,11 +29,5 @@ PS_IN VS(VS_IN input)
 
 float4 PS(PS_IN input) : SV_Target
 {
-    float4 canvas = CanvasTexture.Sample(CanvasSampler, input.texCoord);
-    if (canvas.a <= 0.0001f)
-    {
-        discard;
-    }
-
-    return canvas;
+    return PreviewTexture.Sample(PreviewSampler, input.texCoord);
 }

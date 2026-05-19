@@ -149,7 +149,7 @@ namespace helengine.editor {
                 return;
             }
 
-            float3 selectionStartPosition = selectedEntity.Position;
+            float3 selectionStartPosition = ResolvePresentedDragStartPosition(selectedEntity);
             if (constraintType == TransformGizmoHandleConstraintType.Axis) {
                 if (!TryComputeAxisParameter(pointer, selectionStartPosition, primaryDirection, out double axisParameter)) {
                     return;
@@ -213,11 +213,12 @@ namespace helengine.editor {
 
                 double deltaParameter = currentAxisParameter - DragStartAxisParameter;
                 float3 axisOffset = ResolveAxisTranslationOffset(deltaParameter, input);
-                float3 newPosition = DragStartEntityPosition + axisOffset;
-                if (DraggedEntity.Position != newPosition) {
-                    DraggedEntity.Position = newPosition;
+                float3 newPresentedPosition = DragStartEntityPosition + axisOffset;
+                float3 storedPosition = ResolveStoredDragPosition(newPresentedPosition);
+                if (DraggedEntity.Position != storedPosition) {
+                    DraggedEntity.Position = storedPosition;
                 }
-                DragChanged = DragChanged || newPosition != DragStartEntityPosition;
+                DragChanged = DragChanged || newPresentedPosition != DragStartEntityPosition;
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
                 if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
                     EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
@@ -226,11 +227,12 @@ namespace helengine.editor {
 
                 float3 delta = currentPlanePoint - DragStartPlanePoint;
                 float3 planeOffset = ResolvePlaneTranslationOffset(delta, input);
-                float3 newPosition = DragStartEntityPosition + planeOffset;
-                if (DraggedEntity.Position != newPosition) {
-                    DraggedEntity.Position = newPosition;
+                float3 newPresentedPosition = DragStartEntityPosition + planeOffset;
+                float3 storedPosition = ResolveStoredDragPosition(newPresentedPosition);
+                if (DraggedEntity.Position != storedPosition) {
+                    DraggedEntity.Position = storedPosition;
                 }
-                DragChanged = DragChanged || newPosition != DragStartEntityPosition;
+                DragChanged = DragChanged || newPresentedPosition != DragStartEntityPosition;
             } else {
                 throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
             }
@@ -279,6 +281,32 @@ namespace helengine.editor {
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Resolves the presented drag-start position used by scene-view gizmo interaction.
+        /// </summary>
+        /// <param name="selectedEntity">Selected entity whose drag origin should be resolved.</param>
+        /// <returns>Editor-presented world-space drag origin.</returns>
+        float3 ResolvePresentedDragStartPosition(Entity selectedEntity) {
+            if (selectedEntity == null) {
+                throw new ArgumentNullException(nameof(selectedEntity));
+            }
+
+            return EditorViewportDirect2DPresentationService.ResolvePresentedWorldAnchorPosition(selectedEntity);
+        }
+
+        /// <summary>
+        /// Resolves the stored world-space position that should be written back for one presented drag result.
+        /// </summary>
+        /// <param name="presentedPosition">Editor-presented world-space position produced by the active drag.</param>
+        /// <returns>Stored world-space position for the dragged entity.</returns>
+        float3 ResolveStoredDragPosition(float3 presentedPosition) {
+            if (DraggedEntity == null) {
+                throw new InvalidOperationException("Dragged entity must exist while a translation gizmo drag is active.");
+            }
+
+            return EditorViewportDirect2DPresentationService.ResolveStoredWorldPositionFromPresentedAnchor(DraggedEntity, presentedPosition);
         }
 
         /// <summary>

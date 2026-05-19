@@ -302,6 +302,7 @@ namespace helengine.editor.tests {
             ViewportWorkspacePanelController controller = harness.GetViewportControllerForTest(instance);
 
             Assert.Equal(5000f, controller.ViewportState.SceneCamera.FarPlaneDistance);
+            Assert.Equal(controller.ViewportState.SceneCamera.FarPlaneDistance, controller.ViewportState.GizmoCamera.FarPlaneDistance);
         }
 
         /// <summary>
@@ -341,8 +342,9 @@ namespace helengine.editor.tests {
 
             controller.ViewportState.Viewport.FocusSelectionRequested();
 
-            Assert.Equal(new float3(20000f, 10000f, 0f), controller.ViewportState.CameraController.GetOrbitTarget());
+            Assert.Equal(new float3(20000f, -10000f, 0f), controller.ViewportState.CameraController.GetOrbitTarget());
             Assert.True(controller.ViewportState.SceneCamera.FarPlaneDistance > 5000f);
+            Assert.Equal(controller.ViewportState.SceneCamera.FarPlaneDistance, controller.ViewportState.GizmoCamera.FarPlaneDistance);
         }
 
         /// <summary>

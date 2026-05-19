@@ -88,7 +88,7 @@ namespace helengine.editor {
                 return;
             }
 
-            focusCenter = selectedEntity.Position;
+            focusCenter = EditorViewportDirect2DPresentationService.ResolvePresentedWorldPosition(selectedEntity);
             focusRadius = MinimumFocusRadius;
         }
 
@@ -130,7 +130,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            int2 viewportSize = viewportComponent.ResolvedViewportSize;
+            int2 viewportSize = EditorViewportDirect2DPresentationService.ResolvePresentedWorldSize(selectedEntity, viewportComponent);
             float3[] corners = new[] {
                 TransformViewportPoint(selectedEntity, new float3(0f, 0f, 0f)),
                 TransformViewportPoint(selectedEntity, new float3(viewportSize.X, 0f, 0f)),
@@ -194,14 +194,15 @@ namespace helengine.editor {
 
             int width = Math.Max(1, spriteComponent.Size.X);
             int height = Math.Max(1, spriteComponent.Size.Y);
+            int2 presentedSize = EditorViewportDirect2DPresentationService.ResolvePresentedComponentSize(selectedEntity, new int2(width, height));
             float3[] corners = new[] {
                 TransformViewportPoint(selectedEntity, new float3(0f, 0f, 0f)),
-                TransformViewportPoint(selectedEntity, new float3(width, 0f, 0f)),
-                TransformViewportPoint(selectedEntity, new float3(0f, height, 0f)),
-                TransformViewportPoint(selectedEntity, new float3(width, height, 0f))
+                TransformViewportPoint(selectedEntity, new float3(presentedSize.X, 0f, 0f)),
+                TransformViewportPoint(selectedEntity, new float3(0f, presentedSize.Y, 0f)),
+                TransformViewportPoint(selectedEntity, new float3(presentedSize.X, presentedSize.Y, 0f))
             };
             ResolveBoundsFromPoints(corners, out focusCenter, out focusRadius);
-            selectionExtent = Math.Max(width, height);
+            selectionExtent = Math.Max(presentedSize.X, presentedSize.Y);
             return true;
         }
 
@@ -271,6 +272,14 @@ namespace helengine.editor {
         /// <param name="localPoint">Viewport-local point to transform.</param>
         /// <returns>World-space point.</returns>
         float3 TransformViewportPoint(Entity entity, float3 localPoint) {
+            if (EditorViewportDirect2DPresentationService.TryResolveViewportOwner(entity, out Entity viewportOwner, out _)) {
+                if (ReferenceEquals(entity, viewportOwner)) {
+                    return EditorViewportDirect2DPresentationService.TransformPresentedViewportPoint(viewportOwner, localPoint);
+                }
+
+                return EditorViewportDirect2DPresentationService.TransformPresentedEntityLocalPoint(entity, localPoint);
+            }
+
             float3 rotatedPoint = float4.RotateVector(localPoint, entity.Orientation);
             return entity.Position + rotatedPoint;
         }

@@ -821,11 +821,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Synchronizes gizmo overlay camera viewports for every workspace-managed viewport stack.
+        /// Synchronizes gizmo overlay camera projection state for every viewport stack so transform gizmos share the same visible framing range as the scene camera.
         /// </summary>
         void SynchronizeViewportOverlayCameras() {
             if (PanelInstances == null) {
                 gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
+                gizmoCameraComponent.NearPlaneDistance = sceneCameraComponent.NearPlaneDistance;
+                gizmoCameraComponent.FarPlaneDistance = sceneCameraComponent.FarPlaneDistance;
                 return;
             }
 
@@ -833,6 +835,8 @@ namespace helengine.editor {
             for (int index = 0; index < viewportInstances.Count; index++) {
                 if (viewportInstances[index].Controller is ViewportWorkspacePanelController viewportController) {
                     viewportController.ViewportState.GizmoCamera.Viewport = viewportController.ViewportState.SceneCamera.Viewport;
+                    viewportController.ViewportState.GizmoCamera.NearPlaneDistance = viewportController.ViewportState.SceneCamera.NearPlaneDistance;
+                    viewportController.ViewportState.GizmoCamera.FarPlaneDistance = viewportController.ViewportState.SceneCamera.FarPlaneDistance;
                 }
             }
         }

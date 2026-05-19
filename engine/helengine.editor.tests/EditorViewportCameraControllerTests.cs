@@ -110,9 +110,9 @@ namespace helengine.editor.tests {
 
             controller.UpdateEffectiveSpeedsForTest(selectionBounds);
 
-            Assert.True(controller.MoveSpeed > EditorViewportCameraController.DefaultMoveSpeed);
-            Assert.True(controller.PanSpeed > EditorViewportCameraController.DefaultPanSpeed);
-            Assert.True(controller.WheelZoomSpeed > EditorViewportCameraController.DefaultWheelZoomSpeed);
+            Assert.True(controller.MoveSpeed >= 8f);
+            Assert.True(controller.PanSpeed >= 0.5);
+            Assert.True(controller.WheelZoomSpeed >= 50.0);
         }
 
         /// <summary>

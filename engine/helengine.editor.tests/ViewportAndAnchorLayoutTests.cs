@@ -21,6 +21,8 @@ namespace helengine.editor.tests {
         /// Releases the active core instance after each test run.
         /// </summary>
         public void Dispose() {
+            EditorWorldSpace2DPreviewRegistry.Clear();
+            EditorWorldSpace2DPreviewMeshResources.ResetForTests();
             Core.Instance?.Dispose();
         }
 
@@ -402,6 +404,64 @@ namespace helengine.editor.tests {
 
             Assert.Same(initialAnchorSpace, viewport.AnchorSpace);
             Assert.Equal(new int2(640, 360), viewport.AnchorSpace.Size);
+        }
+
+        /// <summary>
+        /// Ensures ordinary 2D scene entities without one viewport-owner subtree receive world-space preview proxies.
+        /// </summary>
+        [Fact]
+        public void SceneViewPreview_WhenSourceEntityHasNoViewportOwner_UsesRealWorldTransform() {
+            Entity sourceEntity = new Entity {
+                LocalPosition = new float3(12f, 34f, 56f)
+            };
+            sourceEntity.InitComponents();
+            sourceEntity.InitChildren();
+            sourceEntity.AddComponent(new SpriteComponent {
+                Size = new int2(80, 40),
+                Texture = TextureUtils.PixelTexture
+            });
+
+            EditorEntity syncHostEntity = new EditorEntity();
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent();
+            syncHostEntity.AddComponent(syncComponent);
+
+            syncComponent.Update();
+
+            EditorEntity previewEntity = EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
+            Assert.NotNull(previewEntity);
+            Assert.False(EditorViewportDirect2DPresentationService.ShouldKeepViewportLockBehavior(sourceEntity));
+            Assert.Equal(sourceEntity.Position, previewEntity.Position);
+        }
+
+        /// <summary>
+        /// Ensures authored 2D entities inside one viewport-owned subtree still receive world-space preview proxies in scene view.
+        /// </summary>
+        [Fact]
+        public void SceneViewPreview_WhenSourceEntityIsInsideViewportSubtree_StillUsesWorldSpacePreview() {
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode
+            });
+
+            Entity sourceEntity = new Entity();
+            sourceEntity.InitComponents();
+            sourceEntity.InitChildren();
+            sourceEntity.AddComponent(new SpriteComponent {
+                Size = new int2(80, 40),
+                Texture = TextureUtils.PixelTexture
+            });
+            viewportEntity.AddChild(sourceEntity);
+
+            EditorEntity syncHostEntity = new EditorEntity();
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent();
+            syncHostEntity.AddComponent(syncComponent);
+
+            syncComponent.Update();
+
+            Assert.False(EditorViewportDirect2DPresentationService.ShouldKeepViewportLockBehavior(sourceEntity));
+            Assert.NotNull(EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity));
         }
 
         /// <summary>

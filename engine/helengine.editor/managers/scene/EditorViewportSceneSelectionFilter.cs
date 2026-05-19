@@ -40,6 +40,11 @@ namespace helengine.editor {
         /// <param name="entity">Entity candidate to resolve.</param>
         /// <returns>The nearest non-internal ancestor when one exists; otherwise null.</returns>
         public static Entity ResolveSelectableEntity(Entity entity) {
+            Entity previewSourceEntity = EditorWorldSpace2DPreviewMapper.ResolveSourceSelectionEntity(entity);
+            if (previewSourceEntity != null) {
+                return previewSourceEntity;
+            }
+
             Entity current = entity;
             while (current != null) {
                 if (current is EditorEntity editorEntity && editorEntity.InternalEntity) {

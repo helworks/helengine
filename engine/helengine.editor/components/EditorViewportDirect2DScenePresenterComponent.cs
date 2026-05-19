@@ -46,7 +46,8 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Direct 2D viewport presentation must be bound to the same scene camera that owns the presenter.");
             }
 
-            PresentedWorldSizeValue = EditorViewportDirect2DPresentationService.ResolvePresentedWorldSize(SceneViewportComponent);
+            PresentedWorldSizeValue = EditorViewportDirect2DPresentationService.ResolvePresentedWorldSize(Parent, SceneViewportComponent);
+            EditorViewportDirect2DPresentationService.SynchronizeViewportOwnedSceneQueue(SceneCamera);
         }
     }
 }

@@ -216,7 +216,7 @@ namespace helengine.editor {
                 return;
             }
 
-            float3 selectedPosition = selectedEntity.Position;
+            float3 selectedPosition = helengine.editor.EditorViewportDirect2DPresentationService.ResolvePresentedWorldAnchorPosition(selectedEntity);
             GizmoRoot.Orientation = float4.Identity;
             GizmoRoot.Position = selectedPosition;
             SetAxisVisualState(true);

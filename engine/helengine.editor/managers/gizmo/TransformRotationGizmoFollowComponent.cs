@@ -102,12 +102,12 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Scene camera must belong to an entity.");
             }
 
-            GizmoRoot.Position = selectedEntity.Position;
+            GizmoRoot.Position = helengine.editor.EditorViewportDirect2DPresentationService.ResolvePresentedWorldAnchorPosition(selectedEntity);
             GizmoRoot.Orientation = float4.Identity;
             SetHandleVisualState(true);
 
             if (!EditorGizmoDragService.IsDragging(SceneCamera)) {
-                double scaleValue = ComputeScaleForTargetPixels(selectedEntity.Position, cameraEntity.Position);
+                double scaleValue = ComputeScaleForTargetPixels(GizmoRoot.Position, cameraEntity.Position);
                 if (scaleValue < MinimumScale) {
                     scaleValue = MinimumScale;
                 }

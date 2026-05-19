@@ -3,8 +3,11 @@ cbuffer TransformBuffer : register(b0)
     float4x4 worldViewProj;
 };
 
-Texture2D CanvasTexture : register(t0);
-SamplerState CanvasSampler : register(s0);
+cbuffer BorderParams : register(b1)
+{
+    float4 borderColor;
+    float4 borderMetrics;
+};
 
 struct VS_IN
 {
@@ -29,11 +32,14 @@ PS_IN VS(VS_IN input)
 
 float4 PS(PS_IN input) : SV_Target
 {
-    float4 canvas = CanvasTexture.Sample(CanvasSampler, input.texCoord);
-    if (canvas.a <= 0.0001f)
+    float thicknessU = borderMetrics.x;
+    float thicknessV = borderMetrics.y;
+    bool insideHorizontal = input.texCoord.x > thicknessU && input.texCoord.x < (1.0f - thicknessU);
+    bool insideVertical = input.texCoord.y > thicknessV && input.texCoord.y < (1.0f - thicknessV);
+    if (insideHorizontal && insideVertical)
     {
         discard;
     }
 
-    return canvas;
+    return borderColor;
 }

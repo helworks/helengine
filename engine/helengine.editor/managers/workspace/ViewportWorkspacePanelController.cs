@@ -296,6 +296,7 @@ namespace helengine.editor {
         /// </summary>
         void HandleFocusSelectionRequested() {
             SelectionFramingService.FocusSelection(State.SceneCamera, State.CameraController, EditorSelectionService.SelectedEntity);
+            SynchronizeGizmoCameraProjection(State.SceneCamera, State.GizmoCamera);
         }
 
         /// <summary>
@@ -340,8 +341,26 @@ namespace helengine.editor {
             gizmoCamera.CameraDrawOrder = GizmoCameraDrawOrder;
             gizmoCamera.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
             gizmoCamera.Viewport = sceneCamera.Viewport;
+            SynchronizeGizmoCameraProjection(sceneCamera, gizmoCamera);
             sceneCameraEntity.AddComponent(gizmoCamera);
             return gizmoCamera;
+        }
+
+        /// <summary>
+        /// Mirrors the scene camera clip-plane settings onto the gizmo overlay camera so editor gizmos remain visible anywhere the scene camera can frame.
+        /// </summary>
+        /// <param name="sceneCamera">Primary scene camera that defines the authored framing range.</param>
+        /// <param name="gizmoCamera">Overlay camera that renders transform gizmos on top of the scene.</param>
+        void SynchronizeGizmoCameraProjection(CameraComponent sceneCamera, CameraComponent gizmoCamera) {
+            if (sceneCamera == null) {
+                throw new ArgumentNullException(nameof(sceneCamera));
+            }
+            if (gizmoCamera == null) {
+                throw new ArgumentNullException(nameof(gizmoCamera));
+            }
+
+            gizmoCamera.NearPlaneDistance = sceneCamera.NearPlaneDistance;
+            gizmoCamera.FarPlaneDistance = sceneCamera.FarPlaneDistance;
         }
 
         /// <summary>

@@ -29,5 +29,11 @@ PS_IN VS(VS_IN input)
 
 float4 PS(PS_IN input) : SV_Target
 {
-    return PreviewTexture.Sample(PreviewSampler, input.texCoord);
+    float4 preview = PreviewTexture.Sample(PreviewSampler, input.texCoord);
+    if (preview.a <= 0.0001f)
+    {
+        discard;
+    }
+
+    return preview;
 }

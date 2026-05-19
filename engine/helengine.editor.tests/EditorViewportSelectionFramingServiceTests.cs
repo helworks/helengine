@@ -34,11 +34,11 @@ namespace helengine.editor.tests {
 
             service.FocusSelection(camera, controller, viewportEntity);
 
-            Assert.Equal(new float3(640f, 360f, 0f), controller.GetOrbitTarget());
+            Assert.Equal(new float3(640f, -360f, 0f), controller.GetOrbitTarget());
             AssertPointIsVisible(cameraEntity, camera, new float3(0f, 0f, 0f));
             AssertPointIsVisible(cameraEntity, camera, new float3(1280f, 0f, 0f));
-            AssertPointIsVisible(cameraEntity, camera, new float3(0f, 720f, 0f));
-            AssertPointIsVisible(cameraEntity, camera, new float3(1280f, 720f, 0f));
+            AssertPointIsVisible(cameraEntity, camera, new float3(0f, -720f, 0f));
+            AssertPointIsVisible(cameraEntity, camera, new float3(1280f, -720f, 0f));
         }
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace helengine.editor.tests {
 
             Assert.True(camera.FarPlaneDistance > 5000f);
             AssertPointIsVisible(cameraEntity, camera, new float3(0f, 0f, 0f));
-            AssertPointIsVisible(cameraEntity, camera, new float3(40000f, 20000f, 0f));
+            AssertPointIsVisible(cameraEntity, camera, new float3(40000f, -20000f, 0f));
         }
 
         /// <summary>

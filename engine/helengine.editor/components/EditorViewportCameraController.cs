@@ -31,6 +31,10 @@ namespace helengine.editor {
         /// Maximum effective movement speed allowed by adaptive viewport navigation.
         /// </summary>
         public const float MaximumAdaptiveMoveSpeed = 64f;
+        /// <summary>
+        /// Selection-extent multiplier used to derive auto camera speed from the currently selected bounds.
+        /// </summary>
+        public const double AdaptiveSelectionExtentSpeedFactor = 0.005;
 
         /// <summary>
         /// Minimum length squared used to avoid normalizing a zero vector.
@@ -421,7 +425,10 @@ namespace helengine.editor {
             }
 
             double configuredMove = Math.Max(configuredMoveSpeed, MinimumAdaptiveMoveSpeed);
-            double derivedMoveSpeed = Math.Clamp(selectionExtent * (configuredMove / DefaultMoveSpeed) * 0.001, MinimumAdaptiveMoveSpeed, MaximumAdaptiveMoveSpeed);
+            double derivedMoveSpeed = Math.Clamp(
+                selectionExtent * (configuredMove / DefaultMoveSpeed) * AdaptiveSelectionExtentSpeedFactor,
+                MinimumAdaptiveMoveSpeed,
+                MaximumAdaptiveMoveSpeed);
             moveSpeed = (float)derivedMoveSpeed;
             panSpeed = derivedMoveSpeed * (configuredPanSpeed / configuredMoveSpeed);
             wheelZoomSpeed = derivedMoveSpeed * (configuredWheelZoomSpeed / configuredMoveSpeed);
@@ -547,7 +554,7 @@ namespace helengine.editor {
                 if (hasSelectionOrbitTargetOverride && ReferenceEquals(selectedEntity, selectionOrbitTargetOverrideEntity)) {
                     virtualTarget = selectionOrbitTargetOverride;
                 } else {
-                    virtualTarget = selectedEntity.Position;
+                    virtualTarget = helengine.editor.EditorViewportDirect2DPresentationService.ResolvePresentedWorldPosition(selectedEntity);
                 }
 
                 orbitDistance = GetDistance(Parent.Position, virtualTarget);

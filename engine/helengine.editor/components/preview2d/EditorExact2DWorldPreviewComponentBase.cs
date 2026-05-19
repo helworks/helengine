@@ -90,6 +90,18 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves the shared preview mesh model used by this exact-preview proxy.
+        /// </summary>
+        /// <returns>Viewport-owned exact previews use one render-target-oriented downward plane while all other cases keep the shared base behavior.</returns>
+        protected override RuntimeModel ResolvePreviewModel() {
+            if (helengine.editor.EditorViewportDirect2DPresentationService.TryResolveViewportOwner(SourceEntity, out _, out _)) {
+                return EditorWorldSpace2DPreviewMeshResources.GetViewportRenderTargetRuntimeModel();
+            }
+
+            return base.ResolvePreviewModel();
+        }
+
+        /// <summary>
         /// Prevents the shared base from releasing the runtime material directly because the capture service owns that material.
         /// </summary>
         /// <param name="render3D">Renderer that would normally release the runtime material.</param>

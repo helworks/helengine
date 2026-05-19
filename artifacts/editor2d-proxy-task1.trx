@@ -1,0 +1,80 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="683543d6-42e1-4f0d-ba8d-88e2561d0996" name="Helena@DESKTOP-HELENA 2026-05-18 21:33:24" runUser="DESKTOP-HELENA\Helena" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-05-18T21:33:24.4309097-03:00" queuing="2026-05-18T21:33:24.4309098-03:00" start="2026-05-18T21:33:23.5695622-03:00" finish="2026-05-18T21:33:24.4336508-03:00" />
+  <TestSettings name="default" id="67bcbb3b-0dad-44bd-9446-411aa843acbd">
+    <Deployment runDeploymentRoot="Helena_DESKTOP-HELENA_2026-05-18_21_33_24" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="c373f2f5-2e11-4e5b-9a92-b105d18bf01b" testId="6f10f43d-5c4d-4025-9805-7265d10a323a" testName="helengine.editor.tests.Editor2DWorldPreviewProxyTests.RemovePreviewProxy_WhenSourceEntityIsRemoved_ClearsBothDirections" computerName="DESKTOP-HELENA" duration="00:00:00.0001145" startTime="2026-05-18T21:33:24.3702823-03:00" endTime="2026-05-18T21:33:24.3703237-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c373f2f5-2e11-4e5b-9a92-b105d18bf01b">
+      <Output>
+        <ErrorInfo>
+          <Message>System.NullReferenceException : Object reference not set to an instance of an object.</Message>
+          <StackTrace>   at helengine.Entity..ctor() in C:\dev\helworks\helengine\engine\helengine.core\Entity.cs:line 23&#xD;
+   at helengine.editor.tests.Editor2DWorldPreviewProxyTests.RemovePreviewProxy_WhenSourceEntityIsRemoved_ClearsBothDirections() in C:\dev\helworks\helengine\engine\helengine.editor.tests\Editor2DWorldPreviewProxyTests.cs:line 35&#xD;
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="ff991f28-cec3-4fb9-a9d2-7d98df3b031a" testId="e95e6610-f081-1edf-ac0a-6a25be961c2b" testName="helengine.editor.tests.Editor2DWorldPreviewProxyTests.RegisterPreviewProxy_WhenSourceEntityIsMapped_ResolvesPreviewBackToSourceEntity" computerName="DESKTOP-HELENA" duration="00:00:00.0019583" startTime="2026-05-18T21:33:24.3521338-03:00" endTime="2026-05-18T21:33:24.3641232-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ff991f28-cec3-4fb9-a9d2-7d98df3b031a">
+      <Output>
+        <ErrorInfo>
+          <Message>System.NullReferenceException : Object reference not set to an instance of an object.</Message>
+          <StackTrace>   at helengine.Entity..ctor() in C:\dev\helworks\helengine\engine\helengine.core\Entity.cs:line 23&#xD;
+   at helengine.editor.tests.Editor2DWorldPreviewProxyTests.RegisterPreviewProxy_WhenSourceEntityIsMapped_ResolvesPreviewBackToSourceEntity() in C:\dev\helworks\helengine\engine\helengine.editor.tests\Editor2DWorldPreviewProxyTests.cs:line 15&#xD;
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="helengine.editor.tests.Editor2DWorldPreviewProxyTests.RegisterPreviewProxy_WhenSourceEntityIsMapped_ResolvesPreviewBackToSourceEntity" storage="c:\dev\helworks\helengine\engine\helengine.editor.tests\bin\debug\net9.0\helengine.editor.tests.dll" id="e95e6610-f081-1edf-ac0a-6a25be961c2b">
+      <Execution id="ff991f28-cec3-4fb9-a9d2-7d98df3b031a" />
+      <TestMethod codeBase="C:\dev\helworks\helengine\engine\helengine.editor.tests\bin\Debug\net9.0\helengine.editor.tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="helengine.editor.tests.Editor2DWorldPreviewProxyTests" name="RegisterPreviewProxy_WhenSourceEntityIsMapped_ResolvesPreviewBackToSourceEntity" />
+    </UnitTest>
+    <UnitTest name="helengine.editor.tests.Editor2DWorldPreviewProxyTests.RemovePreviewProxy_WhenSourceEntityIsRemoved_ClearsBothDirections" storage="c:\dev\helworks\helengine\engine\helengine.editor.tests\bin\debug\net9.0\helengine.editor.tests.dll" id="6f10f43d-5c4d-4025-9805-7265d10a323a">
+      <Execution id="c373f2f5-2e11-4e5b-9a92-b105d18bf01b" />
+      <TestMethod codeBase="C:\dev\helworks\helengine\engine\helengine.editor.tests\bin\Debug\net9.0\helengine.editor.tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="helengine.editor.tests.Editor2DWorldPreviewProxyTests" name="RemovePreviewProxy_WhenSourceEntityIsRemoved_ClearsBothDirections" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="6f10f43d-5c4d-4025-9805-7265d10a323a" executionId="c373f2f5-2e11-4e5b-9a92-b105d18bf01b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e95e6610-f081-1edf-ac0a-6a25be961c2b" executionId="ff991f28-cec3-4fb9-a9d2-7d98df3b031a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="2" executed="2" passed="0" failed="2" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.4+50e68bbb8b (64-bit .NET 9.0.16)&#xD;
+[xUnit.net 00:00:00.45]   Discovering: helengine.editor.tests&#xD;
+[xUnit.net 00:00:00.52]   Discovered:  helengine.editor.tests&#xD;
+[xUnit.net 00:00:00.53]   Starting:    helengine.editor.tests&#xD;
+[xUnit.net 00:00:00.56]       System.NullReferenceException : Object reference not set to an instance of an object.&#xD;
+[xUnit.net 00:00:00.56]       Stack Trace:&#xD;
+[xUnit.net 00:00:00.56]         C:\dev\helworks\helengine\engine\helengine.core\Entity.cs(23,0): at helengine.Entity..ctor()&#xD;
+[xUnit.net 00:00:00.56]         C:\dev\helworks\helengine\engine\helengine.editor.tests\Editor2DWorldPreviewProxyTests.cs(15,0): at helengine.editor.tests.Editor2DWorldPreviewProxyTests.RegisterPreviewProxy_WhenSourceEntityIsMapped_ResolvesPreviewBackToSourceEntity()&#xD;
+[xUnit.net 00:00:00.56]            at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)&#xD;
+[xUnit.net 00:00:00.56]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:00.56]       System.NullReferenceException : Object reference not set to an instance of an object.&#xD;
+[xUnit.net 00:00:00.56]       Stack Trace:&#xD;
+[xUnit.net 00:00:00.56]         C:\dev\helworks\helengine\engine\helengine.core\Entity.cs(23,0): at helengine.Entity..ctor()&#xD;
+[xUnit.net 00:00:00.56]         C:\dev\helworks\helengine\engine\helengine.editor.tests\Editor2DWorldPreviewProxyTests.cs(35,0): at helengine.editor.tests.Editor2DWorldPreviewProxyTests.RemovePreviewProxy_WhenSourceEntityIsRemoved_ClearsBothDirections()&#xD;
+[xUnit.net 00:00:00.56]            at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)&#xD;
+[xUnit.net 00:00:00.56]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:00.56]   Finished:    helengine.editor.tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="DESKTOP-HELENA" outcome="Error" timestamp="2026-05-18T21:33:24.3653857-03:00">
+        <Text>[xUnit.net 00:00:00.56]     helengine.editor.tests.Editor2DWorldPreviewProxyTests.RegisterPreviewProxy_WhenSourceEntityIsMapped_ResolvesPreviewBackToSourceEntity [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="DESKTOP-HELENA" outcome="Error" timestamp="2026-05-18T21:33:24.3704802-03:00">
+        <Text>[xUnit.net 00:00:00.56]     helengine.editor.tests.Editor2DWorldPreviewProxyTests.RemovePreviewProxy_WhenSourceEntityIsRemoved_ClearsBothDirections [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

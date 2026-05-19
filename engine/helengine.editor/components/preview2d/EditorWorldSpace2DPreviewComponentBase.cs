@@ -34,7 +34,7 @@ namespace helengine {
             EditorEntity previewEntity = ResolvePreviewEntity(entity);
             previewEntity.InternalEntity = true;
             previewEntity.LayerMask = helengine.editor.EditorLayerMasks.SceneObjects;
-            Model = EditorWorldSpace2DPreviewMeshResources.GetRuntimeModel();
+            Model = ResolvePreviewModel();
             PreviewMaterialValue = CreatePreviewMaterial(Core.Instance.RenderManager3D);
             Material = PreviewMaterialValue;
             base.ComponentAdded(entity);
@@ -66,7 +66,7 @@ namespace helengine {
             previewEntity.InternalEntity = true;
             previewEntity.LayerMask = helengine.editor.EditorLayerMasks.SceneObjects;
             previewEntity.Enabled = SourceEntity.Enabled;
-            previewEntity.LocalPosition = SourceEntity.Position;
+            previewEntity.LocalPosition = helengine.editor.EditorViewportDirect2DPresentationService.ResolvePresentedWorldPosition(SourceEntity);
             previewEntity.LocalOrientation = SourceEntity.Orientation;
             previewEntity.LocalScale = ResolvePreviewScale();
             SynchronizePreviewMaterial();
@@ -102,6 +102,18 @@ namespace helengine {
         /// </summary>
         /// <returns>Configured runtime material for the preview proxy.</returns>
         protected abstract RuntimeMaterial CreatePreviewMaterial(RenderManager3D render3D);
+
+        /// <summary>
+        /// Resolves the shared preview mesh model used by this preview proxy.
+        /// </summary>
+        /// <returns>Runtime model whose local rectangle matches the authored coordinate convention.</returns>
+        protected virtual RuntimeModel ResolvePreviewModel() {
+            if (helengine.editor.EditorViewportDirect2DPresentationService.TryResolveViewportOwner(SourceEntity, out _, out _)) {
+                return EditorWorldSpace2DPreviewMeshResources.GetViewportRuntimeModel();
+            }
+
+            return EditorWorldSpace2DPreviewMeshResources.GetRuntimeModel();
+        }
 
         /// <summary>
         /// Releases the runtime material owned by this preview component.
@@ -150,9 +162,8 @@ namespace helengine {
         /// <returns>World-space scale for the preview proxy entity.</returns>
         float3 ResolvePreviewScale() {
             int2 previewSize = ResolvePreviewSize();
-            float width = Math.Max(1, previewSize.X);
-            float height = Math.Max(1, previewSize.Y);
-            return new float3(width, height, 1f);
+            int2 clampedPreviewSize = new int2(Math.Max(1, previewSize.X), Math.Max(1, previewSize.Y));
+            return helengine.editor.EditorViewportDirect2DPresentationService.ResolvePresentedWorldScale(SourceEntity, clampedPreviewSize);
         }
     }
 }

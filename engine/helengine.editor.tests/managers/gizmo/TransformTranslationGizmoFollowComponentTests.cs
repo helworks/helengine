@@ -89,6 +89,29 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures viewport-owned 2D selections anchor the translation gizmo at the presented bounds center so the gizmo appears on the visible element instead of the authored top-left origin.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportOwnedSpriteIsSelected_PositionsTranslationGizmoAtPresentedBoundsCenter() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+
+            Entity selectedEntity = CreateViewportOwnedSpriteEntity(new float3(100f, 200f, 35f), new int2(64, 32));
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+
+            UpdateFollowComponent(gizmoRoot);
+
+            AssertVectorEquals(new float3(132f, -216f, 35f), gizmoRoot.Position);
+        }
+
+        /// <summary>
         /// Ensures drag-time updates preserve the current handle facing even when the translated entity crosses into a different snapped yaw sector.
         /// </summary>
         [Fact]
@@ -509,6 +532,33 @@ namespace helengine.editor.tests.managers.gizmo {
             float4 orientation;
             float4.CreateFromAxisAngle(ref xAxis, (float)(Math.PI * 0.5), out orientation);
             return orientation;
+        }
+
+        /// <summary>
+        /// Creates one viewport-owned sprite entity for presented-space gizmo alignment tests.
+        /// </summary>
+        /// <param name="localPosition">Stored viewport-local position of the authored sprite entity.</param>
+        /// <param name="size">Authored sprite size.</param>
+        /// <returns>Viewport-owned authored sprite entity.</returns>
+        Entity CreateViewportOwnedSpriteEntity(float3 localPosition, int2 size) {
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.FixedBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            Entity selectedEntity = new Entity {
+                LocalPosition = localPosition
+            };
+            selectedEntity.InitComponents();
+            selectedEntity.InitChildren();
+            selectedEntity.AddComponent(new SpriteComponent {
+                Size = size
+            });
+            viewportEntity.AddChild(selectedEntity);
+            return selectedEntity;
         }
     }
 }

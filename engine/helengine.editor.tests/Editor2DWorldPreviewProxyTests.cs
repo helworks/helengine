@@ -196,6 +196,187 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures viewport-owned sprite previews reverse live reference-canvas fit scaling and present in right/down viewport space inside the 3D scene view.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportOwnedSpriteUsesReferenceCanvasFit_ReversesFitScaleAndPresentsNegativeYWorldSpace() {
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager3D.AddWindow(IntPtr.Zero, 1600, 1200);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.FixedBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+            viewportEntity.AddComponent(new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            });
+
+            Entity sourceEntity = new Entity {
+                LocalPosition = new float3(100f, 200f, 0f)
+            };
+            sourceEntity.InitComponents();
+            sourceEntity.InitChildren();
+            viewportEntity.AddChild(sourceEntity);
+
+            SpriteComponent spriteComponent = new SpriteComponent {
+                Size = new int2(220, 110),
+                Texture = TextureUtils.PixelTexture
+            };
+            sourceEntity.AddComponent(spriteComponent);
+
+            Core.Instance.Update();
+
+            EditorEntity previewEntity = new EditorEntity();
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
+            previewEntity.AddComponent(previewComponent);
+
+            previewComponent.SynchronizeFromSource();
+
+            Assert.Equal(new float3(100f, -200f, 0f), previewEntity.Position);
+            Assert.Equal(new float3(220f, 110f, 1f), previewEntity.Scale);
+        }
+
+        /// <summary>
+        /// Ensures viewport-owned sprite previews use one downward plane whose top edge samples the top of the authored sprite texture.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportOwnedSpritePreviewIsCreated_BuildsViewportPlaneWithRegularTextureUvs() {
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.FixedBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            Entity sourceEntity = new Entity();
+            sourceEntity.InitComponents();
+            sourceEntity.InitChildren();
+            viewportEntity.AddChild(sourceEntity);
+
+            SpriteComponent spriteComponent = new SpriteComponent {
+                Size = new int2(32, 16),
+                Texture = TextureUtils.PixelTexture
+            };
+            sourceEntity.AddComponent(spriteComponent);
+
+            EditorEntity previewEntity = new EditorEntity();
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
+            previewEntity.AddComponent(previewComponent);
+
+            ModelAsset builtModelAsset = Assert.Single(renderManager3D.BuiltModelAssets);
+            Assert.Equal(new float3(0f, 0f, 0f), builtModelAsset.Positions[0]);
+            Assert.Equal(new float3(1f, 0f, 0f), builtModelAsset.Positions[1]);
+            Assert.Equal(new float3(1f, -1f, 0f), builtModelAsset.Positions[2]);
+            Assert.Equal(new float3(0f, -1f, 0f), builtModelAsset.Positions[3]);
+            Assert.Equal(new float2(0f, 0f), builtModelAsset.TexCoords[0]);
+            Assert.Equal(new float2(1f, 0f), builtModelAsset.TexCoords[1]);
+            Assert.Equal(new float2(1f, 1f), builtModelAsset.TexCoords[2]);
+            Assert.Equal(new float2(0f, 1f), builtModelAsset.TexCoords[3]);
+        }
+
+        /// <summary>
+        /// Ensures viewport-owned exact previews use one downward plane whose top edge samples the top of the render-target capture.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportOwnedTextPreviewIsCreated_BuildsViewportPlaneWithRenderTargetUvs() {
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.FixedBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            Entity sourceEntity = new Entity();
+            sourceEntity.InitComponents();
+            sourceEntity.InitChildren();
+            viewportEntity.AddChild(sourceEntity);
+
+            TextComponent sourceComponent = new TextComponent {
+                Size = new int2(96, 24),
+                Text = "Viewport Text"
+            };
+            sourceEntity.AddComponent(sourceComponent);
+
+            EditorEntity previewEntity = new EditorEntity();
+            EditorTextWorldPreviewComponent previewComponent = new EditorTextWorldPreviewComponent(sourceEntity, sourceComponent);
+            previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, sourceComponent));
+            previewEntity.AddComponent(previewComponent);
+
+            ModelAsset builtModelAsset = Assert.Single(renderManager3D.BuiltModelAssets);
+            Assert.Equal(new float3(0f, 0f, 0f), builtModelAsset.Positions[0]);
+            Assert.Equal(new float3(1f, 0f, 0f), builtModelAsset.Positions[1]);
+            Assert.Equal(new float3(1f, -1f, 0f), builtModelAsset.Positions[2]);
+            Assert.Equal(new float3(0f, -1f, 0f), builtModelAsset.Positions[3]);
+            Assert.Equal(new float2(0f, 1f), builtModelAsset.TexCoords[0]);
+            Assert.Equal(new float2(1f, 1f), builtModelAsset.TexCoords[1]);
+            Assert.Equal(new float2(1f, 0f), builtModelAsset.TexCoords[2]);
+            Assert.Equal(new float2(0f, 0f), builtModelAsset.TexCoords[3]);
+        }
+
+        /// <summary>
+        /// Ensures viewport-owned anchored sprites are presented at authored bottom-right coordinates after live fit scaling and anchor refresh have been reversed.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportOwnedSpriteUsesBottomRightAnchor_PresentsAuthoredBottomRightPosition() {
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager3D.AddWindow(IntPtr.Zero, 1600, 1200);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+            viewportEntity.AddComponent(new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            });
+
+            Entity generatedRootEntity = new Entity();
+            generatedRootEntity.InitComponents();
+            generatedRootEntity.InitChildren();
+            viewportEntity.AddChild(generatedRootEntity);
+
+            Entity sourceEntity = new Entity();
+            sourceEntity.InitComponents();
+            sourceEntity.InitChildren();
+            generatedRootEntity.AddChild(sourceEntity);
+
+            SpriteComponent spriteComponent = new SpriteComponent {
+                Size = new int2(220, 220),
+                Texture = TextureUtils.PixelTexture
+            };
+            sourceEntity.AddComponent(spriteComponent);
+
+            AnchorComponent anchorComponent = new AnchorComponent();
+            anchorComponent.SetAnchorDistances(right: 44f, bottom: 36f);
+            sourceEntity.AddComponent(anchorComponent);
+
+            Core.Instance.Update();
+
+            EditorEntity previewEntity = new EditorEntity();
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
+            previewEntity.AddComponent(previewComponent);
+
+            previewComponent.SynchronizeFromSource();
+
+            Assert.Equal(new float3(1016f, -464f, 0f), previewEntity.Position);
+            Assert.Equal(new float3(220f, 220f, 1f), previewEntity.Scale);
+        }
+
+        /// <summary>
         /// Ensures transform-only text changes do not trigger another exact preview texture recapture.
         /// </summary>
         [Fact]

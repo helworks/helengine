@@ -264,7 +264,11 @@ namespace helengine.editor {
                 return false;
             }
 
-            return EditorViewportSceneSelectionFilter.ResolveSelectableEntity(drawable.Parent) != null;
+            if (EditorViewportSceneSelectionFilter.ResolveSelectableEntity(drawable.Parent) == null) {
+                return false;
+            }
+
+            return helengine.editor.EditorViewportDirect2DPresentationService.ShouldKeepViewportLockBehavior(drawable.Parent);
         }
 
         /// <summary>

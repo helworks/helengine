@@ -89,6 +89,27 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures viewport-owned 2D selections anchor the scale gizmo at the presented bounds center so the handles appear on the visible element.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportOwnedSpriteIsSelected_PositionsScaleGizmoAtPresentedBoundsCenter() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
+            gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
+
+            Entity selectedEntity = CreateViewportOwnedSpriteEntity(new float3(100f, 200f, 35f), new int2(64, 32));
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+
+            UpdateFollowComponent(gizmoRoot);
+
+            Assert.Equal(new float3(132f, -216f, 35f), gizmoRoot.Position);
+        }
+
+        /// <summary>
         /// Ensures drag-time updates keep the existing gizmo scale even when camera distance changes.
         /// </summary>
         [Fact]
@@ -315,6 +336,33 @@ namespace helengine.editor.tests.managers.gizmo {
             float4 orientation;
             float4.CreateFromAxisAngle(ref yAxis, (float)(-Math.PI * 0.5), out orientation);
             return orientation;
+        }
+
+        /// <summary>
+        /// Creates one viewport-owned sprite entity for presented-space gizmo alignment tests.
+        /// </summary>
+        /// <param name="localPosition">Stored viewport-local position of the authored sprite entity.</param>
+        /// <param name="size">Authored sprite size.</param>
+        /// <returns>Viewport-owned authored sprite entity.</returns>
+        Entity CreateViewportOwnedSpriteEntity(float3 localPosition, int2 size) {
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.FixedBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            Entity selectedEntity = new Entity {
+                LocalPosition = localPosition
+            };
+            selectedEntity.InitComponents();
+            selectedEntity.InitChildren();
+            selectedEntity.AddComponent(new SpriteComponent {
+                Size = size
+            });
+            viewportEntity.AddChild(selectedEntity);
+            return selectedEntity;
         }
     }
 }

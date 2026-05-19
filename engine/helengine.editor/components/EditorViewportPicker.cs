@@ -260,9 +260,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="pickId">Pick identifier read from the picker target.</param>
         void ResolveSelectionPick(int pickId) {
-            Entity direct2DEntity = ResolveDirect2DSelection();
-            if (direct2DEntity != null) {
-                SelectEntity(direct2DEntity);
+            Entity screenSpace2DEntity = ResolveScreenSpace2DSelection();
+            if (screenSpace2DEntity != null) {
+                SelectEntity(screenSpace2DEntity);
+                return;
+            }
+
+            Entity worldPreviewEntity = ResolveWorldPreview2DSelection();
+            if (worldPreviewEntity != null) {
+                SelectEntity(worldPreviewEntity);
                 return;
             }
 
@@ -779,11 +785,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves one direct 2D scene selection from the current viewport pointer before 3D picker fallback is considered.
+        /// Resolves one screen-space 2D scene selection from the current viewport pointer before world-preview and generic 3D fallback are considered.
         /// </summary>
-        /// <returns>Selectable 2D scene entity under the pointer, or null when no 2D scene entity is hit.</returns>
-        Entity ResolveDirect2DSelection() {
+        /// <returns>Selectable screen-space 2D scene entity under the pointer, or null when no screen-space 2D scene entity is hit.</returns>
+        Entity ResolveScreenSpace2DSelection() {
             return EditorViewportDirect2DPresentationService.ResolveSelectableEntityAtPointer(SceneCamera, PendingViewport, PendingPointer);
+        }
+
+        /// <summary>
+        /// Resolves one authored world-preview 2D scene selection from the current viewport pointer before generic 3D mesh selection is considered.
+        /// </summary>
+        /// <returns>Selectable world-preview 2D scene entity under the pointer, or null when no world-preview entity is hit.</returns>
+        Entity ResolveWorldPreview2DSelection() {
+            return EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(SceneCamera, PendingViewport, PendingPointer);
         }
 
         /// <summary>
