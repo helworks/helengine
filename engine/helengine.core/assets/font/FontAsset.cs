@@ -4,6 +4,26 @@ namespace helengine {
     /// </summary>
     public class FontAsset : IDisposable {
         /// <summary>
+        /// Tracks how many font asset instances are currently alive in native runtime builds.
+        /// </summary>
+        static int LiveInstanceCountValue;
+
+        /// <summary>
+        /// Tracks how many font asset instances have been constructed in the current process.
+        /// </summary>
+        static int ConstructedInstanceCountValue;
+
+        /// <summary>
+        /// Tracks how many font asset instances have been disposed in the current process.
+        /// </summary>
+        static int DisposedInstanceCountValue;
+
+        /// <summary>
+        /// Tracks how many glyph dictionary entries are currently owned by live font assets.
+        /// </summary>
+        static int LiveCharacterCountValue;
+
+        /// <summary>
         /// Initializes a new font asset with atlas texture, metrics, and glyph map.
         /// </summary>
         /// <param name="fontInfo">Basic font metrics.</param>
@@ -20,7 +40,30 @@ namespace helengine {
             Characters = chars;
             AtlasWidth = atlasWidth;
             AtlasHeight = atlasHeight;
+            ConstructedInstanceCountValue++;
+            LiveInstanceCountValue++;
+            LiveCharacterCountValue += chars == null ? 0 : chars.Count;
         }
+
+        /// <summary>
+        /// Gets how many font asset instances are currently alive in native runtime builds.
+        /// </summary>
+        public static int LiveInstanceCount => LiveInstanceCountValue;
+
+        /// <summary>
+        /// Gets how many font asset instances have been constructed in the current process.
+        /// </summary>
+        public static int ConstructedInstanceCount => ConstructedInstanceCountValue;
+
+        /// <summary>
+        /// Gets how many font asset instances have been disposed in the current process.
+        /// </summary>
+        public static int DisposedInstanceCount => DisposedInstanceCountValue;
+
+        /// <summary>
+        /// Gets how many glyph dictionary entries are currently owned by live font assets.
+        /// </summary>
+        public static int LiveCharacterCount => LiveCharacterCountValue;
 
         /// <summary>
         /// Gets the basic font metrics.
@@ -122,6 +165,22 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Attaches one runtime atlas texture and its cooked source payload to this font asset, then updates metrics to match the cooked atlas dimensions.
+        /// </summary>
+        /// <param name="runtimeTexture">Runtime texture rebuilt from the cooked atlas payload.</param>
+        /// <param name="processedSourceTextureAsset">Cooked atlas payload that should become the authoritative source texture data.</param>
+        public void AttachProcessedTexture(RuntimeTexture runtimeTexture, TextureAsset processedSourceTextureAsset) {
+            if (runtimeTexture == null) {
+                throw new ArgumentNullException(nameof(runtimeTexture));
+            } else if (processedSourceTextureAsset == null) {
+                throw new ArgumentNullException(nameof(processedSourceTextureAsset));
+            }
+
+            Texture = runtimeTexture;
+            ApplyProcessedSourceTextureAsset(processedSourceTextureAsset);
+        }
+
+        /// <summary>
         /// Releases scene-owned references held by this font asset.
         /// </summary>
         public void Dispose() {
@@ -136,6 +195,9 @@ namespace helengine {
             byte[] sourceTexturePaletteColors = sourceTextureAsset == null ? null : sourceTextureAsset.PaletteColors;
             bool sourceTextureColorsUsesSharedEmptyArray = ReferenceEquals(sourceTextureColors, Array.Empty<byte>());
             bool sourceTexturePaletteColorsUsesSharedEmptyArray = ReferenceEquals(sourceTexturePaletteColors, Array.Empty<byte>());
+            LiveInstanceCountValue--;
+            DisposedInstanceCountValue++;
+            LiveCharacterCountValue -= characters == null ? 0 : characters.Count;
             Texture = null;
             Characters = null;
             FontInfo = null;
@@ -143,6 +205,9 @@ namespace helengine {
             if (sourceTextureAsset != null) {
                 sourceTextureAsset.Colors = null;
                 sourceTextureAsset.PaletteColors = null;
+            }
+            if (characters != null) {
+                characters.Clear();
             }
             NativeOwnership.Delete(characters);
             NativeOwnership.Delete(fontInfo);

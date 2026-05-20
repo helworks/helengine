@@ -2204,22 +2204,28 @@ namespace helengine.editor {
         SceneAssetReference RewriteFileSystemFontReference(SceneAssetReference reference, string buildRootPath) {
             string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
             string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
-            if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
-                if (!SupportsBuilderOwnedPlatformCookKind("font-atlas-texture")) {
-                    CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+            if (SupportsBuilderOwnedPlatformCookKind("font-atlas-texture")) {
+                string cookedAtlasTextureRelativePath = BuildCookedFontAtlasTextureRelativePath(reference.RelativePath);
+                FontAsset sourceFontAsset;
+                if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
+                    sourceFontAsset = LoadPackagedFontAssetForPackaging(sourcePath);
                 } else {
-                    string cookedAtlasTextureRelativePath = BuildCookedFontAtlasTextureRelativePath(reference.RelativePath);
-                    FontAsset sourceFontAsset = LoadPackagedFontAssetForPackaging(sourcePath);
-                    FontAsset packagedFontAsset = PrepareFontAssetForExternalCookedAtlas(sourceFontAsset, cookedAtlasTextureRelativePath);
-                    WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), packagedFontAsset);
+                    sourceFontAsset = LoadImportedFontAssetForPackaging(reference, sourcePath);
                 }
-                RememberFontCookWorkItem(reference.RelativePath, sourcePath, BuildCookedFontAtlasTextureRelativePath(reference.RelativePath));
+
+                FontAsset packagedFontAsset = PrepareFontAssetForExternalCookedAtlas(sourceFontAsset, cookedAtlasTextureRelativePath);
+                WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), packagedFontAsset);
+                RememberFontCookWorkItem(reference.RelativePath, sourcePath, cookedAtlasTextureRelativePath);
+                return CreateFontFileReference(cookedRelativePath);
+            }
+
+            if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
+                CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
                 return CreateFontFileReference(cookedRelativePath);
             }
 
             FontAsset fontAsset = LoadImportedFontAssetForPackaging(reference, sourcePath);
             WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
-            RememberFontCookWorkItem(reference.RelativePath, sourcePath, cookedRelativePath);
             return CreateFontFileReference(cookedRelativePath);
         }
 

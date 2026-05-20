@@ -984,10 +984,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures builder-owned font-atlas texture capabilities emit platform cook work items for source fonts and carry default platform texture settings.
+        /// Ensures builder-owned font-atlas texture capabilities externalize imported source-font atlases and emit one work item for the atlas texture path.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformOwnsFontAtlasTextureCooking_EmitsPlatformCookWorkItemWithDefaultTextureSettings() {
+        public void Package_WhenPlatformOwnsFontAtlasTextureCooking_ExternalizesImportedSourceFontAtlasAndEmitsAtlasWorkItem() {
             string sceneId = "Scenes/TextScene.helen";
             string fontRelativePath = "Fonts/DemoDiscTitle.ttf";
             const string defaultSerializedTextureSettings = "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\"}";
@@ -1011,8 +1011,14 @@ namespace helengine.editor.tests {
             Assert.Equal(
                 Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", fontRelativePath.Replace('/', Path.DirectorySeparatorChar))),
                 workItem.SourceAssetPath);
-            Assert.Equal("cooked/Fonts/DemoDiscTitle.hefont", workItem.OutputRelativePath);
+            Assert.Equal("cooked/Fonts/DemoDiscTitle.ps2tex", workItem.OutputRelativePath);
             Assert.Equal(defaultSerializedTextureSettings, workItem.SerializedPlatformSettings);
+
+            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "Fonts", "DemoDiscTitle.hefont");
+            using FileStream fontStream = File.OpenRead(cookedFontPath);
+            FontAsset cookedFontAsset = helengine.files.FontAssetBinarySerializer.Deserialize(fontStream);
+            Assert.Equal("cooked/Fonts/DemoDiscTitle.ps2tex", cookedFontAsset.CookedAtlasTextureRelativePath);
+            Assert.Null(cookedFontAsset.SourceTextureAsset);
         }
 
         /// <summary>

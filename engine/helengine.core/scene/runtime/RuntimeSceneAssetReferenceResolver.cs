@@ -287,6 +287,7 @@ namespace helengine {
 
             LastTextLoadStage = "ResolveFontBeforeContentLoad";
             FontAsset fontAsset = AssetContentManager.Load<FontAsset>(fullPath, RuntimeContentProcessorIds.FontAsset);
+            AttachExternalCookedFontAtlasIfPresent(fontAsset);
             LastTextLoadStage = "ResolveFontAfterContentLoad";
             if (ActiveResolvedFontsByPath != null) {
                 ActiveResolvedFontsByPath.Add(fullPath, fontAsset);
@@ -753,6 +754,51 @@ namespace helengine {
 
             texturePath = string.Empty;
             return false;
+        }
+
+        /// <summary>
+        /// Attaches one external cooked atlas texture when the packaged font payload references one instead of embedding raw atlas bytes.
+        /// </summary>
+        /// <param name="fontAsset">Packaged font asset that may reference one external cooked atlas path.</param>
+        void AttachExternalCookedFontAtlasIfPresent(FontAsset fontAsset) {
+            if (fontAsset == null) {
+                throw new ArgumentNullException(nameof(fontAsset));
+            }
+            if (fontAsset.Texture != null || string.IsNullOrWhiteSpace(fontAsset.CookedAtlasTextureRelativePath)) {
+                return;
+            }
+            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+                throw new InvalidOperationException("External cooked font atlases require an initialized 2D render manager.");
+            }
+
+            string atlasFullPath = ResolvePackagedContentPath(fontAsset.CookedAtlasTextureRelativePath);
+            TextureAsset cookedAtlasTextureAsset = AssetContentManager.Load<TextureAsset>(atlasFullPath, RuntimeContentProcessorIds.TextureAsset);
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(cookedAtlasTextureAsset);
+            fontAsset.AttachProcessedTexture(runtimeTexture, cookedAtlasTextureAsset);
+        }
+
+        /// <summary>
+        /// Resolves one packaged content-relative path to an absolute file path inside the configured content root.
+        /// </summary>
+        /// <param name="relativePath">Packaged content-relative path to resolve.</param>
+        /// <returns>Absolute packaged content file path.</returns>
+        string ResolvePackagedContentPath(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+#if HELENGINE_RUNTIME_ALLOW_ROOTED_PACKAGED_PATHS
+            if (Path.IsPathRooted(relativePath)) {
+                return Path.GetFullPath(relativePath);
+            }
+#endif
+            string fullPath = Path.GetFullPath(Path.Combine(ContentRootPath, relativePath));
+            string contentRootPrefix = EnsureTrailingDirectorySeparator(ContentRootPath);
+            if (!fullPath.StartsWith(contentRootPrefix, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Packaged scene asset reference path must stay inside the content root.");
+            }
+
+            return fullPath;
         }
 
         /// <summary>

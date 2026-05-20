@@ -603,6 +603,46 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime font resolution rebuilds one live atlas texture when the packaged font references one external cooked atlas payload.
+        /// </summary>
+        [Fact]
+        public void ResolveFont_WhenPackagedFontUsesExternalCookedAtlas_LoadsTheExternalAtlasTexture() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            FontAsset packagedFontAsset = new FontAsset(
+                new FontInfo("ExternalAtlasFont", 16, 4f),
+                null,
+                new Dictionary<char, FontChar>(),
+                16f,
+                1,
+                1) {
+                CookedAtlasTextureRelativePath = "cooked/fonts/external-atlas.ps2tex"
+            };
+            TextureAsset externalAtlasTextureAsset = new TextureAsset {
+                Width = 2,
+                Height = 2,
+                Colors = new byte[] {
+                    255, 255, 255, 255,
+                    255, 255, 255, 255,
+                    255, 255, 255, 255,
+                    255, 255, 255, 255
+                }
+            };
+
+            WriteFontAsset("fonts/default.hefont", packagedFontAsset);
+            WriteTextureAsset("cooked/fonts/external-atlas.ps2tex", externalAtlasTextureAsset);
+
+            FontAsset resolvedFontAsset = resolver.ResolveFont(CreateFileFontReference("fonts/default.hefont"));
+
+            Assert.NotNull(resolvedFontAsset.Texture);
+            Assert.NotNull(resolvedFontAsset.SourceTextureAsset);
+            Assert.Equal(2, resolvedFontAsset.AtlasWidth);
+            Assert.Equal(2, resolvedFontAsset.AtlasHeight);
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading reuses one cooked font asset instance when multiple text components reference the same packaged font.
         /// </summary>
         [Fact]
@@ -1686,6 +1726,19 @@ namespace helengine.editor.tests.serialization.scene {
 
             using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
             FontAssetBinarySerializer.Serialize(stream, font);
+        }
+
+        /// <summary>
+        /// Writes one serialized texture asset at the supplied packaged content path.
+        /// </summary>
+        /// <param name="relativePath">Packaged content-relative path.</param>
+        /// <param name="textureAsset">Texture asset payload to serialize.</param>
+        void WriteTextureAsset(string relativePath, TextureAsset textureAsset) {
+            string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, textureAsset);
         }
 
         /// <summary>
