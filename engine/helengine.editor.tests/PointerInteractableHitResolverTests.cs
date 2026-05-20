@@ -242,5 +242,6 @@ namespace helengine.editor.tests {
             entity.AddComponent(interactable);
             return interactable;
         }
+
     }
 }

@@ -29,6 +29,16 @@ namespace helengine {
         readonly ObjectManager ObjectManager;
 
         /// <summary>
+        /// Optional diagnostics provider that receives live scene-manager transition stages.
+        /// </summary>
+        readonly IRuntimeSceneTransitionDiagnosticsProvider SceneTransitionDiagnosticsProvider;
+
+        /// <summary>
+        /// Optional diagnostics provider that receives live entity-disposal stages during scene teardown.
+        /// </summary>
+        readonly IRuntimeEntityDisposalDiagnosticsProvider EntityDisposalDiagnosticsProvider;
+
+        /// <summary>
         /// Loaded scene records preserved in load order.
         /// </summary>
         readonly List<LoadedSceneRecord> LoadedSceneRecords;
@@ -76,12 +86,16 @@ namespace helengine {
         /// <param name="sceneLoadService">Runtime service used to materialize scene entities.</param>
         /// <param name="objectManager">Object manager that owns live runtime entities.</param>
         /// <param name="scenePathResolver">Optional editor-side resolver that maps stable scene ids to authored scene paths.</param>
+        /// <param name="sceneTransitionDiagnosticsProvider">Optional diagnostics provider that receives live scene-manager transition stages.</param>
+        /// <param name="entityDisposalDiagnosticsProvider">Optional diagnostics provider that receives live entity-disposal stages during scene teardown.</param>
         public SceneManager(
             RuntimeSceneCatalog sceneCatalog,
             ContentManager contentManager,
             RuntimeSceneLoadService sceneLoadService,
             ObjectManager objectManager,
-            ISceneIdPathResolver scenePathResolver) {
+            ISceneIdPathResolver scenePathResolver,
+            IRuntimeSceneTransitionDiagnosticsProvider sceneTransitionDiagnosticsProvider,
+            IRuntimeEntityDisposalDiagnosticsProvider entityDisposalDiagnosticsProvider) {
             if (sceneCatalog == null && scenePathResolver == null) {
                 throw new InvalidOperationException("A runtime scene manager requires either a scene catalog or a scene path resolver.");
             }
@@ -91,6 +105,8 @@ namespace helengine {
             SceneLoadService = sceneLoadService ?? throw new ArgumentNullException(nameof(sceneLoadService));
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             ScenePathResolver = scenePathResolver;
+            SceneTransitionDiagnosticsProvider = sceneTransitionDiagnosticsProvider;
+            EntityDisposalDiagnosticsProvider = entityDisposalDiagnosticsProvider;
             LoadedSceneRecords = new List<LoadedSceneRecord>();
             LoadedSceneRecordsById = new Dictionary<string, LoadedSceneRecord>(StringComparer.OrdinalIgnoreCase);
             PendingOperations = new List<PendingSceneOperation>();
@@ -338,9 +354,14 @@ namespace helengine {
             IReadOnlyList<Entity> releasedRootEntities = loadedSceneRecord.RootEntities;
             RuntimeSceneOwnedAssetSet releasedOwnedAssets = loadedSceneRecord.OwnedAssets;
             DisposeSceneRoots(releasedRootEntities);
+            RecordTraceState("UnloadSceneImmediateBeforeReleaseOwnedAssets", loadedSceneRecord.SceneId);
             ReleaseOwnedAssets(releasedOwnedAssets);
+            RecordTraceState("UnloadSceneImmediateAfterReleaseOwnedAssets", loadedSceneRecord.SceneId);
+            RecordTraceState("UnloadSceneImmediateBeforeRemoveRecordById", loadedSceneRecord.SceneId);
             LoadedSceneRecordsById.Remove(loadedSceneRecord.SceneId);
+            RecordTraceState("UnloadSceneImmediateBeforeRemoveRecord", loadedSceneRecord.SceneId);
             LoadedSceneRecords.Remove(loadedSceneRecord);
+            RecordTraceState("UnloadSceneImmediateBeforeSceneUnloadedEvent", loadedSceneRecord.SceneId);
             SceneUnloadedEventArgs sceneUnloadedEventArgs = new SceneUnloadedEventArgs(
                 loadedSceneRecord.SceneId,
                 loadedSceneRecord.CookedRelativePath);
@@ -445,7 +466,10 @@ namespace helengine {
             }
 
             for (int index = rootEntities.Count - 1; index >= 0; index--) {
-                NativeOwnership.DisposeAndDelete(rootEntities[index]);
+                Entity rootEntity = rootEntities[index];
+                ReportEntityDisposalStage("BeforeRootDispose", rootEntity, -1);
+                NativeOwnership.DisposeAndDelete(rootEntity);
+                ReportEntityDisposalStage("AfterRootDispose", null, -1);
             }
         }
 
@@ -463,7 +487,10 @@ namespace helengine {
                 }
 
                 for (int index = rootEntities.Count - 1; index >= 0; index--) {
-                    NativeOwnership.DisposeAndDelete(rootEntities[index]);
+                    Entity rootEntity = rootEntities[index];
+                    ReportEntityDisposalStage("BeforeUntrackedRootDispose", rootEntity, -1);
+                    NativeOwnership.DisposeAndDelete(rootEntity);
+                    ReportEntityDisposalStage("AfterUntrackedRootDispose", null, -1);
                 }
             } finally {
                 NativeOwnership.Delete(rootEntities);
@@ -482,6 +509,7 @@ namespace helengine {
             byte[] payload = asset.Payload;
             asset.Payload = null;
             DeleteTransientArray(payload);
+            asset.MarkReleasedForDiagnostics();
             NativeOwnership.Delete(asset);
         }
 
@@ -578,6 +606,7 @@ namespace helengine {
             DeleteTransientArray(platformTransformOverrides);
             DeleteTransientArray(platformComponentOverrides);
             DeleteTransientArray(children);
+            asset.MarkReleasedForDiagnostics();
             NativeOwnership.Delete(asset);
         }
 
@@ -590,9 +619,7 @@ namespace helengine {
                 return;
             }
 
-            SceneCanvasProfile canvasProfile = asset.CanvasProfile;
-            asset.CanvasProfile = null;
-            NativeOwnership.Delete(canvasProfile);
+            asset.ReleaseOwnedValuesForNativeDelete();
             NativeOwnership.Delete(asset);
         }
 
@@ -610,7 +637,6 @@ namespace helengine {
             SceneSettingsAsset sceneSettings = asset.SceneSettings;
             asset.RootEntities = null;
             asset.AssetReferences = null;
-            asset.SceneSettings = null;
             if (rootEntities != null) {
                 for (int index = 0; index < rootEntities.Length; index++) {
                     ReleaseTransientSceneEntityAsset(rootEntities[index]);
@@ -757,10 +783,18 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(ownedAssets));
             }
 
+            RecordTraceState("ReleaseOwnedAssetsBeforeFonts", LastTraceSceneId);
             ReleaseOwnedFonts(ownedAssets.OwnedFonts);
+            RecordTraceState("ReleaseOwnedAssetsAfterFonts", LastTraceSceneId);
+            RecordTraceState("ReleaseOwnedAssetsBeforeTextures", LastTraceSceneId);
             ReleaseOwnedTextures(ownedAssets.OwnedTextures);
+            RecordTraceState("ReleaseOwnedAssetsAfterTextures", LastTraceSceneId);
+            RecordTraceState("ReleaseOwnedAssetsBeforeModels", LastTraceSceneId);
             ReleaseOwnedModels(ownedAssets.OwnedModels);
+            RecordTraceState("ReleaseOwnedAssetsAfterModels", LastTraceSceneId);
+            RecordTraceState("ReleaseOwnedAssetsBeforeMaterials", LastTraceSceneId);
             ReleaseOwnedMaterials(ownedAssets.OwnedMaterials);
+            RecordTraceState("ReleaseOwnedAssetsAfterMaterials", LastTraceSceneId);
         }
 
         /// <summary>
@@ -852,27 +886,39 @@ namespace helengine {
         /// </summary>
         /// <param name="ownedMaterials">Scene-owned runtime materials resolved during materialization.</param>
         void ReleaseOwnedMaterials(IReadOnlyList<RuntimeMaterial> ownedMaterials) {
+            RecordTraceState("MatBegin", LastTraceSceneId);
             if (ownedMaterials == null) {
                 throw new ArgumentNullException(nameof(ownedMaterials));
             }
 
             for (int assetIndex = 0; assetIndex < ownedMaterials.Count; assetIndex++) {
+                RecordTraceState("MatLoop", LastTraceSceneId);
                 RuntimeMaterial ownedAsset = ownedMaterials[assetIndex];
                 if (ownedAsset == null) {
+                    RecordTraceState("MatNullSkip", LastTraceSceneId);
                     continue;
                 }
+                RecordTraceState("MatBeforeRef", LastTraceSceneId);
                 if (!ActiveOwnedMaterialReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
                     throw new InvalidOperationException("Scene-owned runtime material was not tracked before release.");
                 }
+                RecordTraceState("MatAfterRef", LastTraceSceneId);
 
                 if (existingReferenceCount > 1) {
+                    RecordTraceState("MatBeforeDec", LastTraceSceneId);
                     ActiveOwnedMaterialReferenceCounts[ownedAsset] = existingReferenceCount - 1;
+                    RecordTraceState("MatAfterDec", LastTraceSceneId);
                     continue;
                 }
 
+                RecordTraceState("MatBeforeRemove", LastTraceSceneId);
                 ActiveOwnedMaterialReferenceCounts.Remove(ownedAsset);
+                RecordTraceState("MatAfterRemove", LastTraceSceneId);
+                RecordTraceState("MatBeforeRelease", LastTraceSceneId);
                 ReleaseOwnedMaterial(ownedAsset);
+                RecordTraceState("MatAfterRelease", LastTraceSceneId);
             }
+            RecordTraceState("MatEnd", LastTraceSceneId);
         }
 
         /// <summary>
@@ -909,7 +955,7 @@ namespace helengine {
             }
 
             Core.Instance.RenderManager2D.ReleaseTexture(ownedAsset);
-            ownedAsset.Dispose();
+            NativeOwnership.DisposeAndDelete(ownedAsset);
         }
 
         /// <summary>
@@ -940,8 +986,11 @@ namespace helengine {
                 throw new InvalidOperationException("Runtime material release requires an initialized 3D render manager.");
             }
 
+            RecordTraceState("MatBeforeRM3D", LastTraceSceneId);
             Core.Instance.RenderManager3D.ReleaseMaterial(ownedAsset);
+            RecordTraceState("MatAfterRM3D", LastTraceSceneId);
             NativeOwnership.DisposeAndDelete(ownedAsset);
+            RecordTraceState("MatAfterDelete", LastTraceSceneId);
         }
 
         /// <summary>
@@ -966,10 +1015,35 @@ namespace helengine {
         /// <param name="stage">Short stage name describing the current transition boundary.</param>
         /// <param name="sceneId">Stable scene identifier associated with the current transition boundary.</param>
         void RecordTraceState(string stage, string sceneId) {
+            if (SceneTransitionDiagnosticsProvider == null) {
+                return;
+            }
+
             LastTraceStage = stage;
             LastTraceSceneId = sceneId;
             LastTraceLoadedSceneCount = LoadedSceneRecords.Count;
             LastTracePendingOperationCount = PendingOperations.Count;
+            SceneTransitionDiagnosticsProvider.ReportSceneTransitionStage(
+                stage,
+                sceneId,
+                LastTraceLoadedSceneCount,
+                LastTracePendingOperationCount);
+        }
+
+        /// <summary>
+        /// Reports one entity disposal stage to the active diagnostics provider when one exists.
+        /// </summary>
+        /// <param name="stage">Short disposal stage label.</param>
+        /// <param name="entity">Entity being disposed.</param>
+        /// <param name="componentIndex">Component index involved in the stage, or -1 when not component-specific.</param>
+        internal void ReportEntityDisposalStage(string stage, Entity entity, int componentIndex) {
+            if (EntityDisposalDiagnosticsProvider == null) {
+                return;
+            }
+
+            int childCount = entity != null && entity.Children != null ? entity.Children.Count : 0;
+            int componentCount = entity != null && entity.Components != null ? entity.Components.Count : 0;
+            EntityDisposalDiagnosticsProvider.ReportEntityDisposalStage(stage, childCount, componentCount, componentIndex);
         }
     }
 }

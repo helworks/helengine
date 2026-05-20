@@ -138,7 +138,14 @@ namespace helengine {
         [EditorPropertyHidden]
         public CameraRenderSettings RenderSettings {
             get { return RenderSettingsValue; }
-            set { RenderSettingsValue = value ?? throw new ArgumentNullException(nameof(value)); }
+            set {
+                CameraRenderSettings newValue = value ?? throw new ArgumentNullException(nameof(value));
+                if (RenderSettingsValue != null && !ReferenceEquals(RenderSettingsValue, newValue)) {
+                    NativeOwnership.Delete(RenderSettingsValue);
+                }
+
+                RenderSettingsValue = newValue;
+            }
         }
 
         /// <summary>
@@ -215,12 +222,35 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Unregisters the camera from the object manager when the owning entity removes the component.
+        /// </summary>
+        /// <param name="entity">Entity losing the camera component.</param>
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+            Core.Instance.ObjectManager.RemoveCamera(this);
+        }
+
+        /// <summary>
         /// Raises the viewport changed event after the stored rectangle is updated.
         /// </summary>
         void RaiseViewportChanged() {
             if (ViewportChanged != null) {
                 ViewportChanged();
             }
+        }
+
+        /// <summary>
+        /// Releases per-camera render queues and render settings owned by this camera component.
+        /// </summary>
+        public override void Dispose() {
+            NativeOwnership.DisposeAndDelete(renderList2D);
+            NativeOwnership.DisposeAndDelete(renderList3D);
+            NativeOwnership.Delete(RenderSettingsValue);
+            renderList2D = null;
+            renderList3D = null;
+            RenderSettingsValue = null;
+            RenderTarget = null;
+            base.Dispose();
         }
     }
 }

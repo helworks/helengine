@@ -79,6 +79,86 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures camera teardown releases per-camera render queues and renderer intent objects created for native runtime cameras.
+        /// </summary>
+        [Fact]
+        public void Dispose_whenCameraComponentIsRemoved_releasesRenderQueuesAndRenderSettings() {
+            string cameraComponentSource = ReadSource("helengine.core", "components", "CameraComponent.cs");
+            string renderList2DSource = ReadSource("helengine.core", "managers", "rendering", "RenderList2D.cs");
+            string renderList3DSource = ReadSource("helengine.core", "managers", "rendering", "RenderList3D.cs");
+
+            Assert.Contains("public override void ComponentRemoved(Entity entity)", cameraComponentSource);
+            Assert.Contains("Core.Instance.ObjectManager.RemoveCamera(this);", cameraComponentSource);
+            Assert.Contains("public override void Dispose()", cameraComponentSource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(renderList2D);", cameraComponentSource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(renderList3D);", cameraComponentSource);
+            Assert.Contains("NativeOwnership.Delete(RenderSettingsValue);", cameraComponentSource);
+            Assert.Contains("public sealed class RenderList2D : IRenderQueue2D, IDisposable", renderList2DSource);
+            Assert.Contains("NativeOwnership.Delete(Items);", renderList2DSource);
+            Assert.Contains("public sealed class RenderList3D : IRenderQueue3D, IDisposable", renderList3DSource);
+            Assert.Contains("NativeOwnership.Delete(Items);", renderList3DSource);
+        }
+
+        /// <summary>
+        /// Ensures viewport scaling components delete native snapshot records instead of only clearing the managed list wrapper.
+        /// </summary>
+        [Fact]
+        public void Dispose_whenViewportScalingComponentsAreRemoved_releasesSnapshotListsAndItems() {
+            string viewportComponentSource = ReadSource("helengine.core", "components", "ViewportComponent.cs");
+            string referenceCanvasFitComponentSource = ReadSource("helengine.core", "components", "ReferenceCanvasFitComponent.cs");
+
+            Assert.Contains("public override void Dispose()", viewportComponentSource);
+            Assert.Contains("ReleaseLayoutSnapshots();", viewportComponentSource);
+            Assert.Contains("NativeOwnership.Delete(LayoutSnapshotsValue[snapshotIndex]);", viewportComponentSource);
+            Assert.Contains("NativeOwnership.Delete(LayoutSnapshotsValue);", viewportComponentSource);
+
+            Assert.Contains("public override void Dispose()", referenceCanvasFitComponentSource);
+            Assert.Contains("ReleaseSnapshots();", referenceCanvasFitComponentSource);
+            Assert.Contains("NativeOwnership.Delete(SnapshotsValue[snapshotIndex]);", referenceCanvasFitComponentSource);
+            Assert.Contains("NativeOwnership.Delete(SnapshotsValue);", referenceCanvasFitComponentSource);
+        }
+
+        /// <summary>
+        /// Ensures drawable components explicitly unregister from render lists and release native array wrappers they own.
+        /// </summary>
+        [Fact]
+        public void Dispose_whenDrawableComponentsAreRemoved_unregistersRenderEntriesAndOwnedArrays() {
+            string meshComponentSource = ReadSource("helengine.core", "components", "3d", "MeshComponent.cs");
+            string runtimeMeshComponentDeserializerSource = ReadSource("helengine.core", "scene", "runtime", "RuntimeMeshComponentDeserializer.cs");
+            string textComponentSource = ReadSource("helengine.core", "components", "2d", "TextComponent.cs");
+            string spriteComponentSource = ReadSource("helengine.core", "components", "2d", "SpriteComponent.cs");
+            string roundedRectComponentSource = ReadSource("helengine.core", "components", "2d", "RoundedRectComponent.cs");
+
+            Assert.Contains("public override void ComponentRemoved(Entity entity)", meshComponentSource);
+            Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender3D(this);", meshComponentSource);
+            Assert.Contains("public override void Dispose()", meshComponentSource);
+            Assert.Contains("NativeOwnership.Release(ref MaterialsBySlot);", meshComponentSource);
+            Assert.Contains("RuntimeMaterial[] runtimeMaterials = null;", runtimeMeshComponentDeserializerSource);
+            Assert.Contains("runtimeMaterials = ResolveMaterials(materialReferences, referenceResolver);", runtimeMeshComponentDeserializerSource);
+            Assert.Contains("NativeOwnership.Release(ref runtimeMaterials);", runtimeMeshComponentDeserializerSource);
+
+            Assert.Contains("public override void ComponentRemoved(Entity entity)", textComponentSource);
+            Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender2D(this);", textComponentSource);
+
+            Assert.Contains("public override void ComponentRemoved(Entity entity)", spriteComponentSource);
+            Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender2D(this);", spriteComponentSource);
+
+            Assert.Contains("public override void ComponentRemoved(Entity entity)", roundedRectComponentSource);
+            Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender2D(this);", roundedRectComponentSource);
+        }
+
+        /// <summary>
+        /// Ensures runtime-created FPS overlay entities are deleted when the owning component tears down its generated subtree.
+        /// </summary>
+        [Fact]
+        public void Dispose_whenFpsOverlayIsTornDown_deletesGeneratedOverlayEntitySubtree() {
+            string fpsComponentSource = ReadSource("helengine.core", "components", "2d", "FPSComponent.cs");
+
+            Assert.Contains("NativeOwnership.DisposeAndDelete(overlayHost);", fpsComponentSource);
+            Assert.DoesNotContain("overlayHost.Dispose();", fpsComponentSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures menu-driven scene transitions resolve logical ids through the optional scene-map singleton helper instead of the removed scene-map service seam.
         /// </summary>
         [Fact]

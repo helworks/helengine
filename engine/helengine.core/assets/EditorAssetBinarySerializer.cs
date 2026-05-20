@@ -54,7 +54,11 @@ namespace helengine {
             }
 
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            return Deserialize(stream, header);
+            try {
+                return Deserialize(stream, header);
+            } finally {
+                NativeOwnership.Delete(header);
+            }
         }
 
         /// <summary>
@@ -282,7 +286,9 @@ namespace helengine {
             materialAsset.DiffuseTextureAssetId = reader.ReadString();
             materialAsset.CastsShadows = reader.ReadByte() != 0;
             materialAsset.ReceivesShadows = reader.ReadByte() != 0;
+            MaterialRenderState defaultRenderState = materialAsset.RenderState;
             materialAsset.RenderState = ReadMaterialRenderState(reader);
+            NativeOwnership.Delete(defaultRenderState);
             materialAsset.ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>();
             return materialAsset;
         }

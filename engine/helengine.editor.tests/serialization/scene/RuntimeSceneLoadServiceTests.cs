@@ -518,10 +518,10 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures the default runtime component registry materializes the built-in platform-info overlay binder component.
+        /// Ensures the default runtime component registry materializes the built-in platform-info overlay binder component through the generic automatic runtime deserializer path.
         /// </summary>
         [Fact]
-        public void RuntimeComponentRegistry_WhenUsingDefaultRegistry_MaterializesPlatformInfoTextComponent() {
+        public void RuntimeComponentRegistry_WhenUsingDefaultRegistry_MaterializesPlatformInfoTextComponentThroughAutomaticDeserializer() {
             RuntimeComponentRegistry registry = RuntimeComponentRegistry.CreateDefault();
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = PlatformInfoTextComponent.SerializedComponentTypeId,
@@ -529,7 +529,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Payload = WritePlatformInfoTextComponentPayload()
             };
 
-            Assert.True(registry.TryGet(PlatformInfoTextComponent.SerializedComponentTypeId, out IRuntimeComponentDeserializer deserializer));
+            IRuntimeComponentDeserializer deserializer = registry.GetDeserializer(PlatformInfoTextComponent.SerializedComponentTypeId);
 
             PlatformInfoTextComponent component = Assert.IsType<PlatformInfoTextComponent>(deserializer.Deserialize(record, null));
             Assert.NotNull(component);
@@ -1873,7 +1873,8 @@ namespace helengine.editor.tests.serialization.scene {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteInt32(0);
+            writer.WriteInt32(1);
+            writer.WriteByte(0);
             return stream.ToArray();
         }
 
@@ -2141,7 +2142,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// <summary>
         /// Creates one mouse state positioned inside the supplied menu row.
         /// </summary>
-        /// <param name="runtimeItem">Runtime item whose bounds should receive the pointer.</param>
+        /// <param name="menuHostComponent">Loaded menu host component that owns the row.</param>
+        /// <param name="itemId">Stable menu item id whose row should receive the pointer.</param>
         /// <param name="leftButtonState">Left mouse button state to emit.</param>
         /// <returns>Mouse state centered inside the menu row.</returns>
         MouseState CreateMouseStateInsideMenuItem(MenuComponent menuHostComponent, string itemId, ButtonState leftButtonState) {

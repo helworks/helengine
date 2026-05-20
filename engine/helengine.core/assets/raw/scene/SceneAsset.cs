@@ -9,6 +9,11 @@ namespace helengine {
         public const string FileExtension = ".helen";
 
         /// <summary>
+        /// Backing field for the scene-wide settings object owned by this scene asset.
+        /// </summary>
+        SceneSettingsAsset SceneSettingsValue = new SceneSettingsAsset();
+
+        /// <summary>
         /// Gets or sets the serialized root entities stored in the scene.
         /// </summary>
         public SceneEntityAsset[] RootEntities { get; set; } = Array.Empty<SceneEntityAsset>();
@@ -21,7 +26,18 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the scene-wide authoring settings persisted with the scene asset.
         /// </summary>
-        public SceneSettingsAsset SceneSettings { get; set; } = new SceneSettingsAsset();
+        public SceneSettingsAsset SceneSettings {
+            get { return SceneSettingsValue; }
+            set {
+                SceneSettingsAsset newValue = value ?? throw new ArgumentNullException(nameof(value));
+                if (SceneSettingsValue != null && !ReferenceEquals(SceneSettingsValue, newValue)) {
+                    SceneSettingsValue.ReleaseOwnedValuesForNativeDelete();
+                    NativeOwnership.Delete(SceneSettingsValue);
+                }
+
+                SceneSettingsValue = newValue;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the authored physics 3D scene feature flags persisted by editor scene assets.

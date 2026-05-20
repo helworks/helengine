@@ -302,16 +302,20 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies scene-referenced compatibility component ids that already have built-in runtime deserializers do not emit duplicate generated registrations.
+    /// Verifies city scripted component ids participate in generated runtime deserializer emission instead of being filtered out as engine-owned compatibility types.
     /// </summary>
     [Fact]
-    public void Emit_cooked_scene_automatic_runtime_component_deserializers_skips_engine_owned_compatibility_type_ids() {
-        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-compatibility-skip");
+    public void Emit_cooked_scene_automatic_runtime_component_deserializers_includes_city_scripted_component_type_ids() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-city-components");
         Directory.CreateDirectory(generatedCoreRootPath);
-        string scenePath = CreateCookedScene("compatibility-component-scene.hasset", "city.menu.DemoDiscReturnToMenuComponent, gameplay");
+        string scenePath = CreateCookedScene(
+            "city-components-scene.hasset",
+            "city.menu.DemoDiscReturnToMenuComponent, gameplay",
+            "city.menu.PlatformInfoTextComponent, gameplay");
 
         DictionaryScriptTypeResolver scriptTypeResolver = new DictionaryScriptTypeResolver();
         scriptTypeResolver.Register("city.menu.DemoDiscReturnToMenuComponent, gameplay", typeof(TestUpdateOnlyScriptComponent));
+        scriptTypeResolver.Register("city.menu.PlatformInfoTextComponent, gameplay", typeof(TestUpdateOnlyScriptComponent));
 
         EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
             generatedCoreRootPath,
@@ -319,7 +323,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             scriptTypeResolver);
 
         string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
-        Assert.DoesNotContain("GeneratedRuntimeTestUpdateOnlyScriptComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.Contains("GeneratedRuntimeTestUpdateOnlyScriptComponentDeserializer", registrationSource, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -483,6 +487,39 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
                                 Payload = Array.Empty<byte>()
                             }
                         ]
+                    }
+                ]
+            });
+        return scenePath;
+    }
+
+    /// <summary>
+    /// Writes one cooked scene asset that contains one serialized record for each supplied component type id.
+    /// </summary>
+    /// <param name="fileName">Scene file name under the temporary workspace.</param>
+    /// <param name="componentTypeIds">Serialized component type ids to write.</param>
+    /// <returns>Absolute scene file path.</returns>
+    string CreateCookedScene(string fileName, params string[] componentTypeIds) {
+        if (componentTypeIds == null) {
+            throw new ArgumentNullException(nameof(componentTypeIds));
+        }
+
+        string scenePath = Path.Combine(RootPath, fileName);
+        SceneComponentAssetRecord[] componentRecords = new SceneComponentAssetRecord[componentTypeIds.Length];
+        for (int componentIndex = 0; componentIndex < componentTypeIds.Length; componentIndex++) {
+            componentRecords[componentIndex] = new SceneComponentAssetRecord {
+                ComponentTypeId = componentTypeIds[componentIndex],
+                Payload = Array.Empty<byte>()
+            };
+        }
+
+        using FileStream stream = File.Create(scenePath);
+        AssetSerializer.Serialize(
+            stream,
+            new SceneAsset {
+                RootEntities = [
+                    new SceneEntityAsset {
+                        Components = componentRecords
                     }
                 ]
             });

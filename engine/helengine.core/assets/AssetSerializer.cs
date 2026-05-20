@@ -15,11 +15,15 @@ namespace helengine {
             }
 
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            if (header.FormatId == EditorAssetBinarySerializer.FormatId) {
-                return EditorAssetBinarySerializer.Deserialize(stream, header);
-            }
+            try {
+                if (header.FormatId == EditorAssetBinarySerializer.FormatId) {
+                    return EditorAssetBinarySerializer.Deserialize(stream, header);
+                }
 
-            throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
+                throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
+            } finally {
+                NativeOwnership.Delete(header);
+            }
         }
 
         /// <summary>

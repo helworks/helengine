@@ -47,7 +47,6 @@ namespace helengine.editor {
             }
 
             SnapshotRootPath = BuildSnapshotRootPath(projectRootPath);
-            DeleteDirectoryIfPresent(SnapshotRootPath);
             Directory.CreateDirectory(SnapshotRootPath);
             CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
             CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);

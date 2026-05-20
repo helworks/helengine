@@ -31,6 +31,7 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             MeshComponentScenePayloadSerializer.Read(reader, out SceneAssetReference modelReference, out SceneAssetReference[] materialReferences, out byte renderOrder3D);
+            RuntimeMaterial[] runtimeMaterials = null;
             try {
                 MeshComponent meshComponent = new MeshComponent {
                     RenderOrder3D = renderOrder3D
@@ -40,9 +41,11 @@ namespace helengine {
                     meshComponent.Model = referenceResolver.ResolveModel(modelReference);
                 }
 
-                meshComponent.SetMaterials(ResolveMaterials(materialReferences, referenceResolver));
+                runtimeMaterials = ResolveMaterials(materialReferences, referenceResolver);
+                meshComponent.SetMaterials(runtimeMaterials);
                 return meshComponent;
             } finally {
+                NativeOwnership.Release(ref runtimeMaterials);
                 NativeOwnership.Delete(modelReference);
                 NativeOwnership.DeleteItemsAndRelease(ref materialReferences);
             }

@@ -361,111 +361,72 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Attempts to invert one matrix using Gauss-Jordan elimination with partial pivoting.
+        /// Attempts to invert one matrix using scalar cofactors so native runtime draws do not allocate a temporary matrix.
         /// </summary>
         /// <param name="matrix">Matrix to invert.</param>
         /// <param name="result">Inverted matrix when the operation succeeds.</param>
         /// <returns>True when the matrix was invertible; otherwise false.</returns>
         static bool TryInvert(ref float4x4 matrix, out float4x4 result) {
-            double[] augmented = new double[32];
+            double m0 = matrix.M11;
+            double m1 = matrix.M12;
+            double m2 = matrix.M13;
+            double m3 = matrix.M14;
+            double m4 = matrix.M21;
+            double m5 = matrix.M22;
+            double m6 = matrix.M23;
+            double m7 = matrix.M24;
+            double m8 = matrix.M31;
+            double m9 = matrix.M32;
+            double m10 = matrix.M33;
+            double m11 = matrix.M34;
+            double m12 = matrix.M41;
+            double m13 = matrix.M42;
+            double m14 = matrix.M43;
+            double m15 = matrix.M44;
 
-            augmented[0] = matrix.M11;
-            augmented[1] = matrix.M12;
-            augmented[2] = matrix.M13;
-            augmented[3] = matrix.M14;
-            augmented[4] = 1.0;
-            augmented[5] = 0.0;
-            augmented[6] = 0.0;
-            augmented[7] = 0.0;
+            double i0 = m5 * m10 * m15 - m5 * m11 * m14 - m9 * m6 * m15 + m9 * m7 * m14 + m13 * m6 * m11 - m13 * m7 * m10;
+            double i4 = -m4 * m10 * m15 + m4 * m11 * m14 + m8 * m6 * m15 - m8 * m7 * m14 - m12 * m6 * m11 + m12 * m7 * m10;
+            double i8 = m4 * m9 * m15 - m4 * m11 * m13 - m8 * m5 * m15 + m8 * m7 * m13 + m12 * m5 * m11 - m12 * m7 * m9;
+            double i12 = -m4 * m9 * m14 + m4 * m10 * m13 + m8 * m5 * m14 - m8 * m6 * m13 - m12 * m5 * m10 + m12 * m6 * m9;
+            double determinant = m0 * i0 + m1 * i4 + m2 * i8 + m3 * i12;
 
-            augmented[8] = matrix.M21;
-            augmented[9] = matrix.M22;
-            augmented[10] = matrix.M23;
-            augmented[11] = matrix.M24;
-            augmented[12] = 0.0;
-            augmented[13] = 1.0;
-            augmented[14] = 0.0;
-            augmented[15] = 0.0;
-
-            augmented[16] = matrix.M31;
-            augmented[17] = matrix.M32;
-            augmented[18] = matrix.M33;
-            augmented[19] = matrix.M34;
-            augmented[20] = 0.0;
-            augmented[21] = 0.0;
-            augmented[22] = 1.0;
-            augmented[23] = 0.0;
-
-            augmented[24] = matrix.M41;
-            augmented[25] = matrix.M42;
-            augmented[26] = matrix.M43;
-            augmented[27] = matrix.M44;
-            augmented[28] = 0.0;
-            augmented[29] = 0.0;
-            augmented[30] = 0.0;
-            augmented[31] = 1.0;
-
-            for (int pivotIndex = 0; pivotIndex < 4; pivotIndex++) {
-                int pivotRow = pivotIndex;
-                double pivotValue = Math.Abs(augmented[(pivotRow * 8) + pivotIndex]);
-                for (int row = pivotIndex + 1; row < 4; row++) {
-                    double candidateValue = Math.Abs(augmented[(row * 8) + pivotIndex]);
-                    if (candidateValue > pivotValue) {
-                        pivotValue = candidateValue;
-                        pivotRow = row;
-                    }
-                }
-
-                if (pivotValue <= 0.0) {
-                    result = new float4x4();
-                    return false;
-                }
-
-                if (pivotRow != pivotIndex) {
-                    for (int col = 0; col < 8; col++) {
-                        double swap = augmented[(pivotIndex * 8) + col];
-                        augmented[(pivotIndex * 8) + col] = augmented[(pivotRow * 8) + col];
-                        augmented[(pivotRow * 8) + col] = swap;
-                    }
-                }
-
-                double divisor = augmented[(pivotIndex * 8) + pivotIndex];
-                for (int col = 0; col < 8; col++) {
-                    augmented[(pivotIndex * 8) + col] /= divisor;
-                }
-
-                for (int row = 0; row < 4; row++) {
-                    if (row == pivotIndex) {
-                        continue;
-                    }
-
-                    double factor = augmented[(row * 8) + pivotIndex];
-                    if (factor == 0.0) {
-                        continue;
-                    }
-
-                    for (int col = 0; col < 8; col++) {
-                        augmented[(row * 8) + col] -= factor * augmented[(pivotIndex * 8) + col];
-                    }
-                }
+            if (Math.Abs(determinant) <= 0.0) {
+                result = new float4x4();
+                return false;
             }
 
-            result.M11 = (float)augmented[4];
-            result.M12 = (float)augmented[5];
-            result.M13 = (float)augmented[6];
-            result.M14 = (float)augmented[7];
-            result.M21 = (float)augmented[12];
-            result.M22 = (float)augmented[13];
-            result.M23 = (float)augmented[14];
-            result.M24 = (float)augmented[15];
-            result.M31 = (float)augmented[20];
-            result.M32 = (float)augmented[21];
-            result.M33 = (float)augmented[22];
-            result.M34 = (float)augmented[23];
-            result.M41 = (float)augmented[28];
-            result.M42 = (float)augmented[29];
-            result.M43 = (float)augmented[30];
-            result.M44 = (float)augmented[31];
+            double i1 = -m1 * m10 * m15 + m1 * m11 * m14 + m9 * m2 * m15 - m9 * m3 * m14 - m13 * m2 * m11 + m13 * m3 * m10;
+            double i5 = m0 * m10 * m15 - m0 * m11 * m14 - m8 * m2 * m15 + m8 * m3 * m14 + m12 * m2 * m11 - m12 * m3 * m10;
+            double i9 = -m0 * m9 * m15 + m0 * m11 * m13 + m8 * m1 * m15 - m8 * m3 * m13 - m12 * m1 * m11 + m12 * m3 * m9;
+            double i13 = m0 * m9 * m14 - m0 * m10 * m13 - m8 * m1 * m14 + m8 * m2 * m13 + m12 * m1 * m10 - m12 * m2 * m9;
+
+            double i2 = m1 * m6 * m15 - m1 * m7 * m14 - m5 * m2 * m15 + m5 * m3 * m14 + m13 * m2 * m7 - m13 * m3 * m6;
+            double i6 = -m0 * m6 * m15 + m0 * m7 * m14 + m4 * m2 * m15 - m4 * m3 * m14 - m12 * m2 * m7 + m12 * m3 * m6;
+            double i10 = m0 * m5 * m15 - m0 * m7 * m13 - m4 * m1 * m15 + m4 * m3 * m13 + m12 * m1 * m7 - m12 * m3 * m5;
+            double i14 = -m0 * m5 * m14 + m0 * m6 * m13 + m4 * m1 * m14 - m4 * m2 * m13 - m12 * m1 * m6 + m12 * m2 * m5;
+
+            double i3 = -m1 * m6 * m11 + m1 * m7 * m10 + m5 * m2 * m11 - m5 * m3 * m10 - m9 * m2 * m7 + m9 * m3 * m6;
+            double i7 = m0 * m6 * m11 - m0 * m7 * m10 - m4 * m2 * m11 + m4 * m3 * m10 + m8 * m2 * m7 - m8 * m3 * m6;
+            double i11 = -m0 * m5 * m11 + m0 * m7 * m9 + m4 * m1 * m11 - m4 * m3 * m9 - m8 * m1 * m7 + m8 * m3 * m5;
+            double i15 = m0 * m5 * m10 - m0 * m6 * m9 - m4 * m1 * m10 + m4 * m2 * m9 + m8 * m1 * m6 - m8 * m2 * m5;
+            double inverseDeterminant = 1.0 / determinant;
+
+            result.M11 = (float)(i0 * inverseDeterminant);
+            result.M12 = (float)(i1 * inverseDeterminant);
+            result.M13 = (float)(i2 * inverseDeterminant);
+            result.M14 = (float)(i3 * inverseDeterminant);
+            result.M21 = (float)(i4 * inverseDeterminant);
+            result.M22 = (float)(i5 * inverseDeterminant);
+            result.M23 = (float)(i6 * inverseDeterminant);
+            result.M24 = (float)(i7 * inverseDeterminant);
+            result.M31 = (float)(i8 * inverseDeterminant);
+            result.M32 = (float)(i9 * inverseDeterminant);
+            result.M33 = (float)(i10 * inverseDeterminant);
+            result.M34 = (float)(i11 * inverseDeterminant);
+            result.M41 = (float)(i12 * inverseDeterminant);
+            result.M42 = (float)(i13 * inverseDeterminant);
+            result.M43 = (float)(i14 * inverseDeterminant);
+            result.M44 = (float)(i15 * inverseDeterminant);
             return true;
         }
 

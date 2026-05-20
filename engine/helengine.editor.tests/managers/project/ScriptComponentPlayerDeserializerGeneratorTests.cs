@@ -40,6 +40,23 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures native runtime deserializers release the temporary stream and reader allocated while decoding component payloads.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsClipRectComponent_EmitsStreamAndReaderDisposeGuards() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ClipRectComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("#include \"runtime/finally.hpp\"", source, StringComparison.Ordinal);
+            Assert.Contains("stream->Dispose();", source, StringComparison.Ordinal);
+            Assert.Contains("delete stream;", source, StringComparison.Ordinal);
+            Assert.Contains("reader->Dispose();", source, StringComparison.Ordinal);
+            Assert.Contains("delete reader;", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures native runtime deserializer generation can emit nested array reader source for the planned memory-probe component shape.
         /// </summary>
         [Fact]

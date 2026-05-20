@@ -128,9 +128,20 @@ namespace helengine {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
             DetachFromWindowResize();
-            SnapshotsValue.Clear();
+            ReleaseSnapshotItems();
             SnapshotEntityCountValue = 0;
             PendingApplyValue = false;
+        }
+
+        /// <summary>
+        /// Releases fit snapshots and resize subscriptions before the native backend deletes this component.
+        /// </summary>
+        public override void Dispose() {
+            DetachFromWindowResize();
+            ReleaseSnapshots();
+            NativeOwnership.Delete(CurrentAnchorSpaceValue);
+            CurrentAnchorSpaceValue = null;
+            base.Dispose();
         }
 
         /// <summary>
@@ -200,7 +211,7 @@ namespace helengine {
         /// Rebuilds the authored snapshots for the current entity subtree.
         /// </summary>
         void RebuildSnapshots() {
-            SnapshotsValue.Clear();
+            ReleaseSnapshotItems();
             if (Parent == null) {
                 SnapshotEntityCountValue = 0;
                 return;
@@ -225,6 +236,25 @@ namespace helengine {
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
                 CaptureSnapshotsRecursive(entity.Children[childIndex], false);
             }
+        }
+
+        /// <summary>
+        /// Deletes the current snapshot records while preserving the reusable snapshot list.
+        /// </summary>
+        void ReleaseSnapshotItems() {
+            for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
+                NativeOwnership.Delete(SnapshotsValue[snapshotIndex]);
+            }
+
+            SnapshotsValue.Clear();
+        }
+
+        /// <summary>
+        /// Deletes all snapshot records and the native list wrapper owned by this fit component.
+        /// </summary>
+        void ReleaseSnapshots() {
+            ReleaseSnapshotItems();
+            NativeOwnership.Delete(SnapshotsValue);
         }
 
         /// <summary>

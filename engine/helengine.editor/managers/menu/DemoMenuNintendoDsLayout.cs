@@ -36,12 +36,12 @@ namespace helengine.editor {
         /// <summary>
         /// Width of one Nintendo DS menu button row.
         /// </summary>
-        public const int ButtonWidth = 216;
+        public const int ButtonWidth = ScreenWidth;
 
         /// <summary>
         /// Height of one Nintendo DS menu button row.
         /// </summary>
-        public const int ButtonHeight = 18;
+        public const int ButtonHeight = 36;
 
         /// <summary>
         /// Vertical spacing inserted between adjacent Nintendo DS button rows.

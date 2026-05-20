@@ -65,11 +65,6 @@ namespace helengine.editor {
         const string CharacterController3DComponentTypeId = "helengine.CharacterController3DComponent";
 
         /// <summary>
-        /// Legacy city-script type id baked into older demo-menu scenes for the platform-info overlay binder.
-        /// </summary>
-        const string LegacyPlatformInfoTextComponentTypeId = "city.menu.PlatformInfoTextComponent, gameplay";
-
-        /// <summary>
         /// Runtime scene layer used by the current Windows player loader for materialized entities.
         /// </summary>
         const ushort RuntimeSceneLayerMask = 0b00000001;
@@ -985,11 +980,6 @@ namespace helengine.editor {
                     CharacterController3DComponentTypeId,
                     PlatformComponentSupportKind.PassThrough,
                     "3D character-controller components are emitted unchanged for the current runtime loader.",
-                    string.Empty),
-                new PlatformComponentSupportRule(
-                    LegacyPlatformInfoTextComponentTypeId,
-                    PlatformComponentSupportKind.Transform,
-                    "Legacy demo-menu platform-info overlays are rewritten to the built-in runtime component during packaging.",
                     string.Empty),
                 new PlatformComponentSupportRule(
                     "helengine.RoundedRectComponent",

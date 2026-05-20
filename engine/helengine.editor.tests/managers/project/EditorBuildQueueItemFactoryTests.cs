@@ -143,6 +143,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Nintendo DS queued builds also include generated companion scenes when the selected authored scene has one.
+        /// </summary>
+        [Fact]
+        public void Create_WhenDsBuildSelectsSceneWithGeneratedCompanion_IncludesNintendoDsCompanionScene() {
+            WriteScene("Scenes/rendering/cube_test.helen");
+            WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "ds",
+                SelectedSceneIds = [
+                    "cube_test"
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
+            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal(new[] { "GeneratedBootScene", "cube_test", "cube_test_ds" }, queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
         /// Ensures Windows queued builds insert the generated boot scene first even when it was not selected explicitly.
         /// </summary>
         [Fact]

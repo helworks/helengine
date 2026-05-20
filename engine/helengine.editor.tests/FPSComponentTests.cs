@@ -152,6 +152,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures disposing the owning entity removes the component from the global FPS sampling list.
+        /// </summary>
+        [Fact]
+        public void Dispose_WhenOwningEntityIsDisposed_RemovesComponentFromActiveSamplingList() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont()
+            };
+            entity.AddComponent(fps);
+
+            Assert.Contains(fps, GetActiveComponents());
+
+            entity.Dispose();
+
+            Assert.DoesNotContain(fps, GetActiveComponents());
+        }
+
+        /// <summary>
         /// Ensures the FPS overlay tears down stale child references when the overlay subtree is disposed before the owning component receives its disable callback.
         /// </summary>
         [Fact]
@@ -249,7 +270,7 @@ namespace helengine.editor.tests {
             Core.Instance.Update(0.25d);
 
             Assert.Equal("Upd 4.0 Set 7.0 Prep 1.5 Emit 0.5", fps.UpdateFpsText);
-            Assert.Equal("Rdr 4.0 Drw 0.0 Enc 8.0 Sub 0.8 Wt 0.2 Tri 12 Disp 3", fps.RenderFpsText);
+            Assert.Equal("Rdr 4.0 Drw 0.0 Enc 8.0 Tpl 0.8 Wt 0.2 Hit 12 Mis 3", fps.RenderFpsText);
         }
 
         /// <summary>
@@ -270,7 +291,7 @@ namespace helengine.editor.tests {
             entity.AddComponent(fps);
 
             Assert.Equal("Upd 0.0 Set 0.0 Prep 0.0 Emit 0.0", fps.UpdateFpsText);
-            Assert.Equal("Rdr 0.0 Drw 0.0 Enc 0.0 Sub 0.0 Wt 0.0 Tri 0 Disp 0", fps.RenderFpsText);
+            Assert.Equal("Rdr 0.0 Drw 0.0 Enc 0.0 Tpl 0.0 Wt 0.0 Hit 0 Mis 0", fps.RenderFpsText);
         }
 
         /// <summary>
@@ -394,6 +415,19 @@ namespace helengine.editor.tests {
             }
 
             throw new InvalidOperationException($"Field '{fieldName}' was not found on type '{target.GetType().FullName}'.");
+        }
+
+        /// <summary>
+        /// Reads the static active FPS component list through reflection so disposal behavior can be verified directly.
+        /// </summary>
+        /// <returns>Snapshot of the currently registered active FPS components.</returns>
+        static IReadOnlyList<FPSComponent> GetActiveComponents() {
+            var field = typeof(FPSComponent).GetField("ActiveComponents", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            if (field == null) {
+                throw new InvalidOperationException("FPSComponent.ActiveComponents field was not found.");
+            }
+
+            return Assert.IsAssignableFrom<IReadOnlyList<FPSComponent>>(field.GetValue(null));
         }
 
     }

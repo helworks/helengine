@@ -653,10 +653,6 @@ namespace helengine.editor {
                     if (componentRecord == null || string.IsNullOrWhiteSpace(componentRecord.ComponentTypeId) || !componentRecord.ComponentTypeId.Contains(',')) {
                         continue;
                     }
-                    if (IsEngineOwnedRuntimeCompatibilityComponentTypeId(componentRecord.ComponentTypeId)) {
-                        continue;
-                    }
-
                     Type componentType = ResolveAutomaticRuntimeComponentType(componentRecord.ComponentTypeId, scriptTypeResolver);
                     if (!typeof(Component).IsAssignableFrom(componentType)) {
                         throw new InvalidOperationException($"Scene-referenced scripted component type '{componentRecord.ComponentTypeId}' does not derive from Component.");
@@ -667,20 +663,6 @@ namespace helengine.editor {
 
                 CollectAutomaticRuntimeComponentTypes(entity.Children ?? Array.Empty<SceneEntityAsset>(), scriptTypeResolver, componentTypes);
             }
-        }
-
-        /// <summary>
-        /// Returns whether the supplied serialized component type id is already owned by one built-in runtime compatibility deserializer.
-        /// </summary>
-        /// <param name="componentTypeId">Serialized component type id to inspect.</param>
-        /// <returns>True when generated automatic runtime deserializer emission should skip the component type id.</returns>
-        static bool IsEngineOwnedRuntimeCompatibilityComponentTypeId(string componentTypeId) {
-            if (string.IsNullOrWhiteSpace(componentTypeId)) {
-                return false;
-            }
-
-            return string.Equals(componentTypeId, "city.menu.DemoDiscReturnToMenuComponent, gameplay", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, "city.menu.PlatformInfoTextComponent, gameplay", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

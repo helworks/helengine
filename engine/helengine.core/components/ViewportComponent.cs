@@ -266,9 +266,23 @@ namespace helengine {
             base.ComponentRemoved(entity);
             DetachFromCamera();
             DetachFromWindowResize();
-            LayoutSnapshotsValue.Clear();
+            ReleaseLayoutSnapshotItems();
             SnapshotEntityCountValue = 0;
             PendingScaleApplyValue = false;
+        }
+
+        /// <summary>
+        /// Releases viewport-owned snapshot records and subscriptions before the native backend deletes this component.
+        /// </summary>
+        public override void Dispose() {
+            DetachFromCamera();
+            DetachFromWindowResize();
+            ReleaseLayoutSnapshots();
+            NativeOwnership.Delete(CurrentAnchorSpaceValue);
+            ActiveCameraComponentValue = null;
+            ExplicitBoundCameraComponentValue = null;
+            CurrentAnchorSpaceValue = null;
+            base.Dispose();
         }
 
         /// <summary>
@@ -514,7 +528,7 @@ namespace helengine {
         /// Rebuilds the authored snapshots for the current entity subtree when viewport-owned scaling is active.
         /// </summary>
         void RebuildSnapshots() {
-            LayoutSnapshotsValue.Clear();
+            ReleaseLayoutSnapshotItems();
             if (Parent == null) {
                 SnapshotEntityCountValue = 0;
                 return;
@@ -538,6 +552,25 @@ namespace helengine {
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
                 CaptureSnapshotsRecursive(entity.Children[childIndex], false);
             }
+        }
+
+        /// <summary>
+        /// Deletes the current snapshot records while preserving the reusable snapshot list.
+        /// </summary>
+        void ReleaseLayoutSnapshotItems() {
+            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                NativeOwnership.Delete(LayoutSnapshotsValue[snapshotIndex]);
+            }
+
+            LayoutSnapshotsValue.Clear();
+        }
+
+        /// <summary>
+        /// Deletes all snapshot records and the native list wrapper owned by this viewport component.
+        /// </summary>
+        void ReleaseLayoutSnapshots() {
+            ReleaseLayoutSnapshotItems();
+            NativeOwnership.Delete(LayoutSnapshotsValue);
         }
 
         /// <summary>

@@ -129,6 +129,11 @@ namespace helengine {
         public string RenderFpsText { get; private set; }
 
         /// <summary>
+        /// Gets how many FPS components are currently registered for frame sampling.
+        /// </summary>
+        public static int ActiveComponentCount => ActiveComponents.Count;
+
+        /// <summary>
         /// Stores the current refresh interval.
         /// </summary>
         double refreshIntervalSeconds = 0.5d;
@@ -170,6 +175,14 @@ namespace helengine {
         public override void ComponentRemoved(Entity entity) {
             TearDownOverlay();
             base.ComponentRemoved(entity);
+        }
+
+        /// <summary>
+        /// Releases overlay bookkeeping even when the component is disposed directly as part of scene teardown.
+        /// </summary>
+        public override void Dispose() {
+            TearDownOverlay();
+            base.Dispose();
         }
 
         /// <summary>
@@ -286,7 +299,7 @@ namespace helengine {
             Entity overlayHost = OverlayHost;
             ReleaseOverlayReferences();
             if (overlayHost != null) {
-                overlayHost.Dispose();
+                NativeOwnership.DisposeAndDelete(overlayHost);
             }
         }
 
@@ -687,10 +700,10 @@ namespace helengine {
                 return "Rdr " + FormatFpsValue(renderFps)
                     + " Drw " + FormatFpsValue(drawMilliseconds)
                     + " Enc " + FormatFpsValue(core.PerformanceOverlayPacketEncodeMilliseconds)
-                    + " Sub " + FormatFpsValue(core.PerformanceOverlaySubmitMilliseconds)
+                    + " Tpl " + FormatFpsValue(core.PerformanceOverlaySubmitMilliseconds)
                     + " Wt " + FormatFpsValue(core.PerformanceOverlayWaitMilliseconds)
-                    + " Tri " + core.PerformanceOverlaySubmittedTriangleCount
-                    + " Disp " + core.PerformanceOverlayDispatchCount;
+                    + " Hit " + core.PerformanceOverlaySubmittedTriangleCount
+                    + " Mis " + core.PerformanceOverlayDispatchCount;
             }
 
             return FormatRenderFpsText(renderFps, drawMilliseconds);

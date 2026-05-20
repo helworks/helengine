@@ -12,6 +12,11 @@ namespace helengine.editor {
         readonly AssemblyDependencyResolver Resolver;
 
         /// <summary>
+        /// Directory that contains the copied module snapshot loaded into this collectible context.
+        /// </summary>
+        readonly string MainAssemblyDirectoryPath;
+
+        /// <summary>
         /// Initializes one collectible context for a single built script assembly.
         /// </summary>
         /// <param name="mainAssemblyPath">Absolute path to the main assembly to load.</param>
@@ -20,6 +25,8 @@ namespace helengine.editor {
                 throw new ArgumentException("Main assembly path must be provided.", nameof(mainAssemblyPath));
             }
 
+            MainAssemblyDirectoryPath = Path.GetDirectoryName(mainAssemblyPath)
+                ?? throw new InvalidOperationException("Main assembly path must include a directory.");
             Resolver = new AssemblyDependencyResolver(mainAssemblyPath);
         }
 
@@ -40,6 +47,11 @@ namespace helengine.editor {
             string assemblyPath = Resolver.ResolveAssemblyToPath(assemblyName);
             if (!string.IsNullOrWhiteSpace(assemblyPath)) {
                 return LoadFromAssemblyPath(assemblyPath);
+            }
+
+            string siblingAssemblyPath = Path.Combine(MainAssemblyDirectoryPath, assemblyName.Name + ".dll");
+            if (File.Exists(siblingAssemblyPath)) {
+                return LoadFromAssemblyPath(siblingAssemblyPath);
             }
 
             return null;

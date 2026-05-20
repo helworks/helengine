@@ -60,6 +60,149 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the generated authoring-scene definition exposes explicit Nintendo DS companion-scene metadata.
+        /// </summary>
+        [Fact]
+        public void ReadCityGeneratedAuthoringSceneDefinitionSource_DeclaresDsCompanionSceneMetadata() {
+            string source = ReadCitySource("rendering.tools", "GeneratedAuthoringSceneDefinition.cs");
+
+            Assert.Contains("public GeneratedDsSceneDefinition NintendoDsScene { get; set; }", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the generated Nintendo DS companion-scene definition exposes explicit bottom-overlay customization metadata.
+        /// </summary>
+        [Fact]
+        public void ReadCityGeneratedDsSceneDefinitionSource_DeclaresBottomOverlayCustomizationContract() {
+            string source = ReadCitySource("rendering.tools", "GeneratedDsSceneDefinition.cs");
+
+            Assert.Contains("public string SceneId { get; set; }", source, StringComparison.Ordinal);
+            Assert.Contains("public bool UseDefaultBottomOverlay { get; set; }", source, StringComparison.Ordinal);
+            Assert.Contains("public Entity[] BottomScreenRootEntities { get; set; }", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the shared Nintendo DS scaffold helper builds the expected dual-screen camera and default overlay shape.
+        /// </summary>
+        [Fact]
+        public void ReadCityNintendoDsRenderingSceneScaffoldFactorySource_BuildsDualScreenDebugAndBackOverlay() {
+            string source = ReadCitySource("rendering.tools", "NintendoDsRenderingSceneScaffoldFactory.cs");
+
+            Assert.Contains("DemoDiscTopScreenCamera", source, StringComparison.Ordinal);
+            Assert.Contains("DemoDiscBottomScreenCamera", source, StringComparison.Ordinal);
+            Assert.Contains("new DebugComponent()", source, StringComparison.Ordinal);
+            Assert.Contains("RemoveReturnToMenuComponents(entity);", source, StringComparison.Ordinal);
+            Assert.Contains("void RemoveReturnToMenuComponents(Entity entity)", source, StringComparison.Ordinal);
+            Assert.Contains("new InteractableComponent", source, StringComparison.Ordinal);
+            Assert.Contains("new NintendoDsReturnOverlayComponent()", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("new DemoDiscReturnToMenuComponent", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the city-owned Nintendo DS return overlay component owns both the DS back-button bind and pointer click return flow.
+        /// </summary>
+        [Fact]
+        public void ReadCityNintendoDsReturnOverlayComponentSource_OwnsDsBackButtonAndPointerReturn() {
+            string source = ReadCitySource("menu", "NintendoDsReturnOverlayComponent.cs");
+
+            Assert.Contains("public sealed class NintendoDsReturnOverlayComponent", source, StringComparison.Ordinal);
+            Assert.Contains("WasGamepadButtonPressed(0, InputGamepadButton.East)", source, StringComparison.Ordinal);
+            Assert.Contains("BoundInteractable.CursorEvent += HandleCursorEvent;", source, StringComparison.Ordinal);
+            Assert.Contains("throw new InvalidOperationException(\"NintendoDsReturnOverlayComponent requires a sibling InteractableComponent.\")", source, StringComparison.Ordinal);
+            Assert.Contains("SceneMapComponent.ResolveSceneId(MainMenuSceneId)", source, StringComparison.Ordinal);
+            Assert.Contains("SceneLoadWasRequested", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the rendering-scene generator declares stable Nintendo DS companion-scene identifiers for the generated showcase set.
+        /// </summary>
+        [Fact]
+        public void ReadCityRenderingSceneGeneratorSource_DeclaresDsCompanionSceneIds() {
+            string source = ReadCitySource("rendering.tools", "RenderingSceneGenerator.cs");
+
+            Assert.Contains("CubeTestNintendoDsSceneId", source, StringComparison.Ordinal);
+            Assert.Contains("AxisTestNintendoDsSceneId", source, StringComparison.Ordinal);
+            Assert.Contains("SceneMemoryProbeNintendoDsSceneId", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the cube-test scene factory attaches explicit Nintendo DS companion-scene metadata.
+        /// </summary>
+        [Fact]
+        public void ReadCityCubeTestSceneFactorySource_AttachesNintendoDsSceneDefinition() {
+            string source = ReadCitySource("rendering.tools", "CubeTestSceneFactory.cs");
+
+            Assert.Contains("NintendoDsScene = new GeneratedDsSceneDefinition", source, StringComparison.Ordinal);
+            Assert.Contains("UseDefaultBottomOverlay = true", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the authored axis-test showcase stores explicit file-backed save references for the directional-light arrow mesh.
+        /// </summary>
+        [Fact]
+        public void ReadCityAxisTestSceneFactorySource_AttachesExplicitArrowMeshSaveReferences() {
+            string source = ReadCitySource("rendering.tools", "AxisTestSceneFactory.cs");
+
+            Assert.Contains("ApplyArrowMeshAssetReferences(entity);", source, StringComparison.Ordinal);
+            Assert.Contains("MeshModelReferenceName", source, StringComparison.Ordinal);
+            Assert.Contains("CreateFileReference(ArrowModelRelativePath)", source, StringComparison.Ordinal);
+            Assert.Contains("CreateFileReference(MarkerMaterialRelativePath)", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the authored axis-test-2 showcase stores explicit file-backed save references for the directional-light arrow mesh.
+        /// </summary>
+        [Fact]
+        public void ReadCityAxisTest2SceneFactorySource_AttachesExplicitArrowMeshSaveReferences() {
+            string source = ReadCitySource("rendering.tools", "AxisTest2SceneFactory.cs");
+
+            Assert.Contains("ApplyArrowMeshAssetReferences(entity);", source, StringComparison.Ordinal);
+            Assert.Contains("MeshModelReferenceName", source, StringComparison.Ordinal);
+            Assert.Contains("CreateFileReference(ArrowModelRelativePath)", source, StringComparison.Ordinal);
+            Assert.Contains("CreateFileReference(MarkerMaterialRelativePath)", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the spotlight street-slice imported meshes store explicit file-backed model and racer-material save references.
+        /// </summary>
+        [Fact]
+        public void ReadCitySpotlightStreetSliceSceneFactorySource_AttachesExplicitImportedMeshSaveReferences() {
+            string source = ReadCitySource("rendering.tools", "SpotlightStreetSliceSceneFactory.cs");
+
+            Assert.Contains("LamppostModelRelativePath", source, StringComparison.Ordinal);
+            Assert.Contains("RacerModelRelativePath", source, StringComparison.Ordinal);
+            Assert.Contains("RacerMaterialRelativePaths", source, StringComparison.Ordinal);
+            Assert.Contains("ApplyImportedMeshAssetReferences(entity, meshComponent, modelRelativePath, materialRelativePaths);", source, StringComparison.Ordinal);
+            Assert.Contains("saveComponent.SetAssetReference(component, MeshModelReferenceName, CreateFileReference(modelRelativePath));", source, StringComparison.Ordinal);
+            Assert.Contains("BuildMaterialReferenceName(materialIndex)", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the generated authoring-scene writer emits Nintendo DS companion scenes through the shared scaffold helper.
+        /// </summary>
+        [Fact]
+        public void ReadCityGeneratedAuthoringSceneWriteServiceSource_WritesNintendoDsCompanionScenes() {
+            string source = ReadCitySource("rendering.tools", "GeneratedAuthoringSceneWriteService.cs");
+
+            Assert.Contains("sceneDefinition.NintendoDsScene", source, StringComparison.Ordinal);
+            Assert.Contains("NintendoDsRenderingSceneScaffoldFactory", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the rendering-scene asset preparation path prefers one preview-capable Windows material platform instead of the last active project platform.
+        /// </summary>
+        [Fact]
+        public void ReadCityRenderingSceneAssetPreparationServiceSource_PrefersWindowsPreviewPlatformForMaterialResolution() {
+            string source = ReadCitySource("rendering.tools", "RenderingSceneAssetPreparationService.cs");
+
+            Assert.Contains("const string PreferredEditorPreviewPlatformId = \"windows\";", source, StringComparison.Ordinal);
+            Assert.Contains("ResolveMaterialPreviewPlatformId", source, StringComparison.Ordinal);
+            Assert.Contains("supportedPlatforms[index], PreferredEditorPreviewPlatformId", source, StringComparison.Ordinal);
+            Assert.Contains("BuildPreviewRuntimeMaterial", source, StringComparison.Ordinal);
+            Assert.Contains("if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId))", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures the city demo-disc menu regeneration command is owned by project code instead of the editor-only engine regeneration service.
         /// </summary>
         [Fact]

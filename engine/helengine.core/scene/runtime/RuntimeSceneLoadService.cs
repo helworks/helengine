@@ -93,7 +93,6 @@ namespace helengine {
             }
 
             RecordTraceState("LoadBegin", -1, 0, string.Empty);
-            Logger.WriteLine("Loading packaged scene assets.");
             System.Diagnostics.Stopwatch loadStopwatch = System.Diagnostics.Stopwatch.StartNew();
             SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
             List<Entity> rootEntities = new List<Entity>(rootEntityAssets.Length);
@@ -108,7 +107,6 @@ namespace helengine {
 
                 loadStopwatch.Stop();
                 RecordTraceState("LoadEnd", rootEntities.Count - 1, 0, string.Empty);
-                Logger.WriteLine($"Loaded packaged scene assets in {loadStopwatch.Elapsed.TotalMilliseconds:0.###} ms ({rootEntities.Count} root entities).");
 
                 return rootEntities;
             } finally {

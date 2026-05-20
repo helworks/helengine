@@ -215,6 +215,7 @@ namespace helengine.editor {
             PickerEntity.Position = sourceCameraEntity.Position;
             PickerEntity.Orientation = sourceCameraEntity.Orientation;
             PickerCamera.LayerMask = pickLayerMask;
+            SynchronizePickerCameraProjection(sourceCamera);
             PendingPointer = input.GetMousePosition();
             PendingViewport = sourceCamera.Viewport;
 
@@ -224,6 +225,19 @@ namespace helengine.editor {
             PickerRenderer.RequestShaderPass(PickerCamera, PickerCamera.RenderQueue3D, PickerShaderPath, GetPickColor);
             PendingPickMode = pickMode;
             PickReadbackPending = true;
+        }
+
+        /// <summary>
+        /// Mirrors the active source camera clip-plane settings onto the hidden picker camera so hover and selection picking operate over the same visible depth range as the rendered viewport.
+        /// </summary>
+        /// <param name="sourceCamera">Scene or gizmo camera that defines the visible projection range for the current pick request.</param>
+        void SynchronizePickerCameraProjection(CameraComponent sourceCamera) {
+            if (sourceCamera == null) {
+                throw new ArgumentNullException(nameof(sourceCamera));
+            }
+
+            PickerCamera.NearPlaneDistance = sourceCamera.NearPlaneDistance;
+            PickerCamera.FarPlaneDistance = sourceCamera.FarPlaneDistance;
         }
 
         /// <summary>

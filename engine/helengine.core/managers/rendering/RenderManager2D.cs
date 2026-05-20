@@ -29,7 +29,7 @@ namespace helengine {
             RuntimeTexture texture = font.Texture;
             if (texture != null && !texture.IsDisposed) {
                 ReleaseTexture(texture);
-                texture.Dispose();
+                NativeOwnership.DisposeAndDelete(texture);
             }
 
             font.Dispose();

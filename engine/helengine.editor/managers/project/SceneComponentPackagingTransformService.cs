@@ -271,11 +271,6 @@ namespace helengine.editor {
         const string GameplayDirectionalShadowTowerSpinComponentTypeId = "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay";
 
         /// <summary>
-        /// Legacy city-script type id baked into older demo-menu scenes for the platform-info overlay binder.
-        /// </summary>
-        const string LegacyPlatformInfoTextComponentTypeId = "city.menu.PlatformInfoTextComponent, gameplay";
-
-        /// <summary>
         /// Generated provider id reserved for the editor's built-in font asset.
         /// </summary>
         const string EditorGeneratedProviderId = "editor";
@@ -614,7 +609,6 @@ namespace helengine.editor {
                 || string.Equals(componentTypeId, GameplayDirectionalShadowSunSweepComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, CityDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, GameplayDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, LegacyPlatformInfoTextComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, MenuComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, MenuPanelComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, MenuItemComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)
@@ -720,11 +714,6 @@ namespace helengine.editor {
                 return true;
             }
 
-            if (string.Equals(record.ComponentTypeId, LegacyPlatformInfoTextComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteLegacyPlatformInfoTextComponentRecord(record);
-                return true;
-            }
-
             if (TryRewriteDirectionalShadowMotionComponentRecord(record, out transformedRecord)) {
                 return true;
             }
@@ -812,22 +801,6 @@ namespace helengine.editor {
             Component component = DeserializeAutomaticComponentForPackaging(record, descriptor);
             transformedRecord = BuildAutomaticRuntimeComponentRecord(record.ComponentTypeId, record.ComponentIndex, component);
             return true;
-        }
-
-        /// <summary>
-        /// Rewrites the legacy city-owned platform-info overlay binder into the built-in runtime component used by current demo-menu scenes.
-        /// </summary>
-        /// <param name="record">Serialized legacy component record to rewrite.</param>
-        /// <returns>Rewritten built-in component record.</returns>
-        SceneComponentAssetRecord RewriteLegacyPlatformInfoTextComponentRecord(SceneComponentAssetRecord record) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-
-            return BuildAutomaticRuntimeComponentRecord(
-                PlatformInfoTextComponent.SerializedComponentTypeId,
-                record.ComponentIndex,
-                new PlatformInfoTextComponent());
         }
 
         /// <summary>

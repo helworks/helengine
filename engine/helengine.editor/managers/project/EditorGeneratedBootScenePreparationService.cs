@@ -92,12 +92,73 @@ namespace helengine.editor {
                     return null;
                 }
 
-                return new Dictionary<string, string>(StringComparer.Ordinal) {
+                Dictionary<string, string> mappings = new Dictionary<string, string>(StringComparer.Ordinal) {
                     { PlatformMenuSceneResolver.DesktopMainMenuSceneId, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId }
                 };
+                AddNintendoDsCompanionSceneMappings(sceneIds, mappings);
+                return mappings;
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Adds Nintendo DS companion-scene mappings for selected scene ids that follow the generated DS companion naming contract.
+        /// </summary>
+        /// <param name="sceneIds">Stable scene ids selected for the build.</param>
+        /// <param name="mappings">Scene remapping table receiving the derived companion mappings.</param>
+        static void AddNintendoDsCompanionSceneMappings(IReadOnlyList<string> sceneIds, Dictionary<string, string> mappings) {
+            if (sceneIds == null) {
+                throw new ArgumentNullException(nameof(sceneIds));
+            } else if (mappings == null) {
+                throw new ArgumentNullException(nameof(mappings));
+            }
+
+            for (int index = 0; index < sceneIds.Count; index++) {
+                string selectedSceneId = sceneIds[index];
+                if (!TryResolveNintendoDsCompanionSourceSceneId(selectedSceneId, out string sourceSceneId)) {
+                    continue;
+                } else if (!ContainsSceneId(sceneIds, sourceSceneId)) {
+                    continue;
+                } else if (mappings.ContainsKey(sourceSceneId)) {
+                    continue;
+                }
+
+                mappings.Add(sourceSceneId, selectedSceneId);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the default source scene id that corresponds to one generated Nintendo DS companion-scene id.
+        /// </summary>
+        /// <param name="companionSceneId">Nintendo DS companion-scene id to inspect.</param>
+        /// <param name="sourceSceneId">Resolved default source scene id when the companion id matches the generated naming contract.</param>
+        /// <returns>True when a default source scene id was resolved; otherwise false.</returns>
+        static bool TryResolveNintendoDsCompanionSourceSceneId(string companionSceneId, out string sourceSceneId) {
+            if (string.IsNullOrWhiteSpace(companionSceneId)) {
+                sourceSceneId = string.Empty;
+                return false;
+            }
+
+            const string dsIdSuffix = "_ds";
+            if (!companionSceneId.Contains('/') && !companionSceneId.Contains('\\') && companionSceneId.EndsWith(dsIdSuffix, StringComparison.Ordinal)) {
+                sourceSceneId = companionSceneId.Substring(0, companionSceneId.Length - dsIdSuffix.Length);
+                return !string.IsNullOrWhiteSpace(sourceSceneId);
+            }
+
+            const string dsFolderSegment = "/ds/";
+            const string dsSuffix = "_ds.helen";
+            int folderIndex = companionSceneId.IndexOf(dsFolderSegment, StringComparison.Ordinal);
+            if (folderIndex < 0 || !companionSceneId.EndsWith(dsSuffix, StringComparison.Ordinal)) {
+                sourceSceneId = string.Empty;
+                return false;
+            }
+
+            string prefix = companionSceneId.Substring(0, folderIndex + 1);
+            string dsFileName = companionSceneId.Substring(folderIndex + dsFolderSegment.Length);
+            string baseFileName = dsFileName.Substring(0, dsFileName.Length - dsSuffix.Length);
+            sourceSceneId = prefix + baseFileName + ".helen";
+            return true;
         }
 
         /// <summary>

@@ -20,16 +20,20 @@ namespace helengine {
             }
             set {
                 if (MaterialsBySlot.Length == 0) {
+                    RuntimeMaterial[] previousMaterials = MaterialsBySlot;
                     MaterialsBySlot = value == null
-                        ? Array.Empty<RuntimeMaterial>()
+                        ? new RuntimeMaterial[0]
                         : new[] { value };
+                    NativeOwnership.Release(ref previousMaterials);
                     return;
                 }
 
+                RuntimeMaterial[] previousMaterialsForUpdate = MaterialsBySlot;
                 RuntimeMaterial[] updatedMaterials = new RuntimeMaterial[MaterialsBySlot.Length];
                 Array.Copy(MaterialsBySlot, updatedMaterials, MaterialsBySlot.Length);
                 updatedMaterials[0] = value;
                 MaterialsBySlot = updatedMaterials;
+                NativeOwnership.Release(ref previousMaterialsForUpdate);
             }
         }
 
@@ -60,7 +64,7 @@ namespace helengine {
         /// Initializes a new mesh component.
         /// </summary>
         public MeshComponent() {
-            MaterialsBySlot = Array.Empty<RuntimeMaterial>();
+            MaterialsBySlot = new RuntimeMaterial[0];
         }
 
         /// <summary>
@@ -72,8 +76,10 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(runtimeMaterials));
             }
 
+            RuntimeMaterial[] previousMaterials = MaterialsBySlot;
             MaterialsBySlot = new RuntimeMaterial[runtimeMaterials.Length];
             Array.Copy(runtimeMaterials, MaterialsBySlot, runtimeMaterials.Length);
+            NativeOwnership.Release(ref previousMaterials);
         }
 
         /// <summary>
@@ -89,6 +95,15 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Unregisters the mesh from render queues when the component is removed from its entity.
+        /// </summary>
+        /// <param name="entity">Entity losing this mesh component.</param>
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+            Core.Instance.ObjectManager.RemoveFromRender3D(this);
+        }
+
+        /// <summary>
         /// Registers or unregisters the mesh based on enabled state changes.
         /// </summary>
         /// <param name="newEnabled">New enabled state.</param>
@@ -100,6 +115,15 @@ namespace helengine {
             } else {
                 Core.Instance.ObjectManager.RemoveFromRender3D(this);
             }
+        }
+
+        /// <summary>
+        /// Releases the native material-slot array owned by this component without deleting shared material assets.
+        /// </summary>
+        public override void Dispose() {
+            NativeOwnership.Release(ref MaterialsBySlot);
+            Model = null;
+            base.Dispose();
         }
     }
 }

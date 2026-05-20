@@ -39,7 +39,7 @@ namespace helengine {
         /// </summary>
         /// <param name="target">Compilation target.</param>
         /// <param name="defines">List to append to.</param>
-        static void AddTargetDefine(ShaderCompileTarget target, List<ShaderDefine> defines) {
+        static void AddTargetDefine(ShaderCompileTarget target, [NativeNoEscape] List<ShaderDefine> defines) {
             string defineName = GetTargetDefineName(target);
             defines.Add(new ShaderDefine(defineName, "1"));
         }

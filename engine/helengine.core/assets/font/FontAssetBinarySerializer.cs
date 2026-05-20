@@ -53,9 +53,12 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            LastDeserializeStage = "ReadHeader";
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            return Deserialize(stream, header);
+            try {
+                return Deserialize(stream, header);
+            } finally {
+                NativeOwnership.Delete(header);
+            }
         }
 
         /// <summary>
@@ -72,13 +75,11 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(header));
             }
 
-            LastDeserializeStage = "ValidateHeader";
             ValidateHeader(header);
             if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
                 throw new InvalidOperationException("Font assets require an initialized core renderer before deserialization.");
             }
 
-            LastDeserializeStage = "CreateReader";
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
             string cookedAtlasTextureRelativePath = string.Empty;
             TextureAsset sourceTexture = new TextureAsset();
@@ -88,10 +89,8 @@ namespace helengine {
             int atlasHeight;
 
             if (header.Version >= ExternalCookedAtlasPathVersion) {
-                LastDeserializeStage = "ReadCookedAtlasTexturePath";
                 cookedAtlasTextureRelativePath = reader.ReadString();
 
-                LastDeserializeStage = "ReadSourceTextureHeader";
                 sourceTexture.RuntimeAssetId = header.Version >= RuntimeTextureIdVersion
                     ? (ulong)reader.ReadInt64()
                     : 0ul;
@@ -106,32 +105,26 @@ namespace helengine {
                 sourceTexture.PaletteColors = header.Version >= PaletteTextureMetadataVersion
                     ? reader.ReadByteArray()
                     : Array.Empty<byte>();
-                LastDeserializeStage = "ReadSourceTextureColors";
                 sourceTexture.Colors = reader.ReadByteArray();
 
-                LastDeserializeStage = "ReadFontInfo";
                 fontInfo = new FontInfo(
                     reader.ReadString(),
                     reader.ReadInt32(),
                     reader.ReadSingle());
 
-                LastDeserializeStage = "ReadAtlasMetrics";
                 lineHeight = reader.ReadSingle();
                 atlasWidth = reader.ReadInt32();
                 atlasHeight = reader.ReadInt32();
             } else {
-                LastDeserializeStage = "ReadFontInfo";
                 fontInfo = new FontInfo(
                     reader.ReadString(),
                     reader.ReadInt32(),
                     reader.ReadSingle());
 
-                LastDeserializeStage = "ReadAtlasMetrics";
                 lineHeight = reader.ReadSingle();
                 atlasWidth = reader.ReadInt32();
                 atlasHeight = reader.ReadInt32();
 
-                LastDeserializeStage = "ReadSourceTextureHeader";
                 sourceTexture.RuntimeAssetId = header.Version >= RuntimeTextureIdVersion
                     ? (ulong)reader.ReadInt64()
                     : 0ul;
@@ -146,15 +139,11 @@ namespace helengine {
                 sourceTexture.PaletteColors = header.Version >= PaletteTextureMetadataVersion
                     ? reader.ReadByteArray()
                     : Array.Empty<byte>();
-                LastDeserializeStage = "ReadSourceTextureColors";
                 sourceTexture.Colors = reader.ReadByteArray();
             }
 
-            LastDeserializeStage = "ReadCharacterCount";
             int characterCount = reader.ReadInt32();
-            LastDeserializeStage = "AllocateCharacterDictionary";
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar>(characterCount);
-            LastDeserializeStage = "ReadCharacters";
             for (int index = 0; index < characterCount; index++) {
                 char character = (char)reader.ReadUInt16();
                 FontChar fontChar = new FontChar(
@@ -166,7 +155,6 @@ namespace helengine {
                 characters.Add(character, fontChar);
             }
 
-            LastDeserializeStage = "BuildRuntimeTexture";
             RuntimeTexture texture = null;
             TextureAsset storedSourceTextureAsset = null;
             if (sourceTexture.Width > 0 && sourceTexture.Height > 0 && sourceTexture.Colors != null && sourceTexture.Colors.Length > 0) {
@@ -174,12 +162,10 @@ namespace helengine {
                 storedSourceTextureAsset = sourceTexture;
             }
 
-            LastDeserializeStage = "ConstructFontAsset";
             FontAsset asset = new FontAsset(fontInfo, texture, characters, lineHeight, atlasWidth, atlasHeight) {
                 SourceTextureAsset = storedSourceTextureAsset,
                 CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
             };
-            LastDeserializeStage = "Complete";
             return asset;
         }
 

@@ -9,6 +9,16 @@ namespace helengine.editor {
         const byte RuntimeLayerMask = 0b00000001;
 
         /// <summary>
+        /// Version label rendered on the Nintendo DS top screen.
+        /// </summary>
+        const string NintendoDsVersionLabelText = "version: 1.2";
+
+        /// <summary>
+        /// Vertical space reserved for the Nintendo DS top-screen version footer.
+        /// </summary>
+        const int NintendoDsTopScreenFooterReservedHeight = 40;
+
+        /// <summary>
         /// Descriptor used to serialize baked demo menu root metadata.
         /// </summary>
         readonly MenuComponentPersistenceDescriptor DemoMenuBuildDescriptor;
@@ -44,11 +54,6 @@ namespace helengine.editor {
         readonly RoundedRectComponentPersistenceDescriptor RoundedRectDescriptor;
 
         /// <summary>
-        /// Descriptor used to serialize the FPS overlay component.
-        /// </summary>
-        readonly FPSComponentPersistenceDescriptor FpsDescriptor;
-
-        /// <summary>
         /// Descriptor used to serialize automatic reflected component payloads such as viewport, clip, and scroll metadata.
         /// </summary>
         readonly AutomaticScriptComponentPersistenceDescriptor AutomaticDescriptor;
@@ -74,7 +79,6 @@ namespace helengine.editor {
             TextDescriptor = new TextComponentPersistenceDescriptor();
             SpriteDescriptor = new SpriteComponentPersistenceDescriptor();
             RoundedRectDescriptor = new RoundedRectComponentPersistenceDescriptor();
-            FpsDescriptor = new FPSComponentPersistenceDescriptor();
             AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             PlaceholderFont = new FontAsset(
                 new FontInfo("Placeholder", 16, 4f),
@@ -110,8 +114,8 @@ namespace helengine.editor {
             SceneEntityIdAllocator.Reset();
 
             List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
-            assetReferences.Add(BuildFileFontReference(definition.TitleFontPath));
             assetReferences.Add(BuildFileFontReference(definition.BodyFontPath));
+            assetReferences.Add(FontAssetScenePersistenceSupport.BuildEditorFontReference());
             if (definition.OverlayImage != null) {
                 assetReferences.Add(BuildFileTextureReference(definition.OverlayImage.TexturePath));
             }
@@ -127,13 +131,13 @@ namespace helengine.editor {
                 },
                 RootEntities = [
                     BuildTopCameraEntityAsset(providerTypeName, definition),
-                    BuildBottomCameraEntityAsset(definition)
+                    BuildBottomCameraEntityAsset(providerTypeName, definition)
                 ]
             };
         }
 
         /// <summary>
-        /// Builds the top-screen camera entity that owns the interactive menu presentation during DS profiling.
+        /// Builds the top-screen camera entity that owns the branding-only presentation.
         /// </summary>
         /// <param name="providerTypeName">Assembly-qualified provider type name stored on the baked menu root component.</param>
         /// <param name="definition">Menu definition that supplies the top-screen visuals.</param>
@@ -148,20 +152,21 @@ namespace helengine.editor {
                 Components = [
                     BuildCameraComponentRecord(
                         new float4(0f, 0f, 1f, 1f),
-                        definition.BackgroundColor)
+                        ResolveNintendoDsViewportClearColor(definition))
                 ],
                 Children = [
-                    BuildTopMenuRootEntityAsset(providerTypeName, definition)
+                    BuildTopScreenRootEntityAsset(definition)
                 ]
             };
         }
 
         /// <summary>
-        /// Builds the bottom-screen camera entity that owns the native-console viewport placeholder during DS profiling.
+        /// Builds the bottom-screen camera entity that owns the interactive menu presentation.
         /// </summary>
+        /// <param name="providerTypeName">Assembly-qualified provider type name stored on the baked menu root component.</param>
         /// <param name="definition">Menu definition that supplies the scene background color.</param>
         /// <returns>Serialized bottom-screen camera entity.</returns>
-        SceneEntityAsset BuildBottomCameraEntityAsset(MenuDefinition definition) {
+        SceneEntityAsset BuildBottomCameraEntityAsset(string providerTypeName, MenuDefinition definition) {
             return new SceneEntityAsset {
                 Id = AllocateSceneEntityId(),
                 Name = "DemoDiscBottomScreenCamera",
@@ -171,10 +176,10 @@ namespace helengine.editor {
                 Components = [
                     BuildCameraComponentRecord(
                         new float4(0f, 1f, 1f, 1f),
-                        definition.BackgroundColor)
+                        ResolveNintendoDsViewportClearColor(definition))
                 ],
                 Children = [
-                    BuildBottomScreenConsoleRootEntityAsset()
+                    BuildBottomMenuRootEntityAsset(providerTypeName, definition)
                 ]
             };
         }
@@ -219,6 +224,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the Nintendo DS viewport clear color so both screens match the lilac idle-button background.
+        /// </summary>
+        /// <param name="definition">Menu definition that supplies the shared accent palette.</param>
+        /// <returns>Opaque clear color used by both DS menu cameras.</returns>
+        static byte4 ResolveNintendoDsViewportClearColor(MenuDefinition definition) {
+            if (definition == null) {
+                throw new ArgumentNullException(nameof(definition));
+            }
+
+            return definition.AccentColor;
+        }
+
+        /// <summary>
         /// Builds the top-screen viewport root that hosts the branding-only content.
         /// </summary>
         /// <param name="definition">Menu definition that supplies the top-screen visuals.</param>
@@ -236,9 +254,7 @@ namespace helengine.editor {
             if (definition.OverlayImage != null) {
                 children.Add(BuildTopScreenLogoEntityAsset(definition.OverlayImage));
             }
-            if (!string.IsNullOrWhiteSpace(definition.Title)) {
-                children.Add(BuildTopScreenTitleEntityAsset(definition));
-            }
+            children.Add(BuildTopScreenVersionEntityAsset(definition));
 
             return new SceneEntityAsset {
                 Id = AllocateSceneEntityId(),
@@ -247,21 +263,10 @@ namespace helengine.editor {
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = [
-                    AutomaticDescriptor.SerializeComponent(viewportComponent, 0, null),
-                    CreateFpsComponentRecord(definition.TitleFontPath, 1)
+                    AutomaticDescriptor.SerializeComponent(viewportComponent, 0, null)
                 ],
                 Children = children.ToArray()
             };
-        }
-
-        /// <summary>
-        /// Builds the top-screen menu root that hosts the runtime menu component during DS profiling.
-        /// </summary>
-        /// <param name="providerTypeName">Assembly-qualified provider type name stored on the baked menu root component.</param>
-        /// <param name="definition">Menu definition that should be baked into the interactive subtree.</param>
-        /// <returns>Serialized top-screen menu root entity.</returns>
-        SceneEntityAsset BuildTopMenuRootEntityAsset(string providerTypeName, MenuDefinition definition) {
-            return BuildBottomMenuRootEntityAsset(providerTypeName, definition);
         }
 
         /// <summary>
@@ -300,32 +305,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the bottom-screen viewport root reserved for the native DS diagnostics console during profiling.
-        /// </summary>
-        /// <returns>Serialized bottom-screen viewport root.</returns>
-        SceneEntityAsset BuildBottomScreenConsoleRootEntityAsset() {
-            ViewportComponent viewportComponent = new ViewportComponent {
-                BindingMode = ViewportComponent.AncestorCameraBindingMode,
-                FixedSize = new int2(DemoMenuNintendoDsLayout.ScreenWidth, DemoMenuNintendoDsLayout.ScreenHeight),
-                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
-                ReferenceWidth = DemoMenuNintendoDsLayout.ScreenWidth,
-                ReferenceHeight = DemoMenuNintendoDsLayout.ScreenHeight
-            };
-
-            return new SceneEntityAsset {
-                Id = AllocateSceneEntityId(),
-                Name = "DemoDiscBottomScreenRoot",
-                LocalPosition = float3.Zero,
-                LocalScale = float3.One,
-                LocalOrientation = float4.Identity,
-                Components = [
-                    AutomaticDescriptor.SerializeComponent(viewportComponent, 0, null)
-                ],
-                Children = Array.Empty<SceneEntityAsset>()
-            };
-        }
-
-        /// <summary>
         /// Builds the generated bottom-screen menu subtree root.
         /// </summary>
         /// <param name="definition">Menu definition that should be baked into the interactive subtree.</param>
@@ -359,38 +338,10 @@ namespace helengine.editor {
             };
 
             MenuItemDefinition firstItem = ResolveFirstEnabledItem(panelDefinition);
-            byte4 panelSurfaceFillColor = ResolveNintendoDsOpaqueCompositeColor(definition.BackgroundColor, definition.SurfaceColor);
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
-            children.Add(BuildBackgroundEntityAsset(
-                $"panel-{panelDefinition.PanelId}-surface",
-                new float3(0f, 0f, 0f),
-                new int2(DemoMenuNintendoDsLayout.PanelWidth, DemoMenuNintendoDsLayout.PanelHeight),
-                10f,
-                2f,
-                panelSurfaceFillColor,
-                definition.SurfaceBorderColor,
-                30));
-            children.Add(BuildBackgroundEntityAsset(
-                $"panel-{panelDefinition.PanelId}-top-band",
-                new float3(0f, 0f, 0f),
-                new int2(DemoMenuNintendoDsLayout.PanelWidth, 12),
-                6f,
-                0f,
-                definition.AccentColor,
-                definition.AccentColor,
-                31));
-            children.Add(BuildTextEntityAsset(
-                $"panel-{panelDefinition.PanelId}-heading",
-                new float3(12f, 18f, 0.1f),
-                panelDefinition.Heading,
-                definition.BodyFontPath,
-                definition.TextColor,
-                new int2(216, 16),
-                41,
-                0.75f));
             children.Add(BuildSelectedDescriptionEntityAsset(
                 panelDefinition.PanelId,
-                new float3(12f, 154f, 0.1f),
+                new float3(0f, DemoMenuNintendoDsLayout.ScreenHeight + 8f, 0.1f),
                 firstItem.Description,
                 definition.BodyFontPath,
                 definition.MutedTextColor));
@@ -413,7 +364,7 @@ namespace helengine.editor {
             return new SceneEntityAsset {
                 Id = AllocateSceneEntityId(),
                 Name = $"Panel-{panelDefinition.PanelId}",
-                LocalPosition = new float3(8f, 8f, 0f),
+                LocalPosition = new float3(0f, 8f, 0f),
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = [
@@ -432,10 +383,10 @@ namespace helengine.editor {
         /// <param name="visibleIndex">Visible enabled-item index inside the panel.</param>
         /// <returns>Serialized item row entity.</returns>
         SceneEntityAsset BuildBottomItemEntityAsset(MenuDefinition definition, MenuPanelDefinition panelDefinition, MenuItemDefinition itemDefinition, int visibleIndex) {
-            byte4 idleFillColor = definition.AccentSecondaryColor;
-            byte4 idleBorderColor = definition.SurfaceBorderColor;
-            byte4 selectedFillColor = definition.AccentColor;
-            byte4 selectedBorderColor = definition.AccentColor;
+            byte4 idleFillColor = ResolveNintendoDsOpaqueCompositeColor(definition.AccentColor, definition.SurfaceColor);
+            byte4 idleBorderColor = idleFillColor;
+            byte4 selectedFillColor = definition.SurfaceBorderColor;
+            byte4 selectedBorderColor = selectedFillColor;
 
             MenuItemComponent itemComponent = new MenuItemComponent {
                 PanelId = panelDefinition.PanelId,
@@ -450,8 +401,8 @@ namespace helengine.editor {
             };
             RoundedRectComponent backgroundComponent = new RoundedRectComponent {
                 Size = new int2(DemoMenuNintendoDsLayout.ButtonWidth, DemoMenuNintendoDsLayout.ButtonHeight),
-                Radius = 4f,
-                BorderThickness = 1f,
+                Radius = 0f,
+                BorderThickness = 0f,
                 FillColor = visibleIndex == 0 ? selectedFillColor : idleFillColor,
                 BorderColor = visibleIndex == 0 ? selectedBorderColor : idleBorderColor,
                 RenderOrder2D = 33,
@@ -524,7 +475,7 @@ namespace helengine.editor {
             return new SceneEntityAsset {
                 Id = AllocateSceneEntityId(),
                 Name = $"Panel-{panelDefinition.PanelId}-ItemsViewport",
-                LocalPosition = new float3(12f, 44f, 0f),
+                LocalPosition = new float3(0f, 12f, 0f),
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = [
@@ -642,7 +593,7 @@ namespace helengine.editor {
             return new SceneEntityAsset {
                 Id = AllocateSceneEntityId(),
                 Name = "DemoDiscOverlayImage",
-                LocalPosition = new float3((DemoMenuNintendoDsLayout.ScreenWidth - displayWidth) * 0.5f, 18f, 0f),
+                LocalPosition = new float3((DemoMenuNintendoDsLayout.ScreenWidth - displayWidth) * 0.5f, 0f, 0f),
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = [
@@ -653,20 +604,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the top-screen title text entity.
+        /// Builds the top-screen version text shown at the lower-left corner.
         /// </summary>
-        /// <param name="definition">Menu definition that supplies the title font and text.</param>
-        /// <returns>Serialized title text entity.</returns>
-        SceneEntityAsset BuildTopScreenTitleEntityAsset(MenuDefinition definition) {
+        /// <param name="definition">Menu definition that supplies the body font and text color.</param>
+        /// <returns>Serialized top-screen version text entity.</returns>
+        SceneEntityAsset BuildTopScreenVersionEntityAsset(MenuDefinition definition) {
+            if (definition == null) {
+                throw new ArgumentNullException(nameof(definition));
+            }
+
             return BuildTextEntityAsset(
-                "DemoDiscTopScreenTitle",
-                new float3(20f, 126f, 0.1f),
-                definition.Title,
-                definition.TitleFontPath,
+                "DemoDiscTopScreenVersion",
+                new float3(8f, 168f, 0.1f),
+                NintendoDsVersionLabelText,
+                FontAssetScenePersistenceSupport.BuildEditorFontReference(),
                 definition.TextColor,
-                new int2(216, 28),
+                new int2(112, 16),
                 21,
-                0.85f);
+                0.35f);
         }
 
         /// <summary>
@@ -690,6 +645,32 @@ namespace helengine.editor {
                 LocalOrientation = float4.Identity,
                 Components = [
                     SerializeTextComponent(text, fontPath, color, size, renderOrder2D, fontScale)
+                ],
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Builds one baked text entity that uses a supplied scene font reference.
+        /// </summary>
+        /// <param name="entityId">Generated entity name.</param>
+        /// <param name="localPosition">Local entity position.</param>
+        /// <param name="text">Text content.</param>
+        /// <param name="fontReference">Serialized scene font reference.</param>
+        /// <param name="color">Text color.</param>
+        /// <param name="size">Layout size.</param>
+        /// <param name="renderOrder2D">2D render order.</param>
+        /// <param name="fontScale">Font scale.</param>
+        /// <returns>Serialized text entity.</returns>
+        SceneEntityAsset BuildTextEntityAsset(string entityId, float3 localPosition, string text, SceneAssetReference fontReference, byte4 color, int2 size, byte renderOrder2D, float fontScale) {
+            return new SceneEntityAsset {
+                Id = AllocateSceneEntityId(),
+                Name = entityId,
+                LocalPosition = localPosition,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = [
+                    SerializeTextComponent(text, fontReference, color, size, renderOrder2D, fontScale)
                 ],
                 Children = Array.Empty<SceneEntityAsset>()
             };
@@ -757,19 +738,32 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Serializes the Nintendo DS menu-scene FPS overlay using the authored body font reference.
+        /// Serializes one baked text component using a supplied scene font reference.
         /// </summary>
-        /// <param name="fontPath">Project-relative font path used by the overlay.</param>
-        /// <param name="componentIndex">Component index assigned within the owning entity.</param>
-        /// <returns>Serialized FPS overlay component record.</returns>
-        SceneComponentAssetRecord CreateFpsComponentRecord(string fontPath, int componentIndex) {
-            FPSComponent fpsComponent = new FPSComponent {
+        /// <param name="text">Text content.</param>
+        /// <param name="fontReference">Serialized scene font reference.</param>
+        /// <param name="color">Text color.</param>
+        /// <param name="size">Layout size.</param>
+        /// <param name="renderOrder2D">2D render order.</param>
+        /// <param name="fontScale">Font scale.</param>
+        /// <returns>Serialized text component record.</returns>
+        SceneComponentAssetRecord SerializeTextComponent(string text, SceneAssetReference fontReference, byte4 color, int2 size, byte renderOrder2D, float fontScale) {
+            if (fontReference == null) {
+                throw new ArgumentNullException(nameof(fontReference));
+            }
+
+            TextComponent textComponent = new TextComponent {
+                Text = text ?? string.Empty,
                 Font = PlaceholderFont,
-                RefreshIntervalSeconds = 0d
+                FontScale = fontScale,
+                Color = color,
+                Size = size,
+                RenderOrder2D = renderOrder2D,
+                LayerMask = RuntimeLayerMask
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
-            saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, BuildFileFontReference(fontPath));
-            return FpsDescriptor.SerializeComponent(fpsComponent, componentIndex, saveState);
+            saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, fontReference);
+            return TextDescriptor.SerializeComponent(textComponent, 0, saveState);
         }
 
         /// <summary>
@@ -821,10 +815,18 @@ namespace helengine.editor {
         /// <param name="overlayImage">Overlay image definition to inspect.</param>
         /// <returns>Display width in authored pixels.</returns>
         int ResolveNintendoDsLogoWidth(MenuOverlayImageDefinition overlayImage) {
-            double widthScale = (double)DemoMenuNintendoDsLayout.LogoMaxWidth / overlayImage.Width;
-            double heightScale = (double)DemoMenuNintendoDsLayout.LogoMaxHeight / overlayImage.Height;
-            double scale = Math.Min(1d, Math.Min(widthScale, heightScale));
-            return Math.Max(1, (int)Math.Round(overlayImage.Width * scale));
+            if (overlayImage == null) {
+                throw new ArgumentNullException(nameof(overlayImage));
+            }
+            if (overlayImage.Width <= 0) {
+                throw new InvalidOperationException("Nintendo DS logo width must be greater than zero.");
+            }
+            if (overlayImage.Height <= 0) {
+                throw new InvalidOperationException("Nintendo DS logo height must be greater than zero.");
+            }
+
+            double heightScale = (double)ResolveNintendoDsLogoMaxHeight() / overlayImage.Height;
+            return Math.Max(1, (int)Math.Round(overlayImage.Width * heightScale));
         }
 
         /// <summary>
@@ -836,6 +838,14 @@ namespace helengine.editor {
         int ResolveNintendoDsLogoHeight(MenuOverlayImageDefinition overlayImage, int displayWidth) {
             double aspectRatio = (double)overlayImage.Height / overlayImage.Width;
             return Math.Max(1, (int)Math.Round(displayWidth * aspectRatio));
+        }
+
+        /// <summary>
+        /// Resolves the maximum display height available to the Nintendo DS top-screen logo after reserving space for the footer.
+        /// </summary>
+        /// <returns>Maximum display height in authored pixels.</returns>
+        int ResolveNintendoDsLogoMaxHeight() {
+            return Math.Max(1, DemoMenuNintendoDsLayout.ScreenHeight - NintendoDsTopScreenFooterReservedHeight);
         }
 
         /// <summary>

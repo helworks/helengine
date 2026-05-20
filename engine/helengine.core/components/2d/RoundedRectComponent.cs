@@ -105,6 +105,15 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Unregisters the shape from render queues when the component is removed from its entity.
+        /// </summary>
+        /// <param name="entity">Entity losing this shape component.</param>
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+            Core.Instance.ObjectManager.RemoveFromRender2D(this);
+        }
+
+        /// <summary>
         /// Registers or unregisters the shape based on enabled state changes.
         /// </summary>
         /// <param name="newEnabled">New enabled state.</param>

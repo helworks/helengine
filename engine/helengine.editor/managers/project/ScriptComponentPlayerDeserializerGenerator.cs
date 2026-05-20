@@ -177,6 +177,7 @@ namespace helengine.editor {
             builder.AppendLine("#include \"EngineBinaryReader.hpp\"");
             builder.AppendLine("#include \"EngineBinaryEndianness.hpp\"");
             builder.AppendLine("#include \"runtime/array.hpp\"");
+            builder.AppendLine("#include \"runtime/finally.hpp\"");
             builder.AppendLine($"#include \"{schema.ComponentType.Name}.hpp\"");
             foreach (Type includeType in CollectNativeIncludeTypes(schema)) {
                 if (includeType != schema.ComponentType) {
@@ -208,8 +209,20 @@ namespace helengine.editor {
             builder.AppendLine("auto __ctor_arg_00000003 = false;");
             builder.AppendLine("return new ::MemoryStream(__ctor_arg_00000001, __ctor_arg_00000003);");
             builder.AppendLine("})();");
+            builder.AppendLine("auto __usingDisposeGuard_00000004 = he_cpp_make_scope_exit([&]() {");
+            builder.AppendLine("if (stream != nullptr) {");
+            builder.AppendLine("stream->Dispose();");
+            builder.AppendLine("delete stream;");
+            builder.AppendLine("}");
+            builder.AppendLine("});");
             builder.AppendLine("{");
             builder.AppendLine("::EngineBinaryReader *reader = EngineBinaryReader::Create(stream, EngineBinaryEndianness::LittleEndian, true);");
+            builder.AppendLine("auto __usingDisposeGuard_00000005 = he_cpp_make_scope_exit([&]() {");
+            builder.AppendLine("if (reader != nullptr) {");
+            builder.AppendLine("reader->Dispose();");
+            builder.AppendLine("delete reader;");
+            builder.AppendLine("}");
+            builder.AppendLine("});");
             builder.AppendLine("const uint8_t version = reader->ReadByte();");
             builder.AppendLine("    if (version != CurrentVersion)");
             builder.AppendLine("    {");

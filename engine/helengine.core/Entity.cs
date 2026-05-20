@@ -417,34 +417,84 @@ namespace helengine {
             isDisposing = true;
             if (Components != null) {
                 while (Components.Count > 0) {
+                    int componentIndex = Components.Count - 1;
+                    ReportDisposalStage("BeforeComponentRemove", componentIndex);
                     Component component = Components[Components.Count - 1];
                     RemoveComponent(component);
+                    ReportDisposalStage("BeforeComponentDispose", componentIndex);
                     component.Dispose();
+                    ReportDisposalStage("AfterComponentDispose", componentIndex);
                     NativeOwnership.Delete(component);
+                    ReportDisposalStage("AfterComponentDelete", componentIndex);
                 }
 
                 List<Component> components = Components;
+                ReportDisposalStage("BeforeComponentsListDelete", -1);
                 Components = null;
                 NativeOwnership.Delete(components);
             }
 
             if (Children != null) {
                 while (Children.Count > 0) {
+                    ReportDisposalStage("BeforeChildRemove", -1);
                     Entity child = Children[Children.Count - 1];
                     RemoveChild(child);
+                    ReportChildDisposalStage("BeforeChildDispose", child);
                     NativeOwnership.DisposeAndDelete(child);
+                    ReportDisposalStage("AfterChildDispose", -1);
                 }
 
                 List<Entity> children = Children;
+                ReportDisposalStage("BeforeChildrenListDelete", -1);
                 Children = null;
                 NativeOwnership.Delete(children);
             }
 
             if (Parent != null) {
+                ReportDisposalStage("BeforeParentDetach", -1);
                 Parent.RemoveChild(this);
             }
 
+            ReportDisposalStage("BeforeObjectManagerRemoveEntity", -1);
             Core.Instance.ObjectManager.RemoveEntity(this);
+            ReportDisposalStage("AfterObjectManagerRemoveEntity", -1);
+        }
+
+        /// <summary>
+        /// Reports one disposal stage for this entity when the active core has scene-manager disposal diagnostics.
+        /// </summary>
+        /// <param name="stage">Short disposal stage label.</param>
+        /// <param name="componentIndex">Component index involved in the stage, or -1 for entity-level stages.</param>
+        void ReportDisposalStage(string stage, int componentIndex) {
+            ReportChildDisposalStage(stage, this, componentIndex);
+        }
+
+        /// <summary>
+        /// Reports one disposal stage for another entity when the active core has scene-manager disposal diagnostics.
+        /// </summary>
+        /// <param name="stage">Short disposal stage label.</param>
+        /// <param name="entity">Entity associated with the disposal stage.</param>
+        void ReportChildDisposalStage(string stage, Entity entity) {
+            ReportChildDisposalStage(stage, entity, -1);
+        }
+
+        /// <summary>
+        /// Reports one disposal stage for another entity when the active core has scene-manager disposal diagnostics.
+        /// </summary>
+        /// <param name="stage">Short disposal stage label.</param>
+        /// <param name="entity">Entity associated with the disposal stage.</param>
+        /// <param name="componentIndex">Component index involved in the stage, or -1 for entity-level stages.</param>
+        void ReportChildDisposalStage(string stage, Entity entity, int componentIndex) {
+            if (Core.Instance == null) {
+                return;
+            }
+
+            SceneManager sceneManager = Core.Instance.SceneManager;
+            if (sceneManager == null) {
+                return;
+            }
+
+            sceneManager.ReportEntityDisposalStage(stage, entity, componentIndex);
         }
     }
 }

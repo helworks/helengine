@@ -58,6 +58,27 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures host construction no longer tries to delete the entire shared snapshot root up front, so stale locked files from previous sessions do not block startup.
+        /// </summary>
+        [Fact]
+        public void ReadEditorGameScriptAssemblyHostSource_ConstructorDoesNotDeleteSharedSnapshotRoot() {
+            string sourcePath = Path.Combine(
+                "C:\\dev\\helworks\\helengine",
+                "engine",
+                "helengine.editor",
+                "managers",
+                "project",
+                "EditorGameScriptAssemblyHost.cs");
+            Assert.True(File.Exists(sourcePath));
+
+            string source = File.ReadAllText(sourcePath);
+
+            Assert.Contains("SnapshotRootPath = BuildSnapshotRootPath(projectRootPath);", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("DeleteDirectoryIfPresent(SnapshotRootPath);", source, StringComparison.Ordinal);
+            Assert.Contains("Directory.CreateDirectory(SnapshotRootPath);", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures editor-only assemblies expose discovered editor commands while runtime assemblies do not.
         /// </summary>
         [Fact]
@@ -147,6 +168,28 @@ namespace helengine.editor.tests.managers.project {
             Assert.Equal(
                 typeof(TestMenuDefinitionProvider).FullName,
                 capturedResolver.Resolve(typeof(TestMenuDefinitionProvider).FullName + ", gameplay").FullName);
+        }
+
+        /// <summary>
+        /// Ensures the collectible script load context falls back to sibling snapshot DLL probing when the dependency resolver does not return one path.
+        /// </summary>
+        [Fact]
+        public void ReadEditorCollectibleScriptAssemblyLoadContextSource_ProbesSiblingSnapshotDllWhenResolverReturnsNull() {
+            string sourcePath = Path.Combine(
+                "C:\\dev\\helworks\\helengine",
+                "engine",
+                "helengine.editor",
+                "managers",
+                "project",
+                "EditorCollectibleScriptAssemblyLoadContext.cs");
+            Assert.True(File.Exists(sourcePath));
+
+            string source = File.ReadAllText(sourcePath);
+
+            Assert.Contains("MainAssemblyDirectoryPath", source, StringComparison.Ordinal);
+            Assert.Contains("Path.Combine(MainAssemblyDirectoryPath, assemblyName.Name + \".dll\")", source, StringComparison.Ordinal);
+            Assert.Contains("File.Exists(siblingAssemblyPath)", source, StringComparison.Ordinal);
+            Assert.Contains("LoadFromAssemblyPath(siblingAssemblyPath)", source, StringComparison.Ordinal);
         }
 
         /// <summary>

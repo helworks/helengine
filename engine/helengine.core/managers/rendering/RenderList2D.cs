@@ -2,11 +2,11 @@ namespace helengine {
     /// <summary>
     /// Ordered list of 2D drawables used for rendering.
     /// </summary>
-    public sealed class RenderList2D : IRenderQueue2D {
+    public sealed class RenderList2D : IRenderQueue2D, IDisposable {
         /// <summary>
         /// Backing list of drawables.
         /// </summary>
-        readonly List<IDrawable2D> items;
+        readonly List<IDrawable2D> Items;
 
         /// <summary>
         /// Initializes a new render list with the specified capacity.
@@ -17,24 +17,24 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(initialCapacity));
             }
 
-            items = new List<IDrawable2D>(initialCapacity);
+            Items = new List<IDrawable2D>(initialCapacity);
         }
 
         /// <summary>
         /// Gets the number of drawables in the list.
         /// </summary>
-        public int Count { get { return items.Count; } }
+        public int Count { get { return Items.Count; } }
 
         /// <summary>
         /// Gets the current backing-list capacity reserved by the queue.
         /// </summary>
-        public int Capacity { get { return items.Capacity; } }
+        public int Capacity { get { return Items.Capacity; } }
 
         /// <summary>
         /// Gets the drawable at the specified index.
         /// </summary>
         /// <param name="index">Zero-based index.</param>
-        public IDrawable2D this[int index] { get { return items[index]; } }
+        public IDrawable2D this[int index] { get { return Items[index]; } }
 
         /// <summary>
         /// Adds a drawable while keeping the list ordered by render order.
@@ -42,7 +42,7 @@ namespace helengine {
         /// <param name="drawable">Drawable to add.</param>
         public void Add(IDrawable2D drawable) {
             int insertIndex = FindInsertIndex(drawable != null ? drawable.RenderOrder2D : (byte)0);
-            items.Insert(insertIndex, drawable);
+            Items.Insert(insertIndex, drawable);
         }
 
         /// <summary>
@@ -56,7 +56,7 @@ namespace helengine {
                 return false;
             }
 
-            items.RemoveAt(index);
+            Items.RemoveAt(index);
             return true;
         }
 
@@ -64,7 +64,15 @@ namespace helengine {
         /// Removes all drawables from the list.
         /// </summary>
         public void Clear() {
-            items.Clear();
+            Items.Clear();
+        }
+
+        /// <summary>
+        /// Releases the native backing list used by this per-camera render queue.
+        /// </summary>
+        public void Dispose() {
+            Items.Clear();
+            NativeOwnership.Delete(Items);
         }
 
         /// <summary>
@@ -81,14 +89,14 @@ namespace helengine {
         /// <param name="desiredCount">Desired total count.</param>
         /// <param name="warnOnExpand">True to log when capacity grows.</param>
         public void EnsureCapacity(int desiredCount, bool warnOnExpand) {
-            if (desiredCount <= items.Capacity) {
+            if (desiredCount <= Items.Capacity) {
                 return;
             }
 
-            int oldCap = items.Capacity;
-            items.Capacity = desiredCount;
+            int oldCap = Items.Capacity;
+            Items.Capacity = desiredCount;
             if (warnOnExpand) {
-                Logger.WriteWarning($"RenderList2D expanded from {oldCap} to {items.Capacity}.");
+                Logger.WriteWarning($"RenderList2D expanded from {oldCap} to {Items.Capacity}.");
             }
         }
 
@@ -101,8 +109,8 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(visitor));
             }
 
-            for (int i = 0; i < items.Count; i++) {
-                visitor.Visit(items[i]);
+            for (int i = 0; i < Items.Count; i++) {
+                visitor.Visit(Items[i]);
             }
         }
 
@@ -112,15 +120,15 @@ namespace helengine {
         /// <param name="renderOrder">Render order to insert.</param>
         /// <returns>Insertion index.</returns>
         int FindInsertIndex(byte renderOrder) {
-            for (int i = 0; i < items.Count; i++) {
-                IDrawable2D current = items[i];
+            for (int i = 0; i < Items.Count; i++) {
+                IDrawable2D current = Items[i];
                 byte currentOrder = current != null ? current.RenderOrder2D : (byte)0;
                 if (renderOrder < currentOrder) {
                     return i;
                 }
             }
 
-            return items.Count;
+            return Items.Count;
         }
 
         /// <summary>
@@ -129,8 +137,8 @@ namespace helengine {
         /// <param name="drawable">Drawable to locate.</param>
         /// <returns>Index or -1 when not found.</returns>
         int FindIndexByReference(IDrawable2D drawable) {
-            for (int i = 0; i < items.Count; i++) {
-                if (ReferenceEquals(items[i], drawable)) {
+            for (int i = 0; i < Items.Count; i++) {
+                if (ReferenceEquals(Items[i], drawable)) {
                     return i;
                 }
             }

@@ -44,6 +44,18 @@ namespace helengine {
         bool IsSubscribedToWindowResize;
 
         /// <summary>
+        /// Reused fallback anchor space returned when no parent bounds provider exists.
+        /// </summary>
+        readonly AnchorSpace FallbackAnchorSpaceValue;
+
+        /// <summary>
+        /// Initializes an anchor component with one reusable fallback anchor-space record.
+        /// </summary>
+        public AnchorComponent() {
+            FallbackAnchorSpaceValue = new AnchorSpace(new int2(0, 0), new float2(0f, 0f));
+        }
+
+        /// <summary>
         /// Gets a value indicating whether anchoring is currently enabled.
         /// </summary>
         public bool IsAnchored => AnchorFlags != 0;
@@ -201,6 +213,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Releases the fallback anchor-space record owned by this component.
+        /// </summary>
+        public override void Dispose() {
+            NativeOwnership.Delete(FallbackAnchorSpaceValue);
+            base.Dispose();
+        }
+
+        /// <summary>
         /// Rebinds the current provider subscriptions when the parent entity changes enabled state.
         /// </summary>
         /// <param name="newEnabled">New enabled state.</param>
@@ -331,7 +351,8 @@ namespace helengine {
                 return anchorBoundsProvider.AnchorSpace;
             }
 
-            return new AnchorSpace(Core.Instance.RenderManager3D.MainWindowSize, new float2(0f, 0f));
+            FallbackAnchorSpaceValue.Update(Core.Instance.RenderManager3D.MainWindowSize, new float2(0f, 0f));
+            return FallbackAnchorSpaceValue;
         }
 
         /// <summary>

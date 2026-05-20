@@ -85,10 +85,10 @@ namespace helengine {
         /// <param name="bindingByKey">Lookup used to merge duplicate bindings across stages.</param>
         static void AddBindings(
             ShaderProgramAsset program,
-            List<MaterialLayoutBinding> textureBindings,
-            List<MaterialLayoutBinding> constantBufferBindings,
-            List<MaterialLayoutBinding> samplerBindings,
-            Dictionary<string, MaterialLayoutBinding> bindingByKey) {
+            [NativeNoEscape] List<MaterialLayoutBinding> textureBindings,
+            [NativeNoEscape] List<MaterialLayoutBinding> constantBufferBindings,
+            [NativeNoEscape] List<MaterialLayoutBinding> samplerBindings,
+            [NativeNoEscape] Dictionary<string, MaterialLayoutBinding> bindingByKey) {
             if (program == null) {
                 throw new ArgumentNullException(nameof(program));
             }
@@ -116,6 +116,7 @@ namespace helengine {
                 string bindingKey = BuildBindingKey(layoutBinding);
                 if (bindingByKey.TryGetValue(bindingKey, out MaterialLayoutBinding existingBinding)) {
                     ValidateMatchingBinding(existingBinding, layoutBinding);
+                    NativeOwnership.Delete(layoutBinding);
                     continue;
                 }
 
@@ -189,9 +190,9 @@ namespace helengine {
         /// <param name="samplerBindings">Sampler-binding list being built.</param>
         static void AddBindingToCategory(
             MaterialLayoutBinding binding,
-            List<MaterialLayoutBinding> textureBindings,
-            List<MaterialLayoutBinding> constantBufferBindings,
-            List<MaterialLayoutBinding> samplerBindings) {
+            [NativeNoEscape] List<MaterialLayoutBinding> textureBindings,
+            [NativeNoEscape] List<MaterialLayoutBinding> constantBufferBindings,
+            [NativeNoEscape] List<MaterialLayoutBinding> samplerBindings) {
             if (binding == null) {
                 throw new ArgumentNullException(nameof(binding));
             }

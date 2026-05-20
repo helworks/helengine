@@ -52,6 +52,33 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
     }
 
     /// <summary>
+    /// Ensures Nintendo DS boot-scene preparation also emits remaps for generated city rendering showcase companion scenes.
+    /// </summary>
+    [Fact]
+    public void EnsurePrepared_WhenNintendoDsRenderingShowcaseScenesAreSelected_WritesBootSceneWithRenderingCompanionMappings() {
+        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+        service.EnsurePrepared(
+            "ds",
+            [
+                PlatformMenuSceneResolver.NintendoDsMainMenuSceneId,
+                "cube_test",
+                "cube_test_ds"
+            ]);
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        Assert.True(File.Exists(scenePath));
+
+        using FileStream stream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+        SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
+        SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
+        SceneMapComponent sceneMapComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(rootEntity.Components[0], null, null));
+
+        Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
+    }
+
+    /// <summary>
     /// Ensures Windows boot-scene preparation writes the helper scene without any scene-id remapping entries.
     /// </summary>
     [Fact]

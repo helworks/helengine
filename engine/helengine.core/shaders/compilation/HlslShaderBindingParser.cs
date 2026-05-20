@@ -106,7 +106,7 @@ namespace helengine {
         static void AddConstantBufferBindings(
             string source,
             ShaderBindingPolicy bindingPolicy,
-            List<ShaderBinding> bindings) {
+            [NativeNoEscape] List<ShaderBinding> bindings) {
             if (source == null) {
                 throw new ArgumentNullException(nameof(source));
             }
@@ -146,7 +146,7 @@ namespace helengine {
         static void AddResourceBindings(
             string source,
             ShaderBindingPolicy bindingPolicy,
-            List<ShaderBinding> bindings) {
+            [NativeNoEscape] List<ShaderBinding> bindings) {
             if (source == null) {
                 throw new ArgumentNullException(nameof(source));
             }

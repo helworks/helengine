@@ -395,6 +395,17 @@ namespace helengine.editor.tests {
         /// <param name="layerMask">Layer mask rendered by the camera.</param>
         /// <param name="drawOrder">Draw order assigned to the camera.</param>
         void CreateUiCamera(int width, int height, ushort layerMask, byte drawOrder) {
+            CreateUiCamera(new float4(0f, 0f, width, height), layerMask, drawOrder);
+        }
+
+        /// <summary>
+        /// Creates one UI camera using the supplied viewport, layer mask, and draw order.
+        /// </summary>
+        /// <param name="viewport">Viewport rectangle authored for the camera.</param>
+        /// <param name="layerMask">Layer mask rendered by the camera.</param>
+        /// <param name="drawOrder">Draw order assigned to the camera.</param>
+        /// <returns>Configured camera component.</returns>
+        CameraComponent CreateUiCamera(float4 viewport, ushort layerMask, byte drawOrder) {
             EditorEntity cameraEntity = new EditorEntity {
                 InternalEntity = true,
                 LayerMask = layerMask
@@ -403,9 +414,10 @@ namespace helengine.editor.tests {
             CameraComponent camera = new CameraComponent {
                 LayerMask = layerMask,
                 CameraDrawOrder = drawOrder,
-                Viewport = new float4(0f, 0f, width, height)
+                Viewport = viewport
             };
             cameraEntity.AddComponent(camera);
+            return camera;
         }
 
         /// <summary>

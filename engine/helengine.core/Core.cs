@@ -48,6 +48,10 @@ namespace helengine {
         /// Stores the previous measured elapsed update time returned by the host clock.
         /// </summary>
         double PreviousMeasuredUpdateSeconds;
+        /// <summary>
+        /// Optional diagnostics sink that receives high-frequency core update stage labels when a host explicitly provides one.
+        /// </summary>
+        IRuntimeUpdateStageDiagnosticsProvider UpdateStageDiagnosticsProviderValue;
 
         /// <summary>
         /// Initializes a new core instance with default initialization options.
@@ -349,6 +353,11 @@ namespace helengine {
                 InitializationOptions.RuntimeDiagnosticsProvider,
                 SceneManager,
                 ObjectManager);
+            if (InitializationOptions.RuntimeDiagnosticsProvider is IRuntimeUpdateStageDiagnosticsProvider stageDiagnosticsProvider) {
+                UpdateStageDiagnosticsProviderValue = stageDiagnosticsProvider;
+            } else {
+                UpdateStageDiagnosticsProviderValue = null;
+            }
         }
 
         /// <summary>
@@ -535,27 +544,65 @@ namespace helengine {
             PreviousMeasuredUpdateSeconds = currentMeasuredUpdateSeconds;
             HasPreviousMeasuredUpdateSeconds = true;
 
-            Input.EarlyUpdate();
-            FPSComponent.RecordUpdateFrame();
-
-            LastSceneTransitionStage = "BeforeObjectManagerUpdate";
-            ObjectManager.Update();
-            LastSceneTransitionStage = "AfterObjectManagerUpdate";
-            if (SceneManager != null) {
-                LastSceneTransitionStage = "BeforeSceneManagerFlushPendingOperations";
-                SceneManager.FlushPendingOperations();
-                LastSceneTransitionStage = "AfterSceneManagerFlushPendingOperations";
+            bool shouldRecordUpdateStages = UpdateStageDiagnosticsProviderValue != null;
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("BeforeInputEarlyUpdate");
             }
-            LastSceneTransitionStage = "BeforeUpdatePhysics";
-            UpdatePhysics(elapsedSeconds);
-            LastSceneTransitionStage = "AfterUpdatePhysics";
+            Input.EarlyUpdate();
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("AfterInputEarlyUpdate");
+                RecordUpdateStage("BeforeFpsRecordUpdateFrame");
+            }
+            FPSComponent.RecordUpdateFrame();
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("AfterFpsRecordUpdateFrame");
+            }
 
-            LastSceneTransitionStage = "BeforeInputUpdate";
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("BeforeObjectManagerUpdate");
+            }
+            ObjectManager.Update();
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("AfterObjectManagerUpdate");
+            }
+            if (SceneManager != null) {
+                if (shouldRecordUpdateStages) {
+                    RecordUpdateStage("BeforeSceneManagerFlushPendingOperations");
+                }
+                SceneManager.FlushPendingOperations();
+                if (shouldRecordUpdateStages) {
+                    RecordUpdateStage("AfterSceneManagerFlushPendingOperations");
+                }
+            }
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("BeforeUpdatePhysics");
+            }
+            UpdatePhysics(elapsedSeconds);
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("AfterUpdatePhysics");
+            }
+
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("BeforeInputUpdate");
+            }
             Input.Update();
-            LastSceneTransitionStage = "AfterInputUpdate";
-            LastSceneTransitionStage = "BeforePointerInteractionSystemUpdate";
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("AfterInputUpdate");
+                RecordUpdateStage("BeforePointerInteractionSystemUpdate");
+            }
             PointerInteractionSystem.Update();
-            LastSceneTransitionStage = "AfterPointerInteractionSystemUpdate";
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("AfterPointerInteractionSystemUpdate");
+            }
+        }
+
+        /// <summary>
+        /// Stores one core update stage and publishes it to hosts that can render live diagnostics while the update is still executing.
+        /// </summary>
+        /// <param name="stage">Short stage label describing the next core update boundary.</param>
+        void RecordUpdateStage(string stage) {
+            LastSceneTransitionStage = stage;
+            UpdateStageDiagnosticsProviderValue.ReportUpdateStage(stage);
         }
 
         /// <summary>
@@ -585,7 +632,24 @@ namespace helengine {
                 return null;
             }
 
-            return new SceneManager(sceneCatalog, contentManager, SceneLoadService, ObjectManager, InitializationOptions.ScenePathResolver);
+            IRuntimeSceneTransitionDiagnosticsProvider sceneTransitionDiagnosticsProvider = null;
+            if (InitializationOptions.RuntimeDiagnosticsProvider is IRuntimeSceneTransitionDiagnosticsProvider transitionDiagnosticsProvider) {
+                sceneTransitionDiagnosticsProvider = transitionDiagnosticsProvider;
+            }
+
+            IRuntimeEntityDisposalDiagnosticsProvider entityDisposalDiagnosticsProvider = null;
+            if (InitializationOptions.RuntimeDiagnosticsProvider is IRuntimeEntityDisposalDiagnosticsProvider disposalDiagnosticsProvider) {
+                entityDisposalDiagnosticsProvider = disposalDiagnosticsProvider;
+            }
+
+            return new SceneManager(
+                sceneCatalog,
+                contentManager,
+                SceneLoadService,
+                ObjectManager,
+                InitializationOptions.ScenePathResolver,
+                sceneTransitionDiagnosticsProvider,
+                entityDisposalDiagnosticsProvider);
         }
 
         /// <summary>

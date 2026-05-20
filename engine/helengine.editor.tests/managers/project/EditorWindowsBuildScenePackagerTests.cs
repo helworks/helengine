@@ -48,7 +48,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the real Windows builder compatibility metadata and gameplay script-type resolver can package city-style scripted scene components without relying on a private repro project tree.
+        /// Ensures the real Windows builder metadata and gameplay script-type resolver package city-style scripted scene components through the generic automatic runtime payload contract.
         /// </summary>
         [Fact]
         public void Package_WhenWindowsBuilderCompatibilityMetadataAndScriptResolverAreSupplied_PackagesCityStyleScriptComponents() {
@@ -2054,10 +2054,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures zero-member automatic script components authored in runtime payload form package without being re-read as tagged editor payloads.
+        /// Ensures automatic script components authored in runtime payload form package without being re-read as tagged editor payloads.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsRuntimeEncodedZeroMemberAutomaticScriptComponent_PackagesSuccessfully() {
+        public void Package_WhenSceneContainsRuntimeEncodedAutomaticScriptComponent_PackagesSuccessfully() {
             string sceneId = "Scenes/ReturnToMenuScene.helen";
             byte[] payload;
             using (MemoryStream stream = new MemoryStream()) {
@@ -2161,51 +2161,6 @@ namespace helengine.editor.tests {
             Assert.Equal(payload, packagedRecord.Payload);
         }
 
-        /// <summary>
-        /// Ensures stale demo-menu scenes that still reference the city-owned platform-info overlay binder are rewritten to the built-in runtime component during packaging.
-        /// </summary>
-        [Fact]
-        public void Package_WhenSceneContainsLegacyPlatformInfoTextComponent_RewritesToBuiltInRuntimeComponent() {
-            const string sceneId = "Scenes/DemoDiscMainMenu.helen";
-            const string legacyComponentTypeId = "city.menu.PlatformInfoTextComponent, gameplay";
-            const string builtInComponentTypeId = "helengine.PlatformInfoTextComponent";
-
-            WriteSceneAsset(sceneId, new SceneAsset {
-                Id = sceneId,
-                RootEntities = new[] {
-                    new SceneEntityAsset {
-                        Id = 1u,
-                        Name = "PlatformInfoOverlay",
-                        LocalPosition = float3.Zero,
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            new SceneComponentAssetRecord {
-                                ComponentTypeId = legacyComponentTypeId,
-                                ComponentIndex = 0,
-                                Payload = Array.Empty<byte>()
-                            }
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    }
-                }
-            });
-
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
-                ProjectRootPath,
-                Array.Empty<IAssetImporterRegistration>(),
-                "windows");
-
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
-            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
-            SceneComponentAssetRecord packagedRecord = Assert.Single(packagedRoot.Components);
-
-            Assert.Equal(builtInComponentTypeId, packagedRecord.ComponentTypeId);
-            Assert.NotEmpty(packagedRecord.Payload ?? Array.Empty<byte>());
-        }
 
         /// <summary>
         /// Ensures the build packager exports a default packaged font asset that the runtime content pipeline can reload.

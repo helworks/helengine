@@ -257,6 +257,7 @@ namespace helengine {
         /// <param name="entity">Owning entity.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
+            Core.Instance.ObjectManager.RemoveFromRender2D(this);
 
             IsFocusedValue = false;
             IsSelectingTextValue = false;
