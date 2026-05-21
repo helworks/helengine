@@ -7,9 +7,23 @@ namespace helengine.editor.tests {
     /// </summary>
     public sealed class CityRenderingSceneAuthoringTests {
         /// <summary>
-        /// Gets the local city project path used by environment-backed rendering-scene regressions.
+        /// Default local city project path used by environment-backed rendering-scene regressions.
         /// </summary>
-        const string CityProjectRootPath = @"C:\dev\helprojs\city";
+        const string DefaultCityProjectRootPath = @"C:\dev\helprojs\city";
+
+        /// <summary>
+        /// Gets the city project path used by source and authored-asset regressions.
+        /// </summary>
+        static string CityProjectRootPath {
+            get {
+                string environmentProjectRootPath = Environment.GetEnvironmentVariable("HELENGINE_CITY_PROJECT_ROOT");
+                if (string.IsNullOrWhiteSpace(environmentProjectRootPath)) {
+                    return DefaultCityProjectRootPath;
+                }
+
+                return environmentProjectRootPath;
+            }
+        }
 
         /// <summary>
         /// Ensures the authored city demo-disc scene catalog exposes the intended showcase lineup before the back action.
@@ -47,6 +61,117 @@ namespace helengine.editor.tests {
             Assert.DoesNotContain("helengine.demo_disc_scene_writer", source, StringComparison.Ordinal);
             Assert.Contains("new RenderingSceneGenerator()", source, StringComparison.Ordinal);
             Assert.DoesNotContain("DemoDiscRenderingSceneGenerationService", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the city physics generation command uses the city-owned physics scene generator.
+        /// </summary>
+        [Fact]
+        public void ReadCityGeneratePhysicsScenesCommandSource_UsesPhysicsSceneGenerator() {
+            string source = ReadCitySource("menu.tools", "GeneratePhysicsScenesCommand.cs");
+
+            Assert.Contains("new PhysicsSceneGenerator()", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("PhysicsValidationSceneFactory", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the city physics scene generator no longer delegates generated scene ownership back to the editor validation factory.
+        /// </summary>
+        [Fact]
+        public void ReadCityPhysicsSceneGeneratorSource_UsesCityPhysicsSceneFactory() {
+            string source = ReadCitySource("physics.tools", "PhysicsSceneGenerator.cs");
+
+            Assert.Contains("new PhysicsSceneFactory()", source, StringComparison.Ordinal);
+            Assert.Contains("factory.WriteScenes(projectRootPath);", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("PhysicsValidationSceneFactory", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the city physics tools module owns the generated physics scene catalog source.
+        /// </summary>
+        [Fact]
+        public void ReadCityPhysicsSceneCatalogSource_DeclaresStablePhysicsSceneIds() {
+            string source = ReadCitySource("physics.tools", "PhysicsSceneCatalog.cs");
+
+            Assert.Contains("public static class PhysicsSceneCatalog", source, StringComparison.Ordinal);
+            Assert.Contains("CharacterSlopeSceneId", source, StringComparison.Ordinal);
+            Assert.Contains("DynamicStackBoxesSceneId", source, StringComparison.Ordinal);
+            Assert.Contains("TriggerVolumeSceneId", source, StringComparison.Ordinal);
+            Assert.Contains("public static string[] GetSceneIds()", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the city physics tools module owns the generated physics scene factory source.
+        /// </summary>
+        [Fact]
+        public void ReadCityPhysicsSceneFactorySource_DeclaresCitySceneFactory() {
+            string source = ReadCitySource("physics.tools", "PhysicsSceneFactory.cs");
+
+            Assert.Contains("public sealed class PhysicsSceneFactory", source, StringComparison.Ordinal);
+            Assert.Contains("public SceneAsset CreateSceneAsset(string sceneId)", source, StringComparison.Ordinal);
+            Assert.Contains("public void WriteScenes(string projectRootPath)", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("PhysicsValidationSceneFactory", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("PhysicsValidationSceneCatalog", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the generated city physics scenes exist as normal authored project scene assets.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityPhysicsScenes_AllGeneratedPhysicsScenesExist() {
+            string[] sceneFileNames = new[] {
+                "test_scene_character_slope.helen",
+                "test_scene_character_steps.helen",
+                "test_scene_character_moving_platform.helen",
+                "test_scene_dynamic_stack_boxes.helen",
+                "test_scene_dynamic_sphere_ramp.helen",
+                "test_scene_kinematic_push.helen",
+                "test_scene_mesh_ground_stability.helen",
+                "test_scene_trigger_volume.helen"
+            };
+
+            for (int index = 0; index < sceneFileNames.Length; index++) {
+                SceneAsset sceneAsset = ReadPhysicsSceneAsset(sceneFileNames[index]);
+
+                Assert.Contains(sceneAsset.RootEntities, entity => string.Equals(entity.Name, "Camera", StringComparison.Ordinal));
+                Assert.Contains(sceneAsset.RootEntities, entity => string.Equals(entity.Name, "Scenario", StringComparison.Ordinal));
+            }
+        }
+
+        /// <summary>
+        /// Ensures a representative city physics scene contains serialized 3D physics component records.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityDynamicStackBoxesPhysicsScene_ContainsRigidBodyAndColliderRecords() {
+            SceneAsset sceneAsset = ReadPhysicsSceneAsset("test_scene_dynamic_stack_boxes.helen");
+
+            Assert.True(CountComponents(sceneAsset.RootEntities, "helengine.RigidBody3DComponent") >= 2);
+            Assert.True(CountComponents(sceneAsset.RootEntities, "helengine.BoxCollider3DComponent") >= 2);
+        }
+
+        /// <summary>
+        /// Ensures a representative city character physics scene contains serialized character-controller records.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityCharacterSlopePhysicsScene_ContainsCharacterControllerRecord() {
+            SceneAsset sceneAsset = ReadPhysicsSceneAsset("test_scene_character_slope.helen");
+
+            Assert.True(CountComponents(sceneAsset.RootEntities, "helengine.CharacterController3DComponent") >= 1);
+        }
+
+        /// <summary>
+        /// Ensures the city physics generation flow emits the shared support shader and materials beside the project assets.
+        /// </summary>
+        [Fact]
+        public void ReadCityPhysicsSupportAssets_EmitsShaderAndMaterials() {
+            string shaderPath = Path.Combine(CityProjectRootPath, "assets", "Shaders", "physics", "PhysicsDemoMesh.hlsl");
+            string neutralMaterialPath = Path.Combine(CityProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoNeutral.hasset");
+            string blueMaterialPath = Path.Combine(CityProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoBlue.hasset");
+
+            Assert.True(File.Exists(shaderPath));
+            Assert.True(File.Exists(neutralMaterialPath));
+            Assert.True(File.Exists(blueMaterialPath));
+            Assert.Contains("cbuffer MaterialColorBuffer", File.ReadAllText(shaderPath), StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -332,6 +457,19 @@ namespace helengine.editor.tests {
         /// <returns>Deserialized scene asset.</returns>
         SceneAsset ReadSceneAsset(string sceneFileName) {
             string scenePath = Path.Combine(CityProjectRootPath, "assets", "scenes", "rendering", sceneFileName);
+            Assert.True(File.Exists(scenePath));
+
+            using FileStream stream = File.OpenRead(scenePath);
+            return Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
+        }
+
+        /// <summary>
+        /// Reads one generated city physics scene asset from the authored project scene folder.
+        /// </summary>
+        /// <param name="sceneFileName">File name of the authored physics scene.</param>
+        /// <returns>Deserialized scene asset.</returns>
+        SceneAsset ReadPhysicsSceneAsset(string sceneFileName) {
+            string scenePath = Path.Combine(CityProjectRootPath, "assets", "scenes", "physics", sceneFileName);
             Assert.True(File.Exists(scenePath));
 
             using FileStream stream = File.OpenRead(scenePath);
