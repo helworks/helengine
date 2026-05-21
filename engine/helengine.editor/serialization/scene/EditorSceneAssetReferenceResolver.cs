@@ -1,3 +1,5 @@
+using helengine.platforms;
+
 namespace helengine.editor {
     /// <summary>
     /// Resolves persisted scene asset references back into runtime assets for editor scene loading.
@@ -7,6 +9,11 @@ namespace helengine.editor {
         /// Preferred preview platform used when file-backed materials need one shader-backed editor runtime path.
         /// </summary>
         const string PreferredEditorPreviewPlatformId = "windows";
+        const string StandardShaderAssetId = "ForwardStandardShader";
+        const string StandardVertexProgramName = "ForwardStandardShader.vs";
+        const string StandardPixelProgramName = "ForwardStandardShader.ps";
+        const string StandardMeshVariantName = "default";
+        const string BaseColorFieldId = "base-color";
 
         /// <summary>
         /// Generated provider id reserved for the editor's built-in font asset.
@@ -297,8 +304,13 @@ namespace helengine.editor {
                 throw new InvalidOperationException("At least one supported project platform must exist before file-backed materials can be resolved.");
             }
 
-            MaterialAsset materialAsset = MaterialSettingsService.LoadMaterialAsset(fullPath, platformId);
+            MaterialAsset materialAsset = LoadPreviewMaterialAsset(fullPath, platformId);
             if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
+                MaterialAssetProcessorSettings platformSettings;
+                if (MaterialSettingsService.TryLoadPlatformSettings(fullPath, platformId, out platformSettings) && platformSettings != null) {
+                    return BuildPreviewRuntimeMaterial(materialAsset, platformSettings);
+                }
+
                 throw new InvalidOperationException("Material asset did not provide a shader asset id.");
             }
 
@@ -306,6 +318,180 @@ namespace helengine.editor {
             RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
             ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);
             return runtimeMaterial;
+        }
+
+        /// <summary>
+        /// Loads one preview material asset for the requested platform, migrating legacy binary material assets when the authored file predates settings documents.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to the authored material asset.</param>
+        /// <param name="platformId">Preview platform whose effective material payload should be resolved.</param>
+        /// <returns>Runtime-facing material asset ready for editor preview loading.</returns>
+        MaterialAsset LoadPreviewMaterialAsset(string fullPath, string platformId) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Material path must be provided.", nameof(fullPath));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            MaterialAsset settingsMaterialAsset = null;
+            InvalidOperationException settingsLoadException = null;
+            try {
+                settingsMaterialAsset = MaterialSettingsService.LoadMaterialAsset(fullPath, platformId);
+            } catch (InvalidOperationException ex) {
+                settingsLoadException = ex;
+            }
+
+            if (settingsLoadException != null) {
+                MaterialAsset migratedMaterialAsset = TryMigrateLegacyMaterialAsset(fullPath, platformId);
+                if (migratedMaterialAsset != null) {
+                    return migratedMaterialAsset;
+                }
+
+                throw settingsLoadException;
+            }
+
+            return settingsMaterialAsset;
+        }
+
+        /// <summary>
+        /// Attempts to migrate one legacy binary material asset into the current settings-document format and reload it for the requested preview platform.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to the authored material asset.</param>
+        /// <param name="platformId">Preview platform whose effective material payload should be resolved after migration.</param>
+        /// <returns>Migrated runtime-facing material asset, or null when the file is not a legacy binary material asset.</returns>
+        MaterialAsset TryMigrateLegacyMaterialAsset(string fullPath, string platformId) {
+            MaterialAsset legacyMaterialAsset = TryLoadLegacyBinaryMaterialAsset(fullPath);
+            if (legacyMaterialAsset == null) {
+                return null;
+            }
+
+            IReadOnlyList<string> supportedPlatforms = new EditorProjectPlatformsService(ProjectRootPath).Load().SupportedPlatforms;
+            AvailablePlatformProviderResolver availablePlatformResolver = new AvailablePlatformProviderResolver(
+                new PlatformDiscoveryOptions(ProjectRootPath),
+                new WindowsLauncherInstallRootLocator());
+            EditorPlatformCatalogService platformCatalogService = new EditorPlatformCatalogService(
+                availablePlatformResolver.LoadPlatforms(LoadRequiredEngineVersion()));
+            MaterialSettingsService.LoadOrCreate(
+                fullPath,
+                legacyMaterialAsset,
+                supportedPlatforms,
+                platformCatalogService.ResolveSelectionModel);
+            return MaterialSettingsService.LoadMaterialAsset(fullPath, platformId);
+        }
+
+        /// <summary>
+        /// Attempts to deserialize one authored material file as a legacy binary material asset.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to the authored material asset.</param>
+        /// <returns>Legacy binary material asset, or null when the file is already a settings document or another asset type.</returns>
+        MaterialAsset TryLoadLegacyBinaryMaterialAsset(string fullPath) {
+            try {
+                using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                return AssetSerializer.Deserialize(stream) as MaterialAsset;
+            } catch {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Loads the required engine version declared by the current project file.
+        /// </summary>
+        /// <returns>Exact engine version required by the current project.</returns>
+        string LoadRequiredEngineVersion() {
+            string projectFilePath = new helengine.projectfile.ProjectFilePathResolver().Resolve(ProjectRootPath);
+            helengine.projectfile.ProjectFileReadResult readResult = new helengine.projectfile.ProjectFileReader().ReadAsync(projectFilePath).GetAwaiter().GetResult();
+            if (!readResult.Succeeded || readResult.Document == null || string.IsNullOrWhiteSpace(readResult.Document.RequiredEngineVersion)) {
+                throw new InvalidOperationException("The current project file did not provide a required engine version.");
+            }
+
+            return readResult.Document.RequiredEngineVersion;
+        }
+
+        /// <summary>
+        /// Builds one shader-backed preview runtime material for authored fixed-pipeline material settings that do not expose one direct shader asset id.
+        /// </summary>
+        /// <param name="materialAsset">Authored material asset carrying the stable asset id that must survive scene serialization.</param>
+        /// <param name="platformSettings">Effective platform settings document used to extract preview-facing values such as base color.</param>
+        /// <returns>Shader-backed preview runtime material that preserves the authored material asset id.</returns>
+        RuntimeMaterial BuildPreviewRuntimeMaterial(MaterialAsset materialAsset, MaterialAssetProcessorSettings platformSettings) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+            if (platformSettings == null) {
+                throw new ArgumentNullException(nameof(platformSettings));
+            }
+
+            MaterialAsset previewMaterialAsset = new MaterialAsset {
+                Id = materialAsset.Id,
+                ShaderAssetId = StandardShaderAssetId,
+                VertexProgram = StandardVertexProgramName,
+                PixelProgram = StandardPixelProgramName,
+                Variant = StandardMeshVariantName,
+                ConstantBuffers = new[] {
+                    new MaterialConstantBufferAsset {
+                        Name = StandardMaterialBaseColorDefaults.BaseColorBufferName,
+                        Data = StandardMaterialBaseColorDefaults.CreateConstantBufferData(ResolvePreviewBaseColor(platformSettings))
+                    }
+                },
+                CastsShadows = materialAsset.CastsShadows,
+                ReceivesShadows = materialAsset.ReceivesShadows
+            };
+
+            ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAsset(StandardShaderAssetId);
+            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(previewMaterialAsset, shaderAsset);
+            StandardMaterialTextureBindingDefaults.Apply(runtimeMaterial);
+            return runtimeMaterial;
+        }
+
+        /// <summary>
+        /// Resolves one preview base color from the effective fixed-pipeline platform settings.
+        /// </summary>
+        /// <param name="platformSettings">Effective platform settings that may publish one HTML-style base-color field.</param>
+        /// <returns>Preview base color, or opaque white when the settings omit or corrupt the field.</returns>
+        float4 ResolvePreviewBaseColor(MaterialAssetProcessorSettings platformSettings) {
+            if (platformSettings == null || platformSettings.FieldValues == null) {
+                return new float4(1f, 1f, 1f, 1f);
+            }
+
+            string colorValue;
+            if (!platformSettings.FieldValues.TryGetValue(BaseColorFieldId, out colorValue) || string.IsNullOrWhiteSpace(colorValue)) {
+                return new float4(1f, 1f, 1f, 1f);
+            }
+
+            return ParseHtmlColor(colorValue);
+        }
+
+        /// <summary>
+        /// Parses one HTML color string into normalized float components.
+        /// </summary>
+        /// <param name="colorValue">HTML-style color string to parse.</param>
+        /// <returns>Normalized float color representation.</returns>
+        static float4 ParseHtmlColor(string colorValue) {
+            if (string.IsNullOrWhiteSpace(colorValue) || colorValue[0] != '#') {
+                return new float4(1f, 1f, 1f, 1f);
+            }
+
+            try {
+                if (colorValue.Length == 7) {
+                    byte red = byte.Parse(colorValue.Substring(1, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+                    byte green = byte.Parse(colorValue.Substring(3, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+                    byte blue = byte.Parse(colorValue.Substring(5, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+                    return new float4(red / 255f, green / 255f, blue / 255f, 1f);
+                }
+
+                if (colorValue.Length == 9) {
+                    byte red = byte.Parse(colorValue.Substring(1, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+                    byte green = byte.Parse(colorValue.Substring(3, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+                    byte blue = byte.Parse(colorValue.Substring(5, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+                    byte alpha = byte.Parse(colorValue.Substring(7, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+                    return new float4(red / 255f, green / 255f, blue / 255f, alpha / 255f);
+                }
+            } catch (FormatException) {
+            } catch (OverflowException) {
+            }
+
+            return new float4(1f, 1f, 1f, 1f);
         }
 
         /// <summary>
