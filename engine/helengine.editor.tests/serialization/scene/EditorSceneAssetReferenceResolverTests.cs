@@ -246,6 +246,36 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures scene loading prefers the Windows preview material path when the project's active platform cannot supply one shader-backed runtime material.
+        /// </summary>
+        [Fact]
+        public void ResolveMaterial_WhenActivePlatformLacksPreviewShader_PrefersWindowsPreviewPlatform() {
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
+            WriteMaterialSettingsDocument(materialRelativePath, CreatePreviewAndFixedPipelineMaterialSettings("#336699"));
+            new EditorProjectPlatformsService(TempProjectRootPath).Save(new EditorProjectPlatformsDocument {
+                SupportedPlatforms = ["windows", "ps2"]
+            });
+            new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows", "ps2"]).SaveActivePlatform("ps2");
+            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorProjectPaths.Initialize(TempProjectRootPath);
+            using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
+            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
+
+            RuntimeMaterial material = resolver.ResolveMaterial(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = materialRelativePath
+            });
+
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            MaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
+
+            Assert.NotNull(material);
+            Assert.Equal("ForwardStandardShader", builtMaterialAsset.ShaderAssetId);
+        }
+
+        /// <summary>
         /// Creates one asset import manager that can import `.obj` source files for the current resolver test project.
         /// </summary>
         /// <returns>Configured asset import manager.</returns>
@@ -383,6 +413,40 @@ namespace helengine.editor.tests.serialization.scene {
                     ["casts-shadow"] = "true",
                     ["receives-shadow"] = "true",
                     ["base-color"] = "#ffffff"
+                }
+            };
+            return settings;
+        }
+
+        /// <summary>
+        /// Creates one multi-platform material settings payload with a Windows preview shader path and one fixed-pipeline PS2 fallback that lacks direct shader metadata.
+        /// </summary>
+        /// <param name="baseColor">Authored base color in editor HTML hex form.</param>
+        /// <returns>Material settings payload that reproduces editor preview platform selection regressions.</returns>
+        MaterialAssetImportSettings CreatePreviewAndFixedPipelineMaterialSettings(string baseColor) {
+            if (string.IsNullOrWhiteSpace(baseColor)) {
+                throw new ArgumentException("Base color must be provided.", nameof(baseColor));
+            }
+
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+            settings.Importer.ImporterId = "helengine.material";
+            settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+                SchemaId = "standard-shader",
+                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["use-custom-shader"] = "false",
+                    ["texture-id"] = string.Empty,
+                    ["casts-shadow"] = "true",
+                    ["receives-shadow"] = "true",
+                    ["base-color"] = baseColor
+                }
+            };
+            settings.Processor.Platforms["ps2"] = new MaterialAssetProcessorSettings {
+                SchemaId = "ps2-simple-lit-textured",
+                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["texture-id"] = string.Empty,
+                    ["casts-shadow"] = "true",
+                    ["receives-shadow"] = "true",
+                    ["base-color"] = baseColor
                 }
             };
             return settings;

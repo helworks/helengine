@@ -115,6 +115,10 @@ namespace helengine.editor {
         /// </summary>
         const string SceneMapDraftTargetMemberName = "DraftTargetSceneId";
         /// <summary>
+        /// Preferred preview platform used when file-backed materials need one shader-backed editor runtime path.
+        /// </summary>
+        const string PreferredEditorPreviewPlatformId = "windows";
+        /// <summary>
         /// Extension used for font assets.
         /// </summary>
         static readonly string[] FontExtensions = new[] { ".ttf", ".otf" };
@@ -2287,9 +2291,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the active project platform used when file-backed material assets are previewed from the component inspector.
+        /// Resolves the preview platform used when file-backed material assets are previewed from the component inspector.
         /// </summary>
-        /// <returns>Active project platform identifier.</returns>
+        /// <returns>Preferred preview platform identifier, or the active/first supported platform when Windows preview is unavailable.</returns>
         string ResolveActiveProjectPlatformId() {
             string projectRootPath = EditorProjectPaths.ProjectRoot;
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
@@ -2299,6 +2303,12 @@ namespace helengine.editor {
             EditorProjectPlatformsDocument platformsDocument = new EditorProjectPlatformsService(projectRootPath).Load();
             if (platformsDocument.SupportedPlatforms.Count == 0) {
                 throw new InvalidOperationException("At least one supported project platform must exist before file-backed materials can be loaded.");
+            }
+
+            for (int index = 0; index < platformsDocument.SupportedPlatforms.Count; index++) {
+                if (string.Equals(platformsDocument.SupportedPlatforms[index], PreferredEditorPreviewPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    return platformsDocument.SupportedPlatforms[index];
+                }
             }
 
             string activePlatformId = new EditorProjectLocalSettingsService(projectRootPath, platformsDocument.SupportedPlatforms).LoadActivePlatform();

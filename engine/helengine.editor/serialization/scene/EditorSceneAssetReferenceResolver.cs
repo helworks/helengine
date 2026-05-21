@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public class EditorSceneAssetReferenceResolver : ISceneAssetReferenceResolver {
         /// <summary>
+        /// Preferred preview platform used when file-backed materials need one shader-backed editor runtime path.
+        /// </summary>
+        const string PreferredEditorPreviewPlatformId = "windows";
+
+        /// <summary>
         /// Generated provider id reserved for the editor's built-in font asset.
         /// </summary>
         const string EditorGeneratedProviderId = "editor";
@@ -322,14 +327,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
-         /// Resolves the active project platform that should drive file-backed material settings during editor scene loading.
+         /// Resolves the preview platform that should drive file-backed material settings during editor scene loading.
          /// </summary>
-        /// <returns>Active project platform identifier, or the first supported platform when no explicit active platform is available.</returns>
+        /// <returns>Preferred preview platform identifier, or the active/first supported platform when Windows preview is unavailable.</returns>
         string ResolveActiveProjectPlatformId() {
             EditorProjectPlatformsDocument platformsDocument = new EditorProjectPlatformsService(ProjectRootPath).Load();
             IReadOnlyList<string> supportedPlatforms = platformsDocument.SupportedPlatforms;
             if (supportedPlatforms.Count == 0) {
                 return string.Empty;
+            }
+
+            for (int index = 0; index < supportedPlatforms.Count; index++) {
+                if (string.Equals(supportedPlatforms[index], PreferredEditorPreviewPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    return supportedPlatforms[index];
+                }
             }
 
             string activePlatformId = new EditorProjectLocalSettingsService(ProjectRootPath, supportedPlatforms).LoadActivePlatform();

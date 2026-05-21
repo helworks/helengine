@@ -191,6 +191,48 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures file-backed material picks prefer the Windows preview platform when the active platform cannot supply one shader-backed runtime material.
+        /// </summary>
+        [Fact]
+        public void HandleMaterialPicked_WhenActivePlatformLacksPreviewShader_PrefersWindowsPreviewPlatform() {
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
+            string materialFullPath = WriteMaterialSettingsDocument(materialRelativePath, CreatePreviewAndFixedPipelineMaterialSettings("#336699"));
+            new EditorProjectPlatformsService(TempRootPath).Save(new EditorProjectPlatformsDocument {
+                SupportedPlatforms = ["windows", "ps2"]
+            });
+            new EditorProjectLocalSettingsService(TempRootPath, ["windows", "ps2"]).SaveActivePlatform("ps2");
+            EditorProjectPaths.Initialize(TempRootPath);
+            ContentManager contentManager = new ContentManager(TempRootPath);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
+            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+
+            MeshComponent meshComponent = new MeshComponent();
+            EditorEntity entity = CreateEntityWithComponent(meshComponent);
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), contentManager);
+            view.ShowComponents(entity);
+
+            ComponentPropertyRow materialRow = FindMaterialRow(view);
+            MethodInfo handleMaterialPicked = typeof(ComponentPropertiesView).GetMethod("HandleMaterialPicked", BindingFlags.Instance | BindingFlags.NonPublic);
+            handleMaterialPicked.Invoke(view, new object[] {
+                materialRow,
+                AssetBrowserEntry.CreateFileSystemFile("Cube00", materialRelativePath, materialFullPath, ".hasset", AssetEntryKind.Material)
+            });
+
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            MaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
+
+            Assert.NotNull(meshComponent.Material);
+            Assert.Equal("Cube00", materialRow.ValueText.Text);
+            Assert.Equal("ForwardStandardShader", builtMaterialAsset.ShaderAssetId);
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            Assert.True(saveComponent.TryGetComponentState(meshComponent, out EntityComponentSaveState saveState));
+            Assert.True(saveState.TryGetAssetReference("Material", out SceneAssetReference reference));
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, reference.SourceKind);
+            Assert.Equal(materialRelativePath, reference.RelativePath);
+        }
+
+        /// <summary>
         /// Creates one entity and attaches the supplied component so the properties view can inspect it.
         /// </summary>
         /// <param name="component">Component to add to the entity.</param>
@@ -258,6 +300,92 @@ namespace helengine.editor.tests {
                 16f,
                 64,
                 64);
+        }
+
+        /// <summary>
+        /// Creates a disposable shader module manager for file-backed material preview tests.
+        /// </summary>
+        /// <returns>Shader module manager rooted under the temporary test content tree.</returns>
+        ShaderModuleManager CreateShaderModuleManager() {
+            string shaderRootPath = Path.Combine(TempRootPath, "assets", "Shaders");
+            string packageOutputPath = Path.Combine(TempRootPath, "cache", "shader-cache");
+            Directory.CreateDirectory(shaderRootPath);
+            Directory.CreateDirectory(packageOutputPath);
+
+            ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(ShaderCompileTarget.DirectX11, new ShaderModel(4, 0));
+            ShaderPackageBuildOptions buildOptions = new ShaderPackageBuildOptions(
+                new[] { targetOptions },
+                ShaderBindingPolicies.Default,
+                true,
+                false,
+                false,
+                Array.Empty<ShaderDefine>());
+            ShaderModuleManagerOptions options = new ShaderModuleManagerOptions(
+                shaderRootPath,
+                packageOutputPath,
+                buildOptions,
+                ShaderCompileTarget.DirectX11,
+                100);
+            return new ShaderModuleManager(options);
+        }
+
+        /// <summary>
+        /// Writes one authored material settings document directly to the material `.hasset` path.
+        /// </summary>
+        /// <param name="relativePath">Project-relative material path whose authored document should be written.</param>
+        /// <param name="settings">Material settings payload to persist.</param>
+        /// <returns>Absolute path to the written material settings document.</returns>
+        string WriteMaterialSettingsDocument(string relativePath, MaterialAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string materialFullPath = Path.Combine(TempRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(materialFullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Material directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            settingsService.Save(materialFullPath, settings);
+            return materialFullPath;
+        }
+
+        /// <summary>
+        /// Creates one multi-platform material settings payload with a Windows preview shader path and one fixed-pipeline PS2 fallback that lacks direct shader metadata.
+        /// </summary>
+        /// <param name="baseColor">Authored base color in editor HTML hex form.</param>
+        /// <returns>Material settings payload that reproduces editor preview platform selection regressions.</returns>
+        MaterialAssetImportSettings CreatePreviewAndFixedPipelineMaterialSettings(string baseColor) {
+            if (string.IsNullOrWhiteSpace(baseColor)) {
+                throw new ArgumentException("Base color must be provided.", nameof(baseColor));
+            }
+
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+            settings.Importer.ImporterId = "helengine.material";
+            settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+                SchemaId = "standard-shader",
+                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["use-custom-shader"] = "false",
+                    ["texture-id"] = string.Empty,
+                    ["casts-shadow"] = "true",
+                    ["receives-shadow"] = "true",
+                    ["base-color"] = baseColor
+                }
+            };
+            settings.Processor.Platforms["ps2"] = new MaterialAssetProcessorSettings {
+                SchemaId = "ps2-simple-lit-textured",
+                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["texture-id"] = string.Empty,
+                    ["casts-shadow"] = "true",
+                    ["receives-shadow"] = "true",
+                    ["base-color"] = baseColor
+                }
+            };
+            return settings;
         }
     }
 }
