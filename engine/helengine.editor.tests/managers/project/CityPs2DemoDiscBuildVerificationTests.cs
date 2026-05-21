@@ -15,10 +15,10 @@ public sealed class CityPs2DemoDiscBuildVerificationTests {
     const string CityProjectRootPath = @"C:\dev\helprojs\city";
 
     /// <summary>
-    /// Ensures the copied city PS2 build uses the generated boot scene, includes the playable rendering lineup, and excludes Nintendo DS scene ids.
+    /// Ensures the copied city PS2 build starts directly at the demo-disc main menu, includes the playable rendering lineup, and excludes Nintendo DS scene ids.
     /// </summary>
     [Fact]
-    public void Cook_WhenCityPs2BuildUsesPlayableDemoDiscSceneSet_UsesGeneratedBootSceneAndExcludesDsSceneIds() {
+    public void Cook_WhenCityPs2BuildUsesPlayableDemoDiscSceneSet_UsesMainMenuStartupAndExcludesDsSceneIds() {
         string workspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-city-ps2-build-tests", Guid.NewGuid().ToString("N"));
         string projectRootPath = Path.Combine(workspaceRootPath, "project");
         string buildRootPath = Path.Combine(workspaceRootPath, "build");
@@ -35,7 +35,7 @@ public sealed class CityPs2DemoDiscBuildVerificationTests {
             EditorBuildQueueItemFactory queueItemFactory = new EditorBuildQueueItemFactory(bootstrap.SceneCatalogService);
             EditorBuildQueueItemDocument queueItem = queueItemFactory.Create(platformConfig, selectionModel, buildRootPath);
 
-            Assert.Equal(PlatformMenuSceneResolver.GeneratedBootSceneId, queueItem.SelectedSceneIds[0]);
+            Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, queueItem.SelectedSceneIds[0]);
             Assert.Contains(PlatformMenuSceneResolver.DesktopMainMenuSceneId, queueItem.SelectedSceneIds);
             Assert.Contains("cube_test", queueItem.SelectedSceneIds);
             Assert.Contains("scaled_cube", queueItem.SelectedSceneIds);
@@ -70,8 +70,8 @@ public sealed class CityPs2DemoDiscBuildVerificationTests {
                 queueItem.SelectedBuildProfileId,
                 queueItem.SelectedGraphicsProfileId);
 
-            Assert.Equal(PlatformMenuSceneResolver.GeneratedBootSceneId, manifest.StartupSceneId);
-            Assert.Contains(manifest.Scenes, scene => string.Equals(scene.SceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal));
+            Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, manifest.StartupSceneId);
+            Assert.DoesNotContain(manifest.Scenes, scene => string.Equals(scene.SceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal));
             Assert.Contains(manifest.Scenes, scene => string.Equals(scene.SceneId, PlatformMenuSceneResolver.DesktopMainMenuSceneId, StringComparison.Ordinal));
             Assert.Contains(manifest.Scenes, scene => string.Equals(scene.SceneId, "cube_test", StringComparison.Ordinal));
             Assert.Contains(manifest.Scenes, scene => string.Equals(scene.SceneId, "scaled_cube", StringComparison.Ordinal));
