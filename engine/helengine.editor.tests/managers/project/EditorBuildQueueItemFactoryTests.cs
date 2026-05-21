@@ -101,10 +101,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures PS2 queued builds insert the generated boot scene first even when it was not selected explicitly.
+        /// Ensures PS2 queued demo-disc builds start directly at the main menu scene instead of routing through the generated boot scene.
         /// </summary>
         [Fact]
-        public void Create_WhenPs2BuildOmitsGeneratedBootScene_InsertsItAsStartupScene() {
+        public void Create_WhenPs2BuildTargetsDemoDiscMainMenu_UsesMainMenuAsStartupScene() {
             WriteScene("Scenes/DemoDiscMainMenu.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
 
@@ -121,7 +121,7 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreatePs2SelectionModel());
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "GeneratedBootScene", "DemoDiscMainMenu", "cube_test" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "DemoDiscMainMenu", "cube_test" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
@@ -149,7 +149,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures PS2 queued builds do not include Nintendo DS companion scenes when the selected authored scene has one.
+        /// Ensures PS2 queued builds do not include Nintendo DS companion scenes and keep the main menu as the startup scene.
         /// </summary>
         [Fact]
         public void Create_WhenPs2BuildSelectsSceneWithGeneratedCompanion_DoesNotIncludeNintendoDsCompanionScene() {
@@ -170,12 +170,12 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreatePs2SelectionModel());
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "GeneratedBootScene", "DemoDiscMainMenu", "cube_test" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "DemoDiscMainMenu", "cube_test" }, queueItem.SelectedSceneIds);
             Assert.DoesNotContain("cube_test_ds", queueItem.SelectedSceneIds);
         }
 
         /// <summary>
-        /// Ensures one blank PS2 scene selection falls back to the project scene catalog and inserts the generated boot scene first.
+        /// Ensures one blank PS2 scene selection falls back to the project scene catalog without inserting an unrelated startup scene.
         /// </summary>
         [Fact]
         public void Create_WhenPlatformConfigOmitsSceneSelection_SeedsProjectScenes() {
@@ -191,7 +191,7 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "GeneratedBootScene", "A", "B" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "A", "B" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>

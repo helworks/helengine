@@ -16,14 +16,14 @@ namespace helengine.editor {
         const string WindowsStartupSceneId = PlatformMenuSceneResolver.GeneratedBootSceneId;
 
         /// <summary>
-        /// Stores the PlayStation 2 platform id that routes startup through the generated boot scene.
+        /// Stores the PlayStation 2 platform id that routes startup directly to the demo-disc main menu scene.
         /// </summary>
         const string Playstation2PlatformId = "ps2";
 
         /// <summary>
         /// Stores the project scene id that PlayStation 2 builds must stage first as their startup scene.
         /// </summary>
-        const string Playstation2StartupSceneId = PlatformMenuSceneResolver.GeneratedBootSceneId;
+        const string Playstation2StartupSceneId = PlatformMenuSceneResolver.DesktopMainMenuSceneId;
 
         /// <summary>
         /// Stores the Nintendo DS platform id that forces the demo-disc main menu to become the startup scene.
