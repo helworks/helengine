@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Stores authored static triangle-mesh collision data for editor and serialization compatibility.
+    /// Stores one cooked static triangle-mesh collision blob in a compact vertex and index form.
     /// </summary>
     public sealed class StaticMeshCollisionData3D {
         /// <summary>
@@ -24,7 +24,7 @@ namespace helengine {
         public int[] Indices { get; }
 
         /// <summary>
-        /// Gets the number of triangles stored in this authored blob.
+        /// Gets the number of triangles stored in this cooked blob.
         /// </summary>
         public int TriangleCount => Indices.Length / 3;
 

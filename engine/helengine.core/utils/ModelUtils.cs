@@ -4,6 +4,21 @@ namespace helengine {
     /// </summary>
     public class ModelUtils {
         /// <summary>
+        /// Stable model asset id assigned to generated cube primitives so runtime caches can safely share cube geometry.
+        /// </summary>
+        public const string GeneratedCubeModelId = "engine:model:cube";
+
+        /// <summary>
+        /// Stable model asset id assigned to generated plane primitives so runtime caches can keep plane geometry distinct from other primitives.
+        /// </summary>
+        public const string GeneratedPlaneModelId = "engine:model:plane";
+
+        /// <summary>
+        /// Stable model asset id assigned to generated sphere primitives so runtime caches can keep sphere geometry distinct from other primitives.
+        /// </summary>
+        public const string GeneratedSphereModelId = "engine:model:sphere";
+
+        /// <summary>
         /// Default longitudinal segment count used by the generated sphere primitive.
         /// </summary>
         const int SphereLongitudeSegmentCount = 24;
@@ -21,7 +36,7 @@ namespace helengine {
         /// <returns>Generated model asset.</returns>
         public static ModelAsset GenerateCubeMesh(float3 position, float3 scale) {
             ModelAsset modelData = new ModelAsset();
-            modelData.Id = new Guid().ToString();
+            modelData.Id = GeneratedCubeModelId;
 
             float3[] positions = [
                 // Back face
@@ -92,7 +107,7 @@ namespace helengine {
         /// <returns>Generated model asset.</returns>
         public static ModelAsset GenerateSphereMesh(float3 position, float3 scale) {
             ModelAsset modelData = new ModelAsset();
-            modelData.Id = new Guid().ToString();
+            modelData.Id = GeneratedSphereModelId;
 
             int vertexCount = (SphereLatitudeSegmentCount + 1) * (SphereLongitudeSegmentCount + 1);
             int indexCount = SphereLatitudeSegmentCount * SphereLongitudeSegmentCount * 6;
@@ -157,7 +172,7 @@ namespace helengine {
         /// <returns>Generated model asset.</returns>
         public static ModelAsset GeneratePlaneMesh(float3 position, float3 scale) {
             ModelAsset modelData = new ModelAsset();
-            modelData.Id = new Guid().ToString();
+            modelData.Id = GeneratedPlaneModelId;
 
             float3[] positions = [
                 // Top face aligned to the XZ plane

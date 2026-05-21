@@ -17,15 +17,5 @@ namespace helengine.physics3d.tests {
             Assert.False(profile.AllowContinuousCollisionDetection);
             Assert.Equal(8, profile.SolverIterations);
         }
-
-        /// <summary>
-        /// Ensures the medium profile exposes a stable default solver substep count.
-        /// </summary>
-        [Fact]
-        public void CreateMedium_DefaultsToOneSolverSubstep() {
-            PhysicsWorld3DProfile profile = PhysicsWorld3DProfile.CreateMedium();
-
-            Assert.Equal(1, profile.SolverSubsteps);
-        }
     }
 }

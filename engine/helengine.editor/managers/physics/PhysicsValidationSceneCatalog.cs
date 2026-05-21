@@ -4,17 +4,17 @@ namespace helengine.editor {
     /// </summary>
     public static class PhysicsValidationSceneCatalog {
         /// <summary>
-        /// Legacy relative scene id retained only so stale callers receive a clear unsupported-scene failure.
+        /// Relative scene id for the character slope validation scene.
         /// </summary>
         public const string CharacterSlopeSceneId = "scenes/physics/test_scene_character_slope.helen";
 
         /// <summary>
-        /// Legacy relative scene id retained only so stale callers receive a clear unsupported-scene failure.
+        /// Relative scene id for the character steps validation scene.
         /// </summary>
         public const string CharacterStepsSceneId = "scenes/physics/test_scene_character_steps.helen";
 
         /// <summary>
-        /// Legacy relative scene id retained only so stale callers receive a clear unsupported-scene failure.
+        /// Relative scene id for the character moving-platform validation scene.
         /// </summary>
         public const string CharacterMovingPlatformSceneId = "scenes/physics/test_scene_character_moving_platform.helen";
 
@@ -24,22 +24,22 @@ namespace helengine.editor {
         public const string DynamicStackBoxesSceneId = "scenes/physics/test_scene_dynamic_stack_boxes.helen";
 
         /// <summary>
-        /// Legacy relative scene id retained only so stale callers receive a clear unsupported-scene failure.
+        /// Relative scene id for the sphere-ramp validation scene.
         /// </summary>
         public const string DynamicSphereRampSceneId = "scenes/physics/test_scene_dynamic_sphere_ramp.helen";
 
         /// <summary>
-        /// Legacy relative scene id retained only so stale callers receive a clear unsupported-scene failure.
+        /// Relative scene id for the kinematic push validation scene.
         /// </summary>
         public const string KinematicPushSceneId = "scenes/physics/test_scene_kinematic_push.helen";
 
         /// <summary>
-        /// Legacy relative scene id retained only so stale callers receive a clear unsupported-scene failure.
+        /// Relative scene id for the static-mesh ground stability validation scene.
         /// </summary>
         public const string MeshGroundStabilitySceneId = "scenes/physics/test_scene_mesh_ground_stability.helen";
 
         /// <summary>
-        /// Legacy relative scene id retained only so stale callers receive a clear unsupported-scene failure.
+        /// Relative scene id for the trigger-volume validation scene.
         /// </summary>
         public const string TriggerVolumeSceneId = "scenes/physics/test_scene_trigger_volume.helen";
 
@@ -47,7 +47,14 @@ namespace helengine.editor {
         /// Stable ordered list of authored physics validation scene ids.
         /// </summary>
         static readonly string[] SceneIds = new[] {
-            DynamicStackBoxesSceneId
+            CharacterSlopeSceneId,
+            CharacterStepsSceneId,
+            CharacterMovingPlatformSceneId,
+            DynamicStackBoxesSceneId,
+            DynamicSphereRampSceneId,
+            KinematicPushSceneId,
+            MeshGroundStabilitySceneId,
+            TriggerVolumeSceneId
         };
 
         /// <summary>

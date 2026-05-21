@@ -67,6 +67,23 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures generated primitive assets expose stable distinct identifiers so runtime caches do not merge different primitive meshes.
+        /// </summary>
+        [Fact]
+        public void GeneratePrimitiveMeshes_WhenCreated_AssignStableDistinctModelIds() {
+            ModelAsset plane = ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
+            ModelAsset cube = ModelUtils.GenerateCubeMesh(float3.Zero, float3.One);
+            ModelAsset sphere = ModelUtils.GenerateSphereMesh(float3.Zero, float3.One);
+
+            Assert.Equal("engine:model:plane", plane.Id);
+            Assert.Equal("engine:model:cube", cube.Id);
+            Assert.Equal("engine:model:sphere", sphere.Id);
+            Assert.NotEqual(plane.Id, cube.Id);
+            Assert.NotEqual(plane.Id, sphere.Id);
+            Assert.NotEqual(cube.Id, sphere.Id);
+        }
+
+        /// <summary>
         /// Verifies that every indexed triangle in one generated model asset has a geometric face normal aligned with its authored vertex normals.
         /// </summary>
         /// <param name="model">Generated model asset to validate.</param>

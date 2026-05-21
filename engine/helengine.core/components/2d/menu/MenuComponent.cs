@@ -334,7 +334,7 @@ namespace helengine {
 
             MenuItemRuntime selectedItem = panelRuntime.Items[itemIndex];
             SelectedItemIdValue = selectedItem.Definition.ItemId;
-            panelRuntime.SelectedDescriptionText.Text = selectedItem.Definition.Description;
+            //panelRuntime.SelectedDescriptionText.Text = selectedItem.Definition.Description;
             EnsureSelectedItemVisible(panelRuntime, itemIndex);
             ApplyItemsScrollOffset(panelRuntime.ItemsRootEntity, panelRuntime.ItemsScrollComponent.ScrollOffset);
         }

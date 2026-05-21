@@ -298,17 +298,17 @@ namespace helengine.editor {
         /// <summary>
         /// Stable generated model asset id for the built-in cube primitive.
         /// </summary>
-        const string CubeGeneratedAssetId = "engine:model:cube";
+        const string CubeGeneratedAssetId = EngineGeneratedModelCache.CubeAssetId;
 
         /// <summary>
         /// Stable generated model asset id for the built-in plane primitive.
         /// </summary>
-        const string PlaneGeneratedAssetId = "engine:model:plane";
+        const string PlaneGeneratedAssetId = EngineGeneratedModelCache.PlaneAssetId;
 
         /// <summary>
         /// Stable generated model asset id for the built-in sphere primitive.
         /// </summary>
-        const string SphereGeneratedAssetId = "engine:model:sphere";
+        const string SphereGeneratedAssetId = EngineGeneratedModelCache.SphereAssetId;
 
         /// <summary>
         /// Stable generated material asset id for the built-in standard material.

@@ -19,7 +19,11 @@ namespace helengine {
 
             core.RegisterRuntimeComponentDeserializer(new RuntimeRigidBody3DComponentDeserializer());
             core.RegisterRuntimeComponentDeserializer(new RuntimeBoxCollider3DComponentDeserializer());
+            core.RegisterRuntimeComponentDeserializer(new RuntimeSphereCollider3DComponentDeserializer());
+            core.RegisterRuntimeComponentDeserializer(new RuntimeCapsuleCollider3DComponentDeserializer());
+            core.RegisterRuntimeComponentDeserializer(new RuntimeStaticMeshCollider3DComponentDeserializer());
             core.RegisterRuntimeComponentDeserializer(new RuntimeKinematicMotion3DComponentDeserializer());
+            core.RegisterRuntimeComponentDeserializer(new RuntimeCharacterController3DComponentDeserializer());
 
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             RuntimeWorld = world;
