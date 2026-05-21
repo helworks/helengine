@@ -20,6 +20,7 @@ namespace helengine.editor.tests {
         /// Initializes the runtime services required by the component tests.
         /// </summary>
         public DebugComponentTests() {
+            DebugComponent.ClearAdditionalLines();
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-debug-component-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
@@ -34,6 +35,7 @@ namespace helengine.editor.tests {
         /// Deletes temporary test content after each run.
         /// </summary>
         public void Dispose() {
+            DebugComponent.ClearAdditionalLines();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -63,6 +65,86 @@ namespace helengine.editor.tests {
                 TextComponent textComponent = Assert.Single(overlayHost.Children[index].Components.OfType<TextComponent>());
                 Assert.Same(font, textComponent.Font);
             }
+        }
+
+        /// <summary>
+        /// Ensures the debug overlay includes the measured render-manager draw duration next to render FPS.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenRefreshIntervalElapses_IncludesRenderDrawMilliseconds() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(debug);
+            CoreInstance.QueueMeasuredDrawMilliseconds(new[] { 30d });
+
+            Core.Instance.Update(0.05d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.05d);
+
+            Assert.Equal("Render FPS: 20.0 (30.0 ms)", debug.RenderFpsText);
+        }
+
+        /// <summary>
+        /// Ensures the debug overlay reports an unavailable draw duration instead of formatting invalid native timing as an integer overflow artifact.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenDrawMillisecondsAreInvalid_UsesDrawMillisecondsPlaceholder() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(debug);
+            CoreInstance.QueueMeasuredDrawMilliseconds(new[] { double.NaN });
+
+            Core.Instance.Update(0.05d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.05d);
+
+            Assert.Equal("Render FPS: 20.0 (-- ms)", debug.RenderFpsText);
+        }
+
+        /// <summary>
+        /// Ensures registered extra debug rows are rendered by every debug overlay and can be updated while the overlay is live.
+        /// </summary>
+        [Fact]
+        public void SetAdditionalLine_WhenDebugOverlayIsLive_DrawsRegisteredRows() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent.SetAdditionalLine("ds3d-a", "D3A 2D0.4 S0.2 Q0.1");
+            DebugComponent.SetAdditionalLine("ds3d-b", "D3B G7.8 F2.1 P0.6");
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(debug);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            Assert.Equal(7, overlayHost.Children.Count);
+            Assert.Equal("D3A 2D0.4 S0.2 Q0.1", Assert.Single(overlayHost.Children[5].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("D3B G7.8 F2.1 P0.6", Assert.Single(overlayHost.Children[6].Components.OfType<TextComponent>()).Text);
+
+            DebugComponent.SetAdditionalLine("ds3d-c", "D3C Tri1 Cam1");
+            DebugComponent.SetAdditionalLine("ds3d-a", "D3A 2D27.2 S0.2 Q0.0");
+
+            Assert.Equal(8, overlayHost.Children.Count);
+            Assert.Equal("D3A 2D27.2 S0.2 Q0.0", Assert.Single(overlayHost.Children[5].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("D3C Tri1 Cam1", Assert.Single(overlayHost.Children[7].Components.OfType<TextComponent>()).Text);
         }
 
         /// <summary>

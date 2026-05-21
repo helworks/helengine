@@ -67,19 +67,25 @@ namespace helengine.editor {
             string generatedCoreOutputRoot = Path.GetFullPath(generatedCoreRootPath);
             string helengineCoreProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.core", "helengine.core.csproj");
             string helengineInputProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.input", "helengine.input.csproj");
+            string helenginePhysics3DProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.physics3d", "helengine.physics3d.csproj");
             string bundledRuntimeSupportRootPath = Path.Combine(
                 Path.GetDirectoryName(fullCodegenToolPath) ?? throw new InvalidOperationException($"Unable to resolve the codegen tool directory from '{fullCodegenToolPath}'."),
                 ".net.cpp");
             string tempRoot = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformDefinition.PlatformId, Guid.NewGuid().ToString("N"));
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
+            string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
             string logPath = Path.Combine(tempRoot, "regeneration.log");
             StringBuilder logBuilder = new();
+            bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
 
             if (!File.Exists(helengineCoreProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.core project at '{helengineCoreProjectPath}'.", helengineCoreProjectPath);
             }
             if (!File.Exists(helengineInputProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.input project at '{helengineInputProjectPath}'.", helengineInputProjectPath);
+            }
+            if (shouldRegeneratePhysics3DProject && !File.Exists(helenginePhysics3DProjectPath)) {
+                throw new FileNotFoundException($"Could not find helengine.physics3d project at '{helenginePhysics3DProjectPath}'.", helenginePhysics3DProjectPath);
             }
             if (!File.Exists(fullCodegenToolPath)) {
                 throw new FileNotFoundException($"Could not find the bundled csharpcodegen executable at '{fullCodegenToolPath}'.", fullCodegenToolPath);
@@ -114,6 +120,19 @@ namespace helengine.editor {
                     logBuilder,
                     cancellationToken);
                 MergeGeneratedSourceTree(portableInputOutputRoot, generatedCoreOutputRoot);
+                if (shouldRegeneratePhysics3DProject) {
+                    RegenerateProject(
+                        fullCodegenToolPath,
+                        helenginePhysics3DProjectPath,
+                        physics3DOutputRoot,
+                        platformDefinition,
+                        codegenProfile,
+                        selectedCodegenOptionValues,
+                        combinedPreprocessorSymbols,
+                        logBuilder,
+                        cancellationToken);
+                    MergeGeneratedSourceTree(physics3DOutputRoot, generatedCoreOutputRoot);
+                }
                 MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
                 EnsureGeneratedRuntimeComponentDeserializerSupport(generatedCoreOutputRoot, platformDefinition.PlatformId);
                 WriteGeneratedCoreTranslationUnit(generatedCoreOutputRoot);
@@ -290,6 +309,26 @@ namespace helengine.editor {
             AddUniqueSymbols(combinedSymbols, firstSymbols);
             AddUniqueSymbols(combinedSymbols, secondSymbols);
             return combinedSymbols;
+        }
+
+        /// <summary>
+        /// Returns whether scene-derived preprocessor symbols require the 3D physics project in the generated native core.
+        /// </summary>
+        /// <param name="additionalPreprocessorSymbols">Scene-derived symbols forwarded to generated-core regeneration.</param>
+        /// <returns>True when physics scene features require native physics runtime sources.</returns>
+        internal static bool ShouldRegeneratePhysics3DProject(IReadOnlyList<string> additionalPreprocessorSymbols) {
+            if (additionalPreprocessorSymbols == null) {
+                throw new ArgumentNullException(nameof(additionalPreprocessorSymbols));
+            }
+
+            for (int index = 0; index < additionalPreprocessorSymbols.Count; index++) {
+                string symbol = additionalPreprocessorSymbols[index];
+                if (string.Equals(symbol, PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol, StringComparison.OrdinalIgnoreCase)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

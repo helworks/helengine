@@ -14,6 +14,16 @@ namespace helengine.editor {
         const string NintendoDsPlatformId = "ds";
 
         /// <summary>
+        /// Stable PlayStation 2 platform id used by shared startup routing.
+        /// </summary>
+        const string Playstation2PlatformId = "ps2";
+
+        /// <summary>
+        /// Stable PlayStation Portable platform id used by shared startup routing.
+        /// </summary>
+        const string PlaystationPortablePlatformId = "psp";
+
+        /// <summary>
         /// Absolute project root path that owns the assets directory.
         /// </summary>
         readonly string ProjectRootPath;
@@ -79,7 +89,9 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
 
-            if (string.Equals(platformId, WindowsPlatformId, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(platformId, WindowsPlatformId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, Playstation2PlatformId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, PlaystationPortablePlatformId, StringComparison.OrdinalIgnoreCase)) {
                 if (!ContainsSceneId(sceneIds, PlatformMenuSceneResolver.DesktopMainMenuSceneId)
                     && !ContainsSceneId(sceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId)) {
                     return null;

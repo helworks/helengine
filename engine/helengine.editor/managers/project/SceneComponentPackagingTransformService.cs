@@ -2447,7 +2447,40 @@ namespace helengine.editor {
                 return diffuseTextureAssetId;
             }
 
+            if (fieldValues != null &&
+                fieldValues.TryGetValue("texture-relative-path", out string textureRelativePath) &&
+                TryResolveImportedTextureAssetIdFromCookedRelativePath(textureRelativePath, out string cookedTextureAssetId)) {
+                return cookedTextureAssetId;
+            }
+
             return materialAsset.DiffuseTextureAssetId ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Extracts one imported texture asset id from a cooked runtime texture path saved by platform material settings.
+        /// </summary>
+        /// <param name="textureRelativePath">Runtime texture path stored in material cook fields.</param>
+        /// <param name="assetId">Resolved imported texture asset id when the path points at the imported texture directory.</param>
+        /// <returns>True when the cooked path references one imported texture cache asset.</returns>
+        static bool TryResolveImportedTextureAssetIdFromCookedRelativePath(string textureRelativePath, out string assetId) {
+            assetId = string.Empty;
+            if (string.IsNullOrWhiteSpace(textureRelativePath)) {
+                return false;
+            }
+
+            string normalizedPath = textureRelativePath.Replace('\\', '/');
+            string importedTexturePrefix = ImportedTextureDirectoryName + "/";
+            if (!normalizedPath.StartsWith(importedTexturePrefix, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
+            string candidateAssetId = normalizedPath.Substring(importedTexturePrefix.Length);
+            if (string.IsNullOrWhiteSpace(candidateAssetId) || candidateAssetId.Contains('/')) {
+                return false;
+            }
+
+            assetId = candidateAssetId;
+            return true;
         }
 
         /// <summary>

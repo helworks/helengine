@@ -14,6 +14,16 @@ namespace helengine {
         static readonly List<DebugComponent> ActiveComponents = new List<DebugComponent>();
 
         /// <summary>
+        /// Stores stable registration ids for extra debug rows in the order they should be displayed.
+        /// </summary>
+        static readonly List<string> AdditionalLineIds = new List<string>();
+
+        /// <summary>
+        /// Stores the current text for each registered extra debug row.
+        /// </summary>
+        static readonly Dictionary<string, string> AdditionalLinesById = new Dictionary<string, string>();
+
+        /// <summary>
         /// Font used by every overlay row.
         /// </summary>
         FontAsset FontValue;
@@ -54,6 +64,11 @@ namespace helengine {
         Entity Drawables3DRowHost;
 
         /// <summary>
+        /// Child entities that host runtime-registered extra debug rows.
+        /// </summary>
+        readonly List<Entity> AdditionalLineRowHosts;
+
+        /// <summary>
         /// Text component that displays render FPS.
         /// </summary>
         TextComponent RenderFpsTextComponent;
@@ -77,6 +92,11 @@ namespace helengine {
         /// Text component that displays the 3D drawable count and draw-call count.
         /// </summary>
         TextComponent Drawables3DTextComponent;
+
+        /// <summary>
+        /// Text components that display runtime-registered extra debug rows.
+        /// </summary>
+        readonly List<TextComponent> AdditionalLineTextComponents;
 
         /// <summary>
         /// Stores the elapsed-seconds marker for the current sampling window.
@@ -118,6 +138,8 @@ namespace helengine {
         /// </summary>
         public DebugComponent() {
             MemoryCountersValue = new RuntimeMemoryCounters();
+            AdditionalLineRowHosts = new List<Entity>();
+            AdditionalLineTextComponents = new List<TextComponent>();
             ResetSamplingWindow();
         }
 
@@ -259,6 +281,71 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Registers or updates one extra debug row that every active debug component should render beneath the built-in rows.
+        /// </summary>
+        /// <param name="id">Stable row id used to update the same row on later calls.</param>
+        /// <param name="text">Visible row text.</param>
+        public static void SetAdditionalLine(string id, string text) {
+            if (string.IsNullOrWhiteSpace(id)) {
+                throw new ArgumentException("Additional debug line id must be provided.", nameof(id));
+            } else if (text == null) {
+                throw new ArgumentNullException(nameof(text));
+            }
+
+            if (!AdditionalLinesById.ContainsKey(id)) {
+                AdditionalLineIds.Add(id);
+            }
+
+            AdditionalLinesById[id] = text;
+            RefreshAdditionalLinesOnActiveComponents();
+        }
+
+        /// <summary>
+        /// Removes one extra debug row from every active debug component.
+        /// </summary>
+        /// <param name="id">Stable row id that should no longer be displayed.</param>
+        public static void ClearAdditionalLine(string id) {
+            if (string.IsNullOrWhiteSpace(id)) {
+                throw new ArgumentException("Additional debug line id must be provided.", nameof(id));
+            }
+
+            if (!AdditionalLinesById.Remove(id)) {
+                return;
+            }
+
+            AdditionalLineIds.Remove(id);
+            RefreshAdditionalLinesOnActiveComponents();
+        }
+
+        /// <summary>
+        /// Removes every extra debug row from every active debug component.
+        /// </summary>
+        public static void ClearAdditionalLines() {
+            if (AdditionalLineIds.Count == 0 && AdditionalLinesById.Count == 0) {
+                return;
+            }
+
+            AdditionalLineIds.Clear();
+            AdditionalLinesById.Clear();
+            RefreshAdditionalLinesOnActiveComponents();
+        }
+
+        /// <summary>
+        /// Reconciles all active overlays with the current registered extra debug row set.
+        /// </summary>
+        static void RefreshAdditionalLinesOnActiveComponents() {
+            for (int i = ActiveComponents.Count - 1; i >= 0; i--) {
+                DebugComponent component = ActiveComponents[i];
+                if (component.Initialized && component.Parent != null && component.Parent.IsHierarchyEnabled) {
+                    component.SyncAdditionalLineRows();
+                    component.ApplyFont();
+                    component.ApplyRenderOrder();
+                    component.ApplyVisibleText();
+                }
+            }
+        }
+
+        /// <summary>
         /// Reconciles the overlay hierarchy with the current attachment and font state.
         /// </summary>
         void RefreshOverlayActivation() {
@@ -335,6 +422,7 @@ namespace helengine {
 
             Initialized = true;
             ActiveComponents.Add(this);
+            SyncAdditionalLineRows();
             ApplyFont();
         }
 
@@ -396,6 +484,8 @@ namespace helengine {
             CommittedMemoryTextComponent = null;
             Drawables2DTextComponent = null;
             Drawables3DTextComponent = null;
+            AdditionalLineRowHosts.Clear();
+            AdditionalLineTextComponents.Clear();
             Initialized = false;
         }
 
@@ -423,6 +513,9 @@ namespace helengine {
             if (Drawables3DTextComponent != null) {
                 Drawables3DTextComponent.Font = Font;
             }
+            for (int index = 0; index < AdditionalLineTextComponents.Count; index++) {
+                AdditionalLineTextComponents[index].Font = Font;
+            }
 
             if (ResidentMemoryRowHost != null) {
                 ResidentMemoryRowHost.LocalPosition = new float3(0f, Font.LineHeight, 0.1f);
@@ -435,6 +528,10 @@ namespace helengine {
             }
             if (Drawables3DRowHost != null) {
                 Drawables3DRowHost.LocalPosition = new float3(0f, Font.LineHeight * 4f, 0.4f);
+            }
+            for (int index = 0; index < AdditionalLineRowHosts.Count; index++) {
+                float rowIndex = 5f + index;
+                AdditionalLineRowHosts[index].LocalPosition = new float3(0f, Font.LineHeight * rowIndex, 0.5f + (0.1f * index));
             }
         }
 
@@ -478,6 +575,9 @@ namespace helengine {
             if (Drawables3DTextComponent != null) {
                 Drawables3DTextComponent.RenderOrder2D = RenderOrder2D;
             }
+            for (int index = 0; index < AdditionalLineTextComponents.Count; index++) {
+                AdditionalLineTextComponents[index].RenderOrder2D = RenderOrder2D;
+            }
         }
 
         /// <summary>
@@ -487,7 +587,7 @@ namespace helengine {
             RenderFrameCount = 0;
             Core core = Core.Instance;
             LastSampleElapsedSeconds = core == null ? 0d : core.TotalElapsedSeconds;
-            RenderFpsText = "Render FPS: --";
+            RenderFpsText = "Render FPS: -- (-- ms)";
             ResidentMemoryText = "Memory Res: --";
             CommittedMemoryText = "Memory Com: --";
             Drawables2DText = "Drawables 2D: --";
@@ -498,6 +598,8 @@ namespace helengine {
         /// Pushes the current row text into the live overlay text components.
         /// </summary>
         void ApplyVisibleText() {
+            SyncAdditionalLineRows();
+
             if (!EnsureOverlayHierarchyIsLive()) {
                 ReleaseOverlayReferences();
                 return;
@@ -517,6 +619,26 @@ namespace helengine {
             }
             if (Drawables3DTextComponent != null) {
                 Drawables3DTextComponent.Text = Drawables3DText;
+            }
+            ApplyAdditionalLineText();
+        }
+
+        /// <summary>
+        /// Pushes registered extra debug row text into the active extra row text components.
+        /// </summary>
+        void ApplyAdditionalLineText() {
+            if (AdditionalLineTextComponents.Count != AdditionalLineIds.Count) {
+                throw new InvalidOperationException("Additional debug line rows must be synchronized before text can be applied.");
+            }
+
+            for (int index = 0; index < AdditionalLineIds.Count; index++) {
+                string id = AdditionalLineIds[index];
+                string text;
+                if (!AdditionalLinesById.TryGetValue(id, out text)) {
+                    throw new InvalidOperationException("Additional debug line text was missing for a registered id.");
+                }
+
+                AdditionalLineTextComponents[index].Text = text;
             }
         }
 
@@ -544,7 +666,7 @@ namespace helengine {
             double safeElapsedSeconds = elapsedSeconds <= 0d ? 1d : elapsedSeconds;
             double renderFps = RenderFrameCount / safeElapsedSeconds;
 
-            RenderFpsText = "Render FPS: " + FormatOneDecimal(renderFps);
+            RenderFpsText = FormatRenderFpsText(renderFps, core.LastRenderManager3DDrawMilliseconds);
             ResidentMemoryText = ResolveResidentMemoryText(memoryCounters);
             CommittedMemoryText = ResolveCommittedMemoryText(memoryCounters);
             Drawables2DText = "Drawables 2D: " + core.ObjectManager.Drawables2D.Count;
@@ -553,6 +675,40 @@ namespace helengine {
 
             RenderFrameCount = 0;
             LastSampleElapsedSeconds = core.TotalElapsedSeconds;
+        }
+
+        /// <summary>
+        /// Synchronizes the live overlay hierarchy with the globally registered extra debug rows.
+        /// </summary>
+        void SyncAdditionalLineRows() {
+            if (OverlayHost == null) {
+                return;
+            }
+
+            while (AdditionalLineRowHosts.Count < AdditionalLineIds.Count) {
+                Entity rowHost = CreateRowHost();
+                TextComponent textComponent = CreateRowTextComponent(rowHost);
+                AdditionalLineRowHosts.Add(rowHost);
+                AdditionalLineTextComponents.Add(textComponent);
+            }
+
+            while (AdditionalLineRowHosts.Count > AdditionalLineIds.Count) {
+                int lastIndex = AdditionalLineRowHosts.Count - 1;
+                Entity rowHost = AdditionalLineRowHosts[lastIndex];
+                AdditionalLineRowHosts.RemoveAt(lastIndex);
+                AdditionalLineTextComponents.RemoveAt(lastIndex);
+                rowHost.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Formats the render FPS row with the measured render-manager draw duration so vsync-limited frame pacing can be compared against draw cost.
+        /// </summary>
+        /// <param name="renderFps">Measured render FPS value for the active sampling window.</param>
+        /// <param name="drawMilliseconds">Most recent render-manager draw duration in milliseconds.</param>
+        /// <returns>Formatted render row containing FPS and draw milliseconds.</returns>
+        string FormatRenderFpsText(double renderFps, double drawMilliseconds) {
+            return "Render FPS: " + FormatOneDecimal(renderFps) + " (" + FormatOneDecimal(drawMilliseconds) + " ms)";
         }
 
         /// <summary>
@@ -597,6 +753,10 @@ namespace helengine {
         /// <param name="value">Value that should be rounded for display.</param>
         /// <returns>Rounded text such as <c>4.0</c>.</returns>
         string FormatOneDecimal(double value) {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value > int.MaxValue / 10d || value < int.MinValue / 10d) {
+                return "--";
+            }
+
             int tenths = (int)Math.Round(value * 10d, MidpointRounding.AwayFromZero);
             int whole = tenths / 10;
             int fractional = Math.Abs(tenths % 10);
@@ -618,7 +778,26 @@ namespace helengine {
                 && IsLiveRow(ResidentMemoryRowHost, OverlayHost, ResidentMemoryTextComponent)
                 && IsLiveRow(CommittedMemoryRowHost, OverlayHost, CommittedMemoryTextComponent)
                 && IsLiveRow(Drawables2DRowHost, OverlayHost, Drawables2DTextComponent)
-                && IsLiveRow(Drawables3DRowHost, OverlayHost, Drawables3DTextComponent);
+                && IsLiveRow(Drawables3DRowHost, OverlayHost, Drawables3DTextComponent)
+                && AreAdditionalLineRowsLive();
+        }
+
+        /// <summary>
+        /// Returns whether every registered extra debug row is attached to the expected overlay hierarchy.
+        /// </summary>
+        /// <returns>True when all extra debug rows are live and synchronized.</returns>
+        bool AreAdditionalLineRowsLive() {
+            if (AdditionalLineRowHosts.Count != AdditionalLineIds.Count || AdditionalLineTextComponents.Count != AdditionalLineIds.Count) {
+                return false;
+            }
+
+            for (int index = 0; index < AdditionalLineIds.Count; index++) {
+                if (!IsLiveRow(AdditionalLineRowHosts[index], OverlayHost, AdditionalLineTextComponents[index])) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>

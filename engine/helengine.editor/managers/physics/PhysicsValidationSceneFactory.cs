@@ -383,22 +383,8 @@ namespace helengine.editor {
 
             SceneEntityIdAllocator.Reset();
 
-            if (string.Equals(sceneId, PhysicsValidationSceneCatalog.CharacterSlopeSceneId, StringComparison.Ordinal)) {
-                return CreateCharacterSlopeScene();
-            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.CharacterStepsSceneId, StringComparison.Ordinal)) {
-                return CreateCharacterStepsScene();
-            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.CharacterMovingPlatformSceneId, StringComparison.Ordinal)) {
-                return CreateCharacterMovingPlatformScene();
-            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.DynamicStackBoxesSceneId, StringComparison.Ordinal)) {
+            if (string.Equals(sceneId, PhysicsValidationSceneCatalog.DynamicStackBoxesSceneId, StringComparison.Ordinal)) {
                 return CreateDynamicStackBoxesScene();
-            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.DynamicSphereRampSceneId, StringComparison.Ordinal)) {
-                return CreateDynamicSphereRampScene();
-            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.KinematicPushSceneId, StringComparison.Ordinal)) {
-                return CreateKinematicPushScene();
-            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.MeshGroundStabilitySceneId, StringComparison.Ordinal)) {
-                return CreateMeshGroundStabilityScene();
-            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.TriggerVolumeSceneId, StringComparison.Ordinal)) {
-                return CreateTriggerVolumeScene();
             }
 
             throw new InvalidOperationException($"Unsupported physics validation scene id '{sceneId}'.");
@@ -512,8 +498,8 @@ namespace helengine.editor {
                 "dynamic_stack_boxes.scenario",
                 new[] {
                     CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(14f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
-                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box01", "StackBox01", new float3(0f, 0.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoBlueMaterialRelativePath)),
-                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box02", "StackBox02", new float3(0f, 1.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
+                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box01", "StackBox01", new float3(0f, 1f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoBlueMaterialRelativePath)),
+                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box02", "StackBox02", new float3(0.9f, 3f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
                     CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box03", "StackBox03", new float3(0f, 2.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoMagentaMaterialRelativePath)),
                     CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box04", "StackBox04", new float3(0f, 3.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoYellowMaterialRelativePath)),
                     CreateMarkerEntity("dynamic_stack_boxes.spawn", "DynamicSpawn", new float3(-2.5f, 1.5f, 0f))

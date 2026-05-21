@@ -6,7 +6,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current payload version for serialized 3D rigid-body scene records.
         /// </summary>
-        const byte CurrentVersion = 1;
+        const byte CurrentVersion = 2;
 
         /// <summary>
         /// Gets the runtime component type handled by this descriptor.
@@ -44,6 +44,7 @@ namespace helengine.editor {
             writer.WriteSingle((float)rigidBodyComponent.Mass);
             writer.WriteSingle((float)rigidBodyComponent.GravityScale);
             writer.WriteFloat3(rigidBodyComponent.LinearVelocity);
+            writer.WriteFloat3(rigidBodyComponent.AngularVelocity);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
@@ -73,7 +74,7 @@ namespace helengine.editor {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != CurrentVersion) {
+            if (version != 1 && version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported rigid body component payload version '{version}'.");
             }
 
@@ -84,6 +85,10 @@ namespace helengine.editor {
                 GravityScale = reader.ReadSingle(),
                 LinearVelocity = reader.ReadFloat3()
             };
+            if (version >= 2) {
+                component.AngularVelocity = reader.ReadFloat3();
+            }
+
             return component;
         }
     }

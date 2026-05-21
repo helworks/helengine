@@ -938,6 +938,81 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies selected scenes without physics records do not request physics generated-core support.
+    /// </summary>
+    [Fact]
+    public void RunRegenerateCore_WhenScenesDoNotUsePhysics_DoesNotForwardPhysicsSceneFeatureSymbols() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(rootPath, "assets", "Scenes"));
+
+        try {
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/VisualScene.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Camera",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+            using (FileStream sceneStream = File.Create(Path.Combine(rootPath, "assets", "Scenes", "VisualScene.helen"))) {
+                AssetSerializer.Serialize(sceneStream, sceneAsset);
+            }
+
+            RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    "builder.dll",
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                regenerationService);
+
+            MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "RunRegenerateCore",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(runRegenerateCoreMethod);
+
+            runRegenerateCoreMethod.Invoke(
+                runner,
+                [
+                    CreatePlatformDefinition("windows", "Windows"),
+                    CreateCodegenProfile(),
+                    new EditorBuildQueueItemDocument {
+                        QueueItemId = "queue-item",
+                        PlatformId = "windows",
+                        OutputDirectoryPath = Path.Combine(rootPath, "output"),
+                        SelectedSceneIds = ["VisualScene"],
+                        SelectedCodegenOptionValues = new Dictionary<string, string>()
+                    },
+                    new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
+                ]);
+
+            Assert.NotNull(regenerationService.AdditionalPreprocessorSymbols);
+            Assert.DoesNotContain(PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol, regenerationService.AdditionalPreprocessorSymbols);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies the shared Windows build graph can export the committed point-shadow smoke scene from a copied project workspace.
     /// </summary>
     [Fact]

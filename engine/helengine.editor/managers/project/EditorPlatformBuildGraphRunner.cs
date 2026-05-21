@@ -334,7 +334,10 @@ namespace helengine.editor {
             PlatformCodegenProfileDefinition selectedCodegenProfile,
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace) {
-            IReadOnlyList<string> physics3DCodegenSymbols = Physics3DCodegenFeatureSymbolService.ResolveSymbols(queueItem.SelectedSceneIds ?? []);
+            PhysicsSceneFeatureFlags3D physics3DSceneFeatureFlags = Physics3DCodegenFeatureSymbolService.ResolveFeatureFlags(queueItem.SelectedSceneIds ?? []);
+            IReadOnlyList<string> physics3DCodegenSymbols = physics3DSceneFeatureFlags == PhysicsSceneFeatureFlags3D.None
+                ? []
+                : PhysicsSceneFeatureSymbolCatalog3D.BuildSymbols(physics3DSceneFeatureFlags);
             GeneratedCoreRegenerationService.Regenerate(
                 builderDefinition,
                 selectedCodegenProfile,

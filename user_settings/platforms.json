@@ -31,8 +31,8 @@
                           "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
                           "platformId":  "ds",
                           "displayName":  "Nintendo DS",
-                          "builderAssemblyPath":  "C:\\dev\\helworks\\helengine-ds\\.worktrees\\generated-boot-scene-scene-map\\builder\\bin\\Debug\\net9.0\\helengine.ds.builder.dll",
-                          "playerSourceRootPath":  "C:\\dev\\helworks\\helengine-ds\\.worktrees\\generated-boot-scene-scene-map",
+                          "builderAssemblyPath":  "C:\\dev\\helworks\\helengine-ds\\builder\\bin\\Debug\\net9.0\\helengine.ds.builder.dll",
+                          "playerSourceRootPath":  "C:\\dev\\helworks\\helengine-ds",
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
                           "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
                       },

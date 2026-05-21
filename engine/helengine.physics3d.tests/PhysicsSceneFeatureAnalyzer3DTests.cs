@@ -151,7 +151,7 @@ namespace helengine.physics3d.tests {
                 Id = "Scenes/PhysicsSerialized.helen",
                 RootEntities = new[] {
                     new SceneEntityAsset {
-                        Id = "static-ground",
+                        Id = 1,
                         Name = "Ground",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -163,7 +163,7 @@ namespace helengine.physics3d.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "dynamic-sphere",
+                        Id = 2,
                         Name = "DynamicSphere",
                         LocalPosition = new float3(0f, 2f, 0f),
                         LocalScale = float3.One,
@@ -175,7 +175,7 @@ namespace helengine.physics3d.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "trigger-volume",
+                        Id = 3,
                         Name = "TriggerVolume",
                         LocalPosition = new float3(0f, 1f, 2f),
                         LocalScale = float3.One,
@@ -187,7 +187,7 @@ namespace helengine.physics3d.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "kinematic-platform",
+                        Id = 4,
                         Name = "KinematicPlatform",
                         LocalPosition = new float3(-2f, 0.5f, 0f),
                         LocalScale = float3.One,
@@ -200,7 +200,7 @@ namespace helengine.physics3d.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
-                        Id = "controller",
+                        Id = 5,
                         Name = "Controller",
                         LocalPosition = new float3(0f, 1f, -2f),
                         LocalScale = float3.One,
@@ -222,6 +222,46 @@ namespace helengine.physics3d.tests {
             Assert.True((features & PhysicsSceneFeatureFlags3D.TriggerEvents) != 0);
             Assert.True((features & PhysicsSceneFeatureFlags3D.CharacterController) != 0);
             Assert.True((features & PhysicsSceneFeatureFlags3D.CharacterControllerBodySupport) != 0);
+        }
+
+        /// <summary>
+        /// Ensures the code-generation feature analyzer accepts current rigid-body scene payloads.
+        /// </summary>
+        [Fact]
+        public void Analyze_WithSerializedRigidBodyVersion2_ReportsBoxContactFeature() {
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/PhysicsSerializedVersion2.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1,
+                        Name = "Ground",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateRigidBodyRecord(BodyKind3D.Static, false, 2),
+                            CreateBoxColliderRecord(new float3(8f, 1f, 8f), false)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 2,
+                        Name = "DynamicBox",
+                        LocalPosition = new float3(0f, 2f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateRigidBodyRecord(BodyKind3D.Dynamic, true, 2),
+                            CreateBoxColliderRecord(new float3(1f, 1f, 1f), false)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            PhysicsSceneFeatureFlags3D features = PhysicsSceneFeatureAnalyzer3D.Analyze(sceneAsset);
+
+            Assert.True((features & PhysicsSceneFeatureFlags3D.BoxBoxContact) != 0);
         }
 
         /// <summary>
@@ -265,14 +305,28 @@ namespace helengine.physics3d.tests {
         /// <param name="useGravity">True when gravity should be enabled.</param>
         /// <returns>Serialized rigid-body scene record.</returns>
         static SceneComponentAssetRecord CreateRigidBodyRecord(BodyKind3D bodyKind, bool useGravity) {
+            return CreateRigidBodyRecord(bodyKind, useGravity, 1);
+        }
+
+        /// <summary>
+        /// Creates one serialized rigid-body component record with a specific payload version.
+        /// </summary>
+        /// <param name="bodyKind">Rigid-body participation mode to encode.</param>
+        /// <param name="useGravity">True when gravity should be enabled.</param>
+        /// <param name="version">Rigid-body payload format version to encode.</param>
+        /// <returns>Serialized rigid-body scene record.</returns>
+        static SceneComponentAssetRecord CreateRigidBodyRecord(BodyKind3D bodyKind, bool useGravity, byte version) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(version);
             writer.WriteByte((byte)bodyKind);
             writer.WriteByte(useGravity ? (byte)1 : (byte)0);
             writer.WriteSingle(1f);
             writer.WriteSingle(1f);
             writer.WriteFloat3(float3.Zero);
+            if (version >= 2) {
+                writer.WriteFloat3(float3.Zero);
+            }
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.RigidBody3DComponent",

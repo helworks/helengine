@@ -13,6 +13,7 @@ namespace helengine {
         /// <param name="allowJoints">True when rigid-body joints are available.</param>
         /// <param name="allowContinuousCollisionDetection">True when continuous collision detection is available.</param>
         /// <param name="solverIterations">Default iterative contact-solver passes applied each fixed step.</param>
+        /// <param name="solverSubsteps">Default solver substeps executed inside each fixed world step.</param>
         public PhysicsWorld3DProfile(
             string profileId,
             BroadphaseKind3D defaultBroadphaseKind,
@@ -20,12 +21,16 @@ namespace helengine {
             bool allowDynamicBodies,
             bool allowJoints,
             bool allowContinuousCollisionDetection,
-            int solverIterations) {
+            int solverIterations,
+            int solverSubsteps) {
             if (string.IsNullOrWhiteSpace(profileId)) {
                 throw new ArgumentException("Profile id must be provided.", nameof(profileId));
             }
             if (solverIterations <= 0) {
                 throw new ArgumentOutOfRangeException(nameof(solverIterations), "Solver iteration counts must be greater than zero.");
+            }
+            if (solverSubsteps <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(solverSubsteps), "Solver substep counts must be greater than zero.");
             }
 
             ProfileId = profileId;
@@ -35,6 +40,7 @@ namespace helengine {
             AllowJoints = allowJoints;
             AllowContinuousCollisionDetection = allowContinuousCollisionDetection;
             SolverIterations = solverIterations;
+            SolverSubsteps = solverSubsteps;
         }
 
         /// <summary>
@@ -73,6 +79,11 @@ namespace helengine {
         public int SolverIterations { get; }
 
         /// <summary>
+        /// Gets the default solver substeps executed inside each fixed world step.
+        /// </summary>
+        public int SolverSubsteps { get; }
+
+        /// <summary>
         /// Creates the medium console profile that targets PS2, GameCube, and similar hardware.
         /// </summary>
         /// <returns>Configured medium runtime profile.</returns>
@@ -84,7 +95,8 @@ namespace helengine {
                 true,
                 false,
                 false,
-                8);
+                8,
+                1);
         }
     }
 }

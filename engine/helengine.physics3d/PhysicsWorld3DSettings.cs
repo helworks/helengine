@@ -9,14 +9,19 @@ namespace helengine {
         /// <param name="profile">Runtime profile that constrains this world.</param>
         /// <param name="broadphaseKind">Broadphase strategy used for dynamic-body candidate generation.</param>
         /// <param name="solverIterations">Iterative contact-solver passes applied each fixed step.</param>
-        public PhysicsWorld3DSettings(PhysicsWorld3DProfile profile, BroadphaseKind3D broadphaseKind, int solverIterations) {
+        /// <param name="solverSubsteps">Conservative substeps executed inside each fixed world step.</param>
+        public PhysicsWorld3DSettings(PhysicsWorld3DProfile profile, BroadphaseKind3D broadphaseKind, int solverIterations, int solverSubsteps) {
             Profile = profile ?? throw new ArgumentNullException(nameof(profile));
             if (solverIterations <= 0) {
                 throw new ArgumentOutOfRangeException(nameof(solverIterations), "Solver iteration counts must be greater than zero.");
             }
+            if (solverSubsteps <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(solverSubsteps), "Solver substep counts must be greater than zero.");
+            }
 
             BroadphaseKind = broadphaseKind;
             SolverIterations = solverIterations;
+            SolverSubsteps = solverSubsteps;
         }
 
         /// <summary>
@@ -35,6 +40,11 @@ namespace helengine {
         public int SolverIterations { get; }
 
         /// <summary>
+        /// Gets the conservative substeps executed inside each fixed world step.
+        /// </summary>
+        public int SolverSubsteps { get; }
+
+        /// <summary>
         /// Creates settings from the defaults exposed by the supplied profile.
         /// </summary>
         /// <param name="profile">Runtime profile that constrains this world.</param>
@@ -44,7 +54,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(profile));
             }
 
-            return new PhysicsWorld3DSettings(profile, profile.DefaultBroadphaseKind, profile.SolverIterations);
+            return new PhysicsWorld3DSettings(profile, profile.DefaultBroadphaseKind, profile.SolverIterations, profile.SolverSubsteps);
         }
     }
 }

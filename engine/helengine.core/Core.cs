@@ -662,8 +662,14 @@ namespace helengine {
             }
 
             PhysicsSchedulerValue.AddElapsedSeconds(elapsedSeconds);
-            while (PhysicsSchedulerValue.TryConsumeStep()) {
+            int consumedStepCount = 0;
+            while (consumedStepCount < InitializationOptions.PhysicsMaxStepsPerUpdate && PhysicsSchedulerValue.TryConsumeStep()) {
                 PhysicsRuntimeValue.Step(PhysicsSchedulerValue.StepSeconds);
+                consumedStepCount++;
+            }
+
+            if (consumedStepCount == InitializationOptions.PhysicsMaxStepsPerUpdate && PhysicsSchedulerValue.AccumulatedSeconds >= PhysicsSchedulerValue.StepSeconds) {
+                PhysicsSchedulerValue.Reset();
             }
         }
     }

@@ -9,6 +9,11 @@ namespace helengine {
         const string RigidBody3DComponentTypeId = "helengine.RigidBody3DComponent";
 
         /// <summary>
+        /// Current rigid-body component payload version accepted during serialized scene analysis.
+        /// </summary>
+        const byte CurrentRigidBodyPayloadVersion = 2;
+
+        /// <summary>
         /// Stable serialized component id for 3D box colliders.
         /// </summary>
         const string BoxCollider3DComponentTypeId = "helengine.BoxCollider3DComponent";
@@ -48,7 +53,13 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(sceneAsset));
             }
 
-            return Analyze((IReadOnlyList<SceneEntityAsset>)(sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>()));
+            PhysicsSceneFeatureCounterState3D counterState = new PhysicsSceneFeatureCounterState3D();
+            SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
+            for (int index = 0; index < rootEntityAssets.Length; index++) {
+                AccumulateEntityAssetFeatures(rootEntityAssets[index], counterState);
+            }
+
+            return BuildFeatureFlags(counterState);
         }
 
         /// <summary>
@@ -241,13 +252,13 @@ namespace helengine {
             }
 
             if (!boxCollider.IsTrigger) {
-                counterState.SolidBoxCount++;
+                counterState.SolidBoxCount = counterState.SolidBoxCount + 1;
                 if (rigidBody.BodyKind == BodyKind3D.Static || rigidBody.BodyKind == BodyKind3D.Kinematic) {
-                    counterState.CharacterControllerBodySupportCount++;
+                    counterState.CharacterControllerBodySupportCount = counterState.CharacterControllerBodySupportCount + 1;
                 }
             }
             if (rigidBody.BodyKind == BodyKind3D.Dynamic) {
-                counterState.DynamicBoxCount++;
+                counterState.DynamicBoxCount = counterState.DynamicBoxCount + 1;
             }
         }
 
@@ -269,10 +280,10 @@ namespace helengine {
             }
 
             if (!sphereCollider.IsTrigger) {
-                counterState.SolidSphereCount++;
+                counterState.SolidSphereCount = counterState.SolidSphereCount + 1;
             }
             if (rigidBody.BodyKind == BodyKind3D.Dynamic) {
-                counterState.DynamicSphereCount++;
+                counterState.DynamicSphereCount = counterState.DynamicSphereCount + 1;
             }
         }
 
@@ -294,10 +305,10 @@ namespace helengine {
             }
 
             if (!capsuleCollider.IsTrigger) {
-                counterState.SolidCapsuleCount++;
+                counterState.SolidCapsuleCount = counterState.SolidCapsuleCount + 1;
             }
             if (rigidBody.BodyKind == BodyKind3D.Dynamic) {
-                counterState.DynamicCapsuleCount++;
+                counterState.DynamicCapsuleCount = counterState.DynamicCapsuleCount + 1;
             }
         }
 
@@ -319,8 +330,8 @@ namespace helengine {
             }
 
             if (!staticMeshCollider.IsTrigger) {
-                counterState.SolidStaticMeshCount++;
-                counterState.CharacterControllerStaticMeshSupportCount++;
+                counterState.SolidStaticMeshCount = counterState.SolidStaticMeshCount + 1;
+                counterState.CharacterControllerStaticMeshSupportCount = counterState.CharacterControllerStaticMeshSupportCount + 1;
             }
         }
 
@@ -336,13 +347,13 @@ namespace helengine {
             }
 
             if (!isTrigger) {
-                counterState.SolidBoxCount++;
+                counterState.SolidBoxCount = counterState.SolidBoxCount + 1;
                 if (bodyKind == BodyKind3D.Static || bodyKind == BodyKind3D.Kinematic) {
-                    counterState.CharacterControllerBodySupportCount++;
+                    counterState.CharacterControllerBodySupportCount = counterState.CharacterControllerBodySupportCount + 1;
                 }
             }
             if (bodyKind == BodyKind3D.Dynamic) {
-                counterState.DynamicBoxCount++;
+                counterState.DynamicBoxCount = counterState.DynamicBoxCount + 1;
             }
         }
 
@@ -358,10 +369,10 @@ namespace helengine {
             }
 
             if (!isTrigger) {
-                counterState.SolidSphereCount++;
+                counterState.SolidSphereCount = counterState.SolidSphereCount + 1;
             }
             if (bodyKind == BodyKind3D.Dynamic) {
-                counterState.DynamicSphereCount++;
+                counterState.DynamicSphereCount = counterState.DynamicSphereCount + 1;
             }
         }
 
@@ -377,10 +388,10 @@ namespace helengine {
             }
 
             if (!isTrigger) {
-                counterState.SolidCapsuleCount++;
+                counterState.SolidCapsuleCount = counterState.SolidCapsuleCount + 1;
             }
             if (bodyKind == BodyKind3D.Dynamic) {
-                counterState.DynamicCapsuleCount++;
+                counterState.DynamicCapsuleCount = counterState.DynamicCapsuleCount + 1;
             }
         }
 
@@ -395,8 +406,8 @@ namespace helengine {
             }
 
             if (!isTrigger) {
-                counterState.SolidStaticMeshCount++;
-                counterState.CharacterControllerStaticMeshSupportCount++;
+                counterState.SolidStaticMeshCount = counterState.SolidStaticMeshCount + 1;
+                counterState.CharacterControllerStaticMeshSupportCount = counterState.CharacterControllerStaticMeshSupportCount + 1;
             }
         }
 
@@ -412,52 +423,62 @@ namespace helengine {
 
             PhysicsSceneFeatureFlags3D flags = PhysicsSceneFeatureFlags3D.None;
             if (counterState.HasKinematicMotion) {
-                flags |= PhysicsSceneFeatureFlags3D.KinematicMotion;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.KinematicMotion);
             }
             if (counterState.HasTriggerCollider) {
-                flags |= PhysicsSceneFeatureFlags3D.TriggerEvents;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.TriggerEvents);
             }
             if (counterState.HasCharacterController) {
-                flags |= PhysicsSceneFeatureFlags3D.CharacterController;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.CharacterController);
             }
             if (counterState.DynamicBoxCount > 0 && counterState.SolidBoxCount > 1) {
-                flags |= PhysicsSceneFeatureFlags3D.BoxBoxContact;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.BoxBoxContact);
             }
             if (counterState.DynamicSphereCount > 0 && counterState.SolidSphereCount > 1) {
-                flags |= PhysicsSceneFeatureFlags3D.SphereSphereContact;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.SphereSphereContact);
             }
             if ((counterState.DynamicSphereCount > 0 && counterState.SolidBoxCount > 0) ||
                 (counterState.DynamicBoxCount > 0 && counterState.SolidSphereCount > 0)) {
-                flags |= PhysicsSceneFeatureFlags3D.SphereBoxContact;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.SphereBoxContact);
             }
             if ((counterState.DynamicCapsuleCount > 0 && counterState.SolidBoxCount > 0) ||
                 (counterState.DynamicBoxCount > 0 && counterState.SolidCapsuleCount > 0)) {
-                flags |= PhysicsSceneFeatureFlags3D.CapsuleBoxContact;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.CapsuleBoxContact);
             }
             if ((counterState.DynamicCapsuleCount > 0 && counterState.SolidSphereCount > 0) ||
                 (counterState.DynamicSphereCount > 0 && counterState.SolidCapsuleCount > 0)) {
-                flags |= PhysicsSceneFeatureFlags3D.CapsuleSphereContact;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.CapsuleSphereContact);
             }
             if (counterState.DynamicCapsuleCount > 0 && counterState.SolidCapsuleCount > 1) {
-                flags |= PhysicsSceneFeatureFlags3D.CapsuleCapsuleContact;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.CapsuleCapsuleContact);
             }
             if (counterState.DynamicBoxCount > 0 && counterState.SolidStaticMeshCount > 0) {
-                flags |= PhysicsSceneFeatureFlags3D.BoxStaticMeshContact;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.BoxStaticMeshContact);
             }
             if (counterState.DynamicSphereCount > 0 && counterState.SolidStaticMeshCount > 0) {
-                flags |= PhysicsSceneFeatureFlags3D.SphereStaticMeshContact;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.SphereStaticMeshContact);
             }
             if (counterState.DynamicCapsuleCount > 0 && counterState.SolidStaticMeshCount > 0) {
-                flags |= PhysicsSceneFeatureFlags3D.CapsuleStaticMeshContact;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.CapsuleStaticMeshContact);
             }
             if (counterState.HasCharacterController && counterState.CharacterControllerBodySupportCount > 0) {
-                flags |= PhysicsSceneFeatureFlags3D.CharacterControllerBodySupport;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.CharacterControllerBodySupport);
             }
             if (counterState.HasCharacterController && counterState.CharacterControllerStaticMeshSupportCount > 0) {
-                flags |= PhysicsSceneFeatureFlags3D.CharacterControllerStaticMeshSupport;
+                flags = AddFeatureFlag(flags, PhysicsSceneFeatureFlags3D.CharacterControllerStaticMeshSupport);
             }
 
             return flags;
+        }
+
+        /// <summary>
+        /// Adds a single feature bit to a flag set using numeric operations that are portable to generated native code.
+        /// </summary>
+        /// <param name="flags">Existing feature flag set.</param>
+        /// <param name="feature">Feature bit to add.</param>
+        /// <returns>Feature flag set containing the requested bit.</returns>
+        static PhysicsSceneFeatureFlags3D AddFeatureFlag(PhysicsSceneFeatureFlags3D flags, PhysicsSceneFeatureFlags3D feature) {
+            return (PhysicsSceneFeatureFlags3D)((uint)flags + (uint)feature);
         }
 
         /// <summary>
@@ -561,7 +582,7 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1) {
+            if (version != 1 && version != CurrentRigidBodyPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported rigid body component payload version '{version}'.");
             }
 

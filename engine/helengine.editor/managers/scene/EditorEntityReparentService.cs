@@ -72,7 +72,12 @@ namespace helengine.editor {
                 return worldScale;
             }
 
-            return worldScale - newParent.Scale;
+            float3 parentScale = newParent.Scale;
+            if (parentScale.X == 0f || parentScale.Y == 0f || parentScale.Z == 0f) {
+                throw new InvalidOperationException("Cannot preserve world scale when the new parent has a zero scale component.");
+            }
+
+            return worldScale / parentScale;
         }
 
         /// <summary>

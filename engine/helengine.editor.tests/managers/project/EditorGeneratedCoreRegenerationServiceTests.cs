@@ -220,6 +220,22 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies physics generated-core support is requested only when scene-derived physics symbols are present.
+    /// </summary>
+    [Fact]
+    public void Should_regenerate_physics3d_project_returns_true_only_for_scene_physics_symbols() {
+        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject([
+            PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol,
+            PhysicsSceneFeatureSymbolCatalog3D.BoxBoxContactSymbol
+        ]));
+
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject([
+            "HELENGINE_INPUT_KEYBOARD",
+            "DESKTOP_PLATFORM"
+        ]));
+    }
+
+    /// <summary>
     /// Verifies generated automatic runtime component emission writes the generated deserializer files without mutating the generated runtime registry source.
     /// </summary>
     [Fact]

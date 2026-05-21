@@ -363,6 +363,10 @@ namespace helengine.editor {
             if (relativePath.StartsWith("cooked/shaders/", StringComparison.OrdinalIgnoreCase)) {
                 return "shader";
             }
+            string serializedArtifactKind = TryResolveSerializedArtifactKind(fullPath, relativePath);
+            if (!string.IsNullOrWhiteSpace(serializedArtifactKind)) {
+                return serializedArtifactKind;
+            }
             if (relativePath.Contains("/models/", StringComparison.OrdinalIgnoreCase) || relativePath.StartsWith("cooked/imported/Models/", StringComparison.OrdinalIgnoreCase)) {
                 return "model";
             }
@@ -374,6 +378,39 @@ namespace helengine.editor {
             }
 
             return "asset";
+        }
+
+        /// <summary>
+        /// Resolves one cooked serialized artifact kind directly from the payload when the runtime path points at a generic cooked asset file.
+        /// </summary>
+        /// <param name="fullPath">Full cooked artifact path on disk.</param>
+        /// <param name="relativePath">Runtime-relative cooked artifact path.</param>
+        /// <returns>Resolved serialized artifact kind, or an empty string when payload-based classification should not apply.</returns>
+        static string TryResolveSerializedArtifactKind(string fullPath, string relativePath) {
+            if (string.IsNullOrWhiteSpace(fullPath) || string.IsNullOrWhiteSpace(relativePath)) {
+                return string.Empty;
+            }
+            if (!relativePath.EndsWith(".hasset", StringComparison.OrdinalIgnoreCase)) {
+                return string.Empty;
+            }
+            if (!File.Exists(fullPath)) {
+                return string.Empty;
+            }
+
+            try {
+                using FileStream stream = File.OpenRead(fullPath);
+                Asset asset = AssetSerializer.Deserialize(stream);
+                if (asset is ModelAsset) {
+                    return "model";
+                }
+                if (asset is MaterialAsset || asset is Ps2MaterialAsset) {
+                    return "material";
+                }
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Cooked artifact '{relativePath}' at '{fullPath}' could not be classified from serialized content.", ex);
+            }
+
+            return string.Empty;
         }
 
         static string ResolveImportedArtifactKind(string fullPath, string relativePath) {

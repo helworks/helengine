@@ -1,1022 +1,739 @@
 namespace helengine {
     /// <summary>
-    /// Represents one hosted 3D physics world configured for a specific runtime profile.
+    /// Runs the cube-only 3D physics runtime used by the current engine target.
     /// </summary>
     public class PhysicsWorld3D : IPhysicsRuntime {
         /// <summary>
-        /// Gravity applied to dynamic bodies each fixed step.
+        /// Gravity applied to dynamic bodies each fixed simulation step.
         /// </summary>
         static readonly float3 GravityAcceleration = new float3(0f, -9.81f, 0f);
 
         /// <summary>
-        /// Dense body-state list currently bound to the runtime scene.
+        /// Allowed slop before residual penetration correction starts.
         /// </summary>
-        readonly List<BodyState3D> BodyStatesValue;
+        const float PenetrationSlop = 0.001f;
 
         /// <summary>
-        /// Dense character-controller state list currently bound to the runtime scene.
+        /// Fraction of residual penetration corrected after velocity solving.
         /// </summary>
-        readonly List<CharacterControllerState3D> ControllerStatesValue;
+        const float PositionCorrectionFraction = 1f;
 
         /// <summary>
-        /// Dense cooked static-mesh state list currently bound to the runtime scene.
+        /// Linear speed squared below which a supported body can be treated as quiet.
         /// </summary>
-        readonly List<StaticMeshBodyState3D> StaticMeshStatesValue;
+        const double LinearSleepSpeedSquared = 0.0025d;
 
         /// <summary>
-        /// Broadphase implementation used to reduce contact-solver candidate pairs.
+        /// Angular speed squared below which a supported body can be treated as quiet.
         /// </summary>
-        readonly IBroadphase3D BroadphaseValue;
+        const double AngularSleepSpeedSquared = 0.0025d;
 
         /// <summary>
-        /// Trigger overlap events emitted during the most recent fixed step.
+        /// Angular acceleration used to keep visibly tilted supported cubes rotating in their current fall direction.
         /// </summary>
-        readonly List<TriggerEvent3D> TriggerEventsValue;
+        const double SupportedTiltAngularAcceleration = 10d;
 
         /// <summary>
-        /// Trigger overlap pairs that remained active after the previous fixed step completed.
+        /// Maximum angular speed introduced by the supported-tilt settling rule.
         /// </summary>
-        readonly HashSet<TriggerPairKey3D> ActiveTriggerPairsValue;
+        const double SupportedTiltMaximumAngularSpeed = 4d;
 
         /// <summary>
-        /// Trigger overlap pairs detected during the current fixed step.
+        /// Number of quiet supported frames required before a cube is allowed to sleep.
         /// </summary>
-        readonly HashSet<TriggerPairKey3D> CurrentTriggerPairsValue;
+        const int QuietFramesBeforeSleep = 24;
 
         /// <summary>
-        /// Initializes a new 3D physics world.
+        /// Cube body states bound to the active scene.
         /// </summary>
-        /// <param name="settings">Effective world settings resolved from profile defaults and local overrides.</param>
+        readonly List<CubeBodyState3D> BodyStatesValue;
+
+        /// <summary>
+        /// Candidate body pairs reused during each step.
+        /// </summary>
+        readonly List<CubeBodyPair3D> CandidatePairs;
+
+        /// <summary>
+        /// Contact manifolds reused during each substep.
+        /// </summary>
+        readonly List<CubeRuntimeManifold3D> Manifolds;
+
+        /// <summary>
+        /// Per-body quiet support counters used by the cube-only sleep rule.
+        /// </summary>
+        readonly List<int> QuietFrameCounts;
+
+        /// <summary>
+        /// Initializes a cube-only physics world.
+        /// </summary>
+        /// <param name="settings">Physics settings controlling solver iterations and substeps.</param>
         public PhysicsWorld3D(PhysicsWorld3DSettings settings) {
             Settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            BodyStatesValue = new List<BodyState3D>();
-            ControllerStatesValue = new List<CharacterControllerState3D>();
-            StaticMeshStatesValue = new List<StaticMeshBodyState3D>();
-            TriggerEventsValue = new List<TriggerEvent3D>();
-            ActiveTriggerPairsValue = new HashSet<TriggerPairKey3D>();
-            CurrentTriggerPairsValue = new HashSet<TriggerPairKey3D>();
-            BroadphaseValue = CreateBroadphase(settings);
+            BodyStatesValue = new List<CubeBodyState3D>();
+            CandidatePairs = new List<CubeBodyPair3D>();
+            Manifolds = new List<CubeRuntimeManifold3D>();
+            QuietFrameCounts = new List<int>();
         }
 
         /// <summary>
-        /// Gets the effective settings that constrain this world.
+        /// Gets the effective settings used by the cube runtime.
         /// </summary>
         public PhysicsWorld3DSettings Settings { get; }
 
         /// <summary>
-        /// Gets the currently bound runtime body states.
+        /// Gets the cube body states currently bound to this world.
         /// </summary>
-        public IReadOnlyList<BodyState3D> BodyStates => BodyStatesValue;
+        public IReadOnlyList<CubeBodyState3D> BodyStates => BodyStatesValue;
 
         /// <summary>
-        /// Gets the currently bound runtime character-controller states.
-        /// </summary>
-        public IReadOnlyList<CharacterControllerState3D> ControllerStates => ControllerStatesValue;
-
-        /// <summary>
-        /// Gets the candidate-pair count generated by the most recent broadphase update.
+        /// Gets the broadphase candidate count from the most recent step.
         /// </summary>
         public int LastBroadphaseCandidatePairCount { get; private set; }
 
         /// <summary>
-        /// Gets the trigger overlap events emitted during the most recent fixed step.
-        /// </summary>
-        public IReadOnlyList<TriggerEvent3D> TriggerEvents => TriggerEventsValue;
-
-        /// <summary>
-        /// Gets the scene feature flags inferred from the currently bound authored scene hierarchy.
+        /// Gets scene feature flags for the active cube runtime.
         /// </summary>
         public PhysicsSceneFeatureFlags3D RequiredSceneFeatures { get; private set; }
 
         /// <summary>
-        /// Binds one scene hierarchy to the world by discovering supported rigid-body entities.
+        /// Creates one cube physics world using medium profile settings.
         /// </summary>
-        /// <param name="rootEntities">Root entities that own the active scene hierarchy.</param>
+        /// <returns>Configured cube-only physics world.</returns>
+        public static PhysicsWorld3D CreateMediumDefault() {
+            return new PhysicsWorld3D(PhysicsWorld3DSettings.CreateDefault(PhysicsWorld3DProfile.CreateMedium()));
+        }
+
+        /// <summary>
+        /// Binds supported box rigid bodies from a scene hierarchy.
+        /// </summary>
+        /// <param name="rootEntities">Root entities to scan.</param>
         public void BindScene(IReadOnlyList<Entity> rootEntities) {
             if (rootEntities == null) {
                 throw new ArgumentNullException(nameof(rootEntities));
             }
 
             BodyStatesValue.Clear();
-            ControllerStatesValue.Clear();
-            StaticMeshStatesValue.Clear();
-            TriggerEventsValue.Clear();
-            ActiveTriggerPairsValue.Clear();
-            CurrentTriggerPairsValue.Clear();
-            RequiredSceneFeatures = PhysicsSceneFeatureAnalyzer3D.Analyze(rootEntities);
+            CandidatePairs.Clear();
+            Manifolds.Clear();
+            QuietFrameCounts.Clear();
+            RequiredSceneFeatures = PhysicsSceneFeatureFlags3D.BoxBoxContact;
             for (int index = 0; index < rootEntities.Count; index++) {
-                CollectBodyStates(rootEntities[index]);
+                CollectCubeBodies(rootEntities[index]);
             }
         }
 
         /// <summary>
-        /// Advances the world by one fixed simulation step.
+        /// Advances the cube simulation by one fixed step.
         /// </summary>
-        /// <param name="stepSeconds">Simulation step length in seconds.</param>
+        /// <param name="stepSeconds">Fixed step duration in seconds.</param>
         public void Step(double stepSeconds) {
             if (double.IsNaN(stepSeconds) || double.IsInfinity(stepSeconds) || stepSeconds <= 0d) {
                 throw new ArgumentOutOfRangeException(nameof(stepSeconds), "Step size must be a finite value greater than zero.");
             }
 
             SynchronizeFromScene();
-            AdvanceKinematicBodies(stepSeconds);
-            AdvanceCharacterControllers(stepSeconds);
-            IntegrateDynamicBodies(stepSeconds);
-            ResolveContacts();
+            double substepSeconds = stepSeconds / Settings.SolverSubsteps;
+            for (int substepIndex = 0; substepIndex < Settings.SolverSubsteps; substepIndex++) {
+                IntegrateVelocities(substepSeconds);
+                IntegratePoses(substepSeconds);
+                BuildCandidatePairs();
+                BuildManifolds();
+                SolveManifolds(substepSeconds);
+                CorrectResidualPenetration();
+                RefreshDerivedState();
+                ClampSupportedRestingVelocity();
+                ApplySupportedTiltSettling(substepSeconds);
+                UpdateActivity();
+            }
+
             SynchronizeToScene();
         }
 
         /// <summary>
-        /// Creates one world using the medium runtime profile defaults.
+        /// Recursively collects supported cube bodies and rejects unsupported physics components.
         /// </summary>
-        /// <returns>Configured 3D physics world.</returns>
-        public static PhysicsWorld3D CreateMediumDefault() {
-            PhysicsWorld3DProfile profile = PhysicsWorld3DProfile.CreateMedium();
-            PhysicsWorld3DSettings settings = PhysicsWorld3DSettings.CreateDefault(profile);
-            return new PhysicsWorld3D(settings);
+        /// <param name="entity">Entity to inspect.</param>
+        void CollectCubeBodies(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            RigidBody3DComponent rigidBody = FindComponent<RigidBody3DComponent>(entity);
+            BoxCollider3DComponent boxCollider = FindComponent<BoxCollider3DComponent>(entity);
+            if (FindComponent<SphereCollider3DComponent>(entity) != null ||
+                FindComponent<CapsuleCollider3DComponent>(entity) != null ||
+                FindComponent<StaticMeshCollider3DComponent>(entity) != null ||
+                FindComponent<CharacterController3DComponent>(entity) != null) {
+                throw new NotSupportedException("The active 3D physics runtime supports only rigid bodies with box colliders.");
+            }
+
+            if (rigidBody != null) {
+                if (boxCollider == null) {
+                    throw new NotSupportedException("RigidBody3DComponent requires BoxCollider3DComponent in the cube-only physics runtime.");
+                }
+
+                BodyStatesValue.Add(new CubeBodyState3D(entity, rigidBody, boxCollider, FindComponent<KinematicMotion3DComponent>(entity)));
+                QuietFrameCounts.Add(0);
+            }
+
+            for (int index = 0; index < entity.Children.Count; index++) {
+                CollectCubeBodies(entity.Children[index]);
+            }
         }
 
         /// <summary>
-        /// Rebuilds runtime body states from the current authored entity transforms.
+        /// Finds one component of the requested type on the supplied entity.
+        /// </summary>
+        /// <typeparam name="TComponent">Requested component type.</typeparam>
+        /// <param name="entity">Entity being queried.</param>
+        /// <returns>Attached component when present; otherwise null.</returns>
+        static TComponent FindComponent<TComponent>(Entity entity) where TComponent : Component {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (entity.Components == null) {
+                return null;
+            }
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is TComponent component) {
+                    return component;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Synchronizes body state from authored entities.
         /// </summary>
         void SynchronizeFromScene() {
             for (int index = 0; index < BodyStatesValue.Count; index++) {
                 BodyStatesValue[index].SynchronizeFromEntity();
             }
-
-            for (int index = 0; index < ControllerStatesValue.Count; index++) {
-                ControllerStatesValue[index].SynchronizeFromEntity();
-            }
-
-            for (int index = 0; index < StaticMeshStatesValue.Count; index++) {
-                StaticMeshStatesValue[index].SynchronizeFromEntity();
-            }
         }
 
         /// <summary>
-        /// Advances every dynamic body forward by one gravity-integrated fixed step.
-        /// </summary>
-        /// <param name="stepSeconds">Simulation step length in seconds.</param>
-        void IntegrateDynamicBodies(double stepSeconds) {
-            float stepSecondsFloat = (float)stepSeconds;
-            for (int index = 0; index < BodyStatesValue.Count; index++) {
-                BodyState3D bodyState = BodyStatesValue[index];
-                if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
-                    continue;
-                }
-
-                float3 velocity = bodyState.Velocity;
-                if (bodyState.RigidBody.UseGravity) {
-                    velocity = new float3(
-                        velocity.X + (float)(GravityAcceleration.X * bodyState.RigidBody.GravityScale * stepSeconds),
-                        velocity.Y + (float)(GravityAcceleration.Y * bodyState.RigidBody.GravityScale * stepSeconds),
-                        velocity.Z + (float)(GravityAcceleration.Z * bodyState.RigidBody.GravityScale * stepSeconds));
-                }
-
-                bodyState.Velocity = velocity;
-                bodyState.Position = new float3(
-                    bodyState.Position.X + (velocity.X * stepSecondsFloat),
-                    bodyState.Position.Y + (velocity.Y * stepSecondsFloat),
-                    bodyState.Position.Z + (velocity.Z * stepSecondsFloat));
-            }
-        }
-
-        /// <summary>
-        /// Advances authored kinematic bodies from their motion components or authored linear velocities before dynamic integration runs.
-        /// </summary>
-        /// <param name="stepSeconds">Simulation step length in seconds.</param>
-        void AdvanceKinematicBodies(double stepSeconds) {
-            float stepSecondsFloat = (float)stepSeconds;
-            for (int index = 0; index < BodyStatesValue.Count; index++) {
-                BodyState3D bodyState = BodyStatesValue[index];
-                if (bodyState.RigidBody.BodyKind != BodyKind3D.Kinematic) {
-                    continue;
-                }
-
-                float3 previousPosition = bodyState.Position;
-                if (bodyState.KinematicMotionComponent != null) {
-                    bodyState.KinematicMotionElapsedSeconds += stepSeconds;
-                    bodyState.Position = EvaluateKinematicMotionPosition(bodyState.KinematicMotionComponent, bodyState.KinematicMotionElapsedSeconds);
-                } else {
-                    bodyState.Position = new float3(
-                        bodyState.Position.X + (bodyState.Velocity.X * stepSecondsFloat),
-                        bodyState.Position.Y + (bodyState.Velocity.Y * stepSecondsFloat),
-                        bodyState.Position.Z + (bodyState.Velocity.Z * stepSecondsFloat));
-                }
-
-                bodyState.Velocity = new float3(
-                    (bodyState.Position.X - previousPosition.X) / stepSecondsFloat,
-                    (bodyState.Position.Y - previousPosition.Y) / stepSecondsFloat,
-                    (bodyState.Position.Z - previousPosition.Z) / stepSecondsFloat);
-            }
-        }
-
-        /// <summary>
-        /// Advances every character controller by applying authored planar motion, gravity, and support-height snapping.
-        /// </summary>
-        /// <param name="stepSeconds">Simulation step length in seconds.</param>
-        void AdvanceCharacterControllers(double stepSeconds) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_CHARACTER_CONTROLLER
-            for (int index = 0; index < ControllerStatesValue.Count; index++) {
-                CharacterControllerStepResolver3D.Advance(ControllerStatesValue[index], BodyStatesValue, StaticMeshStatesValue, GravityAcceleration, stepSeconds);
-            }
-#endif
-        }
-
-        /// <summary>
-        /// Resolves overlapping box contacts using a simple iterative axis-aligned solver.
-        /// </summary>
-        void ResolveContacts() {
-            IReadOnlyList<BodyPair3D> candidatePairs = BroadphaseValue.CollectCandidatePairs(BodyStatesValue);
-            LastBroadphaseCandidatePairCount = candidatePairs.Count;
-            TriggerEventsValue.Clear();
-            CurrentTriggerPairsValue.Clear();
-            for (int iteration = 0; iteration < Settings.SolverIterations; iteration++) {
-                for (int pairIndex = 0; pairIndex < candidatePairs.Count; pairIndex++) {
-                    BodyPair3D candidatePair = candidatePairs[pairIndex];
-                    ResolvePair(BodyStatesValue[candidatePair.FirstBodyIndex], BodyStatesValue[candidatePair.SecondBodyIndex], iteration == 0);
-                }
-
-                ResolveStaticMeshContacts();
-            }
-
-            CollectStaticMeshTriggerOverlaps();
-            CollectCharacterControllerTriggerOverlaps();
-            FinalizeTriggerEvents();
-        }
-
-        /// <summary>
-        /// Pushes solver state back into authored entities and rigid bodies.
+        /// Writes body state back to authored entities.
         /// </summary>
         void SynchronizeToScene() {
             for (int index = 0; index < BodyStatesValue.Count; index++) {
                 BodyStatesValue[index].SynchronizeToEntity();
             }
-
-            for (int index = 0; index < ControllerStatesValue.Count; index++) {
-                ControllerStatesValue[index].SynchronizeToEntity();
-            }
         }
 
         /// <summary>
-        /// Finalizes trigger overlap lifecycle events by comparing the current step pair set against the previously active set.
+        /// Integrates gravity and kinematic velocities.
         /// </summary>
-        void FinalizeTriggerEvents() {
-            IEnumerator<TriggerPairKey3D> currentEnumerator = CurrentTriggerPairsValue.GetEnumerator();
-            while (currentEnumerator.MoveNext()) {
-                TriggerPairKey3D pairKey = currentEnumerator.Current;
-                if (ActiveTriggerPairsValue.Contains(pairKey)) {
-                    TriggerEventsValue.Add(CreateTriggerEvent(pairKey, TriggerEventKind3D.Stay));
-                } else {
-                    TriggerEventsValue.Add(CreateTriggerEvent(pairKey, TriggerEventKind3D.Enter));
+        /// <param name="stepSeconds">Substep duration in seconds.</param>
+        void IntegrateVelocities(double stepSeconds) {
+            for (int index = 0; index < BodyStatesValue.Count; index++) {
+                CubeBodyState3D bodyState = BodyStatesValue[index];
+                if (bodyState.RigidBody.BodyKind == BodyKind3D.Kinematic) {
+                    AdvanceKinematicVelocity(bodyState, stepSeconds);
+                    continue;
                 }
-            }
-
-            IEnumerator<TriggerPairKey3D> activeEnumerator = ActiveTriggerPairsValue.GetEnumerator();
-            while (activeEnumerator.MoveNext()) {
-                TriggerPairKey3D pairKey = activeEnumerator.Current;
-                if (!CurrentTriggerPairsValue.Contains(pairKey)) {
-                    TriggerEventsValue.Add(CreateTriggerEvent(pairKey, TriggerEventKind3D.Exit));
+                if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic || !bodyState.RigidBody.UseGravity) {
+                    continue;
                 }
-            }
 
-            ActiveTriggerPairsValue.Clear();
-            currentEnumerator = CurrentTriggerPairsValue.GetEnumerator();
-            while (currentEnumerator.MoveNext()) {
-                ActiveTriggerPairsValue.Add(currentEnumerator.Current);
+                bodyState.Velocity = bodyState.Velocity + (GravityAcceleration * (float)(bodyState.RigidBody.GravityScale * stepSeconds));
             }
         }
 
         /// <summary>
-        /// Creates one trigger event from one tracked body pair and lifecycle transition.
+        /// Advances one kinematic body's authored velocity or motion path.
         /// </summary>
-        /// <param name="pairKey">Tracked trigger overlap pair.</param>
-        /// <param name="kind">Lifecycle transition emitted during the current step.</param>
-        /// <returns>Trigger event for the supplied pair.</returns>
-        TriggerEvent3D CreateTriggerEvent(TriggerPairKey3D pairKey, TriggerEventKind3D kind) {
-            return new TriggerEvent3D(kind, pairKey.TriggerEntity, pairKey.OtherEntity);
-        }
-
-        /// <summary>
-        /// Determines whether two body colliders should be considered for contact or trigger overlap.
-        /// </summary>
-        /// <param name="first">First body state.</param>
-        /// <param name="second">Second body state.</param>
-        /// <returns>True when the collision layers and masks permit interaction.</returns>
-        static bool CanBodiesInteract(BodyState3D first, BodyState3D second) {
-            if (first == null) {
-                throw new ArgumentNullException(nameof(first));
-            }
-            if (second == null) {
-                throw new ArgumentNullException(nameof(second));
-            }
-
-            return (first.Collider.CollisionMask & second.Collider.CollisionLayer) != 0 &&
-                (second.Collider.CollisionMask & first.Collider.CollisionLayer) != 0;
-        }
-
-        /// <summary>
-        /// Determines whether one dynamic body and one cooked static mesh should be considered for contact.
-        /// </summary>
-        /// <param name="bodyState">Dynamic body being tested.</param>
-        /// <param name="meshState">Cooked static mesh being tested.</param>
-        /// <returns>True when the collision layers and masks permit interaction.</returns>
-        static bool CanBodyInteractWithStaticMesh(BodyState3D bodyState, StaticMeshBodyState3D meshState) {
+        /// <param name="bodyState">Body state to update.</param>
+        /// <param name="stepSeconds">Substep duration in seconds.</param>
+        static void AdvanceKinematicVelocity(CubeBodyState3D bodyState, double stepSeconds) {
             if (bodyState == null) {
                 throw new ArgumentNullException(nameof(bodyState));
             }
-            if (meshState == null) {
-                throw new ArgumentNullException(nameof(meshState));
+
+            if (bodyState.KinematicMotionComponent == null) {
+                bodyState.Velocity = bodyState.RigidBody.LinearVelocity;
+                return;
             }
 
-            return (bodyState.Collider.CollisionMask & meshState.MeshCollider.CollisionLayer) != 0 &&
-                (meshState.MeshCollider.CollisionMask & bodyState.Collider.CollisionLayer) != 0;
+            double elapsedSeconds = bodyState.KinematicMotionElapsedSeconds + stepSeconds;
+            bodyState.KinematicMotionElapsedSeconds = elapsedSeconds;
+            float3 targetPosition = ResolveKinematicTargetPosition(bodyState.KinematicMotionComponent, elapsedSeconds);
+            bodyState.Velocity = (targetPosition - bodyState.Position) / (float)stepSeconds;
         }
 
         /// <summary>
-        /// Resolves one pair of overlapping axis-aligned box bodies.
+        /// Resolves the target local position for a kinematic box motion path.
         /// </summary>
-        /// <param name="first">First body state.</param>
-        /// <param name="second">Second body state.</param>
-        /// <param name="collectTriggerEvents">True when this pass should collect trigger overlap events for the current step.</param>
-        void ResolvePair(BodyState3D first, BodyState3D second, bool collectTriggerEvents) {
-            if (first == null) {
-                throw new ArgumentNullException(nameof(first));
-            }
-            if (second == null) {
-                throw new ArgumentNullException(nameof(second));
-            }
-            if (!CanBodiesInteract(first, second)) {
-                return;
-            }
-            if (!PrimitiveContactMath3D.Overlaps(first, second)) {
-                return;
-            }
-            if (collectTriggerEvents && (first.Collider.IsTrigger || second.Collider.IsTrigger)) {
-                TrackTriggerPair(first, second);
-            }
-            if (first.Collider.IsTrigger || second.Collider.IsTrigger) {
-                return;
-            }
-            if (!CanBeDisplaced(first) && !CanBeDisplaced(second)) {
-                return;
+        /// <param name="motion">Authored kinematic motion path.</param>
+        /// <param name="elapsedSeconds">Elapsed runtime seconds.</param>
+        /// <returns>Interpolated local position on the motion path.</returns>
+        static float3 ResolveKinematicTargetPosition(KinematicMotion3DComponent motion, double elapsedSeconds) {
+            if (motion == null) {
+                throw new ArgumentNullException(nameof(motion));
             }
 
-            float penetration;
-            int axisIndex;
-            float3 collisionNormal;
-            if (first.ColliderShapeKind == ColliderShapeKind3D.Box &&
-                second.ColliderShapeKind == ColliderShapeKind3D.Box) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_BOX_BOX_CONTACT
-                if (BoxBoxContactResolver3D.TryResolveContact(first, second, out penetration, out axisIndex)) {
-                    ResolveAxis(first, second, penetration, axisIndex);
+            double normalized = elapsedSeconds / motion.TravelDurationSeconds;
+            if (motion.PingPong) {
+                double cycle = normalized % 2d;
+                if (cycle < 0d) {
+                    cycle += 2d;
                 }
-#endif
-                return;
-            }
-            if (first.ColliderShapeKind == ColliderShapeKind3D.Sphere &&
-                second.ColliderShapeKind == ColliderShapeKind3D.Sphere) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_SPHERE_SPHERE_CONTACT
-                if (SphereSphereContactResolver3D.TryResolveContact(first, second, out collisionNormal, out penetration)) {
-                    ResolvePairAlongNormal(first, second, collisionNormal, penetration);
+                if (cycle > 1d) {
+                    normalized = 2d - cycle;
+                } else {
+                    normalized = cycle;
                 }
-#endif
-                return;
-            }
-            if (first.ColliderShapeKind == ColliderShapeKind3D.Sphere &&
-                second.ColliderShapeKind == ColliderShapeKind3D.Box) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_SPHERE_BOX_CONTACT
-                if (SphereBoxContactResolver3D.TryResolveContact(first, second, out collisionNormal, out penetration)) {
-                    ResolvePairAlongNormal(first, second, collisionNormal, penetration);
-                }
-#endif
-                return;
-            }
-            if (first.ColliderShapeKind == ColliderShapeKind3D.Box &&
-                second.ColliderShapeKind == ColliderShapeKind3D.Sphere) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_SPHERE_BOX_CONTACT
-                if (SphereBoxContactResolver3D.TryResolveContact(second, first, out collisionNormal, out penetration)) {
-                    ResolvePairAlongNormal(second, first, collisionNormal, penetration);
-                }
-#endif
-                return;
-            }
-            if (first.ColliderShapeKind == ColliderShapeKind3D.Capsule &&
-                second.ColliderShapeKind == ColliderShapeKind3D.Box) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_CAPSULE_BOX_CONTACT
-                if (CapsuleBoxContactResolver3D.TryResolveContact(first, second, out collisionNormal, out penetration)) {
-                    ResolvePairAlongNormal(first, second, collisionNormal, penetration);
-                }
-#endif
-                return;
-            }
-            if (first.ColliderShapeKind == ColliderShapeKind3D.Box &&
-                second.ColliderShapeKind == ColliderShapeKind3D.Capsule) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_CAPSULE_BOX_CONTACT
-                if (CapsuleBoxContactResolver3D.TryResolveContact(second, first, out collisionNormal, out penetration)) {
-                    ResolvePairAlongNormal(second, first, collisionNormal, penetration);
-                }
-#endif
-                return;
-            }
-            if (first.ColliderShapeKind == ColliderShapeKind3D.Capsule &&
-                second.ColliderShapeKind == ColliderShapeKind3D.Sphere) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_CAPSULE_SPHERE_CONTACT
-                if (CapsuleSphereContactResolver3D.TryResolveContact(first, second, out collisionNormal, out penetration)) {
-                    ResolvePairAlongNormal(first, second, collisionNormal, penetration);
-                }
-#endif
-                return;
-            }
-            if (first.ColliderShapeKind == ColliderShapeKind3D.Sphere &&
-                second.ColliderShapeKind == ColliderShapeKind3D.Capsule) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_CAPSULE_SPHERE_CONTACT
-                if (CapsuleSphereContactResolver3D.TryResolveContact(second, first, out collisionNormal, out penetration)) {
-                    ResolvePairAlongNormal(second, first, collisionNormal, penetration);
-                }
-#endif
-                return;
-            }
-            if (first.ColliderShapeKind == ColliderShapeKind3D.Capsule &&
-                second.ColliderShapeKind == ColliderShapeKind3D.Capsule) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_CAPSULE_CAPSULE_CONTACT
-                if (CapsuleCapsuleContactResolver3D.TryResolveContact(first, second, out collisionNormal, out penetration)) {
-                    ResolvePairAlongNormal(first, second, collisionNormal, penetration);
-                }
-#endif
-                return;
+            } else {
+                normalized = Math.Min(1d, Math.Max(0d, normalized));
             }
 
-            throw new InvalidOperationException($"Unsupported collider pair '{first.ColliderShapeKind}' and '{second.ColliderShapeKind}'.");
+            float amount = (float)normalized;
+            return motion.StartLocalPosition + ((motion.EndLocalPosition - motion.StartLocalPosition) * amount);
         }
 
         /// <summary>
-        /// Applies separation and velocity clipping for one collision axis.
+        /// Integrates body positions and orientations from current velocities.
         /// </summary>
-        /// <param name="first">First body state.</param>
-        /// <param name="second">Second body state.</param>
-        /// <param name="penetration">Positive overlap distance on the selected axis.</param>
-        /// <param name="axisIndex">Zero for X, one for Y, two for Z.</param>
-        void ResolveAxis(BodyState3D first, BodyState3D second, float penetration, int axisIndex) {
-            float axisDirection = PrimitiveContactMath3D.GetAxisDirection(first, second, axisIndex);
-            bool canMoveFirst = CanBeDisplaced(first);
-            bool canMoveSecond = CanBeDisplaced(second);
-            float moveFirst = 0f;
-            float moveSecond = 0f;
+        /// <param name="stepSeconds">Substep duration in seconds.</param>
+        void IntegratePoses(double stepSeconds) {
+            float stepSecondsFloat = (float)stepSeconds;
+            for (int index = 0; index < BodyStatesValue.Count; index++) {
+                CubeBodyState3D bodyState = BodyStatesValue[index];
+                if (bodyState.RigidBody.BodyKind == BodyKind3D.Static) {
+                    continue;
+                }
 
-            if (canMoveFirst && canMoveSecond) {
-                moveFirst = penetration * 0.5f * axisDirection;
-                moveSecond = penetration * 0.5f * -axisDirection;
-            } else if (canMoveFirst) {
-                moveFirst = penetration * axisDirection;
-            } else if (canMoveSecond) {
-                moveSecond = penetration * -axisDirection;
-            }
-
-            if (moveFirst != 0f) {
-                first.Position = PrimitiveContactMath3D.OffsetAxis(first.Position, axisIndex, moveFirst);
-            }
-
-            if (moveSecond != 0f) {
-                second.Position = PrimitiveContactMath3D.OffsetAxis(second.Position, axisIndex, moveSecond);
-            }
-
-            if (moveFirst != 0f || moveSecond != 0f) {
-                ContactMaterialResponse3D.ApplyAxisPairResponse(first, second, axisIndex, axisDirection);
+                bodyState.Position = bodyState.Position + (bodyState.Velocity * stepSecondsFloat);
+                IntegrateOrientation(bodyState, stepSecondsFloat);
+                bodyState.RefreshDerivedShapeState();
             }
         }
 
         /// <summary>
-        /// Applies separation and velocity clipping for one collision normal.
+        /// Integrates one body's orientation from angular velocity.
         /// </summary>
-        /// <param name="first">First body state.</param>
-        /// <param name="second">Second body state.</param>
-        /// <param name="collisionNormal">Unit normal pointing from the second body toward the first body.</param>
-        /// <param name="penetration">Positive overlap distance along the supplied normal.</param>
-        void ResolvePairAlongNormal(BodyState3D first, BodyState3D second, float3 collisionNormal, float penetration) {
-            bool canMoveFirst = CanBeDisplaced(first);
-            bool canMoveSecond = CanBeDisplaced(second);
-            float moveFirst = 0f;
-            float moveSecond = 0f;
-
-            if (canMoveFirst && canMoveSecond) {
-                moveFirst = penetration * 0.5f;
-                moveSecond = penetration * 0.5f;
-            } else if (canMoveFirst) {
-                moveFirst = penetration;
-            } else if (canMoveSecond) {
-                moveSecond = penetration;
+        /// <param name="bodyState">Body state to rotate.</param>
+        /// <param name="stepSeconds">Substep duration in seconds.</param>
+        static void IntegrateOrientation(CubeBodyState3D bodyState, float stepSeconds) {
+            float3 angularVelocity = bodyState.AngularVelocity;
+            double angularSpeedSquared = float3.Dot(angularVelocity, angularVelocity);
+            if (angularSpeedSquared <= 0.0000001d) {
+                return;
             }
 
-            if (moveFirst != 0f) {
-                first.Position = first.Position + (collisionNormal * moveFirst);
+            double angularSpeed = Math.Sqrt(angularSpeedSquared);
+            float3 axis = angularVelocity / (float)angularSpeed;
+            float4.CreateFromAxisAngle(ref axis, (float)(angularSpeed * stepSeconds), out float4 deltaRotation);
+            float4 orientation = bodyState.Orientation * deltaRotation;
+            orientation.Normalize();
+            bodyState.Orientation = orientation;
+        }
+
+        /// <summary>
+        /// Builds all cube pair candidates using a simple deterministic all-pairs scan.
+        /// </summary>
+        void BuildCandidatePairs() {
+            CandidatePairs.Clear();
+            for (int firstIndex = 0; firstIndex < BodyStatesValue.Count; firstIndex++) {
+                for (int secondIndex = firstIndex + 1; secondIndex < BodyStatesValue.Count; secondIndex++) {
+                    CubeBodyState3D first = BodyStatesValue[firstIndex];
+                    CubeBodyState3D second = BodyStatesValue[secondIndex];
+                    if (first.RigidBody.BodyKind == BodyKind3D.Static && second.RigidBody.BodyKind == BodyKind3D.Static) {
+                        continue;
+                    }
+                    if (!CanCollide(first.Collider, second.Collider)) {
+                        continue;
+                    }
+
+                    CandidatePairs.Add(new CubeBodyPair3D(firstIndex, secondIndex));
+                }
             }
 
-            if (moveSecond != 0f) {
-                float3 secondNormal = collisionNormal * -1f;
-                second.Position = second.Position + (secondNormal * moveSecond);
-            }
+            LastBroadphaseCandidatePairCount = CandidatePairs.Count;
+        }
 
-            if (moveFirst != 0f || moveSecond != 0f) {
-                ContactMaterialResponse3D.ApplyPairResponse(first, second, collisionNormal);
+        /// <summary>
+        /// Builds contact manifolds for currently overlapping cube pairs.
+        /// </summary>
+        void BuildManifolds() {
+            Manifolds.Clear();
+            for (int pairIndex = 0; pairIndex < CandidatePairs.Count; pairIndex++) {
+                CubeBodyPair3D pair = CandidatePairs[pairIndex];
+                CubeBodyState3D first = BodyStatesValue[pair.FirstBodyIndex];
+                CubeBodyState3D second = BodyStatesValue[pair.SecondBodyIndex];
+                if (first.Collider.IsTrigger || second.Collider.IsTrigger) {
+                    continue;
+                }
+                if (!CubeBoxContactResolver3D.TryResolveManifold(first, second, out CubeContactManifold3D manifold)) {
+                    continue;
+                }
+
+                Manifolds.Add(new CubeRuntimeManifold3D(pair.FirstBodyIndex, pair.SecondBodyIndex, manifold));
             }
         }
 
         /// <summary>
-        /// Applies static-mesh contact resolution to every supported dynamic body against every cooked mesh in the world.
+        /// Solves normal and friction impulses for every manifold.
         /// </summary>
-        void ResolveStaticMeshContacts() {
-            for (int bodyIndex = 0; bodyIndex < BodyStatesValue.Count; bodyIndex++) {
-                BodyState3D bodyState = BodyStatesValue[bodyIndex];
+        /// <param name="stepSeconds">Substep duration in seconds.</param>
+        void SolveManifolds(double stepSeconds) {
+            for (int iteration = 0; iteration < Settings.SolverIterations; iteration++) {
+                for (int manifoldIndex = 0; manifoldIndex < Manifolds.Count; manifoldIndex++) {
+                    CubeRuntimeManifold3D manifold = Manifolds[manifoldIndex];
+                    CubeBodyState3D first = BodyStatesValue[manifold.FirstBodyIndex];
+                    CubeBodyState3D second = BodyStatesValue[manifold.SecondBodyIndex];
+                    for (int pointIndex = 0; pointIndex < manifold.Contact.ContactCount; pointIndex++) {
+                        SolveContactPoint(first, second, manifold.Contact, manifold.Contact.GetPoint(pointIndex), stepSeconds);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Solves one contact point using sequential impulse response.
+        /// </summary>
+        /// <param name="first">First body in the contact.</param>
+        /// <param name="second">Second body in the contact.</param>
+        /// <param name="manifold">Contact manifold containing the normal.</param>
+        /// <param name="point">Contact point to solve.</param>
+        /// <param name="stepSeconds">Substep duration in seconds.</param>
+        static void SolveContactPoint(CubeBodyState3D first, CubeBodyState3D second, CubeContactManifold3D manifold, CubeContactPoint3D point, double stepSeconds) {
+            float3 normal = manifold.Normal;
+            float3 firstOffset = point.Position - first.Position;
+            float3 secondOffset = point.Position - second.Position;
+            float3 firstVelocity = first.Velocity + float3.Cross(first.AngularVelocity, firstOffset);
+            float3 secondVelocity = second.Velocity + float3.Cross(second.AngularVelocity, secondOffset);
+            float3 relativeVelocity = firstVelocity - secondVelocity;
+            double closingSpeed = float3.Dot(relativeVelocity, normal);
+            double numerator = -closingSpeed;
+            if (numerator <= 0d) {
+                return;
+            }
+
+            double effectiveMass = ResolveEffectiveMass(first, second, normal, firstOffset, secondOffset);
+            if (effectiveMass <= 0d) {
+                return;
+            }
+
+            float3 impulse = normal * (float)(numerator / effectiveMass);
+            ApplyImpulse(first, impulse, firstOffset);
+            ApplyImpulse(second, impulse * -1f, secondOffset);
+            SolveFriction(first, second, normal, point.Position, impulse);
+        }
+
+        /// <summary>
+        /// Applies a friction impulse for one solved normal contact.
+        /// </summary>
+        /// <param name="first">First body in the contact.</param>
+        /// <param name="second">Second body in the contact.</param>
+        /// <param name="normal">Contact normal.</param>
+        /// <param name="contactPoint">World-space contact point.</param>
+        /// <param name="normalImpulse">Normal impulse already applied.</param>
+        static void SolveFriction(CubeBodyState3D first, CubeBodyState3D second, float3 normal, float3 contactPoint, float3 normalImpulse) {
+            float3 firstOffset = contactPoint - first.Position;
+            float3 secondOffset = contactPoint - second.Position;
+            float3 firstVelocity = first.Velocity + float3.Cross(first.AngularVelocity, firstOffset);
+            float3 secondVelocity = second.Velocity + float3.Cross(second.AngularVelocity, secondOffset);
+            float3 relativeVelocity = firstVelocity - secondVelocity;
+            float3 tangent = relativeVelocity - (normal * float3.Dot(relativeVelocity, normal));
+            double tangentSpeedSquared = float3.Dot(tangent, tangent);
+            if (tangentSpeedSquared <= 0.000001d) {
+                return;
+            }
+
+            tangent /= (float)Math.Sqrt(tangentSpeedSquared);
+            double effectiveMass = ResolveEffectiveMass(first, second, tangent, firstOffset, secondOffset);
+            if (effectiveMass <= 0d) {
+                return;
+            }
+
+            double tangentSpeed = float3.Dot(relativeVelocity, tangent);
+            double desiredMagnitude = -tangentSpeed / effectiveMass;
+            double friction = (first.Collider.DynamicFriction + second.Collider.DynamicFriction) * 0.5d;
+            double maximumMagnitude = Math.Sqrt(float3.Dot(normalImpulse, normalImpulse)) * friction;
+            double clampedMagnitude = Math.Max(-maximumMagnitude, Math.Min(maximumMagnitude, desiredMagnitude));
+            float3 frictionImpulse = tangent * (float)clampedMagnitude;
+            ApplyImpulse(first, frictionImpulse, firstOffset);
+            ApplyImpulse(second, frictionImpulse * -1f, secondOffset);
+        }
+
+        /// <summary>
+        /// Resolves effective mass for one impulse direction at a contact point.
+        /// </summary>
+        /// <param name="first">First body.</param>
+        /// <param name="second">Second body.</param>
+        /// <param name="direction">Impulse direction.</param>
+        /// <param name="firstOffset">First contact offset from center of mass.</param>
+        /// <param name="secondOffset">Second contact offset from center of mass.</param>
+        /// <returns>Effective inverse mass.</returns>
+        static double ResolveEffectiveMass(CubeBodyState3D first, CubeBodyState3D second, float3 direction, float3 firstOffset, float3 secondOffset) {
+            double inverseMass = ResolveInverseMass(first) + ResolveInverseMass(second);
+            inverseMass += ResolveAngularEffectiveMass(first, direction, firstOffset);
+            inverseMass += ResolveAngularEffectiveMass(second, direction, secondOffset);
+            return inverseMass;
+        }
+
+        /// <summary>
+        /// Resolves angular contribution to effective mass.
+        /// </summary>
+        /// <param name="bodyState">Body whose inertia should contribute.</param>
+        /// <param name="direction">Impulse direction.</param>
+        /// <param name="offset">Contact offset from center of mass.</param>
+        /// <returns>Angular effective inverse mass.</returns>
+        static double ResolveAngularEffectiveMass(CubeBodyState3D bodyState, float3 direction, float3 offset) {
+            if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                return 0d;
+            }
+
+            float3 angular = float3.Cross(offset, direction);
+            float3 inertiaAngular = new float3(
+                angular.X * bodyState.InverseInertia.X,
+                angular.Y * bodyState.InverseInertia.Y,
+                angular.Z * bodyState.InverseInertia.Z);
+            return float3.Dot(float3.Cross(inertiaAngular, offset), direction);
+        }
+
+        /// <summary>
+        /// Applies an impulse to one dynamic body.
+        /// </summary>
+        /// <param name="bodyState">Body receiving the impulse.</param>
+        /// <param name="impulse">World-space impulse.</param>
+        /// <param name="offset">Contact offset from center of mass.</param>
+        static void ApplyImpulse(CubeBodyState3D bodyState, float3 impulse, float3 offset) {
+            if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                return;
+            }
+
+            float inverseMass = (float)ResolveInverseMass(bodyState);
+            bodyState.Velocity = bodyState.Velocity + (impulse * inverseMass);
+            float3 angularImpulse = float3.Cross(offset, impulse);
+            bodyState.AngularVelocity = bodyState.AngularVelocity + new float3(
+                angularImpulse.X * bodyState.InverseInertia.X,
+                angularImpulse.Y * bodyState.InverseInertia.Y,
+                angularImpulse.Z * bodyState.InverseInertia.Z);
+        }
+
+        /// <summary>
+        /// Applies small residual positional correction after impulse solving.
+        /// </summary>
+        void CorrectResidualPenetration() {
+            for (int manifoldIndex = 0; manifoldIndex < Manifolds.Count; manifoldIndex++) {
+                CubeRuntimeManifold3D manifold = Manifolds[manifoldIndex];
+                CubeBodyState3D first = BodyStatesValue[manifold.FirstBodyIndex];
+                CubeBodyState3D second = BodyStatesValue[manifold.SecondBodyIndex];
+                float maximumPenetration = ResolveMaximumPenetration(manifold.Contact);
+                float correction = Math.Max(0f, maximumPenetration - PenetrationSlop) * PositionCorrectionFraction;
+                if (correction <= 0f) {
+                    continue;
+                }
+
+                double firstInverseMass = ResolveInverseMass(first);
+                double secondInverseMass = ResolveInverseMass(second);
+                double inverseMassSum = firstInverseMass + secondInverseMass;
+                if (inverseMassSum <= 0d) {
+                    continue;
+                }
+
+                if (firstInverseMass > 0d) {
+                    first.Position = first.Position + (manifold.Contact.Normal * (float)(correction * firstInverseMass / inverseMassSum));
+                }
+                if (secondInverseMass > 0d) {
+                    second.Position = second.Position - (manifold.Contact.Normal * (float)(correction * secondInverseMass / inverseMassSum));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates derived box bounds after positional correction.
+        /// </summary>
+        void RefreshDerivedState() {
+            for (int index = 0; index < BodyStatesValue.Count; index++) {
+                BodyStatesValue[index].RefreshDerivedShapeState();
+            }
+        }
+
+        /// <summary>
+        /// Removes residual velocity into support contacts after the iterative solver has settled a cube.
+        /// </summary>
+        void ClampSupportedRestingVelocity() {
+            for (int manifoldIndex = 0; manifoldIndex < Manifolds.Count; manifoldIndex++) {
+                CubeRuntimeManifold3D manifold = Manifolds[manifoldIndex];
+                ClampBodyVelocityOutOfContact(BodyStatesValue[manifold.FirstBodyIndex], manifold.Contact.Normal);
+                ClampBodyVelocityOutOfContact(BodyStatesValue[manifold.SecondBodyIndex], manifold.Contact.Normal * -1f);
+            }
+        }
+
+        /// <summary>
+        /// Removes linear velocity that points into a contact plane for one dynamic body.
+        /// </summary>
+        /// <param name="bodyState">Body whose velocity should be clamped.</param>
+        /// <param name="outwardNormal">Normal pointing away from the opposing body for this body.</param>
+        static void ClampBodyVelocityOutOfContact(CubeBodyState3D bodyState, float3 outwardNormal) {
+            if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                return;
+            }
+
+            double normalSpeed = float3.Dot(bodyState.Velocity, outwardNormal);
+            if (outwardNormal.Y > 0.6f && normalSpeed < 1d && IsVisuallyFlat(bodyState)) {
+                bodyState.Velocity = bodyState.Velocity - (outwardNormal * (float)normalSpeed);
+                return;
+            }
+            if (normalSpeed >= 0.1d) {
+                return;
+            }
+
+            bodyState.Velocity = bodyState.Velocity - (outwardNormal * (float)normalSpeed);
+        }
+
+        /// <summary>
+        /// Updates simple repeated-low-motion sleep state.
+        /// </summary>
+        void UpdateActivity() {
+            for (int index = 0; index < BodyStatesValue.Count; index++) {
+                CubeBodyState3D bodyState = BodyStatesValue[index];
                 if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
                     continue;
                 }
 
-                for (int meshIndex = 0; meshIndex < StaticMeshStatesValue.Count; meshIndex++) {
-                    StaticMeshBodyState3D meshState = StaticMeshStatesValue[meshIndex];
-                    if (!CanBodyInteractWithStaticMesh(bodyState, meshState)) {
-                        continue;
-                    }
+                bool supported = IsSupported(index);
+                double linearSpeedSquared = float3.Dot(bodyState.Velocity, bodyState.Velocity);
+                double angularSpeedSquared = float3.Dot(bodyState.AngularVelocity, bodyState.AngularVelocity);
+                if (supported && linearSpeedSquared <= LinearSleepSpeedSquared && angularSpeedSquared <= AngularSleepSpeedSquared) {
+                    QuietFrameCounts[index]++;
+                } else {
+                    QuietFrameCounts[index] = 0;
+                }
 
-                    ResolveStaticMeshPair(bodyState, meshState);
+                if (QuietFrameCounts[index] >= QuietFramesBeforeSleep && IsVisuallyFlat(bodyState)) {
+                    bodyState.Velocity = float3.Zero;
+                    bodyState.AngularVelocity = float3.Zero;
                 }
             }
         }
 
         /// <summary>
-        /// Collects trigger overlaps between primitive bodies and cooked static meshes after the solver positions have settled.
+        /// Determines whether a quiet supported cube is already flat enough to sleep without any visual pose correction.
         /// </summary>
-        void CollectStaticMeshTriggerOverlaps() {
-            for (int bodyIndex = 0; bodyIndex < BodyStatesValue.Count; bodyIndex++) {
-                BodyState3D bodyState = BodyStatesValue[bodyIndex];
-                for (int meshIndex = 0; meshIndex < StaticMeshStatesValue.Count; meshIndex++) {
-                    StaticMeshBodyState3D meshState = StaticMeshStatesValue[meshIndex];
-                    if (!CanBodyInteractWithStaticMesh(bodyState, meshState)) {
-                        continue;
-                    }
-                    if (!bodyState.Collider.IsTrigger && !meshState.MeshCollider.IsTrigger) {
-                        continue;
-                    }
-                    if (!StaticMeshTriggerResolver3D.TryResolveOverlap(bodyState, meshState)) {
-                        continue;
-                    }
-
-                    TrackTriggerPair(bodyState, meshState);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Collects trigger overlaps between character controllers and trigger rigid bodies after controller motion has completed.
-        /// </summary>
-        void CollectCharacterControllerTriggerOverlaps() {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_CHARACTER_CONTROLLER
-            for (int controllerIndex = 0; controllerIndex < ControllerStatesValue.Count; controllerIndex++) {
-                CharacterControllerState3D controllerState = ControllerStatesValue[controllerIndex];
-                CharacterControllerBodyTriggerResolver3D.CollectOverlaps(controllerState, BodyStatesValue, CurrentTriggerPairsValue);
-                CharacterControllerStaticMeshTriggerResolver3D.CollectOverlaps(controllerState, StaticMeshStatesValue, CurrentTriggerPairsValue);
-            }
-#endif
-        }
-
-        /// <summary>
-        /// Resolves one supported dynamic-body pair against one cooked static mesh.
-        /// </summary>
-        /// <param name="bodyState">Dynamic body being resolved.</param>
-        /// <param name="meshState">Cooked static mesh being tested.</param>
-        void ResolveStaticMeshPair(BodyState3D bodyState, StaticMeshBodyState3D meshState) {
+        /// <param name="bodyState">Quiet supported body being considered for sleep.</param>
+        /// <returns>True when the body can sleep without a visible snap; otherwise false.</returns>
+        static bool IsVisuallyFlat(CubeBodyState3D bodyState) {
             if (bodyState == null) {
                 throw new ArgumentNullException(nameof(bodyState));
             }
-            if (meshState == null) {
-                throw new ArgumentNullException(nameof(meshState));
+
+            float3 localUp = float4.RotateVector(new float3(0f, 1f, 0f), bodyState.Orientation);
+            return Math.Abs(localUp.Y) >= 0.995f;
+        }
+
+        /// <summary>
+        /// Adds smooth angular motion for tilted supported cubes that would otherwise stall on an edge.
+        /// </summary>
+        /// <param name="stepSeconds">Substep duration in seconds.</param>
+        void ApplySupportedTiltSettling(double stepSeconds) {
+            for (int index = 0; index < BodyStatesValue.Count; index++) {
+                CubeBodyState3D bodyState = BodyStatesValue[index];
+                if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                    continue;
+                }
+                if (!IsSupported(index) || IsVisuallyFlat(bodyState)) {
+                    continue;
+                }
+
+                ApplyTiltSettlingAngularVelocity(bodyState, stepSeconds);
             }
-            if (bodyState.Collider.IsTrigger || meshState.MeshCollider.IsTrigger) {
+        }
+
+        /// <summary>
+        /// Applies angular velocity that continues the tilted cube's current rotation direction.
+        /// </summary>
+        /// <param name="bodyState">Tilted supported body to rotate.</param>
+        /// <param name="stepSeconds">Substep duration in seconds.</param>
+        static void ApplyTiltSettlingAngularVelocity(CubeBodyState3D bodyState, double stepSeconds) {
+            double speedSquared = float3.Dot(bodyState.AngularVelocity, bodyState.AngularVelocity);
+            if (speedSquared <= 0.000001d) {
                 return;
             }
 
-            if (bodyState.ColliderShapeKind == ColliderShapeKind3D.Sphere) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_SPHERE_STATIC_MESH_CONTACT
-                if (SphereStaticMeshContactResolver3D.TryResolveContact(bodyState, meshState, out float3 collisionNormal, out float penetration)) {
-                    ResolveDynamicBodyAlongNormal(bodyState, ResolveStaticSurfaceCollider(meshState), collisionNormal, penetration);
+            double speed = Math.Sqrt(speedSquared);
+            float3 rotationAxis = bodyState.AngularVelocity * (float)(1d / speed);
+            float3 angularVelocityDelta = rotationAxis * (float)(SupportedTiltAngularAcceleration * stepSeconds);
+            bodyState.AngularVelocity = ClampAngularVelocity(bodyState.AngularVelocity + angularVelocityDelta, SupportedTiltMaximumAngularSpeed);
+        }
+
+        /// <summary>
+        /// Clamps angular velocity to a maximum magnitude.
+        /// </summary>
+        /// <param name="angularVelocity">Angular velocity to clamp.</param>
+        /// <param name="maximumAngularSpeed">Maximum allowed angular speed.</param>
+        /// <returns>Original angular velocity when inside the limit; otherwise a scaled velocity.</returns>
+        static float3 ClampAngularVelocity(float3 angularVelocity, double maximumAngularSpeed) {
+            double speedSquared = float3.Dot(angularVelocity, angularVelocity);
+            double maximumSpeedSquared = maximumAngularSpeed * maximumAngularSpeed;
+            if (speedSquared <= maximumSpeedSquared) {
+                return angularVelocity;
+            }
+
+            double speed = Math.Sqrt(speedSquared);
+            return angularVelocity * (float)(maximumAngularSpeed / speed);
+        }
+
+        /// <summary>
+        /// Determines whether a body has an upward contact below its center.
+        /// </summary>
+        /// <param name="bodyIndex">Body index to inspect.</param>
+        /// <returns>True when the body has a support contact.</returns>
+        bool IsSupported(int bodyIndex) {
+            CubeBodyState3D bodyState = BodyStatesValue[bodyIndex];
+            for (int manifoldIndex = 0; manifoldIndex < Manifolds.Count; manifoldIndex++) {
+                CubeRuntimeManifold3D manifold = Manifolds[manifoldIndex];
+                if (manifold.FirstBodyIndex == bodyIndex && manifold.Contact.Normal.Y > 0.6f && manifold.Contact.Point0.Position.Y <= bodyState.Position.Y) {
+                    return true;
                 }
-#endif
-                return;
-            }
-            if (bodyState.ColliderShapeKind == ColliderShapeKind3D.Capsule) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_CAPSULE_STATIC_MESH_CONTACT
-                if (CapsuleStaticMeshContactResolver3D.TryResolveContact(bodyState, meshState, out float3 collisionNormal, out float penetration)) {
-                    ResolveDynamicBodyAlongNormal(bodyState, ResolveStaticSurfaceCollider(meshState), collisionNormal, penetration);
-                }
-#endif
-                return;
-            }
-            if (bodyState.ColliderShapeKind == ColliderShapeKind3D.Box) {
-#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_BOX_STATIC_MESH_CONTACT
-                if (BoxStaticMeshContactResolver3D.TryResolveContact(bodyState, meshState, out float3 collisionNormal, out float penetration)) {
-                    ResolveDynamicBodyAlongNormal(bodyState, ResolveStaticSurfaceCollider(meshState), collisionNormal, penetration);
-                }
-#endif
-            }
-        }
-
-        /// <summary>
-        /// Applies separation and velocity clipping for one dynamic body against an immovable collision normal.
-        /// </summary>
-        /// <param name="bodyState">Dynamic body being corrected.</param>
-        /// <param name="surfaceCollider">Static collider providing friction and restitution values.</param>
-        /// <param name="collisionNormal">Unit collision normal pointing away from the static surface.</param>
-        /// <param name="penetration">Positive overlap depth.</param>
-        void ResolveDynamicBodyAlongNormal(BodyState3D bodyState, Collider3DComponent surfaceCollider, float3 collisionNormal, float penetration) {
-            if (bodyState == null) {
-                throw new ArgumentNullException(nameof(bodyState));
-            }
-            if (surfaceCollider == null) {
-                throw new ArgumentNullException(nameof(surfaceCollider));
-            }
-
-            if (!CanBeDisplaced(bodyState) || penetration <= 0f) {
-                return;
-            }
-
-            bodyState.Position = bodyState.Position + (collisionNormal * penetration);
-            ContactMaterialResponse3D.ApplyStaticSurfaceResponse(bodyState, surfaceCollider, collisionNormal);
-        }
-
-        /// <summary>
-        /// Resolves the authored collider that should provide one static-surface material response.
-        /// </summary>
-        /// <param name="meshState">Static mesh state that received the contact query.</param>
-        /// <returns>Static surface collider used for material response.</returns>
-        static Collider3DComponent ResolveStaticSurfaceCollider(StaticMeshBodyState3D meshState) {
-            if (meshState == null) {
-                throw new ArgumentNullException(nameof(meshState));
-            }
-
-            return meshState.MeshCollider;
-        }
-
-        /// <summary>
-        /// Tracks one primitive body trigger pair using the entity that owns the trigger collider.
-        /// </summary>
-        /// <param name="first">First body participating in the overlap.</param>
-        /// <param name="second">Second body participating in the overlap.</param>
-        void TrackTriggerPair(BodyState3D first, BodyState3D second) {
-            if (first == null) {
-                throw new ArgumentNullException(nameof(first));
-            }
-            if (second == null) {
-                throw new ArgumentNullException(nameof(second));
-            }
-
-            if (first.Collider.IsTrigger) {
-                CurrentTriggerPairsValue.Add(new TriggerPairKey3D(first.Entity, second.Entity));
-                return;
-            }
-            if (second.Collider.IsTrigger) {
-                CurrentTriggerPairsValue.Add(new TriggerPairKey3D(second.Entity, first.Entity));
-                return;
-            }
-
-            throw new InvalidOperationException("Tracked trigger overlap pair does not contain a trigger collider.");
-        }
-
-        /// <summary>
-        /// Tracks one primitive-body to static-mesh trigger pair using whichever collider is configured as the trigger.
-        /// </summary>
-        /// <param name="bodyState">Primitive body participating in the overlap.</param>
-        /// <param name="meshState">Static mesh participating in the overlap.</param>
-        void TrackTriggerPair(BodyState3D bodyState, StaticMeshBodyState3D meshState) {
-            if (bodyState == null) {
-                throw new ArgumentNullException(nameof(bodyState));
-            }
-            if (meshState == null) {
-                throw new ArgumentNullException(nameof(meshState));
-            }
-
-            if (bodyState.Collider.IsTrigger) {
-                CurrentTriggerPairsValue.Add(new TriggerPairKey3D(bodyState.Entity, meshState.Entity));
-                return;
-            }
-            if (meshState.MeshCollider.IsTrigger) {
-                CurrentTriggerPairsValue.Add(new TriggerPairKey3D(meshState.Entity, bodyState.Entity));
-                return;
-            }
-
-            throw new InvalidOperationException("Tracked trigger overlap pair does not contain a trigger collider.");
-        }
-
-        /// <summary>
-        /// Collects supported rigid-body entities recursively from one scene subtree.
-        /// </summary>
-        /// <param name="entity">Current scene entity.</param>
-        void CollectBodyStates(Entity entity) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-
-            RigidBody3DComponent rigidBody = FindRigidBody(entity);
-            BoxCollider3DComponent boxCollider = FindBoxCollider(entity);
-            SphereCollider3DComponent sphereCollider = FindSphereCollider(entity);
-            CapsuleCollider3DComponent capsuleCollider = FindCapsuleCollider(entity);
-            StaticMeshCollider3DComponent staticMeshCollider = FindStaticMeshCollider(entity);
-            CharacterController3DComponent characterController = FindCharacterController(entity);
-            if (rigidBody != null && characterController != null) {
-                throw new InvalidOperationException("Entities cannot bind both a rigid body and a character controller at the same time.");
-            }
-            if (CountNonNullColliders(boxCollider, sphereCollider, capsuleCollider, staticMeshCollider) > 1) {
-                throw new InvalidOperationException("Rigid-body entities cannot bind more than one collider shape at the same time.");
-            }
-            if (rigidBody != null && boxCollider != null) {
-                BodyStatesValue.Add(new BodyState3D(entity, rigidBody, boxCollider, FindKinematicMotion(entity)));
-            } else if (rigidBody != null && sphereCollider != null) {
-                BodyStatesValue.Add(new BodyState3D(entity, rigidBody, sphereCollider, FindKinematicMotion(entity)));
-            } else if (rigidBody != null && capsuleCollider != null) {
-                BodyStatesValue.Add(new BodyState3D(entity, rigidBody, capsuleCollider, FindKinematicMotion(entity)));
-            } else if (rigidBody != null && staticMeshCollider != null) {
-                if (rigidBody.BodyKind != BodyKind3D.Static) {
-                    throw new InvalidOperationException("Static mesh colliders currently require a static rigid body.");
-                }
-
-                StaticMeshStatesValue.Add(new StaticMeshBodyState3D(entity, rigidBody, staticMeshCollider));
-            }
-            if (characterController != null && boxCollider != null) {
-                ControllerStatesValue.Add(new CharacterControllerState3D(entity, characterController, boxCollider));
-            } else if (characterController != null && (sphereCollider != null || capsuleCollider != null)) {
-                throw new InvalidOperationException("Character controllers currently require a box collider.");
-            }
-
-            if (entity.Children == null) {
-                return;
-            }
-
-            for (int index = 0; index < entity.Children.Count; index++) {
-                CollectBodyStates(entity.Children[index]);
-            }
-        }
-
-        /// <summary>
-        /// Resolves the rigid body component attached to one entity.
-        /// </summary>
-        /// <param name="entity">Entity whose rigid body should be found.</param>
-        /// <returns>Attached rigid body when present; otherwise null.</returns>
-        static RigidBody3DComponent FindRigidBody(Entity entity) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (entity.Components == null) {
-                return null;
-            }
-
-            for (int index = 0; index < entity.Components.Count; index++) {
-                if (entity.Components[index] is RigidBody3DComponent rigidBody) {
-                    return rigidBody;
+                if (manifold.SecondBodyIndex == bodyIndex && manifold.Contact.Normal.Y < -0.6f && manifold.Contact.Point0.Position.Y <= bodyState.Position.Y) {
+                    return true;
                 }
             }
 
-            return null;
+            return false;
         }
 
         /// <summary>
-        /// Resolves the box collider component attached to one entity.
+        /// Resolves the largest penetration in a manifold.
         /// </summary>
-        /// <param name="entity">Entity whose box collider should be found.</param>
-        /// <returns>Attached box collider when present; otherwise null.</returns>
-        static BoxCollider3DComponent FindBoxCollider(Entity entity) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (entity.Components == null) {
-                return null;
+        /// <param name="manifold">Contact manifold to inspect.</param>
+        /// <returns>Largest penetration value.</returns>
+        static float ResolveMaximumPenetration(CubeContactManifold3D manifold) {
+            float penetration = 0f;
+            for (int index = 0; index < manifold.ContactCount; index++) {
+                penetration = Math.Max(penetration, manifold.GetPoint(index).Penetration);
             }
 
-            for (int index = 0; index < entity.Components.Count; index++) {
-                if (entity.Components[index] is BoxCollider3DComponent boxCollider) {
-                    return boxCollider;
-                }
-            }
-
-            return null;
+            return penetration;
         }
 
         /// <summary>
-        /// Resolves the sphere collider component attached to one entity.
+        /// Resolves inverse mass for a body.
         /// </summary>
-        /// <param name="entity">Entity whose sphere collider should be found.</param>
-        /// <returns>Attached sphere collider when present; otherwise null.</returns>
-        static SphereCollider3DComponent FindSphereCollider(Entity entity) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (entity.Components == null) {
-                return null;
-            }
-
-            for (int index = 0; index < entity.Components.Count; index++) {
-                if (entity.Components[index] is SphereCollider3DComponent sphereCollider) {
-                    return sphereCollider;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Resolves the capsule collider component attached to one entity.
-        /// </summary>
-        /// <param name="entity">Entity whose capsule collider should be found.</param>
-        /// <returns>Attached capsule collider when present; otherwise null.</returns>
-        static CapsuleCollider3DComponent FindCapsuleCollider(Entity entity) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (entity.Components == null) {
-                return null;
-            }
-
-            for (int index = 0; index < entity.Components.Count; index++) {
-                if (entity.Components[index] is CapsuleCollider3DComponent capsuleCollider) {
-                    return capsuleCollider;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Resolves the static mesh collider component attached to one entity.
-        /// </summary>
-        /// <param name="entity">Entity whose static mesh collider should be found.</param>
-        /// <returns>Attached static mesh collider when present; otherwise null.</returns>
-        static StaticMeshCollider3DComponent FindStaticMeshCollider(Entity entity) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (entity.Components == null) {
-                return null;
-            }
-
-            for (int index = 0; index < entity.Components.Count; index++) {
-                if (entity.Components[index] is StaticMeshCollider3DComponent staticMeshCollider) {
-                    return staticMeshCollider;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Counts the number of non-null collider references supplied for one entity.
-        /// </summary>
-        /// <param name="boxCollider">Box collider reference.</param>
-        /// <param name="sphereCollider">Sphere collider reference.</param>
-        /// <param name="capsuleCollider">Capsule collider reference.</param>
-        /// <returns>Number of supplied collider references that are not null.</returns>
-        static int CountNonNullColliders(BoxCollider3DComponent boxCollider, SphereCollider3DComponent sphereCollider, CapsuleCollider3DComponent capsuleCollider, StaticMeshCollider3DComponent staticMeshCollider) {
-            int count = 0;
-            if (boxCollider != null) {
-                count++;
-            }
-            if (sphereCollider != null) {
-                count++;
-            }
-            if (capsuleCollider != null) {
-                count++;
-            }
-            if (staticMeshCollider != null) {
-                count++;
-            }
-
-            return count;
-        }
-
-        /// <summary>
-        /// Resolves the character-controller component attached to one entity.
-        /// </summary>
-        /// <param name="entity">Entity whose character-controller component should be found.</param>
-        /// <returns>Attached character-controller component when present; otherwise null.</returns>
-        static CharacterController3DComponent FindCharacterController(Entity entity) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (entity.Components == null) {
-                return null;
-            }
-
-            for (int index = 0; index < entity.Components.Count; index++) {
-                if (entity.Components[index] is CharacterController3DComponent controllerComponent) {
-                    return controllerComponent;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Determines whether the body can be translated by the solver.
-        /// </summary>
-        /// <param name="bodyState">Body state to test.</param>
-        /// <returns>True when the body is kinematic or dynamic.</returns>
-        static bool CanBeDisplaced(BodyState3D bodyState) {
-            return bodyState.RigidBody.BodyKind == BodyKind3D.Dynamic;
-        }
-
-        /// <summary>
-        /// Creates the broadphase implementation requested by the effective world settings.
-        /// </summary>
-        /// <param name="settings">Effective world settings.</param>
-        /// <returns>Broadphase implementation for candidate-pair generation.</returns>
-        static IBroadphase3D CreateBroadphase(PhysicsWorld3DSettings settings) {
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
-            if (settings.BroadphaseKind == BroadphaseKind3D.UniformGrid) {
-                return new UniformGridBroadphase3D(4d);
-            }
-            if (settings.BroadphaseKind == BroadphaseKind3D.SweepAndPrune) {
-                throw new NotSupportedException("Sweep-and-prune broadphase is not implemented yet.");
-            }
-
-            throw new InvalidOperationException($"Unsupported broadphase kind '{settings.BroadphaseKind}'.");
-        }
-
-        /// <summary>
-        /// Resolves the kinematic motion component attached to one entity.
-        /// </summary>
-        /// <param name="entity">Entity whose kinematic motion component should be found.</param>
-        /// <returns>Attached kinematic motion component when present; otherwise null.</returns>
-        static KinematicMotion3DComponent FindKinematicMotion(Entity entity) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (entity.Components == null) {
-                return null;
-            }
-
-            for (int index = 0; index < entity.Components.Count; index++) {
-                if (entity.Components[index] is KinematicMotion3DComponent kinematicMotion) {
-                    return kinematicMotion;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Evaluates one kinematic motion path at the supplied elapsed time.
-        /// </summary>
-        /// <param name="motionComponent">Authored motion path component.</param>
-        /// <param name="elapsedSeconds">Accumulated runtime elapsed time for the path.</param>
-        /// <returns>Evaluated path position.</returns>
-        static float3 EvaluateKinematicMotionPosition(KinematicMotion3DComponent motionComponent, double elapsedSeconds) {
-            if (motionComponent == null) {
-                throw new ArgumentNullException(nameof(motionComponent));
-            }
-
-            double normalizedProgress = CalculateNormalizedMotionProgress(motionComponent, elapsedSeconds);
-            float progress = (float)normalizedProgress;
-            float3 start = motionComponent.StartLocalPosition;
-            float3 end = motionComponent.EndLocalPosition;
-            return new float3(
-                start.X + ((end.X - start.X) * progress),
-                start.Y + ((end.Y - start.Y) * progress),
-                start.Z + ((end.Z - start.Z) * progress));
-        }
-
-        /// <summary>
-        /// Calculates the normalized zero-to-one progress for one kinematic motion path.
-        /// </summary>
-        /// <param name="motionComponent">Authored motion path component.</param>
-        /// <param name="elapsedSeconds">Accumulated runtime elapsed time for the path.</param>
-        /// <returns>Normalized progress along the path.</returns>
-        static double CalculateNormalizedMotionProgress(KinematicMotion3DComponent motionComponent, double elapsedSeconds) {
-            if (motionComponent == null) {
-                throw new ArgumentNullException(nameof(motionComponent));
-            }
-
-            if (motionComponent.PingPong) {
-                double cycleSeconds = motionComponent.TravelDurationSeconds * 2d;
-                double wrappedSeconds = elapsedSeconds % cycleSeconds;
-                if (wrappedSeconds < 0d) {
-                    wrappedSeconds += cycleSeconds;
-                }
-                if (wrappedSeconds <= motionComponent.TravelDurationSeconds) {
-                    return wrappedSeconds / motionComponent.TravelDurationSeconds;
-                }
-
-                return 1d - ((wrappedSeconds - motionComponent.TravelDurationSeconds) / motionComponent.TravelDurationSeconds);
-            }
-
-            if (elapsedSeconds <= 0d) {
+        /// <param name="bodyState">Body state to inspect.</param>
+        /// <returns>Inverse mass for dynamic bodies; otherwise zero.</returns>
+        static double ResolveInverseMass(CubeBodyState3D bodyState) {
+            if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
                 return 0d;
             }
-            if (elapsedSeconds >= motionComponent.TravelDurationSeconds) {
-                return 1d;
-            }
 
-            return elapsedSeconds / motionComponent.TravelDurationSeconds;
+            return 1d / bodyState.RigidBody.Mass;
         }
 
+        /// <summary>
+        /// Determines whether two colliders pass layer and mask filtering.
+        /// </summary>
+        /// <param name="first">First collider.</param>
+        /// <param name="second">Second collider.</param>
+        /// <returns>True when the colliders can interact.</returns>
+        static bool CanCollide(BoxCollider3DComponent first, BoxCollider3DComponent second) {
+            return (first.CollisionMask & second.CollisionLayer) != 0 &&
+                (second.CollisionMask & first.CollisionLayer) != 0;
+        }
     }
 }

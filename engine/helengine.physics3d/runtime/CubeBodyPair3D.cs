@@ -1,14 +1,14 @@
 namespace helengine {
     /// <summary>
-    /// Stores one candidate broadphase pair as indices into the dense body-state list.
+    /// Stores one candidate cube pair as stable indices into the dense cube body list.
     /// </summary>
-    public sealed class BodyPair3D {
+    public readonly struct CubeBodyPair3D {
         /// <summary>
-        /// Initializes one candidate broadphase pair.
+        /// Initializes one candidate pair.
         /// </summary>
-        /// <param name="firstBodyIndex">Lower dense body-state index.</param>
-        /// <param name="secondBodyIndex">Higher dense body-state index.</param>
-        public BodyPair3D(int firstBodyIndex, int secondBodyIndex) {
+        /// <param name="firstBodyIndex">Lower dense cube body index.</param>
+        /// <param name="secondBodyIndex">Higher dense cube body index.</param>
+        public CubeBodyPair3D(int firstBodyIndex, int secondBodyIndex) {
             if (firstBodyIndex < 0) {
                 throw new ArgumentOutOfRangeException(nameof(firstBodyIndex), "Body indices must be non-negative.");
             }
@@ -21,12 +21,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets the lower dense body-state index.
+        /// Gets the lower dense cube body index.
         /// </summary>
         public int FirstBodyIndex { get; }
 
         /// <summary>
-        /// Gets the higher dense body-state index.
+        /// Gets the higher dense cube body index.
         /// </summary>
         public int SecondBodyIndex { get; }
     }

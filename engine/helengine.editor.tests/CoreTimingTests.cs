@@ -73,6 +73,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a very slow host frame cannot force physics to consume an unbounded backlog of fixed steps.
+        /// </summary>
+        [Fact]
+        public void Update_WithAttachedPhysicsRuntimeAndLargeElapsedSeconds_CapsFixedStepCatchUp() {
+            Core core = CreateCore(new CoreInitializationOptions {
+                PhysicsFixedStepSeconds = 1.0d / 60.0d,
+                PhysicsMaxStepsPerUpdate = 4
+            });
+            TestPhysicsRuntime runtime = new TestPhysicsRuntime();
+            core.AttachPhysicsRuntime(runtime);
+
+            core.Update(2.0d);
+
+            Assert.Equal(4, runtime.StepCount);
+            Assert.Equal(1.0d / 60.0d, runtime.LastStepSeconds, 10);
+            Assert.Equal(0d, core.PhysicsScheduler.AccumulatedSeconds, 10);
+        }
+
+        /// <summary>
         /// Ensures update components can read the current core delta values during update execution.
         /// </summary>
         [Fact]

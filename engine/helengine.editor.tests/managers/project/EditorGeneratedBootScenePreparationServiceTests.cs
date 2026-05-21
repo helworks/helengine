@@ -52,6 +52,27 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
     }
 
     /// <summary>
+    /// Ensures PSP boot-scene preparation writes the helper scene without Nintendo DS remap entries.
+    /// </summary>
+    [Fact]
+    public void EnsurePrepared_WhenPlaystationPortableMenuSceneIsSelected_WritesBootSceneWithoutSceneMapOverrides() {
+        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+        service.EnsurePrepared("psp", [PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        Assert.True(File.Exists(scenePath));
+
+        using FileStream stream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+        SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
+        SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
+        SceneMapComponent sceneMapComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(rootEntity.Components[0], null, null));
+        Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
+        Assert.Empty(sceneMapComponent.Mappings);
+    }
+
+    /// <summary>
     /// Ensures Nintendo DS boot-scene preparation also emits remaps for generated city rendering showcase companion scenes.
     /// </summary>
     [Fact]
@@ -82,8 +103,8 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
     /// Ensures Windows boot-scene preparation writes the helper scene without any scene-id remapping entries.
     /// </summary>
     [Fact]
-    public void EnsurePrepared_WhenPlatformIsWindows_WritesBootSceneWithoutMappings() {
-        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+        public void EnsurePrepared_WhenPlatformIsWindows_WritesBootSceneWithoutMappings() {
+            EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
 
         service.EnsurePrepared("windows", [PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
 
@@ -98,20 +119,71 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
 
         SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
         SceneMapComponent sceneMapComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(rootEntity.Components[0], null, null));
-        Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Empty(sceneMapComponent.Mappings);
-    }
+            Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
+            Assert.Empty(sceneMapComponent.Mappings);
+        }
 
-    /// <summary>
-    /// Ensures unsupported platforms remain opt-in and do not write one generated boot scene.
-    /// </summary>
-    [Fact]
-    public void EnsurePrepared_WhenPlatformIsUnsupported_DoesNotWriteBootScene() {
-        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+        /// <summary>
+        /// Ensures PS2 boot-scene preparation writes the helper scene without any scene-id remapping entries.
+        /// </summary>
+        [Fact]
+        public void EnsurePrepared_WhenPlatformIsPs2_WritesBootSceneWithoutMappings() {
+            EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
 
-        service.EnsurePrepared("ps2", [PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+            service.EnsurePrepared("ps2", [PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
 
-        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
-        Assert.False(File.Exists(scenePath));
-    }
+            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+            Assert.True(File.Exists(scenePath));
+
+            using FileStream stream = File.OpenRead(scenePath);
+            SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            Assert.True(sceneAsset.SceneSettings.DontUnload);
+            SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
+            Assert.Single(rootEntity.Components);
+
+            SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
+            SceneMapComponent sceneMapComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(rootEntity.Components[0], null, null));
+            Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
+            Assert.Empty(sceneMapComponent.Mappings);
+        }
+
+        /// <summary>
+        /// Ensures PS2 boot-scene preparation does not emit Nintendo DS companion-scene remaps when DS scene ids are selected.
+        /// </summary>
+        [Fact]
+        public void EnsurePrepared_WhenPlatformIsPs2_DoesNotWriteNintendoDsCompanionMappings() {
+            EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+            service.EnsurePrepared(
+                "ps2",
+                [
+                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    "cube_test",
+                    "cube_test_ds"
+                ]);
+
+            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+            Assert.True(File.Exists(scenePath));
+
+            using FileStream stream = File.OpenRead(scenePath);
+            SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
+            SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
+            SceneMapComponent sceneMapComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(rootEntity.Components[0], null, null));
+
+            Assert.Empty(sceneMapComponent.Mappings);
+        }
+
+        /// <summary>
+        /// Ensures unsupported platforms remain opt-in and do not write one generated boot scene.
+        /// </summary>
+        [Fact]
+        public void EnsurePrepared_WhenPlatformIsUnsupported_DoesNotWriteBootScene() {
+            EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+            service.EnsurePrepared("linux", [PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+
+            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+            Assert.False(File.Exists(scenePath));
+        }
 }

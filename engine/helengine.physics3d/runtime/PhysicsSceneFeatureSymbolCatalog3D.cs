@@ -125,7 +125,7 @@ namespace helengine {
                 throw new ArgumentException("Symbol must be provided.", nameof(symbol));
             }
 
-            if ((featureFlags & requiredFeature) == 0) {
+            if (((uint)featureFlags & (uint)requiredFeature) == 0u) {
                 return;
             }
 

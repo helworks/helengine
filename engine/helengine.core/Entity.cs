@@ -49,14 +49,14 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets the scale of the entity. Inherits from parent when present.
+        /// Gets or sets the scale of the entity. Multiplies with parent scale when present.
         /// </summary>
         public float3 Scale {
             get {
                 float3 sca = scale;
 
                 if (Parent != null) {
-                    sca += Parent.Scale;
+                    sca *= Parent.Scale;
                 }
 
                 return sca;

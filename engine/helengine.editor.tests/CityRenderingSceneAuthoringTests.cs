@@ -139,14 +139,49 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a representative city physics scene contains serialized 3D physics component records.
+        /// Ensures every generated city physics scene includes a debug overlay for runtime crash and freeze inspection.
         /// </summary>
         [Fact]
-        public void DeserializeCityDynamicStackBoxesPhysicsScene_ContainsRigidBodyAndColliderRecords() {
+        public void DeserializeCityPhysicsScenes_AllGeneratedPhysicsScenesContainDebugComponent() {
+            string[] sceneFileNames = new[] {
+                "test_scene_character_slope.helen",
+                "test_scene_character_steps.helen",
+                "test_scene_character_moving_platform.helen",
+                "test_scene_dynamic_stack_boxes.helen",
+                "test_scene_dynamic_sphere_ramp.helen",
+                "test_scene_kinematic_push.helen",
+                "test_scene_mesh_ground_stability.helen",
+                "test_scene_trigger_volume.helen"
+            };
+
+            for (int index = 0; index < sceneFileNames.Length; index++) {
+                SceneAsset sceneAsset = ReadPhysicsSceneAsset(sceneFileNames[index]);
+
+                Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.DebugComponent"));
+            }
+        }
+
+        /// <summary>
+        /// Ensures the first city physics scene builds a readable two-box offset stack over a static ground body.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityDynamicStackBoxesPhysicsScene_ContainsTwoBoxOffsetStackAndGround() {
             SceneAsset sceneAsset = ReadPhysicsSceneAsset("test_scene_dynamic_stack_boxes.helen");
 
-            Assert.True(CountComponents(sceneAsset.RootEntities, "helengine.RigidBody3DComponent") >= 2);
-            Assert.True(CountComponents(sceneAsset.RootEntities, "helengine.BoxCollider3DComponent") >= 2);
+            Assert.Equal(3, CountComponents(sceneAsset.RootEntities, "helengine.RigidBody3DComponent"));
+            Assert.Equal(3, CountComponents(sceneAsset.RootEntities, "helengine.BoxCollider3DComponent"));
+            SceneEntityAsset firstBoxEntity = FindEntityByName(sceneAsset.RootEntities, "StackBox01");
+            SceneEntityAsset secondBoxEntity = FindEntityByName(sceneAsset.RootEntities, "StackBox02");
+
+            Assert.InRange(firstBoxEntity.LocalPosition.X, -0.35f, -0.33f);
+            Assert.InRange(firstBoxEntity.LocalPosition.Z, -0.07f, -0.05f);
+            Assert.InRange(secondBoxEntity.LocalPosition.X, 0.49f, 0.51f);
+            Assert.InRange(secondBoxEntity.LocalPosition.Z, 0.05f, 0.07f);
+            Assert.True(HasHorizontalBoxOverlap(firstBoxEntity, secondBoxEntity));
+            Assert.True(HasReadableSideOffset(firstBoxEntity, secondBoxEntity));
+            Assert.InRange(ResolveUnitBoxHorizontalOverlapX(firstBoxEntity, secondBoxEntity), 0.15d, 0.17d);
+            Assert.Throws<InvalidOperationException>(() => FindEntityByName(sceneAsset.RootEntities, "StackBox03"));
+            Assert.Throws<InvalidOperationException>(() => FindEntityByName(sceneAsset.RootEntities, "StackBox04"));
         }
 
         /// <summary>
@@ -182,6 +217,22 @@ namespace helengine.editor.tests {
             string source = ReadCitySource("rendering.tools", "CubeTestSceneFactory.cs");
 
             Assert.Contains("DemoDiscReturnToMenuComponent", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the cube-test sun remains static so the lighting test isolates rotating mesh normals.
+        /// </summary>
+        [Fact]
+        public void ReadCityCubeTestSceneFactorySource_KeepsSunStatic() {
+            string source = ReadCitySource("rendering.tools", "CubeTestSceneFactory.cs");
+
+            int sunStartIndex = source.IndexOf("Entity CreateDirectionalLightEntity()", StringComparison.Ordinal);
+            int cubeStartIndex = source.IndexOf("Entity CreateCubeEntity", StringComparison.Ordinal);
+            Assert.True(sunStartIndex >= 0);
+            Assert.True(cubeStartIndex > sunStartIndex);
+
+            string sunSource = source.Substring(sunStartIndex, cubeStartIndex - sunStartIndex);
+            Assert.DoesNotContain("entity.AddComponent(new AxisRotationComponent", sunSource, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -248,6 +299,23 @@ namespace helengine.editor.tests {
             Assert.Contains("CubeTestNintendoDsSceneId", source, StringComparison.Ordinal);
             Assert.Contains("AxisTestNintendoDsSceneId", source, StringComparison.Ordinal);
             Assert.Contains("SceneMemoryProbeNintendoDsSceneId", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the textured cube-grid material generator authors Nintendo DS texture paths instead of falling back to untextured defaults.
+        /// </summary>
+        [Fact]
+        public void ReadCityTexturedCubeGridSceneFactorySource_ProvidesNintendoDsTextureMaterialSettings() {
+            string source = ReadCitySource("rendering.tools", "TexturedCubeGridSceneFactory.cs");
+
+            Assert.Contains("const string DsMaterialSchemaId = \"ds-standard-textured\";", source, StringComparison.Ordinal);
+            Assert.Contains("const string DsTextureRelativePathFieldId = \"texture-relative-path\";", source, StringComparison.Ordinal);
+            Assert.Contains("const string LightingModeFieldId = \"lighting-mode\";", source, StringComparison.Ordinal);
+            Assert.Contains("dsSettings.SchemaId = DsMaterialSchemaId;", source, StringComparison.Ordinal);
+            Assert.Contains("dsSettings.FieldValues[TextureIdFieldId] = CubeTextureAssetIds[cubeIndex];", source, StringComparison.Ordinal);
+            Assert.Contains("dsSettings.FieldValues[DsTextureRelativePathFieldId] = \"cooked/imported/\" + CubeTextureAssetIds[cubeIndex];", source, StringComparison.Ordinal);
+            Assert.Contains("dsSettings.FieldValues[LightingModeFieldId] = \"lit\";", source, StringComparison.Ordinal);
+            Assert.Contains("settings.Processor.Platforms[\"ds\"] = dsSettings;", source, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -548,6 +616,120 @@ namespace helengine.editor.tests {
             }
 
             return count;
+        }
+
+        /// <summary>
+        /// Finds one named entity in a serialized scene hierarchy and fails the test when it is missing.
+        /// </summary>
+        /// <param name="entities">Scene entities to inspect.</param>
+        /// <param name="entityName">Authored entity name to find.</param>
+        /// <returns>Matching scene entity.</returns>
+        SceneEntityAsset FindEntityByName(SceneEntityAsset[] entities, string entityName) {
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            } else if (string.IsNullOrWhiteSpace(entityName)) {
+                throw new ArgumentException("Entity name must be provided.", nameof(entityName));
+            }
+
+            for (int index = 0; index < entities.Length; index++) {
+                SceneEntityAsset entity = entities[index];
+                if (entity == null) {
+                    continue;
+                }
+
+                if (string.Equals(entity.Name, entityName, StringComparison.Ordinal)) {
+                    return entity;
+                }
+
+                SceneEntityAsset match = FindEntityByNameOrDefault(entity.Children ?? Array.Empty<SceneEntityAsset>(), entityName);
+                if (match != null) {
+                    return match;
+                }
+            }
+
+            throw new InvalidOperationException($"Scene entity '{entityName}' was not found.");
+        }
+
+        /// <summary>
+        /// Finds one named entity in a serialized scene hierarchy when present.
+        /// </summary>
+        /// <param name="entities">Scene entities to inspect.</param>
+        /// <param name="entityName">Authored entity name to find.</param>
+        /// <returns>Matching scene entity when present; otherwise null.</returns>
+        SceneEntityAsset FindEntityByNameOrDefault(SceneEntityAsset[] entities, string entityName) {
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            } else if (string.IsNullOrWhiteSpace(entityName)) {
+                throw new ArgumentException("Entity name must be provided.", nameof(entityName));
+            }
+
+            for (int index = 0; index < entities.Length; index++) {
+                SceneEntityAsset entity = entities[index];
+                if (entity == null) {
+                    continue;
+                }
+
+                if (string.Equals(entity.Name, entityName, StringComparison.Ordinal)) {
+                    return entity;
+                }
+
+                SceneEntityAsset match = FindEntityByNameOrDefault(entity.Children ?? Array.Empty<SceneEntityAsset>(), entityName);
+                if (match != null) {
+                    return match;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Determines whether two unit-box scene entities overlap in both horizontal axes at spawn time.
+        /// </summary>
+        /// <param name="firstEntity">First authored unit-box entity.</param>
+        /// <param name="secondEntity">Second authored unit-box entity.</param>
+        /// <returns>True when the two authored unit boxes can vertically support each other at spawn time.</returns>
+        static bool HasHorizontalBoxOverlap(SceneEntityAsset firstEntity, SceneEntityAsset secondEntity) {
+            if (firstEntity == null) {
+                throw new ArgumentNullException(nameof(firstEntity));
+            } else if (secondEntity == null) {
+                throw new ArgumentNullException(nameof(secondEntity));
+            }
+
+            return Math.Abs(firstEntity.LocalPosition.X - secondEntity.LocalPosition.X) < 1f &&
+                Math.Abs(firstEntity.LocalPosition.Z - secondEntity.LocalPosition.Z) < 1f;
+        }
+
+        /// <summary>
+        /// Resolves the authored horizontal X-axis overlap between two unit boxes so edge-contact scenes can be validated directly.
+        /// </summary>
+        /// <param name="firstEntity">First authored unit-box entity.</param>
+        /// <param name="secondEntity">Second authored unit-box entity.</param>
+        /// <returns>Positive overlap distance along the X axis for two unit-wide boxes.</returns>
+        static double ResolveUnitBoxHorizontalOverlapX(SceneEntityAsset firstEntity, SceneEntityAsset secondEntity) {
+            if (firstEntity == null) {
+                throw new ArgumentNullException(nameof(firstEntity));
+            } else if (secondEntity == null) {
+                throw new ArgumentNullException(nameof(secondEntity));
+            }
+
+            return 1d - Math.Abs((double)firstEntity.LocalPosition.X - secondEntity.LocalPosition.X);
+        }
+
+        /// <summary>
+        /// Determines whether two unit-box scene entities are visibly staggered instead of being perfectly centered.
+        /// </summary>
+        /// <param name="firstEntity">First authored unit-box entity.</param>
+        /// <param name="secondEntity">Second authored unit-box entity.</param>
+        /// <returns>True when the authored boxes have a visible horizontal center offset.</returns>
+        static bool HasReadableSideOffset(SceneEntityAsset firstEntity, SceneEntityAsset secondEntity) {
+            if (firstEntity == null) {
+                throw new ArgumentNullException(nameof(firstEntity));
+            } else if (secondEntity == null) {
+                throw new ArgumentNullException(nameof(secondEntity));
+            }
+
+            return Math.Abs(firstEntity.LocalPosition.X - secondEntity.LocalPosition.X) > 0.5f ||
+                Math.Abs(firstEntity.LocalPosition.Z - secondEntity.LocalPosition.Z) > 0.5f;
         }
 
         /// <summary>

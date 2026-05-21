@@ -105,32 +105,55 @@ namespace helengine {
                 return;
             }
 
-            // Build info text
             var rows = DebugInfoRegistry.Snapshot();
-            var sb = new StringBuilder(256);
+            StringBuilder sb = new StringBuilder(256);
+            string current = string.Empty;
+            float maxW = 0f;
+            int lineCount = 0;
 
-            string current = null;
             for (int i = 0; i < rows.Count; i++) {
-                var (cat, key, value) = rows[i];
+                var row = rows[i];
+                string cat = row.Item1;
+                string key = row.Item2;
+                string value = row.Item3;
                 if (cat != current) {
-                    if (current != null) sb.Append('\n');
-                    sb.Append('[').Append(cat).Append(']').Append('\n');
+                    if (!string.IsNullOrEmpty(current)) {
+                        sb.Append('\n');
+                    }
+
+                    string headerLine = "[" + cat + "]";
+                    string headerLineWithBreak = headerLine + "\n";
+                    sb.Append(headerLineWithBreak);
+                    FontTightMetrics headerMetrics = font.MeasureTight(headerLine);
+                    if (headerMetrics.Width > maxW) {
+                        maxW = headerMetrics.Width;
+                    }
+                    lineCount++;
                     current = cat;
                 }
-                sb.Append(key).Append(':').Append(' ').Append(value).Append('\n');
+
+                string valueLine = key + ": " + value;
+                sb.Append(valueLine);
+                if (i + 1 < rows.Count) {
+                    sb.Append('\n');
+                }
+
+                FontTightMetrics valueMetrics = font.MeasureTight(valueLine);
+                if (valueMetrics.Width > maxW) {
+                    maxW = valueMetrics.Width;
+                }
+                lineCount++;
             }
-            string textStr = sb.ToString().TrimEnd();
+
+            string textStr = sb.ToString();
             text.Text = textStr;
 
-            // Layout
-            var lines = textStr.Split('\n');
-            float maxW = 0f;
-            for (int i = 0; i < lines.Length; i++) {
-                var m = font.MeasureTight(lines[i]);
-                if (m.Width > maxW) maxW = m.Width;
+            if (lineCount == 0) {
+                lineCount = 1;
             }
+
             int w = (int)Math.Ceiling(maxW) + Padding.X * 2;
-            int h = (int)Math.Ceiling(lines.Length * font.LineHeight) + Padding.Y * 2;
+            int h = (int)Math.Ceiling(lineCount * font.LineHeight) + Padding.Y * 2;
 
             bg.Size = new int2(w, h);
             textEntity.Position = new float3(Padding.X, Padding.Y, 0.1f);

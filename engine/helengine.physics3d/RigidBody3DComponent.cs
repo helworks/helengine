@@ -14,6 +14,11 @@ namespace helengine {
         float3 LinearVelocityValue;
 
         /// <summary>
+        /// Backing field for the authored angular velocity.
+        /// </summary>
+        float3 AngularVelocityValue;
+
+        /// <summary>
         /// Backing field for the authored mass value.
         /// </summary>
         double MassValue;
@@ -29,6 +34,7 @@ namespace helengine {
         public RigidBody3DComponent() {
             BodyKindValue = BodyKind3D.Dynamic;
             LinearVelocityValue = float3.Zero;
+            AngularVelocityValue = float3.Zero;
             UseGravity = true;
             MassValue = 1d;
             GravityScaleValue = 1d;
@@ -48,6 +54,14 @@ namespace helengine {
         public float3 LinearVelocity {
             get { return LinearVelocityValue; }
             set { LinearVelocityValue = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets the authored angular velocity in radians per second around each world axis.
+        /// </summary>
+        public float3 AngularVelocity {
+            get { return AngularVelocityValue; }
+            set { AngularVelocityValue = value; }
         }
 
         /// <summary>

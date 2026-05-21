@@ -44,6 +44,11 @@ namespace helengine {
         public double PhysicsFixedStepSeconds { get; set; } = 1.0d / 60.0d;
 
         /// <summary>
+        /// Gets or sets the maximum number of fixed physics steps that one core update may consume before dropping excess accumulated time.
+        /// </summary>
+        public int PhysicsMaxStepsPerUpdate { get; set; } = 8;
+
+        /// <summary>
         /// Gets or sets the runtime scene catalog that packaged hosts can inject before core initialization.
         /// </summary>
         public RuntimeSceneCatalog SceneCatalog { get; set; }
@@ -96,6 +101,10 @@ namespace helengine {
                 double.IsInfinity(PhysicsFixedStepSeconds) ||
                 PhysicsFixedStepSeconds <= 0d) {
                 throw new InvalidOperationException("PhysicsFixedStepSeconds must be a finite value greater than zero.");
+            }
+
+            if (PhysicsMaxStepsPerUpdate < 1) {
+                throw new InvalidOperationException("PhysicsMaxStepsPerUpdate must be at least 1.");
             }
         }
     }

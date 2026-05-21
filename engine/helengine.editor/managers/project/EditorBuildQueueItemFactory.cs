@@ -16,14 +16,34 @@ namespace helengine.editor {
         const string WindowsStartupSceneId = PlatformMenuSceneResolver.GeneratedBootSceneId;
 
         /// <summary>
+        /// Stores the PlayStation 2 platform id that routes startup through the generated boot scene.
+        /// </summary>
+        const string Playstation2PlatformId = "ps2";
+
+        /// <summary>
+        /// Stores the project scene id that PlayStation 2 builds must stage first as their startup scene.
+        /// </summary>
+        const string Playstation2StartupSceneId = PlatformMenuSceneResolver.GeneratedBootSceneId;
+
+        /// <summary>
         /// Stores the Nintendo DS platform id that forces the demo-disc main menu to become the startup scene.
         /// </summary>
         const string NintendoDsPlatformId = "ds";
 
         /// <summary>
+        /// Stores the PlayStation Portable platform id that routes startup through the generated boot scene.
+        /// </summary>
+        const string PlaystationPortablePlatformId = "psp";
+
+        /// <summary>
         /// Stores the project scene id that Nintendo DS builds must stage first as their startup scene.
         /// </summary>
         const string NintendoDsStartupSceneId = PlatformMenuSceneResolver.GeneratedBootSceneId;
+
+        /// <summary>
+        /// Stores the project scene id that PlayStation Portable builds must stage first as their startup scene.
+        /// </summary>
+        const string PlaystationPortableStartupSceneId = PlatformMenuSceneResolver.GeneratedBootSceneId;
 
         /// <summary>
         /// Project scene catalog used to preserve stable scene ordering.
@@ -457,7 +477,23 @@ namespace helengine.editor {
             }
 
             if (string.Equals(platformId, WindowsPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                EnsureStartupSceneFirst(orderedSceneIds, WindowsStartupSceneId);
+                if (RequiresGeneratedBootScene(orderedSceneIds)) {
+                    EnsureStartupSceneFirst(orderedSceneIds, WindowsStartupSceneId);
+                }
+                return;
+            }
+
+            if (string.Equals(platformId, Playstation2PlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (RequiresGeneratedBootScene(orderedSceneIds)) {
+                    EnsureStartupSceneFirst(orderedSceneIds, Playstation2StartupSceneId);
+                }
+                return;
+            }
+
+            if (string.Equals(platformId, PlaystationPortablePlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (RequiresGeneratedBootScene(orderedSceneIds)) {
+                    EnsureStartupSceneFirst(orderedSceneIds, PlaystationPortableStartupSceneId);
+                }
                 return;
             }
 
@@ -466,6 +502,20 @@ namespace helengine.editor {
             }
 
             EnsureStartupSceneFirst(orderedSceneIds, NintendoDsStartupSceneId);
+        }
+
+        /// <summary>
+        /// Resolves whether the selected scene set needs generated boot-scene routing for demo-disc menu startup.
+        /// </summary>
+        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
+        /// <returns>True when the scene set includes the desktop menu or already selected the generated boot scene.</returns>
+        static bool RequiresGeneratedBootScene(IReadOnlyList<string> orderedSceneIds) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+
+            return IndexOf(orderedSceneIds, PlatformMenuSceneResolver.DesktopMainMenuSceneId) >= 0
+                || IndexOf(orderedSceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId) >= 0;
         }
 
         /// <summary>

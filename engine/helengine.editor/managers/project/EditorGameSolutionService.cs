@@ -341,6 +341,9 @@ namespace helengine.editor {
             builder.AppendLine("    <Reference Include=\"helengine.input\">");
             builder.AppendLine("      <HintPath>" + EscapeXml(typeof(InputSystem).Assembly.Location) + "</HintPath>");
             builder.AppendLine("    </Reference>");
+            builder.AppendLine("    <Reference Include=\"helengine.physics3d\">");
+            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(RigidBody3DComponent).Assembly.Location) + "</HintPath>");
+            builder.AppendLine("    </Reference>");
             if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {
                 builder.AppendLine("    <Reference Include=\"helengine.editor\">");
                 builder.AppendLine("      <HintPath>" + EscapeXml(typeof(EditorGameSolutionService).Assembly.Location) + "</HintPath>");

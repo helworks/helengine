@@ -134,6 +134,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures child world scale composes multiplicatively with parent scale instead of adding the two sizes together.
+        /// </summary>
+        [Fact]
+        public void Scale_WhenEntityHasParent_MultipliesLocalScaleByParentScale() {
+            InitializeCore();
+
+            Entity parent = CreateEntity();
+            parent.LocalScale = new float3(2f, 3f, 4f);
+
+            Entity child = CreateEntity();
+            child.LocalScale = new float3(5f, 6f, 7f);
+            parent.AddChild(child);
+
+            Assert.Equal(new float3(10f, 18f, 28f), child.Scale);
+        }
+
+        /// <summary>
         /// Initializes the core services required for entity-registration tests.
         /// </summary>
         void InitializeCore() {

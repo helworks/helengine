@@ -253,6 +253,24 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies cooked material artifacts that live beneath a model directory still classify as materials instead of models.
+    /// </summary>
+    [Fact]
+    public void ResolveArtifactKind_when_cooked_material_is_stored_beneath_models_directory_returns_material() {
+        string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "models", "Riemers", "racer", "x3ds_mat_Material_1_2.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(cookedMaterialPath)!);
+        WriteSerializedAsset(cookedMaterialPath, new MaterialAsset {
+            Id = "RacerMaterial",
+            ShaderAssetId = "ForwardStandardShader",
+            ConstantBuffers = Array.Empty<MaterialConstantBuffer>()
+        });
+
+        string artifactKind = InvokeResolveArtifactKind(cookedMaterialPath, "cooked/models/Riemers/racer/x3ds_mat_Material_1_2.hasset");
+
+        Assert.Equal("material", artifactKind);
+    }
+
+    /// <summary>
     /// Verifies builder-owned GameCube texture capabilities are emitted as manifest work items and removed from cooked artifacts.
     /// </summary>
     [Fact]
