@@ -9,11 +9,6 @@ namespace helengine {
         const string MaterialAssetExtension = ".hasset";
 
         /// <summary>
-        /// File extension used for serialized shader packages.
-        /// </summary>
-        const string ShaderPackageExtension = ".shader.asset";
-
-        /// <summary>
         /// File extension used for packaged font assets.
         /// </summary>
         const string FontAssetExtension = ".hefont";
@@ -44,11 +39,6 @@ namespace helengine {
                 contentManager,
                 RuntimeContentProcessorIds.TextAsset,
                 new AssetContentProcessor<TextAsset>());
-            RegisterProcessorIfMissing(
-                contentManager,
-                RuntimeContentProcessorIds.ShaderAsset,
-                new AssetContentProcessor<ShaderAsset>(),
-                new[] { ShaderPackageExtension });
             RegisterProcessorIfMissing(
                 contentManager,
                 RuntimeContentProcessorIds.SceneAsset,

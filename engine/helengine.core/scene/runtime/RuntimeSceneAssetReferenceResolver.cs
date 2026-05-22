@@ -4,10 +4,6 @@ namespace helengine {
     /// </summary>
     public sealed class RuntimeSceneAssetReferenceResolver {
         /// <summary>
-        /// Folder name used for packaged shader assets.
-        /// </summary>
-        const string ShaderDirectoryName = "cooked/shaders";
-        /// <summary>
         /// Folder name used for packaged imported texture assets.
         /// </summary>
         const string ImportedTextureDirectoryName = "cooked/imported";
@@ -18,11 +14,6 @@ namespace helengine {
         const string FontDirectoryName = "fonts";
 
         /// <summary>
-        /// Shared shader package file extension.
-        /// </summary>
-        const string ShaderPackageExtension = ".hasset";
-
-        /// <summary>
         /// Absolute packaged content root used to resolve file-backed scene references.
         /// </summary>
         readonly string ContentRootPath;
@@ -31,11 +22,6 @@ namespace helengine {
         /// Content manager used to load packaged runtime assets.
         /// </summary>
         readonly ContentManager AssetContentManager;
-
-        /// <summary>
-        /// Shader target used to resolve packaged shader assets.
-        /// </summary>
-        readonly ShaderCompileTarget ShaderTarget;
 
         /// <summary>
         /// Tracks scene-owned runtime textures resolved during the active scene materialization scope.
@@ -92,8 +78,7 @@ namespace helengine {
         /// </summary>
         /// <param name="assetContentManager">Content manager used to load packaged assets.</param>
         /// <param name="contentRootPath">Absolute packaged content root path.</param>
-        /// <param name="shaderTarget">Shader target used to resolve packaged shader assets.</param>
-        public RuntimeSceneAssetReferenceResolver(ContentManager assetContentManager, string contentRootPath, ShaderCompileTarget shaderTarget) {
+        public RuntimeSceneAssetReferenceResolver(ContentManager assetContentManager, string contentRootPath) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -103,9 +88,21 @@ namespace helengine {
 
             ContentRootPath = Path.GetFullPath(contentRootPath);
             AssetContentManager = assetContentManager;
-            ShaderTarget = shaderTarget;
             ActiveGeneratedModelsByKey = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
             ActiveGeneratedMaterialsByKey = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
+        }
+
+        /// <summary>
+        /// Initializes a new packaged scene asset resolver while accepting the legacy third constructor argument kept only for compile-surface compatibility.
+        /// </summary>
+        /// <param name="assetContentManager">Content manager used to load packaged assets.</param>
+        /// <param name="contentRootPath">Absolute packaged content root path.</param>
+        /// <param name="legacyShaderTarget">Legacy shader-target argument ignored by the generic runtime resolver.</param>
+        public RuntimeSceneAssetReferenceResolver(ContentManager assetContentManager, string contentRootPath, object legacyShaderTarget)
+            : this(assetContentManager, contentRootPath) {
+            if (legacyShaderTarget == null) {
+                throw new ArgumentNullException(nameof(legacyShaderTarget));
+            }
         }
 
         /// <summary>
@@ -186,17 +183,17 @@ namespace helengine {
                 return generatedCookedRuntimeMaterial;
 #else
                 MaterialAsset generatedMaterialAsset = AssetContentManager.Load<MaterialAsset>(generatedFullPath, RuntimeContentProcessorIds.MaterialAsset);
-                ShaderAsset generatedShaderAsset = AssetContentManager.Load<ShaderAsset>(
-                    ResolveShaderPackagePath(generatedMaterialAsset.ShaderAssetId),
-                    RuntimeContentProcessorIds.ShaderAsset);
                 try {
-                    RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(generatedMaterialAsset, generatedShaderAsset);
+                    RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
+                        AssetContentManager,
+                        ContentRootPath,
+                        generatedFullPath,
+                        generatedMaterialAsset);
                     ApplyMaterialDiffuseTexture(generatedRawRuntimeMaterial, generatedMaterialAsset, generatedFullPath);
                     ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
                     TrackOwnedMaterial(generatedRawRuntimeMaterial);
                     return generatedRawRuntimeMaterial;
                 } finally {
-                    ReleaseTransientShaderAsset(generatedShaderAsset);
                     ReleaseTransientMaterialAsset(generatedMaterialAsset);
                 }
 #endif
@@ -209,16 +206,16 @@ namespace helengine {
             return runtimeMaterial;
 #else
             MaterialAsset materialAsset = AssetContentManager.Load<MaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
-            ShaderAsset shaderAsset = AssetContentManager.Load<ShaderAsset>(
-                ResolveShaderPackagePath(materialAsset.ShaderAssetId),
-                RuntimeContentProcessorIds.ShaderAsset);
             try {
-                RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+                RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
+                    AssetContentManager,
+                    ContentRootPath,
+                    fullPath,
+                    materialAsset);
                 TrackOwnedMaterial(runtimeMaterial);
                 ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);
                 return runtimeMaterial;
             } finally {
-                ReleaseTransientShaderAsset(shaderAsset);
                 ReleaseTransientMaterialAsset(materialAsset);
             }
 #endif
@@ -454,143 +451,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Releases one transient shader constant-member asset.
-        /// </summary>
-        /// <param name="asset">Transient shader constant-member asset to release.</param>
-        static void ReleaseTransientShaderConstantMemberAsset(ShaderConstantMemberAsset asset) {
-            if (asset == null) {
-                return;
-            }
-
-            NativeOwnership.Delete(asset);
-        }
-
-        /// <summary>
-        /// Releases one transient shader binding asset and any deserialized constant-member metadata it owns.
-        /// </summary>
-        /// <param name="asset">Transient shader binding asset to release.</param>
-        static void ReleaseTransientShaderBindingAsset(ShaderBindingAsset asset) {
-            if (asset == null) {
-                return;
-            }
-
-            ShaderConstantMemberAsset[] members = asset.Members;
-            asset.Members = null;
-            if (members != null) {
-                for (int index = 0; index < members.Length; index++) {
-                    ReleaseTransientShaderConstantMemberAsset(members[index]);
-                }
-            }
-
-            DeleteTransientArray(members);
-            NativeOwnership.Delete(asset);
-        }
-
-        /// <summary>
-        /// Releases one transient shader variant asset and its define array.
-        /// </summary>
-        /// <param name="asset">Transient shader variant asset to release.</param>
-        static void ReleaseTransientShaderVariantAsset(ShaderVariantAsset asset) {
-            if (asset == null) {
-                return;
-            }
-
-            string[] defines = asset.Defines;
-            asset.Defines = null;
-            DeleteTransientArray(defines);
-            NativeOwnership.Delete(asset);
-        }
-
-        /// <summary>
-        /// Releases one transient shader program asset and all nested binding, signature, and variant metadata.
-        /// </summary>
-        /// <param name="asset">Transient shader program asset to release.</param>
-        static void ReleaseTransientShaderProgramAsset(ShaderProgramAsset asset) {
-            if (asset == null) {
-                return;
-            }
-
-            ShaderBindingAsset[] bindings = asset.Bindings;
-            ShaderVertexElementAsset[] inputs = asset.Inputs;
-            ShaderVertexElementAsset[] outputs = asset.Outputs;
-            ShaderVariantAsset[] variants = asset.Variants;
-            asset.Bindings = null;
-            asset.Inputs = null;
-            asset.Outputs = null;
-            asset.Variants = null;
-            if (bindings != null) {
-                for (int index = 0; index < bindings.Length; index++) {
-                    ReleaseTransientShaderBindingAsset(bindings[index]);
-                }
-            }
-            if (inputs != null) {
-                for (int index = 0; index < inputs.Length; index++) {
-                    NativeOwnership.Delete(inputs[index]);
-                }
-            }
-            if (outputs != null) {
-                for (int index = 0; index < outputs.Length; index++) {
-                    NativeOwnership.Delete(outputs[index]);
-                }
-            }
-            if (variants != null) {
-                for (int index = 0; index < variants.Length; index++) {
-                    ReleaseTransientShaderVariantAsset(variants[index]);
-                }
-            }
-
-            DeleteTransientArray(bindings);
-            DeleteTransientArray(inputs);
-            DeleteTransientArray(outputs);
-            DeleteTransientArray(variants);
-            NativeOwnership.Delete(asset);
-        }
-
-        /// <summary>
-        /// Releases one transient shader binary asset and its bytecode payload.
-        /// </summary>
-        /// <param name="asset">Transient shader binary asset to release.</param>
-        static void ReleaseTransientShaderBinaryAsset(ShaderBinaryAsset asset) {
-            if (asset == null) {
-                return;
-            }
-
-            byte[] bytecode = asset.Bytecode;
-            asset.Bytecode = null;
-            DeleteTransientArray(bytecode);
-            NativeOwnership.Delete(asset);
-        }
-
-        /// <summary>
-        /// Releases one transient shader asset and every deserialized nested program and binary payload.
-        /// </summary>
-        /// <param name="asset">Transient shader asset to release.</param>
-        static void ReleaseTransientShaderAsset(ShaderAsset asset) {
-            if (asset == null) {
-                return;
-            }
-
-            ShaderProgramAsset[] programs = asset.Programs;
-            ShaderBinaryAsset[] binaries = asset.Binaries;
-            asset.Programs = null;
-            asset.Binaries = null;
-            if (programs != null) {
-                for (int index = 0; index < programs.Length; index++) {
-                    ReleaseTransientShaderProgramAsset(programs[index]);
-                }
-            }
-            if (binaries != null) {
-                for (int index = 0; index < binaries.Length; index++) {
-                    ReleaseTransientShaderBinaryAsset(binaries[index]);
-                }
-            }
-
-            DeleteTransientArray(programs);
-            DeleteTransientArray(binaries);
-            NativeOwnership.Delete(asset);
-        }
-
-        /// <summary>
         /// Releases one transient model asset and all deserialized mesh buffers used only during runtime-model construction.
         /// </summary>
         /// <param name="asset">Transient model asset to release.</param>
@@ -687,20 +547,6 @@ namespace helengine {
             }
 
             return fullPath;
-        }
-
-        /// <summary>
-        /// Resolves one shader asset id into the packaged shader-asset path used by shader-backed player builds.
-        /// </summary>
-        /// <param name="shaderAssetId">Shader asset identifier stored on the packaged material asset.</param>
-        /// <returns>Absolute packaged shader-asset path.</returns>
-        string ResolveShaderPackagePath(string shaderAssetId) {
-            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
-                throw new InvalidOperationException("Packaged material assets must include a shader asset id.");
-            }
-
-            string fileName = string.Concat(shaderAssetId, ".", ShaderTargetNames.GetTargetName(ShaderTarget), ShaderPackageExtension);
-            return Path.Combine(ContentRootPath, ShaderDirectoryName, fileName);
         }
 
         /// <summary>

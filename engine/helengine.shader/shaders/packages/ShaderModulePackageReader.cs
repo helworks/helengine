@@ -18,7 +18,7 @@ namespace helengine {
             }
 
             PackageContentManager = new ContentManager(rootDirectory);
-            PackageContentManager.RegisterProcessor("shader-package", new AssetContentProcessor<ShaderAsset>(), new[] { ".shader.asset" });
+            ShaderRuntimeContentRegistration.Register(PackageContentManager);
         }
 
         /// <summary>
@@ -52,7 +52,7 @@ namespace helengine {
         /// <param name="packagePath">Package file path to read.</param>
         /// <returns>Deserialized shader asset.</returns>
         ShaderAsset ReadAsset(string packagePath) {
-            return PackageContentManager.Load<ShaderAsset>(packagePath, "shader-package");
+            return PackageContentManager.Load<ShaderAsset>(packagePath, ShaderRuntimeContentProcessorIds.ShaderAsset);
         }
     }
 }

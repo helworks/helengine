@@ -4,7 +4,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Records model-build requests for editor gizmo factory tests.
     /// </summary>
-    internal class TestRenderManager3D : RenderManager3D, IShaderCompileTargetProvider {
+    internal class TestRenderManager3D : RenderManager3D, IShaderRenderManager3D {
         /// <summary>
         /// Captured raw model assets passed through the build API.
         /// </summary>
@@ -131,12 +131,28 @@ namespace helengine.editor.tests.testing {
         }
 
         /// <summary>
+        /// Rebuilds one packaged raw material through the shared shader runtime material loader.
+        /// </summary>
+        /// <param name="assetContentManager">Content manager that can deserialize companion shader packages.</param>
+        /// <param name="contentRootPath">Absolute packaged content root.</param>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="materialAsset">Raw material asset definition.</param>
+        /// <returns>Placeholder runtime material for test assertions.</returns>
+        public override RuntimeMaterial BuildMaterialFromRawAsset(
+            ContentManager assetContentManager,
+            string contentRootPath,
+            string materialAssetPath,
+            MaterialAsset materialAsset) {
+            return ShaderRuntimeMaterialLoader.BuildMaterialFromRawAsset(this, assetContentManager, contentRootPath, materialAssetPath, materialAsset);
+        }
+
+        /// <summary>
         /// Records the supplied material asset and returns a placeholder runtime material.
         /// </summary>
         /// <param name="materialAsset">Raw material data to capture.</param>
         /// <param name="shaderAsset">Shader asset used by the material.</param>
         /// <returns>Placeholder runtime material for test assertions.</returns>
-        public override RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        public RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
@@ -154,6 +170,20 @@ namespace helengine.editor.tests.testing {
             material.ReceivesShadows = materialAsset.ReceivesShadows;
             StandardMaterialTextureBindingDefaults.Apply(material);
             return material;
+        }
+
+        /// <summary>
+        /// Ignores shader invalidation because the test renderer does not cache backend shader resources.
+        /// </summary>
+        /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
+        /// <param name="shaderAsset">Updated shader asset payload.</param>
+        public void InvalidateShaderResources(string shaderAssetId, ShaderAsset shaderAsset) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
+            }
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
         }
 
         /// <summary>

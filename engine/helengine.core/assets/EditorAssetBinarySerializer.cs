@@ -110,8 +110,6 @@ namespace helengine {
                     return ReadTextureAsset(reader, version);
                 case EditorAssetBinaryValueKind.ModelAsset:
                     return ReadModelAsset(reader, version);
-                case EditorAssetBinaryValueKind.ShaderAsset:
-                    return ReadShaderAsset(reader, version);
                 case EditorAssetBinaryValueKind.TextAsset:
                     return ReadTextAsset(reader, version);
                 case EditorAssetBinaryValueKind.MaterialAsset:
@@ -798,108 +796,6 @@ namespace helengine {
             asset.RuntimeAssetId = version > PreviousVersionWithoutRuntimeAssetId
                 ? (ulong)reader.ReadInt64()
                 : 0ul;
-        }
-
-        /// <summary>
-        /// Reads a shader asset payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <returns>Deserialized shader asset.</returns>
-        static ShaderAsset ReadShaderAsset(EngineBinaryReader reader, byte version) {
-            ShaderAsset asset = new ShaderAsset();
-            ReadAssetIdentity(reader, asset, version);
-            asset.Name = reader.ReadString();
-            asset.TargetName = reader.ReadString();
-            asset.Programs = reader.ReadArray(ReadShaderProgramAsset);
-            asset.Binaries = reader.ReadArray(ReadShaderBinaryAsset);
-            return asset;
-        }
-
-        /// <summary>
-        /// Reads a shader program asset payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <returns>Deserialized shader program asset.</returns>
-        static ShaderProgramAsset ReadShaderProgramAsset(EngineBinaryReader reader) {
-            return new ShaderProgramAsset {
-                Name = reader.ReadString(),
-                Stage = (ShaderStage)reader.ReadInt32(),
-                EntryPoint = reader.ReadString(),
-                Bindings = reader.ReadArray(ReadShaderBindingAsset),
-                Inputs = reader.ReadArray(ReadShaderVertexElementAsset),
-                Outputs = reader.ReadArray(ReadShaderVertexElementAsset),
-                Variants = reader.ReadArray(ReadShaderVariantAsset)
-            };
-        }
-
-        /// <summary>
-        /// Reads a shader binary asset payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <returns>Deserialized shader binary asset.</returns>
-        static ShaderBinaryAsset ReadShaderBinaryAsset(EngineBinaryReader reader) {
-            return new ShaderBinaryAsset {
-                ProgramName = reader.ReadString(),
-                Stage = (ShaderStage)reader.ReadInt32(),
-                TargetName = reader.ReadString(),
-                Variant = reader.ReadString(),
-                Bytecode = reader.ReadByteArray()
-            };
-        }
-
-        /// <summary>
-        /// Reads a shader binding asset payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <returns>Deserialized shader binding asset.</returns>
-        static ShaderBindingAsset ReadShaderBindingAsset(EngineBinaryReader reader) {
-            return new ShaderBindingAsset {
-                Name = reader.ReadString(),
-                Type = (ShaderResourceType)reader.ReadInt32(),
-                Set = reader.ReadInt32(),
-                Slot = reader.ReadInt32(),
-                Size = reader.ReadInt32(),
-                Members = reader.ReadArray(ReadShaderConstantMemberAsset)
-            };
-        }
-
-        /// <summary>
-        /// Reads a shader constant member payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <returns>Deserialized shader constant member asset.</returns>
-        static ShaderConstantMemberAsset ReadShaderConstantMemberAsset(EngineBinaryReader reader) {
-            return new ShaderConstantMemberAsset {
-                Name = reader.ReadString(),
-                Type = reader.ReadString(),
-                Offset = reader.ReadInt32(),
-                Size = reader.ReadInt32()
-            };
-        }
-
-        /// <summary>
-        /// Reads a shader variant payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <returns>Deserialized shader variant asset.</returns>
-        static ShaderVariantAsset ReadShaderVariantAsset(EngineBinaryReader reader) {
-            return new ShaderVariantAsset {
-                Name = reader.ReadString(),
-                Defines = reader.ReadArray(ReadStringValue)
-            };
-        }
-
-        /// <summary>
-        /// Reads a shader vertex element payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <returns>Deserialized shader vertex element asset.</returns>
-        static ShaderVertexElementAsset ReadShaderVertexElementAsset(EngineBinaryReader reader) {
-            return new ShaderVertexElementAsset {
-                Semantic = reader.ReadString(),
-                Index = reader.ReadInt32(),
-                Format = reader.ReadString()
-            };
         }
 
         /// <summary>

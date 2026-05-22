@@ -23,6 +23,25 @@ public sealed class RuntimeContentManagerConfigurationSourceTests {
     }
 
     /// <summary>
+    /// Ensures the core runtime content manager no longer hardcodes shader package registration details.
+    /// </summary>
+    [Fact]
+    public void RuntimeContentManagerConfiguration_source_does_not_register_shader_packages() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "content",
+            "RuntimeContentManagerConfiguration.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.DoesNotContain("runtime.shader-asset", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".shader.asset", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new AssetContentProcessor<ShaderAsset>()", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Resolves the helengine repository root from the current test assembly location.
     /// </summary>
     /// <returns>Absolute repository root path.</returns>

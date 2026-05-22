@@ -7,7 +7,7 @@ namespace helengine.vulkan {
     /// <summary>
     /// Vulkan-backed renderer responsible for swapchain management and 3D rendering.
     /// </summary>
-    public class VulkanRenderer3D : RenderManager3D, IRenderVisitor3D {
+    public class VulkanRenderer3D : RenderManager3D, IShaderRenderManager3D, IRenderVisitor3D {
         /// <summary>
         /// Maximum number of per-draw transform matrices reserved in the dynamic uniform buffer.
         /// </summary>
@@ -250,6 +250,11 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
+        /// Gets the shader compile target used by the Vulkan renderer.
+        /// </summary>
+        public ShaderCompileTarget ShaderCompileTarget => ShaderCompileTarget.Vulkan;
+
+        /// <summary>
         /// Creates a Vulkan render target descriptor.
         /// </summary>
         /// <param name="width">Render target width in pixels.</param>
@@ -260,12 +265,28 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
+        /// Builds a runtime material from one packaged material asset using the Vulkan shader runtime loader.
+        /// </summary>
+        /// <param name="assetContentManager">Content manager that can deserialize companion shader packages.</param>
+        /// <param name="contentRootPath">Absolute packaged content root.</param>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="materialAsset">Raw material asset definition.</param>
+        /// <returns>Runtime material instance.</returns>
+        public override RuntimeMaterial BuildMaterialFromRawAsset(
+            ContentManager assetContentManager,
+            string contentRootPath,
+            string materialAssetPath,
+            MaterialAsset materialAsset) {
+            return ShaderRuntimeMaterialLoader.BuildMaterialFromRawAsset(this, assetContentManager, contentRootPath, materialAssetPath, materialAsset);
+        }
+
+        /// <summary>
         /// Builds a runtime material from raw asset data.
         /// </summary>
         /// <param name="materialAsset">Raw material asset definition.</param>
         /// <param name="shaderAsset">Shader asset used by the material.</param>
         /// <returns>Runtime material instance.</returns>
-        public override RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        public virtual RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
@@ -339,7 +360,7 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
         /// <param name="shaderAsset">Updated shader asset data.</param>
-        public override void InvalidateShaderResources(string shaderAssetId, ShaderAsset shaderAsset) {
+        public virtual void InvalidateShaderResources(string shaderAssetId, ShaderAsset shaderAsset) {
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
             }

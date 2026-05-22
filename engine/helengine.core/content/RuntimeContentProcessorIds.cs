@@ -24,11 +24,6 @@ namespace helengine {
         public const string TextAsset = "runtime.text-asset";
 
         /// <summary>
-        /// Processor id used for serialized shader assets.
-        /// </summary>
-        public const string ShaderAsset = "runtime.shader-asset";
-
-        /// <summary>
         /// Processor id used for serialized scene assets.
         /// </summary>
         public const string SceneAsset = "runtime.scene-asset";

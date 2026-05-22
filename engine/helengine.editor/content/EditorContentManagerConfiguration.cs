@@ -32,7 +32,7 @@ namespace helengine.editor {
             RegisterProcessorIfMissing(
                 contentManager,
                 EditorContentProcessorIds.ShaderAsset,
-                new AssetContentProcessor<ShaderAsset>(),
+                new ShaderAssetContentProcessor(),
                 new[] { ShaderPackagePaths.PackageExtension });
             RegisterProcessorIfMissing(
                 contentManager,

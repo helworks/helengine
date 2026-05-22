@@ -1,4 +1,4 @@
-namespace helengine.editor {
+namespace helengine {
     /// <summary>
     /// Exposes the shader compile target associated with a renderer abstraction that is not tied to a concrete backend type.
     /// </summary>

@@ -344,8 +344,7 @@ namespace helengine {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(
                 contentManager,
-                InitializationOptions.ContentRootPath,
-                ShaderCompileTarget.DirectX11);
+                InitializationOptions.ContentRootPath);
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
             SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
             SceneManager = CreateSceneManager(contentManager, InitializationOptions.SceneCatalog);

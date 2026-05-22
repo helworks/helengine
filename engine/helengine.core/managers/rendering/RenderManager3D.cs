@@ -60,12 +60,31 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Builds a runtime material from raw asset data and an associated shader asset.
+        /// Builds a runtime material from one raw material asset using the active renderer's asset-loading strategy.
         /// </summary>
+        /// <param name="assetContentManager">Content manager that can load companion assets needed by the renderer.</param>
+        /// <param name="contentRootPath">Absolute packaged content root that owns the material asset.</param>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
         /// <param name="materialAsset">Raw material asset definition.</param>
-        /// <param name="shaderAsset">Shader asset used by the material.</param>
         /// <returns>Runtime material instance.</returns>
-        public virtual RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        public virtual RuntimeMaterial BuildMaterialFromRawAsset(
+            ContentManager assetContentManager,
+            string contentRootPath,
+            string materialAssetPath,
+            MaterialAsset materialAsset) {
+            if (assetContentManager == null) {
+                throw new ArgumentNullException(nameof(assetContentManager));
+            }
+            if (string.IsNullOrWhiteSpace(contentRootPath)) {
+                throw new ArgumentException("Content root path must be provided.", nameof(contentRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
+                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
+            }
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
             throw new NotSupportedException("This renderer does not support material creation.");
         }
 
@@ -134,14 +153,6 @@ namespace helengine {
             throw new NotSupportedException("This renderer does not support opaque platform-owned cooked material creation.");
         }
 #endif
-
-        /// <summary>
-        /// Invalidates shader resources associated with a compiled shader asset.
-        /// </summary>
-        /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
-        /// <param name="shaderAsset">Updated shader asset data.</param>
-        public virtual void InvalidateShaderResources(string shaderAssetId, ShaderAsset shaderAsset) {
-        }
 
         /// <summary>
         /// Gets the backend capability profile published by this renderer.

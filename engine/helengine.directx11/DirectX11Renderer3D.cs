@@ -16,7 +16,7 @@ namespace helengine.directx11 {
     /// <summary>
     /// DirectX11-backed renderer responsible for 3D rendering and swap chain management.
     /// </summary>
-    public class DirectX11Renderer3D : RenderManager3D, IRenderVisitor3D, IDirectX11RenderPassExecutor {
+    public class DirectX11Renderer3D : RenderManager3D, IShaderRenderManager3D, IRenderVisitor3D, IDirectX11RenderPassExecutor {
         /// <summary>
         /// Number of buffers used by each swap chain.
         /// </summary>
@@ -588,12 +588,33 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Gets the shader compile target used by the DirectX11 renderer.
+        /// </summary>
+        public ShaderCompileTarget ShaderCompileTarget => ShaderCompileTarget.DirectX11;
+
+        /// <summary>
+        /// Builds a runtime material from one packaged material asset using the DirectX11 shader runtime loader.
+        /// </summary>
+        /// <param name="assetContentManager">Content manager that can deserialize companion shader packages.</param>
+        /// <param name="contentRootPath">Absolute packaged content root.</param>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="materialAsset">Raw material asset definition.</param>
+        /// <returns>Runtime material instance.</returns>
+        public override RuntimeMaterial BuildMaterialFromRawAsset(
+            ContentManager assetContentManager,
+            string contentRootPath,
+            string materialAssetPath,
+            MaterialAsset materialAsset) {
+            return ShaderRuntimeMaterialLoader.BuildMaterialFromRawAsset(this, assetContentManager, contentRootPath, materialAssetPath, materialAsset);
+        }
+
+        /// <summary>
         /// Builds a runtime material from raw asset data and a shader asset.
         /// </summary>
         /// <param name="materialAsset">Raw material asset definition.</param>
         /// <param name="shaderAsset">Shader asset used by the material.</param>
         /// <returns>Runtime material instance.</returns>
-        public override RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        public virtual RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
@@ -656,7 +677,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
         /// <param name="shaderAsset">Updated shader asset data.</param>
-        public override void InvalidateShaderResources(string shaderAssetId, ShaderAsset shaderAsset) {
+        public virtual void InvalidateShaderResources(string shaderAssetId, ShaderAsset shaderAsset) {
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
             }
