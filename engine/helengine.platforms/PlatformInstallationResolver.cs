@@ -120,7 +120,9 @@ public sealed class PlatformInstallationResolver {
     /// <param name="entry">Platform entry loaded from the manifest.</param>
     /// <returns>Resolved platform descriptor.</returns>
     static AvailablePlatformDescriptor BuildPlatformDescriptor(string manifestRootPath, PlatformInstallationEntry entry) {
-        string resolvedBuilderAssemblyPath = ResolvePayloadPath(manifestRootPath, entry.BuilderAssemblyPath);
+        string resolvedPluginManifestPath = ResolvePayloadPath(manifestRootPath, entry.PluginManifestPath);
+        PlatformPluginManifestDocument pluginManifest = LoadPluginManifest(resolvedPluginManifestPath);
+        string resolvedBuilderAssemblyPath = ResolveBuilderAssemblyPath(manifestRootPath, entry, pluginManifest);
         string resolvedPlayerSourceRootPath = ResolvePayloadPath(manifestRootPath, entry.PlayerSourceRootPath);
         string resolvedGeneratedCoreCppRootPath = ResolvePayloadPath(manifestRootPath, entry.GeneratedCoreCppRootPath);
         string resolvedCodegenToolPath = ResolvePayloadPath(manifestRootPath, entry.CodegenToolPath);
@@ -134,6 +136,38 @@ public sealed class PlatformInstallationResolver {
             isInstalled,
             resolvedGeneratedCoreCppRootPath,
             resolvedCodegenToolPath);
+    }
+
+    /// <summary>
+    /// Loads one validated plugin manifest when the installation entry declares one.
+    /// </summary>
+    /// <param name="resolvedPluginManifestPath">Resolved plugin-manifest path from the installation entry.</param>
+    /// <returns>Validated plugin manifest document when one is declared; otherwise <c>null</c>.</returns>
+    static PlatformPluginManifestDocument LoadPluginManifest(string resolvedPluginManifestPath) {
+        if (string.IsNullOrWhiteSpace(resolvedPluginManifestPath)) {
+            return null;
+        }
+
+        return PlatformPluginManifestDocument.Load(resolvedPluginManifestPath);
+    }
+
+    /// <summary>
+    /// Resolves the builder assembly path, preferring the installation entry and then the metadata-only plugin manifest.
+    /// </summary>
+    /// <param name="manifestRootPath">Directory that owns the installation manifest.</param>
+    /// <param name="entry">Platform installation entry currently being resolved.</param>
+    /// <param name="pluginManifest">Validated plugin manifest when one was declared.</param>
+    /// <returns>Resolved builder assembly path.</returns>
+    static string ResolveBuilderAssemblyPath(string manifestRootPath, PlatformInstallationEntry entry, PlatformPluginManifestDocument pluginManifest) {
+        if (!string.IsNullOrWhiteSpace(entry.BuilderAssemblyPath)) {
+            return ResolvePayloadPath(manifestRootPath, entry.BuilderAssemblyPath);
+        }
+        if (pluginManifest == null || string.IsNullOrWhiteSpace(pluginManifest.BuilderAssemblyPath)) {
+            return string.Empty;
+        }
+
+        string pluginManifestDirectoryPath = Path.GetDirectoryName(ResolvePayloadPath(manifestRootPath, entry.PluginManifestPath)) ?? manifestRootPath;
+        return ResolvePayloadPath(pluginManifestDirectoryPath, pluginManifest.BuilderAssemblyPath);
     }
 
     /// <summary>

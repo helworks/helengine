@@ -65,4 +65,91 @@ public sealed class PlatformInstallationResolverTests : IDisposable {
         Assert.Equal(playerSourceRootPath, platform.PlayerSourceRootPath);
         Assert.True(platform.IsInstalled);
     }
+
+    /// <summary>
+    /// Ensures one external plugin manifest that declares runtime payload CLR types is rejected at platform resolution time.
+    /// </summary>
+    [Fact]
+    public void TryLoadPlatform_WhenPluginManifestContainsRuntimePayloadTypeMetadata_Throws() {
+        string settingsRootPath = Path.Combine(TempDirectoryPath, "user_settings");
+        Directory.CreateDirectory(settingsRootPath);
+        string pluginRootPath = Path.Combine(TempDirectoryPath, "helengine-ps2");
+        Directory.CreateDirectory(pluginRootPath);
+
+        File.WriteAllText(Path.Combine(settingsRootPath, "platforms.json"), """
+        {
+          "platforms": [
+            {
+              "engineVersion": "1.0.0-custom",
+              "platformId": "ps2",
+              "displayName": "PlayStation 2",
+              "builderAssemblyPath": "../helengine-ps2/builder/helengine.ps2.builder.dll",
+              "playerSourceRootPath": "../helengine-ps2",
+              "pluginManifestPath": "../helengine-ps2/platform-plugin.json"
+            }
+          ]
+        }
+        """);
+
+        File.WriteAllText(Path.Combine(pluginRootPath, "platform-plugin.json"), """
+        {
+          "platformId": "ps2",
+          "displayName": "PlayStation 2",
+          "runtimePayloadTypes": [ "helengine.ps2.Ps2MaterialAsset" ]
+        }
+        """);
+
+        Directory.CreateDirectory(Path.Combine(pluginRootPath, "builder"));
+        File.WriteAllText(Path.Combine(pluginRootPath, "builder", "helengine.ps2.builder.dll"), string.Empty);
+
+        PlatformInstallationResolver resolver = new PlatformInstallationResolver(settingsRootPath);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => resolver.TryLoadPlatform("1.0.0-custom", "ps2", out _));
+        Assert.Contains("runtime payload CLR types", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures one external plugin manifest that contains only generic metadata resolves successfully.
+    /// </summary>
+    [Fact]
+    public void TryLoadPlatform_WhenPluginManifestContainsOnlyGenericMetadata_Succeeds() {
+        string settingsRootPath = Path.Combine(TempDirectoryPath, "user_settings");
+        Directory.CreateDirectory(settingsRootPath);
+        string pluginRootPath = Path.Combine(TempDirectoryPath, "helengine-ps2");
+        Directory.CreateDirectory(pluginRootPath);
+
+        File.WriteAllText(Path.Combine(settingsRootPath, "platforms.json"), """
+        {
+          "platforms": [
+            {
+              "engineVersion": "1.0.0-custom",
+              "platformId": "ps2",
+              "displayName": "PlayStation 2",
+              "builderAssemblyPath": "../helengine-ps2/builder/helengine.ps2.builder.dll",
+              "playerSourceRootPath": "../helengine-ps2",
+              "pluginManifestPath": "../helengine-ps2/platform-plugin.json"
+            }
+          ]
+        }
+        """);
+
+        File.WriteAllText(Path.Combine(pluginRootPath, "platform-plugin.json"), """
+        {
+          "platformId": "ps2",
+          "displayName": "PlayStation 2",
+          "builderAssemblyPath": "builder/helengine.ps2.builder.dll"
+        }
+        """);
+
+        Directory.CreateDirectory(Path.Combine(pluginRootPath, "builder"));
+        File.WriteAllText(Path.Combine(pluginRootPath, "builder", "helengine.ps2.builder.dll"), string.Empty);
+
+        PlatformInstallationResolver resolver = new PlatformInstallationResolver(settingsRootPath);
+
+        bool resolved = resolver.TryLoadPlatform("1.0.0-custom", "ps2", out AvailablePlatformDescriptor platform);
+
+        Assert.True(resolved);
+        Assert.Equal("ps2", platform.Id);
+        Assert.Equal("PlayStation 2", platform.DisplayName);
+    }
 }

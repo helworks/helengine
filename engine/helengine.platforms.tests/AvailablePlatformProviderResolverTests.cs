@@ -171,6 +171,48 @@ public sealed class AvailablePlatformProviderResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the available-platform resolver rejects one external plugin manifest that leaks runtime payload CLR metadata.
+    /// </summary>
+    [Fact]
+    public void LoadPlatforms_WhenPluginManifestContainsRuntimePayloadTypeMetadata_Throws() {
+        string engineUserSettingsRootPath = CreateManifestRoot(
+            "engine-user-settings",
+            """
+            {
+              "platforms": [
+                {
+                  "engineVersion": "1.0.0",
+                  "platformId": "ps2",
+                  "displayName": "PlayStation 2",
+                  "builderAssemblyPath": "../helengine-ps2/builder/helengine.ps2.builder.dll",
+                  "playerSourceRootPath": "../helengine-ps2",
+                  "pluginManifestPath": "../helengine-ps2/platform-plugin.json"
+                }
+              ]
+            }
+            """);
+
+        string pluginRootPath = Path.GetFullPath(Path.Combine(engineUserSettingsRootPath, "../helengine-ps2"));
+        Directory.CreateDirectory(pluginRootPath);
+        Directory.CreateDirectory(Path.Combine(pluginRootPath, "builder"));
+        File.WriteAllText(Path.Combine(pluginRootPath, "builder", "helengine.ps2.builder.dll"), string.Empty);
+        File.WriteAllText(Path.Combine(pluginRootPath, "platform-plugin.json"), """
+        {
+          "platformId": "ps2",
+          "displayName": "PlayStation 2",
+          "runtimePayloadTypes": [ "helengine.ps2.Ps2MaterialAsset" ]
+        }
+        """);
+
+        AvailablePlatformProviderResolver resolver = new AvailablePlatformProviderResolver(
+            new PlatformDiscoveryOptions(engineUserSettingsRootPath),
+            new TestLauncherInstallRootLocator(string.Empty, string.Empty));
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => resolver.LoadPlatforms("1.0.0"));
+        Assert.Contains("runtime payload CLR types", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Creates one manifest root containing the supplied manifest JSON.
     /// </summary>
     /// <param name="directoryName">Directory name used under the test root.</param>
