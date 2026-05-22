@@ -37,7 +37,7 @@ namespace helengine.editor.tests.rendering {
             };
             TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
 
-            RuntimeMaterial material = renderer.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(renderer.BuildMaterialFromRaw(materialAsset, shaderAsset));
 
             Assert.Equal(RuntimeMaterialLightingModel.MetalRoughPbr, material.LightingModel);
             Assert.True(material.SupportsNormalMapping);
@@ -51,7 +51,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void ResolveMaterialTextureResourceView_WhenMaterialUsesDirectX11RenderTarget_ReturnsRenderTargetShaderResourceView() {
-            RuntimeMaterial material = CreateTexturedMaterial();
+            ShaderRuntimeMaterial material = CreateTexturedMaterial();
             DirectX11RenderTargetResource renderTarget = (DirectX11RenderTargetResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11RenderTargetResource));
             ShaderResourceView expectedResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
             TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
@@ -89,7 +89,7 @@ namespace helengine.editor.tests.rendering {
             };
             TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
 
-            RuntimeMaterial material = renderer.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(renderer.BuildMaterialFromRaw(materialAsset, shaderAsset));
 
             Assert.Equal(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, material.Layout.TextureBindings[0].Name);
         }
@@ -101,7 +101,7 @@ namespace helengine.editor.tests.rendering {
         public void ShouldMaterialCastShadows_WhenDirectX11RootDisablesShadowCasting_ReturnsFalse() {
             DirectX11ShaderResource shaderResource = (DirectX11ShaderResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11ShaderResource));
             var rootMaterial = new DirectX11MaterialResource(shaderResource);
-            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            TestRuntimeMaterial childMaterial = new TestRuntimeMaterial();
             TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
             MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ShouldMaterialCastShadows", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -120,7 +120,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void ResolveMaterialConstantBufferBindings_WhenMaterialProvidesLocalPayload_ReturnsResolvedBindingData() {
-            RuntimeMaterial material = CreateMaterialWithConstantBufferBinding("BaseColorBuffer", 3, 16);
+            ShaderRuntimeMaterial material = CreateMaterialWithConstantBufferBinding("BaseColorBuffer", 3, 16);
             byte[] expectedData = CreateConstantBufferPayload(1f, 0.5f, 0.25f, 1f);
             TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
             MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialConstantBufferBindings", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -142,7 +142,7 @@ namespace helengine.editor.tests.rendering {
         public void ResolveMaterialConstantBufferBindings_WhenMaterialInheritsParentPayload_ReturnsParentBindingData() {
             DirectX11ShaderResource shaderResource = (DirectX11ShaderResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11ShaderResource));
             var rootMaterial = new DirectX11MaterialResource(shaderResource);
-            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            TestRuntimeMaterial childMaterial = new TestRuntimeMaterial();
             byte[] expectedData = CreateConstantBufferPayload(0.1f, 0.2f, 0.3f, 1f);
             TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
             MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialConstantBufferBindings", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -165,7 +165,7 @@ namespace helengine.editor.tests.rendering {
         [Fact]
         public void ApplyMaterialConstantBufferBindings_WhenMaterialOnlyOwnsBaseColor_PreservesEngineForwardLightAndShadowBuffers() {
             using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
-            RuntimeMaterial material = new RuntimeMaterial();
+            TestRuntimeMaterial material = new TestRuntimeMaterial();
             material.SetLayout(new MaterialLayout(
                 "shader/test",
                 "VS",
@@ -219,8 +219,8 @@ namespace helengine.editor.tests.rendering {
         /// Creates one runtime material with a single texture binding that matches the viewport canvas-plane shader.
         /// </summary>
         /// <returns>Runtime material configured with a `CanvasTexture` binding.</returns>
-        static RuntimeMaterial CreateTexturedMaterial() {
-            RuntimeMaterial material = new RuntimeMaterial();
+        static ShaderRuntimeMaterial CreateTexturedMaterial() {
+            TestRuntimeMaterial material = new TestRuntimeMaterial();
             material.SetLayout(new MaterialLayout(
                 "shader/test",
                 "VS",
@@ -266,8 +266,8 @@ namespace helengine.editor.tests.rendering {
         /// <param name="slot">DirectX11 shader slot.</param>
         /// <param name="size">Constant-buffer payload size in bytes.</param>
         /// <returns>Runtime material configured with the supplied constant-buffer binding.</returns>
-        static RuntimeMaterial CreateMaterialWithConstantBufferBinding(string bindingName, int slot, int size) {
-            RuntimeMaterial material = new RuntimeMaterial();
+        static ShaderRuntimeMaterial CreateMaterialWithConstantBufferBinding(string bindingName, int slot, int size) {
+            TestRuntimeMaterial material = new TestRuntimeMaterial();
             material.SetLayout(CreateMaterialLayoutWithConstantBufferBinding(bindingName, slot, size));
             return material;
         }

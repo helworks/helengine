@@ -1,6 +1,7 @@
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Profiles;
 using helengine.editor.tests.testing;
+using System.Text.Json;
 
 namespace helengine.editor.tests.managers.project;
 
@@ -53,6 +54,62 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.True(File.Exists(Path.Combine(destinationRootPath, "nested", "KeyboardState.cpp")));
         Assert.False(File.Exists(Path.Combine(destinationRootPath, "helcpp_config.hpp")));
         Assert.False(File.Exists(Path.Combine(destinationRootPath, "readme.txt")));
+    }
+
+    /// <summary>
+    /// Verifies merged generated-core reports promote shader feature detection from shader-only generated projects into the combined report consumed by build summaries and feature manifests.
+    /// </summary>
+    [Fact]
+    public void Merge_generated_conversion_report_promotes_shader_feature_from_shader_project() {
+        string sourceRootPath = Path.Combine(RootPath, "shader-source");
+        string destinationRootPath = Path.Combine(RootPath, "generated-core");
+        Directory.CreateDirectory(sourceRootPath);
+        Directory.CreateDirectory(destinationRootPath);
+
+        File.WriteAllText(
+            Path.Combine(destinationRootPath, "cpp-conversion-report.json"),
+            "{\n"
+            + "  \"assemblyName\": \"helengine.core\",\n"
+            + "  \"buildFeatures\": {\n"
+            + "    \"decisions\": [\n"
+            + "      { \"feature\": \"Render2D\", \"enabled\": true, \"origin\": \"AutoDetected\" },\n"
+            + "      { \"feature\": \"Shaders\", \"enabled\": false, \"origin\": \"NotIncluded\" }\n"
+            + "    ],\n"
+            + "    \"detectedRoots\": [\n"
+            + "      { \"feature\": \"Render2D\", \"rootId\": \"helengine.RenderManager2D\", \"sourceKind\": \"TypeReference\" }\n"
+            + "    ],\n"
+            + "    \"conflicts\": []\n"
+            + "  }\n"
+            + "}\n");
+        File.WriteAllText(
+            Path.Combine(sourceRootPath, "cpp-conversion-report.json"),
+            "{\n"
+            + "  \"assemblyName\": \"helengine.shader\",\n"
+            + "  \"buildFeatures\": {\n"
+            + "    \"decisions\": [\n"
+            + "      { \"feature\": \"Shaders\", \"enabled\": true, \"origin\": \"AutoDetected\" }\n"
+            + "    ],\n"
+            + "    \"detectedRoots\": [\n"
+            + "      { \"feature\": \"Shaders\", \"rootId\": \"helengine.ShaderRuntimeMaterial\", \"sourceKind\": \"TypeReference\" }\n"
+            + "    ],\n"
+            + "    \"conflicts\": []\n"
+            + "  }\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.MergeGeneratedConversionReport(sourceRootPath, destinationRootPath);
+
+        string combinedReport = File.ReadAllText(Path.Combine(destinationRootPath, "cpp-conversion-report.json"));
+        using JsonDocument document = JsonDocument.Parse(combinedReport);
+        Assert.Equal("helengine.core", document.RootElement.GetProperty("assemblyName").GetString());
+        Assert.Contains(
+            document.RootElement.GetProperty("buildFeatures").GetProperty("decisions").EnumerateArray(),
+            decision => decision.GetProperty("feature").GetString() == "Shaders"
+                && decision.GetProperty("enabled").GetBoolean()
+                && decision.GetProperty("origin").GetString() == "AutoDetected");
+        Assert.Contains(
+            document.RootElement.GetProperty("buildFeatures").GetProperty("detectedRoots").EnumerateArray(),
+            root => root.GetProperty("feature").GetString() == "Shaders"
+                && root.GetProperty("rootId").GetString() == "helengine.ShaderRuntimeMaterial");
     }
 
     /// <summary>

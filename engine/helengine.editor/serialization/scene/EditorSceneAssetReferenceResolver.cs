@@ -440,7 +440,7 @@ namespace helengine.editor {
 
             ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAsset(StandardShaderAssetId);
             RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(previewMaterialAsset, shaderAsset);
-            StandardMaterialTextureBindingDefaults.Apply(runtimeMaterial);
+            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(runtimeMaterial));
             return runtimeMaterial;
         }
 
@@ -560,7 +560,7 @@ namespace helengine.editor {
             string diffuseTexturePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
             RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
-            runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
+            ShaderRuntimeMaterialAccess.Require(runtimeMaterial).Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
         }
 
         /// <summary>

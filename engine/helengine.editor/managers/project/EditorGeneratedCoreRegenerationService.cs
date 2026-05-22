@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Profiles;
 
@@ -66,12 +67,14 @@ namespace helengine.editor {
             string fullCodegenToolPath = Path.GetFullPath(codegenToolPath);
             string generatedCoreOutputRoot = Path.GetFullPath(generatedCoreRootPath);
             string helengineCoreProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.core", "helengine.core.csproj");
+            string helengineShaderProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.shader", "helengine.shader.csproj");
             string helengineInputProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.input", "helengine.input.csproj");
             string helenginePhysics3DProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.physics3d", "helengine.physics3d.csproj");
             string bundledRuntimeSupportRootPath = Path.Combine(
                 Path.GetDirectoryName(fullCodegenToolPath) ?? throw new InvalidOperationException($"Unable to resolve the codegen tool directory from '{fullCodegenToolPath}'."),
                 ".net.cpp");
             string tempRoot = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformDefinition.PlatformId, Guid.NewGuid().ToString("N"));
+            string shaderOutputRoot = Path.Combine(tempRoot, "shader");
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
             string logPath = Path.Combine(tempRoot, "regeneration.log");
@@ -80,6 +83,9 @@ namespace helengine.editor {
 
             if (!File.Exists(helengineCoreProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.core project at '{helengineCoreProjectPath}'.", helengineCoreProjectPath);
+            }
+            if (!File.Exists(helengineShaderProjectPath)) {
+                throw new FileNotFoundException($"Could not find helengine.shader project at '{helengineShaderProjectPath}'.", helengineShaderProjectPath);
             }
             if (!File.Exists(helengineInputProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.input project at '{helengineInputProjectPath}'.", helengineInputProjectPath);
@@ -111,6 +117,16 @@ namespace helengine.editor {
                     cancellationToken);
                 RegenerateProject(
                     fullCodegenToolPath,
+                    helengineShaderProjectPath,
+                    shaderOutputRoot,
+                    platformDefinition,
+                    codegenProfile,
+                    selectedCodegenOptionValues,
+                    combinedPreprocessorSymbols,
+                    logBuilder,
+                    cancellationToken);
+                RegenerateProject(
+                    fullCodegenToolPath,
                     helengineInputProjectPath,
                     portableInputOutputRoot,
                     platformDefinition,
@@ -119,7 +135,10 @@ namespace helengine.editor {
                     combinedPreprocessorSymbols,
                     logBuilder,
                     cancellationToken);
+                MergeGeneratedSourceTree(shaderOutputRoot, generatedCoreOutputRoot);
+                MergeGeneratedConversionReport(shaderOutputRoot, generatedCoreOutputRoot);
                 MergeGeneratedSourceTree(portableInputOutputRoot, generatedCoreOutputRoot);
+                MergeGeneratedConversionReport(portableInputOutputRoot, generatedCoreOutputRoot);
                 if (shouldRegeneratePhysics3DProject) {
                     RegenerateProject(
                         fullCodegenToolPath,
@@ -132,6 +151,7 @@ namespace helengine.editor {
                         logBuilder,
                         cancellationToken);
                     MergeGeneratedSourceTree(physics3DOutputRoot, generatedCoreOutputRoot);
+                    MergeGeneratedConversionReport(physics3DOutputRoot, generatedCoreOutputRoot);
                 }
                 MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
                 EnsureGeneratedRuntimeComponentDeserializerSupport(generatedCoreOutputRoot, platformDefinition.PlatformId);
@@ -413,6 +433,46 @@ namespace helengine.editor {
 
                 File.Copy(sourceFilePath, destinationFilePath, true);
             }
+        }
+
+        /// <summary>
+        /// Merges one generated conversion report into the combined generated-core report so feature summaries and native feature manifests reflect all merged projects.
+        /// </summary>
+        /// <param name="sourceRootPath">Temporary generated output root that may contain a conversion report.</param>
+        /// <param name="destinationRootPath">Combined generated-core output root that should receive the merged report.</param>
+        internal static void MergeGeneratedConversionReport(string sourceRootPath, string destinationRootPath) {
+            if (string.IsNullOrWhiteSpace(sourceRootPath)) {
+                throw new ArgumentException("Source root path must be provided.", nameof(sourceRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(destinationRootPath)) {
+                throw new ArgumentException("Destination root path must be provided.", nameof(destinationRootPath));
+            }
+
+            string sourceReportPath = Path.Combine(sourceRootPath, "cpp-conversion-report.json");
+            if (!File.Exists(sourceReportPath)) {
+                return;
+            }
+
+            string destinationReportPath = Path.Combine(destinationRootPath, "cpp-conversion-report.json");
+            if (!File.Exists(destinationReportPath)) {
+                File.Copy(sourceReportPath, destinationReportPath, false);
+                return;
+            }
+
+            JsonObject sourceReport = JsonNode.Parse(File.ReadAllText(sourceReportPath)) as JsonObject
+                ?? throw new InvalidOperationException($"Generated conversion report '{sourceReportPath}' did not contain a valid JSON object.");
+            JsonObject destinationReport = JsonNode.Parse(File.ReadAllText(destinationReportPath)) as JsonObject
+                ?? throw new InvalidOperationException($"Generated conversion report '{destinationReportPath}' did not contain a valid JSON object.");
+
+            JsonObject destinationBuildFeatures = GetOrCreateBuildFeaturesObject(destinationReport);
+            JsonObject sourceBuildFeatures = GetOrCreateBuildFeaturesObject(sourceReport);
+            MergeFeatureDecisionArray(destinationBuildFeatures, sourceBuildFeatures);
+            MergeFeatureMetadataArray(destinationBuildFeatures, sourceBuildFeatures, "detectedRoots");
+            MergeFeatureMetadataArray(destinationBuildFeatures, sourceBuildFeatures, "conflicts");
+
+            File.WriteAllText(destinationReportPath, destinationReport.ToJsonString(new JsonSerializerOptions {
+                WriteIndented = true
+            }));
         }
 
         /// <summary>
@@ -944,6 +1004,218 @@ namespace helengine.editor {
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Gets the build-features object from one parsed conversion report, creating an empty object when it does not exist yet.
+        /// </summary>
+        /// <param name="reportObject">Parsed conversion report object.</param>
+        /// <returns>Build-features object used for decision and metadata merging.</returns>
+        static JsonObject GetOrCreateBuildFeaturesObject(JsonObject reportObject) {
+            if (reportObject == null) {
+                throw new ArgumentNullException(nameof(reportObject));
+            }
+
+            JsonObject buildFeatures = reportObject["buildFeatures"] as JsonObject;
+            if (buildFeatures != null) {
+                return buildFeatures;
+            }
+
+            buildFeatures = new JsonObject();
+            reportObject["buildFeatures"] = buildFeatures;
+            return buildFeatures;
+        }
+
+        /// <summary>
+        /// Merges feature enablement decisions from one generated report into the combined destination report by promoting any feature enabled by a merged project.
+        /// </summary>
+        /// <param name="destinationBuildFeatures">Destination build-features object that should be updated in place.</param>
+        /// <param name="sourceBuildFeatures">Source build-features object that may enable additional features.</param>
+        static void MergeFeatureDecisionArray(JsonObject destinationBuildFeatures, JsonObject sourceBuildFeatures) {
+            if (destinationBuildFeatures == null) {
+                throw new ArgumentNullException(nameof(destinationBuildFeatures));
+            }
+            if (sourceBuildFeatures == null) {
+                throw new ArgumentNullException(nameof(sourceBuildFeatures));
+            }
+
+            JsonArray destinationDecisions = GetOrCreateFeatureArray(destinationBuildFeatures, "decisions");
+            JsonArray sourceDecisions = GetOrCreateFeatureArray(sourceBuildFeatures, "decisions");
+            for (int index = 0; index < sourceDecisions.Count; index++) {
+                JsonObject sourceDecision = sourceDecisions[index] as JsonObject;
+                if (sourceDecision == null) {
+                    continue;
+                }
+
+                string featureName = ReadJsonString(sourceDecision, "feature");
+                if (string.IsNullOrWhiteSpace(featureName)) {
+                    continue;
+                }
+
+                int destinationIndex = FindFeatureDecisionIndex(destinationDecisions, featureName);
+                if (destinationIndex < 0) {
+                    destinationDecisions.Add(sourceDecision.DeepClone());
+                    continue;
+                }
+
+                JsonObject destinationDecision = destinationDecisions[destinationIndex] as JsonObject;
+                if (destinationDecision == null) {
+                    destinationDecisions[destinationIndex] = sourceDecision.DeepClone();
+                    continue;
+                }
+
+                bool sourceEnabled = ReadJsonBoolean(sourceDecision, "enabled");
+                bool destinationEnabled = ReadJsonBoolean(destinationDecision, "enabled");
+                if (!sourceEnabled || destinationEnabled) {
+                    continue;
+                }
+
+                destinationDecision["enabled"] = true;
+                destinationDecision["origin"] = ReadJsonString(sourceDecision, "origin");
+            }
+        }
+
+        /// <summary>
+        /// Merges one metadata array such as detected roots or conflicts into the destination report while preserving existing entries and appending new unique entries.
+        /// </summary>
+        /// <param name="destinationBuildFeatures">Destination build-features object that should be updated in place.</param>
+        /// <param name="sourceBuildFeatures">Source build-features object that may contribute additional metadata records.</param>
+        /// <param name="propertyName">Metadata array property name, such as <c>detectedRoots</c> or <c>conflicts</c>.</param>
+        static void MergeFeatureMetadataArray(JsonObject destinationBuildFeatures, JsonObject sourceBuildFeatures, string propertyName) {
+            if (destinationBuildFeatures == null) {
+                throw new ArgumentNullException(nameof(destinationBuildFeatures));
+            }
+            if (sourceBuildFeatures == null) {
+                throw new ArgumentNullException(nameof(sourceBuildFeatures));
+            }
+            if (string.IsNullOrWhiteSpace(propertyName)) {
+                throw new ArgumentException("Property name must be provided.", nameof(propertyName));
+            }
+
+            JsonArray destinationArray = GetOrCreateFeatureArray(destinationBuildFeatures, propertyName);
+            JsonArray sourceArray = GetOrCreateFeatureArray(sourceBuildFeatures, propertyName);
+            HashSet<string> existingEntries = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < destinationArray.Count; index++) {
+                JsonNode destinationNode = destinationArray[index];
+                if (destinationNode == null) {
+                    continue;
+                }
+
+                existingEntries.Add(destinationNode.ToJsonString());
+            }
+
+            for (int index = 0; index < sourceArray.Count; index++) {
+                JsonNode sourceNode = sourceArray[index];
+                if (sourceNode == null) {
+                    continue;
+                }
+
+                string serializedEntry = sourceNode.ToJsonString();
+                if (existingEntries.Contains(serializedEntry)) {
+                    continue;
+                }
+
+                destinationArray.Add(sourceNode.DeepClone());
+                existingEntries.Add(serializedEntry);
+            }
+        }
+
+        /// <summary>
+        /// Gets one JSON array from the supplied object, creating an empty array when the property does not exist yet.
+        /// </summary>
+        /// <param name="parentObject">Parent JSON object that owns the requested array property.</param>
+        /// <param name="propertyName">Array property name to resolve.</param>
+        /// <returns>Resolved JSON array instance.</returns>
+        static JsonArray GetOrCreateFeatureArray(JsonObject parentObject, string propertyName) {
+            if (parentObject == null) {
+                throw new ArgumentNullException(nameof(parentObject));
+            }
+            if (string.IsNullOrWhiteSpace(propertyName)) {
+                throw new ArgumentException("Property name must be provided.", nameof(propertyName));
+            }
+
+            JsonArray jsonArray = parentObject[propertyName] as JsonArray;
+            if (jsonArray != null) {
+                return jsonArray;
+            }
+
+            jsonArray = new JsonArray();
+            parentObject[propertyName] = jsonArray;
+            return jsonArray;
+        }
+
+        /// <summary>
+        /// Finds the zero-based index of one feature-decision record in the supplied decision array.
+        /// </summary>
+        /// <param name="decisions">Decision array to search.</param>
+        /// <param name="featureName">Feature name to match.</param>
+        /// <returns>Zero-based index when found; otherwise <c>-1</c>.</returns>
+        static int FindFeatureDecisionIndex(JsonArray decisions, string featureName) {
+            if (decisions == null) {
+                throw new ArgumentNullException(nameof(decisions));
+            }
+            if (string.IsNullOrWhiteSpace(featureName)) {
+                throw new ArgumentException("Feature name must be provided.", nameof(featureName));
+            }
+
+            for (int index = 0; index < decisions.Count; index++) {
+                JsonObject decisionObject = decisions[index] as JsonObject;
+                if (decisionObject == null) {
+                    continue;
+                }
+
+                if (string.Equals(ReadJsonString(decisionObject, "feature"), featureName, StringComparison.Ordinal)) {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Reads one string property from a JSON object and returns an empty string when the property is missing.
+        /// </summary>
+        /// <param name="jsonObject">JSON object to inspect.</param>
+        /// <param name="propertyName">Property name to read.</param>
+        /// <returns>Resolved string value, or an empty string when the property is absent.</returns>
+        static string ReadJsonString(JsonObject jsonObject, string propertyName) {
+            if (jsonObject == null) {
+                throw new ArgumentNullException(nameof(jsonObject));
+            }
+            if (string.IsNullOrWhiteSpace(propertyName)) {
+                throw new ArgumentException("Property name must be provided.", nameof(propertyName));
+            }
+
+            JsonNode valueNode = jsonObject[propertyName];
+            return valueNode?.GetValue<string>() ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Reads one boolean property from a JSON object and returns false when the property is missing or not a boolean value.
+        /// </summary>
+        /// <param name="jsonObject">JSON object to inspect.</param>
+        /// <param name="propertyName">Property name to read.</param>
+        /// <returns>Resolved boolean value when present; otherwise false.</returns>
+        static bool ReadJsonBoolean(JsonObject jsonObject, string propertyName) {
+            if (jsonObject == null) {
+                throw new ArgumentNullException(nameof(jsonObject));
+            }
+            if (string.IsNullOrWhiteSpace(propertyName)) {
+                throw new ArgumentException("Property name must be provided.", nameof(propertyName));
+            }
+
+            JsonNode valueNode = jsonObject[propertyName];
+            if (valueNode == null) {
+                return false;
+            }
+
+            try {
+                return valueNode.GetValue<bool>();
+            } catch (InvalidOperationException) {
+                return false;
+            } catch (FormatException) {
+                return false;
+            }
         }
 
         /// <summary>

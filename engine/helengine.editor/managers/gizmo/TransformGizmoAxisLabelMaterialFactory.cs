@@ -54,7 +54,7 @@ namespace helengine.editor {
             };
 
             RuntimeMaterial material = render3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            material.Properties.SetTexture("LabelTexture", font.Texture);
+            ShaderRuntimeMaterialAccess.Require(material).Properties.SetTexture("LabelTexture", font.Texture);
             return material;
         }
 

@@ -2,7 +2,7 @@ namespace helengine.directx11 {
     /// <summary>
     /// DirectX11-backed runtime material resource.
     /// </summary>
-    public class DirectX11MaterialResource : RuntimeMaterial {
+    public class DirectX11MaterialResource : ShaderRuntimeMaterial {
         /// <summary>
         /// Initializes a new DirectX11 material with the specified shader resource.
         /// </summary>

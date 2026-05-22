@@ -226,7 +226,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("Scenes/TestPlayableScene.helen", loadedScene.SceneId);
             Assert.Same(loadedCamera, Assert.Single(core.ObjectManager.Cameras));
             Assert.Same(loadedRoot, Assert.Single(core.ObjectManager.Entities));
-            Assert.True(previousRoot.Components == null || previousRoot.Components.Count == 0);
+            Assert.Throws<InvalidOperationException>(() => previousRoot.Components.Count);
             Assert.Null(previousCamera.Parent);
             Assert.DoesNotContain(previousRoot, core.ObjectManager.Entities);
             Assert.DoesNotContain(previousCamera, core.ObjectManager.Cameras);
@@ -297,7 +297,7 @@ namespace helengine.editor.tests.serialization.scene {
             MeshComponent previousMesh = Assert.IsType<MeshComponent>(
                 Assert.Single(previousRoot.Components, component => component is MeshComponent));
             RuntimeModel previousModel = Assert.IsAssignableFrom<RuntimeModel>(previousMesh.Model);
-            RuntimeMaterial previousMaterial = Assert.IsAssignableFrom<RuntimeMaterial>(Assert.Single(previousMesh.Materials));
+            ShaderRuntimeMaterial previousMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(previousMesh.Materials));
             Assert.Empty(renderManager3D.ReleasedModels);
             Assert.Empty(renderManager3D.ReleasedMaterials);
 
@@ -308,9 +308,9 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Same(previousModel, releasedModel);
             Assert.Same(previousMaterial, releasedMaterial);
             Assert.Null(releasedModel.Submeshes);
-            Assert.Null(releasedMaterial.Layout);
+            Assert.Null(previousMaterial.Layout);
             Assert.Null(releasedMaterial.RenderState);
-            Assert.Null(releasedMaterial.Properties);
+            Assert.Null(previousMaterial.Properties);
         }
 
         /// <summary>
@@ -347,7 +347,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("Scenes/TestPlayableScene.helen", loadedScene.SceneId);
             Assert.Same(loadedCamera, Assert.Single(core.ObjectManager.Cameras));
             Assert.Same(loadedRoot, Assert.Single(core.ObjectManager.Entities));
-            Assert.True(previousRoot.Components == null || previousRoot.Components.Count == 0);
+            Assert.Throws<InvalidOperationException>(() => previousRoot.Components.Count);
             Assert.Null(previousCamera.Parent);
             Assert.DoesNotContain(previousRoot, core.ObjectManager.Entities);
             Assert.DoesNotContain(previousCamera, core.ObjectManager.Cameras);

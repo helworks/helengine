@@ -180,7 +180,7 @@ namespace helengine.editor.tests {
 
             Assert.True(created);
             MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
-            RuntimeMaterial previewMaterial = Assert.Single(previewMesh.Materials);
+            ShaderRuntimeMaterial previewMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(previewMesh.Materials));
             int diffuseBindingIndex = previewMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
@@ -210,7 +210,7 @@ namespace helengine.editor.tests {
 
             Assert.True(created);
             MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
-            RuntimeMaterial previewMaterial = Assert.Single(previewMesh.Materials);
+            ShaderRuntimeMaterial previewMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(previewMesh.Materials));
             int diffuseBindingIndex = previewMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
@@ -251,7 +251,7 @@ namespace helengine.editor.tests {
 
             Assert.True(created);
             MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
-            RuntimeMaterial previewMaterial = Assert.Single(previewMesh.Materials);
+            ShaderRuntimeMaterial previewMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(previewMesh.Materials));
             int diffuseBindingIndex = previewMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
@@ -280,7 +280,7 @@ namespace helengine.editor.tests {
 
             Assert.True(created);
             MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
-            RuntimeMaterial previewMaterial = Assert.Single(previewMesh.Materials);
+            ShaderRuntimeMaterial previewMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(previewMesh.Materials));
             int diffuseBindingIndex = previewMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);

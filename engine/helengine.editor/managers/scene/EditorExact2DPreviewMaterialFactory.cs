@@ -58,7 +58,7 @@ namespace helengine.editor {
 
             RuntimeMaterial material = render3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
             material.LightingModel = RuntimeMaterialLightingModel.Unlit;
-            material.Properties.SetTexture("PreviewTexture", texture);
+            ShaderRuntimeMaterialAccess.Require(material).Properties.SetTexture("PreviewTexture", texture);
             return material;
         }
     }

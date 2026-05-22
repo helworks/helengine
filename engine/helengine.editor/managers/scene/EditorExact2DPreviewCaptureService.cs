@@ -239,7 +239,7 @@ namespace helengine.editor {
             PreviewRenderTargetValue = Render3D.CreateRenderTarget(targetWidth, targetHeight);
             PreviewCameraComponentValue.RenderTarget = PreviewRenderTargetValue;
             PreviewCameraComponentValue.Viewport = new float4(0f, 0f, targetWidth, targetHeight);
-            PreviewMaterialValue.Properties.SetTexture("PreviewTexture", PreviewRenderTargetValue);
+            ShaderRuntimeMaterialAccess.Require(PreviewMaterialValue).Properties.SetTexture("PreviewTexture", PreviewRenderTargetValue);
             PreviewSizeValue = new int2(targetWidth, targetHeight);
         }
 

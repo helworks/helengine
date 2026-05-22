@@ -247,7 +247,7 @@ namespace helengine {
                 try {
                     RuntimeTexture sourceRuntimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTextureAsset);
                     TrackOwnedTexture(sourceRuntimeTexture);
-                    runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, sourceRuntimeTexture);
+                    Core.Instance.RenderManager3D.AssignRawMaterialDiffuseTexture(runtimeMaterial, sourceRuntimeTexture);
                     return;
                 } finally {
                     ReleaseTransientTextureAsset(sourceTextureAsset);
@@ -259,7 +259,7 @@ namespace helengine {
             try {
                 RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
                 TrackOwnedTexture(runtimeTexture);
-                runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
+                Core.Instance.RenderManager3D.AssignRawMaterialDiffuseTexture(runtimeMaterial, runtimeTexture);
             } finally {
                 ReleaseTransientTextureAsset(textureAsset);
             }

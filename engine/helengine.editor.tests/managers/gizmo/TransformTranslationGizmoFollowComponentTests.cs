@@ -214,7 +214,8 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorGizmoHoverService.SetHoveredHandle(gizmoRoot.Children[0]);
             UpdateFollowComponent(gizmoRoot);
 
-            byte[] axisPreviewParameters = previewMaterial.Properties.GetConstantBufferData(0);
+            ShaderRuntimeMaterial previewShaderMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(previewMaterial);
+            byte[] axisPreviewParameters = previewShaderMaterial.Properties.GetConstantBufferData(0);
             Assert.NotNull(axisPreviewParameters);
             Assert.Equal(1f, ReadSingle(axisPreviewParameters, 0));
             Assert.True(ReadSingle(axisPreviewParameters, 4) > 0f);
@@ -222,7 +223,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorGizmoHoverService.SetHoveredHandle(gizmoRoot.Children[1]);
             UpdateFollowComponent(gizmoRoot);
 
-            byte[] planePreviewParameters = previewMaterial.Properties.GetConstantBufferData(0);
+            byte[] planePreviewParameters = previewShaderMaterial.Properties.GetConstantBufferData(0);
             Assert.NotNull(planePreviewParameters);
             Assert.Equal(0f, ReadSingle(planePreviewParameters, 0));
         }

@@ -53,7 +53,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            material.Properties.SetConstantBufferData(ConstantBufferName, CreateFullGridData());
+            ShaderRuntimeMaterialAccess.Require(material).Properties.SetConstantBufferData(ConstantBufferName, CreateFullGridData());
         }
 
         /// <summary>
@@ -65,7 +65,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            material.Properties.SetConstantBufferData(ConstantBufferName, CreateSingleAxisFocusData());
+            ShaderRuntimeMaterialAccess.Require(material).Properties.SetConstantBufferData(ConstantBufferName, CreateSingleAxisFocusData());
         }
 
         /// <summary>

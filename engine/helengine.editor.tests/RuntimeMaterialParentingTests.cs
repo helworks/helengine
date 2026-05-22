@@ -14,7 +14,7 @@ namespace helengine.editor.tests {
             TestRuntimeMaterial material = new TestRuntimeMaterial();
             MaterialLayout firstLayout = CreateFirstLayout();
             MaterialLayout secondLayout = CreateSecondLayout();
-            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            TestRuntimeMaterial childMaterial = new TestRuntimeMaterial();
             var texture = new TestRuntimeTexture();
             byte[] payload = new byte[] { 5, 4, 3, 2 };
 
@@ -35,7 +35,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ParentMaterialRenderStateChange_UpdatesChildRenderState() {
             TestRuntimeMaterial material = new TestRuntimeMaterial();
-            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            TestRuntimeMaterial childMaterial = new TestRuntimeMaterial();
             var renderState = new MaterialRenderState {
                 BlendMode = MaterialBlendMode.AlphaBlend,
                 CullMode = MaterialCullMode.None,
@@ -58,7 +58,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TryResolveConstantBufferData_WhenChildHasNoLocalOverride_InheritsParentPayload() {
             TestRuntimeMaterial parentMaterial = new TestRuntimeMaterial();
-            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            TestRuntimeMaterial childMaterial = new TestRuntimeMaterial();
             MaterialLayout layout = CreateFirstLayout();
             byte[] payload = new byte[] { 9, 8, 7, 6 };
 

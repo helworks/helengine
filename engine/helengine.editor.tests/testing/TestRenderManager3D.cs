@@ -157,6 +157,25 @@ namespace helengine.editor.tests.testing {
         }
 
         /// <summary>
+        /// Assigns one authored diffuse texture to a shader-backed test runtime material.
+        /// </summary>
+        /// <param name="material">Runtime material that should receive the diffuse texture.</param>
+        /// <param name="texture">Runtime texture that should become the material diffuse texture.</param>
+        public override void AssignRawMaterialDiffuseTexture(RuntimeMaterial material, RuntimeTexture texture) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+            if (material is not ShaderRuntimeMaterial shaderMaterial) {
+                throw new InvalidOperationException("Test raw runtime materials must be shader-backed.");
+            }
+
+            shaderMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, texture);
+        }
+
+        /// <summary>
         /// Records one runtime model release request so scene unload tests can assert the shared contract.
         /// </summary>
         /// <param name="model">Runtime model released by production code.</param>

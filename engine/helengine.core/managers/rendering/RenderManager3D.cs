@@ -57,6 +57,22 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Assigns one authored diffuse texture to a runtime material created from a raw material asset.
+        /// </summary>
+        /// <param name="material">Runtime material that should receive the diffuse texture.</param>
+        /// <param name="texture">Runtime texture that should become the material diffuse texture.</param>
+        public virtual void AssignRawMaterialDiffuseTexture(RuntimeMaterial material, RuntimeTexture texture) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+
+            throw new NotSupportedException("This renderer does not support assigning diffuse textures to raw runtime materials.");
+        }
+
+        /// <summary>
         /// Releases one runtime model previously created by this renderer.
         /// </summary>
         /// <param name="model">Runtime model that should release any renderer-owned resources.</param>

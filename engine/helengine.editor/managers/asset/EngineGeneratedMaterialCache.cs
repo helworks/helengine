@@ -95,7 +95,7 @@ namespace helengine.editor {
                 ]
             };
             RuntimeMaterial runtimeMaterial = renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            StandardMaterialTextureBindingDefaults.Apply(runtimeMaterial);
+            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(runtimeMaterial));
             return runtimeMaterial;
         }
     }

@@ -917,7 +917,8 @@ namespace helengine.editor.tests {
 
             MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
                 Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
-            RuntimeTexture resolvedTexture = firstMeshComponent.Material.ResolveTexture();
+            ShaderRuntimeMaterial runtimeMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(firstMeshComponent.Material);
+            RuntimeTexture resolvedTexture = runtimeMaterial.ResolveTexture();
             Assert.NotNull(resolvedTexture);
         }
 

@@ -7,10 +7,12 @@ namespace helengine {
         /// Layout that defines which bindings may be stored by this property block.
         /// </summary>
         MaterialLayout LayoutValue;
+
         /// <summary>
         /// Runtime textures assigned to the layout's texture bindings.
         /// </summary>
         RuntimeTexture[] TextureValues;
+
         /// <summary>
         /// Packed constant-buffer payloads assigned to the layout's constant-buffer bindings.
         /// </summary>

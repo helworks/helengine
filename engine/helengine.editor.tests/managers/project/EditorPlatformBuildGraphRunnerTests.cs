@@ -740,6 +740,84 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the build graph finalizer promotes shader feature outputs when merged shader runtime sources exist but upstream codegen still reports shaders as not included.
+    /// </summary>
+    [Fact]
+    public void FinalizeGeneratedCoreSources_promotes_shader_feature_when_merged_shader_runtime_sources_exist() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(rootPath);
+
+        try {
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    "builder.dll",
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+
+            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+            Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
+            File.WriteAllText(Path.Combine(generatedCoreRootPath, "ShaderRuntimeMaterial.hpp"), "// shader marker");
+            File.WriteAllText(
+                Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json"),
+                "{\n"
+                + "  \"buildFeatures\": {\n"
+                + "    \"decisions\": [\n"
+                + "      { \"feature\": \"Shaders\", \"enabled\": false, \"origin\": \"NotIncluded\" },\n"
+                + "      { \"feature\": \"Render2D\", \"enabled\": true, \"origin\": \"AutoDetected\" }\n"
+                + "    ],\n"
+                + "    \"detectedRoots\": [],\n"
+                + "    \"conflicts\": []\n"
+                + "  }\n"
+                + "}\n");
+            File.WriteAllText(
+                Path.Combine(generatedCoreRootPath, "helcpp_config.hpp"),
+                "#define HE_CPP_FEATURE_RENDER2D 1\n"
+                + "#define HE_CPP_FEATURE_SHADERS 0\n");
+            string featureManifestPath = Path.Combine(generatedCoreRootPath, "runtime", "feature_manifest.cpp");
+            File.WriteAllText(
+                featureManifestPath,
+                "#include \"feature_manifest.hpp\"\n"
+                + "\n"
+                + "static const HEFeatureEntry kFeatureEntries[] = {\n"
+                + "    { HEFeature::Shaders, false, HEFeatureDecisionOrigin::NotIncluded, \"Shaders\" },\n"
+                + "    { HEFeature::Render2D, true, HEFeatureDecisionOrigin::AutoDetected, \"Render2D\" },\n"
+                + "};\n");
+
+            MethodInfo finalizeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "FinalizeGeneratedCoreSources",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(finalizeMethod);
+            finalizeMethod.Invoke(runner, [generatedCoreRootPath]);
+
+            string rewrittenReport = File.ReadAllText(Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json"));
+            string rewrittenConfig = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helcpp_config.hpp"));
+            string rewrittenManifest = File.ReadAllText(featureManifestPath);
+            Assert.Contains("\"feature\": \"Shaders\"", rewrittenReport);
+            Assert.Contains("\"enabled\": true", rewrittenReport);
+            Assert.Contains("\"rootId\": \"helengine.ShaderRuntimeMaterial\"", rewrittenReport);
+            Assert.Contains("#define HE_CPP_FEATURE_SHADERS 1", rewrittenConfig);
+            Assert.Contains("{ HEFeature::Shaders, true, HEFeatureDecisionOrigin::AutoDetected, \"Shaders\" }", rewrittenManifest);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies the build graph finalizer collapses duplicate transient scene-load-result deletes in generated scene managers before native packaging.
     /// </summary>
     [Fact]

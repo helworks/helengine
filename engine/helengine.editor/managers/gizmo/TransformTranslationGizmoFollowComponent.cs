@@ -624,7 +624,7 @@ namespace helengine.editor {
                 return;
             }
 
-            float localGridScale = desiredWorldGridScale - currentScale;
+            float localGridScale = desiredWorldGridScale / currentScale;
             ConfigureSnapPreviewMaterial(hoveredHandle);
             SnapPreviewEntity.Position = float3.Zero;
             SnapPreviewEntity.Orientation = previewOrientation;

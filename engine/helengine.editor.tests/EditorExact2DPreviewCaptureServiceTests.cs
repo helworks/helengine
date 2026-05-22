@@ -61,7 +61,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(sourceComponent);
 
             using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderManager3D);
-            RuntimeMaterial material = service.CaptureRoundedRectPreview(sourceEntity, sourceComponent, new int2(128, 64));
+            ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(service.CaptureRoundedRectPreview(sourceEntity, sourceComponent, new int2(128, 64)));
 
             int bindingIndex = material.Layout.FindTextureBindingIndex("PreviewTexture");
             Assert.True(bindingIndex >= 0);

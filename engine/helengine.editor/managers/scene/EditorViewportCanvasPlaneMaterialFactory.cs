@@ -55,7 +55,7 @@ namespace helengine.editor {
             };
 
             RuntimeMaterial material = render3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            material.Properties.SetTexture("CanvasTexture", canvasTexture);
+            ShaderRuntimeMaterialAccess.Require(material).Properties.SetTexture("CanvasTexture", canvasTexture);
             return material;
         }
 

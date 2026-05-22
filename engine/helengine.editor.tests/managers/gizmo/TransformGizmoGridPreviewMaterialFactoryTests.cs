@@ -40,7 +40,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Create_InitializesFullGridPreviewParameters() {
             TestDirectX11RenderManager3D render3D = TestDirectX11RenderManager3D.Create();
 
-            RuntimeMaterial material = TransformGizmoGridPreviewMaterialFactory.Create(render3D);
+            ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(TransformGizmoGridPreviewMaterialFactory.Create(render3D));
 
             byte[] previewParameters = material.Properties.GetConstantBufferData(0);
             Assert.NotNull(previewParameters);

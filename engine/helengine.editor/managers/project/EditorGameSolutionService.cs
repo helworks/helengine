@@ -338,6 +338,9 @@ namespace helengine.editor {
             builder.AppendLine("    <Reference Include=\"helengine.core\">");
             builder.AppendLine("      <HintPath>" + EscapeXml(typeof(Core).Assembly.Location) + "</HintPath>");
             builder.AppendLine("    </Reference>");
+            builder.AppendLine("    <Reference Include=\"helengine.shader\">");
+            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(ShaderRuntimeMaterial).Assembly.Location) + "</HintPath>");
+            builder.AppendLine("    </Reference>");
             builder.AppendLine("    <Reference Include=\"helengine.input\">");
             builder.AppendLine("      <HintPath>" + EscapeXml(typeof(InputSystem).Assembly.Location) + "</HintPath>");
             builder.AppendLine("    </Reference>");

@@ -316,6 +316,25 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
+        /// Assigns one authored diffuse texture to a Vulkan shader runtime material.
+        /// </summary>
+        /// <param name="material">Runtime material that should receive the diffuse texture.</param>
+        /// <param name="texture">Runtime texture that should become the material diffuse texture.</param>
+        public override void AssignRawMaterialDiffuseTexture(RuntimeMaterial material, RuntimeTexture texture) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+            if (material is not ShaderRuntimeMaterial shaderMaterial) {
+                throw new InvalidOperationException("Vulkan raw runtime materials must be shader-backed.");
+            }
+
+            shaderMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, texture);
+        }
+
+        /// <summary>
         /// Invalidates cached shader resources and updates materials for the specified shader asset.
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
@@ -455,6 +474,7 @@ namespace helengine.vulkan {
                     continue;
                 }
 
+                ShaderRuntimeMaterial shaderRuntimeMaterial = RequireShaderRuntimeMaterial(runtimeMaterial);
                 RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
                 if (rootMaterial is not VulkanMaterialResource material) {
                     throw new InvalidOperationException("Drawable materials must resolve to VulkanMaterialResource through their parent chain.");
@@ -472,7 +492,7 @@ namespace helengine.vulkan {
                     UpdateTransformBuffer(transformData, dynamicOffset);
                 }
 
-                DescriptorSet descriptorSet = EnsureMaterialDescriptorSet(material, runtimeMaterial);
+                DescriptorSet descriptorSet = EnsureMaterialDescriptorSet(material, shaderRuntimeMaterial);
                 DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet };
                 uint* dynamicOffsets = stackalloc uint[] { dynamicOffset };
                 context.Api.CmdBindDescriptorSets(
@@ -1021,7 +1041,7 @@ namespace helengine.vulkan {
         /// <param name="material">Concrete Vulkan material that owns the descriptor set.</param>
         /// <param name="runtimeMaterial">Resolved runtime material instance that provides texture values.</param>
         /// <returns>Descriptor set to bind for the material.</returns>
-        DescriptorSet EnsureMaterialDescriptorSet(VulkanMaterialResource material, RuntimeMaterial runtimeMaterial) {
+        DescriptorSet EnsureMaterialDescriptorSet(VulkanMaterialResource material, ShaderRuntimeMaterial runtimeMaterial) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             } else if (runtimeMaterial == null) {
@@ -1050,7 +1070,7 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="runtimeMaterial">Resolved runtime material instance that provides texture values.</param>
         /// <returns>Texture resource to bind for the descriptor set.</returns>
-        RuntimeTexture ResolveDescriptorTexture(RuntimeMaterial runtimeMaterial) {
+        RuntimeTexture ResolveDescriptorTexture(ShaderRuntimeMaterial runtimeMaterial) {
             if (runtimeMaterial == null) {
                 throw new ArgumentNullException(nameof(runtimeMaterial));
             } else if (runtimeMaterial.Layout.TextureBindings.Length == 0) {
@@ -1063,6 +1083,22 @@ namespace helengine.vulkan {
             }
 
             return TextureUtils.BlackPixelTexture;
+        }
+
+        /// <summary>
+        /// Requires one resolved runtime material to expose shader-runtime binding state for the Vulkan backend.
+        /// </summary>
+        /// <param name="runtimeMaterial">Runtime material instance to validate.</param>
+        /// <returns>Shader runtime material view over the supplied material.</returns>
+        ShaderRuntimeMaterial RequireShaderRuntimeMaterial(RuntimeMaterial runtimeMaterial) {
+            if (runtimeMaterial == null) {
+                throw new ArgumentNullException(nameof(runtimeMaterial));
+            }
+            if (runtimeMaterial is not ShaderRuntimeMaterial shaderRuntimeMaterial) {
+                throw new InvalidOperationException("Vulkan rendering requires shader-backed runtime materials.");
+            }
+
+            return shaderRuntimeMaterial;
         }
 
         /// <summary>

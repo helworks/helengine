@@ -196,7 +196,7 @@ namespace helengine.editor {
                 PreviewRenderTargetValue = Render3D.CreateRenderTarget(nextCanvasWidth, nextCanvasHeight);
                 PreviewCameraComponent.RenderTarget = PreviewRenderTargetValue;
                 if (PlaneMaterial != null) {
-                    PlaneMaterial.Properties.SetTexture("CanvasTexture", PreviewRenderTargetValue);
+                    ShaderRuntimeMaterialAccess.Require(PlaneMaterial).Properties.SetTexture("CanvasTexture", PreviewRenderTargetValue);
                 }
             }
 

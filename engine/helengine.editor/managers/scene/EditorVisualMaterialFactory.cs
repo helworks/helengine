@@ -9,13 +9,14 @@ namespace helengine.editor {
         /// <returns>Runtime material instance configured for editor-only visual meshes.</returns>
         public static RuntimeMaterial CreateNonShadowCastingStandardMaterial() {
             RuntimeMaterial sharedStandardMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+            ShaderRuntimeMaterial sharedShaderMaterial = ShaderRuntimeMaterialAccess.Require(sharedStandardMaterial);
             RuntimeMaterial resolvedRootMaterial = sharedStandardMaterial.ResolveRootMaterial();
             if (resolvedRootMaterial is not helengine.directx11.DirectX11MaterialResource directX11StandardMaterial) {
-                RuntimeMaterial genericMaterialInstance = new RuntimeMaterial();
+                var genericMaterialInstance = new ShaderRuntimeMaterial();
                 if (!string.IsNullOrWhiteSpace(sharedStandardMaterial.Id)) {
                     genericMaterialInstance.SetId(sharedStandardMaterial.Id);
                 }
-                genericMaterialInstance.SetParentMaterial(sharedStandardMaterial);
+                genericMaterialInstance.SetParentMaterial(sharedShaderMaterial);
                 genericMaterialInstance.LightingModel = sharedStandardMaterial.LightingModel;
                 genericMaterialInstance.SupportsNormalMapping = sharedStandardMaterial.SupportsNormalMapping;
                 genericMaterialInstance.SupportsEmissive = sharedStandardMaterial.SupportsEmissive;
@@ -30,9 +31,9 @@ namespace helengine.editor {
                 directX11StandardMaterial.PixelProgram,
                 directX11StandardMaterial.Variant);
             materialInstance.SetId(sharedStandardMaterial.Id);
-            materialInstance.SetLayout(sharedStandardMaterial.Layout);
+            materialInstance.SetLayout(sharedShaderMaterial.Layout);
             materialInstance.SetRenderState(sharedStandardMaterial.RenderState);
-            materialInstance.Properties.CopyMatchingValuesFrom(sharedStandardMaterial.Properties);
+            materialInstance.Properties.CopyMatchingValuesFrom(sharedShaderMaterial.Properties);
             materialInstance.LightingModel = sharedStandardMaterial.LightingModel;
             materialInstance.SupportsNormalMapping = sharedStandardMaterial.SupportsNormalMapping;
             materialInstance.SupportsEmissive = sharedStandardMaterial.SupportsEmissive;

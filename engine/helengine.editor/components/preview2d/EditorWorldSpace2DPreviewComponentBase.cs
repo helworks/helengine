@@ -153,7 +153,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(texture));
             }
 
-            material.Properties.SetTexture("PreviewTexture", texture);
+            ShaderRuntimeMaterialAccess.Require(material).Properties.SetTexture("PreviewTexture", texture);
         }
 
         /// <summary>

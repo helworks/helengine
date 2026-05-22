@@ -633,6 +633,25 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Assigns one authored diffuse texture to a DirectX11 shader runtime material.
+        /// </summary>
+        /// <param name="material">Runtime material that should receive the diffuse texture.</param>
+        /// <param name="texture">Runtime texture that should become the material diffuse texture.</param>
+        public override void AssignRawMaterialDiffuseTexture(RuntimeMaterial material, RuntimeTexture texture) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+            if (material is not ShaderRuntimeMaterial shaderMaterial) {
+                throw new InvalidOperationException("DirectX11 raw runtime materials must be shader-backed.");
+            }
+
+            shaderMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, texture);
+        }
+
+        /// <summary>
         /// Invalidates cached shader resources and updates materials for the specified shader asset.
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
@@ -1728,8 +1747,9 @@ namespace helengine.directx11 {
                     DirectX11MaterialResource missingMaterial = GetMissingMaterial();
                     ApplyMaterial(missingMaterial, missingMaterial);
                 } else {
-                    DirectX11MaterialResource directX11Material = ResolveDirectX11Material(runtimeMaterial);
-                    ApplyMaterial(directX11Material, runtimeMaterial);
+                    ShaderRuntimeMaterial shaderRuntimeMaterial = RequireShaderRuntimeMaterial(runtimeMaterial);
+                    DirectX11MaterialResource directX11Material = ResolveDirectX11Material(shaderRuntimeMaterial);
+                    ApplyMaterial(directX11Material, shaderRuntimeMaterial);
                 }
             }
 
@@ -1781,7 +1801,7 @@ namespace helengine.directx11 {
                 };
                 context.UpdateSubresource(ref customData, customPassConstantBuffer);
             } else {
-                RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
+                ShaderRuntimeMaterial rootMaterial = RequireShaderRuntimeMaterial(runtimeMaterial.ResolveRootMaterial());
                 if (BuiltInMaterialIds.UsesStandardMeshTransform(
                     rootMaterial.Id,
                     rootMaterial.Layout.ShaderAssetId,
@@ -2089,7 +2109,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="shaderMaterial">Concrete DirectX11 material that owns the shader resources.</param>
         /// <param name="material">Resolved runtime material instance that provides render-state and texture values.</param>
-        void ApplyMaterial(DirectX11MaterialResource shaderMaterial, RuntimeMaterial material) {
+        void ApplyMaterial(DirectX11MaterialResource shaderMaterial, ShaderRuntimeMaterial material) {
             if (shaderMaterial == null) {
                 throw new ArgumentNullException(nameof(shaderMaterial));
             }
@@ -2123,7 +2143,7 @@ namespace helengine.directx11 {
         /// Applies per-material constant-buffer payloads for the current draw.
         /// </summary>
         /// <param name="material">Resolved runtime material instance that provides constant-buffer values.</param>
-        void ApplyMaterialConstantBufferBindings(RuntimeMaterial material) {
+        void ApplyMaterialConstantBufferBindings(ShaderRuntimeMaterial material) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             }
@@ -2161,7 +2181,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="material">Resolved runtime material instance that provides constant-buffer values.</param>
         /// <returns>Resolved DirectX11 constant-buffer payloads keyed by their shader slots.</returns>
-        List<DirectX11MaterialConstantBufferBinding> ResolveMaterialConstantBufferBindings(RuntimeMaterial material) {
+        List<DirectX11MaterialConstantBufferBinding> ResolveMaterialConstantBufferBindings(ShaderRuntimeMaterial material) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             }
@@ -2234,7 +2254,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="runtimeMaterial">Runtime material whose root should be resolved.</param>
         /// <returns>Resolved DirectX11 root material.</returns>
-        DirectX11MaterialResource ResolveDirectX11Material(RuntimeMaterial runtimeMaterial) {
+        DirectX11MaterialResource ResolveDirectX11Material(ShaderRuntimeMaterial runtimeMaterial) {
             if (runtimeMaterial == null) {
                 throw new ArgumentNullException(nameof(runtimeMaterial));
             }
@@ -2257,7 +2277,7 @@ namespace helengine.directx11 {
                 return true;
             }
 
-            return ResolveDirectX11Material(runtimeMaterial).CastsShadows;
+            return ResolveDirectX11Material(RequireShaderRuntimeMaterial(runtimeMaterial)).CastsShadows;
         }
 
         /// <summary>
@@ -2265,7 +2285,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="material">Material whose texture binding should be resolved.</param>
         /// <returns>Shader resource view to bind for the material, or null when the material intentionally has no texture.</returns>
-        ShaderResourceView ResolveMaterialTextureResourceView(RuntimeMaterial material) {
+        ShaderResourceView ResolveMaterialTextureResourceView(ShaderRuntimeMaterial material) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             }
@@ -2290,6 +2310,22 @@ namespace helengine.directx11 {
             }
 
             throw new InvalidOperationException("3D material textures must be DirectX11 texture resources.");
+        }
+
+        /// <summary>
+        /// Requires one resolved runtime material to expose shader-runtime binding state for the DirectX11 backend.
+        /// </summary>
+        /// <param name="runtimeMaterial">Runtime material instance to validate.</param>
+        /// <returns>Shader runtime material view over the supplied material.</returns>
+        ShaderRuntimeMaterial RequireShaderRuntimeMaterial(RuntimeMaterial runtimeMaterial) {
+            if (runtimeMaterial == null) {
+                throw new ArgumentNullException(nameof(runtimeMaterial));
+            }
+            if (runtimeMaterial is not ShaderRuntimeMaterial shaderRuntimeMaterial) {
+                throw new InvalidOperationException("DirectX11 rendering requires shader-backed runtime materials.");
+            }
+
+            return shaderRuntimeMaterial;
         }
 
         /// <summary>

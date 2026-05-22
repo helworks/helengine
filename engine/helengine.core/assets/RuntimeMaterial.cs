@@ -1,10 +1,10 @@
 namespace helengine {
     /// <summary>
-    /// Represents runtime material data that may either own concrete GPU resources directly or inherit from a parent material.
+    /// Represents runtime material data that may either own concrete platform resources directly or inherit generic render-state values from a parent material.
     /// </summary>
     public class RuntimeMaterial : RuntimeData, IDisposable {
         /// <summary>
-        /// Child materials that inherit layout and render-state values from this material.
+        /// Child materials that inherit generic render-state values from this material.
         /// </summary>
         readonly List<RuntimeMaterial> ChildMaterialsValue;
         /// <summary>
@@ -12,25 +12,15 @@ namespace helengine {
         /// </summary>
         RuntimeMaterial ParentMaterialValue;
         /// <summary>
-        /// Resolved material layout that describes the bindings exposed by this material.
-        /// </summary>
-        MaterialLayout LayoutValue;
-        /// <summary>
         /// Fixed-function render state applied while drawing this material.
         /// </summary>
         MaterialRenderState RenderStateValue;
-        /// <summary>
-        /// Property values bound to this material.
-        /// </summary>
-        MaterialPropertyBlock PropertiesValue;
 
         /// <summary>
-        /// Initializes a new runtime material with an empty layout, default render state, and an empty property block.
+        /// Initializes a new runtime material with default render state and conservative lighting feature flags.
         /// </summary>
         public RuntimeMaterial() {
-            LayoutValue = MaterialLayout.Empty;
             RenderStateValue = new MaterialRenderState();
-            PropertiesValue = new MaterialPropertyBlock(LayoutValue);
             ChildMaterialsValue = new List<RuntimeMaterial>();
             LightingModel = RuntimeMaterialLightingModel.Unlit;
             SupportsNormalMapping = false;
@@ -40,27 +30,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets the resolved material layout that describes the shader bindings exposed by this material.
-        /// </summary>
-        public MaterialLayout Layout {
-            get => LayoutValue;
-            private set => LayoutValue = value;
-        }
-
-        /// <summary>
         /// Gets the fixed-function render state used while drawing the material.
         /// </summary>
         public MaterialRenderState RenderState {
             get => RenderStateValue;
             private set => RenderStateValue = value;
-        }
-
-        /// <summary>
-        /// Gets the material-scoped property block that stores texture and constant-buffer values for the layout.
-        /// </summary>
-        public MaterialPropertyBlock Properties {
-            get => PropertiesValue;
-            private set => PropertiesValue = value;
         }
 
         /// <summary>
@@ -89,7 +63,7 @@ namespace helengine {
         public bool ReceivesShadows { get; set; }
 
         /// <summary>
-        /// Gets the parent material whose layout, render state, and default values are inherited by this material.
+        /// Gets the parent material whose generic render-state defaults are inherited by this material.
         /// </summary>
         public RuntimeMaterial ParentMaterial => ParentMaterialValue;
 
@@ -97,34 +71,16 @@ namespace helengine {
         /// Releases runtime-material-owned native resources and nested containers.
         /// </summary>
         public virtual void Dispose() {
-            ParentMaterialValue = null;
-
-            if (OwnsLayout(LayoutValue)) {
-                NativeOwnership.DisposeAndDelete(LayoutValue);
+            RuntimeMaterial parentMaterial = ParentMaterialValue;
+            if (parentMaterial != null) {
+                parentMaterial.UnregisterChildMaterial(this);
             }
 
-            LayoutValue = null;
+            ParentMaterialValue = null;
             NativeOwnership.Delete(RenderStateValue);
             RenderStateValue = null;
-            NativeOwnership.DisposeAndDelete(PropertiesValue);
-            PropertiesValue = null;
             ChildMaterialsValue.Clear();
             NativeOwnership.Delete(ChildMaterialsValue);
-        }
-
-        /// <summary>
-        /// Replaces the resolved material layout and recreates the property block to match its bindings.
-        /// </summary>
-        /// <param name="layout">Resolved material layout for the runtime material.</param>
-        public void SetLayout(MaterialLayout layout) {
-            if (layout == null) {
-                throw new ArgumentNullException(nameof(layout));
-            } else if (ParentMaterialValue != null) {
-                throw new InvalidOperationException("Parented runtime materials inherit their layout from the parent material.");
-            }
-
-            ApplyResolvedLayout(layout);
-            SynchronizeChildMaterials();
         }
 
         /// <summary>
@@ -166,49 +122,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves the runtime texture that should be sampled for this material after applying inherited defaults.
-        /// </summary>
-        /// <returns>Resolved runtime texture for the draw, or null when the active material layout has no assigned texture.</returns>
-        public RuntimeTexture ResolveTexture() {
-            if (Properties.TryGetFirstTexture(out RuntimeTexture propertyTexture)) {
-                return propertyTexture;
-            } else if (ParentMaterialValue != null) {
-                return ParentMaterialValue.ResolveTexture();
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Attempts to resolve one constant-buffer payload by binding name after applying parent-material inheritance.
-        /// </summary>
-        /// <param name="bindingName">Constant-buffer binding name to resolve.</param>
-        /// <param name="data">Resolved copied payload when one is assigned.</param>
-        /// <returns>True when a payload is assigned on this material chain; otherwise false.</returns>
-        public bool TryResolveConstantBufferData(string bindingName, out byte[] data) {
-            if (string.IsNullOrWhiteSpace(bindingName)) {
-                data = null;
-                return false;
-            }
-
-            int bindingIndex = Layout.FindConstantBufferBindingIndex(bindingName);
-            if (bindingIndex >= 0) {
-                byte[] localData = Properties.GetConstantBufferData(bindingIndex);
-                if (localData != null) {
-                    data = localData;
-                    return true;
-                }
-            }
-
-            if (ParentMaterialValue != null) {
-                return ParentMaterialValue.TryResolveConstantBufferData(bindingName, out data);
-            }
-
-            data = null;
-            return false;
-        }
-
-        /// <summary>
         /// Replaces the material render state with a copied instance so the runtime material owns its own values.
         /// </summary>
         /// <param name="renderState">Render state to apply to the runtime material.</param>
@@ -223,90 +136,6 @@ namespace helengine {
             RenderState = renderState.Clone();
             NativeOwnership.Delete(previousRenderState);
             SynchronizeChildMaterials();
-        }
-
-        /// <summary>
-        /// Applies authored default constant-buffer payloads to the material property block.
-        /// </summary>
-        /// <param name="constantBuffers">Authored constant-buffer payloads keyed by shader binding name.</param>
-        public void ApplyConstantBufferDefaults(MaterialConstantBufferAsset[] constantBuffers) {
-            if (constantBuffers == null) {
-                throw new ArgumentNullException(nameof(constantBuffers));
-            }
-
-            for (int constantBufferIndex = 0; constantBufferIndex < constantBuffers.Length; constantBufferIndex++) {
-                MaterialConstantBufferAsset constantBuffer = constantBuffers[constantBufferIndex];
-                if (constantBuffer == null) {
-                    throw new InvalidOperationException("Material constant buffers contain a null entry.");
-                }
-
-                Properties.SetConstantBufferData(constantBuffer.Name, constantBuffer.Data);
-            }
-        }
-
-        /// <summary>
-        /// Applies one resolved layout to this material while preserving matching local values.
-        /// </summary>
-        /// <param name="layout">Resolved material layout to apply.</param>
-        void ApplyResolvedLayout(MaterialLayout layout) {
-            MaterialLayout previousLayout = Layout;
-            MaterialPropertyBlock previousProperties = Properties;
-            Layout = layout;
-            Properties = new MaterialPropertyBlock(layout);
-            RestoreTextureBindings(previousLayout, previousProperties);
-            RestoreConstantBufferBindings(previousLayout, previousProperties);
-            if (OwnsLayout(previousLayout)) {
-                NativeOwnership.DisposeAndDelete(previousLayout);
-            }
-
-            NativeOwnership.DisposeAndDelete(previousProperties);
-        }
-
-        /// <summary>
-        /// Restores matching texture bindings when a material layout changes.
-        /// </summary>
-        /// <param name="previousLayout">Layout previously assigned to the runtime material.</param>
-        /// <param name="previousProperties">Property values associated with the previous layout.</param>
-        void RestoreTextureBindings(
-            MaterialLayout previousLayout,
-            MaterialPropertyBlock previousProperties) {
-            if (Layout.TextureBindings.Length == 0) {
-                return;
-            } else if (previousLayout == null || previousProperties == null) {
-                return;
-            } else if (previousLayout.TextureBindings.Length == 0) {
-                return;
-            }
-
-            for (int textureIndex = 0; textureIndex < Layout.TextureBindings.Length; textureIndex++) {
-                MaterialLayoutBinding binding = Layout.TextureBindings[textureIndex];
-                int previousBindingIndex = previousLayout.FindTextureBindingIndex(binding.Name);
-                if (previousBindingIndex < 0) {
-                    continue;
-                }
-
-                RuntimeTexture previousTexture = previousProperties.GetTexture(previousBindingIndex);
-                if (previousTexture == null) {
-                    continue;
-                }
-
-                Properties.SetTexture(textureIndex, previousTexture);
-            }
-        }
-
-        /// <summary>
-        /// Restores matching constant-buffer payloads when a material layout changes.
-        /// </summary>
-        /// <param name="previousLayout">Layout previously assigned to the runtime material.</param>
-        /// <param name="previousProperties">Property values associated with the previous layout.</param>
-        void RestoreConstantBufferBindings(MaterialLayout previousLayout, MaterialPropertyBlock previousProperties) {
-            if (Layout.ConstantBufferBindings.Length == 0 || previousLayout == null || previousProperties == null) {
-                return;
-            } else if (previousLayout.ConstantBufferBindings.Length == 0) {
-                return;
-            }
-
-            Properties.CopyMatchingValuesFrom(previousProperties);
         }
 
         /// <summary>
@@ -353,23 +182,21 @@ namespace helengine {
         /// <summary>
         /// Synchronizes this material against its current parent material.
         /// </summary>
-        void SynchronizeWithParentMaterial() {
+        protected virtual void SynchronizeWithParentMaterial() {
             if (ParentMaterialValue == null) {
                 return;
             }
 
-            if (!ReferenceEquals(Layout, ParentMaterialValue.Layout)) {
-                ApplyResolvedLayout(ParentMaterialValue.Layout);
-            }
-
+            MaterialRenderState previousRenderState = RenderState;
             RenderState = ParentMaterialValue.RenderState.Clone();
+            NativeOwnership.Delete(previousRenderState);
             SynchronizeChildMaterials();
         }
 
         /// <summary>
         /// Synchronizes all registered child materials after this material changes.
         /// </summary>
-        void SynchronizeChildMaterials() {
+        protected void SynchronizeChildMaterials() {
             for (int childIndex = 0; childIndex < ChildMaterialsValue.Count; childIndex++) {
                 RuntimeMaterial childMaterial = ChildMaterialsValue[childIndex];
                 if (childMaterial == null) {
@@ -378,23 +205,6 @@ namespace helengine {
 
                 childMaterial.SynchronizeWithParentMaterial();
             }
-        }
-
-        /// <summary>
-        /// Determines whether this runtime material owns one resolved layout instance and may dispose it safely.
-        /// </summary>
-        /// <param name="layout">Layout instance to inspect.</param>
-        /// <returns>True when the layout is owned by this material; otherwise false.</returns>
-        bool OwnsLayout(MaterialLayout layout) {
-            if (layout == null) {
-                return false;
-            } else if (ReferenceEquals(layout, MaterialLayout.Empty)) {
-                return false;
-            } else if (ParentMaterialValue != null && ReferenceEquals(layout, ParentMaterialValue.Layout)) {
-                return false;
-            }
-
-            return true;
         }
     }
 }

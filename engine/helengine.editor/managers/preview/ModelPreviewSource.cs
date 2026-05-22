@@ -601,10 +601,10 @@ namespace helengine.editor {
             if (!string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
                 TextureAsset textureAsset = LoadImportedTextureAsset(assetImportManager, modelSourcePath, materialAsset.DiffuseTextureAssetId);
                 RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
-                previewMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
+                ShaderRuntimeMaterialAccess.Require(previewMaterial).Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
             }
 
-            StandardMaterialTextureBindingDefaults.Apply(previewMaterial);
+            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(previewMaterial));
             return previewMaterial;
         }
 
@@ -614,8 +614,8 @@ namespace helengine.editor {
         /// <returns>Runtime material configured with the shared neutral preview swatch.</returns>
         static RuntimeMaterial CreateNeutralPreviewMaterial() {
             RuntimeMaterial previewMaterial = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
-            previewMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ResolveNeutralPreviewTexture());
-            StandardMaterialTextureBindingDefaults.Apply(previewMaterial);
+            ShaderRuntimeMaterialAccess.Require(previewMaterial).Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ResolveNeutralPreviewTexture());
+            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(previewMaterial));
             return previewMaterial;
         }
 

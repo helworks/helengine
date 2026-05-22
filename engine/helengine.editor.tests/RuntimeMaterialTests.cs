@@ -34,7 +34,7 @@ namespace helengine.editor.tests {
         public void ResolveTexture_PrefersChildOverridesOverParentValues() {
             TestRuntimeMaterial material = new TestRuntimeMaterial();
             MaterialLayout layout = CreateFirstLayout();
-            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            TestRuntimeMaterial childMaterial = new TestRuntimeMaterial();
             var parentTexture = new TestRuntimeTexture();
             var childTexture = new TestRuntimeTexture();
 

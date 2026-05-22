@@ -38,7 +38,7 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(height));
             }
 
-            material.Properties.SetConstantBufferData(ConstantBufferName, CreateData(width, height));
+            ShaderRuntimeMaterialAccess.Require(material).Properties.SetConstantBufferData(ConstantBufferName, CreateData(width, height));
         }
 
         /// <summary>

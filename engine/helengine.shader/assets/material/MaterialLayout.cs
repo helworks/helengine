@@ -1,10 +1,10 @@
 namespace helengine {
     /// <summary>
-    /// Describes the shader bindings and render state that a runtime material exposes to the engine.
+    /// Describes the shader bindings and render state that a shader runtime material exposes to shader-capable backends.
     /// </summary>
     public class MaterialLayout : IDisposable {
         /// <summary>
-        /// Shared empty layout used by runtime materials that have not yet been configured from shader metadata.
+        /// Shared empty layout used by shader runtime materials that have not yet been configured from shader metadata.
         /// </summary>
         static readonly MaterialLayout EmptyValue = CreateEmptyValue();
 
@@ -79,12 +79,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets the empty shared layout used before a runtime material is configured.
+        /// Gets the empty shared layout used before a shader runtime material is configured.
         /// </summary>
         public static MaterialLayout Empty => EmptyValue;
 
         /// <summary>
-        /// Builds the shared empty layout used before a runtime material is configured.
+        /// Builds the shared empty layout used before a shader runtime material is configured.
         /// </summary>
         /// <returns>Shared empty material layout.</returns>
         static MaterialLayout CreateEmptyValue() {

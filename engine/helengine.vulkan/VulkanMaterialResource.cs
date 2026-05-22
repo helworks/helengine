@@ -6,7 +6,7 @@ namespace helengine.vulkan {
     /// <summary>
     /// Vulkan-backed runtime material resource that owns shader modules and graphics pipeline state.
     /// </summary>
-    public sealed unsafe class VulkanMaterialResource : RuntimeMaterial, IDisposable {
+    public sealed unsafe class VulkanMaterialResource : ShaderRuntimeMaterial, IDisposable {
         /// <summary>
         /// Shared Vulkan context used to create and destroy GPU objects.
         /// </summary>

@@ -1,18 +1,18 @@
 namespace helengine {
     /// <summary>
-    /// Applies standard-material texture defaults so shader layouts with albedo sampling remain safe when no authored texture is present.
+    /// Applies shared shader-material texture defaults so standard lit materials remain sample-safe when authored texture bindings are omitted.
     /// </summary>
     public static class StandardMaterialTextureBindingDefaults {
         /// <summary>
-        /// Stable binding name used by the built-in forward standard shader for albedo sampling.
+        /// Stable diffuse-texture binding name used by the shared forward standard shader conventions.
         /// </summary>
         public const string DiffuseTextureBindingName = "DiffuseTexture";
 
         /// <summary>
-        /// Applies the default white albedo texture when one runtime material exposes the standard diffuse binding but no authored texture is assigned.
+        /// Applies the default white albedo texture when one shader runtime material exposes the standard diffuse binding but no authored texture is assigned.
         /// </summary>
-        /// <param name="material">Runtime material whose standard diffuse binding should be normalized.</param>
-        public static void Apply(RuntimeMaterial material) {
+        /// <param name="material">Shader runtime material whose diffuse binding should be normalized.</param>
+        public static void Apply(ShaderRuntimeMaterial material) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             }
