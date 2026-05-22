@@ -13,6 +13,7 @@
 		<PackageReference Include="Silk.NET.Windowing" Version="2.21.0" />
 		<PackageReference Include="Silk.NET.Shaderc" Version="2.21.0" />
 		<ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+		<ProjectReference Include="..\helengine.shader\helengine.shader.csproj" />
 	</ItemGroup>
 
 </Project>

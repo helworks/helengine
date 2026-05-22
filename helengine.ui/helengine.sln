@@ -78,6 +78,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "importers", "importers", "{
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "builder", "builder", "{742CE7AA-AD16-402E-9E4E-D786B6889BFE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.shader", "..\engine\helengine.shader\helengine.shader.csproj", "{0257F9DE-500E-4B0B-858F-D182B59D5178}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -436,6 +438,18 @@ Global
 		{741DD81D-3A18-4635-827C-B4181AB9D141}.Release|x64.Build.0 = Release|Any CPU
 		{741DD81D-3A18-4635-827C-B4181AB9D141}.Release|x86.ActiveCfg = Release|Any CPU
 		{741DD81D-3A18-4635-827C-B4181AB9D141}.Release|x86.Build.0 = Release|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Debug|x64.Build.0 = Debug|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Debug|x86.Build.0 = Debug|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Release|x64.ActiveCfg = Release|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Release|x64.Build.0 = Release|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Release|x86.ActiveCfg = Release|Any CPU
+		{0257F9DE-500E-4B0B-858F-D182B59D5178}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

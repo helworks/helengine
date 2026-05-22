@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Identifies built-in material shader layouts that the engine treats specially during rendering.
+    /// Identifies shared shader-runtime material and program conventions used by shader-capable backends.
     /// </summary>
     public static class BuiltInMaterialIds {
         /// <summary>

@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.shader\helengine.shader.csproj" />
   </ItemGroup>
 
   <ItemGroup>
