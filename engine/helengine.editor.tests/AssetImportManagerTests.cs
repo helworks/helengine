@@ -415,10 +415,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures Nintendo DS texture imports use the compact default texture budget even when no explicit per-platform override was authored yet.
+        /// Ensures texture imports use the shared default texture budget when no explicit per-platform override was authored yet.
         /// </summary>
         [Fact]
-        public void TryLoadTextureAsset_WhenCurrentPlatformIsDsAndTextureSettingsAreMissing_UsesDsDefaultTextureBudget() {
+        public void ResolveDefaultTextureProcessorSettings_uses_shared_defaults_without_platform_id_special_cases() {
             string sourcePath = WriteSourceTexture("typed-ds-default-budget.tga");
             ContentManager contentManager = new ContentManager(AssetsRootPath);
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
@@ -429,10 +429,10 @@ namespace helengine.editor.tests {
 
             Assert.True(loaded);
             Assert.NotNull(asset);
-            Assert.Equal((ushort)128, asset.Width);
-            Assert.Equal((ushort)64, asset.Height);
-            Assert.Equal(TextureAssetColorFormat.Rgba4444, asset.ColorFormat);
-            Assert.Equal(128 * 64 * 2, asset.Colors.Length);
+            Assert.Equal((ushort)1024, asset.Width);
+            Assert.Equal((ushort)512, asset.Height);
+            Assert.Equal(TextureAssetColorFormat.Rgba32, asset.ColorFormat);
+            Assert.Equal(1024 * 512 * 4, asset.Colors.Length);
         }
 
         /// <summary>
@@ -494,10 +494,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures Nintendo DS font imports use the compact default texture format even when no explicit per-platform override was authored yet.
+        /// Ensures font imports use the shared default texture format when no explicit per-platform override was authored yet.
         /// </summary>
         [Fact]
-        public void TryLoadFontAsset_WhenCurrentPlatformIsDsAndTextureSettingsAreMissing_UsesDsDefaultTextureFormat() {
+        public void TryLoadFontAsset_WhenCurrentPlatformUsesSharedDefaultsAndTextureSettingsAreMissing_UsesSharedDefaultTextureFormat() {
             string sourcePath = WriteSourceFont("demo-body-ds-default.ttf");
             AssetImportManager manager = CreateFontManager();
             manager.CurrentPlatformId = "ds";
@@ -506,15 +506,15 @@ namespace helengine.editor.tests {
 
             Assert.True(loaded);
             Assert.NotNull(asset);
-            Assert.Equal(TextureAssetColorFormat.Rgba4444, asset.SourceTextureAsset.ColorFormat);
-            Assert.Equal(new byte[] { 0xFF, 0xFF }, asset.SourceTextureAsset.Colors);
+            Assert.Equal(TextureAssetColorFormat.Rgba32, asset.SourceTextureAsset.ColorFormat);
+            Assert.Equal(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF }, asset.SourceTextureAsset.Colors);
         }
 
         /// <summary>
-        /// Ensures Nintendo DS font imports cap oversized atlas textures to the default DS texture budget when no explicit override was authored yet.
+        /// Ensures font imports use the shared default texture budget when no explicit override was authored yet.
         /// </summary>
         [Fact]
-        public void TryLoadFontAsset_WhenCurrentPlatformIsDsAndTextureSettingsAreMissing_CapsAtlasToDsDefaultResolution() {
+        public void TryLoadFontAsset_WhenCurrentPlatformUsesSharedDefaultsAndTextureSettingsAreMissing_UsesSharedDefaultResolution() {
             string sourcePath = WriteSourceFont("demo-body-ds-default-budget.ttf");
             ContentManager contentManager = new ContentManager(AssetsRootPath);
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
@@ -525,10 +525,10 @@ namespace helengine.editor.tests {
 
             Assert.True(loaded);
             Assert.NotNull(asset);
-            Assert.Equal((ushort)128, asset.SourceTextureAsset.Width);
-            Assert.Equal((ushort)128, asset.SourceTextureAsset.Height);
-            Assert.Equal(TextureAssetColorFormat.Rgba4444, asset.SourceTextureAsset.ColorFormat);
-            Assert.Equal(128 * 128 * 2, asset.SourceTextureAsset.Colors.Length);
+            Assert.Equal((ushort)256, asset.SourceTextureAsset.Width);
+            Assert.Equal((ushort)256, asset.SourceTextureAsset.Height);
+            Assert.Equal(TextureAssetColorFormat.Rgba32, asset.SourceTextureAsset.ColorFormat);
+            Assert.Equal(256 * 256 * 4, asset.SourceTextureAsset.Colors.Length);
         }
 
         /// <summary>

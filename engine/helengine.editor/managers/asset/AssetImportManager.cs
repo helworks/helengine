@@ -2956,14 +2956,6 @@ namespace helengine.editor {
         /// <param name="platformId">Active processing platform identifier.</param>
         /// <returns>Default texture processor settings for the requested platform.</returns>
         TextureAssetProcessorSettings CreateDefaultTextureProcessorSettings(string platformId) {
-            if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
-                return new TextureAssetProcessorSettings {
-                    MaxResolution = 128,
-                    ColorFormatId = TextureAssetColorFormat.Rgba4444.ToString(),
-                    AlphaPrecision = TextureAssetAlphaPrecision.A4
-                };
-            }
-
             return new TextureAssetProcessorSettings {
                 MaxResolution = 0,
                 ColorFormatId = TextureAssetColorFormat.Rgba32.ToString(),
