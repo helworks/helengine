@@ -420,62 +420,19 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
-    /// Verifies the editor runner exposes the installed Nintendo DS repository root through the DS builder environment override.
+    /// Verifies the generic editor build-graph runner no longer owns platform-specific repository-root environment overrides.
     /// </summary>
     [Fact]
-    public void ApplyBuilderEnvironmentOverrides_whenPlatformIsDs_setsNintendoDsRepositoryRoot() {
-        const string environmentVariableName = "HELENGINE_DS_REPOSITORY_ROOT";
-        string previousValue = Environment.GetEnvironmentVariable(environmentVariableName);
-        string repositoryRootPath = Path.Combine(Path.GetTempPath(), "helengine-ds-repository-root-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(repositoryRootPath);
+    public void Run_does_not_set_platform_specific_repository_root_environment_variables() {
+        MethodInfo applyMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+            "ApplyBuilderEnvironmentOverrides",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        MethodInfo restoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+            "RestoreBuilderEnvironmentOverrides",
+            BindingFlags.Instance | BindingFlags.NonPublic);
 
-        try {
-            EditorPlatformBuildGraphRunner runner = new(
-                Path.GetTempPath(),
-                "1.0.0",
-                "project",
-                "1.0.0",
-                Array.Empty<IAssetImporterRegistration>(),
-                new AvailablePlatformDescriptor(
-                    "ds",
-                    "Nintendo DS",
-                    typeof(FakePlatformBuilder).Assembly.Location,
-                    repositoryRootPath,
-                    true,
-                    "generated-core",
-                    "codegen.exe"),
-                null,
-                new EditorPlatformAssetBuilderLoader(),
-                new EditorGeneratedCoreRegenerationService());
-
-            MethodInfo applyMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
-                "ApplyBuilderEnvironmentOverrides",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-            MethodInfo restoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
-                "RestoreBuilderEnvironmentOverrides",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(applyMethod);
-            Assert.NotNull(restoreMethod);
-
-            applyMethod.Invoke(runner, []);
-
-            Assert.Equal(Path.GetFullPath(repositoryRootPath), Environment.GetEnvironmentVariable(environmentVariableName));
-
-            restoreMethod.Invoke(runner, [string.Empty, string.Empty, string.Empty]);
-
-            Assert.True(string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(environmentVariableName)));
-        } finally {
-            if (string.IsNullOrWhiteSpace(previousValue)) {
-                Environment.SetEnvironmentVariable(environmentVariableName, null);
-            } else {
-                Environment.SetEnvironmentVariable(environmentVariableName, previousValue);
-            }
-
-            if (Directory.Exists(repositoryRootPath)) {
-                Directory.Delete(repositoryRootPath, true);
-            }
-        }
+        Assert.Null(applyMethod);
+        Assert.Null(restoreMethod);
     }
 
     /// <summary>

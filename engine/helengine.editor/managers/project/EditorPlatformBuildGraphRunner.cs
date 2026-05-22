@@ -18,19 +18,6 @@ namespace helengine.editor {
     /// Executes the shared editor-owned build graph for one queued platform build item.
     /// </summary>
     public class EditorPlatformBuildGraphRunner {
-        /// <summary>
-        /// Environment variable used by the PS2 builder to resolve its native repository root when loaded from the editor app.
-        /// </summary>
-        const string Ps2RepositoryRootEnvironmentVariableName = "HELENGINE_PS2_REPOSITORY_ROOT";
-        /// <summary>
-        /// Environment variable used by the Nintendo DS builder to resolve its native repository root when loaded from the editor app.
-        /// </summary>
-        const string DsRepositoryRootEnvironmentVariableName = "HELENGINE_DS_REPOSITORY_ROOT";
-        /// <summary>
-        /// Environment variable used by the GameCube builder to resolve its native repository root when loaded from the editor app.
-        /// </summary>
-        const string GameCubeRepositoryRootEnvironmentVariableName = "HELENGINE_GAMECUBE_REPOSITORY_ROOT";
-
         readonly string ProjectRootPath;
         readonly string RequiredEngineVersion;
         readonly string ProjectId;
@@ -984,13 +971,9 @@ namespace helengine.editor {
             string detectedFeatureSummary = BuildDetectedFeatureSummary(workspace.GeneratedCoreRootPath);
 
             string previousWorkingDirectory = Directory.GetCurrentDirectory();
-            string previousPs2RepositoryRootPath = Environment.GetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName) ?? string.Empty;
-            string previousDsRepositoryRootPath = Environment.GetEnvironmentVariable(DsRepositoryRootEnvironmentVariableName) ?? string.Empty;
-            string previousGameCubeRepositoryRootPath = Environment.GetEnvironmentVariable(GameCubeRepositoryRootEnvironmentVariableName) ?? string.Empty;
             try {
                 StageBuilderPackageSourceRoot(workspace.PackageRootPath, workspace.BuilderWorkingRootPath);
                 Directory.SetCurrentDirectory(workspace.PackageRootPath);
-                ApplyBuilderEnvironmentOverrides();
                 PlatformBuildReport report = builder.BuildAsync(request, progressReporter, diagnosticCollector, CancellationToken.None).GetAwaiter().GetResult();
                 if (!report.Succeeded) {
                     return EditorBuildExecutionResult.Failure(AppendFeatureSummary(BuildFailureMessage(report), detectedFeatureSummary));
@@ -1001,63 +984,7 @@ namespace helengine.editor {
                         $"Build completed for platform '{PlatformDescriptor.Id}': {queueItem.OutputDirectoryPath}",
                         detectedFeatureSummary));
             } finally {
-                RestoreBuilderEnvironmentOverrides(previousPs2RepositoryRootPath, previousDsRepositoryRootPath, previousGameCubeRepositoryRootPath);
                 Directory.SetCurrentDirectory(previousWorkingDirectory);
-            }
-        }
-
-        /// <summary>
-        /// Applies temporary environment overrides required by builder implementations loaded into the editor process.
-        /// </summary>
-        void ApplyBuilderEnvironmentOverrides() {
-            if (string.Equals(PlatformDescriptor.Id, "ps2", StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrWhiteSpace(PlatformDescriptor.PlayerSourceRootPath)) {
-                Environment.SetEnvironmentVariable(
-                    Ps2RepositoryRootEnvironmentVariableName,
-                    Path.GetFullPath(PlatformDescriptor.PlayerSourceRootPath));
-            } else if (string.Equals(PlatformDescriptor.Id, "ds", StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrWhiteSpace(PlatformDescriptor.PlayerSourceRootPath)) {
-                Environment.SetEnvironmentVariable(
-                    DsRepositoryRootEnvironmentVariableName,
-                    Path.GetFullPath(PlatformDescriptor.PlayerSourceRootPath));
-            } else if (string.Equals(PlatformDescriptor.Id, "gamecube", StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrWhiteSpace(PlatformDescriptor.PlayerSourceRootPath)) {
-                Environment.SetEnvironmentVariable(
-                    GameCubeRepositoryRootEnvironmentVariableName,
-                    Path.GetFullPath(PlatformDescriptor.PlayerSourceRootPath));
-            }
-        }
-
-        /// <summary>
-        /// Restores temporary builder environment overrides after one build graph execution finishes.
-        /// </summary>
-        /// <param name="previousPs2RepositoryRootPath">Previous PS2 repository-root environment variable value.</param>
-        /// <param name="previousDsRepositoryRootPath">Previous Nintendo DS repository-root environment variable value.</param>
-        /// <param name="previousGameCubeRepositoryRootPath">Previous GameCube repository-root environment variable value.</param>
-        void RestoreBuilderEnvironmentOverrides(string previousPs2RepositoryRootPath, string previousDsRepositoryRootPath, string previousGameCubeRepositoryRootPath) {
-            if (string.Equals(PlatformDescriptor.Id, "ps2", StringComparison.OrdinalIgnoreCase)) {
-                if (string.IsNullOrWhiteSpace(previousPs2RepositoryRootPath)) {
-                    Environment.SetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName, null);
-                    return;
-                }
-
-                Environment.SetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName, previousPs2RepositoryRootPath);
-                return;
-            } else if (string.Equals(PlatformDescriptor.Id, "ds", StringComparison.OrdinalIgnoreCase)) {
-                if (string.IsNullOrWhiteSpace(previousDsRepositoryRootPath)) {
-                    Environment.SetEnvironmentVariable(DsRepositoryRootEnvironmentVariableName, null);
-                    return;
-                }
-
-                Environment.SetEnvironmentVariable(DsRepositoryRootEnvironmentVariableName, previousDsRepositoryRootPath);
-                return;
-            } else if (string.Equals(PlatformDescriptor.Id, "gamecube", StringComparison.OrdinalIgnoreCase)) {
-                if (string.IsNullOrWhiteSpace(previousGameCubeRepositoryRootPath)) {
-                    Environment.SetEnvironmentVariable(GameCubeRepositoryRootEnvironmentVariableName, null);
-                    return;
-                }
-
-                Environment.SetEnvironmentVariable(GameCubeRepositoryRootEnvironmentVariableName, previousGameCubeRepositoryRootPath);
             }
         }
 
