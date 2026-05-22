@@ -12,6 +12,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(contentManager));
             }
 
+            ShaderRuntimeContentRegistration.Register(contentManager);
             RegisterProcessorIfMissing(
                 contentManager,
                 EditorContentProcessorIds.MaterialAsset,

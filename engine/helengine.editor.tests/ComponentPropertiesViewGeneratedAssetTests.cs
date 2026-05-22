@@ -220,7 +220,7 @@ namespace helengine.editor.tests {
             });
 
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            MaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
+            ShaderMaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
 
             Assert.NotNull(meshComponent.Material);
             Assert.Equal("Cube00", materialRow.ValueText.Text);

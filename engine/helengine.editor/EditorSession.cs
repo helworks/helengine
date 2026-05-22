@@ -3478,7 +3478,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Shader asset id must be provided.");
             }
 
-            var materialAsset = new MaterialAsset {
+            var materialAsset = new ShaderMaterialAsset {
                 Id = string.Concat(shaderName, ".material"),
                 ShaderAssetId = shaderAsset.Id,
                 VertexProgram = string.Concat(shaderName, ".vs"),
@@ -3524,7 +3524,7 @@ namespace helengine.editor {
 
             if (IsMaterialAssetEntry(entry)) {
                 try {
-                    MaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
+                    ShaderMaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
                     MaterialAssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
                         entry.FullPath,
                         SupportedPlatforms,
@@ -3785,7 +3785,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="path">Path to the material asset.</param>
         /// <returns>Material asset instance.</returns>
-        MaterialAsset LoadMaterialAsset(string path) {
+        ShaderMaterialAsset LoadMaterialAsset(string path) {
             if (string.IsNullOrWhiteSpace(path)) {
                 throw new ArgumentException("Material path must be provided.", nameof(path));
             }
@@ -4108,7 +4108,7 @@ namespace helengine.editor {
             }
             if (IsMaterialAssetEntry(entry)) {
                 try {
-                    MaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
+                    ShaderMaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
                     MaterialAssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
                         entry.FullPath,
                         SupportedPlatforms,

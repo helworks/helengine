@@ -1415,7 +1415,7 @@ namespace helengine.editor {
         /// <returns>Packaged file-backed scene reference for the copied material asset.</returns>
         SceneAssetReference RewriteFileSystemMaterialReference(SceneAssetReference reference, string buildRootPath) {
             string fullPath = ResolveProjectAssetPath(reference.RelativePath);
-            MaterialAsset materialAsset;
+            ShaderMaterialAsset materialAsset;
             try {
                 materialAsset = MaterialAssetSettingsService.LoadMaterialAsset(fullPath, TargetPlatformId);
             } catch (Exception ex) {
@@ -1446,7 +1446,7 @@ namespace helengine.editor {
         /// <param name="materialAssetPath">Absolute path to the authored material asset whose diffuse texture should be packaged.</param>
         /// <param name="materialAsset">Material asset whose imported diffuse texture should be packaged.</param>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        void CopyReferencedDiffuseTextureAsset(string materialAssetPath, MaterialAsset materialAsset, string buildRootPath) {
+        void CopyReferencedDiffuseTextureAsset(string materialAssetPath, ShaderMaterialAsset materialAsset, string buildRootPath) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             }
@@ -1511,7 +1511,7 @@ namespace helengine.editor {
         /// <param name="materialAsset">Source material asset used as the fallback source.</param>
         /// <param name="fieldValues">Final builder field values prepared for cooking.</param>
         /// <returns>Imported diffuse texture asset id that should be copied, or an empty string when the material has no imported texture.</returns>
-        static string ResolveReferencedDiffuseTextureAssetId(MaterialAsset materialAsset, IReadOnlyDictionary<string, string> fieldValues) {
+        static string ResolveReferencedDiffuseTextureAssetId(ShaderMaterialAsset materialAsset, IReadOnlyDictionary<string, string> fieldValues) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
@@ -1712,7 +1712,7 @@ namespace helengine.editor {
         /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
         /// <param name="materialRelativePath">Project-relative material asset path used in diagnostics.</param>
         /// <returns>Deserialized material settings sidecar.</returns>
-        MaterialAssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath, MaterialAsset materialAsset) {
+        MaterialAssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath, ShaderMaterialAsset materialAsset) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (string.IsNullOrWhiteSpace(materialRelativePath)) {
@@ -1767,7 +1767,7 @@ namespace helengine.editor {
         /// <returns>Builder-owned material translation request.</returns>
         PlatformMaterialCookRequest BuildMaterialCookRequest(
             SceneAssetReference reference,
-            MaterialAsset materialAsset,
+            ShaderMaterialAsset materialAsset,
             MaterialAssetImportSettings materialSettings) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
@@ -1840,7 +1840,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="materialSettings">Target-platform material settings to translate.</param>
         /// <returns>Field-value map ready for builder consumption.</returns>
-        Dictionary<string, string> BuildMaterialCookFieldValues(MaterialAsset materialAsset, MaterialAssetProcessorSettings materialSettings) {
+        Dictionary<string, string> BuildMaterialCookFieldValues(ShaderMaterialAsset materialAsset, MaterialAssetProcessorSettings materialSettings) {
             if (materialSettings == null) {
                 throw new ArgumentNullException(nameof(materialSettings));
             } else if (materialAsset == null) {
@@ -1881,7 +1881,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldValues">Cook field-value map being prepared for the platform builder.</param>
         /// <param name="materialAsset">Source material asset used as the fallback source for authored values.</param>
-        void ApplyImportedTextureCookField(Dictionary<string, string> fieldValues, MaterialAsset materialAsset) {
+        void ApplyImportedTextureCookField(Dictionary<string, string> fieldValues, ShaderMaterialAsset materialAsset) {
             if (fieldValues == null) {
                 throw new ArgumentNullException(nameof(fieldValues));
             } else if (materialAsset == null) {
@@ -1910,7 +1910,7 @@ namespace helengine.editor {
         /// <param name="fallbackValue">Fallback value used when the material asset is blank.</param>
         void ResolveCustomShaderCookField(
             Dictionary<string, string> fieldValues,
-            MaterialAsset materialAsset,
+            ShaderMaterialAsset materialAsset,
             string fieldId,
             string fallbackValue) {
             if (fieldValues == null) {
@@ -1988,7 +1988,7 @@ namespace helengine.editor {
             }
 
             if (MaterialBuilder == null) {
-                MaterialAsset materialAsset = new MaterialAsset {
+                ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                     Id = "Engine.Materials.Standard.material",
                     ShaderAssetId = shaderAssetId,
                     VertexProgram = StandardVertexProgramName,
@@ -2008,7 +2008,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("The generated standard material requires at least one material schema.");
             }
 
-            Dictionary<string, string> standardMaterialFieldValues = BuildMaterialCookFieldValues(new MaterialAsset(), standardMaterialSettings);
+            Dictionary<string, string> standardMaterialFieldValues = BuildMaterialCookFieldValues(new ShaderMaterialAsset(), standardMaterialSettings);
             standardMaterialFieldValues[VariantFieldId] = StandardShaderVariantName;
             PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(new PlatformMaterialCookRequest(
                 StandardGeneratedMaterialAssetId,

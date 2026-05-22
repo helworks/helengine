@@ -798,7 +798,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Generated model materials must include a material asset payload.");
             }
 
-            MaterialAsset materialAsset = generatedMaterial.MaterialAsset;
+            ShaderMaterialAsset materialAsset = generatedMaterial.MaterialAsset;
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
             settings.Importer.SourceChecksum = string.Empty;
@@ -818,7 +818,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="materialAsset">Generated material asset returned by the model importer.</param>
         /// <returns>Platform settings payload that preserves shader and diffuse-texture fields.</returns>
-        MaterialAssetProcessorSettings CreateGeneratedMaterialPlatformSettings(MaterialAsset materialAsset) {
+        MaterialAssetProcessorSettings CreateGeneratedMaterialPlatformSettings(ShaderMaterialAsset materialAsset) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }

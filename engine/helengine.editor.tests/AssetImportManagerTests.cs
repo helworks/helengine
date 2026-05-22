@@ -631,7 +631,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void EditorContentManagerConfiguration_WhenLoadingSerializedMaterial_RegistersEditorMaterialProcessor() {
             string materialPath = Path.Combine(AssetsRootPath, "demo.material");
-            MaterialAsset materialAsset = new MaterialAsset {
+            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = "Materials/Demo.material",
                 ShaderAssetId = "Shaders/Standard.shader"
             };
@@ -642,7 +642,7 @@ namespace helengine.editor.tests {
             ContentManager contentManager = new ContentManager(AssetsRootPath);
             EditorContentManagerConfiguration.ConfigureEditorContentManager(contentManager);
 
-            MaterialAsset loadedMaterialAsset = contentManager.Load<MaterialAsset>(materialPath, EditorContentProcessorIds.MaterialAsset);
+            ShaderMaterialAsset loadedMaterialAsset = contentManager.Load<ShaderMaterialAsset>(materialPath, ShaderRuntimeContentProcessorIds.ShaderMaterialAsset);
 
             Assert.Equal(materialAsset.Id, loadedMaterialAsset.Id);
             Assert.Equal(materialAsset.ShaderAssetId, loadedMaterialAsset.ShaderAssetId);

@@ -40,7 +40,7 @@ namespace helengine.editor {
 
             ShaderCompileTarget target = ResolveTarget(render3D);
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, ShaderFileName);
-            var materialAsset = new MaterialAsset {
+            var materialAsset = new ShaderMaterialAsset {
                 Id = MaterialAssetId,
                 ShaderAssetId = shaderAsset.Id,
                 VertexProgram = VertexProgramName,

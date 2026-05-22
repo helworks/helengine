@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Stores authored default constant-buffer bytes for one named material binding.
+    /// Stores authored default constant-buffer bytes for one named shader material binding.
     /// </summary>
     public class MaterialConstantBufferAsset {
         /// <summary>

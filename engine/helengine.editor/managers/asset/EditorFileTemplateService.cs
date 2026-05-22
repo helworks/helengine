@@ -69,13 +69,7 @@ namespace helengine.editor {
 
             string materialId = BuildMaterialAssetId(materialPath);
 
-            var materialAsset = new MaterialAsset {
-                Id = materialId,
-                ShaderAssetId = string.Empty,
-                VertexProgram = string.Empty,
-                PixelProgram = string.Empty,
-                Variant = string.Empty
-            };
+            var materialAsset = new MaterialAsset { Id = materialId };
 
             using (FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, materialAsset);

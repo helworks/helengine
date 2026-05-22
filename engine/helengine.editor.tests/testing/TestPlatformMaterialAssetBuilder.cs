@@ -97,7 +97,7 @@ namespace helengine.editor.tests.testing {
             bool castsShadows = ReadBooleanField(request.FieldValues, "casts-shadow", true);
             bool receivesShadows = ReadBooleanField(request.FieldValues, "receives-shadow", true);
 
-            MaterialAsset materialAsset = new MaterialAsset {
+            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = request.MaterialAssetId,
                 ShaderAssetId = shaderAssetId,
                 VertexProgram = vertexProgram,

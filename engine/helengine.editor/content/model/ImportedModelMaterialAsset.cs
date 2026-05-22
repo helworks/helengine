@@ -9,7 +9,7 @@ namespace helengine.editor {
         /// <param name="materialName">Source material name resolved from the imported model.</param>
         /// <param name="relativeMaterialPath">Relative path where the generated material should be written.</param>
         /// <param name="materialAsset">Material asset payload to serialize.</param>
-        public ImportedModelMaterialAsset(string materialName, string relativeMaterialPath, MaterialAsset materialAsset) {
+        public ImportedModelMaterialAsset(string materialName, string relativeMaterialPath, ShaderMaterialAsset materialAsset) {
             if (string.IsNullOrWhiteSpace(materialName)) {
                 throw new ArgumentException("Material name must be provided.", nameof(materialName));
             } else if (string.IsNullOrWhiteSpace(relativeMaterialPath)) {
@@ -34,6 +34,6 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the material asset payload to serialize.
         /// </summary>
-        public MaterialAsset MaterialAsset { get; }
+        public ShaderMaterialAsset MaterialAsset { get; }
     }
 }

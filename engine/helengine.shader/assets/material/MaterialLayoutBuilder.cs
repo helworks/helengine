@@ -11,10 +11,10 @@ namespace helengine {
         /// <summary>
         /// Builds a material layout from the supplied material and shader assets.
         /// </summary>
-        /// <param name="materialAsset">Material asset that selects the shader programs and render state.</param>
+        /// <param name="materialAsset">Shader-owned material asset that selects the shader programs and render state.</param>
         /// <param name="shaderAsset">Shader asset that exposes the selected program bindings.</param>
         /// <returns>Resolved shared material layout.</returns>
-        public static MaterialLayout Build(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        public static MaterialLayout Build(ShaderMaterialAsset materialAsset, ShaderAsset shaderAsset) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }

@@ -680,7 +680,7 @@ namespace helengine.editor.tests.serialization.scene {
         void WriteMaterialAsset(string relativePath, string shaderAssetId) {
             string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
-            MaterialAsset materialAsset = new MaterialAsset {
+            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = "TestMaterial",
                 ShaderAssetId = shaderAssetId,
                 VertexProgram = "VS",

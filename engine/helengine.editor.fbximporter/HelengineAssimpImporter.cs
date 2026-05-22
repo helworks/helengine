@@ -112,7 +112,7 @@ namespace helengine.editor.assimp {
                 Material material = scene.Materials[materialIndex];
                 string materialName = materialNames[materialIndex];
                 string relativeMaterialPath = BuildRelativeMaterialPath(generatedMaterialDirectoryName, materialName);
-                MaterialAsset materialAsset = BuildMaterialAsset(relativeMaterialPath, material);
+                ShaderMaterialAsset materialAsset = BuildMaterialAsset(relativeMaterialPath, material);
                 generatedMaterials.Add(new ImportedModelMaterialAsset(materialName, relativeMaterialPath, materialAsset));
             }
 
@@ -151,14 +151,14 @@ namespace helengine.editor.assimp {
         /// <param name="relativeMaterialPath">Relative path where the generated material will be written.</param>
         /// <param name="material">Imported Assimp material definition.</param>
         /// <returns>Generated engine material asset.</returns>
-        MaterialAsset BuildMaterialAsset(string relativeMaterialPath, Material material) {
+        ShaderMaterialAsset BuildMaterialAsset(string relativeMaterialPath, Material material) {
             if (string.IsNullOrWhiteSpace(relativeMaterialPath)) {
                 throw new ArgumentException("Relative material path must be provided.", nameof(relativeMaterialPath));
             } else if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            return new MaterialAsset {
+            return new ShaderMaterialAsset {
                 Id = relativeMaterialPath,
                 ShaderAssetId = BuiltInMaterialIds.StandardMaterialShaderAssetId,
                 VertexProgram = StandardVertexProgramName,

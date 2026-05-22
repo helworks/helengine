@@ -1121,7 +1121,7 @@ namespace helengine.editor {
 
             Directory.CreateDirectory(directoryPath);
 
-            MaterialAsset materialAsset = new MaterialAsset {
+            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = assetId,
                 ShaderAssetId = PhysicsDemoShaderAssetId,
                 VertexProgram = PhysicsDemoVertexProgramName,

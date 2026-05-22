@@ -15,14 +15,12 @@ namespace helengine {
         /// <param name="assetContentManager">Content manager that can deserialize the cooked shader package.</param>
         /// <param name="contentRootPath">Absolute packaged content root.</param>
         /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
-        /// <param name="materialAsset">Raw material asset definition.</param>
         /// <returns>Runtime material instance.</returns>
         public static RuntimeMaterial BuildMaterialFromRawAsset(
             IShaderRenderManager3D renderManager3D,
             ContentManager assetContentManager,
             string contentRootPath,
-            string materialAssetPath,
-            MaterialAsset materialAsset) {
+            string materialAssetPath) {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
@@ -35,11 +33,9 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             }
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
-            }
 
             ShaderRuntimeContentRegistration.Register(assetContentManager);
+            ShaderMaterialAsset materialAsset = assetContentManager.Load<ShaderMaterialAsset>(materialAssetPath, ShaderRuntimeContentProcessorIds.ShaderMaterialAsset);
             string shaderPackagePath = ResolveShaderPackagePath(contentRootPath, materialAsset.ShaderAssetId, renderManager3D.ShaderCompileTarget);
             ShaderAsset shaderAsset = assetContentManager.Load<ShaderAsset>(shaderPackagePath, ShaderRuntimeContentProcessorIds.ShaderAsset);
             return renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);

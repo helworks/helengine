@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 16;
+        public const byte CurrentVersion = 17;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -44,6 +44,11 @@ namespace helengine.files {
         /// Last asset version that stored a platform-specific packed-mesh byte tail on generic model assets.
         /// </summary>
         const byte ModelPlatformPackedMeshTailVersion = 15;
+
+        /// <summary>
+        /// Last asset version that stored shader-authored fields directly on generic material assets.
+        /// </summary>
+        const byte LegacyMaterialFieldVersion = 16;
 
         /// <summary>
         /// Version marker written into scene entity payloads that include stable ids and the static flag.
@@ -426,15 +431,9 @@ namespace helengine.files {
         static void WriteMaterialAsset(EngineBinaryWriter writer, MaterialAsset asset) {
             EnsureRuntimeAssetIdentity(asset);
             WriteAssetIdentity(writer, asset);
-            writer.WriteString(asset.ShaderAssetId);
-            writer.WriteString(asset.VertexProgram);
-            writer.WriteString(asset.PixelProgram);
-            writer.WriteString(asset.Variant);
-            writer.WriteString(asset.DiffuseTextureAssetId);
             writer.WriteByte(asset.CastsShadows ? (byte)1 : (byte)0);
             writer.WriteByte(asset.ReceivesShadows ? (byte)1 : (byte)0);
             WriteMaterialRenderState(writer, asset.RenderState);
-            writer.WriteArray(asset.ConstantBuffers, WriteMaterialConstantBufferAsset);
         }
 
         /// <summary>
@@ -451,15 +450,19 @@ namespace helengine.files {
 
             MaterialAsset materialAsset = new MaterialAsset();
             ReadAssetIdentity(reader, materialAsset, version);
-            materialAsset.ShaderAssetId = reader.ReadString();
-            materialAsset.VertexProgram = reader.ReadString();
-            materialAsset.PixelProgram = reader.ReadString();
-            materialAsset.Variant = reader.ReadString();
-            materialAsset.DiffuseTextureAssetId = reader.ReadString();
+            if (version <= LegacyMaterialFieldVersion) {
+                reader.ReadString();
+                reader.ReadString();
+                reader.ReadString();
+                reader.ReadString();
+                reader.ReadString();
+            }
             materialAsset.CastsShadows = reader.ReadByte() != 0;
             materialAsset.ReceivesShadows = reader.ReadByte() != 0;
             materialAsset.RenderState = ReadMaterialRenderState(reader);
-            materialAsset.ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>();
+            if (version <= LegacyMaterialFieldVersion) {
+                reader.ReadArray(ReadLegacyMaterialConstantBufferAsset);
+            }
             return materialAsset;
         }
 
@@ -1205,29 +1208,9 @@ namespace helengine.files {
         /// </summary>
         /// <param name="writer">Destination writer for the payload.</param>
         /// <param name="asset">Material constant-buffer asset to serialize.</param>
-        static void WriteMaterialConstantBufferAsset(EngineBinaryWriter writer, MaterialConstantBufferAsset asset) {
-            if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            } else if (string.IsNullOrWhiteSpace(asset.Name)) {
-                throw new InvalidOperationException("Material constant-buffer assets must define a binding name.");
-            } else if (asset.Data == null) {
-                throw new InvalidOperationException("Material constant-buffer assets must define a byte payload.");
-            }
-
-            writer.WriteString(asset.Name);
-            writer.WriteByteArray(asset.Data);
-        }
-
-        /// <summary>
-        /// Reads one material constant-buffer payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <returns>Deserialized material constant-buffer asset.</returns>
-        static MaterialConstantBufferAsset ReadMaterialConstantBufferAsset(EngineBinaryReader reader) {
-            return new MaterialConstantBufferAsset {
-                Name = reader.ReadString(),
-                Data = reader.ReadByteArray()
-            };
+        static byte[] ReadLegacyMaterialConstantBufferAsset(EngineBinaryReader reader) {
+            reader.ReadString();
+            return reader.ReadByteArray();
         }
 
         /// <summary>

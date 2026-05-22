@@ -503,7 +503,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Shader asset id must be provided.");
             }
 
-            MaterialAsset materialAsset = new MaterialAsset {
+            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = string.Concat(shaderName, ".material"),
                 ShaderAssetId = shaderAsset.Id,
                 VertexProgram = string.Concat(shaderName, ".vs"),

@@ -196,7 +196,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.True(File.Exists(cookedMaterialPath));
 
         using FileStream stream = new FileStream(cookedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        MaterialAsset cookedMaterial = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(stream));
+        ShaderMaterialAsset cookedMaterial = Assert.IsType<ShaderMaterialAsset>(AssetSerializer.Deserialize(stream));
         Assert.Equal("ForwardStandardShader", cookedMaterial.ShaderAssetId);
         Assert.Single(cookedMaterial.ConstantBuffers);
         Assert.Equal("BaseColorBuffer", cookedMaterial.ConstantBuffers[0].Name);
@@ -258,7 +258,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     public void ResolveArtifactKind_when_cooked_material_is_stored_beneath_models_directory_returns_material() {
         string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "models", "Riemers", "racer", "x3ds_mat_Material_1_2.hasset");
         Directory.CreateDirectory(Path.GetDirectoryName(cookedMaterialPath)!);
-        WriteSerializedAsset(cookedMaterialPath, new MaterialAsset {
+        WriteSerializedAsset(cookedMaterialPath, new ShaderMaterialAsset {
             Id = "RacerMaterial",
             ShaderAssetId = "ForwardStandardShader",
             ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()

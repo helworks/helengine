@@ -593,7 +593,7 @@ namespace helengine.editor {
             }
 
             RuntimeMaterial previewMaterial = CreateNeutralPreviewMaterial();
-            MaterialAsset materialAsset = generatedMaterial.MaterialAsset;
+            ShaderMaterialAsset materialAsset = generatedMaterial.MaterialAsset;
             if (materialAsset == null) {
                 throw new InvalidOperationException("Imported model material entries must include a material asset.");
             }

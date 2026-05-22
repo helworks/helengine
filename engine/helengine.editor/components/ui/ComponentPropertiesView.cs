@@ -2246,7 +2246,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Selected asset is not a material.");
             }
 
-            MaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
+            ShaderMaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
             if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
                 return null;
             }
@@ -2281,7 +2281,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="path">Path to the material asset.</param>
         /// <returns>Material asset instance.</returns>
-        MaterialAsset LoadMaterialAsset(string path) {
+        ShaderMaterialAsset LoadMaterialAsset(string path) {
             if (string.IsNullOrWhiteSpace(path)) {
                 throw new ArgumentException("Material path must be provided.", nameof(path));
             }

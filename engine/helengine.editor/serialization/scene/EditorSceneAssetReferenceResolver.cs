@@ -304,7 +304,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("At least one supported project platform must exist before file-backed materials can be resolved.");
             }
 
-            MaterialAsset materialAsset = LoadPreviewMaterialAsset(fullPath, platformId);
+            ShaderMaterialAsset materialAsset = LoadPreviewMaterialAsset(fullPath, platformId);
             if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
                 MaterialAssetProcessorSettings platformSettings;
                 if (MaterialSettingsService.TryLoadPlatformSettings(fullPath, platformId, out platformSettings) && platformSettings != null) {
@@ -326,7 +326,7 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute path to the authored material asset.</param>
         /// <param name="platformId">Preview platform whose effective material payload should be resolved.</param>
         /// <returns>Runtime-facing material asset ready for editor preview loading.</returns>
-        MaterialAsset LoadPreviewMaterialAsset(string fullPath, string platformId) {
+        ShaderMaterialAsset LoadPreviewMaterialAsset(string fullPath, string platformId) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Material path must be provided.", nameof(fullPath));
             }
@@ -334,7 +334,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            MaterialAsset settingsMaterialAsset = null;
+            ShaderMaterialAsset settingsMaterialAsset = null;
             InvalidOperationException settingsLoadException = null;
             try {
                 settingsMaterialAsset = MaterialSettingsService.LoadMaterialAsset(fullPath, platformId);
@@ -343,7 +343,7 @@ namespace helengine.editor {
             }
 
             if (settingsLoadException != null) {
-                MaterialAsset migratedMaterialAsset = TryMigrateLegacyMaterialAsset(fullPath, platformId);
+                ShaderMaterialAsset migratedMaterialAsset = TryMigrateLegacyMaterialAsset(fullPath, platformId);
                 if (migratedMaterialAsset != null) {
                     return migratedMaterialAsset;
                 }
@@ -360,7 +360,7 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute path to the authored material asset.</param>
         /// <param name="platformId">Preview platform whose effective material payload should be resolved after migration.</param>
         /// <returns>Migrated runtime-facing material asset, or null when the file is not a legacy binary material asset.</returns>
-        MaterialAsset TryMigrateLegacyMaterialAsset(string fullPath, string platformId) {
+        ShaderMaterialAsset TryMigrateLegacyMaterialAsset(string fullPath, string platformId) {
             MaterialAsset legacyMaterialAsset = TryLoadLegacyBinaryMaterialAsset(fullPath);
             if (legacyMaterialAsset == null) {
                 return null;
@@ -414,7 +414,7 @@ namespace helengine.editor {
         /// <param name="materialAsset">Authored material asset carrying the stable asset id that must survive scene serialization.</param>
         /// <param name="platformSettings">Effective platform settings document used to extract preview-facing values such as base color.</param>
         /// <returns>Shader-backed preview runtime material that preserves the authored material asset id.</returns>
-        RuntimeMaterial BuildPreviewRuntimeMaterial(MaterialAsset materialAsset, MaterialAssetProcessorSettings platformSettings) {
+        RuntimeMaterial BuildPreviewRuntimeMaterial(ShaderMaterialAsset materialAsset, MaterialAssetProcessorSettings platformSettings) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
@@ -422,7 +422,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(platformSettings));
             }
 
-            MaterialAsset previewMaterialAsset = new MaterialAsset {
+            ShaderMaterialAsset previewMaterialAsset = new ShaderMaterialAsset {
                 Id = materialAsset.Id,
                 ShaderAssetId = StandardShaderAssetId,
                 VertexProgram = StandardVertexProgramName,
@@ -543,7 +543,7 @@ namespace helengine.editor {
         /// <param name="runtimeMaterial">Runtime material that should receive the diffuse texture.</param>
         /// <param name="materialAsset">Serialized material asset that declares the authored diffuse texture asset id.</param>
         /// <param name="materialPath">Absolute path to the serialized material asset.</param>
-        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, MaterialAsset materialAsset, string materialPath) {
+        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, ShaderMaterialAsset materialAsset, string materialPath) {
             if (runtimeMaterial == null) {
                 throw new ArgumentNullException(nameof(runtimeMaterial));
             }

@@ -6,10 +6,10 @@ namespace helengine {
         /// <summary>
         /// Builds one runtime material from a raw material asset and its resolved shader asset.
         /// </summary>
-        /// <param name="materialAsset">Raw material asset definition.</param>
+        /// <param name="materialAsset">Shader-owned raw material asset definition.</param>
         /// <param name="shaderAsset">Resolved shader asset consumed by the material.</param>
         /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset);
+        RuntimeMaterial BuildMaterialFromRaw(ShaderMaterialAsset materialAsset, ShaderAsset shaderAsset);
 
         /// <summary>
         /// Invalidates runtime shader resources associated with the supplied shader asset.

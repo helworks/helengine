@@ -156,7 +156,10 @@ namespace helengine.editor.tests {
             Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
             Assert.Equal((ushort)EditorAssetBinarySerializer.RecordKind, header.RecordKind);
             Assert.Equal((ushort)EditorAssetBinaryValueKind.SceneAsset, header.ValueKind);
-            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.FormatId, header.FormatId);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.ValueKind, header.ValueKind);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal("Scenes/TestScene.helen", deserialized.Id);
             Assert.Equal(1234u, deserialized.Physics3DSceneFeatureFlags);
             Assert.Equal(1920, deserialized.SceneSettings.CanvasProfile.Width);
@@ -417,13 +420,16 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void AssetSerializer_MaterialAsset_RoundTripsValues() {
-            MaterialAsset asset = CreateMaterialAsset();
+            ShaderMaterialAsset asset = CreateMaterialAsset();
 
             byte[] data = AssetSerializer.SerializeToBytes(asset);
             EngineBinaryHeader header = ReadHeader(data);
-            MaterialAsset deserialized = (MaterialAsset)AssetSerializer.DeserializeFromBytes(data);
+            ShaderMaterialAsset deserialized = (ShaderMaterialAsset)AssetSerializer.DeserializeFromBytes(data);
 
-            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.FormatId, header.FormatId);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.ValueKind, header.ValueKind);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal(asset.Id, deserialized.Id);
             Assert.Equal(asset.ShaderAssetId, deserialized.ShaderAssetId);
             Assert.Equal(asset.VertexProgram, deserialized.VertexProgram);
@@ -446,7 +452,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void AssetSerializer_MaterialAssetWithUnsupportedVersion_Throws() {
-            MaterialAsset asset = CreateMaterialAsset();
+            ShaderMaterialAsset asset = CreateMaterialAsset();
             byte[] data = AssetSerializer.SerializeToBytes(asset);
             data[5] = (byte)(EditorAssetBinarySerializer.CurrentVersion + 1);
 
@@ -529,7 +535,10 @@ namespace helengine.editor.tests {
             ModelAsset deserialized = (ModelAsset)AssetSerializer.DeserializeFromBytes(data);
             EngineBinaryHeader header = ReadHeader(data);
 
-            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.FormatId, header.FormatId);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.ValueKind, header.ValueKind);
+            Assert.Equal(ShaderMaterialAssetBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal(asset.Positions.Length, deserialized.Positions.Length);
             Assert.Equal(asset.Indices16, deserialized.Indices16);
         }
@@ -987,8 +996,8 @@ namespace helengine.editor.tests {
         /// Creates a representative material asset for serializer testing.
         /// </summary>
         /// <returns>Material asset with shader references.</returns>
-        static MaterialAsset CreateMaterialAsset() {
-            return new MaterialAsset {
+        static ShaderMaterialAsset CreateMaterialAsset() {
+            return new ShaderMaterialAsset {
                 Id = "material/test",
                 ShaderAssetId = "shader/test",
                 VertexProgram = "ProgramMain",

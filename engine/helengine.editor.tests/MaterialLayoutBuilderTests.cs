@@ -10,7 +10,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Build_CollectsBindingsAndSkipsTransformBuffer() {
-            MaterialAsset materialAsset = CreateMaterialAsset();
+            ShaderMaterialAsset materialAsset = CreateMaterialAsset();
             ShaderAsset shaderAsset = CreateShaderAssetWithBindings(
                 CreateBinding("TransformBuffer", ShaderResourceType.ConstantBuffer, 0, 0, 64),
                 CreateBinding("MaterialParams", ShaderResourceType.ConstantBuffer, 0, 1, 16),
@@ -37,7 +37,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Build_MergesDuplicateBindingsAcrossStages() {
-            MaterialAsset materialAsset = CreateMaterialAsset();
+            ShaderMaterialAsset materialAsset = CreateMaterialAsset();
             ShaderBindingAsset sharedTexture = CreateBinding("DiffuseTexture", ShaderResourceType.Texture2D, 0, 0, 0);
             ShaderAsset shaderAsset = new ShaderAsset {
                 Id = materialAsset.ShaderAssetId,
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Build_WithConflictingDuplicateBindings_Throws() {
-            MaterialAsset materialAsset = CreateMaterialAsset();
+            ShaderMaterialAsset materialAsset = CreateMaterialAsset();
             ShaderAsset shaderAsset = new ShaderAsset {
                 Id = materialAsset.ShaderAssetId,
                 Programs = new[] {
@@ -80,8 +80,8 @@ namespace helengine.editor.tests {
         /// Creates a representative material asset for layout-builder testing.
         /// </summary>
         /// <returns>Material asset with non-default render state.</returns>
-        static MaterialAsset CreateMaterialAsset() {
-            return new MaterialAsset {
+        static ShaderMaterialAsset CreateMaterialAsset() {
+            return new ShaderMaterialAsset {
                 ShaderAssetId = "shader/material",
                 VertexProgram = "VS",
                 PixelProgram = "PS",

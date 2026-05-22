@@ -450,7 +450,7 @@ namespace helengine.editor.tests {
             return new ImportedModelMaterialAsset(
                 materialName,
                 relativePath,
-                new MaterialAsset {
+                new ShaderMaterialAsset {
                     Id = relativePath,
                     ShaderAssetId = BuiltInMaterialIds.StandardMaterialShaderAssetId,
                     VertexProgram = "ForwardStandardShader.vs",

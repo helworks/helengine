@@ -128,7 +128,7 @@ namespace helengine.editor {
         /// <summary>
         /// Currently loaded material asset.
         /// </summary>
-        MaterialAsset CurrentAsset;
+        ShaderMaterialAsset CurrentAsset;
 
         /// <summary>
         /// Currently loaded material sidecar settings.
@@ -248,7 +248,7 @@ namespace helengine.editor {
         /// <param name="selectionModelResolver">Resolver that returns builder metadata for one platform.</param>
         public void Show(
             AssetBrowserEntry entry,
-            MaterialAsset materialAsset,
+            ShaderMaterialAsset materialAsset,
             MaterialAssetImportSettings settings,
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId,

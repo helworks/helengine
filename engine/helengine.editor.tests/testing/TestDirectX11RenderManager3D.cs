@@ -49,7 +49,7 @@ namespace helengine.editor.tests.testing {
         /// <param name="materialAsset">Material asset requested by the viewport overlay.</param>
         /// <param name="shaderAsset">Shader asset requested by the viewport overlay.</param>
         /// <returns>Placeholder runtime material.</returns>
-        public override RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        public override RuntimeMaterial BuildMaterialFromRaw(ShaderMaterialAsset materialAsset, ShaderAsset shaderAsset) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }

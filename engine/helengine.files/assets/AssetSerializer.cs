@@ -18,6 +18,11 @@ namespace helengine.files {
                 throw new ArgumentNullException(nameof(asset));
             }
 
+            if (asset is ShaderMaterialAsset shaderMaterialAsset) {
+                ShaderMaterialAssetBinarySerializer.Serialize(stream, shaderMaterialAsset);
+                return;
+            }
+
             EditorAssetBinarySerializer.Serialize(stream, asset);
         }
 
@@ -32,7 +37,12 @@ namespace helengine.files {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            return EditorAssetBinarySerializer.Deserialize(stream);
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            if (header.FormatId == ShaderMaterialAssetBinarySerializer.FormatId) {
+                return ShaderMaterialAssetBinarySerializer.Deserialize(stream, header);
+            }
+
+            return EditorAssetBinarySerializer.Deserialize(stream, header);
         }
 
         /// <summary>

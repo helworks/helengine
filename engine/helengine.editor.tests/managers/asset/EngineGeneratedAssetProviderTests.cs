@@ -123,7 +123,7 @@ namespace helengine.editor.tests.managers.asset {
 
             Assert.True(provider.TryResolveRuntimeMaterial(standardEntry, out RuntimeMaterial runtimeMaterial));
 
-            MaterialAsset materialAsset = Assert.Single(RenderManager3D.BuiltMaterialAssets);
+            ShaderMaterialAsset materialAsset = Assert.Single(RenderManager3D.BuiltMaterialAssets);
             MaterialConstantBufferAsset baseColorBuffer = Assert.Single(materialAsset.ConstantBuffers);
             Assert.Equal("BaseColorBuffer", baseColorBuffer.Name);
             Assert.Equal(16, baseColorBuffer.Data.Length);

@@ -694,7 +694,7 @@ namespace helengine.editor {
         /// <param name="selectionModelResolver">Resolver that returns builder metadata for one platform.</param>
         public void ShowMaterialSettings(
             AssetBrowserEntry entry,
-            MaterialAsset materialAsset,
+            ShaderMaterialAsset materialAsset,
             MaterialAssetImportSettings settings,
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId,

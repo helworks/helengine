@@ -64,7 +64,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 throw new ArgumentNullException(nameof(shaderAsset));
             }
 
-            MaterialAsset materialAsset = CreateMaterialAsset(shaderAsset.Id);
+            ShaderMaterialAsset materialAsset = CreateMaterialAsset(shaderAsset.Id);
             MaterialLayout layout = MaterialLayoutBuilder.Build(materialAsset, shaderAsset);
 
             Assert.Equal(0, layout.FindTextureBindingIndex("LabelTexture"));
@@ -80,12 +80,12 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier selected by the material.</param>
         /// <returns>Material asset configured for axis-label layout validation.</returns>
-        static MaterialAsset CreateMaterialAsset(string shaderAssetId) {
+        static ShaderMaterialAsset CreateMaterialAsset(string shaderAssetId) {
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
             }
 
-            return new MaterialAsset {
+            return new ShaderMaterialAsset {
                 Id = "EditorTransformGizmoAxisLabel.material",
                 ShaderAssetId = shaderAssetId,
                 VertexProgram = "EditorTransformGizmoAxisLabel.vs",

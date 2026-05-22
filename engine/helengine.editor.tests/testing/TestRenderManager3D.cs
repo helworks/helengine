@@ -12,7 +12,7 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Captured raw material assets passed through the build API.
         /// </summary>
-        readonly List<MaterialAsset> BuiltMaterialAssetsValue;
+        readonly List<ShaderMaterialAsset> BuiltMaterialAssetsValue;
         /// <summary>
         /// Runtime models released through this test renderer.
         /// </summary>
@@ -35,7 +35,7 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         public TestRenderManager3D() {
             BuiltModelAssetsValue = new List<ModelAsset>();
-            BuiltMaterialAssetsValue = new List<MaterialAsset>();
+            BuiltMaterialAssetsValue = new List<ShaderMaterialAsset>();
             ReleasedModelsValue = new List<RuntimeModel>();
             ReleasedMaterialsValue = new List<RuntimeMaterial>();
             QueuedDrawCallCountsValue = new Queue<int>();
@@ -49,7 +49,7 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Gets the raw material assets that were passed to the renderer.
         /// </summary>
-        public IReadOnlyList<MaterialAsset> BuiltMaterialAssets => BuiltMaterialAssetsValue;
+        public IReadOnlyList<ShaderMaterialAsset> BuiltMaterialAssets => BuiltMaterialAssetsValue;
 
         /// <summary>
         /// Gets the runtime models released through the shared renderer contract.
@@ -141,9 +141,8 @@ namespace helengine.editor.tests.testing {
         public override RuntimeMaterial BuildMaterialFromRawAsset(
             ContentManager assetContentManager,
             string contentRootPath,
-            string materialAssetPath,
-            MaterialAsset materialAsset) {
-            return ShaderRuntimeMaterialLoader.BuildMaterialFromRawAsset(this, assetContentManager, contentRootPath, materialAssetPath, materialAsset);
+            string materialAssetPath) {
+            return ShaderRuntimeMaterialLoader.BuildMaterialFromRawAsset(this, assetContentManager, contentRootPath, materialAssetPath);
         }
 
         /// <summary>
@@ -152,7 +151,7 @@ namespace helengine.editor.tests.testing {
         /// <param name="materialAsset">Raw material data to capture.</param>
         /// <param name="shaderAsset">Shader asset used by the material.</param>
         /// <returns>Placeholder runtime material for test assertions.</returns>
-        public RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        public RuntimeMaterial BuildMaterialFromRaw(ShaderMaterialAsset materialAsset, ShaderAsset shaderAsset) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
@@ -184,25 +183,6 @@ namespace helengine.editor.tests.testing {
             if (shaderAsset == null) {
                 throw new ArgumentNullException(nameof(shaderAsset));
             }
-        }
-
-        /// <summary>
-        /// Assigns one authored diffuse texture to a shader-backed test runtime material.
-        /// </summary>
-        /// <param name="material">Runtime material that should receive the diffuse texture.</param>
-        /// <param name="texture">Runtime texture that should become the material diffuse texture.</param>
-        public override void AssignRawMaterialDiffuseTexture(RuntimeMaterial material, RuntimeTexture texture) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            }
-            if (texture == null) {
-                throw new ArgumentNullException(nameof(texture));
-            }
-            if (material is not ShaderRuntimeMaterial shaderMaterial) {
-                throw new InvalidOperationException("Test raw runtime materials must be shader-backed.");
-            }
-
-            shaderMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, texture);
         }
 
         /// <summary>

@@ -208,7 +208,7 @@ namespace helengine.editor.tests.serialization.scene {
             });
 
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            MaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
+            ShaderMaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
 
             Assert.NotNull(material);
             MaterialConstantBufferAsset baseColorBuffer = Assert.Single(builtMaterialAsset.ConstantBuffers, buffer => buffer.Name == StandardMaterialBaseColorDefaults.BaseColorBufferName);
@@ -237,7 +237,7 @@ namespace helengine.editor.tests.serialization.scene {
             });
 
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            MaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
+            ShaderMaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
 
             Assert.NotNull(material);
             Assert.Equal("ForwardStandardShader", builtMaterialAsset.ShaderAssetId);
@@ -269,7 +269,7 @@ namespace helengine.editor.tests.serialization.scene {
             });
 
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            MaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
+            ShaderMaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
 
             Assert.NotNull(material);
             Assert.Equal("ForwardStandardShader", builtMaterialAsset.ShaderAssetId);
@@ -321,7 +321,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="relativePath">Project-relative material path to create.</param>
         /// <param name="materialAsset">Serialized material payload to write.</param>
         /// <returns>Absolute path to the written material asset.</returns>
-        string WriteMaterialAsset(string relativePath, MaterialAsset materialAsset) {
+        string WriteMaterialAsset(string relativePath, ShaderMaterialAsset materialAsset) {
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
             } else if (materialAsset == null) {

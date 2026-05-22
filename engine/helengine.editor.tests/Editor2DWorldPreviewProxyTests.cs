@@ -135,7 +135,7 @@ namespace helengine.editor.tests {
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(previewComponent);
 
-            MaterialAsset builtMaterial = Assert.Single(renderManager3D.BuiltMaterialAssets);
+            ShaderMaterialAsset builtMaterial = Assert.Single(renderManager3D.BuiltMaterialAssets);
             Assert.Equal("EditorWorldSpaceSpritePreview.ps", builtMaterial.PixelProgram);
             Assert.Equal(MaterialBlendMode.AlphaBlend, builtMaterial.RenderState.BlendMode);
         }

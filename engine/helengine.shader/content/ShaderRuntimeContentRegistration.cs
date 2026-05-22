@@ -16,14 +16,18 @@ namespace helengine {
             if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
             }
-            if (contentManager.IsProcessorRegistered(ShaderRuntimeContentProcessorIds.ShaderAsset)) {
-                return;
+            if (!contentManager.IsProcessorRegistered(ShaderRuntimeContentProcessorIds.ShaderAsset)) {
+                contentManager.RegisterProcessor(
+                    ShaderRuntimeContentProcessorIds.ShaderAsset,
+                    new ShaderAssetContentProcessor(),
+                    new[] { ShaderPackageExtension });
             }
-
-            contentManager.RegisterProcessor(
-                ShaderRuntimeContentProcessorIds.ShaderAsset,
-                new ShaderAssetContentProcessor(),
-                new[] { ShaderPackageExtension });
+            if (!contentManager.IsProcessorRegistered(ShaderRuntimeContentProcessorIds.ShaderMaterialAsset)) {
+                contentManager.RegisterProcessor(
+                    ShaderRuntimeContentProcessorIds.ShaderMaterialAsset,
+                    new ShaderMaterialAssetContentProcessor(),
+                    new[] { ShaderPackageExtension });
+            }
         }
     }
 }

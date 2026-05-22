@@ -346,7 +346,7 @@ namespace helengine.editor.tests {
 
             MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
             Assert.True(settingsService.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings settings));
-            MaterialAsset materialAsset = settingsService.LoadMaterialAsset(materialPath, "windows");
+            ShaderMaterialAsset materialAsset = settingsService.LoadMaterialAsset(materialPath, "windows");
 
             MethodInfo validationMethod = typeof(EditorPlatformBuildScenePackager).GetMethod(
                 "HasValidPlatformMaterialSettings",
@@ -745,7 +745,7 @@ namespace helengine.editor.tests {
             string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.hasset");
             Assert.True(File.Exists(cookedMaterialPath));
             using (FileStream cookedMaterialStream = File.OpenRead(cookedMaterialPath)) {
-                MaterialAsset cookedMaterial = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(cookedMaterialStream));
+                ShaderMaterialAsset cookedMaterial = Assert.IsType<ShaderMaterialAsset>(AssetSerializer.Deserialize(cookedMaterialStream));
                 Assert.Equal("default", cookedMaterial.Variant);
             }
 
@@ -836,7 +836,7 @@ namespace helengine.editor.tests {
 
             string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.hasset");
             using FileStream cookedMaterialStream = File.OpenRead(cookedMaterialPath);
-            MaterialAsset cookedMaterial = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(cookedMaterialStream));
+            ShaderMaterialAsset cookedMaterial = Assert.IsType<ShaderMaterialAsset>(AssetSerializer.Deserialize(cookedMaterialStream));
 
             Assert.Equal("ForwardStandardShader", cookedMaterial.ShaderAssetId);
             Assert.Equal("ForwardStandardShader.vs", cookedMaterial.VertexProgram);

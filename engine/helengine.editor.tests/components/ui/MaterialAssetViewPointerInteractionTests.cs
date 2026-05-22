@@ -56,7 +56,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
 
         view.Show(
             AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
-            new MaterialAsset {
+            new ShaderMaterialAsset {
                 Id = "Materials/Test.hasset"
             },
             CreateSettings(useCustomShader: true),

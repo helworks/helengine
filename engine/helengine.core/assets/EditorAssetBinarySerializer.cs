@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 16;
+        public const byte CurrentVersion = 17;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -42,6 +42,11 @@ namespace helengine {
         /// Last asset version that stored a platform-specific packed-mesh byte tail on generic model assets.
         /// </summary>
         const byte ModelPlatformPackedMeshTailVersion = 15;
+
+        /// <summary>
+        /// Last asset version that stored shader-authored fields directly on generic material assets.
+        /// </summary>
+        const byte LegacyMaterialFieldVersion = 16;
 
         /// <summary>
         /// Version marker written into scene entity payloads that include stable ids and the static flag.
@@ -280,17 +285,21 @@ namespace helengine {
 
             MaterialAsset materialAsset = new MaterialAsset();
             ReadAssetIdentity(reader, materialAsset, version);
-            materialAsset.ShaderAssetId = reader.ReadString();
-            materialAsset.VertexProgram = reader.ReadString();
-            materialAsset.PixelProgram = reader.ReadString();
-            materialAsset.Variant = reader.ReadString();
-            materialAsset.DiffuseTextureAssetId = reader.ReadString();
+            if (version <= LegacyMaterialFieldVersion) {
+                reader.ReadString();
+                reader.ReadString();
+                reader.ReadString();
+                reader.ReadString();
+                reader.ReadString();
+            }
             materialAsset.CastsShadows = reader.ReadByte() != 0;
             materialAsset.ReceivesShadows = reader.ReadByte() != 0;
             MaterialRenderState defaultRenderState = materialAsset.RenderState;
             materialAsset.RenderState = ReadMaterialRenderState(reader);
             NativeOwnership.Delete(defaultRenderState);
-            materialAsset.ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>();
+            if (version <= LegacyMaterialFieldVersion) {
+                reader.ReadArray(ReadLegacyMaterialConstantBufferAsset);
+            }
             return materialAsset;
         }
 
@@ -778,11 +787,9 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized material constant-buffer asset.</returns>
-        static MaterialConstantBufferAsset ReadMaterialConstantBufferAsset(EngineBinaryReader reader) {
-            return new MaterialConstantBufferAsset {
-                Name = reader.ReadString(),
-                Data = reader.ReadByteArray()
-            };
+        static byte[] ReadLegacyMaterialConstantBufferAsset(EngineBinaryReader reader) {
+            reader.ReadString();
+            return reader.ReadByteArray();
         }
 
         /// <summary>

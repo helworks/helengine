@@ -53,7 +53,7 @@ namespace helengine.editor.tests.rendering {
         public void BuildMaterialFromRaw_WhenUsingBuiltInStandardShaderMeshVariant_CompilesForDirectX11() {
             using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl");
-            MaterialAsset materialAsset = new MaterialAsset {
+            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = "ForwardStandardShader.mesh.material",
                 ShaderAssetId = shaderAsset.Id,
                 VertexProgram = "ForwardStandardShader.vs",

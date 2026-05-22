@@ -249,8 +249,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="materialAssetPath">Absolute path to the authored material `.hasset` file.</param>
         /// <param name="platformId">Platform whose effective material payload should be resolved.</param>
-        /// <returns>Runtime-facing material asset built from the authored base document plus any platform override.</returns>
-        public MaterialAsset LoadMaterialAsset(string materialAssetPath, string platformId) {
+        /// <returns>Shader-owned runtime-facing material asset built from the authored base document plus any platform override.</returns>
+        public ShaderMaterialAsset LoadMaterialAsset(string materialAssetPath, string platformId) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -268,10 +268,10 @@ namespace helengine.editor {
             }
 
             NormalizeCommonDocument(commonDocument, null);
-            MaterialAsset materialAsset = new MaterialAsset();
-            materialAsset.Id = commonDocument.Importer.AssetId ?? string.Empty;
-            ApplyPlatformRuntimeFields(materialAsset, platformSettings);
-            return materialAsset;
+            ShaderMaterialAsset shaderMaterialAsset = new ShaderMaterialAsset();
+            shaderMaterialAsset.Id = commonDocument.Importer.AssetId ?? string.Empty;
+            PopulateShaderMaterialAsset(shaderMaterialAsset, platformSettings);
+            return shaderMaterialAsset;
         }
 
         /// <summary>
@@ -281,9 +281,9 @@ namespace helengine.editor {
         /// <param name="settings">Material settings that hold per-platform field values.</param>
         /// <param name="platformId">Platform whose material settings should drive the mirrored material payload.</param>
         /// <returns>True when the top-level material asset changed.</returns>
-        public bool ApplyPlatformMaterialFields(MaterialAsset materialAsset, MaterialAssetImportSettings settings, string platformId) {
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
+        public bool ApplyPlatformMaterialFields(ShaderMaterialAsset shaderMaterialAsset, MaterialAssetImportSettings settings, string platformId) {
+            if (shaderMaterialAsset == null) {
+                throw new ArgumentNullException(nameof(shaderMaterialAsset));
             } else if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             } else if (settings.Processor == null) {
@@ -299,7 +299,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return ApplyPlatformMaterialFields(materialAsset, platformSettings);
+            return ApplyPlatformMaterialFields(shaderMaterialAsset, platformSettings);
         }
 
         /// <summary>
@@ -308,9 +308,9 @@ namespace helengine.editor {
         /// <param name="materialAsset">Material asset to update.</param>
         /// <param name="platformSettings">Effective platform material settings to apply.</param>
         /// <returns>True when the top-level material asset changed.</returns>
-        public bool ApplyPlatformMaterialFields(MaterialAsset materialAsset, MaterialAssetProcessorSettings platformSettings) {
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
+        public bool ApplyPlatformMaterialFields(ShaderMaterialAsset shaderMaterialAsset, MaterialAssetProcessorSettings platformSettings) {
+            if (shaderMaterialAsset == null) {
+                throw new ArgumentNullException(nameof(shaderMaterialAsset));
             } else if (platformSettings == null) {
                 throw new ArgumentNullException(nameof(platformSettings));
             } else if (platformSettings.FieldValues == null) {
@@ -321,23 +321,23 @@ namespace helengine.editor {
             if (IsStandardShaderSchema(platformSettings.SchemaId)) {
                 bool useCustomShader = IsCustomShaderEnabled(platformSettings.FieldValues);
                 if (useCustomShader) {
-                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
-                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
-                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
+                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, ShaderAssetIdFieldId, shaderMaterialAsset.ShaderAssetId, StandardShaderAssetId, value => shaderMaterialAsset.ShaderAssetId = value);
+                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, VertexProgramFieldId, shaderMaterialAsset.VertexProgram, StandardVertexProgramName, value => shaderMaterialAsset.VertexProgram = value);
+                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, PixelProgramFieldId, shaderMaterialAsset.PixelProgram, StandardPixelProgramName, value => shaderMaterialAsset.PixelProgram = value);
                 } else {
-                    changed |= ApplyStandardShaderMirroredFields(materialAsset);
-                    changed |= ApplyMaterialVariant(materialAsset, StandardShaderVariantName);
+                    changed |= ApplyStandardShaderMirroredFields(shaderMaterialAsset);
+                    changed |= ApplyMaterialVariant(shaderMaterialAsset, StandardShaderVariantName);
                 }
             } else {
-                changed |= ApplyMirroredField(platformSettings.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, value => materialAsset.ShaderAssetId = value, true);
-                changed |= ApplyMirroredField(platformSettings.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, value => materialAsset.VertexProgram = value, true);
-                changed |= ApplyMirroredField(platformSettings.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, value => materialAsset.PixelProgram = value, true);
-                changed |= ApplyMaterialVariant(materialAsset, MeshVariantName);
+                changed |= ApplyMirroredField(platformSettings.FieldValues, ShaderAssetIdFieldId, shaderMaterialAsset.ShaderAssetId, value => shaderMaterialAsset.ShaderAssetId = value, true);
+                changed |= ApplyMirroredField(platformSettings.FieldValues, VertexProgramFieldId, shaderMaterialAsset.VertexProgram, value => shaderMaterialAsset.VertexProgram = value, true);
+                changed |= ApplyMirroredField(platformSettings.FieldValues, PixelProgramFieldId, shaderMaterialAsset.PixelProgram, value => shaderMaterialAsset.PixelProgram = value, true);
+                changed |= ApplyMaterialVariant(shaderMaterialAsset, MeshVariantName);
             }
 
-            changed |= ApplyMirroredField(platformSettings.FieldValues, TextureAssetIdFieldId, materialAsset.DiffuseTextureAssetId, value => materialAsset.DiffuseTextureAssetId = value, true);
-            changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, CastsShadowFieldId, materialAsset.CastsShadows, value => materialAsset.CastsShadows = value);
-            changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, ReceivesShadowFieldId, materialAsset.ReceivesShadows, value => materialAsset.ReceivesShadows = value);
+            changed |= ApplyMirroredField(platformSettings.FieldValues, TextureAssetIdFieldId, shaderMaterialAsset.DiffuseTextureAssetId, value => shaderMaterialAsset.DiffuseTextureAssetId = value, true);
+            changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, CastsShadowFieldId, shaderMaterialAsset.CastsShadows, value => shaderMaterialAsset.CastsShadows = value);
+            changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, ReceivesShadowFieldId, shaderMaterialAsset.ReceivesShadows, value => shaderMaterialAsset.ReceivesShadows = value);
             return changed;
         }
 
@@ -348,9 +348,9 @@ namespace helengine.editor {
         /// <param name="settings">Material settings that hold per-platform field values.</param>
         /// <param name="platformId">Platform whose material settings should drive the runtime-facing payload.</param>
         /// <returns>True when the material asset changed.</returns>
-        public bool ApplyPlatformRuntimeFields(MaterialAsset materialAsset, MaterialAssetImportSettings settings, string platformId) {
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
+        public bool PopulateShaderMaterialAsset(ShaderMaterialAsset shaderMaterialAsset, MaterialAssetImportSettings settings, string platformId) {
+            if (shaderMaterialAsset == null) {
+                throw new ArgumentNullException(nameof(shaderMaterialAsset));
             } else if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -362,7 +362,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return ApplyPlatformRuntimeFields(materialAsset, platformSettings);
+            return PopulateShaderMaterialAsset(shaderMaterialAsset, platformSettings);
         }
 
         /// <summary>
@@ -371,16 +371,16 @@ namespace helengine.editor {
         /// <param name="materialAsset">Material asset to update.</param>
         /// <param name="platformSettings">Effective platform material settings to apply.</param>
         /// <returns>True when the material asset changed.</returns>
-        public bool ApplyPlatformRuntimeFields(MaterialAsset materialAsset, MaterialAssetProcessorSettings platformSettings) {
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
+        public bool PopulateShaderMaterialAsset(ShaderMaterialAsset shaderMaterialAsset, MaterialAssetProcessorSettings platformSettings) {
+            if (shaderMaterialAsset == null) {
+                throw new ArgumentNullException(nameof(shaderMaterialAsset));
             } else if (platformSettings == null) {
                 throw new ArgumentNullException(nameof(platformSettings));
             }
 
-            bool changed = ApplyPlatformMaterialFields(materialAsset, platformSettings);
+            bool changed = ApplyPlatformMaterialFields(shaderMaterialAsset, platformSettings);
             if (IsStandardShaderSchema(platformSettings.SchemaId)) {
-                changed |= ApplyStandardShaderRuntimeFields(materialAsset, platformSettings.FieldValues);
+                changed |= ApplyStandardShaderRuntimeFields(shaderMaterialAsset, platformSettings.FieldValues);
             }
 
             return changed;
@@ -1122,18 +1122,18 @@ namespace helengine.editor {
         /// <param name="materialAsset">Material asset to update.</param>
         /// <param name="variantName">Mesh-derived variant name to apply.</param>
         /// <returns>True when the material variant changed.</returns>
-        bool ApplyMaterialVariant(MaterialAsset materialAsset, string variantName) {
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
+        bool ApplyMaterialVariant(ShaderMaterialAsset shaderMaterialAsset, string variantName) {
+            if (shaderMaterialAsset == null) {
+                throw new ArgumentNullException(nameof(shaderMaterialAsset));
             } else if (string.IsNullOrWhiteSpace(variantName)) {
                 throw new ArgumentException("Variant name must be provided.", nameof(variantName));
             }
 
-            if (string.Equals(materialAsset.Variant ?? string.Empty, variantName, StringComparison.Ordinal)) {
+            if (string.Equals(shaderMaterialAsset.Variant ?? string.Empty, variantName, StringComparison.Ordinal)) {
                 return false;
             }
 
-            materialAsset.Variant = variantName;
+            shaderMaterialAsset.Variant = variantName;
             return true;
         }
 
@@ -1169,11 +1169,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="materialAsset">Material asset to update.</param>
         /// <returns>True when the material asset changed.</returns>
-        bool ApplyStandardShaderMirroredFields(MaterialAsset materialAsset) {
+        bool ApplyStandardShaderMirroredFields(ShaderMaterialAsset shaderMaterialAsset) {
             bool changed = false;
-            changed |= ApplyFixedMirroredField(materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
-            changed |= ApplyFixedMirroredField(materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
-            changed |= ApplyFixedMirroredField(materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
+            changed |= ApplyFixedMirroredField(shaderMaterialAsset.ShaderAssetId, StandardShaderAssetId, value => shaderMaterialAsset.ShaderAssetId = value);
+            changed |= ApplyFixedMirroredField(shaderMaterialAsset.VertexProgram, StandardVertexProgramName, value => shaderMaterialAsset.VertexProgram = value);
+            changed |= ApplyFixedMirroredField(shaderMaterialAsset.PixelProgram, StandardPixelProgramName, value => shaderMaterialAsset.PixelProgram = value);
             return changed;
         }
 
@@ -1183,15 +1183,15 @@ namespace helengine.editor {
         /// <param name="materialAsset">Material asset to update.</param>
         /// <param name="fieldValues">Standard-shader field values keyed by field id.</param>
         /// <returns>True when the material asset changed.</returns>
-        bool ApplyStandardShaderRuntimeFields(MaterialAsset materialAsset, Dictionary<string, string> fieldValues) {
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
+        bool ApplyStandardShaderRuntimeFields(ShaderMaterialAsset shaderMaterialAsset, Dictionary<string, string> fieldValues) {
+            if (shaderMaterialAsset == null) {
+                throw new ArgumentNullException(nameof(shaderMaterialAsset));
             } else if (fieldValues == null) {
                 throw new ArgumentNullException(nameof(fieldValues));
             }
 
             byte[] baseColorData = ResolveStandardShaderBaseColorBufferData(fieldValues);
-            return UpsertConstantBuffer(materialAsset, StandardMaterialBaseColorDefaults.BaseColorBufferName, baseColorData);
+            return UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialBaseColorDefaults.BaseColorBufferName, baseColorData);
         }
 
         /// <summary>
@@ -1228,16 +1228,16 @@ namespace helengine.editor {
         /// <param name="bufferName">Constant-buffer binding name.</param>
         /// <param name="data">Constant-buffer payload to store.</param>
         /// <returns>True when the material asset changed.</returns>
-        bool UpsertConstantBuffer(MaterialAsset materialAsset, string bufferName, byte[] data) {
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
+        bool UpsertConstantBuffer(ShaderMaterialAsset shaderMaterialAsset, string bufferName, byte[] data) {
+            if (shaderMaterialAsset == null) {
+                throw new ArgumentNullException(nameof(shaderMaterialAsset));
             } else if (string.IsNullOrWhiteSpace(bufferName)) {
                 throw new ArgumentException("Buffer name must be provided.", nameof(bufferName));
             } else if (data == null) {
                 throw new ArgumentNullException(nameof(data));
             }
 
-            MaterialConstantBufferAsset[] constantBuffers = materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>();
+            MaterialConstantBufferAsset[] constantBuffers = shaderMaterialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>();
             for (int index = 0; index < constantBuffers.Length; index++) {
                 MaterialConstantBufferAsset constantBuffer = constantBuffers[index];
                 if (constantBuffer == null || !string.Equals(constantBuffer.Name, bufferName, StringComparison.Ordinal)) {
@@ -1258,7 +1258,7 @@ namespace helengine.editor {
                 Name = bufferName,
                 Data = [.. data]
             };
-            materialAsset.ConstantBuffers = expandedBuffers;
+            shaderMaterialAsset.ConstantBuffers = expandedBuffers;
             return true;
         }
     }

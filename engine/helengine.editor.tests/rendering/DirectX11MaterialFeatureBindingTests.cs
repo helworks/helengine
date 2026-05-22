@@ -16,7 +16,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void BuildMaterialFromRaw_WhenNormalAndEmissiveInputsExist_SetsCompactPbrFeatureFlags() {
-            MaterialAsset materialAsset = new MaterialAsset {
+            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = "materials/test",
                 ShaderAssetId = "shader/test",
                 VertexProgram = "VS",
@@ -72,7 +72,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void BuildMaterialFromRaw_WhenMaterialExposesDiffuseTextureBinding_PreservesTheDiffuseTextureBinding() {
-            MaterialAsset materialAsset = new MaterialAsset {
+            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = "materials/test",
                 ShaderAssetId = "shader/test",
                 VertexProgram = "VS",

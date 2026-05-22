@@ -7,5 +7,10 @@ namespace helengine {
         /// Processor id used for serialized shader assets.
         /// </summary>
         public const string ShaderAsset = "runtime.shader-asset";
+
+        /// <summary>
+        /// Processor id used for serialized shader-owned raw material assets.
+        /// </summary>
+        public const string ShaderMaterialAsset = "runtime.shader-material-asset";
     }
 }

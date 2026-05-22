@@ -182,20 +182,13 @@ namespace helengine {
                 TrackOwnedMaterial(generatedCookedRuntimeMaterial);
                 return generatedCookedRuntimeMaterial;
 #else
-                MaterialAsset generatedMaterialAsset = AssetContentManager.Load<MaterialAsset>(generatedFullPath, RuntimeContentProcessorIds.MaterialAsset);
-                try {
-                    RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
-                        AssetContentManager,
-                        ContentRootPath,
-                        generatedFullPath,
-                        generatedMaterialAsset);
-                    ApplyMaterialDiffuseTexture(generatedRawRuntimeMaterial, generatedMaterialAsset, generatedFullPath);
-                    ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
-                    TrackOwnedMaterial(generatedRawRuntimeMaterial);
-                    return generatedRawRuntimeMaterial;
-                } finally {
-                    ReleaseTransientMaterialAsset(generatedMaterialAsset);
-                }
+                RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
+                    AssetContentManager,
+                    ContentRootPath,
+                    generatedFullPath);
+                ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
+                TrackOwnedMaterial(generatedRawRuntimeMaterial);
+                return generatedRawRuntimeMaterial;
 #endif
             }
 
@@ -205,64 +198,13 @@ namespace helengine {
             TrackOwnedMaterial(runtimeMaterial);
             return runtimeMaterial;
 #else
-            MaterialAsset materialAsset = AssetContentManager.Load<MaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
-            try {
-                RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
-                    AssetContentManager,
-                    ContentRootPath,
-                    fullPath,
-                    materialAsset);
-                TrackOwnedMaterial(runtimeMaterial);
-                ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);
-                return runtimeMaterial;
-            } finally {
-                ReleaseTransientMaterialAsset(materialAsset);
-            }
+            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
+                AssetContentManager,
+                ContentRootPath,
+                fullPath);
+            TrackOwnedMaterial(runtimeMaterial);
+            return runtimeMaterial;
 #endif
-        }
-
-        /// <summary>
-        /// Applies one authored diffuse texture to the resolved runtime material when the packaged material asset references one.
-        /// </summary>
-        /// <param name="runtimeMaterial">Runtime material that should receive the diffuse texture.</param>
-        /// <param name="materialAsset">Packaged material asset that declares the authored diffuse texture asset id.</param>
-        /// <param name="materialPath">Absolute path to the serialized material asset.</param>
-        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, MaterialAsset materialAsset, string materialPath) {
-            if (runtimeMaterial == null) {
-                throw new ArgumentNullException(nameof(runtimeMaterial));
-            }
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
-            }
-            if (string.IsNullOrWhiteSpace(materialPath)) {
-                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
-            }
-            if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
-                return;
-            }
-
-            string diffuseTexturePath;
-            if (TryResolveSourceTexturePath(materialPath, materialAsset.DiffuseTextureAssetId, out diffuseTexturePath)) {
-                TextureAsset sourceTextureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
-                try {
-                    RuntimeTexture sourceRuntimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTextureAsset);
-                    TrackOwnedTexture(sourceRuntimeTexture);
-                    Core.Instance.RenderManager3D.AssignRawMaterialDiffuseTexture(runtimeMaterial, sourceRuntimeTexture);
-                    return;
-                } finally {
-                    ReleaseTransientTextureAsset(sourceTextureAsset);
-                }
-            }
-
-            diffuseTexturePath = ResolveImportedTexturePackagePath(materialAsset.DiffuseTextureAssetId);
-            TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
-            try {
-                RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
-                TrackOwnedTexture(runtimeTexture);
-                Core.Instance.RenderManager3D.AssignRawMaterialDiffuseTexture(runtimeMaterial, runtimeTexture);
-            } finally {
-                ReleaseTransientTextureAsset(textureAsset);
-            }
         }
 
         /// <summary>
@@ -408,45 +350,6 @@ namespace helengine {
             asset.PaletteColors = null;
             DeleteTransientArray(colors);
             DeleteTransientArray(paletteColors);
-            NativeOwnership.Delete(asset);
-        }
-
-        /// <summary>
-        /// Releases one transient material constant-buffer asset and its packed byte payload.
-        /// </summary>
-        /// <param name="asset">Transient material constant-buffer asset to release.</param>
-        static void ReleaseTransientMaterialConstantBufferAsset(MaterialConstantBufferAsset asset) {
-            if (asset == null) {
-                return;
-            }
-
-            byte[] data = asset.Data;
-            asset.Data = null;
-            DeleteTransientArray(data);
-            NativeOwnership.Delete(asset);
-        }
-
-        /// <summary>
-        /// Releases one transient material asset and any authored constant-buffer payloads that were deserialized for conversion.
-        /// </summary>
-        /// <param name="asset">Transient material asset to release.</param>
-        static void ReleaseTransientMaterialAsset(MaterialAsset asset) {
-            if (asset == null) {
-                return;
-            }
-
-            MaterialConstantBufferAsset[] constantBuffers = asset.ConstantBuffers;
-            MaterialRenderState renderState = asset.RenderState;
-            asset.ConstantBuffers = null;
-            asset.RenderState = null;
-            if (constantBuffers != null) {
-                for (int index = 0; index < constantBuffers.Length; index++) {
-                    ReleaseTransientMaterialConstantBufferAsset(constantBuffers[index]);
-                }
-            }
-
-            DeleteTransientArray(constantBuffers);
-            NativeOwnership.Delete(renderState);
             NativeOwnership.Delete(asset);
         }
 

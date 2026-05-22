@@ -84,7 +84,7 @@ namespace helengine.editor {
             }
 
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(renderManager3D, StandardShaderFileName);
-            var materialAsset = new MaterialAsset {
+            var materialAsset = new ShaderMaterialAsset {
                 Id = StandardMaterialAssetId,
                 ShaderAssetId = shaderAsset.Id,
                 VertexProgram = StandardVertexProgramName,

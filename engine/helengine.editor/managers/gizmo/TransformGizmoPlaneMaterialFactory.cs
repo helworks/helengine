@@ -87,7 +87,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Plane shader asset id must be provided.");
             }
 
-            var materialAsset = new MaterialAsset {
+            var materialAsset = new ShaderMaterialAsset {
                 Id = materialAssetId,
                 ShaderAssetId = shaderAsset.Id,
                 VertexProgram = string.Concat(shaderName, ".vs"),

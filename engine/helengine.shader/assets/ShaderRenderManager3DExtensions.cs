@@ -7,18 +7,18 @@ namespace helengine {
         /// Builds one runtime material from a raw material asset and its resolved shader asset.
         /// </summary>
         /// <param name="renderManager3D">Renderer that should own the created runtime material.</param>
-        /// <param name="materialAsset">Raw material asset definition.</param>
+        /// <param name="materialAsset">Shader-owned raw material asset definition.</param>
         /// <param name="shaderAsset">Resolved shader asset consumed by the material.</param>
         /// <returns>Runtime material instance.</returns>
-        public static RuntimeMaterial BuildMaterialFromRaw(this RenderManager3D renderManager3D, MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        public static RuntimeMaterial BuildMaterialFromRaw(this RenderManager3D renderManager3D, ShaderMaterialAsset materialAsset, ShaderAsset shaderAsset) {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
-            if (renderManager3D is not IShaderRenderManager3D shaderRenderManager3D) {
-                throw new InvalidOperationException("This renderer does not support shader-backed runtime materials.");
+            if (renderManager3D is IShaderRenderManager3D shaderRenderManager3D) {
+                return shaderRenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
             }
 
-            return shaderRenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            throw new InvalidOperationException("This renderer does not support shader-backed runtime materials.");
         }
 
         /// <summary>
@@ -31,11 +31,12 @@ namespace helengine {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
-            if (renderManager3D is not IShaderRenderManager3D shaderRenderManager3D) {
-                throw new InvalidOperationException("This renderer does not support shader resource invalidation.");
+            if (renderManager3D is IShaderRenderManager3D shaderRenderManager3D) {
+                shaderRenderManager3D.InvalidateShaderResources(shaderAssetId, shaderAsset);
+                return;
             }
 
-            shaderRenderManager3D.InvalidateShaderResources(shaderAssetId, shaderAsset);
+            throw new InvalidOperationException("This renderer does not support shader resource invalidation.");
         }
     }
 }

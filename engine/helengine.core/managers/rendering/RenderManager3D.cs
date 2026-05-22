@@ -65,13 +65,11 @@ namespace helengine {
         /// <param name="assetContentManager">Content manager that can load companion assets needed by the renderer.</param>
         /// <param name="contentRootPath">Absolute packaged content root that owns the material asset.</param>
         /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
-        /// <param name="materialAsset">Raw material asset definition.</param>
         /// <returns>Runtime material instance.</returns>
         public virtual RuntimeMaterial BuildMaterialFromRawAsset(
             ContentManager assetContentManager,
             string contentRootPath,
-            string materialAssetPath,
-            MaterialAsset materialAsset) {
+            string materialAssetPath) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -81,27 +79,8 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             }
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
-            }
 
             throw new NotSupportedException("This renderer does not support material creation.");
-        }
-
-        /// <summary>
-        /// Assigns one authored diffuse texture to a runtime material created from a raw material asset.
-        /// </summary>
-        /// <param name="material">Runtime material that should receive the diffuse texture.</param>
-        /// <param name="texture">Runtime texture that should become the material diffuse texture.</param>
-        public virtual void AssignRawMaterialDiffuseTexture(RuntimeMaterial material, RuntimeTexture texture) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            }
-            if (texture == null) {
-                throw new ArgumentNullException(nameof(texture));
-            }
-
-            throw new NotSupportedException("This renderer does not support assigning diffuse textures to raw runtime materials.");
         }
 
         /// <summary>

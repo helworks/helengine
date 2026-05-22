@@ -81,12 +81,12 @@ namespace helengine.editor.tests.shaders {
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier selected by the material.</param>
         /// <returns>Material asset configured for the built-in forward standard shader.</returns>
-        static MaterialAsset CreateMaterialAsset(string shaderAssetId) {
+        static ShaderMaterialAsset CreateMaterialAsset(string shaderAssetId) {
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
             }
 
-            return new MaterialAsset {
+            return new ShaderMaterialAsset {
                 Id = "ForwardStandardShader.material",
                 ShaderAssetId = shaderAssetId,
                 VertexProgram = "ForwardStandardShader.vs",
