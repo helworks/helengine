@@ -12,7 +12,12 @@ public sealed class PlatformPluginManifestDocument {
     /// <param name="platformId">Stable platform identifier declared by the plugin.</param>
     /// <param name="displayName">Readable platform name declared by the plugin.</param>
     /// <param name="builderAssemblyPath">Builder assembly path declared by the plugin when provided.</param>
-    public PlatformPluginManifestDocument(string platformId, string displayName, string builderAssemblyPath) {
+    /// <param name="generatedCoreProjectPaths">Managed project paths declared by the plugin for generated-core merging.</param>
+    public PlatformPluginManifestDocument(
+        string platformId,
+        string displayName,
+        string builderAssemblyPath,
+        IReadOnlyList<string> generatedCoreProjectPaths) {
         if (string.IsNullOrWhiteSpace(platformId)) {
             throw new ArgumentException("Platform id is required.", nameof(platformId));
         } else if (string.IsNullOrWhiteSpace(displayName)) {
@@ -22,6 +27,7 @@ public sealed class PlatformPluginManifestDocument {
         PlatformId = platformId;
         DisplayName = displayName;
         BuilderAssemblyPath = builderAssemblyPath ?? string.Empty;
+        GeneratedCoreProjectPaths = generatedCoreProjectPaths ?? Array.Empty<string>();
     }
 
     /// <summary>
@@ -38,6 +44,11 @@ public sealed class PlatformPluginManifestDocument {
     /// Gets the builder assembly path declared by the plugin when provided.
     /// </summary>
     public string BuilderAssemblyPath { get; }
+
+    /// <summary>
+    /// Gets the managed project paths declared by the plugin for generated-core merging.
+    /// </summary>
+    public IReadOnlyList<string> GeneratedCoreProjectPaths { get; }
 
     /// <summary>
     /// Loads and validates one metadata-only platform plugin manifest from disk.
@@ -69,7 +80,35 @@ public sealed class PlatformPluginManifestDocument {
         string builderAssemblyPath = rootElement.TryGetProperty("builderAssemblyPath", out JsonElement builderAssemblyPathElement)
             ? builderAssemblyPathElement.GetString() ?? string.Empty
             : string.Empty;
+        IReadOnlyList<string> generatedCoreProjectPaths = ReadGeneratedCoreProjectPaths(rootElement, manifestFilePath);
 
-        return new PlatformPluginManifestDocument(platformId, displayName, builderAssemblyPath);
+        return new PlatformPluginManifestDocument(platformId, displayName, builderAssemblyPath, generatedCoreProjectPaths);
+    }
+
+    /// <summary>
+    /// Reads the generated-core managed project path list from one plugin manifest root.
+    /// </summary>
+    /// <param name="rootElement">Plugin manifest JSON root.</param>
+    /// <param name="manifestFilePath">Manifest file path used for diagnostics.</param>
+    /// <returns>Managed project path list declared by the plugin.</returns>
+    static IReadOnlyList<string> ReadGeneratedCoreProjectPaths(JsonElement rootElement, string manifestFilePath) {
+        if (!rootElement.TryGetProperty("generatedCoreProjectPaths", out JsonElement generatedCoreProjectPathsElement)) {
+            return Array.Empty<string>();
+        }
+        if (generatedCoreProjectPathsElement.ValueKind != JsonValueKind.Array) {
+            throw new InvalidOperationException($"Platform plugin manifest '{manifestFilePath}' must declare generatedCoreProjectPaths as an array when provided.");
+        }
+
+        List<string> projectPaths = new();
+        foreach (JsonElement projectPathElement in generatedCoreProjectPathsElement.EnumerateArray()) {
+            string projectPath = projectPathElement.GetString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(projectPath)) {
+                throw new InvalidOperationException($"Platform plugin manifest '{manifestFilePath}' contains an empty generatedCoreProjectPaths entry.");
+            }
+
+            projectPaths.Add(projectPath);
+        }
+
+        return projectPaths;
     }
 }

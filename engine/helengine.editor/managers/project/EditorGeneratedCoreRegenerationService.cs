@@ -37,6 +37,7 @@ namespace helengine.editor {
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             string generatedCoreRootPath,
             string codegenToolPath,
+            IReadOnlyList<string> generatedCoreProjectPaths,
             IReadOnlyList<string> additionalPreprocessorSymbols,
             CancellationToken cancellationToken) {
             if (platformDefinition == null) {
@@ -50,6 +51,9 @@ namespace helengine.editor {
             }
             if (string.IsNullOrWhiteSpace(codegenToolPath)) {
                 throw new ArgumentException("Codegen tool path must be provided.", nameof(codegenToolPath));
+            }
+            if (generatedCoreProjectPaths == null) {
+                throw new ArgumentNullException(nameof(generatedCoreProjectPaths));
             }
             if (additionalPreprocessorSymbols == null) {
                 throw new ArgumentNullException(nameof(additionalPreprocessorSymbols));
@@ -77,6 +81,7 @@ namespace helengine.editor {
             string shaderOutputRoot = Path.Combine(tempRoot, "shader");
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
+            string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
             string logPath = Path.Combine(tempRoot, "regeneration.log");
             StringBuilder logBuilder = new();
             bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
@@ -153,6 +158,17 @@ namespace helengine.editor {
                     MergeGeneratedSourceTree(physics3DOutputRoot, generatedCoreOutputRoot);
                     MergeGeneratedConversionReport(physics3DOutputRoot, generatedCoreOutputRoot);
                 }
+                RegenerateAdditionalGeneratedCoreProjects(
+                    generatedCoreProjectPaths,
+                    fullCodegenToolPath,
+                    externalProjectsOutputRoot,
+                    generatedCoreOutputRoot,
+                    platformDefinition,
+                    codegenProfile,
+                    selectedCodegenOptionValues,
+                    combinedPreprocessorSymbols,
+                    logBuilder,
+                    cancellationToken);
                 MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
                 EnsureGeneratedRuntimeComponentDeserializerSupport(generatedCoreOutputRoot, platformDefinition.PlatformId);
                 WriteGeneratedCoreTranslationUnit(generatedCoreOutputRoot);
@@ -218,6 +234,62 @@ namespace helengine.editor {
                 additionalPreprocessorSymbols);
 
             RunProcess(fileName, arguments, Path.GetDirectoryName(fileName) ?? Directory.GetCurrentDirectory(), logBuilder, cancellationToken);
+        }
+
+        /// <summary>
+        /// Regenerates the additional managed projects declared by one external platform plugin manifest and merges them into generated-core.
+        /// </summary>
+        /// <param name="generatedCoreProjectPaths">Managed project paths declared for generated-core merging.</param>
+        /// <param name="fileName">Path to the codegen executable.</param>
+        /// <param name="externalProjectsOutputRoot">Temporary root that receives generated output from the external projects.</param>
+        /// <param name="generatedCoreOutputRoot">Combined generated-core output root.</param>
+        /// <param name="platformDefinition">Typed platform metadata exposed by the active builder.</param>
+        /// <param name="codegenProfile">Selected codegen profile metadata.</param>
+        /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor.</param>
+        /// <param name="additionalPreprocessorSymbols">Feature symbols injected for conversion.</param>
+        /// <param name="logBuilder">Shared log buffer that records process output for the combined regeneration run.</param>
+        /// <param name="cancellationToken">Cancellation token that can stop regeneration cooperatively.</param>
+        static void RegenerateAdditionalGeneratedCoreProjects(
+            IReadOnlyList<string> generatedCoreProjectPaths,
+            string fileName,
+            string externalProjectsOutputRoot,
+            string generatedCoreOutputRoot,
+            PlatformDefinition platformDefinition,
+            PlatformCodegenProfileDefinition codegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
+            IReadOnlyList<string> additionalPreprocessorSymbols,
+            StringBuilder logBuilder,
+            CancellationToken cancellationToken) {
+            if (generatedCoreProjectPaths == null) {
+                throw new ArgumentNullException(nameof(generatedCoreProjectPaths));
+            }
+            if (generatedCoreProjectPaths.Count == 0) {
+                return;
+            }
+
+            for (int index = 0; index < generatedCoreProjectPaths.Count; index++) {
+                string projectPath = generatedCoreProjectPaths[index];
+                if (string.IsNullOrWhiteSpace(projectPath)) {
+                    throw new InvalidOperationException("Generated-core project paths must not contain empty entries.");
+                }
+                if (!File.Exists(projectPath)) {
+                    throw new FileNotFoundException($"Generated-core managed project '{projectPath}' was not found.", projectPath);
+                }
+
+                string projectOutputRoot = Path.Combine(externalProjectsOutputRoot, index.ToString("D2"));
+                RegenerateProject(
+                    fileName,
+                    projectPath,
+                    projectOutputRoot,
+                    platformDefinition,
+                    codegenProfile,
+                    selectedCodegenOptionValues,
+                    additionalPreprocessorSymbols,
+                    logBuilder,
+                    cancellationToken);
+                MergeGeneratedSourceTree(projectOutputRoot, generatedCoreOutputRoot);
+                MergeGeneratedConversionReport(projectOutputRoot, generatedCoreOutputRoot);
+            }
         }
 
         /// <summary>

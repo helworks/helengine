@@ -345,6 +345,7 @@ namespace helengine.editor {
                 queueItem.SelectedCodegenOptionValues,
                 workspace.GeneratedCoreRootPath,
                 PlatformDescriptor.CodegenToolPath,
+                PlatformDescriptor.GeneratedCoreProjectPaths,
                 physics3DCodegenSymbols,
                 CancellationToken.None);
         }

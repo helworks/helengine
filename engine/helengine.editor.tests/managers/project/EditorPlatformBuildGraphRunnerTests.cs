@@ -1091,6 +1091,88 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies external platform-managed generated-core project paths are forwarded into regeneration.
+    /// </summary>
+    [Fact]
+    public void RunRegenerateCore_ForwardsExternalGeneratedCoreProjectPaths() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(rootPath, "assets", "Scenes"));
+
+        try {
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/VisualScene.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Camera",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+            using (FileStream sceneStream = File.Create(Path.Combine(rootPath, "assets", "Scenes", "VisualScene.helen"))) {
+                AssetSerializer.Serialize(sceneStream, sceneAsset);
+            }
+
+            string externalProjectPath = Path.Combine(rootPath, "external", "helengine.ps2.csproj");
+            Directory.CreateDirectory(Path.GetDirectoryName(externalProjectPath)
+                ?? throw new InvalidOperationException("Unable to resolve the external generated-core project directory."));
+            File.WriteAllText(externalProjectPath, "<Project />");
+
+            RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "ps2",
+                    "PlayStation 2",
+                    "builder.dll",
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe",
+                    [externalProjectPath]),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                regenerationService);
+
+            MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "RunRegenerateCore",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(runRegenerateCoreMethod);
+
+            runRegenerateCoreMethod.Invoke(
+                runner,
+                [
+                    CreatePlatformDefinition("ps2", "PlayStation 2"),
+                    CreateCodegenProfile(),
+                    new EditorBuildQueueItemDocument {
+                        QueueItemId = "queue-item",
+                        PlatformId = "ps2",
+                        OutputDirectoryPath = Path.Combine(rootPath, "output"),
+                        SelectedSceneIds = ["VisualScene"],
+                        SelectedCodegenOptionValues = new Dictionary<string, string>()
+                    },
+                    new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
+                ]);
+
+            Assert.NotNull(regenerationService.GeneratedCoreProjectPaths);
+            Assert.Single(regenerationService.GeneratedCoreProjectPaths);
+            Assert.Equal(externalProjectPath, regenerationService.GeneratedCoreProjectPaths[0]);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies the shared Windows build graph can export the committed point-shadow smoke scene from a copied project workspace.
     /// </summary>
     [Fact]
@@ -1347,6 +1429,8 @@ public class EditorPlatformBuildGraphRunnerTests {
         /// </summary>
         public IReadOnlyList<string> AdditionalPreprocessorSymbols { get; private set; }
 
+        public IReadOnlyList<string> GeneratedCoreProjectPaths { get; private set; }
+
         /// <summary>
         /// Captures regeneration inputs without launching the external codegen tool.
         /// </summary>
@@ -1356,8 +1440,10 @@ public class EditorPlatformBuildGraphRunnerTests {
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             string generatedCoreRootPath,
             string codegenToolPath,
+            IReadOnlyList<string> generatedCoreProjectPaths,
             IReadOnlyList<string> additionalPreprocessorSymbols,
             CancellationToken cancellationToken) {
+            GeneratedCoreProjectPaths = generatedCoreProjectPaths;
             AdditionalPreprocessorSymbols = additionalPreprocessorSymbols;
         }
     }

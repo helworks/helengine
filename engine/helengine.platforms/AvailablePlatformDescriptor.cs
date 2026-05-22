@@ -14,6 +14,7 @@ public sealed class AvailablePlatformDescriptor {
     /// <param name="generatedCoreCppRootPath">Absolute or relative path to the generated core C++ root, when available.</param>
     /// <param name="codegenToolPath">Absolute or relative path to the bundled csharpcodegen executable, when available.</param>
     /// <param name="isInstalled">True when the platform payload exists on the current machine.</param>
+    /// <param name="generatedCoreProjectPaths">Absolute project paths that should also be codegenned and merged into generated-core for this platform.</param>
     public AvailablePlatformDescriptor(
         string id,
         string displayName,
@@ -21,7 +22,8 @@ public sealed class AvailablePlatformDescriptor {
         string playerSourceRootPath = "",
         bool isInstalled = true,
         string generatedCoreCppRootPath = "",
-        string codegenToolPath = "") {
+        string codegenToolPath = "",
+        IReadOnlyList<string> generatedCoreProjectPaths = null) {
         Id = id;
         DisplayName = displayName;
         BuilderAssemblyPath = builderAssemblyPath ?? string.Empty;
@@ -29,6 +31,7 @@ public sealed class AvailablePlatformDescriptor {
         IsInstalled = isInstalled;
         GeneratedCoreCppRootPath = generatedCoreCppRootPath ?? string.Empty;
         CodegenToolPath = codegenToolPath ?? string.Empty;
+        GeneratedCoreProjectPaths = generatedCoreProjectPaths ?? Array.Empty<string>();
     }
 
     /// <summary>
@@ -65,4 +68,9 @@ public sealed class AvailablePlatformDescriptor {
     /// Gets whether the platform payload exists on the current machine.
     /// </summary>
     public bool IsInstalled { get; }
+
+    /// <summary>
+    /// Gets the absolute managed project paths that should be merged into generated-core for this platform.
+    /// </summary>
+    public IReadOnlyList<string> GeneratedCoreProjectPaths { get; }
 }

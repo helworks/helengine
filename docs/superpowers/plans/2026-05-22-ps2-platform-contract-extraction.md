@@ -236,7 +236,7 @@ rtk -C C:\dev\helworks\helengine-ps2 git add managed/helengine.ps2/helengine.ps2
 rtk -C C:\dev\helworks\helengine-ps2 git commit -m "Publish metadata-only PS2 plugin manifest"
 ```
 
-### Task 3: Move PS2 Material And Texture Cooked Contracts Out Of `helengine`
+### Task 3: Move PS2 Material And Texture Cooked Contracts Out Of `helengine` With A PS2-Owned Serializer
 
 **Files:**
 - Delete: `engine/helengine.core/assets/raw/ps2/Ps2MaterialAsset.cs`
@@ -253,8 +253,12 @@ rtk -C C:\dev\helworks\helengine-ps2 git commit -m "Publish metadata-only PS2 pl
 - Create: `C:\dev\helworks\helengine-ps2\managed\helengine.ps2\Assets\Ps2RenderClass.cs`
 - Create: `C:\dev\helworks\helengine-ps2\managed\helengine.ps2\Assets\Ps2TextureFormat.cs`
 - Create: `C:\dev\helworks\helengine-ps2\managed\helengine.ps2\Assets\Ps2TextureAlphaMode.cs`
+- Create: `C:\dev\helworks\helengine-ps2\managed\helengine.ps2\Serialization\Ps2AssetBinaryValueKind.cs`
+- Create: `C:\dev\helworks\helengine-ps2\managed\helengine.ps2\Serialization\Ps2AssetBinarySerializer.cs`
+- Create: `C:\dev\helworks\helengine-ps2\managed\helengine.ps2\Serialization\Ps2AssetSerializer.cs`
 - Modify: `C:\dev\helworks\helengine-ps2\builder\Ps2MaterialCooker.cs`
 - Modify: `C:\dev\helworks\helengine-ps2\builder\Ps2RuntimeTextureCooker.cs`
+- Modify: `C:\dev\helworks\helengine-ps2\builder\Ps2CookedAssetPathRewriter.cs`
 - Modify: `C:\dev\helworks\helengine-ps2\builder.tests\Ps2PlatformAssetBuilderTests.cs`
 
 - [ ] **Step 1: Write the failing PS2 contract ownership tests**
@@ -280,7 +284,29 @@ rtk dotnet test C:\dev\helworks\helengine-ps2\builder.tests\helengine.ps2.builde
 
 Expected: FAIL because the contract types still come from `helengine.core`.
 
-- [ ] **Step 3: Move the PS2 contract types into `helengine.ps2` and retarget the PS2 builder**
+- [ ] **Step 3: Add the PS2-owned cooked asset serializer path**
+
+```csharp
+namespace helengine.ps2.Serialization {
+    /// <summary>
+    /// Provides HELE-compatible serialization helpers for PS2-owned cooked asset payloads.
+    /// </summary>
+    public static class Ps2AssetSerializer {
+        /// <summary>
+        /// Serializes one PS2-owned cooked asset into a new byte array.
+        /// </summary>
+        /// <param name="asset">PS2-owned cooked asset instance to serialize.</param>
+        /// <returns>Serialized cooked payload bytes.</returns>
+        public static byte[] SerializeToBytes(Asset asset) {
+            using MemoryStream stream = new();
+            Ps2AssetBinarySerializer.Serialize(stream, asset);
+            return stream.ToArray();
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Move the PS2 contract types into `helengine.ps2` and retarget the PS2 builder**
 
 ```csharp
 namespace helengine.ps2.Assets {
@@ -301,10 +327,11 @@ namespace helengine.ps2.Assets {
 }
 ```
 
-- [ ] **Step 4: Update the PS2 builder imports to use only `helengine.ps2` contract types**
+- [ ] **Step 5: Update the PS2 builder imports and serialization calls to use only `helengine.ps2`**
 
 ```csharp
 using helengine.ps2.Assets;
+using helengine.ps2.Serialization;
 
 public sealed class Ps2RuntimeTextureCooker {
     /// <summary>
@@ -321,7 +348,7 @@ public sealed class Ps2RuntimeTextureCooker {
 }
 ```
 
-- [ ] **Step 5: Run the focused PS2 tests and verify they pass**
+- [ ] **Step 6: Run the focused PS2 tests and verify they pass**
 
 Run:
 
@@ -331,20 +358,22 @@ rtk dotnet test C:\dev\helworks\helengine-ps2\builder.tests\helengine.ps2.builde
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the PS2 cooked material/texture contract move**
+- [ ] **Step 7: Commit the PS2 cooked contract and serializer move**
 
 ```powershell
-rtk -C C:\dev\helworks\helengine-ps2 git add managed/helengine.ps2/Assets builder builder.tests
-rtk -C C:\dev\helworks\helengine-ps2 git commit -m "Move PS2 cooked material and texture contracts into helengine.ps2"
+rtk -C C:\dev\helworks\helengine-ps2 git add managed/helengine.ps2/Assets managed/helengine.ps2/Serialization builder builder.tests
+rtk -C C:\dev\helworks\helengine-ps2 git commit -m "Move PS2 cooked contracts and serializer into helengine.ps2"
 ```
 
-### Task 4: Remove PS2 Serializer Branches From Generic Engine Serialization
+### Task 4: Remove PS2 Serializer Branches From Generic Engine Serialization And Retarget Codegen
 
 **Files:**
 - Modify: `engine/helengine.core/assets/EditorAssetBinaryValueKind.cs`
 - Modify: `engine/helengine.core/assets/EditorAssetBinarySerializer.cs`
 - Modify: `engine/helengine.files/assets/EditorAssetBinarySerializer.cs`
 - Modify: `engine/helengine.editor/managers/asset/EditorAssetManager.cs`
+- Modify: `engine/helengine.editor/managers/project/EditorGeneratedCoreRegenerationService.cs`
+- Modify: `engine/helengine.editor/managers/project/EditorPlatformBuildGraphRunner.cs`
 - Modify: `engine/helengine.editor/tests/BinarySerializationTests.cs`
 - Modify: `engine/helengine.editor.tests/managers/project/EditorWindowsBuildScenePackagerTests.cs`
 
@@ -368,7 +397,7 @@ Run:
 rtk dotnet test engine\helengine.editor.tests\helengine.editor.tests.csproj --filter "FullyQualifiedName~BinarySerializationTests|FullyQualifiedName~EditorWindowsBuildScenePackagerTests"
 ```
 
-Expected: FAIL because the generic serializers still contain PS2-specific branches.
+Expected: FAIL because the generic serializers still contain PS2-specific branches and generated-core does not know about `helengine.ps2`.
 
 - [ ] **Step 3: Remove the PS2-specific value kinds and branches**
 
@@ -402,7 +431,16 @@ public void WindowsScenePackager_WhenPackagingGenericMaterials_DoesNotDependOnPs
 }
 ```
 
-- [ ] **Step 5: Run the focused editor tests and verify they pass**
+- [ ] **Step 5: Extend generated-core regeneration so external platform-managed runtime contract assemblies can be merged**
+
+```csharp
+if (string.Equals(platformDefinition.PlatformId, "ps2", StringComparison.Ordinal)) {
+    MergeGeneratedSourceTree(ps2ManagedOutputRoot, generatedCoreOutputRoot);
+    MergeGeneratedConversionReport(ps2ManagedOutputRoot, generatedCoreOutputRoot);
+}
+```
+
+- [ ] **Step 6: Run the focused editor tests and verify they pass**
 
 Run:
 
@@ -412,11 +450,11 @@ rtk dotnet test engine\helengine.editor.tests\helengine.editor.tests.csproj --fi
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the generic serializer cleanup**
+- [ ] **Step 7: Commit the generic serializer and codegen retargeting**
 
 ```powershell
-rtk git add engine/helengine.core/assets/EditorAssetBinaryValueKind.cs engine/helengine.core/assets/EditorAssetBinarySerializer.cs engine/helengine.files/assets/EditorAssetBinarySerializer.cs engine/helengine.editor/managers/asset/EditorAssetManager.cs engine/helengine.editor.tests/BinarySerializationTests.cs engine/helengine.editor.tests/managers/project/EditorWindowsBuildScenePackagerTests.cs
-rtk git commit -m "Remove PS2 cooked asset branches from generic serializers"
+rtk git add engine/helengine.core/assets/EditorAssetBinaryValueKind.cs engine/helengine.core/assets/EditorAssetBinarySerializer.cs engine/helengine.files/assets/EditorAssetBinarySerializer.cs engine/helengine.editor/managers/asset/EditorAssetManager.cs engine/helengine.editor/managers/project/EditorGeneratedCoreRegenerationService.cs engine/helengine.editor/managers/project/EditorPlatformBuildGraphRunner.cs engine/helengine.editor.tests/BinarySerializationTests.cs engine/helengine.editor.tests/managers/project/EditorWindowsBuildScenePackagerTests.cs
+rtk git commit -m "Retarget PS2 cooked payload serialization and codegen"
 ```
 
 ### Task 5: Replace `ModelAsset.Ps2PackedMeshBytes` With A PS2-Owned Sidecar Model Payload

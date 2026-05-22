@@ -137,12 +137,15 @@ public sealed class PlatformInstallationResolverTests : IDisposable {
         {
           "platformId": "ps2",
           "displayName": "PlayStation 2",
-          "builderAssemblyPath": "builder/helengine.ps2.builder.dll"
+          "builderAssemblyPath": "builder/helengine.ps2.builder.dll",
+          "generatedCoreProjectPaths": [ "managed/helengine.ps2/helengine.ps2.csproj" ]
         }
         """);
 
         Directory.CreateDirectory(Path.Combine(pluginRootPath, "builder"));
         File.WriteAllText(Path.Combine(pluginRootPath, "builder", "helengine.ps2.builder.dll"), string.Empty);
+        Directory.CreateDirectory(Path.Combine(pluginRootPath, "managed", "helengine.ps2"));
+        File.WriteAllText(Path.Combine(pluginRootPath, "managed", "helengine.ps2", "helengine.ps2.csproj"), "<Project />");
 
         PlatformInstallationResolver resolver = new PlatformInstallationResolver(settingsRootPath);
 
@@ -151,5 +154,9 @@ public sealed class PlatformInstallationResolverTests : IDisposable {
         Assert.True(resolved);
         Assert.Equal("ps2", platform.Id);
         Assert.Equal("PlayStation 2", platform.DisplayName);
+        Assert.Single(platform.GeneratedCoreProjectPaths);
+        Assert.Equal(
+            Path.GetFullPath(Path.Combine(pluginRootPath, "managed", "helengine.ps2", "helengine.ps2.csproj")),
+            platform.GeneratedCoreProjectPaths[0]);
     }
 }

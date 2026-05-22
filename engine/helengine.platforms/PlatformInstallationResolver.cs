@@ -126,6 +126,7 @@ public sealed class PlatformInstallationResolver {
         string resolvedPlayerSourceRootPath = ResolvePayloadPath(manifestRootPath, entry.PlayerSourceRootPath);
         string resolvedGeneratedCoreCppRootPath = ResolvePayloadPath(manifestRootPath, entry.GeneratedCoreCppRootPath);
         string resolvedCodegenToolPath = ResolvePayloadPath(manifestRootPath, entry.CodegenToolPath);
+        IReadOnlyList<string> resolvedGeneratedCoreProjectPaths = ResolveGeneratedCoreProjectPaths(manifestRootPath, entry, pluginManifest);
         bool isInstalled = IsInstalled(resolvedBuilderAssemblyPath, resolvedPlayerSourceRootPath, resolvedGeneratedCoreCppRootPath, resolvedCodegenToolPath);
 
         return new AvailablePlatformDescriptor(
@@ -135,7 +136,8 @@ public sealed class PlatformInstallationResolver {
             resolvedPlayerSourceRootPath,
             isInstalled,
             resolvedGeneratedCoreCppRootPath,
-            resolvedCodegenToolPath);
+            resolvedCodegenToolPath,
+            resolvedGeneratedCoreProjectPaths);
     }
 
     /// <summary>
@@ -168,6 +170,27 @@ public sealed class PlatformInstallationResolver {
 
         string pluginManifestDirectoryPath = Path.GetDirectoryName(ResolvePayloadPath(manifestRootPath, entry.PluginManifestPath)) ?? manifestRootPath;
         return ResolvePayloadPath(pluginManifestDirectoryPath, pluginManifest.BuilderAssemblyPath);
+    }
+
+    /// <summary>
+    /// Resolves the generated-core managed project paths declared by one plugin manifest.
+    /// </summary>
+    /// <param name="manifestRootPath">Directory that owns the installation manifest.</param>
+    /// <param name="entry">Platform installation entry currently being resolved.</param>
+    /// <param name="pluginManifest">Validated plugin manifest when one was declared.</param>
+    /// <returns>Resolved generated-core managed project paths.</returns>
+    static IReadOnlyList<string> ResolveGeneratedCoreProjectPaths(string manifestRootPath, PlatformInstallationEntry entry, PlatformPluginManifestDocument pluginManifest) {
+        if (pluginManifest == null || pluginManifest.GeneratedCoreProjectPaths.Count == 0) {
+            return Array.Empty<string>();
+        }
+
+        string pluginManifestDirectoryPath = Path.GetDirectoryName(ResolvePayloadPath(manifestRootPath, entry.PluginManifestPath)) ?? manifestRootPath;
+        List<string> resolvedProjectPaths = new(pluginManifest.GeneratedCoreProjectPaths.Count);
+        for (int index = 0; index < pluginManifest.GeneratedCoreProjectPaths.Count; index++) {
+            resolvedProjectPaths.Add(ResolvePayloadPath(pluginManifestDirectoryPath, pluginManifest.GeneratedCoreProjectPaths[index]));
+        }
+
+        return resolvedProjectPaths;
     }
 
     /// <summary>
