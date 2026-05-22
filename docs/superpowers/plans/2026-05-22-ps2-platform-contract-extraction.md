@@ -10,124 +10,147 @@
 
 ---
 
-### Task 1: Lock The Generic External Platform Plugin Boundary In `helengine`
+### Task 1: Lock The Generic External Platform Plugin Boundary In `helengine.platforms`
 
 **Files:**
-- Modify: `engine/helengine.editor/managers/project/EditorPlatformBuildGraphRunner.cs`
-- Modify: `engine/helengine.editor/managers/project/EditorPlatformAssetBuilderLoader.cs`
-- Modify: `engine/helengine.editor/managers/project/EditorPlatformArtifactVariantResolver.cs`
-- Modify: `engine/helengine.editor.tests/managers/project/EditorPlatformBuildGraphRunnerTests.cs`
-- Modify: `engine/helengine.editor.tests/managers/project/EditorPlatformAssetBuilderLoaderTests.cs`
-- Test: `engine/helengine.editor.tests/helengine.editor.tests.csproj`
+- Modify: `engine/helengine.platforms/PlatformInstallationEntry.cs`
+- Modify: `engine/helengine.platforms/PlatformInstallationStore.cs`
+- Modify: `engine/helengine.platforms/PlatformInstallationResolver.cs`
+- Create: `engine/helengine.platforms/PlatformPluginManifestDocument.cs`
+- Modify: `engine/helengine.platforms.tests/PlatformInstallationResolverTests.cs`
+- Modify: `engine/helengine.platforms.tests/AvailablePlatformProviderResolverTests.cs`
+- Test: `engine/helengine.platforms.tests/helengine.platforms.tests.csproj`
 
 - [ ] **Step 1: Write the failing plugin-boundary tests**
 
 ```csharp
 [Fact]
-public void LoadExternalPlatformManifest_WhenManifestContainsRuntimePayloadClrTypeMetadata_Throws() {
-    string manifestPath = WritePlatformManifest("""
+public void TryLoadPlatform_WhenPluginManifestContainsRuntimePayloadTypeMetadata_Throws() {
+    string settingsRootPath = Path.Combine(TempDirectoryPath, "user_settings");
+    Directory.CreateDirectory(settingsRootPath);
+    File.WriteAllText(Path.Combine(settingsRootPath, "platforms.json"), """
     {
-      "platformId": "ps2",
-      "displayName": "PlayStation 2",
-      "builderAssemblyPath": "builder/helengine.ps2.builder.dll",
-      "runtimePayloadTypes": [ "helengine.ps2.Ps2MaterialAsset" ]
-    }
-    """);
-
-    EditorPlatformAssetBuilderLoader loader = new();
-
-    InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loader.LoadManifest(manifestPath));
-    Assert.Contains("runtime payload CLR types", exception.Message, StringComparison.Ordinal);
-}
-
-[Fact]
-public void LoadExternalPlatformManifest_WhenManifestContainsOnlyGenericMetadata_Succeeds() {
-    string manifestPath = WritePlatformManifest("""
-    {
-      "platformId": "ps2",
-      "displayName": "PlayStation 2",
-      "builderAssemblyPath": "builder/helengine.ps2.builder.dll",
-      "graphicsProfiles": [
+      "platforms": [
         {
-          "id": "ps2-standard-forward",
-          "displayName": "PS2 Standard Forward"
+          "engineVersion": "1.0.0-custom",
+          "platformId": "ps2",
+          "displayName": "PlayStation 2",
+          "playerSourceRootPath": "../helengine-ps2",
+          "pluginManifestPath": "../helengine-ps2/platform-plugin.json"
         }
       ]
     }
     """);
+    File.WriteAllText(Path.Combine(TempDirectoryPath, "helengine-ps2", "platform-plugin.json"), """
+    {
+      "platformId": "ps2",
+      "displayName": "PlayStation 2",
+      "runtimePayloadTypes": [ "helengine.ps2.Ps2MaterialAsset" ]
+    }
+    """);
 
-    EditorPlatformAssetBuilderLoader loader = new();
+    PlatformInstallationResolver resolver = new PlatformInstallationResolver(settingsRootPath);
 
-    AvailablePlatformDescriptor descriptor = loader.LoadManifest(manifestPath);
-    Assert.Equal("ps2", descriptor.PlatformId);
+    InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => resolver.TryLoadPlatform("1.0.0-custom", "ps2", out _));
+    Assert.Contains("runtime payload CLR types", exception.Message, StringComparison.Ordinal);
+}
+
+[Fact]
+public void TryLoadPlatform_WhenPluginManifestContainsOnlyGenericMetadata_Succeeds() {
+    string settingsRootPath = Path.Combine(TempDirectoryPath, "user_settings");
+    Directory.CreateDirectory(settingsRootPath);
+    File.WriteAllText(Path.Combine(settingsRootPath, "platforms.json"), """
+    {
+      "platforms": [
+        {
+          "engineVersion": "1.0.0-custom",
+          "platformId": "ps2",
+          "displayName": "PlayStation 2",
+          "builderAssemblyPath": "../helengine-ps2/builder/helengine.ps2.builder.dll",
+          "playerSourceRootPath": "../helengine-ps2",
+          "pluginManifestPath": "../helengine-ps2/platform-plugin.json"
+        }
+      ]
+    }
+    """);
+    File.WriteAllText(Path.Combine(TempDirectoryPath, "helengine-ps2", "platform-plugin.json"), """
+    {
+      "platformId": "ps2",
+      "displayName": "PlayStation 2",
+      "builderAssemblyPath": "builder/helengine.ps2.builder.dll"
+    }
+    """);
+
+    PlatformInstallationResolver resolver = new PlatformInstallationResolver(settingsRootPath);
+
+    bool resolved = resolver.TryLoadPlatform("1.0.0-custom", "ps2", out AvailablePlatformDescriptor platform);
+    Assert.True(resolved);
+    Assert.Equal("ps2", platform.Id);
 }
 ```
 
-- [ ] **Step 2: Run the focused loader tests and verify they fail**
+- [ ] **Step 2: Run the focused platform-discovery tests and verify they fail**
 
 Run:
 
 ```powershell
-rtk dotnet test engine\helengine.editor.tests\helengine.editor.tests.csproj --filter "FullyQualifiedName~EditorPlatformAssetBuilderLoaderTests"
+rtk dotnet test engine\helengine.platforms.tests\helengine.platforms.tests.csproj --filter "FullyQualifiedName~PlatformInstallationResolverTests|FullyQualifiedName~AvailablePlatformProviderResolverTests"
 ```
 
-Expected: FAIL because the current loader does not enforce a metadata-only manifest boundary.
+Expected: FAIL because the current platform installation model has no plugin manifest path or metadata-only manifest validation.
 
-- [ ] **Step 3: Implement metadata-only manifest validation in the loader**
+- [ ] **Step 3: Add plugin-manifest support and metadata-only validation to `helengine.platforms`**
 
 ```csharp
 /// <summary>
-/// Loads one external platform manifest and rejects any platform-specific runtime payload contract metadata.
+/// Validates one external platform plugin manifest and rejects platform-owned runtime contract metadata.
 /// </summary>
-/// <param name="manifestPath">Absolute manifest path.</param>
-/// <returns>Loaded generic platform descriptor.</returns>
-public AvailablePlatformDescriptor LoadManifest(string manifestPath) {
-    JsonObject manifest = LoadManifestObject(manifestPath);
+/// <param name="manifestFilePath">Absolute plugin-manifest path.</param>
+/// <returns>Loaded metadata-only plugin manifest document.</returns>
+public static PlatformPluginManifestDocument LoadPluginManifest(string manifestFilePath) {
+    JsonObject manifest = LoadManifestObject(manifestFilePath);
 
     if (manifest["runtimePayloadTypes"] != null) {
-        throw new InvalidOperationException("External platform manifests must not declare runtime payload CLR types.");
+        throw new InvalidOperationException("External platform plugin manifests must not declare runtime payload CLR types.");
     } else if (manifest["serializerHooks"] != null) {
-        throw new InvalidOperationException("External platform manifests must not declare serializer hooks into helengine.");
+        throw new InvalidOperationException("External platform plugin manifests must not declare serializer hooks into helengine.");
     }
 
-    return BuildAvailablePlatformDescriptor(manifestPath, manifest);
+    return BuildPluginManifestDocument(manifestFilePath, manifest);
 }
 ```
 
-- [ ] **Step 4: Update build-graph tests to assert the runner consumes only generic metadata**
+- [ ] **Step 4: Extend installation entries to point at plugin manifests without exposing runtime payload types**
 
 ```csharp
-[Fact]
-public void BuildGraph_WhenPlatformIsExternal_DoesNotInspectPlatformRuntimePayloadTypes() {
-    AvailablePlatformDescriptor descriptor = BuildExternalDescriptor(
-        platformId: "ps2",
-        displayName: "PlayStation 2",
-        builderAssemblyPath: "builder/helengine.ps2.builder.dll");
-
-    EditorPlatformBuildGraphRunner runner = CreateRunner(descriptor);
-
-    string summary = runner.BuildDebugSummary();
-
-    Assert.DoesNotContain("Ps2MaterialAsset", summary, StringComparison.Ordinal);
-    Assert.DoesNotContain("Ps2TextureAsset", summary, StringComparison.Ordinal);
+public PlatformInstallationEntry(
+    string engineVersion,
+    string platformId,
+    string displayName,
+    string builderAssemblyPath,
+    string playerSourceRootPath,
+    string generatedCoreCppRootPath = "",
+    string codegenToolPath = "",
+    string pluginManifestPath = "") {
+    PluginManifestPath = pluginManifestPath ?? string.Empty;
 }
 ```
 
-- [ ] **Step 5: Run the focused editor tests and verify they pass**
+- [ ] **Step 5: Run the focused platform tests and verify they pass**
 
 Run:
 
 ```powershell
-rtk dotnet test engine\helengine.editor.tests\helengine.editor.tests.csproj --filter "FullyQualifiedName~EditorPlatformAssetBuilderLoaderTests|FullyQualifiedName~EditorPlatformBuildGraphRunnerTests"
+rtk dotnet test engine\helengine.platforms.tests\helengine.platforms.tests.csproj --filter "FullyQualifiedName~PlatformInstallationResolverTests|FullyQualifiedName~AvailablePlatformProviderResolverTests"
 ```
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the boundary-only main-repo change**
+- [ ] **Step 6: Commit the boundary-only platform-discovery change**
 
 ```powershell
-rtk git add engine/helengine.editor/managers/project/EditorPlatformBuildGraphRunner.cs engine/helengine.editor/managers/project/EditorPlatformAssetBuilderLoader.cs engine/helengine.editor/managers/project/EditorPlatformArtifactVariantResolver.cs engine/helengine.editor.tests/managers/project/EditorPlatformBuildGraphRunnerTests.cs engine/helengine.editor.tests/managers/project/EditorPlatformAssetBuilderLoaderTests.cs
-rtk git commit -m "Enforce generic external platform manifests"
+rtk git add engine/helengine.platforms/PlatformInstallationEntry.cs engine/helengine.platforms/PlatformInstallationStore.cs engine/helengine.platforms/PlatformInstallationResolver.cs engine/helengine.platforms/PlatformPluginManifestDocument.cs engine/helengine.platforms.tests/PlatformInstallationResolverTests.cs engine/helengine.platforms.tests/AvailablePlatformProviderResolverTests.cs
+rtk git commit -m "Add metadata-only external platform manifest validation"
 ```
 
 ### Task 2: Create `helengine.ps2` In The PS2 Repository And Publish A Metadata-Only Manifest
