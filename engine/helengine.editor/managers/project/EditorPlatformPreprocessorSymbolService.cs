@@ -54,12 +54,6 @@ namespace helengine.editor {
                 ];
             }
 
-            if (string.Equals(platformId, "psp", StringComparison.OrdinalIgnoreCase)) {
-                return [
-                    "PSP_PLATFORM"
-                ];
-            }
-
             if (string.Equals(platformId, "gamecube", StringComparison.OrdinalIgnoreCase)) {
                 return [
                     "GAMECUBE_PLATFORM"

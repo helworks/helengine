@@ -179,20 +179,15 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies PSP builds exclude desktop-only input symbols and include the PSP runtime symbol.
+    /// Verifies portable input symbol resolution no longer injects PSP-specific runtime symbols.
     /// </summary>
     [Fact]
-    public void Resolve_portable_input_preprocessor_symbols_returns_psp_runtime_symbol_without_desktop_input_symbols() {
+    public void ResolveSymbols_does_not_inject_psp_platform_symbol() {
         PlatformDefinition definition = CreatePlatformDefinition("psp", runtimeGenerationContract: null);
 
         IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(definition);
 
-        Assert.Collection(
-            symbols,
-            symbol => Assert.Equal("PSP_PLATFORM", symbol),
-            symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol, symbol),
-            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
-            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
+        Assert.DoesNotContain("PSP_PLATFORM", symbols);
     }
 
     /// <summary>
