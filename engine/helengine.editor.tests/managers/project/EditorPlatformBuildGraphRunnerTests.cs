@@ -436,6 +436,19 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the generic editor build-graph runner no longer owns a generated-core finalization pass.
+    /// </summary>
+    [Fact]
+    public void GeneratedCoreFinalizationPass_is_not_part_of_the_editor_build_graph_runner() {
+        string removedMethodName = "FinalizeGeneratedCore" + "Sources";
+        MethodInfo finalizeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+            removedMethodName,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.Null(finalizeMethod);
+    }
+
+    /// <summary>
     /// Verifies the build-graph runner branches into host-debug finalization after a successful package result.
     /// </summary>
     [Fact]
@@ -498,228 +511,6 @@ public class EditorPlatformBuildGraphRunnerTests {
         }
     }
 
-    /// <summary>
-    /// Verifies the build graph re-normalizes the final generated-core tree so feature manifests match the conversion report before native packaging.
-    /// </summary>
-    [Fact]
-    public void FinalizeGeneratedCoreSources_rewrites_feature_manifest_from_conversion_report() {
-        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(rootPath);
-
-        try {
-            EditorPlatformBuildGraphRunner runner = new(
-                rootPath,
-                "1.0.0",
-                "project",
-                "1.0.0",
-                Array.Empty<IAssetImporterRegistration>(),
-                new AvailablePlatformDescriptor(
-                    "windows",
-                    "Windows",
-                    "builder.dll",
-                    string.Empty,
-                    true,
-                    Path.Combine(rootPath, "descriptor-generated-core"),
-                    "codegen.exe"),
-                null,
-                new EditorPlatformAssetBuilderLoader(),
-                new EditorGeneratedCoreRegenerationService());
-
-            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
-            Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
-            File.WriteAllText(
-                Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json"),
-                "{\n"
-                + "  \"buildFeatures\": {\n"
-                + "    \"decisions\": [\n"
-                + "      { \"feature\": \"DebugOverlay\", \"enabled\": false, \"origin\": \"NotIncluded\" },\n"
-                + "      { \"feature\": \"Render2D\", \"enabled\": true, \"origin\": \"AutoDetected\" },\n"
-                + "      { \"feature\": \"Shaders\", \"enabled\": true, \"origin\": \"AutoDetected\" },\n"
-                + "      { \"feature\": \"Sprites\", \"enabled\": true, \"origin\": \"AutoDetected\" },\n"
-                + "      { \"feature\": \"Text2D\", \"enabled\": true, \"origin\": \"AutoDetected\" }\n"
-                + "    ]\n"
-                + "  }\n"
-                + "}\n");
-            string featureManifestPath = Path.Combine(generatedCoreRootPath, "runtime", "feature_manifest.cpp");
-            File.WriteAllText(
-                featureManifestPath,
-                "#include \"feature_manifest.hpp\"\n"
-                + "\n"
-                + "static const HEFeatureEntry kFeatureEntries[] = {\n"
-                + "    { HEFeature::DebugOverlay, false, HEFeatureDecisionOrigin::NotIncluded, \"DebugOverlay\" },\n"
-                + "    { HEFeature::Render2D, false, HEFeatureDecisionOrigin::NotIncluded, \"Render2D\" },\n"
-                + "    { HEFeature::Shaders, false, HEFeatureDecisionOrigin::NotIncluded, \"Shaders\" },\n"
-                + "    { HEFeature::Sprites, false, HEFeatureDecisionOrigin::NotIncluded, \"Sprites\" },\n"
-                + "    { HEFeature::Text2D, false, HEFeatureDecisionOrigin::NotIncluded, \"Text2D\" },\n"
-                + "};\n");
-
-            MethodInfo finalizeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
-                "FinalizeGeneratedCoreSources",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(finalizeMethod);
-            finalizeMethod.Invoke(runner, [generatedCoreRootPath]);
-
-            string rewrittenManifest = File.ReadAllText(featureManifestPath);
-            Assert.Contains("{ HEFeature::Render2D, true, HEFeatureDecisionOrigin::AutoDetected, \"Render2D\" }", rewrittenManifest);
-            Assert.Contains("{ HEFeature::Sprites, true, HEFeatureDecisionOrigin::AutoDetected, \"Sprites\" }", rewrittenManifest);
-            Assert.Contains("{ HEFeature::Text2D, true, HEFeatureDecisionOrigin::AutoDetected, \"Text2D\" }", rewrittenManifest);
-            Assert.Contains("{ HEFeature::Shaders, true, HEFeatureDecisionOrigin::AutoDetected, \"Shaders\" }", rewrittenManifest);
-        } finally {
-            if (Directory.Exists(rootPath)) {
-                Directory.Delete(rootPath, true);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Verifies the build graph finalizer promotes shader feature outputs when merged shader runtime sources exist but upstream codegen still reports shaders as not included.
-    /// </summary>
-    [Fact]
-    public void FinalizeGeneratedCoreSources_promotes_shader_feature_when_merged_shader_runtime_sources_exist() {
-        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(rootPath);
-
-        try {
-            EditorPlatformBuildGraphRunner runner = new(
-                rootPath,
-                "1.0.0",
-                "project",
-                "1.0.0",
-                Array.Empty<IAssetImporterRegistration>(),
-                new AvailablePlatformDescriptor(
-                    "windows",
-                    "Windows",
-                    "builder.dll",
-                    string.Empty,
-                    true,
-                    Path.Combine(rootPath, "descriptor-generated-core"),
-                    "codegen.exe"),
-                null,
-                new EditorPlatformAssetBuilderLoader(),
-                new EditorGeneratedCoreRegenerationService());
-
-            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
-            Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
-            File.WriteAllText(Path.Combine(generatedCoreRootPath, "ShaderRuntimeMaterial.hpp"), "// shader marker");
-            File.WriteAllText(
-                Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json"),
-                "{\n"
-                + "  \"buildFeatures\": {\n"
-                + "    \"decisions\": [\n"
-                + "      { \"feature\": \"Shaders\", \"enabled\": false, \"origin\": \"NotIncluded\" },\n"
-                + "      { \"feature\": \"Render2D\", \"enabled\": true, \"origin\": \"AutoDetected\" }\n"
-                + "    ],\n"
-                + "    \"detectedRoots\": [],\n"
-                + "    \"conflicts\": []\n"
-                + "  }\n"
-                + "}\n");
-            File.WriteAllText(
-                Path.Combine(generatedCoreRootPath, "helcpp_config.hpp"),
-                "#define HE_CPP_FEATURE_RENDER2D 1\n"
-                + "#define HE_CPP_FEATURE_SHADERS 0\n");
-            string featureManifestPath = Path.Combine(generatedCoreRootPath, "runtime", "feature_manifest.cpp");
-            File.WriteAllText(
-                featureManifestPath,
-                "#include \"feature_manifest.hpp\"\n"
-                + "\n"
-                + "static const HEFeatureEntry kFeatureEntries[] = {\n"
-                + "    { HEFeature::Shaders, false, HEFeatureDecisionOrigin::NotIncluded, \"Shaders\" },\n"
-                + "    { HEFeature::Render2D, true, HEFeatureDecisionOrigin::AutoDetected, \"Render2D\" },\n"
-                + "};\n");
-
-            MethodInfo finalizeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
-                "FinalizeGeneratedCoreSources",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(finalizeMethod);
-            finalizeMethod.Invoke(runner, [generatedCoreRootPath]);
-
-            string rewrittenReport = File.ReadAllText(Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json"));
-            string rewrittenConfig = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helcpp_config.hpp"));
-            string rewrittenManifest = File.ReadAllText(featureManifestPath);
-            Assert.Contains("\"feature\": \"Shaders\"", rewrittenReport);
-            Assert.Contains("\"enabled\": true", rewrittenReport);
-            Assert.Contains("\"rootId\": \"helengine.ShaderRuntimeMaterial\"", rewrittenReport);
-            Assert.Contains("#define HE_CPP_FEATURE_SHADERS 1", rewrittenConfig);
-            Assert.Contains("{ HEFeature::Shaders, true, HEFeatureDecisionOrigin::AutoDetected, \"Shaders\" }", rewrittenManifest);
-        } finally {
-            if (Directory.Exists(rootPath)) {
-                Directory.Delete(rootPath, true);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Verifies the build graph finalizer collapses duplicate transient scene-load-result deletes in generated scene managers before native packaging.
-    /// </summary>
-    [Fact]
-    public void FinalizeGeneratedCoreSources_collapses_duplicate_scene_manager_load_result_deletes() {
-        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(rootPath);
-
-        try {
-            EditorPlatformBuildGraphRunner runner = new(
-                rootPath,
-                "1.0.0",
-                "project",
-                "1.0.0",
-                Array.Empty<IAssetImporterRegistration>(),
-                new AvailablePlatformDescriptor(
-                    "windows",
-                    "Windows",
-                    "builder.dll",
-                    string.Empty,
-                    true,
-                    Path.Combine(rootPath, "descriptor-generated-core"),
-                    "codegen.exe"),
-                null,
-                new EditorPlatformAssetBuilderLoader(),
-                new EditorGeneratedCoreRegenerationService());
-
-            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
-            Directory.CreateDirectory(generatedCoreRootPath);
-            string sceneManagerPath = Path.Combine(generatedCoreRootPath, "SceneManager.cpp");
-            File.WriteAllText(
-                sceneManagerPath,
-                "#include \"SceneManager.hpp\"\n"
-                + "#include \"runtime/finally.hpp\"\n"
-                + "void SceneManager::LoadSceneImmediate(std::string sceneId, ::SceneLoadMode loadMode)\n"
-                + "{\n"
-                + "this->RecordTraceState(\"LoadSceneImmediateBegin\", sceneId);\n"
-                + "const std::string sceneContentPath = this->ResolveSceneContentPath(sceneId);\n"
-                + "this->SceneLoading.Invoke(this, new ::SceneLoadingEventArgs(sceneId, sceneContentPath));\n"
-                + "this->RecordTraceState(\"LoadSceneImmediateBeforeContentLoad\", sceneId);\n"
-                + "::SceneAsset *sceneAsset = this->ContentManager->Load<SceneAsset*>(sceneContentPath, RuntimeContentProcessorIds::SceneAsset);\n"
-                + "auto __releaseSceneAssetGuard = he_cpp_make_scope_exit([&]() {\n"
-                + "ReleaseTransientSceneAsset(sceneAsset);\n"
-                + "});\n"
-                + "this->RecordTraceState(\"LoadSceneImmediateBeforeSceneLoadServiceLoad\", sceneId);\n"
-                + "::RuntimeSceneLoadResult *loadResult = this->SceneLoadService->LoadTracked(sceneAsset);\n"
-                + "this->RecordTraceState(\"LoadSceneImmediateAfterSceneLoadServiceLoad\", sceneId);\n"
-                + "::LoadedSceneRecord *loadedSceneRecord = new ::LoadedSceneRecord(sceneId, sceneContentPath, loadResult->get_RootEntities(), loadResult->get_OwnedAssets());\n"
-                + "delete loadResult;\n"
-                + "delete loadResult;\n"
-                + "this->RecordTraceState(\"LoadSceneImmediateBeforeLoadedSceneRecordTrack\", sceneId);\n"
-                + "}\n");
-
-            MethodInfo finalizeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
-                "FinalizeGeneratedCoreSources",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(finalizeMethod);
-            finalizeMethod.Invoke(runner, [generatedCoreRootPath]);
-
-            string normalizedSceneManager = File.ReadAllText(sceneManagerPath);
-            Assert.Equal(1, normalizedSceneManager.Split("delete loadResult;").Length - 1);
-        } finally {
-            if (Directory.Exists(rootPath)) {
-                Directory.Delete(rootPath, true);
-            }
-        }
-    }
-
-    /// <summary>
     /// Verifies the build runner can summarize detected runtime features from the generated conversion report.
     /// </summary>
     [Fact]
