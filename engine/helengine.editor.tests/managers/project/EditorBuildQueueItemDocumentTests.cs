@@ -145,17 +145,17 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures PS2 queued builds do not include Nintendo DS companion scenes.
+        /// Ensures queued builds preserve authored scene selections exactly even when generated companion scenes exist in the project.
         /// </summary>
         [Fact]
-        public void Create_WhenPs2BuildSelectsSceneWithGeneratedCompanion_DoesNotIncludeNintendoDsCompanionScene() {
+        public void Create_preserves_selected_scene_order_without_platform_scene_expansion() {
             WriteScene("Scenes/MainMenuScene.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
             WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
-                PlatformId = "ps2",
+                PlatformId = "ds",
                 SelectedSceneIds = [
                     "MainMenuScene",
                     "cube_test"
@@ -186,28 +186,6 @@ namespace helengine.editor.tests {
             EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
             Assert.Equal(new[] { "A", "B" }, queueItem.SelectedSceneIds);
-        }
-
-        /// <summary>
-        /// Ensures Nintendo DS queued builds include generated companion scenes when the selected authored scene has one.
-        /// </summary>
-        [Fact]
-        public void Create_WhenDsBuildSelectsSceneWithGeneratedCompanion_IncludesNintendoDsCompanionScene() {
-            WriteScene("Scenes/rendering/cube_test.helen");
-            WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
-
-            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
-                PlatformId = "ds",
-                SelectedSceneIds = [
-                    "cube_test"
-                ]
-            };
-
-            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
-            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
-
-            Assert.Equal(new[] { "cube_test", "cube_test_ds" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
