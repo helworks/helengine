@@ -170,7 +170,6 @@ namespace helengine.editor {
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
             WriteRuntimeNativeManifestSources(cookedManifest, workspace.GeneratedCoreRootPath);
-            WriteRuntimeGraphicsRendererManifestSource(workspace.GeneratedCoreRootPath, selectionModel);
             FinalizeGeneratedCoreSources(workspace.GeneratedCoreRootPath);
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
 
@@ -826,16 +825,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Writes generated runtime renderer-default source into the combined generated-core tree.
-        /// </summary>
-        /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
-        /// <param name="selectionModel">Resolved builder metadata for the active platform.</param>
-        void WriteRuntimeGraphicsRendererManifestSource(string generatedCoreRootPath, EditorPlatformBuildSelectionModel selectionModel) {
-            EditorRuntimeGraphicsRendererManifestWriter writer = new();
-            writer.Write(generatedCoreRootPath, ResolveRuntimeGraphicsRendererManifest(selectionModel));
-        }
-
-        /// <summary>
         /// Executes the container-writing phase using the current storage profile.
         /// </summary>
         void RunWriteContainers(
@@ -883,25 +872,6 @@ namespace helengine.editor {
 
                 File.Copy(sourceFilePath, destinationFilePath, true);
             }
-        }
-
-        /// <summary>
-        /// Resolves the renderer-default manifest for the active platform from persisted profile settings.
-        /// </summary>
-        /// <returns>Renderer-default manifest consumed by native manifest generation.</returns>
-        /// <param name="selectionModel">Resolved builder metadata for the active platform.</param>
-        RuntimeGraphicsRendererManifest ResolveRuntimeGraphicsRendererManifest(EditorPlatformBuildSelectionModel selectionModel) {
-            if (selectionModel == null) {
-                throw new ArgumentNullException(nameof(selectionModel));
-            }
-
-            EditorGraphicsProfileSettingsDocument graphicsSettings = LoadPlatformGraphicsSettings(selectionModel);
-            return new RuntimeGraphicsRendererManifest(
-                graphicsSettings.RendererDepthPrepassMode,
-                graphicsSettings.RendererShadowQualityTier,
-                graphicsSettings.RendererHdrEnabled,
-                graphicsSettings.RendererPostProcessTier,
-                ResolvePs2DepthHandlerMode(graphicsSettings));
         }
 
         /// <summary>
@@ -961,26 +931,6 @@ namespace helengine.editor {
                     values[setting.SettingId] = setting.DefaultValue;
                 }
             }
-        }
-
-        /// <summary>
-        /// Resolves the PS2 depth-handler mode from the persisted graphics-profile options.
-        /// </summary>
-        /// <param name="graphicsSettings">Normalized graphics-profile settings.</param>
-        /// <returns>Resolved PS2 depth-handler mode.</returns>
-        static Ps2DepthHandlerMode ResolvePs2DepthHandlerMode(EditorGraphicsProfileSettingsDocument graphicsSettings) {
-            if (graphicsSettings == null) {
-                throw new ArgumentNullException(nameof(graphicsSettings));
-            }
-
-            if (graphicsSettings.SelectedOptionValues != null &&
-                graphicsSettings.SelectedOptionValues.TryGetValue("depth-handler-mode", out string selectedValue) &&
-                !string.IsNullOrWhiteSpace(selectedValue) &&
-                string.Equals(selectedValue, "software", StringComparison.OrdinalIgnoreCase)) {
-                return Ps2DepthHandlerMode.Software;
-            }
-
-            return Ps2DepthHandlerMode.Hardware;
         }
 
         /// <summary>

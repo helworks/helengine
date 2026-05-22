@@ -408,6 +408,18 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the generic editor build-graph runner no longer owns runtime graphics renderer manifest emission.
+    /// </summary>
+    [Fact]
+    public void Run_does_not_emit_runtime_graphics_renderer_manifest_source() {
+        MethodInfo writeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+            "WriteRuntimeGraphicsRendererManifestSource",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.Null(writeMethod);
+    }
+
+    /// <summary>
     /// Verifies the editor runner exposes the installed Nintendo DS repository root through the DS builder environment override.
     /// </summary>
     [Fact]
@@ -462,142 +474,6 @@ public class EditorPlatformBuildGraphRunnerTests {
 
             if (Directory.Exists(repositoryRootPath)) {
                 Directory.Delete(repositoryRootPath, true);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Verifies the build-graph runner writes renderer defaults from the persisted platform profile into generated native source.
-    /// </summary>
-    [Fact]
-    public void WriteRuntimeGraphicsRendererManifestSource_uses_platform_profile_defaults() {
-        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(rootPath);
-
-        try {
-            EditorProfileSettingsService profileSettingsService = new EditorProfileSettingsService(rootPath);
-            profileSettingsService.Save(new EditorProfileSettingsDocument {
-                Platforms = new List<EditorPlatformProfileSettingsDocument> {
-                    new EditorPlatformProfileSettingsDocument {
-                        PlatformId = "windows",
-                        Graphics = new EditorGraphicsProfileSettingsDocument {
-                            RendererDepthPrepassMode = DepthPrepassMode.Always,
-                            RendererShadowQualityTier = "ultra",
-                            RendererHdrEnabled = true,
-                            RendererPostProcessTier = PostProcessTier.High
-                        }
-                    }
-                }
-            });
-
-            EditorPlatformBuildGraphRunner runner = new(
-                rootPath,
-                "1.0.0",
-                "project",
-                "1.0.0",
-                Array.Empty<IAssetImporterRegistration>(),
-                new AvailablePlatformDescriptor(
-                    "windows",
-                    "Windows",
-                    "builder.dll",
-                    string.Empty,
-                    true,
-                    Path.Combine(rootPath, "descriptor-generated-core"),
-                    "codegen.exe"),
-                null,
-                new EditorPlatformAssetBuilderLoader(),
-                new EditorGeneratedCoreRegenerationService());
-
-            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
-            Directory.CreateDirectory(generatedCoreRootPath);
-
-            MethodInfo writeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
-                "WriteRuntimeGraphicsRendererManifestSource",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(writeMethod);
-
-            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(new FakePlatformBuilder().Definition);
-            writeMethod.Invoke(runner, [generatedCoreRootPath, selectionModel]);
-
-            string sourcePath = Path.Combine(generatedCoreRootPath, "runtime", "runtime_graphics_renderer_manifest.cpp");
-            Assert.True(File.Exists(sourcePath));
-
-            string source = File.ReadAllText(sourcePath);
-            Assert.Contains("HERuntimeDepthPrepassMode::Always", source);
-            Assert.Contains("\"ultra\"", source);
-            Assert.Contains("true", source);
-            Assert.Contains("HERuntimePostProcessTier::High", source);
-            Assert.Contains("HERuntimePs2DepthHandlerMode::Hardware", source);
-        } finally {
-            if (Directory.Exists(rootPath)) {
-                Directory.Delete(rootPath, true);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Verifies the build-graph runner forwards the PS2 depth-handler choice from the persisted graphics profile into generated native source.
-    /// </summary>
-    [Fact]
-    public void WriteRuntimeGraphicsRendererManifestSource_uses_ps2_depth_handler_mode() {
-        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(rootPath);
-
-        try {
-            EditorProfileSettingsService profileSettingsService = new EditorProfileSettingsService(rootPath);
-            profileSettingsService.Save(new EditorProfileSettingsDocument {
-                Platforms = new List<EditorPlatformProfileSettingsDocument> {
-                    new EditorPlatformProfileSettingsDocument {
-                        PlatformId = "ps2",
-                        Graphics = new EditorGraphicsProfileSettingsDocument {
-                            SelectedGraphicsProfileId = "ps2-standard-forward",
-                            SelectedOptionValues = new Dictionary<string, string> {
-                                ["depth-handler-mode"] = "software"
-                            }
-                        }
-                    }
-                }
-            });
-
-            EditorPlatformBuildGraphRunner runner = new(
-                rootPath,
-                "1.0.0",
-                "project",
-                "1.0.0",
-                Array.Empty<IAssetImporterRegistration>(),
-                new AvailablePlatformDescriptor(
-                    "ps2",
-                    "PlayStation 2",
-                    typeof(FakePs2PlatformBuilder).Assembly.Location,
-                    string.Empty,
-                    true,
-                    Path.Combine(rootPath, "descriptor-generated-core"),
-                    "codegen.exe"),
-                null,
-                new EditorPlatformAssetBuilderLoader(),
-                new EditorGeneratedCoreRegenerationService());
-
-            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
-            Directory.CreateDirectory(generatedCoreRootPath);
-
-            MethodInfo writeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
-                "WriteRuntimeGraphicsRendererManifestSource",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(writeMethod);
-
-            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(new FakePs2PlatformBuilder().Definition);
-            writeMethod.Invoke(runner, [generatedCoreRootPath, selectionModel]);
-
-            string sourcePath = Path.Combine(generatedCoreRootPath, "runtime", "runtime_graphics_renderer_manifest.cpp");
-            Assert.True(File.Exists(sourcePath));
-
-            string source = File.ReadAllText(sourcePath);
-            Assert.Contains("HERuntimePs2DepthHandlerMode::Software", source);
-        } finally {
-            if (Directory.Exists(rootPath)) {
-                Directory.Delete(rootPath, true);
             }
         }
     }
