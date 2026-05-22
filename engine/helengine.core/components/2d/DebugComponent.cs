@@ -332,6 +332,11 @@ namespace helengine {
             for (int i = ActiveComponents.Count - 1; i >= 0; i--) {
                 DebugComponent component = ActiveComponents[i];
                 if (component.Initialized && component.Parent != null && component.Parent.IsHierarchyEnabled) {
+                    if (!component.IsBaseOverlayHierarchyLive()) {
+                        component.ReleaseOverlayReferences();
+                        continue;
+                    }
+
                     component.SyncAdditionalLineRows();
                     component.ApplyFont();
                     component.ApplyRenderOrder();
@@ -764,14 +769,32 @@ namespace helengine {
                 return false;
             }
 
-            return OverlayHost != null
-                && OverlayHost.Parent == Parent
+            return IsBaseOverlayHierarchyLive()
                 && IsLiveRow(RenderFpsRowHost, OverlayHost, RenderFpsTextComponent)
                 && IsLiveRow(ResidentMemoryRowHost, OverlayHost, ResidentMemoryTextComponent)
                 && IsLiveRow(CommittedMemoryRowHost, OverlayHost, CommittedMemoryTextComponent)
                 && IsLiveRow(Drawables2DRowHost, OverlayHost, Drawables2DTextComponent)
                 && IsLiveRow(Drawables3DRowHost, OverlayHost, Drawables3DTextComponent)
                 && AreAdditionalLineRowsLive();
+        }
+
+        /// <summary>
+        /// Returns whether the fixed overlay root and built-in rows are still attached to the expected hierarchy.
+        /// </summary>
+        /// <returns>True when the base overlay rows remain live.</returns>
+        bool IsBaseOverlayHierarchyLive() {
+            if (!Initialized) {
+                return false;
+            }
+
+            return OverlayHost != null
+                && !OverlayHost.IsDisposed
+                && OverlayHost.ParentUnsafe == Parent
+                && IsLiveRow(RenderFpsRowHost, OverlayHost, RenderFpsTextComponent)
+                && IsLiveRow(ResidentMemoryRowHost, OverlayHost, ResidentMemoryTextComponent)
+                && IsLiveRow(CommittedMemoryRowHost, OverlayHost, CommittedMemoryTextComponent)
+                && IsLiveRow(Drawables2DRowHost, OverlayHost, Drawables2DTextComponent)
+                && IsLiveRow(Drawables3DRowHost, OverlayHost, Drawables3DTextComponent);
         }
 
         /// <summary>
@@ -801,9 +824,11 @@ namespace helengine {
         /// <returns>True when the row host and text component are still parented to the expected live owners.</returns>
         bool IsLiveRow(Entity rowHost, Entity overlayHost, TextComponent textComponent) {
             return rowHost != null
-                && rowHost.Parent == overlayHost
+                && !rowHost.IsDisposed
+                && rowHost.ParentUnsafe == overlayHost
                 && textComponent != null
-                && textComponent.Parent == rowHost;
+                && !textComponent.IsDisposed
+                && textComponent.ParentUnsafe == rowHost;
         }
 
     }

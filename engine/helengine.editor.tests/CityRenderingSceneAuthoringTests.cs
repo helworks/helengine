@@ -236,6 +236,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the city-owned directional-shadow camera orbit preserves the original absolute-time orbit behavior and authored yaw formula.
+        /// </summary>
+        [Fact]
+        public void ReadCityDirectionalShadowCameraOrbitComponentSource_PreservesOriginalAbsoluteTimeYawFormula() {
+            string source = ReadCitySource("rendering", "DirectionalShadowCameraOrbitComponent.cs");
+
+            Assert.Contains("Core.Instance.TotalElapsedSeconds", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("ElapsedSeconds += Core.Instance.FrameDeltaSeconds", source, StringComparison.Ordinal);
+            Assert.Contains("float4.CreateFromYawPitchRoll((float)angleRadians, LookDownPitchRadians, 0f, out orientation);", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Math.Atan2", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the city-owned directional-shadow orbit component preserves the original absolute-time orbit behavior and authored facing formula.
+        /// </summary>
+        [Fact]
+        public void ReadCityDirectionalShadowOrbitComponentSource_PreservesOriginalAbsoluteTimeYawFormula() {
+            string source = ReadCitySource("rendering", "DirectionalShadowOrbitComponent.cs");
+
+            Assert.Contains("Core.Instance.TotalElapsedSeconds", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("ElapsedSeconds += Core.Instance.FrameDeltaSeconds", source, StringComparison.Ordinal);
+            Assert.Contains("float4.CreateFromYawPitchRoll((float)-angleRadians, 0f, 0f, out orientation);", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Math.Atan2", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures the generated authoring-scene definition exposes explicit Nintendo DS companion-scene metadata.
         /// </summary>
         [Fact]

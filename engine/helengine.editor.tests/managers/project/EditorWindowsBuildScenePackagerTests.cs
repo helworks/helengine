@@ -120,7 +120,7 @@ namespace helengine.editor.tests {
                 componentRecord => string.Equals(componentRecord.ComponentTypeId, "city.menu.DemoDiscReturnToMenuComponent, gameplay", StringComparison.Ordinal));
             SceneComponentAssetRecord packagedTowerSpinRecord = Assert.Single(
                 packagedRoot.Components,
-                componentRecord => string.Equals(componentRecord.ComponentTypeId, DirectionalShadowTowerSpinComponent.SerializedComponentTypeId, StringComparison.Ordinal));
+                componentRecord => string.Equals(componentRecord.ComponentTypeId, "city.rendering.DirectionalShadowTowerSpinComponent, gameplay", StringComparison.Ordinal));
 
             using (MemoryStream payloadStream = new MemoryStream(packagedReturnToMenuRecord.Payload ?? Array.Empty<byte>(), false))
             using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
@@ -131,9 +131,8 @@ namespace helengine.editor.tests {
 
             using (MemoryStream payloadStream = new MemoryStream(packagedTowerSpinRecord.Payload ?? Array.Empty<byte>(), false))
             using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
-                Assert.Equal(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion, reader.ReadByte());
-                Assert.Equal(0.75f, reader.ReadSingle());
-                Assert.Equal(1.5f, reader.ReadSingle());
+                Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+                Assert.Equal(2, reader.ReadInt32());
             }
         }
 
@@ -1148,7 +1147,9 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                platformDefinition);
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -1366,10 +1367,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the Windows packager rewrites directional-shadow motion script components into built-in player component types.
+        /// Ensures the Windows packager preserves directional-shadow motion script components as city-owned automatic script records.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsDirectionalShadowMotionScriptComponents_RewritesThemToBuiltInPlayerTypes() {
+        public void Package_WhenSceneContainsDirectionalShadowMotionScriptComponents_PreservesCityOwnedScriptRecords() {
             string sceneId = "Scenes/ScriptComponentScene.helen";
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             TestDirectionalShadowMotionScriptComponent component = new TestDirectionalShadowMotionScriptComponent {
@@ -1409,7 +1410,7 @@ namespace helengine.editor.tests {
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
                         Components = new[] {
-                            CreateDirectionalShadowComponentRecord("gameplay.rendering.DirectionalShadowOrbitComponent, gameplay", serializedRecord)
+                            CreateDirectionalShadowComponentRecord("city.rendering.DirectionalShadowOrbitComponent, gameplay", serializedRecord)
                         },
                         Children = Array.Empty<SceneEntityAsset>()
                     },
@@ -1431,7 +1432,7 @@ namespace helengine.editor.tests {
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
                         Components = new[] {
-                            CreateDirectionalShadowComponentRecord("gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay", serializedRecord)
+                            CreateDirectionalShadowComponentRecord("city.rendering.DirectionalShadowTowerSpinComponent, gameplay", serializedRecord)
                         },
                         Children = Array.Empty<SceneEntityAsset>()
                     }
@@ -1457,10 +1458,10 @@ namespace helengine.editor.tests {
 
             Assert.Collection(
                 packagedScene.RootEntities,
-                cameraRoot => Assert.Equal(DirectionalShadowCameraOrbitComponent.SerializedComponentTypeId, Assert.Single(cameraRoot.Components).ComponentTypeId),
-                orbitRoot => Assert.Equal(DirectionalShadowOrbitComponent.SerializedComponentTypeId, Assert.Single(orbitRoot.Components).ComponentTypeId),
-                sunRoot => Assert.Equal(DirectionalShadowSunSweepComponent.SerializedComponentTypeId, Assert.Single(sunRoot.Components).ComponentTypeId),
-                towerRoot => Assert.Equal(DirectionalShadowTowerSpinComponent.SerializedComponentTypeId, Assert.Single(towerRoot.Components).ComponentTypeId));
+                cameraRoot => Assert.Equal("city.rendering.DirectionalShadowCameraOrbitComponent, gameplay", Assert.Single(cameraRoot.Components).ComponentTypeId),
+                orbitRoot => Assert.Equal("city.rendering.DirectionalShadowOrbitComponent, gameplay", Assert.Single(orbitRoot.Components).ComponentTypeId),
+                sunRoot => Assert.Equal("city.rendering.DirectionalShadowSunSweepComponent, gameplay", Assert.Single(sunRoot.Components).ComponentTypeId),
+                towerRoot => Assert.Equal("city.rendering.DirectionalShadowTowerSpinComponent, gameplay", Assert.Single(towerRoot.Components).ComponentTypeId));
 
             InitializeRuntimeCore(BuildRootPath);
             ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
@@ -1475,22 +1476,22 @@ namespace helengine.editor.tests {
             Assert.Collection(
                 loadedRoots,
                 cameraRoot => {
-                    DirectionalShadowCameraOrbitComponent loadedComponent = Assert.IsType<DirectionalShadowCameraOrbitComponent>(Assert.Single(cameraRoot.Components));
+                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(cameraRoot.Components));
                     Assert.Equal(component.OrbitCenter, loadedComponent.OrbitCenter);
                     Assert.Equal(component.LookDownPitchRadians, loadedComponent.LookDownPitchRadians);
                 },
                 orbitRoot => {
-                    DirectionalShadowOrbitComponent loadedComponent = Assert.IsType<DirectionalShadowOrbitComponent>(Assert.Single(orbitRoot.Components));
+                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(orbitRoot.Components));
                     Assert.Equal(component.OrbitRadius, loadedComponent.OrbitRadius);
                     Assert.Equal(component.AngularSpeedRadians, loadedComponent.AngularSpeedRadians);
                 },
                 sunRoot => {
-                    DirectionalShadowSunSweepComponent loadedComponent = Assert.IsType<DirectionalShadowSunSweepComponent>(Assert.Single(sunRoot.Components));
+                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(sunRoot.Components));
                     Assert.Equal(component.MinYawRadians, loadedComponent.MinYawRadians);
                     Assert.Equal(component.PitchRadians, loadedComponent.PitchRadians);
                 },
                 towerRoot => {
-                    DirectionalShadowTowerSpinComponent loadedComponent = Assert.IsType<DirectionalShadowTowerSpinComponent>(Assert.Single(towerRoot.Components));
+                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(towerRoot.Components));
                     Assert.Equal(component.BaseYawRadians, loadedComponent.BaseYawRadians);
                     Assert.Equal(component.AngularSpeedRadians, loadedComponent.AngularSpeedRadians);
                 });
@@ -1547,7 +1548,7 @@ namespace helengine.editor.tests {
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
             SceneComponentAssetRecord packagedRecord = Assert.Single(packagedRoot.Components);
             Assert.Equal("gameplay.rendering.AxisRotationComponent, gameplay", packagedRecord.ComponentTypeId);
-            Assert.DoesNotContain(packagedRoot.Components, record => string.Equals(record.ComponentTypeId, DirectionalShadowTowerSpinComponent.SerializedComponentTypeId, StringComparison.Ordinal));
+            Assert.DoesNotContain(packagedRoot.Components, record => string.Equals(record.ComponentTypeId, "helengine.DirectionalShadowTowerSpinComponent", StringComparison.Ordinal));
 
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
@@ -2004,23 +2005,19 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures runtime directional-shadow tower-spin records remain supported when a scene already contains the built-in packaged component id.
+        /// Ensures city directional-shadow tower-spin records remain automatic script records when packaged.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsRuntimeDirectionalShadowTowerSpin_PreservesSupportedRuntimeRecord() {
-            string sceneId = "Scenes/RuntimeDirectionalShadowTowerSpin.helen";
-            byte[] payload;
-            using (MemoryStream stream = new MemoryStream()) {
-                using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-                writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
-                DirectionalShadowMotionComponentScenePayloadSerializer.WriteTowerSpin(
-                    writer,
-                    new DirectionalShadowTowerSpinComponent {
-                        BaseYawRadians = 0.5f,
-                        AngularSpeedRadians = 1.25f
-                    });
-                payload = stream.ToArray();
-            }
+        public void Package_WhenSceneContainsCityDirectionalShadowTowerSpin_PreservesAutomaticScriptRecord() {
+            string sceneId = "Scenes/CityDirectionalShadowTowerSpin.helen";
+            AutomaticScriptComponentPersistenceDescriptor automaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            byte[] payload = automaticDescriptor.SerializeComponent(
+                new TestDirectionalShadowTowerSpinComponent {
+                    BaseYawRadians = 0.5f,
+                    AngularSpeedRadians = 1.25f
+                },
+                0,
+                new EntityComponentSaveState()).Payload;
 
             WriteSceneAsset(sceneId, new SceneAsset {
                 Id = sceneId,
@@ -2033,7 +2030,7 @@ namespace helengine.editor.tests {
                         LocalOrientation = float4.Identity,
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = DirectionalShadowTowerSpinComponent.SerializedComponentTypeId,
+                                ComponentTypeId = "city.rendering.DirectionalShadowTowerSpinComponent, gameplay",
                                 ComponentIndex = 0,
                                 Payload = payload
                             }
@@ -2058,8 +2055,12 @@ namespace helengine.editor.tests {
             }
 
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
-            Assert.Equal(DirectionalShadowTowerSpinComponent.SerializedComponentTypeId, packagedRecord.ComponentTypeId);
-            Assert.Equal(payload, packagedRecord.Payload);
+            Assert.Equal("city.rendering.DirectionalShadowTowerSpinComponent, gameplay", packagedRecord.ComponentTypeId);
+
+            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(2, reader.ReadInt32());
         }
 
 

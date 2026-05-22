@@ -82,7 +82,7 @@ namespace helengine.editor.tests {
             parent.AddChild(child);
             parent.Dispose();
 
-            Assert.Throws<ObjectDisposedException>(() => _ = child.Parent);
+            Assert.Throws<InvalidOperationException>(() => _ = child.Position);
         }
 
         /// <summary>

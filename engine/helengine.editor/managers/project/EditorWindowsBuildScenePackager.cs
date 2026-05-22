@@ -1006,26 +1006,6 @@ namespace helengine.editor {
                     PlatformComponentSupportKind.Transform,
                     "Spot light payloads are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
-                new PlatformComponentSupportRule(
-                    DirectionalShadowCameraOrbitComponent.SerializedComponentTypeId,
-                    PlatformComponentSupportKind.PassThrough,
-                    "Directional-shadow camera-orbit runtime components are emitted unchanged after packaging transforms produce the strict runtime payload.",
-                    string.Empty),
-                new PlatformComponentSupportRule(
-                    DirectionalShadowOrbitComponent.SerializedComponentTypeId,
-                    PlatformComponentSupportKind.PassThrough,
-                    "Directional-shadow orbit runtime components are emitted unchanged after packaging transforms produce the strict runtime payload.",
-                    string.Empty),
-                new PlatformComponentSupportRule(
-                    DirectionalShadowSunSweepComponent.SerializedComponentTypeId,
-                    PlatformComponentSupportKind.PassThrough,
-                    "Directional-shadow sun-sweep runtime components are emitted unchanged after packaging transforms produce the strict runtime payload.",
-                    string.Empty),
-                new PlatformComponentSupportRule(
-                    DirectionalShadowTowerSpinComponent.SerializedComponentTypeId,
-                    PlatformComponentSupportKind.PassThrough,
-                    "Directional-shadow tower-spin runtime components are emitted unchanged after packaging transforms produce the strict runtime payload.",
-                    string.Empty)
             ];
         }
 

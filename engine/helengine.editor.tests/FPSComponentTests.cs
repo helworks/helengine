@@ -176,7 +176,7 @@ namespace helengine.editor.tests {
         /// Ensures externally disposed overlay entities become invalid references instead of requiring a hidden cleanup sentinel.
         /// </summary>
         [Fact]
-        public void OverlayHost_WhenDisposedExternally_ThrowsObjectDisposedExceptionOnLaterAccess() {
+        public void OverlayHost_WhenDisposedExternally_ThrowsInvalidOperationExceptionOnLaterAccess() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
@@ -190,7 +190,7 @@ namespace helengine.editor.tests {
             Entity overlayHost = Assert.IsType<Entity>(GetPrivateFieldValue(fps, "OverlayHost"));
             overlayHost.Dispose();
 
-            Assert.Throws<ObjectDisposedException>(() => _ = overlayHost.Parent);
+            Assert.Throws<InvalidOperationException>(() => _ = overlayHost.Position);
         }
 
         /// <summary>

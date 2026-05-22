@@ -231,46 +231,6 @@ namespace helengine.editor {
         const string SpotLightComponentTypeId = "helengine.SpotLightComponent";
 
         /// <summary>
-        /// Authored city-script type id for directional-shadow camera orbit motion.
-        /// </summary>
-        const string CityDirectionalShadowCameraOrbitComponentTypeId = "city.rendering.DirectionalShadowCameraOrbitComponent, gameplay";
-
-        /// <summary>
-        /// Authored gameplay-script type id for directional-shadow camera orbit motion.
-        /// </summary>
-        const string GameplayDirectionalShadowCameraOrbitComponentTypeId = "gameplay.rendering.DirectionalShadowCameraOrbitComponent, gameplay";
-
-        /// <summary>
-        /// Authored city-script type id for directional-shadow orbit motion.
-        /// </summary>
-        const string CityDirectionalShadowOrbitComponentTypeId = "city.rendering.DirectionalShadowOrbitComponent, gameplay";
-
-        /// <summary>
-        /// Authored gameplay-script type id for directional-shadow orbit motion.
-        /// </summary>
-        const string GameplayDirectionalShadowOrbitComponentTypeId = "gameplay.rendering.DirectionalShadowOrbitComponent, gameplay";
-
-        /// <summary>
-        /// Authored city-script type id for directional-shadow sun sweep motion.
-        /// </summary>
-        const string CityDirectionalShadowSunSweepComponentTypeId = "city.rendering.DirectionalShadowSunSweepComponent, gameplay";
-
-        /// <summary>
-        /// Authored gameplay-script type id for directional-shadow sun sweep motion.
-        /// </summary>
-        const string GameplayDirectionalShadowSunSweepComponentTypeId = "gameplay.rendering.DirectionalShadowSunSweepComponent, gameplay";
-
-        /// <summary>
-        /// Authored city-script type id for directional-shadow tower spin motion.
-        /// </summary>
-        const string CityDirectionalShadowTowerSpinComponentTypeId = "city.rendering.DirectionalShadowTowerSpinComponent, gameplay";
-
-        /// <summary>
-        /// Authored gameplay-script type id for directional-shadow tower spin motion.
-        /// </summary>
-        const string GameplayDirectionalShadowTowerSpinComponentTypeId = "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay";
-
-        /// <summary>
         /// Generated provider id reserved for the editor's built-in font asset.
         /// </summary>
         const string EditorGeneratedProviderId = "editor";
@@ -576,15 +536,7 @@ namespace helengine.editor {
                 || string.Equals(componentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, PointLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, CityDirectionalShadowCameraOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, GameplayDirectionalShadowCameraOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, CityDirectionalShadowOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, GameplayDirectionalShadowOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, CityDirectionalShadowSunSweepComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, GameplayDirectionalShadowSunSweepComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, CityDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, GameplayDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                || string.Equals(componentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
 
@@ -666,10 +618,6 @@ namespace helengine.editor {
                 return true;
             }
 
-            if (TryRewriteDirectionalShadowMotionComponentRecord(record, out transformedRecord)) {
-                return true;
-            }
-
             if (TryRewriteAutomaticComponentRecord(record, out transformedRecord)) {
                 return true;
             }
@@ -697,45 +645,6 @@ namespace helengine.editor {
                 descriptor = null;
                 return false;
             }
-        }
-
-        /// <summary>
-        /// Rewrites one authored directional-shadow motion script component into its built-in player component counterpart when supported.
-        /// </summary>
-        /// <param name="record">Serialized component record to rewrite.</param>
-        /// <param name="transformedRecord">Rewritten component record when successful.</param>
-        /// <returns>True when the record was rewritten to a built-in player component; otherwise false.</returns>
-        bool TryRewriteDirectionalShadowMotionComponentRecord(SceneComponentAssetRecord record, out SceneComponentAssetRecord transformedRecord) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-
-            if (string.Equals(record.ComponentTypeId, CityDirectionalShadowCameraOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(record.ComponentTypeId, GameplayDirectionalShadowCameraOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteDirectionalShadowCameraOrbitComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, CityDirectionalShadowOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(record.ComponentTypeId, GameplayDirectionalShadowOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteDirectionalShadowOrbitComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, CityDirectionalShadowSunSweepComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(record.ComponentTypeId, GameplayDirectionalShadowSunSweepComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteDirectionalShadowSunSweepComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, CityDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(record.ComponentTypeId, GameplayDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteDirectionalShadowTowerSpinComponentRecord(record);
-                return true;
-            }
-
-            transformedRecord = null;
-            return false;
         }
 
         /// <summary>
@@ -802,184 +711,6 @@ namespace helengine.editor {
             }
 
             return descriptor.DeserializeComponent(record, null, null);
-        }
-
-        /// <summary>
-        /// Rewrites one authored directional-shadow camera-orbit script record into the built-in player component form.
-        /// </summary>
-        /// <param name="record">Serialized authored script record to rewrite.</param>
-        /// <returns>Rewritten player component record.</returns>
-        SceneComponentAssetRecord RewriteDirectionalShadowCameraOrbitComponentRecord(SceneComponentAssetRecord record) {
-            Component sourceComponent = DeserializeAuthoredDirectionalShadowComponent(record);
-            DirectionalShadowCameraOrbitComponent component = new DirectionalShadowCameraOrbitComponent {
-                OrbitCenter = ReadRequiredFloat3MemberValue(sourceComponent, "OrbitCenter"),
-                OrbitRadius = ReadRequiredSingleMemberValue(sourceComponent, "OrbitRadius"),
-                OrbitHeight = ReadRequiredSingleMemberValue(sourceComponent, "OrbitHeight"),
-                BaseAngleRadians = ReadRequiredSingleMemberValue(sourceComponent, "BaseAngleRadians"),
-                AngularSpeedRadians = ReadRequiredSingleMemberValue(sourceComponent, "AngularSpeedRadians"),
-                LookDownPitchRadians = ReadRequiredSingleMemberValue(sourceComponent, "LookDownPitchRadians")
-            };
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
-            DirectionalShadowMotionComponentScenePayloadSerializer.WriteCameraOrbit(writer, component);
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = DirectionalShadowCameraOrbitComponent.SerializedComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = stream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Rewrites one authored directional-shadow orbit script record into the built-in player component form.
-        /// </summary>
-        /// <param name="record">Serialized authored script record to rewrite.</param>
-        /// <returns>Rewritten player component record.</returns>
-        SceneComponentAssetRecord RewriteDirectionalShadowOrbitComponentRecord(SceneComponentAssetRecord record) {
-            Component sourceComponent = DeserializeAuthoredDirectionalShadowComponent(record);
-            DirectionalShadowOrbitComponent component = new DirectionalShadowOrbitComponent {
-                OrbitCenter = ReadRequiredFloat3MemberValue(sourceComponent, "OrbitCenter"),
-                OrbitRadius = ReadRequiredSingleMemberValue(sourceComponent, "OrbitRadius"),
-                OrbitHeight = ReadRequiredSingleMemberValue(sourceComponent, "OrbitHeight"),
-                BaseAngleRadians = ReadRequiredSingleMemberValue(sourceComponent, "BaseAngleRadians"),
-                AngularSpeedRadians = ReadRequiredSingleMemberValue(sourceComponent, "AngularSpeedRadians")
-            };
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
-            DirectionalShadowMotionComponentScenePayloadSerializer.WriteOrbit(writer, component);
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = DirectionalShadowOrbitComponent.SerializedComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = stream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Rewrites one authored directional-shadow sun-sweep script record into the built-in player component form.
-        /// </summary>
-        /// <param name="record">Serialized authored script record to rewrite.</param>
-        /// <returns>Rewritten player component record.</returns>
-        SceneComponentAssetRecord RewriteDirectionalShadowSunSweepComponentRecord(SceneComponentAssetRecord record) {
-            Component sourceComponent = DeserializeAuthoredDirectionalShadowComponent(record);
-            DirectionalShadowSunSweepComponent component = new DirectionalShadowSunSweepComponent {
-                MinYawRadians = ReadRequiredSingleMemberValue(sourceComponent, "MinYawRadians"),
-                MaxYawRadians = ReadRequiredSingleMemberValue(sourceComponent, "MaxYawRadians"),
-                PitchRadians = ReadRequiredSingleMemberValue(sourceComponent, "PitchRadians"),
-                SweepSpeedRadians = ReadRequiredSingleMemberValue(sourceComponent, "SweepSpeedRadians")
-            };
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
-            DirectionalShadowMotionComponentScenePayloadSerializer.WriteSunSweep(writer, component);
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = DirectionalShadowSunSweepComponent.SerializedComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = stream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Rewrites one authored directional-shadow tower-spin script record into the built-in player component form.
-        /// </summary>
-        /// <param name="record">Serialized authored script record to rewrite.</param>
-        /// <returns>Rewritten player component record.</returns>
-        SceneComponentAssetRecord RewriteDirectionalShadowTowerSpinComponentRecord(SceneComponentAssetRecord record) {
-            Component sourceComponent = DeserializeAuthoredDirectionalShadowComponent(record);
-            DirectionalShadowTowerSpinComponent component = new DirectionalShadowTowerSpinComponent {
-                BaseYawRadians = ReadRequiredSingleMemberValue(sourceComponent, "BaseYawRadians"),
-                AngularSpeedRadians = ReadRequiredSingleMemberValue(sourceComponent, "AngularSpeedRadians")
-            };
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
-            DirectionalShadowMotionComponentScenePayloadSerializer.WriteTowerSpin(writer, component);
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = DirectionalShadowTowerSpinComponent.SerializedComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = stream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Deserializes one authored directional-shadow script component through the shared persistence registry.
-        /// </summary>
-        /// <param name="record">Serialized authored script record to materialize.</param>
-        /// <returns>Materialized authored script component.</returns>
-        Component DeserializeAuthoredDirectionalShadowComponent(SceneComponentAssetRecord record) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-            if (!TryResolvePersistenceDescriptor(record.ComponentTypeId, out IComponentPersistenceDescriptor descriptor)) {
-                throw new InvalidOperationException($"No scene persistence descriptor is registered for '{record.ComponentTypeId}'.");
-            }
-
-            return descriptor.DeserializeComponent(record, null, null);
-        }
-
-        /// <summary>
-        /// Reads one required public float member value from the supplied component instance.
-        /// </summary>
-        /// <param name="component">Component instance that owns the member.</param>
-        /// <param name="memberName">Exact public member name to read.</param>
-        /// <returns>Decoded float member value.</returns>
-        static float ReadRequiredSingleMemberValue(Component component, string memberName) {
-            object value = ReadRequiredMemberValue(component, memberName);
-            if (value is not float floatValue) {
-                throw new InvalidOperationException($"Component member '{component.GetType().FullName}.{memberName}' must be a float.");
-            }
-
-            return floatValue;
-        }
-
-        /// <summary>
-        /// Reads one required public <see cref="float3"/> member value from the supplied component instance.
-        /// </summary>
-        /// <param name="component">Component instance that owns the member.</param>
-        /// <param name="memberName">Exact public member name to read.</param>
-        /// <returns>Decoded <see cref="float3"/> member value.</returns>
-        static float3 ReadRequiredFloat3MemberValue(Component component, string memberName) {
-            object value = ReadRequiredMemberValue(component, memberName);
-            if (value is not float3 floatValue) {
-                throw new InvalidOperationException($"Component member '{component.GetType().FullName}.{memberName}' must be a float3.");
-            }
-
-            return floatValue;
-        }
-
-        /// <summary>
-        /// Reads one required public instance member value from the supplied component.
-        /// </summary>
-        /// <param name="component">Component instance that owns the member.</param>
-        /// <param name="memberName">Exact public member name to read.</param>
-        /// <returns>Member value read from the component.</returns>
-        static object ReadRequiredMemberValue(Component component, string memberName) {
-            if (component == null) {
-                throw new ArgumentNullException(nameof(component));
-            }
-            if (string.IsNullOrWhiteSpace(memberName)) {
-                throw new ArgumentException("Member name must be provided.", nameof(memberName));
-            }
-
-            PropertyInfo propertyInfo = component.GetType().GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public);
-            if (propertyInfo != null) {
-                if (propertyInfo.GetMethod == null || !propertyInfo.GetMethod.IsPublic) {
-                    throw new InvalidOperationException($"Component member '{component.GetType().FullName}.{memberName}' must expose a public getter.");
-                }
-
-                return propertyInfo.GetValue(component);
-            }
-
-            FieldInfo fieldInfo = component.GetType().GetField(memberName, BindingFlags.Instance | BindingFlags.Public);
-            if (fieldInfo != null) {
-                return fieldInfo.GetValue(component);
-            }
-
-            throw new InvalidOperationException($"Component member '{component.GetType().FullName}.{memberName}' is required for directional-shadow packaging.");
         }
 
         /// <summary>

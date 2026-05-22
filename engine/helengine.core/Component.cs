@@ -4,11 +4,6 @@ namespace helengine {
     /// </summary>
     public class Component : IDisposable {
         /// <summary>
-        /// Stores the attached parent entity while the component is live.
-        /// </summary>
-        Entity parent;
-
-        /// <summary>
         /// Tracks whether the component has completed disposal and should reject further use.
         /// </summary>
         bool isDisposed;
@@ -16,13 +11,7 @@ namespace helengine {
         /// <summary>
         /// Gets the entity this component is attached to.
         /// </summary>
-        public Entity Parent {
-            get {
-                ThrowIfDisposed();
-                return parent;
-            }
-            private set { parent = value; }
-        }
+        public Entity Parent { get; private set; }
 
         /// <summary>
         /// Gets whether this component is the editor-owned suppression marker that disables gameplay update execution during scene authoring.
@@ -32,7 +21,7 @@ namespace helengine {
         /// <summary>
         /// Gets the raw attached parent entity for internal lifecycle flows that must complete during disposal.
         /// </summary>
-        internal Entity ParentUnsafe => parent;
+        internal Entity ParentUnsafe => Parent;
 
         /// <summary>
         /// Gets whether disposal has completed and the component should reject further use.
@@ -62,9 +51,9 @@ namespace helengine {
         /// <summary>
         /// Throws when the component was already disposed and can no longer participate in runtime ownership flows.
         /// </summary>
-        internal void ThrowIfDisposed() {
+        protected internal void ThrowIfDisposed() {
             if (isDisposed) {
-                throw new ObjectDisposedException(nameof(Component), "Disposed components cannot be used.");
+                throw new InvalidOperationException("Disposed components cannot be used.");
             }
         }
 

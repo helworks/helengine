@@ -67,6 +67,24 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures removed engine-owned directional-shadow component ids are no longer exposed through the registry.
+        /// </summary>
+        [Fact]
+        public void GetDescriptor_WhenDirectionalShadowEngineTypeIdsAreRequested_ThrowsClearError() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+
+            InvalidOperationException cameraException = Assert.Throws<InvalidOperationException>(() => registry.GetDescriptor("helengine.DirectionalShadowCameraOrbitComponent"));
+            InvalidOperationException orbitException = Assert.Throws<InvalidOperationException>(() => registry.GetDescriptor("helengine.DirectionalShadowOrbitComponent"));
+            InvalidOperationException sunSweepException = Assert.Throws<InvalidOperationException>(() => registry.GetDescriptor("helengine.DirectionalShadowSunSweepComponent"));
+            InvalidOperationException towerSpinException = Assert.Throws<InvalidOperationException>(() => registry.GetDescriptor("helengine.DirectionalShadowTowerSpinComponent"));
+
+            Assert.Contains("helengine.DirectionalShadowCameraOrbitComponent", cameraException.Message, StringComparison.Ordinal);
+            Assert.Contains("helengine.DirectionalShadowOrbitComponent", orbitException.Message, StringComparison.Ordinal);
+            Assert.Contains("helengine.DirectionalShadowSunSweepComponent", sunSweepException.Message, StringComparison.Ordinal);
+            Assert.Contains("helengine.DirectionalShadowTowerSpinComponent", towerSpinException.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures the editor session persistence-registry factory wires the script type resolver so project script components can load from scene files.
         /// </summary>
         [Fact]

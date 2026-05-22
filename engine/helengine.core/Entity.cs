@@ -11,7 +11,6 @@ namespace helengine {
         float3 position;
         float3 scale;
         float4 orientation;
-        Entity parent;
         ushort layerMask;
         List<Component> components;
         List<Entity> children;
@@ -36,9 +35,9 @@ namespace helengine {
                 ThrowIfDisposed();
                 float3 pos = position;
 
-                if (parent != null) {
-                    float3 rotatedLocal = float4.RotateVector(pos, parent.Orientation);
-                    pos = rotatedLocal + parent.Position;
+                if (Parent != null) {
+                    float3 rotatedLocal = float4.RotateVector(pos, Parent.Orientation);
+                    pos = rotatedLocal + Parent.Position;
                 }
 
                 return pos;
@@ -71,8 +70,8 @@ namespace helengine {
                 ThrowIfDisposed();
                 float3 sca = scale;
 
-                if (parent != null) {
-                    sca *= parent.Scale;
+                if (Parent != null) {
+                    sca *= Parent.Scale;
                 }
 
                 return sca;
@@ -105,8 +104,8 @@ namespace helengine {
                 ThrowIfDisposed();
                 float4 ori = orientation;
 
-                if (parent != null) {
-                    ori *= parent.Orientation;
+                if (Parent != null) {
+                    ori *= Parent.Orientation;
                 }
 
                 return ori;
@@ -134,13 +133,12 @@ namespace helengine {
         /// <summary>
         /// Gets the parent entity when part of a hierarchy.
         /// </summary>
-        public Entity Parent {
-            get {
-                ThrowIfDisposed();
-                return parent;
-            }
-            private set { parent = value; }
-        }
+        public Entity Parent { get; private set; }
+
+        /// <summary>
+        /// Gets the raw parent entity for internal lifecycle flows that must inspect ownership without triggering disposed-object guards.
+        /// </summary>
+        internal Entity ParentUnsafe => Parent;
 
         /// <summary>
         /// Gets or sets the layer mask used for filtering rendering and input.
@@ -212,11 +210,11 @@ namespace helengine {
                     return false;
                 }
 
-                if (parent == null) {
+                if (Parent == null) {
                     return true;
                 }
 
-                return parent.IsHierarchyEnabled;
+                return Parent.IsHierarchyEnabled;
             }
         }
 
@@ -229,6 +227,11 @@ namespace helengine {
                 return isInitialized;
             }
         }
+
+        /// <summary>
+        /// Gets whether disposal completed and the entity should reject further public use.
+        /// </summary>
+        internal bool IsDisposed => isDisposed;
 
         /// <summary>
         /// Gets or sets a value indicating whether the entity is static.
@@ -269,12 +272,12 @@ namespace helengine {
             if (children == null) {
                 throw new InvalidOperationException("Children collection has not been initialized.");
             }
-            if (entity.parent != null) {
+            if (entity.Parent != null) {
                 throw new Exception("Parent is not empty");
             }
 
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
-            entity.parent = this;
+            entity.Parent = this;
             children.Add(entity);
             if (isInitialized) {
                 entity.InitializeHierarchy();
@@ -298,7 +301,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(entity));
             } else if (children == null) {
                 throw new InvalidOperationException("Children collection has not been initialized.");
-            } else if (entity.parent != this) {
+            } else if (entity.Parent != this) {
                 throw new InvalidOperationException("Entity is not parented to this parent.");
             }
 
@@ -307,7 +310,7 @@ namespace helengine {
                 throw new InvalidOperationException("Entity could not be removed from the child collection.");
             }
 
-            entity.parent = null;
+            entity.Parent = null;
             if (!ShouldSuppressRegistrationRefreshForDetachment(entity) && wasHierarchyEnabled && entity.IsHierarchyEnabled) {
                 entity.RefreshRegistrationsAfterParentChange();
             }
@@ -551,9 +554,9 @@ namespace helengine {
                 NativeOwnership.Delete(disposedChildren);
             }
 
-            if (parent != null) {
+            if (Parent != null) {
                 ReportDisposalStage("BeforeParentDetach", -1);
-                parent.RemoveChild(this);
+                Parent.RemoveChild(this);
             }
 
             ReportDisposalStage("BeforeObjectManagerRemoveEntity", -1);
@@ -567,7 +570,7 @@ namespace helengine {
         /// </summary>
         void ThrowIfDisposed() {
             if (isDisposed) {
-                throw new ObjectDisposedException(nameof(Entity), "Disposed entities cannot be used.");
+                throw new InvalidOperationException("Disposed entities cannot be used.");
             }
         }
 

@@ -622,7 +622,8 @@ namespace helengine {
             }
 
             return OverlayHost != null
-                && OverlayHost.Parent == Parent
+                && !OverlayHost.IsDisposed
+                && OverlayHost.ParentUnsafe == Parent
                 && IsLiveRow(UpdateRowHost, OverlayHost, UpdateTextComponent)
                 && IsLiveRow(RenderRowHost, OverlayHost, RenderTextComponent);
         }
@@ -636,9 +637,11 @@ namespace helengine {
         /// <returns>True when the row host and text component are still parented to the expected live owners.</returns>
         bool IsLiveRow(Entity rowHost, Entity overlayHost, TextComponent textComponent) {
             return rowHost != null
-                && rowHost.Parent == overlayHost
+                && !rowHost.IsDisposed
+                && rowHost.ParentUnsafe == overlayHost
                 && textComponent != null
-                && textComponent.Parent == rowHost;
+                && !textComponent.IsDisposed
+                && textComponent.ParentUnsafe == rowHost;
         }
 
     }

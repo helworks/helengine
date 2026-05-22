@@ -38,35 +38,35 @@ namespace helengine.editor.tests {
         /// Ensures disposed entities reject later scene-graph mutation.
         /// </summary>
         [Fact]
-        public void AddChild_WhenReceiverEntityWasDisposed_ThrowsObjectDisposedException() {
+        public void AddChild_WhenReceiverEntityWasDisposed_ThrowsInvalidOperationException() {
             Entity parent = CreateInitializedEntity();
             Entity child = CreateInitializedEntity();
 
             parent.Dispose();
 
-            ObjectDisposedException exception = Assert.Throws<ObjectDisposedException>(() => parent.AddChild(child));
-            Assert.Contains(nameof(Entity), exception.ObjectName, StringComparison.Ordinal);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => parent.AddChild(child));
+            Assert.Contains("Disposed entities cannot be used.", exception.Message, StringComparison.Ordinal);
         }
 
         /// <summary>
-        /// Ensures disposed entities reject externally visible state reads.
+        /// Ensures disposed entities reject externally visible transform reads.
         /// </summary>
         [Fact]
-        public void ParentProperty_WhenEntityWasDisposed_ThrowsObjectDisposedException() {
+        public void PositionProperty_WhenEntityWasDisposed_ThrowsInvalidOperationException() {
             Entity parent = CreateInitializedEntity();
             Entity child = CreateInitializedEntity();
             parent.AddChild(child);
 
             child.Dispose();
 
-            Assert.Throws<ObjectDisposedException>(() => _ = child.Parent);
+            Assert.Throws<InvalidOperationException>(() => _ = child.Position);
         }
 
         /// <summary>
-        /// Ensures disposed components reject later parent access.
+        /// Ensures disposed components reject later public property access.
         /// </summary>
         [Fact]
-        public void ParentProperty_WhenComponentWasDisposed_ThrowsObjectDisposedException() {
+        public void IsEditorUpdateExecutionSuppressionMarker_WhenComponentWasDisposed_ThrowsInvalidOperationException() {
             Entity entity = CreateInitializedEntity();
             ProbeComponent component = new ProbeComponent();
             entity.AddComponent(component);
@@ -74,14 +74,14 @@ namespace helengine.editor.tests {
             entity.RemoveComponent(component);
             component.Dispose();
 
-            Assert.Throws<ObjectDisposedException>(() => _ = component.Parent);
+            Assert.Throws<InvalidOperationException>(() => _ = component.IsEditorUpdateExecutionSuppressionMarker);
         }
 
         /// <summary>
         /// Ensures disposed components cannot be reattached.
         /// </summary>
         [Fact]
-        public void AddComponent_WhenSuppliedComponentWasDisposed_ThrowsObjectDisposedException() {
+        public void AddComponent_WhenSuppliedComponentWasDisposed_ThrowsInvalidOperationException() {
             Entity firstEntity = CreateInitializedEntity();
             Entity secondEntity = CreateInitializedEntity();
             ProbeComponent component = new ProbeComponent();
@@ -90,7 +90,7 @@ namespace helengine.editor.tests {
             firstEntity.RemoveComponent(component);
             component.Dispose();
 
-            Assert.Throws<ObjectDisposedException>(() => secondEntity.AddComponent(component));
+            Assert.Throws<InvalidOperationException>(() => secondEntity.AddComponent(component));
         }
 
         /// <summary>
@@ -109,6 +109,15 @@ namespace helengine.editor.tests {
         /// Minimal lifecycle probe used by disposed-component tests.
         /// </summary>
         sealed class ProbeComponent : Component {
+            /// <summary>
+            /// Exposes one public property path that should reject access after disposal.
+            /// </summary>
+            public override bool IsEditorUpdateExecutionSuppressionMarker {
+                get {
+                    ThrowIfDisposed();
+                    return false;
+                }
+            }
         }
     }
 }
