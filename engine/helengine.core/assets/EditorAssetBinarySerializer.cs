@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 15;
+        public const byte CurrentVersion = 16;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -37,6 +37,11 @@ namespace helengine {
         /// First asset version that stored texture alpha precision and palette payloads.
         /// </summary>
         const byte TexturePaletteMetadataVersion = 14;
+
+        /// <summary>
+        /// Last asset version that stored a platform-specific packed-mesh byte tail on generic model assets.
+        /// </summary>
+        const byte ModelPlatformPackedMeshTailVersion = 15;
 
         /// <summary>
         /// Version marker written into scene entity payloads that include stable ids and the static flag.
@@ -111,10 +116,6 @@ namespace helengine {
                     return ReadTextAsset(reader, version);
                 case EditorAssetBinaryValueKind.MaterialAsset:
                     return ReadMaterialAsset(reader, version);
-                case EditorAssetBinaryValueKind.Ps2MaterialAsset:
-                    return ReadPs2MaterialAsset(reader, version);
-                case EditorAssetBinaryValueKind.Ps2TextureAsset:
-                    return ReadPs2TextureAsset(reader, version);
                 case EditorAssetBinaryValueKind.AnimationClipAsset:
                     return ReadAnimationClipAsset(reader, version);
                 case EditorAssetBinaryValueKind.PlatformMaterialAsset:
@@ -232,7 +233,9 @@ namespace helengine {
             asset.Indices16 = reader.ReadArray(ReadUInt16Value);
             asset.Indices32 = reader.ReadArray(ReadUInt32Value);
             asset.Submeshes = reader.ReadArray(ReadModelSubmeshAsset);
-            asset.Ps2PackedMeshBytes = reader.ReadByteArray();
+            if (version <= ModelPlatformPackedMeshTailVersion) {
+                reader.ReadByteArray();
+            }
             return asset;
         }
 
@@ -291,51 +294,6 @@ namespace helengine {
             NativeOwnership.Delete(defaultRenderState);
             materialAsset.ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>();
             return materialAsset;
-        }
-
-        /// <summary>
-        /// Reads a PS2 material asset payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <returns>Deserialized PS2 material asset.</returns>
-        static Ps2MaterialAsset ReadPs2MaterialAsset(EngineBinaryReader reader, byte version) {
-            Ps2MaterialAsset asset = new Ps2MaterialAsset();
-            ReadAssetIdentity(reader, asset, version);
-            asset.RendererFamilyId = reader.ReadString();
-            asset.LightingMode = (Ps2MaterialLightingMode)reader.ReadInt32();
-            asset.AlphaMode = (Ps2MaterialAlphaMode)reader.ReadInt32();
-            asset.RenderClass = (Ps2RenderClass)reader.ReadInt32();
-            asset.BaseColorR = reader.ReadByte();
-            asset.BaseColorG = reader.ReadByte();
-            asset.BaseColorB = reader.ReadByte();
-            asset.BaseColorA = reader.ReadByte();
-            asset.TextureRelativePath = reader.ReadString();
-            asset.DoubleSided = reader.ReadByte() != 0;
-            asset.CastShadows = reader.ReadByte() != 0;
-            asset.UseVertexColor = reader.ReadByte() != 0;
-            asset.ExpensiveModeAllowed = reader.ReadByte() != 0;
-            asset.Roughness = reader.ReadSingle();
-            asset.SpecularStrength = reader.ReadSingle();
-            asset.EmissiveStrength = reader.ReadSingle();
-            return asset;
-        }
-
-        /// <summary>
-        /// Reads a PS2-native runtime texture asset payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <param name="version">Serialized asset format version.</param>
-        /// <returns>Deserialized PS2-native runtime texture asset.</returns>
-        static Ps2TextureAsset ReadPs2TextureAsset(EngineBinaryReader reader, byte version) {
-            Ps2TextureAsset asset = new Ps2TextureAsset();
-            ReadAssetIdentity(reader, asset, version);
-            asset.Width = reader.ReadUInt16();
-            asset.Height = reader.ReadUInt16();
-            asset.Format = (Ps2TextureFormat)reader.ReadByte();
-            asset.AlphaMode = (Ps2TextureAlphaMode)reader.ReadByte();
-            asset.PaletteData = reader.ReadByteArray();
-            asset.PixelData = reader.ReadByteArray();
-            return asset;
         }
 
         /// <summary>

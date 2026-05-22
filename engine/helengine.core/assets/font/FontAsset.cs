@@ -181,6 +181,24 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Attaches one runtime atlas texture when the active platform owns an opaque cooked atlas payload that cannot be represented as a generic texture asset.
+        /// </summary>
+        /// <param name="runtimeTexture">Runtime texture rebuilt from the platform-owned cooked atlas payload.</param>
+        public void AttachCookedRuntimeTexture(RuntimeTexture runtimeTexture) {
+            if (runtimeTexture == null) {
+                throw new ArgumentNullException(nameof(runtimeTexture));
+            }
+
+            Texture = runtimeTexture;
+            if (runtimeTexture.Width > 0) {
+                AtlasWidth = runtimeTexture.Width;
+            }
+            if (runtimeTexture.Height > 0) {
+                AtlasHeight = runtimeTexture.Height;
+            }
+        }
+
+        /// <summary>
         /// Releases scene-owned references held by this font asset.
         /// </summary>
         public void Dispose() {

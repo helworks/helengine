@@ -439,27 +439,15 @@ namespace helengine.editor.tests {
         /// Ensures generated standard materials are cooked through the active material builder instead of being written as raw desktop material assets.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneReferencesGeneratedStandardMaterial_CooksPs2MaterialAsset() {
+        public void Package_WhenSceneReferencesGeneratedStandardMaterial_CooksOpaquePlatformMaterialBytes() {
             string sceneId = "Scenes/GeneratedStandardMaterialScene.helen";
             WriteSceneAsset(sceneId, CreateGeneratedStandardMaterialReference());
+            byte[] cookedBytes = [0x50, 0x53, 0x32, 0x4D, 0x41, 0x54];
 
             RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
                 CreatePs2MaterialBuilderDefinition(),
                 request => new PlatformMaterialCookResult(
-                    AssetSerializer.SerializeToBytes(new Ps2MaterialAsset {
-                        RendererFamilyId = "ps2-standard-forward",
-                        LightingMode = Ps2MaterialLightingMode.Unlit,
-                        AlphaMode = Ps2MaterialAlphaMode.Opaque,
-                        RenderClass = Ps2RenderClass.Opaque,
-                        TextureRelativePath = string.Empty,
-                        DoubleSided = false,
-                        CastShadows = false,
-                        UseVertexColor = false,
-                        ExpensiveModeAllowed = false,
-                        Roughness = 0f,
-                        SpecularStrength = 0f,
-                        EmissiveStrength = 0f
-                    }),
+                    cookedBytes,
                     Array.Empty<string>()));
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -479,13 +467,7 @@ namespace helengine.editor.tests {
             Assert.Equal("multiply", materialBuilder.LastMaterialCookRequest.FieldValues["vertex-color-mode"]);
 
             string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "engine", "materials", "standard.hasset");
-            using FileStream stream = File.OpenRead(cookedMaterialPath);
-            Ps2MaterialAsset cookedMaterial = Assert.IsType<Ps2MaterialAsset>(AssetSerializer.Deserialize(stream));
-
-            Assert.Equal("ps2-standard-forward", cookedMaterial.RendererFamilyId);
-            Assert.Equal(Ps2MaterialLightingMode.Unlit, cookedMaterial.LightingMode);
-            Assert.Equal(Ps2MaterialAlphaMode.Opaque, cookedMaterial.AlphaMode);
-            Assert.Equal(Ps2RenderClass.Opaque, cookedMaterial.RenderClass);
+            Assert.Equal(cookedBytes, File.ReadAllBytes(cookedMaterialPath));
             Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "shaders", "ForwardStandardShader.dx11.hasset")));
         }
 
@@ -505,20 +487,7 @@ namespace helengine.editor.tests {
             RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
                 CreatePs2MaterialBuilderDefinition(),
                 request => new PlatformMaterialCookResult(
-                    AssetSerializer.SerializeToBytes(new Ps2MaterialAsset {
-                        RendererFamilyId = "ps2-standard-forward",
-                        LightingMode = Ps2MaterialLightingMode.Unlit,
-                        AlphaMode = Ps2MaterialAlphaMode.Opaque,
-                        RenderClass = Ps2RenderClass.Opaque,
-                        TextureRelativePath = request.FieldValues["texture-relative-path"],
-                        DoubleSided = false,
-                        CastShadows = true,
-                        UseVertexColor = false,
-                        ExpensiveModeAllowed = false,
-                        Roughness = 0f,
-                        SpecularStrength = 0f,
-                        EmissiveStrength = 0f
-                    }),
+                    [0x50, 0x53, 0x32, 0x54, 0x45, 0x58],
                     Array.Empty<string>()));
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(

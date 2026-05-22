@@ -11,6 +11,16 @@ namespace helengine.editor {
         public const string RuntimeMaterialResolutionCookedPlatformOwnedSymbol = "HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED";
 
         /// <summary>
+        /// Preprocessor symbol used when generated runtimes resolve cooked platform-owned texture assets.
+        /// </summary>
+        public const string RuntimeTextureResolutionCookedPlatformOwnedSymbol = "HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED";
+
+        /// <summary>
+        /// Preprocessor symbol used when generated runtimes resolve cooked platform-owned model assets.
+        /// </summary>
+        public const string RuntimeModelResolutionCookedPlatformOwnedSymbol = "HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED";
+
+        /// <summary>
         /// Preprocessor symbol used when generated runtimes allow rooted packaged asset paths.
         /// </summary>
         public const string RuntimeAllowRootedPackagedPathsSymbol = "HELENGINE_RUNTIME_ALLOW_ROOTED_PACKAGED_PATHS";
@@ -74,6 +84,8 @@ namespace helengine.editor {
                 ?? throw new InvalidOperationException($"Platform '{platformDefinition.PlatformId}' must expose a runtime-generation contract.");
             if (runtimeGenerationContract.MaterialResolutionMode == RuntimeMaterialResolutionMode.CookedPlatformOwned) {
                 symbols.Add(RuntimeMaterialResolutionCookedPlatformOwnedSymbol);
+                symbols.Add(RuntimeTextureResolutionCookedPlatformOwnedSymbol);
+                symbols.Add(RuntimeModelResolutionCookedPlatformOwnedSymbol);
             }
             if (runtimeGenerationContract.PackagedPathPolicy == PackagedPathPolicy.RootedOrContentRelative) {
                 symbols.Add(RuntimeAllowRootedPackagedPathsSymbol);

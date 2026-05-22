@@ -399,11 +399,15 @@ namespace helengine.editor {
 
             try {
                 using FileStream stream = File.OpenRead(fullPath);
+                if (!UsesGenericEditorAssetSerialization(stream)) {
+                    return string.Empty;
+                }
+
                 Asset asset = AssetSerializer.Deserialize(stream);
                 if (asset is ModelAsset) {
                     return "model";
                 }
-                if (asset is MaterialAsset || asset is Ps2MaterialAsset) {
+                if (asset is MaterialAsset) {
                     return "material";
                 }
             } catch (Exception ex) {
@@ -423,11 +427,15 @@ namespace helengine.editor {
 
             try {
                 using FileStream stream = File.OpenRead(fullPath);
+                if (!UsesGenericEditorAssetSerialization(stream)) {
+                    return "asset";
+                }
+
                 Asset asset = AssetSerializer.Deserialize(stream);
                 if (asset is ModelAsset) {
                     return "model";
                 }
-                if (asset is MaterialAsset || asset is Ps2MaterialAsset) {
+                if (asset is MaterialAsset) {
                     return "material";
                 }
                 return "asset";
@@ -438,6 +446,28 @@ namespace helengine.editor {
 
         static string NormalizeRelativePath(string relativePath) {
             return relativePath.Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// Returns whether the supplied cooked asset stream uses the generic HELE editor-asset serializer owned by the main engine repository.
+        /// </summary>
+        /// <param name="stream">Readable cooked asset stream positioned at the start of the payload.</param>
+        /// <returns>True when the payload uses the generic editor-asset serializer; otherwise false.</returns>
+        static bool UsesGenericEditorAssetSerialization(Stream stream) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+            if (!stream.CanSeek) {
+                throw new InvalidOperationException("Serialized artifact classification requires a seekable stream.");
+            }
+
+            long previousPosition = stream.Position;
+            try {
+                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                return header.FormatId == helengine.files.EditorAssetBinarySerializer.FormatId;
+            } finally {
+                stream.Position = previousPosition;
+            }
         }
     }
 }

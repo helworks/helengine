@@ -1,14 +1,14 @@
 namespace helengine.editor.tests;
 
 /// <summary>
-/// Verifies the runtime content manager source keeps the cooked-platform-owned material processor registration aligned with the generic runtime material loader.
+/// Verifies the runtime content manager source keeps cooked-platform-owned runtime seams generic without registering platform-specific processors.
 /// </summary>
 public sealed class RuntimeContentManagerConfigurationSourceTests {
     /// <summary>
-    /// Ensures the runtime content manager source branches on the generic cooked-platform-owned material contract symbol.
+    /// Ensures the runtime content manager keeps the generic material processor registration even when platforms own opaque cooked payloads.
     /// </summary>
     [Fact]
-    public void RuntimeContentManagerConfiguration_source_registers_generic_material_processor_for_cooked_platform_owned_material_contract() {
+    public void RuntimeContentManagerConfiguration_source_keeps_generic_material_processor_registration() {
         string sourcePath = Path.Combine(
             ResolveRepositoryRootPath(),
             "engine",
@@ -18,8 +18,8 @@ public sealed class RuntimeContentManagerConfigurationSourceTests {
 
         string source = File.ReadAllText(sourcePath);
 
-        Assert.Contains("#if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED", source, StringComparison.Ordinal);
-        Assert.Contains("new AssetContentProcessor<PlatformMaterialAsset>()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new AssetContentProcessor<PlatformMaterialAsset>()", source, StringComparison.Ordinal);
+        Assert.Contains("new AssetContentProcessor<MaterialAsset>()", source, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -126,6 +126,12 @@ namespace helengine {
                 }
 
                 string generatedFullPath = ResolveFileBackedAssetPath(reference);
+#if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED
+                RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromCooked(generatedFullPath);
+                ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
+                TrackOwnedModel(generatedModel);
+                return generatedModel;
+#else
                 ModelAsset generatedModelAsset = AssetContentManager.Load<ModelAsset>(generatedFullPath, RuntimeContentProcessorIds.ModelAsset);
                 try {
                     RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromRaw(generatedModelAsset);
@@ -135,9 +141,15 @@ namespace helengine {
                 } finally {
                     ReleaseTransientModelAsset(generatedModelAsset);
                 }
+#endif
             }
 
             string fullPath = ResolveFileBackedAssetPath(reference);
+#if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED
+            RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromCooked(fullPath);
+            TrackOwnedModel(runtimeModel);
+            return runtimeModel;
+#else
             ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, RuntimeContentProcessorIds.ModelAsset);
             try {
                 RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
@@ -146,6 +158,7 @@ namespace helengine {
             } finally {
                 ReleaseTransientModelAsset(modelAsset);
             }
+#endif
         }
 
         /// <summary>
@@ -167,15 +180,10 @@ namespace helengine {
 
                 string generatedFullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
-                PlatformMaterialAsset generatedPlatformMaterialAsset = AssetContentManager.Load<PlatformMaterialAsset>(generatedFullPath, RuntimeContentProcessorIds.MaterialAsset);
-                try {
-                    RuntimeMaterial generatedCookedRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedPlatformMaterialAsset);
-                    ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);
-                    TrackOwnedMaterial(generatedCookedRuntimeMaterial);
-                    return generatedCookedRuntimeMaterial;
-                } finally {
-                    ReleaseTransientPlatformMaterialAsset(generatedPlatformMaterialAsset);
-                }
+                RuntimeMaterial generatedCookedRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedFullPath);
+                ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);
+                TrackOwnedMaterial(generatedCookedRuntimeMaterial);
+                return generatedCookedRuntimeMaterial;
 #else
                 MaterialAsset generatedMaterialAsset = AssetContentManager.Load<MaterialAsset>(generatedFullPath, RuntimeContentProcessorIds.MaterialAsset);
                 ShaderAsset generatedShaderAsset = AssetContentManager.Load<ShaderAsset>(
@@ -196,14 +204,9 @@ namespace helengine {
 
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
-            PlatformMaterialAsset materialAsset = AssetContentManager.Load<PlatformMaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
-            try {
-                RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(materialAsset);
-                TrackOwnedMaterial(runtimeMaterial);
-                return runtimeMaterial;
-            } finally {
-                ReleaseTransientPlatformMaterialAsset(materialAsset);
-            }
+            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(fullPath);
+            TrackOwnedMaterial(runtimeMaterial);
+            return runtimeMaterial;
 #else
             MaterialAsset materialAsset = AssetContentManager.Load<MaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
             ShaderAsset shaderAsset = AssetContentManager.Load<ShaderAsset>(
@@ -307,6 +310,11 @@ namespace helengine {
             }
 
             string fullPath = ResolveFileBackedAssetPath(reference);
+#if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(fullPath);
+            TrackOwnedTexture(runtimeTexture);
+            return runtimeTexture;
+#else
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(fullPath, RuntimeContentProcessorIds.TextureAsset);
             try {
                 RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
@@ -315,6 +323,7 @@ namespace helengine {
             } finally {
                 ReleaseTransientTextureAsset(textureAsset);
             }
+#endif
         }
 
         /// <summary>
@@ -441,18 +450,6 @@ namespace helengine {
 
             DeleteTransientArray(constantBuffers);
             NativeOwnership.Delete(renderState);
-            NativeOwnership.Delete(asset);
-        }
-
-        /// <summary>
-        /// Releases one transient platform-owned cooked material asset that exists only long enough to build a runtime material.
-        /// </summary>
-        /// <param name="asset">Transient platform-owned cooked material asset to release.</param>
-        static void ReleaseTransientPlatformMaterialAsset(PlatformMaterialAsset asset) {
-            if (asset == null) {
-                return;
-            }
-
             NativeOwnership.Delete(asset);
         }
 
@@ -608,14 +605,12 @@ namespace helengine {
             ushort[] indices16 = asset.Indices16;
             uint[] indices32 = asset.Indices32;
             ModelSubmeshAsset[] submeshes = asset.Submeshes;
-            byte[] ps2PackedMeshBytes = asset.Ps2PackedMeshBytes;
             asset.Positions = null;
             asset.Normals = null;
             asset.TexCoords = null;
             asset.Indices16 = null;
             asset.Indices32 = null;
             asset.Submeshes = null;
-            asset.Ps2PackedMeshBytes = null;
             if (submeshes != null) {
                 for (int index = 0; index < submeshes.Length; index++) {
                     NativeOwnership.Delete(submeshes[index]);
@@ -628,7 +623,6 @@ namespace helengine {
             DeleteTransientArray(indices16);
             DeleteTransientArray(indices32);
             DeleteTransientArray(submeshes);
-            DeleteTransientArray(ps2PackedMeshBytes);
             NativeOwnership.Delete(asset);
         }
 
@@ -772,9 +766,14 @@ namespace helengine {
             }
 
             string atlasFullPath = ResolvePackagedContentPath(fontAsset.CookedAtlasTextureRelativePath);
+#if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(atlasFullPath);
+            fontAsset.AttachCookedRuntimeTexture(runtimeTexture);
+#else
             TextureAsset cookedAtlasTextureAsset = AssetContentManager.Load<TextureAsset>(atlasFullPath, RuntimeContentProcessorIds.TextureAsset);
             RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(cookedAtlasTextureAsset);
             fontAsset.AttachProcessedTexture(runtimeTexture, cookedAtlasTextureAsset);
+#endif
         }
 
         /// <summary>

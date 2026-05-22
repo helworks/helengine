@@ -389,8 +389,7 @@ namespace helengine.editor {
                 }
 
                 if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
-                    if (header.ValueKind == (ushort)EditorAssetBinaryValueKind.MaterialAsset ||
-                        header.ValueKind == (ushort)EditorAssetBinaryValueKind.Ps2MaterialAsset) {
+                    if (header.ValueKind == (ushort)EditorAssetBinaryValueKind.MaterialAsset) {
                         entryKind = AssetEntryKind.Material;
                         return true;
                     }

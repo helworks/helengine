@@ -243,8 +243,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             BoundsMax = new float3(1.0f, 1.0f, 0.0f),
             Indices16 = [0, 1, 2],
             Indices32 = Array.Empty<uint>(),
-            Submeshes = Array.Empty<ModelSubmeshAsset>(),
-            Ps2PackedMeshBytes = Array.Empty<byte>()
+            Submeshes = Array.Empty<ModelSubmeshAsset>()
         });
 
         string artifactKind = InvokeResolveArtifactKind(importedModelPath, "cooked/imported/FEDCBA9876543210FEDCBA9876543210.hasset");

@@ -171,6 +171,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             symbols,
             symbol => Assert.Equal("PS2_PLATFORM", symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeMaterialResolutionCookedPlatformOwnedSymbol, symbol),
+            symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeTextureResolutionCookedPlatformOwnedSymbol, symbol),
+            symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeModelResolutionCookedPlatformOwnedSymbol, symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeAllowRootedPackagedPathsSymbol, symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
@@ -488,7 +490,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "RendererBackendCapabilityProfile.cpp"), "// keep");
-        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Ps2MaterialAsset.cpp"), "// keep");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "ExternalPlatformMaterialAsset.cpp"), "// keep");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_startup_manifest.cpp"), "// exclude");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_scene_catalog_manifest.cpp"), "// exclude");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_code_module_manifest.cpp"), "// exclude");
@@ -499,7 +501,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
         Assert.Contains("#include \"Foo.cpp\"", unitySource);
         Assert.Contains("#include \"RendererBackendCapabilityProfile.cpp\"", unitySource);
-        Assert.Contains("#include \"Ps2MaterialAsset.cpp\"", unitySource);
+        Assert.Contains("#include \"ExternalPlatformMaterialAsset.cpp\"", unitySource);
         Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_scene_catalog_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", unitySource, StringComparison.Ordinal);

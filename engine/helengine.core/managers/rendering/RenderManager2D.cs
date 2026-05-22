@@ -11,6 +11,19 @@ namespace helengine {
         public abstract RuntimeTexture BuildTextureFromRaw(TextureAsset data);
 
         /// <summary>
+        /// Builds a runtime texture from one platform-owned cooked texture payload.
+        /// </summary>
+        /// <param name="cookedAssetPath">Absolute path to the cooked texture payload.</param>
+        /// <returns>Runtime texture instance.</returns>
+        public virtual RuntimeTexture BuildTextureFromCooked(string cookedAssetPath) {
+            if (string.IsNullOrWhiteSpace(cookedAssetPath)) {
+                throw new ArgumentException("Cooked texture asset path must be provided.", nameof(cookedAssetPath));
+            }
+
+            throw new NotSupportedException("This renderer does not support platform-owned cooked texture creation.");
+        }
+
+        /// <summary>
         /// Releases one runtime texture previously created by this renderer.
         /// </summary>
         /// <param name="texture">Runtime texture that should release any renderer-owned resources.</param>

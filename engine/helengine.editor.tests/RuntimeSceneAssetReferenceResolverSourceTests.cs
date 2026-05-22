@@ -20,9 +20,28 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("#if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED", source, StringComparison.Ordinal);
-        Assert.Contains("PlatformMaterialAsset materialAsset = AssetContentManager.Load<PlatformMaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);", source, StringComparison.Ordinal);
-        Assert.Contains("BuildMaterialFromCooked(materialAsset)", source, StringComparison.Ordinal);
-        Assert.Contains("ReleaseTransientPlatformMaterialAsset(materialAsset);", source, StringComparison.Ordinal);
+        Assert.Contains("BuildMaterialFromCooked(fullPath)", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures cooked platform-owned model and texture resolution use shared runtime-generation symbols.
+    /// </summary>
+    [Fact]
+    public void RuntimeSceneAssetReferenceResolver_source_uses_generic_cooked_model_and_texture_resolution_symbols() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "scene",
+            "runtime",
+            "RuntimeSceneAssetReferenceResolver.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("#if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED", source, StringComparison.Ordinal);
+        Assert.Contains("BuildModelFromCooked(fullPath)", source, StringComparison.Ordinal);
+        Assert.Contains("#if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED", source, StringComparison.Ordinal);
+        Assert.Contains("BuildTextureFromCooked(fullPath)", source, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -109,8 +128,6 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
         Assert.Contains("TrackOwnedMaterial(generatedRawRuntimeMaterial);", source, StringComparison.Ordinal);
         Assert.Contains("TrackOwnedMaterial(runtimeMaterial);", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedMaterialsByKey.Clear();", source, StringComparison.Ordinal);
-        Assert.Contains("ReleaseTransientPlatformMaterialAsset(generatedPlatformMaterialAsset);", source, StringComparison.Ordinal);
-        Assert.Contains("ReleaseTransientPlatformMaterialAsset(materialAsset);", source, StringComparison.Ordinal);
     }
 
     /// <summary>

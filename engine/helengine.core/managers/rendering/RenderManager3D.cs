@@ -37,6 +37,19 @@ namespace helengine {
         public abstract RuntimeModel BuildModelFromRaw(ModelAsset data);
 
         /// <summary>
+        /// Builds a runtime model from one platform-owned cooked model payload.
+        /// </summary>
+        /// <param name="cookedAssetPath">Absolute path to the cooked model payload.</param>
+        /// <returns>Runtime model instance.</returns>
+        public virtual RuntimeModel BuildModelFromCooked(string cookedAssetPath) {
+            if (string.IsNullOrWhiteSpace(cookedAssetPath)) {
+                throw new ArgumentException("Cooked model asset path must be provided.", nameof(cookedAssetPath));
+            }
+
+            throw new NotSupportedException("This renderer does not support platform-owned cooked model creation.");
+        }
+
+        /// <summary>
         /// Creates a render target that can be assigned to a camera.
         /// </summary>
         /// <param name="width">Width of the render target in pixels.</param>
@@ -106,6 +119,19 @@ namespace helengine {
         /// <returns>Runtime material instance.</returns>
         public virtual RuntimeMaterial BuildMaterialFromCooked(PlatformMaterialAsset materialAsset) {
             throw new NotSupportedException("This renderer does not support platform-owned cooked material creation.");
+        }
+
+        /// <summary>
+        /// Builds a runtime material directly from one platform-owned cooked material payload path.
+        /// </summary>
+        /// <param name="cookedAssetPath">Absolute path to the cooked material payload.</param>
+        /// <returns>Runtime material instance.</returns>
+        public virtual RuntimeMaterial BuildMaterialFromCooked(string cookedAssetPath) {
+            if (string.IsNullOrWhiteSpace(cookedAssetPath)) {
+                throw new ArgumentException("Cooked material asset path must be provided.", nameof(cookedAssetPath));
+            }
+
+            throw new NotSupportedException("This renderer does not support opaque platform-owned cooked material creation.");
         }
 #endif
 
