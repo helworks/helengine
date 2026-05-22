@@ -12,9 +12,6 @@ public sealed class EditorCommandExecutionServiceTests {
     [Fact]
     public void Execute_WhenCommandExists_InvokesItsExecuteMethod() {
         TestInvokableEditorCommand.Reset();
-        EditorMenuSceneRegenerationService regenerationService = new EditorMenuSceneRegenerationService(
-            Path.GetTempPath(),
-            new ScriptTypeResolver());
         EditorCommandExecutionService service = new EditorCommandExecutionService(
             new TestCommandCatalogProvider([
                 new EditorProjectCommandDescriptor(
@@ -23,7 +20,7 @@ public sealed class EditorCommandExecutionServiceTests {
                     typeof(TestInvokableEditorCommand),
                     "menu.tools")
             ]),
-            new TestEditorCommandContext(Path.GetTempPath(), new ScriptTypeResolver(), regenerationService));
+            new TestEditorCommandContext(Path.GetTempPath(), new ScriptTypeResolver()));
 
         service.Execute("menu.invoke");
 
@@ -37,9 +34,6 @@ public sealed class EditorCommandExecutionServiceTests {
     public void Execute_WhenCommandThrows_WrapsTheFailureWithCommandId() {
         string sentinelFilePath = Path.Combine(Path.GetTempPath(), "helengine-editor-command-sentinel-" + Guid.NewGuid().ToString("N") + ".txt");
         File.WriteAllText(sentinelFilePath, "unchanged");
-        EditorMenuSceneRegenerationService regenerationService = new EditorMenuSceneRegenerationService(
-            Path.GetTempPath(),
-            new ScriptTypeResolver());
         EditorCommandExecutionService service = new EditorCommandExecutionService(
             new TestCommandCatalogProvider([
                 new EditorProjectCommandDescriptor(
@@ -48,7 +42,7 @@ public sealed class EditorCommandExecutionServiceTests {
                     typeof(ThrowingEditorCommand),
                     "menu.tools")
             ]),
-            new TestEditorCommandContext(Path.GetTempPath(), new ScriptTypeResolver(), regenerationService));
+            new TestEditorCommandContext(Path.GetTempPath(), new ScriptTypeResolver()));
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.Execute("menu.throw"));
 
@@ -92,14 +86,11 @@ public sealed class EditorCommandExecutionServiceTests {
         /// </summary>
         /// <param name="projectRootPath">Absolute project root path surfaced by the context.</param>
         /// <param name="scriptTypeResolver">Resolver surfaced by the context.</param>
-        /// <param name="menuSceneRegenerationService">Menu scene regeneration service surfaced by the context.</param>
         public TestEditorCommandContext(
             string projectRootPath,
-            IScriptTypeResolver scriptTypeResolver,
-            EditorMenuSceneRegenerationService menuSceneRegenerationService) {
+            IScriptTypeResolver scriptTypeResolver) {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             ScriptTypeResolver = scriptTypeResolver ?? throw new ArgumentNullException(nameof(scriptTypeResolver));
-            MenuSceneRegenerationService = menuSceneRegenerationService ?? throw new ArgumentNullException(nameof(menuSceneRegenerationService));
         }
 
         /// <summary>
@@ -111,11 +102,6 @@ public sealed class EditorCommandExecutionServiceTests {
         /// Gets the resolver surfaced by the context.
         /// </summary>
         public IScriptTypeResolver ScriptTypeResolver { get; }
-
-        /// <summary>
-        /// Gets the menu scene regeneration service surfaced by the context.
-        /// </summary>
-        public EditorMenuSceneRegenerationService MenuSceneRegenerationService { get; }
     }
 
     /// <summary>

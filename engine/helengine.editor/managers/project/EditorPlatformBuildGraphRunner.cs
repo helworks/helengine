@@ -487,8 +487,7 @@ namespace helengine.editor {
                     throw new DirectoryNotFoundException($"Compiled runtime code module root '{generatedModuleRootPath}' was not found.");
                 }
 
-                CopyGeneratedModuleSourceIfPresent(generatedModuleRootPath, generatedCoreRootPath, componentType.Name + ".hpp");
-                CopyGeneratedModuleSourceIfPresent(generatedModuleRootPath, generatedCoreRootPath, componentType.Name + ".cpp");
+                CopyGeneratedModuleDependencySourcesIntoGeneratedCore(generatedModuleRootPath, generatedCoreRootPath, componentType.Name);
             }
         }
 
@@ -529,39 +528,205 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Copies one generated module source file into the shared generated-core root when the file exists and does not conflict with an existing core file.
+        /// Copies the authored native support files referenced by one generated gameplay component into the shared generated-core root without overwriting generated-core-owned component sources.
         /// </summary>
         /// <param name="generatedModuleRootPath">Generated runtime module output root produced by the authored-code phase.</param>
         /// <param name="generatedCoreRootPath">Shared generated-core root consumed by the native player build.</param>
-        /// <param name="fileName">Generated source file name to mirror.</param>
-        void CopyGeneratedModuleSourceIfPresent(string generatedModuleRootPath, string generatedCoreRootPath, string fileName) {
+        /// <param name="componentTypeName">Generated gameplay component type name whose authored same-module dependencies should be staged.</param>
+        void CopyGeneratedModuleDependencySourcesIntoGeneratedCore(string generatedModuleRootPath, string generatedCoreRootPath, string componentTypeName) {
             if (string.IsNullOrWhiteSpace(generatedModuleRootPath)) {
                 throw new ArgumentException("Generated module root path must be provided.", nameof(generatedModuleRootPath));
             }
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
-            if (string.IsNullOrWhiteSpace(fileName)) {
-                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            if (string.IsNullOrWhiteSpace(componentTypeName)) {
+                throw new ArgumentException("Component type name must be provided.", nameof(componentTypeName));
             }
 
-            string sourcePath = Path.Combine(generatedModuleRootPath, fileName);
-            if (!File.Exists(sourcePath)) {
-                return;
+            Queue<string> pendingRelativePaths = new Queue<string>();
+            HashSet<string> visitedRelativePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            pendingRelativePaths.Enqueue(componentTypeName + ".hpp");
+            pendingRelativePaths.Enqueue(componentTypeName + ".cpp");
+            while (pendingRelativePaths.Count > 0) {
+                string relativePath = pendingRelativePaths.Dequeue();
+                if (!visitedRelativePaths.Add(relativePath)) {
+                    continue;
+                }
+
+                string sourcePath = Path.Combine(generatedModuleRootPath, relativePath);
+                if (!File.Exists(sourcePath)) {
+                    continue;
+                }
+
+                CopyGeneratedDependencySourceIfNeeded(generatedCoreRootPath, componentTypeName, relativePath, sourcePath);
+                EnqueueLocalGeneratedModuleIncludes(generatedModuleRootPath, relativePath, sourcePath, pendingRelativePaths, visitedRelativePaths);
+            }
+        }
+
+        /// <summary>
+        /// Copies one authored generated native dependency source file into the shared generated-core root when it is not already supplied by generated-core ownership.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Shared generated-core root consumed by the native player build.</param>
+        /// <param name="componentTypeName">Gameplay component type name whose authored support files are being staged.</param>
+        /// <param name="relativePath">Module-relative native source path being staged.</param>
+        /// <param name="sourcePath">Absolute authored generated source path.</param>
+        void CopyGeneratedDependencySourceIfNeeded(string generatedCoreRootPath, string componentTypeName, string relativePath, string sourcePath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(componentTypeName)) {
+                throw new ArgumentException("Component type name must be provided.", nameof(componentTypeName));
+            }
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             }
 
-            string destinationPath = Path.Combine(generatedCoreRootPath, fileName);
+            string destinationPath = Path.Combine(generatedCoreRootPath, relativePath);
+            string destinationDirectoryPath = Path.GetDirectoryName(destinationPath)
+                ?? throw new InvalidOperationException($"Generated-core destination directory could not be resolved for '{relativePath}'.");
+            Directory.CreateDirectory(destinationDirectoryPath);
+            bool isComponentRootSource = string.Equals(relativePath, componentTypeName + ".hpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(relativePath, componentTypeName + ".cpp", StringComparison.OrdinalIgnoreCase);
             if (File.Exists(destinationPath)) {
                 string existingContents = File.ReadAllText(destinationPath);
                 string newContents = File.ReadAllText(sourcePath);
-                if (!string.Equals(existingContents, newContents, StringComparison.Ordinal)) {
-                    throw new InvalidOperationException($"Generated runtime module source '{fileName}' conflicts with an existing generated-core source file.");
+                if (string.Equals(existingContents, newContents, StringComparison.Ordinal)) {
+                    return;
+                }
+                if (isComponentRootSource) {
+                    return;
                 }
 
-                return;
+                throw new InvalidOperationException($"Generated runtime module source '{relativePath}' conflicts with an existing generated-core source file.");
             }
 
             File.Copy(sourcePath, destinationPath, true);
+        }
+
+        /// <summary>
+        /// Enqueues local authored generated native includes referenced by one module source file so same-module support types become available to generated-core compilation.
+        /// </summary>
+        /// <param name="generatedModuleRootPath">Generated runtime module output root produced by the authored-code phase.</param>
+        /// <param name="relativePath">Module-relative path of the source file whose includes should be scanned.</param>
+        /// <param name="sourcePath">Absolute authored generated source path.</param>
+        /// <param name="pendingRelativePaths">Pending module-relative paths that still need to be processed.</param>
+        /// <param name="visitedRelativePaths">Already processed module-relative paths used to avoid cycles.</param>
+        void EnqueueLocalGeneratedModuleIncludes(
+            string generatedModuleRootPath,
+            string relativePath,
+            string sourcePath,
+            Queue<string> pendingRelativePaths,
+            ISet<string> visitedRelativePaths) {
+            if (string.IsNullOrWhiteSpace(generatedModuleRootPath)) {
+                throw new ArgumentException("Generated module root path must be provided.", nameof(generatedModuleRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+            if (pendingRelativePaths == null) {
+                throw new ArgumentNullException(nameof(pendingRelativePaths));
+            }
+            if (visitedRelativePaths == null) {
+                throw new ArgumentNullException(nameof(visitedRelativePaths));
+            }
+
+            string sourceText = File.ReadAllText(sourcePath);
+            System.Text.RegularExpressions.MatchCollection includeMatches = System.Text.RegularExpressions.Regex.Matches(
+                sourceText,
+                "#include\\s+\"([^\"]+)\"",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+            for (int index = 0; index < includeMatches.Count; index++) {
+                string includeRelativePath = ResolveLocalGeneratedModuleIncludeRelativePath(generatedModuleRootPath, relativePath, includeMatches[index].Groups[1].Value);
+                if (string.IsNullOrWhiteSpace(includeRelativePath)) {
+                    continue;
+                }
+                if (!visitedRelativePaths.Contains(includeRelativePath)) {
+                    pendingRelativePaths.Enqueue(includeRelativePath);
+                }
+
+                EnqueueGeneratedModuleCompanionSourceIfPresent(generatedModuleRootPath, includeRelativePath, pendingRelativePaths, visitedRelativePaths);
+            }
+        }
+
+        /// <summary>
+        /// Resolves one local generated-module include path to a normalized module-relative path when the include targets a same-module source file.
+        /// </summary>
+        /// <param name="generatedModuleRootPath">Generated runtime module output root produced by the authored-code phase.</param>
+        /// <param name="sourceRelativePath">Module-relative source file path that declared the include.</param>
+        /// <param name="includePath">Raw include path declared in the source file.</param>
+        /// <returns>Normalized module-relative include path, or an empty string when the include does not target a same-module file.</returns>
+        string ResolveLocalGeneratedModuleIncludeRelativePath(string generatedModuleRootPath, string sourceRelativePath, string includePath) {
+            if (string.IsNullOrWhiteSpace(generatedModuleRootPath)) {
+                throw new ArgumentException("Generated module root path must be provided.", nameof(generatedModuleRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(sourceRelativePath)) {
+                throw new ArgumentException("Source relative path must be provided.", nameof(sourceRelativePath));
+            }
+            if (string.IsNullOrWhiteSpace(includePath)) {
+                return string.Empty;
+            }
+
+            string sourceDirectoryPath = Path.GetDirectoryName(sourceRelativePath) ?? string.Empty;
+            string candidateRelativePath = string.IsNullOrWhiteSpace(sourceDirectoryPath)
+                ? includePath
+                : Path.Combine(sourceDirectoryPath, includePath);
+            string candidateFullPath = Path.GetFullPath(Path.Combine(generatedModuleRootPath, candidateRelativePath));
+            string normalizedRootPath = Path.GetFullPath(generatedModuleRootPath);
+            if (!candidateFullPath.StartsWith(normalizedRootPath, StringComparison.OrdinalIgnoreCase)) {
+                return string.Empty;
+            }
+            if (!File.Exists(candidateFullPath)) {
+                return string.Empty;
+            }
+
+            return Path.GetRelativePath(generatedModuleRootPath, candidateFullPath);
+        }
+
+        /// <summary>
+        /// Enqueues the companion implementation file for one local generated-module header when that implementation exists beside the include target.
+        /// </summary>
+        /// <param name="generatedModuleRootPath">Generated runtime module output root produced by the authored-code phase.</param>
+        /// <param name="includeRelativePath">Module-relative local include path that was already resolved.</param>
+        /// <param name="pendingRelativePaths">Pending module-relative paths that still need to be processed.</param>
+        /// <param name="visitedRelativePaths">Already processed module-relative paths used to avoid cycles.</param>
+        void EnqueueGeneratedModuleCompanionSourceIfPresent(
+            string generatedModuleRootPath,
+            string includeRelativePath,
+            Queue<string> pendingRelativePaths,
+            ISet<string> visitedRelativePaths) {
+            if (string.IsNullOrWhiteSpace(generatedModuleRootPath)) {
+                throw new ArgumentException("Generated module root path must be provided.", nameof(generatedModuleRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(includeRelativePath)) {
+                return;
+            }
+            if (pendingRelativePaths == null) {
+                throw new ArgumentNullException(nameof(pendingRelativePaths));
+            }
+            if (visitedRelativePaths == null) {
+                throw new ArgumentNullException(nameof(visitedRelativePaths));
+            }
+            if (!string.Equals(Path.GetExtension(includeRelativePath), ".hpp", StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            string companionRelativePath = Path.ChangeExtension(includeRelativePath, ".cpp");
+            string companionSourcePath = Path.Combine(generatedModuleRootPath, companionRelativePath);
+            if (!File.Exists(companionSourcePath)) {
+                return;
+            }
+            if (visitedRelativePaths.Contains(companionRelativePath)) {
+                return;
+            }
+
+            pendingRelativePaths.Enqueue(companionRelativePath);
         }
 
         /// <summary>

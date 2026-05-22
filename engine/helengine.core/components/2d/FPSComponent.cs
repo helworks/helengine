@@ -514,101 +514,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Formats the second overlay line, appending DS menu diagnostics when the active runtime is a Nintendo DS menu scene.
+        /// Formats the second overlay line for the current runtime.
         /// </summary>
         /// <param name="baseRenderText">Base render-FPS text.</param>
         /// <returns>Overlay secondary-line text for the current runtime.</returns>
         string FormatOverlaySecondaryLine(string baseRenderText) {
-            Core core = Core.Instance;
-            if (core == null || core.PlatformInfo == null) {
-                return baseRenderText;
-            }
-
-            if (!string.Equals(core.PlatformInfo.Name, "nintendo-ds", StringComparison.Ordinal)) {
-                return baseRenderText;
-            }
-
-            MenuComponent menuComponent = FindFirstMenuComponent();
-            if (menuComponent == null) {
-                return baseRenderText;
-            }
-
-            InputSystem inputSystem = core.Input;
-            InputGamepadState currentGamepadState = inputSystem.GetGamepadState(0);
-            InputGamepadState previousGamepadState = inputSystem.GetPreviousGamepadState(0);
-            return "D"
-                + FormatButtonDiagnostic(currentGamepadState, previousGamepadState, InputGamepadButton.DPadDown)
-                + " A"
-                + FormatButtonDiagnostic(currentGamepadState, previousGamepadState, InputGamepadButton.South)
-                + " "
-                + menuComponent.ActivePanelId
-                + "/"
-                + menuComponent.SelectedItemId;
-        }
-
-        /// <summary>
-        /// Formats one compact current-and-pressed button diagnostic for the overlay.
-        /// </summary>
-        /// <param name="currentGamepadState">Current primary gamepad state.</param>
-        /// <param name="previousGamepadState">Previous primary gamepad state.</param>
-        /// <param name="button">Button to format.</param>
-        /// <returns>Compact button diagnostic such as <c>10</c> for held-only or <c>11</c> for newly pressed.</returns>
-        string FormatButtonDiagnostic(InputGamepadState currentGamepadState, InputGamepadState previousGamepadState, InputGamepadButton button) {
-            bool isDown = currentGamepadState.IsButtonDown(button);
-            bool wasPressed = currentGamepadState.IsButtonDown(button) && !previousGamepadState.IsButtonDown(button);
-            return (isDown ? "1" : "0") + (wasPressed ? "1" : "0");
-        }
-
-        /// <summary>
-        /// Finds the first active runtime menu component so DS overlay diagnostics can report the current selection state.
-        /// </summary>
-        /// <returns>First active runtime menu component, or null when no menu is currently loaded.</returns>
-        MenuComponent FindFirstMenuComponent() {
-            Core core = Core.Instance;
-            if (core == null || core.ObjectManager == null || core.ObjectManager.Entities == null) {
-                return null;
-            }
-
-            for (int entityIndex = 0; entityIndex < core.ObjectManager.Entities.Count; entityIndex++) {
-                MenuComponent menuComponent = FindFirstMenuComponent(core.ObjectManager.Entities[entityIndex]);
-                if (menuComponent != null) {
-                    return menuComponent;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Searches one entity subtree for the first runtime menu component.
-        /// </summary>
-        /// <param name="entity">Entity subtree to search.</param>
-        /// <returns>First runtime menu component in the subtree, or null when none exists.</returns>
-        MenuComponent FindFirstMenuComponent(Entity entity) {
-            if (entity == null) {
-                return null;
-            }
-
-            if (entity.Components != null) {
-                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
-                    if (entity.Components[componentIndex] is MenuComponent menuComponent) {
-                        return menuComponent;
-                    }
-                }
-            }
-
-            if (entity.Children == null) {
-                return null;
-            }
-
-            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                MenuComponent menuComponent = FindFirstMenuComponent(entity.Children[childIndex]);
-                if (menuComponent != null) {
-                    return menuComponent;
-                }
-            }
-
-            return null;
+            return baseRenderText;
         }
 
         /// <summary>

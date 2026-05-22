@@ -1025,26 +1025,6 @@ namespace helengine.editor {
                     DirectionalShadowTowerSpinComponent.SerializedComponentTypeId,
                     PlatformComponentSupportKind.PassThrough,
                     "Directional-shadow tower-spin runtime components are emitted unchanged after packaging transforms produce the strict runtime payload.",
-                    string.Empty),
-                new PlatformComponentSupportRule(
-                    MenuComponent.SerializedComponentTypeId,
-                    PlatformComponentSupportKind.Transform,
-                    "Baked demo menu root components are rewritten into strict runtime payloads during packaging.",
-                    string.Empty),
-                new PlatformComponentSupportRule(
-                    MenuPanelComponent.SerializedComponentTypeId,
-                    PlatformComponentSupportKind.Transform,
-                    "Baked demo menu panel metadata is rewritten into strict runtime payloads during packaging.",
-                    string.Empty),
-                new PlatformComponentSupportRule(
-                    MenuItemComponent.SerializedComponentTypeId,
-                    PlatformComponentSupportKind.Transform,
-                    "Baked demo menu item metadata is rewritten into strict runtime payloads during packaging.",
-                    string.Empty),
-                new PlatformComponentSupportRule(
-                    MenuSelectedDescriptionComponent.SerializedComponentTypeId,
-                    PlatformComponentSupportKind.Transform,
-                    "Baked demo menu selected-description markers are rewritten into strict runtime payloads during packaging.",
                     string.Empty)
             ];
         }

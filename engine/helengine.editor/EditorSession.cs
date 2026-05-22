@@ -2877,8 +2877,7 @@ namespace helengine.editor {
                     scriptHotReloadService,
                     new EditorCommandContext(
                         projectPath,
-                        scriptHotReloadService.ScriptTypeResolver,
-                        new EditorMenuSceneRegenerationService(projectPath, scriptHotReloadService.ScriptTypeResolver)));
+                        scriptHotReloadService.ScriptTypeResolver));
                 commandExecutionService.Execute(menuItem.CommandId);
                 Logger.WriteLine($"Executed project menu item '{menuItemId}'.");
             } catch (Exception ex) {
@@ -4280,10 +4279,6 @@ namespace helengine.editor {
             persistenceRegistry.Register(new AmbientLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuPanelComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuItemComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
             persistenceRegistry.Register(new SceneMapComponentPersistenceDescriptor());
             return persistenceRegistry;
         }

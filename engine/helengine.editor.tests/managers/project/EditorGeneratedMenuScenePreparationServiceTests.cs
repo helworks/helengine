@@ -3,7 +3,7 @@ using helengine.editor.tests.testing;
 namespace helengine.editor.tests.managers.project;
 
 /// <summary>
-/// Verifies build-time preparation regenerates missing platform-owned menu scene assets before selected-scene resolution begins.
+/// Verifies build-time preparation now requires project-owned menu scene assets to exist before selected-scene resolution begins.
 /// </summary>
 public sealed class EditorGeneratedMenuScenePreparationServiceTests : IDisposable {
     /// <summary>
@@ -29,64 +29,21 @@ public sealed class EditorGeneratedMenuScenePreparationServiceTests : IDisposabl
     }
 
     /// <summary>
-    /// Ensures Nintendo DS build preparation regenerates the missing DS menu scene from the desktop menu provider contract.
+    /// Ensures Nintendo DS build preparation succeeds when the project already contains the generated DS menu scene.
     /// </summary>
     [Fact]
-    public void EnsurePrepared_WhenNintendoDsMenuSceneIsMissing_RegeneratesItFromDesktopMenuProvider() {
-        ScriptTypeResolver resolver = new ScriptTypeResolver();
-        resolver.Register("gameplay", typeof(TestMenuDefinitionProvider).Assembly);
-        EditorMenuSceneRegenerationService regenerationService = new EditorMenuSceneRegenerationService(ProjectRootPath, resolver);
-        regenerationService.Regenerate("Scenes/DemoDiscMainMenu.helen", typeof(TestMenuDefinitionProvider).FullName + ", gameplay");
-
-        EditorGeneratedMenuScenePreparationService service = new EditorGeneratedMenuScenePreparationService(ProjectRootPath, resolver);
+    public void EnsurePrepared_WhenNintendoDsMenuSceneExists_DoesNotThrow() {
+        WriteNintendoDsMenuScene("ExistingNintendoDsMenuRoot");
+        EditorGeneratedMenuScenePreparationService service = new EditorGeneratedMenuScenePreparationService(ProjectRootPath, new ScriptTypeResolver());
 
         service.EnsurePrepared([PlatformMenuSceneResolver.NintendoDsMainMenuSceneId]);
-
-        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenuDs.helen");
-        Assert.True(File.Exists(scenePath));
-        using FileStream stream = File.OpenRead(scenePath);
-        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-        Assert.Collection(
-            sceneAsset.RootEntities,
-            entity => Assert.Equal("DemoDiscTopScreenCamera", entity.Name),
-            entity => Assert.Equal("DemoDiscBottomScreenCamera", entity.Name));
     }
 
     /// <summary>
-    /// Ensures Nintendo DS build preparation refreshes an existing generated DS menu scene so generator changes are picked up by later builds.
+    /// Ensures Nintendo DS build preparation fails clearly when the generated DS menu scene is missing.
     /// </summary>
     [Fact]
-    public void EnsurePrepared_WhenNintendoDsMenuSceneAlreadyExists_RegeneratesItFromDesktopMenuProvider() {
-        ScriptTypeResolver resolver = new ScriptTypeResolver();
-        resolver.Register("gameplay", typeof(TestMenuDefinitionProvider).Assembly);
-        EditorMenuSceneRegenerationService regenerationService = new EditorMenuSceneRegenerationService(ProjectRootPath, resolver);
-        regenerationService.Regenerate("Scenes/DemoDiscMainMenu.helen", typeof(TestMenuDefinitionProvider).FullName + ", gameplay");
-        WriteStaleNintendoDsMenuScene();
-
-        EditorGeneratedMenuScenePreparationService service = new EditorGeneratedMenuScenePreparationService(ProjectRootPath, resolver);
-
-        service.EnsurePrepared([PlatformMenuSceneResolver.NintendoDsMainMenuSceneId]);
-
-        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenuDs.helen");
-        using FileStream stream = File.OpenRead(scenePath);
-        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-
-        Assert.Collection(
-            sceneAsset.RootEntities,
-            entity => Assert.Equal("DemoDiscTopScreenCamera", entity.Name),
-            entity => Assert.Equal("DemoDiscBottomScreenCamera", entity.Name));
-    }
-
-    /// <summary>
-    /// Ensures Nintendo DS build preparation fails clearly when the generated DS menu scene is missing and no script resolver is available.
-    /// </summary>
-    [Fact]
-    public void EnsurePrepared_WhenNintendoDsMenuSceneIsMissingAndNoScriptResolverExists_ThrowsClearError() {
-        ScriptTypeResolver resolver = new ScriptTypeResolver();
-        resolver.Register("gameplay", typeof(TestMenuDefinitionProvider).Assembly);
-        EditorMenuSceneRegenerationService regenerationService = new EditorMenuSceneRegenerationService(ProjectRootPath, resolver);
-        regenerationService.Regenerate("Scenes/DemoDiscMainMenu.helen", typeof(TestMenuDefinitionProvider).FullName + ", gameplay");
-
+    public void EnsurePrepared_WhenNintendoDsMenuSceneIsMissing_ThrowsClearError() {
         EditorGeneratedMenuScenePreparationService service = new EditorGeneratedMenuScenePreparationService(ProjectRootPath, null);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
@@ -96,16 +53,17 @@ public sealed class EditorGeneratedMenuScenePreparationServiceTests : IDisposabl
     }
 
     /// <summary>
-    /// Writes one stale placeholder Nintendo DS menu scene so regeneration behavior can be verified against an existing file.
+    /// Writes one placeholder Nintendo DS menu scene so existence-only preparation behavior can be verified.
     /// </summary>
-    void WriteStaleNintendoDsMenuScene() {
+    /// <param name="rootEntityName">Root entity name written into the placeholder scene.</param>
+    void WriteNintendoDsMenuScene(string rootEntityName) {
         string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenuDs.helen");
         SceneAsset staleSceneAsset = new SceneAsset {
             Id = "scenes/DemoDiscMainMenuDs.helen",
             RootEntities = [
                 new SceneEntityAsset {
                     Id = 1,
-                    Name = "StaleNintendoDsMenuRoot",
+                    Name = rootEntityName,
                     LocalPosition = float3.Zero,
                     LocalScale = float3.One,
                     LocalOrientation = float4.Identity,

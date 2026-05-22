@@ -548,10 +548,6 @@ namespace helengine.editor {
             persistenceRegistry.Register(new AmbientLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuPanelComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuItemComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
             return persistenceRegistry;
         }
 

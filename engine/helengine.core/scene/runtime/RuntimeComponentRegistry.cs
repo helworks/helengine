@@ -36,10 +36,6 @@ namespace helengine {
             registry.Register(new RuntimeDirectionalShadowOrbitComponentDeserializer());
             registry.Register(new RuntimeDirectionalShadowSunSweepComponentDeserializer());
             registry.Register(new RuntimeDirectionalShadowTowerSpinComponentDeserializer());
-            registry.Register(new RuntimeMenuComponentDeserializer());
-            registry.Register(new RuntimeMenuPanelComponentDeserializer());
-            registry.Register(new RuntimeMenuItemComponentDeserializer());
-            registry.Register(new RuntimeMenuSelectedDescriptionComponentDeserializer());
             registry.Register(new RuntimeSceneMapComponentDeserializer());
             RegisterGeneratedRuntimeComponentDeserializers(registry);
             return registry;

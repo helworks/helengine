@@ -12,10 +12,5 @@ namespace helengine.editor {
         /// Gets the shared script type resolver backed by the currently loaded project assemblies.
         /// </summary>
         IScriptTypeResolver ScriptTypeResolver { get; }
-
-        /// <summary>
-        /// Gets the menu scene regeneration service available to project-authored editor commands.
-        /// </summary>
-        EditorMenuSceneRegenerationService MenuSceneRegenerationService { get; }
     }
 }

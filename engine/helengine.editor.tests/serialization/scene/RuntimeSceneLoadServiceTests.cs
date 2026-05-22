@@ -101,6 +101,41 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the packaged city demo-disc menu scene has migrated to city-owned menu component identities and still loads.
+        /// </summary>
+        [Fact]
+        public void Load_WhenLoadingPackagedCityDemoDiscMainMenu_UsesCityMenuComponentTypeIdsAndDoesNotThrow() {
+            string scenePath = Path.Combine(CityWindowsOutputRootPath, "cooked", "scenes", "DemoDiscMainMenu.hasset");
+            Assert.True(File.Exists(scenePath), $"Expected packaged city startup scene at '{scenePath}'.");
+
+            SceneAsset sceneAsset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Contains(
+                FlattenComponents(sceneAsset.RootEntities),
+                component => string.Equals(component.ComponentTypeId, "city.menu.MenuComponent, gameplay", StringComparison.Ordinal));
+
+            EditorCore runtimeCore = new EditorCore(new Project {
+                Name = "City Runtime Scene Load",
+                Path = CityWindowsOutputRootPath
+            });
+            runtimeCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("windows", "1.0.0"), new CoreInitializationOptions {
+                ContentRootPath = CityWindowsOutputRootPath
+            });
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                CityWindowsOutputRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            Exception thrownException = Record.Exception(() => loadService.Load(sceneAsset));
+            Assert.Null(thrownException);
+        }
+
+        /// <summary>
         /// Ensures runtime scene loading restores the serialized static flag onto live entities.
         /// </summary>
         [Fact]
@@ -1654,6 +1689,50 @@ namespace helengine.editor.tests.serialization.scene {
             writer.WriteInt2(new int2(8, 6));
             writer.WriteByte(250);
             return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Flattens the serialized component hierarchy for one scene entity array.
+        /// </summary>
+        /// <param name="entities">Serialized scene entities whose components should be enumerated.</param>
+        /// <returns>Flattened component records in depth-first order.</returns>
+        IReadOnlyList<SceneComponentAssetRecord> FlattenComponents(SceneEntityAsset[] entities) {
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            }
+
+            List<SceneComponentAssetRecord> components = new List<SceneComponentAssetRecord>();
+            AppendComponents(entities, components);
+            return components;
+        }
+
+        /// <summary>
+        /// Appends all serialized components from the supplied scene subtree into the destination list.
+        /// </summary>
+        /// <param name="entities">Serialized scene entities whose components should be appended.</param>
+        /// <param name="components">Destination list receiving the flattened component records.</param>
+        void AppendComponents(SceneEntityAsset[] entities, List<SceneComponentAssetRecord> components) {
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            } else if (components == null) {
+                throw new ArgumentNullException(nameof(components));
+            }
+
+            for (int index = 0; index < entities.Length; index++) {
+                SceneEntityAsset entity = entities[index];
+                if (entity == null) {
+                    continue;
+                }
+
+                SceneComponentAssetRecord[] entityComponents = entity.Components ?? Array.Empty<SceneComponentAssetRecord>();
+                for (int componentIndex = 0; componentIndex < entityComponents.Length; componentIndex++) {
+                    if (entityComponents[componentIndex] != null) {
+                        components.Add(entityComponents[componentIndex]);
+                    }
+                }
+
+                AppendComponents(entity.Children ?? Array.Empty<SceneEntityAsset>(), components);
+            }
         }
 
         /// <summary>

@@ -71,13 +71,9 @@ namespace helengine.editor {
                 return buildResult;
             }
 
-            EditorMenuSceneRegenerationService menuSceneRegenerationService = new EditorMenuSceneRegenerationService(
-                bootstrap.ProjectRootPath,
-                assemblyHost.ScriptTypeResolver);
             EditorCommandContext commandContext = new EditorCommandContext(
                 bootstrap.ProjectRootPath,
-                assemblyHost.ScriptTypeResolver,
-                menuSceneRegenerationService);
+                assemblyHost.ScriptTypeResolver);
             EditorCommandExecutionService commandExecutionService = new EditorCommandExecutionService(hotReloadService, commandContext);
 
             try {
