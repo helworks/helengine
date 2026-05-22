@@ -450,7 +450,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Writes one city-style standard material settings document that references one optional imported diffuse texture id.
+    /// Writes one project-style standard material settings document that references one optional imported diffuse texture id.
     /// </summary>
     /// <param name="materialRelativePath">Project-relative material path to write.</param>
     /// <param name="diffuseTextureAssetId">Optional imported texture asset id referenced by the material.</param>

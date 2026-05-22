@@ -9,17 +9,21 @@ public sealed class PlatformTextureFormatCombinationDefinition {
     /// <summary>
     /// Initializes one valid platform texture format combination.
     /// </summary>
-    /// <param name="colorFormat">Supported texture color format.</param>
+    /// <param name="colorFormatId">Supported platform-published texture color-format identifier.</param>
     /// <param name="alphaPrecision">Supported texture alpha precision for the color format.</param>
-    public PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat colorFormat, TextureAssetAlphaPrecision alphaPrecision) {
-        ColorFormat = colorFormat;
+    public PlatformTextureFormatCombinationDefinition(string colorFormatId, TextureAssetAlphaPrecision alphaPrecision) {
+        if (string.IsNullOrWhiteSpace(colorFormatId)) {
+            throw new ArgumentException("Texture color format id must be provided.", nameof(colorFormatId));
+        }
+
+        ColorFormatId = colorFormatId;
         AlphaPrecision = alphaPrecision;
     }
 
     /// <summary>
-    /// Gets the supported texture color format.
+    /// Gets the supported platform-published texture color-format identifier.
     /// </summary>
-    public TextureAssetColorFormat ColorFormat { get; }
+    public string ColorFormatId { get; }
 
     /// <summary>
     /// Gets the supported texture alpha precision for the color format.

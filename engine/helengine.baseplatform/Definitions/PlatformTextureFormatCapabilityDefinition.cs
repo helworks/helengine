@@ -9,30 +9,30 @@ public sealed class PlatformTextureFormatCapabilityDefinition {
     /// <summary>
     /// Initializes one platform texture format capability definition.
     /// </summary>
-    /// <param name="supportedColorFormats">Texture color formats the platform supports for this cook capability.</param>
+    /// <param name="supportedColorFormatIds">Platform-published texture color-format identifiers the platform supports for this cook capability.</param>
     /// <param name="supportedAlphaPrecisions">Texture alpha precisions the platform supports for this cook capability.</param>
     /// <param name="supportedCombinations">Valid color-format and alpha-precision combinations the platform supports for this cook capability.</param>
     public PlatformTextureFormatCapabilityDefinition(
-        IReadOnlyList<TextureAssetColorFormat> supportedColorFormats,
+        IReadOnlyList<string> supportedColorFormatIds,
         IReadOnlyList<TextureAssetAlphaPrecision> supportedAlphaPrecisions,
         IReadOnlyList<PlatformTextureFormatCombinationDefinition> supportedCombinations) {
-        if (supportedColorFormats == null) {
-            throw new ArgumentNullException(nameof(supportedColorFormats));
+        if (supportedColorFormatIds == null) {
+            throw new ArgumentNullException(nameof(supportedColorFormatIds));
         } else if (supportedAlphaPrecisions == null) {
             throw new ArgumentNullException(nameof(supportedAlphaPrecisions));
         } else if (supportedCombinations == null) {
             throw new ArgumentNullException(nameof(supportedCombinations));
         }
 
-        SupportedColorFormats = [.. supportedColorFormats];
+        SupportedColorFormatIds = [.. supportedColorFormatIds];
         SupportedAlphaPrecisions = [.. supportedAlphaPrecisions];
         SupportedCombinations = [.. supportedCombinations];
     }
 
     /// <summary>
-    /// Gets the texture color formats the platform supports for this cook capability.
+    /// Gets the platform-published texture color-format identifiers the platform supports for this cook capability.
     /// </summary>
-    public TextureAssetColorFormat[] SupportedColorFormats { get; }
+    public string[] SupportedColorFormatIds { get; }
 
     /// <summary>
     /// Gets the texture alpha precisions the platform supports for this cook capability.

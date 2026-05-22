@@ -13,7 +13,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void SerializeComponent_WhenMappingsExist_WritesDictionaryEntries() {
             SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
-            sceneMapComponent.Mappings.Add("MainMenu", "DemoDiscMainMenu");
+            sceneMapComponent.Mappings.Add("MainMenu", "MainMenuScene");
             sceneMapComponent.Mappings.Add("OptionsMenu", "OptionsMenuDs");
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(sceneMapComponent, 3, null);
@@ -21,7 +21,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Equal(SceneMapComponent.SerializedComponentTypeId, record.ComponentTypeId);
             Assert.Equal(3, record.ComponentIndex);
-            Assert.Equal("DemoDiscMainMenu", loadedComponent.Mappings["MainMenu"]);
+            Assert.Equal("MainMenuScene", loadedComponent.Mappings["MainMenu"]);
             Assert.Equal("OptionsMenuDs", loadedComponent.Mappings["OptionsMenu"]);
         }
 
@@ -32,15 +32,15 @@ namespace helengine.editor.tests.serialization.scene {
         public void SerializeComponent_WhenInitialSceneIdExists_RoundTripsInitialSceneIdAndMappings() {
             SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
             SceneMapComponent sceneMapComponent = new SceneMapComponent {
-                InitialSceneId = "DemoDiscMainMenu"
+                InitialSceneId = "MainMenuScene"
             };
-            sceneMapComponent.Mappings.Add("DemoDiscMainMenu", "DemoDiscMainMenuDs");
+            sceneMapComponent.Mappings.Add("MainMenuScene", "AlternateMainMenuScene");
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(sceneMapComponent, 3, null);
             SceneMapComponent loadedComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(record, null, null));
 
-            Assert.Equal("DemoDiscMainMenu", loadedComponent.InitialSceneId);
-            Assert.Equal("DemoDiscMainMenuDs", loadedComponent.Mappings["DemoDiscMainMenu"]);
+            Assert.Equal("MainMenuScene", loadedComponent.InitialSceneId);
+            Assert.Equal("AlternateMainMenuScene", loadedComponent.Mappings["MainMenuScene"]);
         }
 
         /// <summary>
@@ -53,14 +53,14 @@ namespace helengine.editor.tests.serialization.scene {
                 ComponentTypeId = SceneMapComponent.SerializedComponentTypeId,
                 ComponentIndex = 0,
                 Payload = WriteTaggedEditorPayload(
-                    CreateMapping("MainMenu", "DemoDiscMainMenu"),
+                    CreateMapping("MainMenu", "MainMenuScene"),
                     CreateMapping("OptionsMenu", "OptionsMenuDs"))
             };
 
             SceneMapComponent loadedComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(record, null, null));
 
             Assert.Equal(2, loadedComponent.Mappings.Count);
-            Assert.Equal("DemoDiscMainMenu", loadedComponent.Mappings["MainMenu"]);
+            Assert.Equal("MainMenuScene", loadedComponent.Mappings["MainMenu"]);
             Assert.Equal("OptionsMenuDs", loadedComponent.Mappings["OptionsMenu"]);
         }
 
@@ -73,13 +73,13 @@ namespace helengine.editor.tests.serialization.scene {
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = SceneMapComponent.SerializedComponentTypeId,
                 ComponentIndex = 0,
-                Payload = WriteCookedRuntimePayload(SceneMapComponent.CurrentVersion, string.Empty, CreateMapping("MainMenu", "DemoDiscMainMenuDs"))
+                Payload = WriteCookedRuntimePayload(SceneMapComponent.CurrentVersion, string.Empty, CreateMapping("MainMenu", "AlternateMainMenuScene"))
             };
 
             SceneMapComponent loadedComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(record, null, null));
 
             Assert.Single(loadedComponent.Mappings);
-            Assert.Equal("DemoDiscMainMenuDs", loadedComponent.Mappings["MainMenu"]);
+            Assert.Equal("AlternateMainMenuScene", loadedComponent.Mappings["MainMenu"]);
         }
 
         /// <summary>
@@ -91,7 +91,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = SceneMapComponent.SerializedComponentTypeId,
                 ComponentIndex = 0,
-                Payload = WriteCookedRuntimePayload(99, string.Empty, CreateMapping("MainMenu", "DemoDiscMainMenuDs"))
+                Payload = WriteCookedRuntimePayload(99, string.Empty, CreateMapping("MainMenu", "AlternateMainMenuScene"))
             };
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => descriptor.DeserializeComponent(record, null, null));
@@ -108,13 +108,13 @@ namespace helengine.editor.tests.serialization.scene {
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = SceneMapComponent.SerializedComponentTypeId,
                 ComponentIndex = 0,
-                Payload = WriteCookedRuntimePayload(SceneMapComponent.CurrentVersion, "DemoDiscMainMenu", CreateMapping("MainMenu", "DemoDiscMainMenu"))
+                Payload = WriteCookedRuntimePayload(SceneMapComponent.CurrentVersion, "MainMenuScene", CreateMapping("MainMenu", "MainMenuScene"))
             };
 
             SceneMapComponent loadedComponent = Assert.IsType<SceneMapComponent>(deserializer.Deserialize(record, null));
 
-            Assert.Equal("DemoDiscMainMenu", loadedComponent.InitialSceneId);
-            Assert.Equal("DemoDiscMainMenu", loadedComponent.Mappings["MainMenu"]);
+            Assert.Equal("MainMenuScene", loadedComponent.InitialSceneId);
+            Assert.Equal("MainMenuScene", loadedComponent.Mappings["MainMenu"]);
         }
 
         /// <summary>

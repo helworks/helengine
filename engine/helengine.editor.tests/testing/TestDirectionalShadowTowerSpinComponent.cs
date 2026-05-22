@@ -1,6 +1,6 @@
 namespace helengine.editor.tests.testing {
     /// <summary>
-    /// Minimal surrogate used to deserialize the city tower-spin scene component inside editor scene-load tests.
+    /// Minimal surrogate used to deserialize one external tower-spin scene component inside editor scene-load tests.
     /// </summary>
     internal sealed class TestDirectionalShadowTowerSpinComponent : UpdateComponent {
         /// <summary>

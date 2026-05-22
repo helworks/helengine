@@ -67,8 +67,11 @@ namespace helengine.debugtools {
 
                     EditorBuildPlatformConfigDocument platformConfig = FindRequiredPlatformConfig(buildConfig, WindowsPlatformId);
                     EditorPlatformBuildSelectionModel selectionModel = bootstrap.ResolveSelectionModel(WindowsPlatformId);
-                    EditorBuildQueueItemFactory queueItemFactory = new EditorBuildQueueItemFactory(bootstrap.SceneCatalogService);
-                    EditorBuildQueueItemDocument queueItem = queueItemFactory.Create(platformConfig, selectionModel, OutputDirectoryPath);
+                    EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(
+                        bootstrap.SceneCatalogService,
+                        platformConfig,
+                        selectionModel,
+                        OutputDirectoryPath);
                     queueItem.SelectedSceneIds = new List<string> {
                         FindRequiredSceneId(bootstrap, ProbeSceneId),
                         FindRequiredSceneId(bootstrap, MainMenuSceneId),

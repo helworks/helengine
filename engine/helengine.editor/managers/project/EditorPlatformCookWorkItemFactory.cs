@@ -210,7 +210,7 @@ internal static class EditorPlatformCookWorkItemFactory {
 
         return new TextureAssetProcessorSettings {
             MaxResolution = 0,
-            ColorFormat = TextureAssetColorFormat.Rgba32,
+            ColorFormatId = TextureAssetColorFormat.Rgba32.ToString(),
             AlphaPrecision = TextureAssetAlphaPrecision.A8
         };
     }
@@ -225,16 +225,12 @@ internal static class EditorPlatformCookWorkItemFactory {
         int maxResolution = root.TryGetProperty("maxResolution", out JsonElement maxResolutionElement)
             ? maxResolutionElement.GetInt32()
             : 0;
-        string colorFormatName = root.TryGetProperty("colorFormat", out JsonElement colorFormatElement)
+        string colorFormatId = root.TryGetProperty("colorFormat", out JsonElement colorFormatElement)
             ? colorFormatElement.GetString() ?? TextureAssetColorFormat.Rgba32.ToString()
             : TextureAssetColorFormat.Rgba32.ToString();
         string alphaPrecisionName = root.TryGetProperty("alphaPrecision", out JsonElement alphaPrecisionElement)
             ? alphaPrecisionElement.GetString() ?? TextureAssetAlphaPrecision.A8.ToString()
             : TextureAssetAlphaPrecision.A8.ToString();
-
-        if (!Enum.TryParse(colorFormatName, ignoreCase: true, out TextureAssetColorFormat colorFormat)) {
-            throw new InvalidOperationException($"Unsupported texture color format '{colorFormatName}'.");
-        }
 
         if (!Enum.TryParse(alphaPrecisionName, ignoreCase: true, out TextureAssetAlphaPrecision alphaPrecision)) {
             throw new InvalidOperationException($"Unsupported texture alpha precision '{alphaPrecisionName}'.");
@@ -242,7 +238,7 @@ internal static class EditorPlatformCookWorkItemFactory {
 
         return new TextureAssetProcessorSettings {
             MaxResolution = maxResolution,
-            ColorFormat = colorFormat,
+            ColorFormatId = colorFormatId,
             AlphaPrecision = alphaPrecision
         };
     }
@@ -254,7 +250,7 @@ internal static class EditorPlatformCookWorkItemFactory {
 
         return JsonSerializer.Serialize(new Dictionary<string, object> {
             ["maxResolution"] = processorSettings.MaxResolution,
-            ["colorFormat"] = processorSettings.ColorFormat.ToString(),
+            ["colorFormat"] = processorSettings.ColorFormatId,
             ["alphaPrecision"] = processorSettings.AlphaPrecision.ToString()
         });
     }

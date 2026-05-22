@@ -1,6 +1,6 @@
 namespace helengine.editor.tests.testing {
     /// <summary>
-    /// Minimal surrogate used to exercise gameplay axis-rotation script packaging without depending on the external city assembly.
+    /// Minimal surrogate used to exercise gameplay axis-rotation script packaging without depending on an external project assembly.
     /// </summary>
     public sealed class TestAxisRotationScriptComponent : UpdateComponent {
         /// <summary>

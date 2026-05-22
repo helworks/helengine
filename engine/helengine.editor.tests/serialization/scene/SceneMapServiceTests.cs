@@ -4,7 +4,7 @@ using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
     /// <summary>
-    /// Verifies singleton scene-map behavior and startup redirect handling for menu scene resolution.
+    /// Verifies singleton scene-map behavior and startup redirect handling for scene resolution.
     /// </summary>
     public sealed class SceneMapServiceTests : IDisposable {
         /// <summary>
@@ -36,9 +36,9 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void ResolveSceneId_WhenNoSingletonExists_ReturnsOriginalSceneId() {
-            string resolvedSceneId = SceneMapComponent.ResolveSceneId("DemoDiscMainMenu");
+            string resolvedSceneId = SceneMapComponent.ResolveSceneId("MainMenuScene");
 
-            Assert.Equal("DemoDiscMainMenu", resolvedSceneId);
+            Assert.Equal("MainMenuScene", resolvedSceneId);
         }
 
         /// <summary>
@@ -48,13 +48,13 @@ namespace helengine.editor.tests.serialization.scene {
         public void ResolveSceneId_WhenMappingExists_ReturnsMappedSceneId() {
             Entity rootEntity = CreateRootEntity();
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
-            sceneMapComponent.Mappings.Add("DemoDiscMainMenu", "DemoDiscMainMenuDs");
+            sceneMapComponent.Mappings.Add("MainMenuScene", "AlternateMainMenuScene");
 
             rootEntity.AddComponent(sceneMapComponent);
 
-            string resolvedSceneId = SceneMapComponent.ResolveSceneId("DemoDiscMainMenu");
+            string resolvedSceneId = SceneMapComponent.ResolveSceneId("MainMenuScene");
 
-            Assert.Equal("DemoDiscMainMenuDs", resolvedSceneId);
+            Assert.Equal("AlternateMainMenuScene", resolvedSceneId);
         }
 
         /// <summary>
@@ -92,24 +92,24 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void Update_WhenInitialSceneIdIsPresent_LoadsResolvedSceneIdOnce() {
-            WriteSceneAsset("cooked/scenes/DemoDiscMainMenu.hasset", 1u);
-            WriteSceneAsset("cooked/scenes/DemoDiscMainMenuDs.hasset", 2u);
+            WriteSceneAsset("cooked/scenes/MainMenuScene.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/AlternateMainMenuScene.hasset", 2u);
 
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("DemoDiscMainMenu", "cooked/scenes/DemoDiscMainMenu.hasset"),
-                new RuntimeSceneCatalogEntry("DemoDiscMainMenuDs", "cooked/scenes/DemoDiscMainMenuDs.hasset")));
+                new RuntimeSceneCatalogEntry("MainMenuScene", "cooked/scenes/MainMenuScene.hasset"),
+                new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/AlternateMainMenuScene.hasset")));
 
             SceneMapComponent sceneMapComponent = new SceneMapComponent {
-                InitialSceneId = "DemoDiscMainMenu"
+                InitialSceneId = "MainMenuScene"
             };
-            sceneMapComponent.Mappings.Add("DemoDiscMainMenu", "DemoDiscMainMenuDs");
+            sceneMapComponent.Mappings.Add("MainMenuScene", "AlternateMainMenuScene");
             AddLoadedScene(core.SceneManager, "Scenes/GeneratedBoot.helen", CreateRootEntityWithComponent(sceneMapComponent));
 
             core.Update(1d / 60d);
             core.Update(1d / 60d);
 
-            Assert.True(core.SceneManager.IsSceneLoaded("DemoDiscMainMenuDs"));
-            Assert.False(core.SceneManager.IsSceneLoaded("DemoDiscMainMenu"));
+            Assert.True(core.SceneManager.IsSceneLoaded("AlternateMainMenuScene"));
+            Assert.False(core.SceneManager.IsSceneLoaded("MainMenuScene"));
         }
 
         /// <summary>
@@ -118,13 +118,13 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void LoadScene_WhenPersistentBootSceneRoutesRepeatedCubeReturns_PreservesMappedMenuAcrossMultipleCycles() {
             WriteSceneAsset(
-                "cooked/scenes/GeneratedBootScene.hasset",
+                "cooked/scenes/StartupScene.hasset",
                 1u,
                 true,
                 CreateRuntimeSceneMapComponentRecord(
-                    "DemoDiscMainMenu",
-                    CreateMapping("DemoDiscMainMenu", "DemoDiscMainMenuDs")));
-            WriteSceneAsset("cooked/scenes/DemoDiscMainMenuDs.hasset", 2u);
+                    "MainMenuScene",
+                    CreateMapping("MainMenuScene", "AlternateMainMenuScene")));
+            WriteSceneAsset("cooked/scenes/AlternateMainMenuScene.hasset", 2u);
             WriteSceneAsset(
                 "cooked/scenes/cube_test.hasset",
                 3u,
@@ -134,29 +134,29 @@ namespace helengine.editor.tests.serialization.scene {
             inputBackend.SetGamepadStates(new[] { CreateConnectedGamepadState() });
             Core core = CreateCore(
                 CreateSceneCatalog(
-                    new RuntimeSceneCatalogEntry("GeneratedBootScene", "cooked/scenes/GeneratedBootScene.hasset"),
-                    new RuntimeSceneCatalogEntry("DemoDiscMainMenuDs", "cooked/scenes/DemoDiscMainMenuDs.hasset"),
+                    new RuntimeSceneCatalogEntry("StartupScene", "cooked/scenes/StartupScene.hasset"),
+                    new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/AlternateMainMenuScene.hasset"),
                     new RuntimeSceneCatalogEntry("cube_test", "cooked/scenes/cube_test.hasset")),
                 inputBackend);
 
-            core.SceneManager.LoadScene("GeneratedBootScene", SceneLoadMode.Single);
+            core.SceneManager.LoadScene("StartupScene", SceneLoadMode.Single);
             core.Update(1d / 60d);
 
-            Assert.True(core.SceneManager.IsSceneLoaded("GeneratedBootScene"));
-            Assert.True(core.SceneManager.IsSceneLoaded("DemoDiscMainMenuDs"));
+            Assert.True(core.SceneManager.IsSceneLoaded("StartupScene"));
+            Assert.True(core.SceneManager.IsSceneLoaded("AlternateMainMenuScene"));
             Assert.False(core.SceneManager.IsSceneLoaded("cube_test"));
             Assert.NotNull(SceneMapComponent.Instance);
 
             for (int cycleIndex = 0; cycleIndex < 3; cycleIndex++) {
                 core.SceneManager.LoadScene("cube_test", SceneLoadMode.Single);
-                Assert.True(core.SceneManager.IsSceneLoaded("GeneratedBootScene"));
+                Assert.True(core.SceneManager.IsSceneLoaded("StartupScene"));
                 Assert.True(core.SceneManager.IsSceneLoaded("cube_test"));
-                Assert.False(core.SceneManager.IsSceneLoaded("DemoDiscMainMenuDs"));
+                Assert.False(core.SceneManager.IsSceneLoaded("AlternateMainMenuScene"));
 
-                core.SceneManager.LoadScene(SceneMapComponent.ResolveSceneId("DemoDiscMainMenu"), SceneLoadMode.Single);
+                core.SceneManager.LoadScene(SceneMapComponent.ResolveSceneId("MainMenuScene"), SceneLoadMode.Single);
 
-                Assert.True(core.SceneManager.IsSceneLoaded("GeneratedBootScene"));
-                Assert.True(core.SceneManager.IsSceneLoaded("DemoDiscMainMenuDs"));
+                Assert.True(core.SceneManager.IsSceneLoaded("StartupScene"));
+                Assert.True(core.SceneManager.IsSceneLoaded("AlternateMainMenuScene"));
                 Assert.False(core.SceneManager.IsSceneLoaded("cube_test"));
                 Assert.NotNull(SceneMapComponent.Instance);
                 Assert.Equal(2, core.SceneManager.LoadedScenes.Count);
@@ -172,15 +172,16 @@ namespace helengine.editor.tests.serialization.scene {
             WriteModelAsset("cooked/models/TestModel.hasset");
             WriteMaterialAsset("cooked/materials/TestMaterial.hasset", "ForwardStandardShader");
             WriteShaderAsset("cooked/shaders/ForwardStandardShader.dx11.hasset", "ForwardStandardShader");
+            WriteShaderAsset("cooked/shaders/ForwardStandardShader.vulkan.hasset", "ForwardStandardShader");
             WriteSceneAsset(
-                "cooked/scenes/GeneratedBootScene.hasset",
+                "cooked/scenes/StartupScene.hasset",
                 1u,
                 true,
                 CreateRuntimeSceneMapComponentRecord(
-                    "DemoDiscMainMenu",
-                    CreateMapping("DemoDiscMainMenu", "DemoDiscMainMenuDs")));
+                    "MainMenuScene",
+                    CreateMapping("MainMenuScene", "AlternateMainMenuScene")));
             WriteSceneAsset(
-                "cooked/scenes/DemoDiscMainMenuDs.hasset",
+                "cooked/scenes/AlternateMainMenuScene.hasset",
                 2u,
                 false,
                 CreateTextComponentRecord("fonts/default.hefont"));
@@ -194,12 +195,12 @@ namespace helengine.editor.tests.serialization.scene {
             inputBackend.SetGamepadStates(new[] { CreateConnectedGamepadState() });
             Core core = CreateCore(
                 CreateSceneCatalog(
-                    new RuntimeSceneCatalogEntry("GeneratedBootScene", "cooked/scenes/GeneratedBootScene.hasset"),
-                    new RuntimeSceneCatalogEntry("DemoDiscMainMenuDs", "cooked/scenes/DemoDiscMainMenuDs.hasset"),
+                    new RuntimeSceneCatalogEntry("StartupScene", "cooked/scenes/StartupScene.hasset"),
+                    new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/AlternateMainMenuScene.hasset"),
                     new RuntimeSceneCatalogEntry("cube_test", "cooked/scenes/cube_test.hasset")),
                 inputBackend);
 
-            core.SceneManager.LoadScene("GeneratedBootScene", SceneLoadMode.Single);
+            core.SceneManager.LoadScene("StartupScene", SceneLoadMode.Single);
             core.Update(1d / 60d);
 
             Assert.Equal(1, core.SceneManager.ActiveOwnedFontReferenceCount);
@@ -215,7 +216,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Assert.Equal(1, core.SceneManager.ActiveOwnedMaterialReferenceCount);
                 Assert.Equal(1, core.SceneManager.ActiveOwnedModelReferenceCount);
 
-                core.SceneManager.LoadScene(SceneMapComponent.ResolveSceneId("DemoDiscMainMenu"), SceneLoadMode.Single);
+                core.SceneManager.LoadScene(SceneMapComponent.ResolveSceneId("MainMenuScene"), SceneLoadMode.Single);
 
                 Assert.Equal(1, core.SceneManager.ActiveOwnedFontReferenceCount);
                 Assert.Equal(0, core.SceneManager.ActiveOwnedTextureReferenceCount);
@@ -225,7 +226,7 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures repeated cube roundtrips preserve the expected owned-asset baseline when the menu and cube scene both use generated asset references that match the real city project shape.
+        /// Ensures repeated cube roundtrips preserve the expected owned-asset baseline when the menu and cube scene both use generated asset references that match the real project shape.
         /// </summary>
         [Fact]
         public void LoadScene_WhenPersistentBootSceneRoutesRepeatedGeneratedCubeReturns_ReleasesGeneratedOwnedAssetsBeforeReloadingMenu() {
@@ -233,15 +234,16 @@ namespace helengine.editor.tests.serialization.scene {
             WriteModelAsset("Engine/Models/Cube");
             WriteMaterialAsset("Engine/Materials/Standard", "ForwardStandardShader");
             WriteShaderAsset("cooked/shaders/ForwardStandardShader.dx11.hasset", "ForwardStandardShader");
+            WriteShaderAsset("cooked/shaders/ForwardStandardShader.vulkan.hasset", "ForwardStandardShader");
             WriteSceneAsset(
-                "cooked/scenes/GeneratedBootScene.hasset",
+                "cooked/scenes/StartupScene.hasset",
                 1u,
                 true,
                 CreateRuntimeSceneMapComponentRecord(
-                    "DemoDiscMainMenu",
-                    CreateMapping("DemoDiscMainMenu", "DemoDiscMainMenuDs")));
+                    "MainMenuScene",
+                    CreateMapping("MainMenuScene", "AlternateMainMenuScene")));
             WriteSceneAsset(
-                "cooked/scenes/DemoDiscMainMenuDs.hasset",
+                "cooked/scenes/AlternateMainMenuScene.hasset",
                 2u,
                 false,
                 CreateFpsComponentRecord("generated/editor/fonts/ui.hefont", "editor", "ui-font"));
@@ -258,12 +260,12 @@ namespace helengine.editor.tests.serialization.scene {
             inputBackend.SetGamepadStates(new[] { CreateConnectedGamepadState() });
             Core core = CreateCore(
                 CreateSceneCatalog(
-                    new RuntimeSceneCatalogEntry("GeneratedBootScene", "cooked/scenes/GeneratedBootScene.hasset"),
-                    new RuntimeSceneCatalogEntry("DemoDiscMainMenuDs", "cooked/scenes/DemoDiscMainMenuDs.hasset"),
+                    new RuntimeSceneCatalogEntry("StartupScene", "cooked/scenes/StartupScene.hasset"),
+                    new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/AlternateMainMenuScene.hasset"),
                     new RuntimeSceneCatalogEntry("cube_test", "cooked/scenes/cube_test.hasset")),
                 inputBackend);
 
-            core.SceneManager.LoadScene("GeneratedBootScene", SceneLoadMode.Single);
+            core.SceneManager.LoadScene("StartupScene", SceneLoadMode.Single);
             core.Update(1d / 60d);
 
             Assert.Equal(1, core.SceneManager.ActiveOwnedFontReferenceCount);
@@ -279,7 +281,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Assert.Equal(1, core.SceneManager.ActiveOwnedMaterialReferenceCount);
                 Assert.Equal(1, core.SceneManager.ActiveOwnedModelReferenceCount);
 
-                core.SceneManager.LoadScene(SceneMapComponent.ResolveSceneId("DemoDiscMainMenu"), SceneLoadMode.Single);
+                core.SceneManager.LoadScene(SceneMapComponent.ResolveSceneId("MainMenuScene"), SceneLoadMode.Single);
 
                 Assert.Equal(1, core.SceneManager.ActiveOwnedFontReferenceCount);
                 Assert.Equal(0, core.SceneManager.ActiveOwnedTextureReferenceCount);

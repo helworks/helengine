@@ -737,7 +737,7 @@ namespace helengine.editor {
             }
 
             AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
-            platformSettings.Texture.ColorFormat = Enum.Parse<TextureAssetColorFormat>(selectedValue, false);
+            platformSettings.Texture.ColorFormatId = selectedValue;
             RepairTextureFormatSelection(platformSettings.Texture);
             UpdateStatusText();
             SyncTextureProcessorControlsFromPendingSettings();
@@ -952,7 +952,7 @@ namespace helengine.editor {
 
             IsUpdatingTextureControls = true;
             TextureMaxResolutionTextBox.Text = textureSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            TextureColorFormatComboBox.SetItems(TextureColorFormatValues, GetTextureColorFormatIndex(textureSettings.ColorFormat));
+            TextureColorFormatComboBox.SetItems(TextureColorFormatValues, GetTextureColorFormatIndex(textureSettings.ColorFormatId));
             TextureAlphaPrecisionComboBox.SetItems(TextureAlphaPrecisionValues, GetTextureAlphaPrecisionIndex(textureSettings.AlphaPrecision));
             IsUpdatingTextureControls = false;
         }
@@ -990,8 +990,8 @@ namespace helengine.editor {
                 return;
             }
 
-            for (int i = 0; i < textureCapability.SupportedColorFormats.Length; i++) {
-                TextureColorFormatValues.Add(textureCapability.SupportedColorFormats[i].ToString());
+            for (int i = 0; i < textureCapability.SupportedColorFormatIds.Length; i++) {
+                TextureColorFormatValues.Add(textureCapability.SupportedColorFormatIds[i]);
             }
 
             for (int i = 0; i < textureCapability.SupportedAlphaPrecisions.Length; i++) {
@@ -1013,12 +1013,12 @@ namespace helengine.editor {
                 return;
             }
 
-            if (IsSupportedTextureFormatCombination(textureCapability, textureSettings.ColorFormat, textureSettings.AlphaPrecision)) {
+            if (IsSupportedTextureFormatCombination(textureCapability, textureSettings.ColorFormatId, textureSettings.AlphaPrecision)) {
                 return;
             }
 
-            PlatformTextureFormatCombinationDefinition repairedCombination = ResolveRepairedTextureFormatCombination(textureCapability, textureSettings.ColorFormat);
-            textureSettings.ColorFormat = repairedCombination.ColorFormat;
+            PlatformTextureFormatCombinationDefinition repairedCombination = ResolveRepairedTextureFormatCombination(textureCapability, textureSettings.ColorFormatId);
+            textureSettings.ColorFormatId = repairedCombination.ColorFormatId;
             textureSettings.AlphaPrecision = repairedCombination.AlphaPrecision;
         }
 
@@ -1072,7 +1072,7 @@ namespace helengine.editor {
         /// <returns><c>true</c> when the combination is supported; otherwise <c>false</c>.</returns>
         bool IsSupportedTextureFormatCombination(
             PlatformTextureFormatCapabilityDefinition textureCapability,
-            TextureAssetColorFormat colorFormat,
+            string colorFormatId,
             TextureAssetAlphaPrecision alphaPrecision) {
             if (textureCapability == null) {
                 throw new ArgumentNullException(nameof(textureCapability));
@@ -1080,7 +1080,8 @@ namespace helengine.editor {
 
             for (int i = 0; i < textureCapability.SupportedCombinations.Length; i++) {
                 PlatformTextureFormatCombinationDefinition supportedCombination = textureCapability.SupportedCombinations[i];
-                if (supportedCombination.ColorFormat == colorFormat && supportedCombination.AlphaPrecision == alphaPrecision) {
+                if (string.Equals(supportedCombination.ColorFormatId, colorFormatId, StringComparison.Ordinal)
+                    && supportedCombination.AlphaPrecision == alphaPrecision) {
                     return true;
                 }
             }
@@ -1096,7 +1097,7 @@ namespace helengine.editor {
         /// <returns>The repaired valid combination.</returns>
         PlatformTextureFormatCombinationDefinition ResolveRepairedTextureFormatCombination(
             PlatformTextureFormatCapabilityDefinition textureCapability,
-            TextureAssetColorFormat currentColorFormat) {
+            string currentColorFormatId) {
             if (textureCapability == null) {
                 throw new ArgumentNullException(nameof(textureCapability));
             } else if (textureCapability.SupportedCombinations.Length == 0) {
@@ -1105,7 +1106,7 @@ namespace helengine.editor {
 
             for (int i = 0; i < textureCapability.SupportedCombinations.Length; i++) {
                 PlatformTextureFormatCombinationDefinition supportedCombination = textureCapability.SupportedCombinations[i];
-                if (supportedCombination.ColorFormat == currentColorFormat) {
+                if (string.Equals(supportedCombination.ColorFormatId, currentColorFormatId, StringComparison.Ordinal)) {
                     return supportedCombination;
                 }
             }
@@ -1118,15 +1119,14 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="colorFormat">Texture color format to locate.</param>
         /// <returns>Index of the color format inside the combo-box item list.</returns>
-        int GetTextureColorFormatIndex(TextureAssetColorFormat colorFormat) {
-            string colorFormatName = colorFormat.ToString();
+        int GetTextureColorFormatIndex(string colorFormatId) {
             for (int i = 0; i < TextureColorFormatValues.Count; i++) {
-                if (string.Equals(TextureColorFormatValues[i], colorFormatName, StringComparison.Ordinal)) {
+                if (string.Equals(TextureColorFormatValues[i], colorFormatId, StringComparison.Ordinal)) {
                     return i;
                 }
             }
 
-            throw new InvalidOperationException($"Unsupported texture color format '{colorFormat}'.");
+            throw new InvalidOperationException($"Unsupported texture color format id '{colorFormatId}'.");
         }
 
         /// <summary>
@@ -1230,7 +1230,7 @@ namespace helengine.editor {
             }
 
             clone.MaxResolution = textureSettings.MaxResolution;
-            clone.ColorFormat = textureSettings.ColorFormat;
+            clone.ColorFormatId = textureSettings.ColorFormatId;
             clone.AlphaPrecision = textureSettings.AlphaPrecision;
             return clone;
         }

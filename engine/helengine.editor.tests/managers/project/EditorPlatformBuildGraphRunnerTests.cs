@@ -1192,8 +1192,11 @@ public class EditorPlatformBuildGraphRunnerTests {
                 bootstrap.BuildConfigService.TryLoadExisting(),
                 "windows");
             EditorPlatformBuildSelectionModel selectionModel = bootstrap.ResolveSelectionModel("windows");
-            EditorBuildQueueItemFactory queueItemFactory = new EditorBuildQueueItemFactory(bootstrap.SceneCatalogService);
-            EditorBuildQueueItemDocument queueItem = queueItemFactory.Create(platformConfig, selectionModel, outputRootPath);
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(
+                bootstrap.SceneCatalogService,
+                platformConfig,
+                selectionModel,
+                outputRootPath);
             queueItem.SelectedSceneIds = ["point-shadow"];
             AvailablePlatformDescriptor platformDescriptor = bootstrap.ResolvePlatformDescriptor("windows");
             EditorPlatformBuildGraphRunner runner = new(

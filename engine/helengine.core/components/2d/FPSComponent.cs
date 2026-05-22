@@ -515,44 +515,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets whether the active runtime platform should always use the PS2 performance-overlay row format.
-        /// </summary>
-        /// <param name="core">Active core instance that owns platform metadata.</param>
-        /// <returns><c>true</c> when the runtime platform is PS2; otherwise <c>false</c>.</returns>
-        bool ShouldUsePs2PerformanceOverlay(Core core) {
-            return core != null
-                && core.PlatformInfo != null
-                && string.Equals(core.PlatformInfo.Name, "ps2", StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
         /// Gets whether the visible FPS rows should use the performance-overlay layout.
         /// </summary>
         /// <param name="core">Active core instance that may publish performance overlay metrics.</param>
         /// <returns><c>true</c> when the active runtime should render performance-overlay rows.</returns>
         bool ShouldUsePerformanceOverlayRows(Core core) {
-            return core != null && (core.UsesPerformanceOverlayMetrics || ShouldUsePs2PerformanceOverlay(core));
-        }
-
-        /// <summary>
-        /// Returns true when the PS2 overlay should temporarily surface managed object counts because the native overlay metrics are all zero.
-        /// </summary>
-        /// <param name="core">Active core instance that may provide PS2 runtime context.</param>
-        /// <returns>True when managed fallback diagnostics should replace the zeroed PS2 metric buckets.</returns>
-        bool ShouldUsePs2ManagedFallbackDiagnostics(Core core) {
-            if (!ShouldUsePs2PerformanceOverlay(core)) {
-                return false;
-            }
-
-            return core != null
-                && core.PerformanceOverlayTriangleSetupMilliseconds == 0d
-                && core.PerformanceOverlayTrianglePrepMilliseconds == 0d
-                && core.PerformanceOverlayTriangleEmitMilliseconds == 0d
-                && core.PerformanceOverlayPacketEncodeMilliseconds == 0d
-                && core.PerformanceOverlaySubmitMilliseconds == 0d
-                && core.PerformanceOverlayWaitMilliseconds == 0d
-                && core.PerformanceOverlaySubmittedTriangleCount == 0
-                && core.PerformanceOverlayDispatchCount == 0;
+            return core != null && core.UsesPerformanceOverlayMetrics;
         }
 
         /// <summary>
@@ -563,16 +531,6 @@ namespace helengine {
         /// <returns>Update overlay text for the current sample.</returns>
         string ResolveUpdateOverlayText(Core core, double updateFps) {
             if (ShouldUsePerformanceOverlayRows(core)) {
-                if (ShouldUsePs2ManagedFallbackDiagnostics(core)) {
-                    int drawable3DCount = core.ObjectManager == null ? 0 : core.ObjectManager.Drawables3D.Count;
-                    int cameraCount = core.ObjectManager == null ? 0 : core.ObjectManager.Cameras.Count;
-                    int entityCount = core.ObjectManager == null ? 0 : core.ObjectManager.Entities.Count;
-                    return "Upd " + FormatFpsValue(updateFps)
-                        + " Obj3D " + drawable3DCount
-                        + " Cam " + cameraCount
-                        + " Ent " + entityCount;
-                }
-
                 return "Upd " + FormatFpsValue(updateFps)
                     + " Set " + FormatFpsValue(core.PerformanceOverlayTriangleSetupMilliseconds)
                     + " Prep " + FormatFpsValue(core.PerformanceOverlayTrianglePrepMilliseconds)
@@ -591,15 +549,6 @@ namespace helengine {
         /// <returns>Render overlay text for the current sample.</returns>
         string ResolveRenderOverlayText(Core core, double renderFps, double drawMilliseconds) {
             if (ShouldUsePerformanceOverlayRows(core)) {
-                if (ShouldUsePs2ManagedFallbackDiagnostics(core)) {
-                    int usesOverlayFlag = core != null && core.UsesPerformanceOverlayMetrics ? 1 : 0;
-                    return "Rdr " + FormatFpsValue(renderFps)
-                        + " Drw " + FormatFpsValue(drawMilliseconds)
-                        + " Ovr " + usesOverlayFlag
-                        + " Tri " + core.PerformanceOverlaySubmittedTriangleCount
-                        + " Disp " + core.PerformanceOverlayDispatchCount;
-                }
-
                 return "Rdr " + FormatFpsValue(renderFps)
                     + " Drw " + FormatFpsValue(drawMilliseconds)
                     + " Enc " + FormatFpsValue(core.PerformanceOverlayPacketEncodeMilliseconds)

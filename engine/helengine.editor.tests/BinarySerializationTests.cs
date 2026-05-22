@@ -156,10 +156,7 @@ namespace helengine.editor.tests {
             Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
             Assert.Equal((ushort)EditorAssetBinarySerializer.RecordKind, header.RecordKind);
             Assert.Equal((ushort)EditorAssetBinaryValueKind.SceneAsset, header.ValueKind);
-            Assert.Equal(ShaderMaterialAssetBinarySerializer.FormatId, header.FormatId);
-            Assert.Equal(ShaderMaterialAssetBinarySerializer.RecordKind, header.RecordKind);
-            Assert.Equal(ShaderMaterialAssetBinarySerializer.ValueKind, header.ValueKind);
-            Assert.Equal(ShaderMaterialAssetBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal("Scenes/TestScene.helen", deserialized.Id);
             Assert.Equal(1234u, deserialized.Physics3DSceneFeatureFlags);
             Assert.Equal(1920, deserialized.SceneSettings.CanvasProfile.Width);
@@ -372,36 +369,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures prepacked GameCube RGB5A3 texture payloads round-trip through the HELE asset serializer.
-        /// </summary>
-        [Fact]
-        public void AssetSerializer_TextureAsset_WhenGxRgb5A3_preservesPackedPayload() {
-            TextureAsset asset = new TextureAsset {
-                Id = "texture/gxrgb5a3",
-                RuntimeAssetId = 0x2223242526272829UL,
-                Width = 2,
-                Height = 2,
-                ColorFormat = TextureAssetColorFormat.GxRgb5A3,
-                AlphaPrecision = TextureAssetAlphaPrecision.A8,
-                Colors = new byte[] {
-                    0x00, 0xFC, 0xE0, 0x83, 0xE0, 0x83, 0xE0, 0x83,
-                    0x1F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                    0x1F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                    0x1F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
-                }
-            };
-
-            byte[] data = AssetSerializer.SerializeToBytes(asset);
-            TextureAsset deserialized = (TextureAsset)AssetSerializer.DeserializeFromBytes(data);
-
-            Assert.Equal(asset.Id, deserialized.Id);
-            Assert.Equal(asset.RuntimeAssetId, deserialized.RuntimeAssetId);
-            Assert.Equal(TextureAssetColorFormat.GxRgb5A3, deserialized.ColorFormat);
-            Assert.Equal(TextureAssetAlphaPrecision.A8, deserialized.AlphaPrecision);
-            Assert.Equal(asset.Colors, deserialized.Colors);
-        }
-
-        /// <summary>
         /// Ensures text assets round-trip through the HELE asset serializer.
         /// </summary>
         [Fact]
@@ -535,10 +502,9 @@ namespace helengine.editor.tests {
             ModelAsset deserialized = (ModelAsset)AssetSerializer.DeserializeFromBytes(data);
             EngineBinaryHeader header = ReadHeader(data);
 
-            Assert.Equal(ShaderMaterialAssetBinarySerializer.FormatId, header.FormatId);
-            Assert.Equal(ShaderMaterialAssetBinarySerializer.RecordKind, header.RecordKind);
-            Assert.Equal(ShaderMaterialAssetBinarySerializer.ValueKind, header.ValueKind);
-            Assert.Equal(ShaderMaterialAssetBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
+            Assert.Equal((ushort)EditorAssetBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal(asset.Positions.Length, deserialized.Positions.Length);
             Assert.Equal(asset.Indices16, deserialized.Indices16);
         }
@@ -632,15 +598,15 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures generic asset import settings preserve the GameCube RGB5A3 texture choice.
+        /// Ensures generic asset import settings preserve opaque platform-owned texture color-format identifiers.
         /// </summary>
         [Fact]
-        public void AssetImportSettingsBinarySerializer_WhenGameCubeUsesGxRgb5A3_PreservesThatFormat() {
+        public void AssetImportSettingsBinarySerializer_WhenGameCubeUsesOpaqueColorFormatId_PreservesThatFormat() {
             AssetImportSettings settings = CreateAssetImportSettings();
             settings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
                     MaxResolution = 256,
-                    ColorFormat = TextureAssetColorFormat.GxRgb5A3,
+                    ColorFormatId = "GxRgb5A3",
                     AlphaPrecision = TextureAssetAlphaPrecision.A8
                 }
             };
@@ -652,7 +618,7 @@ namespace helengine.editor.tests {
             AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
 
             Assert.Equal(256, deserialized.Processor.Platforms["gamecube"].Texture.MaxResolution);
-            Assert.Equal(TextureAssetColorFormat.GxRgb5A3, deserialized.Processor.Platforms["gamecube"].Texture.ColorFormat);
+            Assert.Equal("GxRgb5A3", deserialized.Processor.Platforms["gamecube"].Texture.ColorFormatId);
             Assert.Equal(TextureAssetAlphaPrecision.A8, deserialized.Processor.Platforms["gamecube"].Texture.AlphaPrecision);
         }
 

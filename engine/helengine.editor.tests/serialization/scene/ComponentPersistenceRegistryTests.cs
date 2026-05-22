@@ -96,7 +96,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             ComponentPersistenceRegistry registry = Assert.IsType<ComponentPersistenceRegistry>(factoryMethod.Invoke(null, new object[] { scriptTypeResolver }));
 
-            IComponentPersistenceDescriptor descriptor = registry.GetDescriptor("city.rendering.DirectionalShadowCameraOrbitComponent, gameplay");
+            IComponentPersistenceDescriptor descriptor = registry.GetDescriptor("project.rendering.SampleOrbitComponent, gameplay");
 
             Assert.IsType<AutomaticScriptComponentPersistenceDescriptor>(descriptor);
         }

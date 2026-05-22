@@ -31,6 +31,9 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             EditorSceneMutationService.Reset();
+            if (SceneMapComponent.Instance != null) {
+                SceneMapComponent.Instance.Dispose();
+            }
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -189,7 +192,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowComponents_WhenSceneMapSectionIsExpanded_RendersExistingMappingRows() {
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
-            sceneMapComponent.Mappings.Add("MainMenu", "DemoDiscMainMenu");
+            sceneMapComponent.Mappings.Add("MainMenu", "MainMenuScene");
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(sceneMapComponent);
 
@@ -213,7 +216,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void EditSceneMapEntry_WhenValueChanges_UpdatesComponentAndMarksSceneMutated() {
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
-            sceneMapComponent.Mappings.Add("MainMenu", "DemoDiscMainMenu");
+            sceneMapComponent.Mappings.Add("MainMenu", "MainMenuScene");
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(sceneMapComponent);
             bool wasSceneMutated = false;
@@ -227,7 +230,7 @@ namespace helengine.editor.tests {
             InvokeNestedSectionToggle(view, sceneMappingsRow);
 
             ComponentPropertyRow targetRow = GetSingleRow(view, "Target 1");
-            targetRow.ScalarField.Text = "DemoDiscMainMenuDs";
+            targetRow.ScalarField.Text = "AlternateMainMenuScene";
             MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
             EditorSceneMutationService.SceneMutated += handleSceneMutated;
             try {
@@ -236,7 +239,7 @@ namespace helengine.editor.tests {
                 EditorSceneMutationService.SceneMutated -= handleSceneMutated;
             }
 
-            Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings["MainMenu"]);
+            Assert.Equal("AlternateMainMenuScene", sceneMapComponent.Mappings["MainMenu"]);
             Assert.True(wasSceneMutated);
         }
 
@@ -259,14 +262,14 @@ namespace helengine.editor.tests {
             ComponentPropertyRow newSourceRow = GetSingleRow(view, "New Source");
             ComponentPropertyRow newTargetRow = GetSingleRow(view, "New Target");
             newSourceRow.ScalarField.Text = "MainMenu";
-            newTargetRow.ScalarField.Text = "DemoDiscMainMenu";
+            newTargetRow.ScalarField.Text = "MainMenuScene";
 
             MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
             submitMethod.Invoke(view, new object[] { newSourceRow.ScalarField });
             submitMethod.Invoke(view, new object[] { newTargetRow.ScalarField });
             InvokeSceneMapAdd(view, newTargetRow);
 
-            Assert.Equal("DemoDiscMainMenu", sceneMapComponent.Mappings["MainMenu"]);
+            Assert.Equal("MainMenuScene", sceneMapComponent.Mappings["MainMenu"]);
         }
 
         /// <summary>
@@ -275,7 +278,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RemoveSceneMapEntry_WhenPressed_RemovesDictionaryEntry() {
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
-            sceneMapComponent.Mappings.Add("MainMenu", "DemoDiscMainMenu");
+            sceneMapComponent.Mappings.Add("MainMenu", "MainMenuScene");
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(sceneMapComponent);
 

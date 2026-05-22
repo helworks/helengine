@@ -20,8 +20,8 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Texture assets must include color data.");
             } else if (settings.MaxResolution < 0) {
                 throw new InvalidOperationException("Texture max resolution cannot be negative.");
-            } else if (!IsSupportedColorFormat(settings.ColorFormat)) {
-                throw new InvalidOperationException($"Unsupported texture color format '{settings.ColorFormat}'.");
+            } else if (!settings.UsesGenericColorFormat()) {
+                throw new InvalidOperationException($"Texture color format id '{settings.ColorFormatId}' is platform-owned and cannot be processed by the shared generic texture processor.");
             }
 
             TextureAsset processedAsset = asset;
@@ -92,8 +92,6 @@ namespace helengine.editor {
                 return ConvertToIndexed(asset, 16, TextureAssetColorFormat.Indexed4, alphaPrecision);
             } else if (targetFormat == TextureAssetColorFormat.Indexed8) {
                 return ConvertToIndexed(asset, 256, TextureAssetColorFormat.Indexed8, alphaPrecision);
-            } else if (targetFormat == TextureAssetColorFormat.GxRgb5A3) {
-                return ConvertToGxRgb5A3(asset, alphaPrecision);
             }
 
             throw new InvalidOperationException($"Unsupported texture color format '{targetFormat}'.");
@@ -132,52 +130,6 @@ namespace helengine.editor {
                 ColorFormat = TextureAssetColorFormat.Rgba4444,
                 AlphaPrecision = alphaPrecision,
                 Colors = packedColors
-            };
-        }
-
-        /// <summary>
-        /// Packs one RGBA32 texture asset into prepacked GameCube RGB5A3 payload bytes.
-        /// </summary>
-        /// <param name="asset">Texture asset to pack.</param>
-        /// <param name="alphaPrecision">Alpha precision to store in the processed payload.</param>
-        /// <returns>Packed texture asset payload.</returns>
-        TextureAsset ConvertToGxRgb5A3(TextureAsset asset, TextureAssetAlphaPrecision alphaPrecision) {
-            if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            }
-
-            int paddedWidth = (asset.Width + 3) & ~3;
-            int paddedHeight = (asset.Height + 3) & ~3;
-            byte[] packedColors = new byte[paddedWidth * paddedHeight * 2];
-            int targetIndex = 0;
-            for (int blockY = 0; blockY < paddedHeight; blockY += 4) {
-                for (int blockX = 0; blockX < paddedWidth; blockX += 4) {
-                    for (int innerY = 0; innerY < 4; innerY++) {
-                        for (int innerX = 0; innerX < 4; innerX++) {
-                            int sampleX = Math.Min(blockX + innerX, asset.Width - 1);
-                            int sampleY = Math.Min(blockY + innerY, asset.Height - 1);
-                            int sourceIndex = ((sampleY * asset.Width) + sampleX) * 4;
-                            ushort packedPixel = PackGxRgb5A3(
-                                asset.Colors[sourceIndex],
-                                asset.Colors[sourceIndex + 1],
-                                asset.Colors[sourceIndex + 2],
-                                QuantizeAlpha(asset.Colors[sourceIndex + 3], alphaPrecision));
-                            packedColors[targetIndex++] = (byte)(packedPixel & 0xFF);
-                            packedColors[targetIndex++] = (byte)((packedPixel >> 8) & 0xFF);
-                        }
-                    }
-                }
-            }
-
-            return new TextureAsset {
-                Id = asset.Id,
-                RuntimeAssetId = asset.RuntimeAssetId,
-                Width = asset.Width,
-                Height = asset.Height,
-                ColorFormat = TextureAssetColorFormat.GxRgb5A3,
-                AlphaPrecision = alphaPrecision,
-                Colors = packedColors,
-                PaletteColors = Array.Empty<byte>()
             };
         }
 
@@ -268,56 +220,6 @@ namespace helengine.editor {
             ushort blueNibble = (ushort)(blue >> 4);
             ushort alphaNibble = (ushort)(alpha >> 4);
             return (ushort)(redNibble | (greenNibble << 4) | (blueNibble << 8) | (alphaNibble << 12));
-        }
-
-        /// <summary>
-        /// Packs one RGBA texel into one 16-bit GameCube RGB5A3 word.
-        /// </summary>
-        /// <param name="red">8-bit red channel.</param>
-        /// <param name="green">8-bit green channel.</param>
-        /// <param name="blue">8-bit blue channel.</param>
-        /// <param name="alpha">8-bit alpha channel.</param>
-        /// <returns>Packed RGB5A3 texel.</returns>
-        ushort PackGxRgb5A3(byte red, byte green, byte blue, byte alpha) {
-            if (alpha >= 224) {
-                ushort packedRed = Convert8BitChannelTo5Bit(red);
-                ushort packedGreen = Convert8BitChannelTo5Bit(green);
-                ushort packedBlue = Convert8BitChannelTo5Bit(blue);
-                return (ushort)(0x8000 | (packedRed << 10) | (packedGreen << 5) | packedBlue);
-            }
-
-            ushort packedAlpha = Convert8BitChannelTo3Bit(alpha);
-            ushort packedRed4 = Convert8BitChannelTo4Bit(red);
-            ushort packedGreen4 = Convert8BitChannelTo4Bit(green);
-            ushort packedBlue4 = Convert8BitChannelTo4Bit(blue);
-            return (ushort)((packedAlpha << 12) | (packedRed4 << 8) | (packedGreen4 << 4) | packedBlue4);
-        }
-
-        /// <summary>
-        /// Converts one 8-bit channel into the 5-bit range used by opaque RGB5A3 texels.
-        /// </summary>
-        /// <param name="value">8-bit channel value.</param>
-        /// <returns>5-bit channel value stored in a 16-bit word.</returns>
-        ushort Convert8BitChannelTo5Bit(byte value) {
-            return (ushort)(((value * 31) + 127) / 255);
-        }
-
-        /// <summary>
-        /// Converts one 8-bit channel into the 4-bit range used by translucent RGB5A3 texels.
-        /// </summary>
-        /// <param name="value">8-bit channel value.</param>
-        /// <returns>4-bit channel value stored in a 16-bit word.</returns>
-        ushort Convert8BitChannelTo4Bit(byte value) {
-            return (ushort)(((value * 15) + 127) / 255);
-        }
-
-        /// <summary>
-        /// Converts one 8-bit alpha channel into the 3-bit range used by translucent RGB5A3 texels.
-        /// </summary>
-        /// <param name="value">8-bit alpha value.</param>
-        /// <returns>3-bit alpha value stored in a 16-bit word.</returns>
-        ushort Convert8BitChannelTo3Bit(byte value) {
-            return (ushort)(((value * 7) + 127) / 255);
         }
 
         /// <summary>
@@ -416,19 +318,6 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported indexed texture format '{targetFormat}'.");
-        }
-
-        /// <summary>
-        /// Determines whether the supplied serialized texture format is supported by the processor.
-        /// </summary>
-        /// <param name="colorFormat">Serialized texture format to validate.</param>
-        /// <returns>True when the format is supported.</returns>
-        bool IsSupportedColorFormat(TextureAssetColorFormat colorFormat) {
-            return colorFormat == TextureAssetColorFormat.Rgba32
-                || colorFormat == TextureAssetColorFormat.Rgba4444
-                || colorFormat == TextureAssetColorFormat.Indexed4
-                || colorFormat == TextureAssetColorFormat.Indexed8
-                || colorFormat == TextureAssetColorFormat.GxRgb5A3;
         }
 
         /// <summary>

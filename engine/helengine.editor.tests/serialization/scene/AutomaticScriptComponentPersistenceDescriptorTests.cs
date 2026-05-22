@@ -78,7 +78,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Steps = new[] {
                     new TestSceneMemoryProbeSerializableStep {
                         ActionKind = TestSceneMemoryProbeSerializableActionKind.Wait,
-                        SceneId = "Scenes/DemoDiscMainMenu.helen",
+                        SceneId = "Scenes/MainMenuScene.helen",
                         DurationSeconds = 5.0d,
                         Label = "idle-menu"
                     },
@@ -123,7 +123,7 @@ namespace helengine.editor.tests.serialization.scene {
                     },
                     new SceneMemoryProbeStep {
                         ActionKind = SceneMemoryProbeActionKind.LoadSceneSingle,
-                        SceneId = "Scenes/DemoDiscMainMenu.helen",
+                        SceneId = "Scenes/MainMenuScene.helen",
                         DurationSeconds = 0d,
                         Label = "load-menu"
                     }
@@ -141,7 +141,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(2, restored.Steps.Length);
             Assert.Equal(SceneMemoryProbeActionKind.Wait, restored.Steps[0].ActionKind);
             Assert.Equal(5.0d, restored.Steps[0].DurationSeconds);
-            Assert.Equal("Scenes/DemoDiscMainMenu.helen", restored.Steps[1].SceneId);
+            Assert.Equal("Scenes/MainMenuScene.helen", restored.Steps[1].SceneId);
             Assert.Equal("load-menu", restored.Steps[1].Label);
         }
 

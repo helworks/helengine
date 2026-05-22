@@ -48,7 +48,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the real Windows builder metadata and gameplay script-type resolver package city-style scripted scene components through the generic automatic runtime payload contract.
+        /// Ensures the real Windows builder metadata and gameplay script-type resolver package project-owned scripted scene components through the generic automatic runtime payload contract.
         /// </summary>
         [Fact]
         public void Package_WhenWindowsBuilderCompatibilityMetadataAndScriptResolverAreSupplied_PackagesCityStyleScriptComponents() {
@@ -60,11 +60,11 @@ namespace helengine.editor.tests {
             IPlatformAssetBuilder builder = builderLoader.Load(platformDescriptor.BuilderAssemblyPath);
             AutomaticScriptComponentPersistenceDescriptor automaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             DictionaryScriptTypeResolver scriptTypeResolver = new DictionaryScriptTypeResolver();
-            scriptTypeResolver.Register("city.menu.DemoDiscReturnToMenuComponent, gameplay", typeof(TestDemoDiscReturnToMenuComponent));
-            scriptTypeResolver.Register("city.rendering.DirectionalShadowTowerSpinComponent, gameplay", typeof(TestDirectionalShadowTowerSpinComponent));
+            scriptTypeResolver.Register("project.menu.SceneReturnComponent, gameplay", typeof(TestSceneReturnComponent));
+            scriptTypeResolver.Register("project.rendering.TowerSpinComponent, gameplay", typeof(TestDirectionalShadowTowerSpinComponent));
 
             SceneComponentAssetRecord returnToMenuRecord = new SceneComponentAssetRecord {
-                ComponentTypeId = "city.menu.DemoDiscReturnToMenuComponent, gameplay",
+                ComponentTypeId = "project.menu.SceneReturnComponent, gameplay",
                 ComponentIndex = 0,
                 Payload = Array.Empty<byte>()
             };
@@ -75,7 +75,7 @@ namespace helengine.editor.tests {
                 },
                 1,
                 new EntityComponentSaveState());
-            towerSpinRecord.ComponentTypeId = "city.rendering.DirectionalShadowTowerSpinComponent, gameplay";
+            towerSpinRecord.ComponentTypeId = "project.rendering.TowerSpinComponent, gameplay";
 
             string sceneId = "Scenes/CityStyleCompatibilityScene.helen";
             WriteSceneAsset(sceneId, new SceneAsset {
@@ -117,10 +117,10 @@ namespace helengine.editor.tests {
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
             SceneComponentAssetRecord packagedReturnToMenuRecord = Assert.Single(
                 packagedRoot.Components,
-                componentRecord => string.Equals(componentRecord.ComponentTypeId, "city.menu.DemoDiscReturnToMenuComponent, gameplay", StringComparison.Ordinal));
+                componentRecord => string.Equals(componentRecord.ComponentTypeId, "project.menu.SceneReturnComponent, gameplay", StringComparison.Ordinal));
             SceneComponentAssetRecord packagedTowerSpinRecord = Assert.Single(
                 packagedRoot.Components,
-                componentRecord => string.Equals(componentRecord.ComponentTypeId, "city.rendering.DirectionalShadowTowerSpinComponent, gameplay", StringComparison.Ordinal));
+                componentRecord => string.Equals(componentRecord.ComponentTypeId, "project.rendering.TowerSpinComponent, gameplay", StringComparison.Ordinal));
 
             using (MemoryStream payloadStream = new MemoryStream(packagedReturnToMenuRecord.Payload ?? Array.Empty<byte>(), false))
             using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
@@ -141,18 +141,18 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Package_WhenSceneContainsSceneMapComponent_WritesRuntimeSceneMapPayload() {
-            string sceneId = "Scenes/GeneratedBootScene.helen";
+            string sceneId = "Scenes/StartupScene.helen";
             SceneMapComponent sceneMapComponent = new SceneMapComponent {
-                InitialSceneId = "DemoDiscMainMenu"
+                InitialSceneId = "MainMenuScene"
             };
-            sceneMapComponent.Mappings.Add("DemoDiscMainMenu", "DemoDiscMainMenuDs");
+            sceneMapComponent.Mappings.Add("MainMenuScene", "AlternateMainMenuScene");
             SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
             WriteSceneAsset(sceneId, new SceneAsset {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
-                        Name = "GeneratedBootSceneRoot",
+                        Name = "StartupSceneRoot",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
@@ -179,8 +179,8 @@ namespace helengine.editor.tests {
 
             RuntimeSceneMapComponentDeserializer deserializer = new RuntimeSceneMapComponentDeserializer();
             SceneMapComponent packagedComponent = Assert.IsType<SceneMapComponent>(deserializer.Deserialize(packagedRecord, null));
-            Assert.Equal("DemoDiscMainMenu", packagedComponent.InitialSceneId);
-            Assert.Equal("DemoDiscMainMenuDs", packagedComponent.Mappings["DemoDiscMainMenu"]);
+            Assert.Equal("MainMenuScene", packagedComponent.InitialSceneId);
+            Assert.Equal("AlternateMainMenuScene", packagedComponent.Mappings["MainMenuScene"]);
         }
 
         /// <summary>
@@ -817,7 +817,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a city-style standard-shader material packages with a shader contract the player can resolve.
+        /// Ensures a project-style standard-shader material packages with a shader contract the player can resolve.
         /// </summary>
         [Fact]
         public void Package_WhenStandardShaderMaterialUsesMirroredFieldSidecar_WritesPlayerResolvableShaderContract() {
@@ -1265,7 +1265,7 @@ namespace helengine.editor.tests {
                     },
                     new SceneMemoryProbeStep {
                         ActionKind = SceneMemoryProbeActionKind.LoadSceneSingle,
-                        SceneId = "Scenes/DemoDiscMainMenu.helen",
+                        SceneId = "Scenes/MainMenuScene.helen",
                         DurationSeconds = 0d,
                         Label = "load-menu"
                     }
@@ -1332,12 +1332,12 @@ namespace helengine.editor.tests {
             Assert.Equal(SceneMemoryProbeActionKind.Wait, loadedComponent.Steps[0].ActionKind);
             Assert.Equal(5.0d, loadedComponent.Steps[0].DurationSeconds);
             Assert.Equal(SceneMemoryProbeActionKind.LoadSceneSingle, loadedComponent.Steps[1].ActionKind);
-            Assert.Equal("Scenes/DemoDiscMainMenu.helen", loadedComponent.Steps[1].SceneId);
+            Assert.Equal("Scenes/MainMenuScene.helen", loadedComponent.Steps[1].SceneId);
             Assert.Equal("load-menu", loadedComponent.Steps[1].Label);
         }
 
         /// <summary>
-        /// Ensures the Windows packager preserves directional-shadow motion script components as city-owned automatic script records.
+        /// Ensures the Windows packager preserves directional-shadow motion script components as project-owned automatic script records.
         /// </summary>
         [Fact]
         public void Package_WhenSceneContainsDirectionalShadowMotionScriptComponents_PreservesCityOwnedScriptRecords() {
@@ -1369,7 +1369,7 @@ namespace helengine.editor.tests {
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
                         Components = new[] {
-                            CreateDirectionalShadowComponentRecord("city.rendering.DirectionalShadowCameraOrbitComponent, gameplay", serializedRecord)
+                            CreateDirectionalShadowComponentRecord("project.rendering.CameraOrbitComponent, gameplay", serializedRecord)
                         },
                         Children = Array.Empty<SceneEntityAsset>()
                     },
@@ -1380,7 +1380,7 @@ namespace helengine.editor.tests {
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
                         Components = new[] {
-                            CreateDirectionalShadowComponentRecord("city.rendering.DirectionalShadowOrbitComponent, gameplay", serializedRecord)
+                            CreateDirectionalShadowComponentRecord("project.rendering.OrbitComponent, gameplay", serializedRecord)
                         },
                         Children = Array.Empty<SceneEntityAsset>()
                     },
@@ -1391,7 +1391,7 @@ namespace helengine.editor.tests {
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
                         Components = new[] {
-                            CreateDirectionalShadowComponentRecord("city.rendering.DirectionalShadowSunSweepComponent, gameplay", serializedRecord)
+                            CreateDirectionalShadowComponentRecord("project.rendering.SunSweepComponent, gameplay", serializedRecord)
                         },
                         Children = Array.Empty<SceneEntityAsset>()
                     },
@@ -1402,7 +1402,7 @@ namespace helengine.editor.tests {
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
                         Components = new[] {
-                            CreateDirectionalShadowComponentRecord("city.rendering.DirectionalShadowTowerSpinComponent, gameplay", serializedRecord)
+                            CreateDirectionalShadowComponentRecord("project.rendering.TowerSpinComponent, gameplay", serializedRecord)
                         },
                         Children = Array.Empty<SceneEntityAsset>()
                     }
@@ -1428,10 +1428,10 @@ namespace helengine.editor.tests {
 
             Assert.Collection(
                 packagedScene.RootEntities,
-                cameraRoot => Assert.Equal("city.rendering.DirectionalShadowCameraOrbitComponent, gameplay", Assert.Single(cameraRoot.Components).ComponentTypeId),
-                orbitRoot => Assert.Equal("city.rendering.DirectionalShadowOrbitComponent, gameplay", Assert.Single(orbitRoot.Components).ComponentTypeId),
-                sunRoot => Assert.Equal("city.rendering.DirectionalShadowSunSweepComponent, gameplay", Assert.Single(sunRoot.Components).ComponentTypeId),
-                towerRoot => Assert.Equal("city.rendering.DirectionalShadowTowerSpinComponent, gameplay", Assert.Single(towerRoot.Components).ComponentTypeId));
+                cameraRoot => Assert.Equal("project.rendering.CameraOrbitComponent, gameplay", Assert.Single(cameraRoot.Components).ComponentTypeId),
+                orbitRoot => Assert.Equal("project.rendering.OrbitComponent, gameplay", Assert.Single(orbitRoot.Components).ComponentTypeId),
+                sunRoot => Assert.Equal("project.rendering.SunSweepComponent, gameplay", Assert.Single(sunRoot.Components).ComponentTypeId),
+                towerRoot => Assert.Equal("project.rendering.TowerSpinComponent, gameplay", Assert.Single(towerRoot.Components).ComponentTypeId));
 
             InitializeRuntimeCore(BuildRootPath);
             ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
@@ -1951,7 +1951,7 @@ namespace helengine.editor.tests {
                         LocalOrientation = float4.Identity,
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "city.menu.DemoDiscReturnToMenuComponent, gameplay",
+                                ComponentTypeId = "project.menu.SceneReturnComponent, gameplay",
                                 ComponentIndex = 0,
                                 Payload = payload
                             }
@@ -1967,7 +1967,7 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestDemoDiscReturnToMenuComponent)));
+                new FakeScriptTypeResolver(typeof(TestSceneReturnComponent)));
 
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
             Assert.NotNull(result);
@@ -1975,7 +1975,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures city directional-shadow tower-spin records remain automatic script records when packaged.
+        /// Ensures project directional-shadow tower-spin records remain automatic script records when packaged.
         /// </summary>
         [Fact]
         public void Package_WhenSceneContainsCityDirectionalShadowTowerSpin_PreservesAutomaticScriptRecord() {
@@ -2000,7 +2000,7 @@ namespace helengine.editor.tests {
                         LocalOrientation = float4.Identity,
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "city.rendering.DirectionalShadowTowerSpinComponent, gameplay",
+                                ComponentTypeId = "project.rendering.TowerSpinComponent, gameplay",
                                 ComponentIndex = 0,
                                 Payload = payload
                             }
@@ -2025,7 +2025,7 @@ namespace helengine.editor.tests {
             }
 
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
-            Assert.Equal("city.rendering.DirectionalShadowTowerSpinComponent, gameplay", packagedRecord.ComponentTypeId);
+            Assert.Equal("project.rendering.TowerSpinComponent, gameplay", packagedRecord.ComponentTypeId);
 
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
@@ -2813,7 +2813,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one city-style standard material document that mirrors the colored cube-grid authored content.
+        /// Writes one project-style standard material document that mirrors the colored cube-grid authored content.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path to write.</param>
         void WriteCityStyleStandardMaterialAsset(string materialRelativePath, string diffuseTextureAssetId = "") {

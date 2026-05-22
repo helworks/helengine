@@ -9,11 +9,6 @@ namespace helengine.editor.tests.serialization.scene {
     /// </summary>
     public class RuntimeSceneLoadServiceTests : IDisposable {
         /// <summary>
-        /// Absolute output root used by the local Windows player export for the city project.
-        /// </summary>
-        const string CityWindowsOutputRootPath = @"C:\dev\helprojs\output\windows";
-
-        /// <summary>
         /// Temporary content root used by the runtime scene-load test harness.
         /// </summary>
         readonly string TempRootPath;
@@ -67,72 +62,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(string.Empty, loadService.LastTextLoadStage);
             Assert.Equal(string.Empty, loadService.LastTextFontRelativePath);
             Assert.NotNull(loadService.LastFontDeserializeStage);
-        }
-
-        /// <summary>
-        /// Ensures the packaged city demo-disc startup scene can be materialized through the shared runtime loader without throwing.
-        /// </summary>
-        [Fact]
-        public void Load_WhenLoadingPackagedCityDemoDiscMainMenu_DoesNotThrow() {
-            string scenePath = Path.Combine(CityWindowsOutputRootPath, "cooked", "scenes", "DemoDiscMainMenu.hasset");
-            Assert.True(File.Exists(scenePath), $"Expected packaged city startup scene at '{scenePath}'.");
-
-            SceneAsset sceneAsset;
-            using (FileStream stream = File.OpenRead(scenePath)) {
-                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-            }
-
-            EditorCore runtimeCore = new EditorCore(new Project {
-                Name = "City Runtime Scene Load",
-                Path = CityWindowsOutputRootPath
-            });
-            runtimeCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("windows", "1.0.0"), new CoreInitializationOptions {
-                ContentRootPath = CityWindowsOutputRootPath
-            });
-
-            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                Core.Instance.ContentManager,
-                CityWindowsOutputRootPath,
-                ShaderCompileTarget.DirectX11);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-
-            Exception thrownException = Record.Exception(() => loadService.Load(sceneAsset));
-            Assert.Null(thrownException);
-        }
-
-        /// <summary>
-        /// Ensures the packaged city demo-disc menu scene has migrated to city-owned menu component identities and still loads.
-        /// </summary>
-        [Fact]
-        public void Load_WhenLoadingPackagedCityDemoDiscMainMenu_UsesCityMenuComponentTypeIdsAndDoesNotThrow() {
-            string scenePath = Path.Combine(CityWindowsOutputRootPath, "cooked", "scenes", "DemoDiscMainMenu.hasset");
-            Assert.True(File.Exists(scenePath), $"Expected packaged city startup scene at '{scenePath}'.");
-
-            SceneAsset sceneAsset;
-            using (FileStream stream = File.OpenRead(scenePath)) {
-                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-            }
-
-            Assert.Contains(
-                FlattenComponents(sceneAsset.RootEntities),
-                component => string.Equals(component.ComponentTypeId, "city.menu.MenuComponent, gameplay", StringComparison.Ordinal));
-
-            EditorCore runtimeCore = new EditorCore(new Project {
-                Name = "City Runtime Scene Load",
-                Path = CityWindowsOutputRootPath
-            });
-            runtimeCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("windows", "1.0.0"), new CoreInitializationOptions {
-                ContentRootPath = CityWindowsOutputRootPath
-            });
-
-            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                Core.Instance.ContentManager,
-                CityWindowsOutputRootPath,
-                ShaderCompileTarget.DirectX11);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-
-            Exception thrownException = Record.Exception(() => loadService.Load(sceneAsset));
-            Assert.Null(thrownException);
         }
 
         /// <summary>

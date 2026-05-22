@@ -390,7 +390,7 @@ namespace helengine.editor.tests {
         /// Ensures changing the GameCube cooked texture format invalidates the cached texture asset id.
         /// </summary>
         [Fact]
-        public void TryLoadTextureAsset_WhenGameCubeColorFormatChanges_ReimportsWithANewAssetId() {
+        public void TryLoadTextureAsset_WhenGameCubeColorFormatIdChanges_ReimportsWithANewAssetId() {
             string sourcePath = WriteSourceTexture("gamecube-format-id.tga");
             AssetImportManager manager = CreateTgaManager();
             manager.CurrentPlatformId = "gamecube";
@@ -398,7 +398,7 @@ namespace helengine.editor.tests {
             TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Processor.Platforms["gamecube"] = new TextureAssetProcessorSettings {
                 MaxResolution = 256,
-                ColorFormat = TextureAssetColorFormat.Rgba32,
+                ColorFormatId = TextureAssetColorFormat.Rgba32.ToString(),
                 AlphaPrecision = TextureAssetAlphaPrecision.A8
             };
             manager.SaveTextureImportSettings(sourcePath, settings);
@@ -406,7 +406,7 @@ namespace helengine.editor.tests {
             string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
 
             settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
-            settings.Processor.Platforms["gamecube"].ColorFormat = TextureAssetColorFormat.GxRgb5A3;
+            settings.Processor.Platforms["gamecube"].ColorFormatId = "GxRgb5A3";
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
             string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;

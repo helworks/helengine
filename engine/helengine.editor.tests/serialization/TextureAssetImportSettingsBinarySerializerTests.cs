@@ -33,17 +33,17 @@ namespace helengine.editor.tests.serialization {
         }
 
         /// <summary>
-        /// Verifies typed texture sidecars preserve the GameCube RGB5A3 texture format.
+        /// Verifies typed texture sidecars preserve opaque platform-owned texture color-format identifiers.
         /// </summary>
         [Fact]
-        public void SerializeDeserialize_WhenGameCubeUsesGxRgb5A3_PreservesThatFormat() {
+        public void SerializeDeserialize_WhenGameCubeUsesOpaqueColorFormatId_PreservesThatFormat() {
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
             settings.Importer.ImporterId = "pfim";
             settings.Importer.SourceChecksum = "sha256:test";
             settings.Importer.AssetId = "asset/test";
             settings.Processor.Platforms["gamecube"] = new TextureAssetProcessorSettings {
                 MaxResolution = 256,
-                ColorFormat = TextureAssetColorFormat.GxRgb5A3,
+                ColorFormatId = "GxRgb5A3",
                 AlphaPrecision = TextureAssetAlphaPrecision.A8
             };
 
@@ -55,7 +55,7 @@ namespace helengine.editor.tests.serialization {
 
             TextureAssetProcessorSettings gamecubeSettings = Assert.Single(roundTripped.Processor.Platforms).Value;
             Assert.Equal(256, gamecubeSettings.MaxResolution);
-            Assert.Equal(TextureAssetColorFormat.GxRgb5A3, gamecubeSettings.ColorFormat);
+            Assert.Equal("GxRgb5A3", gamecubeSettings.ColorFormatId);
             Assert.Equal(TextureAssetAlphaPrecision.A8, gamecubeSettings.AlphaPrecision);
         }
     }

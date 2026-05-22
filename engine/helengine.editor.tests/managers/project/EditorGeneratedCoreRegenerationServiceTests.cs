@@ -377,20 +377,20 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies city scripted component ids participate in generated runtime deserializer emission instead of being filtered out as engine-owned compatibility types.
+    /// Verifies project scripted component ids participate in generated runtime deserializer emission instead of being filtered out as engine-owned compatibility types.
     /// </summary>
     [Fact]
     public void Emit_cooked_scene_automatic_runtime_component_deserializers_includes_city_scripted_component_type_ids() {
-        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-city-components");
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-project-components");
         Directory.CreateDirectory(generatedCoreRootPath);
         string scenePath = CreateCookedScene(
-            "city-components-scene.hasset",
-            "city.menu.DemoDiscReturnToMenuComponent, gameplay",
-            "city.menu.PlatformInfoTextComponent, gameplay");
+            "project-components-scene.hasset",
+            "project.menu.SceneReturnComponent, gameplay",
+            "project.menu.PlatformInfoComponent, gameplay");
 
         DictionaryScriptTypeResolver scriptTypeResolver = new DictionaryScriptTypeResolver();
-        scriptTypeResolver.Register("city.menu.DemoDiscReturnToMenuComponent, gameplay", typeof(TestUpdateOnlyScriptComponent));
-        scriptTypeResolver.Register("city.menu.PlatformInfoTextComponent, gameplay", typeof(TestUpdateOnlyScriptComponent));
+        scriptTypeResolver.Register("project.menu.SceneReturnComponent, gameplay", typeof(TestUpdateOnlyScriptComponent));
+        scriptTypeResolver.Register("project.menu.PlatformInfoComponent, gameplay", typeof(TestUpdateOnlyScriptComponent));
 
         EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
             generatedCoreRootPath,

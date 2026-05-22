@@ -352,7 +352,7 @@ namespace helengine.editor.tests {
                 AssetEntryKind.Model);
 
             Assert.All(previousTabHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
-            Assert.All(previousTabHosts, host => Assert.Empty(host.Components));
+            Assert.All(previousTabHosts, host => Assert.Throws<InvalidOperationException>(() => _ = host.Components));
             Assert.All(previousTabHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
             Assert.All(previousTabHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, interactable => ReferenceEquals(interactable.Parent, host)));
         }
@@ -440,11 +440,11 @@ namespace helengine.editor.tests {
                             PlatformAssetCookOwnershipKind.BuilderOwned,
                             "psp-texture",
                             textureFormatCapabilities: new PlatformTextureFormatCapabilityDefinition(
-                                [TextureAssetColorFormat.Rgba4444, TextureAssetColorFormat.Indexed8],
+                                [TextureAssetColorFormat.Rgba4444.ToString(), TextureAssetColorFormat.Indexed8.ToString()],
                                 [TextureAssetAlphaPrecision.A4, TextureAssetAlphaPrecision.A8],
                                 [
-                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Rgba4444, TextureAssetAlphaPrecision.A4),
-                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8, TextureAssetAlphaPrecision.A8)
+                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Rgba4444.ToString(), TextureAssetAlphaPrecision.A4),
+                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8.ToString(), TextureAssetAlphaPrecision.A8)
                                 ])),
                         new PlatformAssetCookCapabilityDefinition(
                             "font-atlas-texture",
@@ -452,10 +452,10 @@ namespace helengine.editor.tests {
                             PlatformAssetCookOwnershipKind.BuilderOwned,
                             "psp-font-atlas-texture",
                             textureFormatCapabilities: new PlatformTextureFormatCapabilityDefinition(
-                                [TextureAssetColorFormat.Indexed8],
+                                [TextureAssetColorFormat.Indexed8.ToString()],
                                 [TextureAssetAlphaPrecision.A8],
                                 [
-                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8, TextureAssetAlphaPrecision.A8)
+                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8.ToString(), TextureAssetAlphaPrecision.A8)
                                 ]))
                     ])
             };

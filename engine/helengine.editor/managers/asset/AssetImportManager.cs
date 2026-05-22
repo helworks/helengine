@@ -620,7 +620,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Texture importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
 
-            asset = TextureAssetProcessor.Apply(asset, GetCurrentPlatformTextureProcessorSettings(settings));
+            TextureAssetProcessorSettings textureProcessorSettings = GetCurrentPlatformTextureProcessorSettings(settings);
+            if (textureProcessorSettings.UsesGenericColorFormat()) {
+                asset = TextureAssetProcessor.Apply(asset, textureProcessorSettings);
+            }
             asset.Id = settings.Importer.AssetId;
             asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.AssetId);
 
@@ -699,8 +702,11 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Font importers must provide one source atlas texture.");
             }
 
-            TextureAsset processedSourceTextureAsset = TextureAssetProcessor.Apply(asset.SourceTextureAsset, GetCurrentPlatformTextureProcessorSettings(settings));
-            asset.ApplyProcessedSourceTextureAsset(processedSourceTextureAsset);
+            TextureAssetProcessorSettings textureProcessorSettings = GetCurrentPlatformTextureProcessorSettings(settings);
+            if (textureProcessorSettings.UsesGenericColorFormat()) {
+                TextureAsset processedSourceTextureAsset = TextureAssetProcessor.Apply(asset.SourceTextureAsset, textureProcessorSettings);
+                asset.ApplyProcessedSourceTextureAsset(processedSourceTextureAsset);
+            }
             string fontAtlasAssetId = settings.Importer.AssetId + "#atlas";
             asset.SourceTextureAsset.Id = fontAtlasAssetId;
             asset.SourceTextureAsset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(fontAtlasAssetId);
@@ -2514,7 +2520,7 @@ namespace helengine.editor {
                         settings.Importer.ImporterId ?? string.Empty, "\n",
                         texturePlatformId, "\n",
                         textureProcessorSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
-                        ((int)textureProcessorSettings.ColorFormat).ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
+                        textureProcessorSettings.ColorFormatId ?? string.Empty, "\n",
                         ((int)textureProcessorSettings.AlphaPrecision).ToString(System.Globalization.CultureInfo.InvariantCulture));
                     byte[] textureIdentityBytes = System.Text.Encoding.UTF8.GetBytes(textureIdentity);
                     byte[] textureHashBytes = System.Security.Cryptography.SHA256.HashData(textureIdentityBytes);
@@ -2530,7 +2536,7 @@ namespace helengine.editor {
                         settings.Importer.ImporterId ?? string.Empty, "\n",
                         texturePlatformId, "\n",
                         textureProcessorSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
-                        ((int)textureProcessorSettings.ColorFormat).ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
+                        textureProcessorSettings.ColorFormatId ?? string.Empty, "\n",
                         ((int)textureProcessorSettings.AlphaPrecision).ToString(System.Globalization.CultureInfo.InvariantCulture));
                     byte[] fontIdentityBytes = System.Text.Encoding.UTF8.GetBytes(fontIdentity);
                     byte[] fontHashBytes = System.Security.Cryptography.SHA256.HashData(fontIdentityBytes);
@@ -2593,7 +2599,7 @@ namespace helengine.editor {
                 settings.Importer.ImporterId ?? string.Empty, "\n",
                 platformId, "\n",
                 processorSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
-                ((int)processorSettings.ColorFormat).ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
+                processorSettings.ColorFormatId ?? string.Empty, "\n",
                 ((int)processorSettings.AlphaPrecision).ToString(System.Globalization.CultureInfo.InvariantCulture));
             byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
@@ -2950,9 +2956,17 @@ namespace helengine.editor {
         /// <param name="platformId">Active processing platform identifier.</param>
         /// <returns>Default texture processor settings for the requested platform.</returns>
         TextureAssetProcessorSettings CreateDefaultTextureProcessorSettings(string platformId) {
+            if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
+                return new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormatId = TextureAssetColorFormat.Rgba4444.ToString(),
+                    AlphaPrecision = TextureAssetAlphaPrecision.A4
+                };
+            }
+
             return new TextureAssetProcessorSettings {
                 MaxResolution = 0,
-                ColorFormat = TextureAssetColorFormat.Rgba32,
+                ColorFormatId = TextureAssetColorFormat.Rgba32.ToString(),
                 AlphaPrecision = TextureAssetAlphaPrecision.A8
             };
         }

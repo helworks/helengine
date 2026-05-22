@@ -6,17 +6,17 @@ namespace helengine.editor.tests {
     /// <summary>
     /// Verifies queued-build snapshot creation uses builder metadata defaults and preserves scene ordering.
     /// </summary>
-    public sealed class EditorBuildQueueItemFactoryTests : IDisposable {
+    public sealed class EditorBuildQueueItemDocumentTests : IDisposable {
         /// <summary>
         /// Gets the isolated temporary project root used by the current test instance.
         /// </summary>
         string TempProjectRootPath { get; }
 
         /// <summary>
-        /// Initializes one isolated temporary project root for queue-item factory tests.
+        /// Initializes one isolated temporary project root for queue-item document tests.
         /// </summary>
-        public EditorBuildQueueItemFactoryTests() {
-            TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-build-queue-factory-tests", Guid.NewGuid().ToString("N"));
+        public EditorBuildQueueItemDocumentTests() {
+            TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-build-queue-document-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
         }
 
@@ -30,7 +30,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures one queued Windows build snapshot seeds builder defaults and inserts the generated boot scene before the ordered authored scenes.
+        /// Ensures one queued Windows build snapshot seeds builder defaults and preserves the authored scene order.
         /// </summary>
         [Fact]
         public void Create_WhenPlatformConfigOmitsProfileSelections_SeedsDefaultsAndOrdersScenes() {
@@ -38,7 +38,6 @@ namespace helengine.editor.tests {
             WriteScene("Scenes/B.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "windows",
                 SelectedSceneIds = [
@@ -58,9 +57,9 @@ namespace helengine.editor.tests {
             };
 
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
-            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "GeneratedBootScene", "B", "A" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "B", "A" }, queueItem.SelectedSceneIds);
             Assert.Equal("debug", queueItem.SelectedBuildProfileId);
             Assert.Equal("directx11", queueItem.SelectedGraphicsProfileId);
             Assert.Equal("default", queueItem.SelectedCodegenProfileId);
@@ -84,7 +83,6 @@ namespace helengine.editor.tests {
             WriteScene("Scenes/A.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "ps2",
                 SelectedSceneIds = [
@@ -93,7 +91,7 @@ namespace helengine.editor.tests {
             };
 
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreatePs2SelectionModel());
-            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
             Assert.Equal("ps2-default", queueItem.SelectedBuildProfileId);
             Assert.Equal("ps2-standard-forward", queueItem.SelectedGraphicsProfileId);
@@ -101,76 +99,73 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures PS2 queued demo-disc builds start directly at the main menu scene instead of routing through the generated boot scene.
+        /// Ensures PS2 queued builds preserve the authored selected-scene order.
         /// </summary>
         [Fact]
-        public void Create_WhenPs2BuildTargetsDemoDiscMainMenu_UsesMainMenuAsStartupScene() {
-            WriteScene("Scenes/DemoDiscMainMenu.helen");
+        public void Create_WhenPs2BuildTargetsMainMenuScene_PreservesSelectedSceneOrder() {
+            WriteScene("Scenes/MainMenuScene.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "ps2",
                 SelectedSceneIds = [
-                    "DemoDiscMainMenu",
+                    "MainMenuScene",
                     "cube_test"
                 ]
             };
 
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreatePs2SelectionModel());
-            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "DemoDiscMainMenu", "cube_test" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "MainMenuScene", "cube_test" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
-        /// Ensures PSP queued builds insert the generated boot scene first even when it was not selected explicitly.
+        /// Ensures PSP queued builds preserve the authored selected-scene order.
         /// </summary>
         [Fact]
-        public void Create_WhenPspBuildOmitsGeneratedBootScene_InsertsItAsStartupScene() {
-            WriteScene("Scenes/DemoDiscMainMenu.helen");
+        public void Create_WhenPspBuildOmitsStartupScene_PreservesSelectedSceneOrder() {
+            WriteScene("Scenes/MainMenuScene.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "psp",
                 SelectedSceneIds = [
-                    "DemoDiscMainMenu",
+                    "MainMenuScene",
                     "cube_test"
                 ]
             };
 
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
-            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "GeneratedBootScene", "DemoDiscMainMenu", "cube_test" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "MainMenuScene", "cube_test" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
-        /// Ensures PS2 queued builds do not include Nintendo DS companion scenes and keep the main menu as the startup scene.
+        /// Ensures PS2 queued builds do not include Nintendo DS companion scenes.
         /// </summary>
         [Fact]
         public void Create_WhenPs2BuildSelectsSceneWithGeneratedCompanion_DoesNotIncludeNintendoDsCompanionScene() {
-            WriteScene("Scenes/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/MainMenuScene.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
             WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "ps2",
                 SelectedSceneIds = [
-                    "DemoDiscMainMenu",
+                    "MainMenuScene",
                     "cube_test"
                 ]
             };
 
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreatePs2SelectionModel());
-            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "DemoDiscMainMenu", "cube_test" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "MainMenuScene", "cube_test" }, queueItem.SelectedSceneIds);
             Assert.DoesNotContain("cube_test_ds", queueItem.SelectedSceneIds);
         }
 
@@ -183,41 +178,18 @@ namespace helengine.editor.tests {
             WriteScene("Scenes/B.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "ps2"
             };
 
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
-            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
             Assert.Equal(new[] { "A", "B" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
-        /// Ensures Nintendo DS queued builds insert the generated boot scene first even when it was not selected explicitly.
-        /// </summary>
-        [Fact]
-        public void Create_WhenDsBuildOmitsGeneratedBootScene_InsertsItAsStartupScene() {
-            WriteScene("Scenes/ColoredCubeGrid.helen");
-
-            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
-            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
-                PlatformId = "ds",
-                SelectedSceneIds = [
-                    "ColoredCubeGrid"
-                ]
-            };
-
-            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
-            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
-
-            Assert.Equal(new[] { "GeneratedBootScene", "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
-        }
-
-        /// <summary>
-        /// Ensures Nintendo DS queued builds also include generated companion scenes when the selected authored scene has one.
+        /// Ensures Nintendo DS queued builds include generated companion scenes when the selected authored scene has one.
         /// </summary>
         [Fact]
         public void Create_WhenDsBuildSelectsSceneWithGeneratedCompanion_IncludesNintendoDsCompanionScene() {
@@ -225,7 +197,6 @@ namespace helengine.editor.tests {
             WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "ds",
                 SelectedSceneIds = [
@@ -234,20 +205,19 @@ namespace helengine.editor.tests {
             };
 
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
-            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "GeneratedBootScene", "cube_test", "cube_test_ds" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "cube_test", "cube_test_ds" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
-        /// Ensures Windows queued builds insert the generated boot scene first even when it was not selected explicitly.
+        /// Ensures Windows queued builds preserve the authored selected-scene order.
         /// </summary>
         [Fact]
-        public void Create_WhenWindowsBuildOmitsGeneratedBootScene_InsertsItAsStartupScene() {
+        public void Create_WhenWindowsBuildOmitsStartupScene_PreservesSelectedSceneOrder() {
             WriteScene("Scenes/ColoredCubeGrid.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
-            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "windows",
                 SelectedSceneIds = [
@@ -256,9 +226,9 @@ namespace helengine.editor.tests {
             };
 
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
-            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "GeneratedBootScene", "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "ColoredCubeGrid" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>
@@ -272,7 +242,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Creates one builder metadata definition used by the queue-item factory test.
+        /// Creates one builder metadata definition used by the queue-item document test.
         /// </summary>
         /// <returns>Selection model backed by the supplied definition.</returns>
         static PlatformDefinition CreateSelectionModel() {
@@ -375,7 +345,7 @@ namespace helengine.editor.tests {
                                 PlatformSettingKind.Boolean,
                                 "true",
                                 true,
-                            []),
+                                []),
                             new PlatformSettingDefinition(
                                 PlatformCodegenSettingIds.PresetId,
                                 "Preset",
@@ -537,4 +507,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

@@ -271,8 +271,6 @@ namespace helengine.files {
                 return TextureAssetColorFormat.Indexed4;
             } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
                 return TextureAssetColorFormat.Indexed8;
-            } else if (serializedValue == (byte)TextureAssetColorFormat.GxRgb5A3) {
-                return TextureAssetColorFormat.GxRgb5A3;
             }
 
             throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
@@ -310,8 +308,6 @@ namespace helengine.files {
         static TextureAssetAlphaPrecision GetDefaultTextureAssetAlphaPrecision(TextureAssetColorFormat colorFormat) {
             if (colorFormat == TextureAssetColorFormat.Rgba4444 || colorFormat == TextureAssetColorFormat.Indexed4) {
                 return TextureAssetAlphaPrecision.A4;
-            } else if (colorFormat == TextureAssetColorFormat.GxRgb5A3) {
-                return TextureAssetAlphaPrecision.A8;
             }
 
             return TextureAssetAlphaPrecision.Opaque;

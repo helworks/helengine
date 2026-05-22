@@ -67,8 +67,11 @@ namespace helengine.editor {
                     return EditorBuildExecutionResult.Failure($"Platform '{options.PlatformId}' could not load its builder metadata: {ex}");
                 }
 
-                EditorBuildQueueItemFactory queueItemFactory = new EditorBuildQueueItemFactory(bootstrap.SceneCatalogService);
-                EditorBuildQueueItemDocument queueItem = queueItemFactory.Create(platformConfig, selectionModel, options.OutputDirectoryPath);
+                EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(
+                    bootstrap.SceneCatalogService,
+                    platformConfig,
+                    selectionModel,
+                    options.OutputDirectoryPath);
                 AvailablePlatformDescriptor platformDescriptor;
                 try {
                     platformDescriptor = bootstrap.ResolvePlatformDescriptor(options.PlatformId);

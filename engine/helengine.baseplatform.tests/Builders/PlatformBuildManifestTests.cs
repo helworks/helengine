@@ -20,12 +20,12 @@ public class PlatformBuildManifestTests {
 
         PlatformBuildManifest manifest = new(
             1,
-            "city",
+            "sample-project",
             "1.0.0",
             "1.0.0-engine",
             "gamecube",
             "1.0.0",
-            "Scenes/DemoDiscMainMenu.helen",
+            "Scenes/MainMenuScene.helen",
             Array.Empty<PlatformBuildScene>(),
             Array.Empty<PlatformBuildAsset>(),
             Array.Empty<PlatformBuildArtifact>(),

@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 6;
+        public const byte CurrentVersion = 7;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -65,8 +65,8 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Asset import settings must include texture processor settings for platform '{entry.Key}'.");
                 } else if (entry.Value.Texture.MaxResolution < 0) {
                     throw new InvalidOperationException($"Asset import settings cannot contain a negative texture max resolution for platform '{entry.Key}'.");
-                } else if (!IsSupportedColorFormat(entry.Value.Texture.ColorFormat)) {
-                    throw new InvalidOperationException($"Asset import settings cannot contain unsupported texture color format '{entry.Value.Texture.ColorFormat}' for platform '{entry.Key}'.");
+                } else if (string.IsNullOrWhiteSpace(entry.Value.Texture.ColorFormatId)) {
+                    throw new InvalidOperationException($"Asset import settings cannot contain a blank texture color format id for platform '{entry.Key}'.");
                 } else if (!IsSupportedAlphaPrecision(entry.Value.Texture.AlphaPrecision)) {
                     throw new InvalidOperationException($"Asset import settings cannot contain unsupported texture alpha precision '{entry.Value.Texture.AlphaPrecision}' for platform '{entry.Key}'.");
                 } else if (entry.Value.Model == null) {
@@ -80,7 +80,7 @@ namespace helengine.editor {
                 writer.WriteString(entry.Key);
                 writer.WriteByte(entry.Value.Model.FlipWinding ? (byte)1 : (byte)0);
                 writer.WriteInt32(entry.Value.Texture.MaxResolution);
-                writer.WriteByte((byte)entry.Value.Texture.ColorFormat);
+                writer.WriteString(entry.Value.Texture.ColorFormatId);
                 writer.WriteByte((byte)entry.Value.Texture.AlphaPrecision);
                 writer.WriteString(entry.Value.Material.SchemaId ?? string.Empty);
                 writer.WriteInt32(entry.Value.Material.FieldValues.Count);
@@ -132,10 +132,12 @@ namespace helengine.editor {
                 if (platformSettings.Texture.MaxResolution < 0) {
                     throw new InvalidOperationException($"Asset import settings cannot contain a negative texture max resolution for platform '{platformId}'.");
                 }
-                platformSettings.Texture.ColorFormat = header.Version >= 5
-                    ? ReadTextureAssetColorFormat(reader)
-                    : TextureAssetColorFormat.Rgba32;
-                platformSettings.Texture.AlphaPrecision = header.Version >= CurrentVersion
+                platformSettings.Texture.ColorFormatId = header.Version >= CurrentVersion
+                    ? reader.ReadString()
+                    : (header.Version >= 5
+                        ? ReadLegacyTextureAssetColorFormat(reader).ToString()
+                        : TextureAssetColorFormat.Rgba32.ToString());
+                platformSettings.Texture.AlphaPrecision = header.Version >= 6
                     ? ReadTextureAssetAlphaPrecision(reader)
                     : TextureAssetAlphaPrecision.A8;
                 platformSettings.Material.SchemaId = reader.ReadString();
@@ -202,7 +204,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reader">Reader positioned at the texture format byte.</param>
         /// <returns>Decoded texture color format.</returns>
-        static TextureAssetColorFormat ReadTextureAssetColorFormat(EngineBinaryReader reader) {
+        static TextureAssetColorFormat ReadLegacyTextureAssetColorFormat(EngineBinaryReader reader) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -216,8 +218,6 @@ namespace helengine.editor {
                 return TextureAssetColorFormat.Indexed4;
             } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
                 return TextureAssetColorFormat.Indexed8;
-            } else if (serializedValue == (byte)TextureAssetColorFormat.GxRgb5A3) {
-                return TextureAssetColorFormat.GxRgb5A3;
             }
 
             throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
@@ -245,19 +245,6 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");
-        }
-
-        /// <summary>
-        /// Determines whether one texture color format can be serialized by this settings document.
-        /// </summary>
-        /// <param name="colorFormat">Texture color format to validate.</param>
-        /// <returns>True when the format is supported.</returns>
-        static bool IsSupportedColorFormat(TextureAssetColorFormat colorFormat) {
-            return colorFormat == TextureAssetColorFormat.Rgba32
-                || colorFormat == TextureAssetColorFormat.Rgba4444
-                || colorFormat == TextureAssetColorFormat.Indexed4
-                || colorFormat == TextureAssetColorFormat.Indexed8
-                || colorFormat == TextureAssetColorFormat.GxRgb5A3;
         }
 
         /// <summary>

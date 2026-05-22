@@ -9,9 +9,9 @@ public sealed class PackagedScenePathResolverTests {
     /// </summary>
     [Fact]
     public void BuildRelativePath_for_startup_scene_preserves_the_authored_file_name() {
-        string relativePath = PackagedScenePathResolver.BuildRelativePath("Scenes/DemoDiscMainMenu.helen", 0);
+        string relativePath = PackagedScenePathResolver.BuildRelativePath("Scenes/MainMenuScene.helen", 0);
 
-        Assert.Equal("cooked/scenes/DemoDiscMainMenu.hasset", relativePath);
+        Assert.Equal("cooked/scenes/MainMenuScene.hasset", relativePath);
     }
 
     /// <summary>

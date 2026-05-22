@@ -290,12 +290,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the PS2 runtime always uses the performance-overlay row format even before the renderer publishes its first explicit overlay toggle.
+        /// Ensures the overlay uses the default FPS rows until the active renderer explicitly publishes performance-overlay metrics.
         /// </summary>
         [Fact]
-        public void ComponentAdded_WhenPlatformIsPs2_UsesPerformanceOverlayTextImmediatelyAfterOverlayBuild() {
-            CoreInstance.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("ps2", "test-version"));
-
+        public void ComponentAdded_WhenRendererHasNotPublishedOverlayMetrics_UsesDefaultOverlayText() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
@@ -306,10 +304,8 @@ namespace helengine.editor.tests {
 
             entity.AddComponent(fps);
 
-            Assert.StartsWith("Upd 0.0 Obj3D ", fps.UpdateFpsText, StringComparison.Ordinal);
-            Assert.Contains(" Cam ", fps.UpdateFpsText, StringComparison.Ordinal);
-            Assert.Contains(" Ent ", fps.UpdateFpsText, StringComparison.Ordinal);
-            Assert.Equal("Rdr 0.0 Drw 0.0 Ovr 0 Tri 0 Disp 0", fps.RenderFpsText);
+            Assert.Equal("Update FPS: 0.0", fps.UpdateFpsText);
+            Assert.Equal("Render FPS: 0.0 (0.0 ms)", fps.RenderFpsText);
         }
 
         /// <summary>

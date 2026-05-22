@@ -40,8 +40,6 @@ namespace helengine.editor {
         readonly FontAsset DefaultFontAsset;
         readonly EditorPlatformAssetBuilderLoader BuilderLoader;
         readonly EditorGeneratedCoreRegenerationService GeneratedCoreRegenerationService;
-        readonly EditorGeneratedMenuScenePreparationService GeneratedMenuScenePreparationService;
-        readonly EditorGeneratedBootScenePreparationService GeneratedBootScenePreparationService;
         readonly EditorPhysics3DCodegenFeatureSymbolService Physics3DCodegenFeatureSymbolService;
         readonly EditorPlatformBuildGraphWorkspaceFactory WorkspaceFactory;
         readonly EditorPlatformAssetCookService AssetCookService;
@@ -111,8 +109,6 @@ namespace helengine.editor {
             DefaultFontAsset = defaultFontAsset;
             BuilderLoader = builderLoader ?? throw new ArgumentNullException(nameof(builderLoader));
             GeneratedCoreRegenerationService = generatedCoreRegenerationService ?? throw new ArgumentNullException(nameof(generatedCoreRegenerationService));
-            GeneratedMenuScenePreparationService = new EditorGeneratedMenuScenePreparationService(ProjectRootPath, scriptTypeResolver);
-            GeneratedBootScenePreparationService = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
             Physics3DCodegenFeatureSymbolService = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
             WorkspaceFactory = workspaceFactory ?? new EditorPlatformBuildGraphWorkspaceFactory();
             AssetCookService = new EditorPlatformAssetCookService(
@@ -159,8 +155,6 @@ namespace helengine.editor {
             Directory.CreateDirectory(workspace.BuilderWorkingRootPath);
             Directory.CreateDirectory(workspace.LogsRootPath);
 
-            GeneratedMenuScenePreparationService.EnsurePrepared(queueItem.SelectedSceneIds ?? []);
-            GeneratedBootScenePreparationService.EnsurePrepared(queueItem.PlatformId, queueItem.SelectedSceneIds ?? []);
             RunRegenerateCore(builder.Definition, selectedCodegenProfile, queueItem, workspace);
             PlatformBuildManifest cookedManifest = RunCookAssets(
                 builder,

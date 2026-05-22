@@ -275,9 +275,8 @@ namespace helengine.vulkan {
         public override RuntimeMaterial BuildMaterialFromRawAsset(
             ContentManager assetContentManager,
             string contentRootPath,
-            string materialAssetPath,
-            MaterialAsset materialAsset) {
-            return ShaderRuntimeMaterialLoader.BuildMaterialFromRawAsset(this, assetContentManager, contentRootPath, materialAssetPath, materialAsset);
+            string materialAssetPath) {
+            return ShaderRuntimeMaterialLoader.BuildMaterialFromRawAsset(this, assetContentManager, contentRootPath, materialAssetPath);
         }
 
         /// <summary>
@@ -286,7 +285,7 @@ namespace helengine.vulkan {
         /// <param name="materialAsset">Raw material asset definition.</param>
         /// <param name="shaderAsset">Shader asset used by the material.</param>
         /// <returns>Runtime material instance.</returns>
-        public virtual RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        public virtual RuntimeMaterial BuildMaterialFromRaw(ShaderMaterialAsset materialAsset, ShaderAsset shaderAsset) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
@@ -334,25 +333,6 @@ namespace helengine.vulkan {
             material.MaterialDescriptorSet = AllocateMaterialDescriptorSet();
             RegisterMaterial(material);
             return material;
-        }
-
-        /// <summary>
-        /// Assigns one authored diffuse texture to a Vulkan shader runtime material.
-        /// </summary>
-        /// <param name="material">Runtime material that should receive the diffuse texture.</param>
-        /// <param name="texture">Runtime texture that should become the material diffuse texture.</param>
-        public override void AssignRawMaterialDiffuseTexture(RuntimeMaterial material, RuntimeTexture texture) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            }
-            if (texture == null) {
-                throw new ArgumentNullException(nameof(texture));
-            }
-            if (material is not ShaderRuntimeMaterial shaderMaterial) {
-                throw new InvalidOperationException("Vulkan raw runtime materials must be shader-backed.");
-            }
-
-            shaderMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, texture);
         }
 
         /// <summary>
@@ -1187,7 +1167,7 @@ namespace helengine.vulkan {
                 throw new ArgumentNullException(nameof(shaderAsset));
             }
 
-            var materialAsset = new MaterialAsset {
+            var materialAsset = new ShaderMaterialAsset {
                 ShaderAssetId = material.ShaderAssetId,
                 VertexProgram = material.VertexProgram,
                 PixelProgram = material.PixelProgram,

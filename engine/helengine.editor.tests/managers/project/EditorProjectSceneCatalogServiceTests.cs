@@ -33,12 +33,12 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetSceneIds_WhenScenesExist_ReturnsSceneAssetNamesWithoutExtensions() {
-            WriteScene("Scenes/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/MainMenuScene.helen");
             WriteScene("Levels/CubeTest.helen");
 
             EditorProjectSceneCatalogService service = new EditorProjectSceneCatalogService(TempProjectRootPath);
 
-            Assert.Equal(new[] { "CubeTest", "DemoDiscMainMenu" }, service.GetSceneIds());
+            Assert.Equal(new[] { "CubeTest", "MainMenuScene" }, service.GetSceneIds());
         }
 
         /// <summary>
@@ -46,12 +46,12 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveScenePath_WhenSceneIdMatchesOneScene_ReturnsProjectRelativePath() {
-            WriteScene("Scenes/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/MainMenuScene.helen");
             WriteScene("Levels/CubeTest.helen");
 
             EditorProjectSceneCatalogService service = new EditorProjectSceneCatalogService(TempProjectRootPath);
 
-            Assert.Equal("Scenes/DemoDiscMainMenu.helen", service.ResolveScenePath("DemoDiscMainMenu"));
+            Assert.Equal("Scenes/MainMenuScene.helen", service.ResolveScenePath("MainMenuScene"));
             Assert.Equal("Levels/CubeTest.helen", service.ResolveScenePath("CubeTest"));
         }
 
@@ -60,13 +60,13 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveScenePath_WhenSceneIdMatchesMultipleScenes_ThrowsInvalidOperationException() {
-            WriteScene("Scenes/DemoDiscMainMenu.helen");
-            WriteScene("Levels/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/MainMenuScene.helen");
+            WriteScene("Levels/MainMenuScene.helen");
 
             EditorProjectSceneCatalogService service = new EditorProjectSceneCatalogService(TempProjectRootPath);
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.ResolveScenePath("DemoDiscMainMenu"));
-            Assert.Contains("DemoDiscMainMenu", exception.Message, StringComparison.Ordinal);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.ResolveScenePath("MainMenuScene"));
+            Assert.Contains("MainMenuScene", exception.Message, StringComparison.Ordinal);
         }
 
         /// <summary>
