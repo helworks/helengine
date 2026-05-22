@@ -41,8 +41,8 @@ namespace helengine.editor.tests.managers.project {
             string gameplayUiAssemblyPath = WriteModuleAssembly("gameplay.ui");
             string[] resolvedTypeNames = LoadAndResolveTypeNames(gameplayAssemblyPath, gameplayUiAssemblyPath);
 
-            Assert.Equal(typeof(TestMenuDefinitionProvider).FullName, resolvedTypeNames[0]);
-            Assert.Equal(typeof(TestMenuDefinitionProvider).FullName, resolvedTypeNames[1]);
+            Assert.Equal(typeof(TestUpdateOnlyScriptComponent).FullName, resolvedTypeNames[0]);
+            Assert.Equal(typeof(TestUpdateOnlyScriptComponent).FullName, resolvedTypeNames[1]);
         }
 
         /// <summary>
@@ -166,8 +166,8 @@ namespace helengine.editor.tests.managers.project {
 
             Assert.Same(capturedResolver, host.ScriptTypeResolver);
             Assert.Equal(
-                typeof(TestMenuDefinitionProvider).FullName,
-                capturedResolver.Resolve(typeof(TestMenuDefinitionProvider).FullName + ", gameplay").FullName);
+                typeof(TestUpdateOnlyScriptComponent).FullName,
+                capturedResolver.Resolve(typeof(TestUpdateOnlyScriptComponent).FullName + ", gameplay").FullName);
         }
 
         /// <summary>
@@ -205,7 +205,7 @@ namespace helengine.editor.tests.managers.project {
             string moduleOutputDirectoryPath = Path.Combine(OutputRootPath, moduleId, "Debug", "net9.0");
             Directory.CreateDirectory(moduleOutputDirectoryPath);
             string assemblyPath = Path.Combine(moduleOutputDirectoryPath, moduleId + ".dll");
-            File.Copy(typeof(TestMenuDefinitionProvider).Assembly.Location, assemblyPath, true);
+            File.Copy(typeof(TestUpdateOnlyScriptComponent).Assembly.Location, assemblyPath, true);
             return assemblyPath;
         }
 
@@ -230,8 +230,8 @@ namespace helengine.editor.tests.managers.project {
             ]);
 
             return [
-                ResolveTypeFullName(host.ScriptTypeResolver, typeof(TestMenuDefinitionProvider).FullName + ", gameplay"),
-                ResolveTypeFullName(host.ScriptTypeResolver, typeof(TestMenuDefinitionProvider).FullName + ", gameplay.ui")
+                ResolveTypeFullName(host.ScriptTypeResolver, typeof(TestUpdateOnlyScriptComponent).FullName + ", gameplay"),
+                ResolveTypeFullName(host.ScriptTypeResolver, typeof(TestUpdateOnlyScriptComponent).FullName + ", gameplay.ui")
             ];
         }
 

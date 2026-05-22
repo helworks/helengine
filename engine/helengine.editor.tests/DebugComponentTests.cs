@@ -180,10 +180,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the debug overlay tears down stale child references when the overlay subtree is disposed before the owning component receives its disable callback.
+        /// Ensures externally disposed overlay entities become invalid references instead of requiring a hidden cleanup sentinel.
         /// </summary>
         [Fact]
-        public void ParentEnabledChange_WhenOverlaySubtreeWasDisposedExternally_TearsDownStaleOverlayReferences() {
+        public void OverlayHost_WhenDisposedExternally_ThrowsObjectDisposedExceptionOnLaterAccess() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
@@ -197,15 +197,7 @@ namespace helengine.editor.tests {
             Entity overlayHost = Assert.IsType<Entity>(GetPrivateFieldValue(debug, "OverlayHost"));
             overlayHost.Dispose();
 
-            debug.ParentEnabledChange(false);
-
-            Assert.False((bool)GetPrivateFieldValue(debug, "Initialized"));
-            Assert.Null(GetPrivateFieldValue(debug, "OverlayHost"));
-            Assert.Null(GetPrivateFieldValue(debug, "RenderFpsTextComponent"));
-            Assert.Null(GetPrivateFieldValue(debug, "ResidentMemoryTextComponent"));
-            Assert.Null(GetPrivateFieldValue(debug, "CommittedMemoryTextComponent"));
-            Assert.Null(GetPrivateFieldValue(debug, "Drawables2DTextComponent"));
-            Assert.Null(GetPrivateFieldValue(debug, "Drawables3DTextComponent"));
+            Assert.Throws<ObjectDisposedException>(() => _ = overlayHost.Parent);
         }
 
         /// <summary>

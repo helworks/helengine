@@ -262,7 +262,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         WriteSerializedAsset(cookedMaterialPath, new MaterialAsset {
             Id = "RacerMaterial",
             ShaderAssetId = "ForwardStandardShader",
-            ConstantBuffers = Array.Empty<MaterialConstantBuffer>()
+            ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
         });
 
         string artifactKind = InvokeResolveArtifactKind(cookedMaterialPath, "cooked/models/Riemers/racer/x3ds_mat_Material_1_2.hasset");

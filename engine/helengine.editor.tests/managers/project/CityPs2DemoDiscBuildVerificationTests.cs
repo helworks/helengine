@@ -1,6 +1,7 @@
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Manifest;
 using helengine.editor.tests.testing;
+using helengine.platforms;
 using helengine.projectfile;
 
 namespace helengine.editor.tests.managers.project;

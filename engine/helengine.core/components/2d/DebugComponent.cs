@@ -34,11 +34,6 @@ namespace helengine {
         Entity OverlayHost;
 
         /// <summary>
-        /// Lifetime sentinel attached to the overlay root so stale cached references are cleared before native deletion completes.
-        /// </summary>
-        DebugComponentOverlayLifetimeComponent OverlayLifetimeComponent;
-
-        /// <summary>
         /// Child entity that hosts the render-FPS text row.
         /// </summary>
         Entity RenderFpsRowHost;
@@ -402,8 +397,6 @@ namespace helengine {
             OverlayHost.InitChildren();
             OverlayHost.InitComponents();
             Parent.AddChild(OverlayHost);
-            OverlayLifetimeComponent = new DebugComponentOverlayLifetimeComponent(this);
-            OverlayHost.AddComponent(OverlayLifetimeComponent);
 
             RenderFpsRowHost = CreateRowHost();
             RenderFpsTextComponent = CreateRowTextComponent(RenderFpsRowHost);
@@ -473,7 +466,6 @@ namespace helengine {
         void ReleaseOverlayReferences() {
             ActiveComponents.Remove(this);
             OverlayHost = null;
-            OverlayLifetimeComponent = null;
             RenderFpsRowHost = null;
             ResidentMemoryRowHost = null;
             CommittedMemoryRowHost = null;
@@ -814,11 +806,5 @@ namespace helengine {
                 && textComponent.Parent == rowHost;
         }
 
-        /// <summary>
-        /// Clears cached overlay references when the overlay-host subtree is being removed externally during parent-driven disposal.
-        /// </summary>
-        internal void ReleaseOverlayReferencesFromDisposedHierarchy() {
-            ReleaseOverlayReferences();
-        }
     }
 }

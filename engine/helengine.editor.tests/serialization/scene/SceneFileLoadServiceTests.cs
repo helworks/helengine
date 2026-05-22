@@ -90,27 +90,6 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures editor scene loading materializes baked demo menu metadata without executing the runtime menu lifecycle.
-        /// </summary>
-        [Fact]
-        public void Load_WhenSceneContainsBakedDemoMenu_LoadsWithoutExecutingRuntimeLifecycle() {
-            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
-            RegisterDemoMenuFonts(resolver);
-            string scenePath = SaveBakedMenuSceneAsset("MenuRoot.helen", "city.menu.DemoDiscMenuDefinitionProvider, city");
-            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreateDemoMenuPersistenceRegistry(), resolver);
-
-            LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
-
-            Assert.Equal(2, loaded.RootEntities.Length);
-            EditorEntity root = Assert.Single(loaded.RootEntities, entity => entity.Components.Any(component => component is MenuComponent));
-            MenuComponent demoMenuBuildComponent = Assert.IsType<MenuComponent>(Assert.Single(root.Components, component => component is MenuComponent));
-            Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, city", demoMenuBuildComponent.ProviderTypeName);
-            Assert.False(demoMenuBuildComponent.IsInitialized);
-            Assert.Single(root.Children);
-            Assert.NotEmpty(root.Children[0].Children);
-        }
-
-        /// <summary>
         /// Ensures scene loading returns the authored scene canvas profile stored in the scene file.
         /// </summary>
         [Fact]
@@ -178,24 +157,6 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Creates the component persistence registry required to load baked demo menu scene records.
-        /// </summary>
-        /// <returns>Configured persistence registry containing baked menu support.</returns>
-        ComponentPersistenceRegistry CreateDemoMenuPersistenceRegistry() {
-            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new CameraComponentPersistenceDescriptor());
-            registry.Register(new DebugComponentPersistenceDescriptor());
-            registry.Register(new MenuComponentPersistenceDescriptor());
-            registry.Register(new MenuPanelComponentPersistenceDescriptor());
-            registry.Register(new MenuItemComponentPersistenceDescriptor());
-            registry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
-            registry.Register(new RoundedRectComponentPersistenceDescriptor());
-            registry.Register(new TextComponentPersistenceDescriptor());
-            registry.Register(new FPSComponentPersistenceDescriptor());
-            return registry;
-        }
-
-        /// <summary>
         /// Saves one scene file containing a single mesh-backed user entity.
         /// </summary>
         /// <param name="fileName">Scene file name to write.</param>
@@ -233,88 +194,6 @@ namespace helengine.editor.tests.serialization.scene {
             root.Enabled = false;
             Core.Instance.ObjectManager.RemoveEntity(root);
             return scenePath;
-        }
-
-        /// <summary>
-        /// Writes one scene file containing a baked demo menu root and generated hierarchy.
-        /// </summary>
-        /// <param name="fileName">Scene file name to write.</param>
-        /// <param name="providerTypeName">Assembly-qualified provider type stored in the baked root metadata.</param>
-        /// <returns>Absolute path to the written `.helen` file.</returns>
-        string SaveBakedMenuSceneAsset(string fileName, string providerTypeName) {
-            if (string.IsNullOrWhiteSpace(fileName)) {
-                throw new ArgumentException("Scene file name must be provided.", nameof(fileName));
-            }
-            if (string.IsNullOrWhiteSpace(providerTypeName)) {
-                throw new ArgumentException("Provider type name must be provided.", nameof(providerTypeName));
-            }
-
-            DemoMenuSceneAssetFactory factory = new DemoMenuSceneAssetFactory();
-            SceneAsset sceneAsset = factory.BuildSceneAsset("Scenes/TestMenu.helen", providerTypeName, BuildDemoMenuDefinition());
-
-            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", fileName);
-            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
-            AssetSerializer.Serialize(stream, sceneAsset);
-            return scenePath;
-        }
-
-        /// <summary>
-        /// Registers deterministic font assets for the baked demo menu references.
-        /// </summary>
-        /// <param name="resolver">Resolver that should receive the registered font assets.</param>
-        void RegisterDemoMenuFonts(TestSceneAssetReferenceResolver resolver) {
-            if (resolver == null) {
-                throw new ArgumentNullException(nameof(resolver));
-            }
-
-            FontAsset font = CreateFont();
-            resolver.RegisterFont(
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = "Fonts/DemoDiscTitle.hefont",
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                },
-                font);
-            resolver.RegisterFont(
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = "Fonts/DemoDiscBody.hefont",
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                },
-                font);
-        }
-
-        /// <summary>
-        /// Creates one small deterministic baked menu definition for editor scene load tests.
-        /// </summary>
-        /// <returns>Demo menu definition used by the scene load fixture.</returns>
-        MenuDefinition BuildDemoMenuDefinition() {
-            return new MenuDefinition(
-                "Demo",
-                "Preview",
-                "main",
-                "Fonts/DemoDiscTitle.hefont",
-                "Fonts/DemoDiscBody.hefont",
-                new byte4(10, 10, 20, 255),
-                new byte4(30, 30, 50, 255),
-                new byte4(60, 60, 90, 255),
-                new byte4(120, 120, 255, 255),
-                new byte4(80, 180, 200, 255),
-                new byte4(255, 255, 255, 255),
-                new byte4(210, 210, 220, 255),
-                new[] {
-                    new MenuPanelDefinition(
-                        "main",
-                        "Main Menu",
-                        "Scene load test panel.",
-                        4,
-                        new[] {
-                            new MenuItemDefinition("select-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "Scenes/TestPlayableScene.helen")),
-                            new MenuItemDefinition("back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
-                        })
-                });
         }
 
         /// <summary>

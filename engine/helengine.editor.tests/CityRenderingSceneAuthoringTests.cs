@@ -505,20 +505,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the authored top-level demo-disc menu scene no longer carries the debug overlay under the generated fitted UI subtree.
-        /// </summary>
-        [Fact]
-        public void DeserializeCityDemoDiscMainMenuSceneAsset_GeneratedRootDoesNotContainDebugComponent() {
-            SceneAsset sceneAsset = ReadTopLevelSceneAsset("DemoDiscMainMenu.helen");
-            SceneEntityAsset menuRoot = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
-            SceneEntityAsset generatedRoot = Assert.Single(menuRoot.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
-
-            Assert.DoesNotContain(
-                generatedRoot.Components ?? Array.Empty<SceneComponentAssetRecord>(),
-                component => string.Equals(component.ComponentTypeId, "helengine.DebugComponent", StringComparison.Ordinal));
-        }
-
-        /// <summary>
         /// Reads one city rendering scene asset from the authored project scene folder.
         /// </summary>
         /// <param name="sceneFileName">File name of the authored rendering scene.</param>

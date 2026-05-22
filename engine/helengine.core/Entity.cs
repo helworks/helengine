@@ -7,9 +7,14 @@ namespace helengine {
         bool isStatic;
         bool isInitialized;
         bool isDisposing;
+        bool isDisposed;
         float3 position;
         float3 scale;
         float4 orientation;
+        Entity parent;
+        ushort layerMask;
+        List<Component> components;
+        List<Entity> children;
 
         /// <summary>
         /// Initializes a new entity with default transforms and registers it with the object manager.
@@ -28,24 +33,34 @@ namespace helengine {
         /// </summary>
         public virtual float3 Position {
             get {
+                ThrowIfDisposed();
                 float3 pos = position;
 
-                if (Parent != null) {
-                    float3 rotatedLocal = float4.RotateVector(pos, Parent.Orientation);
-                    pos = rotatedLocal + Parent.Position;
+                if (parent != null) {
+                    float3 rotatedLocal = float4.RotateVector(pos, parent.Orientation);
+                    pos = rotatedLocal + parent.Position;
                 }
 
                 return pos;
             }
-            set { position = value; }
+            set {
+                ThrowIfDisposed();
+                position = value;
+            }
         }
 
         /// <summary>
         /// Gets or sets the uncomposed local position stored on the entity.
         /// </summary>
         public float3 LocalPosition {
-            get { return position; }
-            set { position = value; }
+            get {
+                ThrowIfDisposed();
+                return position;
+            }
+            set {
+                ThrowIfDisposed();
+                position = value;
+            }
         }
 
         /// <summary>
@@ -53,23 +68,33 @@ namespace helengine {
         /// </summary>
         public float3 Scale {
             get {
+                ThrowIfDisposed();
                 float3 sca = scale;
 
-                if (Parent != null) {
-                    sca *= Parent.Scale;
+                if (parent != null) {
+                    sca *= parent.Scale;
                 }
 
                 return sca;
             }
-            set { scale = value; }
+            set {
+                ThrowIfDisposed();
+                scale = value;
+            }
         }
 
         /// <summary>
         /// Gets or sets the uncomposed local scale stored on the entity.
         /// </summary>
         public float3 LocalScale {
-            get { return scale; }
-            set { scale = value; }
+            get {
+                ThrowIfDisposed();
+                return scale;
+            }
+            set {
+                ThrowIfDisposed();
+                scale = value;
+            }
         }
 
         /// <summary>
@@ -77,34 +102,59 @@ namespace helengine {
         /// </summary>
         public float4 Orientation {
             get {
+                ThrowIfDisposed();
                 float4 ori = orientation;
 
-                if (Parent != null) {
-                    ori *= Parent.Orientation;
+                if (parent != null) {
+                    ori *= parent.Orientation;
                 }
 
                 return ori;
             }
-            set { orientation = value; }
+            set {
+                ThrowIfDisposed();
+                orientation = value;
+            }
         }
 
         /// <summary>
         /// Gets or sets the uncomposed local orientation stored on the entity.
         /// </summary>
         public float4 LocalOrientation {
-            get { return orientation; }
-            set { orientation = value; }
+            get {
+                ThrowIfDisposed();
+                return orientation;
+            }
+            set {
+                ThrowIfDisposed();
+                orientation = value;
+            }
         }
 
         /// <summary>
         /// Gets the parent entity when part of a hierarchy.
         /// </summary>
-        public Entity Parent { get; private set; }
+        public Entity Parent {
+            get {
+                ThrowIfDisposed();
+                return parent;
+            }
+            private set { parent = value; }
+        }
 
         /// <summary>
         /// Gets or sets the layer mask used for filtering rendering and input.
         /// </summary>
-        public ushort LayerMask { get; set; }
+        public ushort LayerMask {
+            get {
+                ThrowIfDisposed();
+                return layerMask;
+            }
+            set {
+                ThrowIfDisposed();
+                layerMask = value;
+            }
+        }
 
 
 
@@ -112,19 +162,35 @@ namespace helengine {
         /// <summary>
         /// Gets the list of components attached to this entity.
         /// </summary>
-        public List<Component> Components { get; internal set; }
+        public List<Component> Components {
+            get {
+                ThrowIfDisposed();
+                return components;
+            }
+            internal set { components = value; }
+        }
 
         /// <summary>
         /// Gets the list of child entities owned by this entity.
         /// </summary>
-        public List<Entity> Children { get; internal set; }
+        public List<Entity> Children {
+            get {
+                ThrowIfDisposed();
+                return children;
+            }
+            internal set { children = value; }
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether the entity is enabled.
         /// </summary>
         public bool Enabled {
-            get { return isEnabled; }
+            get {
+                ThrowIfDisposed();
+                return isEnabled;
+            }
             set {
+                ThrowIfDisposed();
                 bool wasHierarchyEnabled = IsHierarchyEnabled;
                 if (isEnabled != value) {
                     isEnabled = value;
@@ -141,15 +207,16 @@ namespace helengine {
         /// </summary>
         public bool IsHierarchyEnabled {
             get {
+                ThrowIfDisposed();
                 if (!isEnabled) {
                     return false;
                 }
 
-                if (Parent == null) {
+                if (parent == null) {
                     return true;
                 }
 
-                return Parent.IsHierarchyEnabled;
+                return parent.IsHierarchyEnabled;
             }
         }
 
@@ -157,15 +224,22 @@ namespace helengine {
         /// Gets a value indicating whether this entity hierarchy has completed component initialization.
         /// </summary>
         public bool IsInitialized {
-            get { return isInitialized; }
+            get {
+                ThrowIfDisposed();
+                return isInitialized;
+            }
         }
 
         /// <summary>
         /// Gets or sets a value indicating whether the entity is static.
         /// </summary>
         public bool Static {
-            get { return isStatic; }
+            get {
+                ThrowIfDisposed();
+                return isStatic;
+            }
             set {
+                ThrowIfDisposed();
                 if (isStatic != value) {
                     ParentStaticChange(value);
                 }
@@ -177,7 +251,8 @@ namespace helengine {
         /// Initializes the children collection for this entity.
         /// </summary>
         public void InitChildren() {
-            Children = new List<Entity>();
+            ThrowIfDisposed();
+            children = new List<Entity>();
         }
 
         /// <summary>
@@ -185,14 +260,23 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Child entity to add.</param>
         public void AddChild(Entity entity) {
-            if (entity.Parent != null) {
+            ThrowIfDisposed();
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            entity.ThrowIfDisposed();
+            if (children == null) {
+                throw new InvalidOperationException("Children collection has not been initialized.");
+            }
+            if (entity.parent != null) {
                 throw new Exception("Parent is not empty");
             }
 
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
-            entity.Parent = this;
-            Children.Add(entity);
-            if (IsInitialized) {
+            entity.parent = this;
+            children.Add(entity);
+            if (isInitialized) {
                 entity.InitializeHierarchy();
             }
             if (wasHierarchyEnabled && entity.IsHierarchyEnabled) {
@@ -209,20 +293,21 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Child entity to remove.</param>
         public void RemoveChild(Entity entity) {
+            ThrowIfDisposed();
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
-            } else if (Children == null) {
+            } else if (children == null) {
                 throw new InvalidOperationException("Children collection has not been initialized.");
-            } else if (entity.Parent != this) {
+            } else if (entity.parent != this) {
                 throw new InvalidOperationException("Entity is not parented to this parent.");
             }
 
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
-            if (!Children.Remove(entity)) {
+            if (!children.Remove(entity)) {
                 throw new InvalidOperationException("Entity could not be removed from the child collection.");
             }
 
-            entity.Parent = null;
+            entity.parent = null;
             if (!ShouldSuppressRegistrationRefreshForDetachment(entity) && wasHierarchyEnabled && entity.IsHierarchyEnabled) {
                 entity.RefreshRegistrationsAfterParentChange();
             }
@@ -236,7 +321,8 @@ namespace helengine {
         /// Initializes the component collection for this entity.
         /// </summary>
         public void InitComponents() {
-            Components = new List<Component>();
+            ThrowIfDisposed();
+            components = new List<Component>();
         }
 
         /// <summary>
@@ -244,12 +330,25 @@ namespace helengine {
         /// </summary>
         /// <param name="comp">Component to add.</param>
         public void AddComponent(Component comp) {
-            Components.Add(comp);
+            ThrowIfDisposed();
+            if (comp == null) {
+                throw new ArgumentNullException(nameof(comp));
+            }
+
+            comp.ThrowIfDisposed();
+            if (components == null) {
+                throw new InvalidOperationException("Components collection has not been initialized.");
+            }
+            if (comp.ParentUnsafe != null) {
+                throw new InvalidOperationException("Component is already attached to an entity.");
+            }
+
+            components.Add(comp);
             comp.AttachToEntity(this);
 
             if (ComponentExecutionPolicy.ShouldRunComponentLifecycle(comp, this)) {
                 comp.ComponentAdded(this);
-                if (IsInitialized) {
+                if (isInitialized) {
                     comp.ComponentInitialized(this);
                 }
             }
@@ -259,14 +358,15 @@ namespace helengine {
         /// Marks this entity hierarchy as fully materialized and notifies all eligible components once.
         /// </summary>
         public void InitializeHierarchy() {
+            ThrowIfDisposed();
             if (IsInitialized) {
                 return;
             }
 
             isInitialized = true;
-            if (Components != null) {
-                for (int i = 0; i < Components.Count; i++) {
-                    Component component = Components[i];
+            if (components != null) {
+                for (int i = 0; i < components.Count; i++) {
+                    Component component = components[i];
                     if (!ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, this)) {
                         continue;
                     }
@@ -275,9 +375,9 @@ namespace helengine {
                 }
             }
 
-            if (Children != null) {
-                for (int i = 0; i < Children.Count; i++) {
-                    Children[i].InitializeHierarchy();
+            if (children != null) {
+                for (int i = 0; i < children.Count; i++) {
+                    children[i].InitializeHierarchy();
                 }
             }
         }
@@ -287,15 +387,16 @@ namespace helengine {
         /// </summary>
         /// <param name="comp">Component to remove.</param>
         public void RemoveComponent(Component comp) {
+            ThrowIfDisposed();
             if (comp == null) {
                 throw new ArgumentNullException(nameof(comp));
-            } else if (Components == null) {
+            } else if (components == null) {
                 throw new InvalidOperationException("Components collection has not been initialized.");
-            } else if (comp.Parent != this) {
+            } else if (comp.ParentUnsafe != this) {
                 throw new InvalidOperationException("Component is not attached to this entity.");
             }
 
-            if (!Components.Remove(comp)) {
+            if (!components.Remove(comp)) {
                 throw new InvalidOperationException("Component could not be removed from the component collection.");
             }
 
@@ -316,9 +417,9 @@ namespace helengine {
         /// </summary>
         /// <param name="newEnabled">New enabled state.</param>
         protected virtual void ParentEnabledChange(bool newEnabled) {
-            if (Components != null) {
-                for (int i = 0; i < Components.Count; i++) {
-                    Component component = Components[i];
+            if (components != null) {
+                for (int i = 0; i < components.Count; i++) {
+                    Component component = components[i];
                     if (!ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, this)) {
                         continue;
                     }
@@ -327,9 +428,9 @@ namespace helengine {
                 }
             }
 
-            if (Children != null) {
-                for (int i = 0; i < Children.Count; i++) {
-                    Children[i].ParentEnabledChange(Children[i].IsHierarchyEnabled);
+            if (children != null) {
+                for (int i = 0; i < children.Count; i++) {
+                    children[i].ParentEnabledChange(children[i].IsHierarchyEnabled);
                 }
             }
         }
@@ -339,15 +440,15 @@ namespace helengine {
         /// </summary>
         /// <param name="newEnabled">New static state.</param>
         protected virtual void ParentStaticChange(bool newEnabled) {
-            if (Components != null) {
-                for (int i = 0; i < Components.Count; i++) {
-                    Components[i].ParentStaticChange(newEnabled);
+            if (components != null) {
+                for (int i = 0; i < components.Count; i++) {
+                    components[i].ParentStaticChange(newEnabled);
                 }
             }
 
-            if (Children != null) {
-                for (int i = 0; i < Children.Count; i++) {
-                    Children[i].ParentStaticChange(newEnabled);
+            if (children != null) {
+                for (int i = 0; i < children.Count; i++) {
+                    children[i].ParentStaticChange(newEnabled);
                 }
             }
         }
@@ -415,11 +516,11 @@ namespace helengine {
             }
 
             isDisposing = true;
-            if (Components != null) {
-                while (Components.Count > 0) {
-                    int componentIndex = Components.Count - 1;
+            if (components != null) {
+                while (components.Count > 0) {
+                    int componentIndex = components.Count - 1;
                     ReportDisposalStage("BeforeComponentRemove", componentIndex);
-                    Component component = Components[Components.Count - 1];
+                    Component component = components[components.Count - 1];
                     RemoveComponent(component);
                     ReportDisposalStage("BeforeComponentDispose", componentIndex);
                     component.Dispose();
@@ -428,36 +529,46 @@ namespace helengine {
                     ReportDisposalStage("AfterComponentDelete", componentIndex);
                 }
 
-                List<Component> components = Components;
+                List<Component> disposedComponents = components;
                 ReportDisposalStage("BeforeComponentsListDelete", -1);
-                Components = null;
-                NativeOwnership.Delete(components);
+                components = null;
+                NativeOwnership.Delete(disposedComponents);
             }
 
-            if (Children != null) {
-                while (Children.Count > 0) {
+            if (children != null) {
+                while (children.Count > 0) {
                     ReportDisposalStage("BeforeChildRemove", -1);
-                    Entity child = Children[Children.Count - 1];
+                    Entity child = children[children.Count - 1];
                     RemoveChild(child);
                     ReportChildDisposalStage("BeforeChildDispose", child);
                     NativeOwnership.DisposeAndDelete(child);
                     ReportDisposalStage("AfterChildDispose", -1);
                 }
 
-                List<Entity> children = Children;
+                List<Entity> disposedChildren = children;
                 ReportDisposalStage("BeforeChildrenListDelete", -1);
-                Children = null;
-                NativeOwnership.Delete(children);
+                children = null;
+                NativeOwnership.Delete(disposedChildren);
             }
 
-            if (Parent != null) {
+            if (parent != null) {
                 ReportDisposalStage("BeforeParentDetach", -1);
-                Parent.RemoveChild(this);
+                parent.RemoveChild(this);
             }
 
             ReportDisposalStage("BeforeObjectManagerRemoveEntity", -1);
             Core.Instance.ObjectManager.RemoveEntity(this);
             ReportDisposalStage("AfterObjectManagerRemoveEntity", -1);
+            isDisposed = true;
+        }
+
+        /// <summary>
+        /// Throws when the entity already completed disposal and should no longer participate in runtime ownership flows.
+        /// </summary>
+        void ThrowIfDisposed() {
+            if (isDisposed) {
+                throw new ObjectDisposedException(nameof(Entity), "Disposed entities cannot be used.");
+            }
         }
 
         /// <summary>

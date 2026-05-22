@@ -95,31 +95,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures previewing the baked demo-disc menu camera uses the editor scene-object layer and therefore sees the generated menu drawables.
-        /// </summary>
-        [Fact]
-        public void Constructor_WhenPreviewingLoadedDemoMenuCamera_UsesEditorSceneObjectLayerMaskForMenuDrawables() {
-            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
-            RegisterDemoMenuFonts(resolver);
-            DemoMenuSceneAssetFactory factory = new DemoMenuSceneAssetFactory();
-            SceneAsset sceneAsset = factory.BuildSceneAsset("Scenes/TestMenu.helen", "city.menu.DemoDiscMenuDefinitionProvider, city", BuildDemoMenuDefinition());
-            SceneLoadService loadService = new SceneLoadService(CreateDemoMenuPersistenceRegistry(), resolver);
-            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(sceneAsset);
-            EditorEntity cameraEntity = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is CameraComponent));
-            CameraComponent liveCamera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
-            EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
-            sceneCanvasProfileState.ApplySceneSettings(new SceneSettingsAsset());
-
-            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D, sceneCanvasProfileState);
-            try {
-                Assert.Equal(EditorLayerMasks.SceneObjects, source.PreviewCamera.LayerMask);
-                Assert.True(source.PreviewCamera.RenderQueue2D.Count > 0);
-            } finally {
-                source.Dispose();
-            }
-        }
-
-        /// <summary>
         /// Creates one editor entity with a live camera that can be converted into a preview source.
         /// </summary>
         /// <returns>Editor entity with one camera component.</returns>
@@ -148,83 +123,6 @@ namespace helengine.editor.tests {
             cameraEntity.AddComponent(camera);
 
             return cameraEntity;
-        }
-
-        /// <summary>
-        /// Creates the component persistence registry required to load the baked demo menu scene shape.
-        /// </summary>
-        /// <returns>Persistence registry containing the baked menu descriptors.</returns>
-        ComponentPersistenceRegistry CreateDemoMenuPersistenceRegistry() {
-            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new CameraComponentPersistenceDescriptor());
-            registry.Register(new DebugComponentPersistenceDescriptor());
-            registry.Register(new MenuComponentPersistenceDescriptor());
-            registry.Register(new MenuPanelComponentPersistenceDescriptor());
-            registry.Register(new MenuItemComponentPersistenceDescriptor());
-            registry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
-            registry.Register(new RoundedRectComponentPersistenceDescriptor());
-            registry.Register(new TextComponentPersistenceDescriptor());
-            registry.Register(new FPSComponentPersistenceDescriptor());
-            return registry;
-        }
-
-        /// <summary>
-        /// Registers deterministic font assets for the baked demo menu references.
-        /// </summary>
-        /// <param name="resolver">Resolver that should receive the registered font assets.</param>
-        void RegisterDemoMenuFonts(TestSceneAssetReferenceResolver resolver) {
-            if (resolver == null) {
-                throw new ArgumentNullException(nameof(resolver));
-            }
-
-            FontAsset font = CreateFont();
-            resolver.RegisterFont(
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = "Fonts/DemoDiscTitle.hefont",
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                },
-                font);
-            resolver.RegisterFont(
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = "Fonts/DemoDiscBody.hefont",
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                },
-                font);
-        }
-
-        /// <summary>
-        /// Creates one deterministic baked menu definition that matches the demo-disc menu scene shape.
-        /// </summary>
-        /// <returns>Menu definition used to build the baked demo menu scene.</returns>
-        MenuDefinition BuildDemoMenuDefinition() {
-            return new MenuDefinition(
-                "Demo",
-                "Preview",
-                "main",
-                "Fonts/DemoDiscTitle.hefont",
-                "Fonts/DemoDiscBody.hefont",
-                new byte4(10, 10, 20, 255),
-                new byte4(30, 30, 50, 255),
-                new byte4(60, 60, 90, 255),
-                new byte4(120, 120, 255, 255),
-                new byte4(80, 180, 200, 255),
-                new byte4(255, 255, 255, 255),
-                new byte4(210, 210, 220, 255),
-                new[] {
-                    new MenuPanelDefinition(
-                        "main",
-                        "Main Menu",
-                        "Camera preview test panel.",
-                        4,
-                        new[] {
-                            new MenuItemDefinition("select-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "TestPlayableScene")),
-                            new MenuItemDefinition("back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
-                        })
-                });
         }
 
         /// <summary>

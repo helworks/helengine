@@ -173,10 +173,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the FPS overlay tears down stale child references when the overlay subtree is disposed before the owning component receives its disable callback.
+        /// Ensures externally disposed overlay entities become invalid references instead of requiring a hidden cleanup sentinel.
         /// </summary>
         [Fact]
-        public void ParentEnabledChange_WhenOverlaySubtreeWasDisposedExternally_TearsDownStaleOverlayReferences() {
+        public void OverlayHost_WhenDisposedExternally_ThrowsObjectDisposedExceptionOnLaterAccess() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
@@ -190,12 +190,7 @@ namespace helengine.editor.tests {
             Entity overlayHost = Assert.IsType<Entity>(GetPrivateFieldValue(fps, "OverlayHost"));
             overlayHost.Dispose();
 
-            fps.ParentEnabledChange(false);
-
-            Assert.False((bool)GetPrivateFieldValue(fps, "Initialized"));
-            Assert.Null(GetPrivateFieldValue(fps, "OverlayHost"));
-            Assert.Null(GetPrivateFieldValue(fps, "UpdateTextComponent"));
-            Assert.Null(GetPrivateFieldValue(fps, "RenderTextComponent"));
+            Assert.Throws<ObjectDisposedException>(() => _ = overlayHost.Parent);
         }
 
         /// <summary>

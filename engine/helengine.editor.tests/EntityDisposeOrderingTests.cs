@@ -72,6 +72,20 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures generated child references become invalid after the owning parent disposal completes.
+        /// </summary>
+        [Fact]
+        public void Dispose_WhenParentOwnsGeneratedChildHierarchy_DisposedChildReferenceThrowsAfterTeardownCompletes() {
+            Entity parent = CreateInitializedEntity();
+            Entity child = CreateInitializedEntity();
+
+            parent.AddChild(child);
+            parent.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => _ = child.Parent);
+        }
+
+        /// <summary>
         /// Creates one initialized entity ready for component lifecycle participation.
         /// </summary>
         /// <returns>Initialized entity with child and component collections.</returns>
