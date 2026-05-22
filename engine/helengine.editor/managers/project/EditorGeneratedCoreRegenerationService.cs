@@ -171,6 +171,7 @@ namespace helengine.editor {
                     cancellationToken);
                 MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
                 EnsureGeneratedRuntimeComponentDeserializerSupport(generatedCoreOutputRoot, platformDefinition.PlatformId);
+                EnsureGeneratedIncludeCompatibilityShims(generatedCoreOutputRoot);
                 WriteGeneratedCoreTranslationUnit(generatedCoreOutputRoot);
             } finally {
                 Directory.CreateDirectory(Path.GetDirectoryName(logPath) ?? tempRoot);
@@ -287,7 +288,7 @@ namespace helengine.editor {
                     additionalPreprocessorSymbols,
                     logBuilder,
                     cancellationToken);
-                MergeGeneratedSourceTree(projectOutputRoot, generatedCoreOutputRoot);
+                MergeExternalGeneratedProjectSourceTree(projectPath, projectOutputRoot, generatedCoreOutputRoot);
                 MergeGeneratedConversionReport(projectOutputRoot, generatedCoreOutputRoot);
             }
         }
@@ -508,6 +509,223 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Merges only the generated native files that correspond to source files physically owned by one external generated-core project.
+        /// </summary>
+        /// <param name="projectPath">Managed project path that produced the generated source tree.</param>
+        /// <param name="sourceRootPath">Generated output root for the external project.</param>
+        /// <param name="destinationRootPath">Combined generated-core output root.</param>
+        internal static void MergeExternalGeneratedProjectSourceTree(string projectPath, string sourceRootPath, string destinationRootPath) {
+            if (string.IsNullOrWhiteSpace(projectPath)) {
+                throw new ArgumentException("Project path must be provided.", nameof(projectPath));
+            }
+            if (string.IsNullOrWhiteSpace(sourceRootPath)) {
+                throw new ArgumentException("Source root path must be provided.", nameof(sourceRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(destinationRootPath)) {
+                throw new ArgumentException("Destination root path must be provided.", nameof(destinationRootPath));
+            }
+            if (!Directory.Exists(sourceRootPath)) {
+                return;
+            }
+
+            string projectDirectoryPath = Path.GetDirectoryName(projectPath)
+                ?? throw new InvalidOperationException($"Could not resolve the directory for generated-core project '{projectPath}'.");
+            HashSet<string> ownedGeneratedBaseNames = DiscoverExternalGeneratedProjectOwnedBaseNames(projectDirectoryPath);
+            if (ownedGeneratedBaseNames.Count < 1) {
+                return;
+            }
+
+            string[] sourceFiles = Directory.GetFiles(sourceRootPath, "*", SearchOption.AllDirectories);
+            Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> sourceFilesByFileName = BuildGeneratedSourceLookup(sourceFiles);
+            HashSet<string> copiedRelativePaths = new(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < sourceFiles.Length; index++) {
+                string sourceFilePath = sourceFiles[index];
+                if (!ShouldMergeGeneratedSourceFile(sourceFilePath)) {
+                    continue;
+                }
+
+                string sourceBaseName = Path.GetFileNameWithoutExtension(sourceFilePath);
+                if (!ownedGeneratedBaseNames.Contains(sourceBaseName)) {
+                    continue;
+                }
+
+                CopyGeneratedSourceFile(sourceRootPath, destinationRootPath, sourceFilePath, copiedRelativePaths);
+            }
+
+            CopyTransitiveExternalGeneratedDependencies(sourceRootPath, destinationRootPath, sourceFilesByFileName, copiedRelativePaths);
+        }
+
+        /// <summary>
+        /// Discovers the generated native base names that belong to one external managed project by enumerating the project-owned source files under its directory.
+        /// </summary>
+        /// <param name="projectDirectoryPath">Directory that owns the external generated-core project file.</param>
+        /// <returns>Set of generated native file base names that should be merged into generated-core.</returns>
+        static HashSet<string> DiscoverExternalGeneratedProjectOwnedBaseNames(string projectDirectoryPath) {
+            if (string.IsNullOrWhiteSpace(projectDirectoryPath)) {
+                throw new ArgumentException("Project directory path must be provided.", nameof(projectDirectoryPath));
+            }
+            if (!Directory.Exists(projectDirectoryPath)) {
+                return new HashSet<string>(StringComparer.Ordinal);
+            }
+
+            HashSet<string> ownedBaseNames = new(StringComparer.Ordinal);
+            string[] sourceFiles = Directory.GetFiles(projectDirectoryPath, "*.cs", SearchOption.AllDirectories);
+            Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < sourceFiles.Length; index++) {
+                string sourceFilePath = sourceFiles[index];
+                if (IsGeneratedCoreProjectInfrastructurePath(sourceFilePath)) {
+                    continue;
+                }
+
+                ownedBaseNames.Add(Path.GetFileNameWithoutExtension(sourceFilePath));
+            }
+
+            return ownedBaseNames;
+        }
+
+        /// <summary>
+        /// Returns whether one source path belongs to build output or intermediate directories that should not influence external generated-core ownership.
+        /// </summary>
+        /// <param name="sourceFilePath">Absolute source file path under the external project directory.</param>
+        /// <returns>True when the file belongs to infrastructure directories rather than authored project code.</returns>
+        static bool IsGeneratedCoreProjectInfrastructurePath(string sourceFilePath) {
+            if (string.IsNullOrWhiteSpace(sourceFilePath)) {
+                return true;
+            }
+
+            string normalizedPath = sourceFilePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            string binSegment = Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar;
+            if (normalizedPath.IndexOf(binSegment, StringComparison.OrdinalIgnoreCase) >= 0) {
+                return true;
+            }
+
+            string objSegment = Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar;
+            if (normalizedPath.IndexOf(objSegment, StringComparison.OrdinalIgnoreCase) >= 0) {
+                return true;
+            }
+
+            string pluginSegment = Path.DirectorySeparatorChar + "Plugin" + Path.DirectorySeparatorChar;
+            if (normalizedPath.IndexOf(pluginSegment, StringComparison.OrdinalIgnoreCase) >= 0) {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Builds one lookup keyed by generated file name for all source artifacts emitted by one generated project conversion.
+        /// </summary>
+        /// <param name="sourceFiles">All generated source artifacts emitted for one project.</param>
+        /// <returns>Dictionary keyed by generated file name.</returns>
+        static Dictionary<string, string> BuildGeneratedSourceLookup(string[] sourceFiles) {
+            Dictionary<string, string> sourceFilesByFileName = new(StringComparer.Ordinal);
+            for (int index = 0; index < sourceFiles.Length; index++) {
+                string sourceFilePath = sourceFiles[index];
+                if (!ShouldMergeGeneratedSourceFile(sourceFilePath)) {
+                    continue;
+                }
+
+                string fileName = Path.GetFileName(sourceFilePath);
+                if (!sourceFilesByFileName.ContainsKey(fileName)) {
+                    sourceFilesByFileName.Add(fileName, sourceFilePath);
+                }
+            }
+
+            return sourceFilesByFileName;
+        }
+
+        /// <summary>
+        /// Copies one generated source artifact into the combined generated-core root and tracks the copied relative path for dependency expansion.
+        /// </summary>
+        /// <param name="sourceRootPath">Generated output root for the external project.</param>
+        /// <param name="destinationRootPath">Combined generated-core output root.</param>
+        /// <param name="sourceFilePath">Generated source artifact that should be copied.</param>
+        /// <param name="copiedRelativePaths">Relative paths already copied from the external project output.</param>
+        static void CopyGeneratedSourceFile(
+            string sourceRootPath,
+            string destinationRootPath,
+            string sourceFilePath,
+            HashSet<string> copiedRelativePaths) {
+            string relativePath = Path.GetRelativePath(sourceRootPath, sourceFilePath);
+            string destinationFilePath = Path.Combine(destinationRootPath, relativePath);
+            string? destinationDirectoryPath = Path.GetDirectoryName(destinationFilePath);
+            if (!string.IsNullOrWhiteSpace(destinationDirectoryPath)) {
+                Directory.CreateDirectory(destinationDirectoryPath);
+            }
+
+            File.Copy(sourceFilePath, destinationFilePath, true);
+            copiedRelativePaths.Add(relativePath.Replace('\\', '/'));
+        }
+
+        /// <summary>
+        /// Copies only the generated dependency files that are actually referenced by the external project artifacts already merged into generated-core.
+        /// </summary>
+        /// <param name="sourceRootPath">Generated output root for the external project.</param>
+        /// <param name="destinationRootPath">Combined generated-core output root.</param>
+        /// <param name="sourceFilesByFileName">Generated source lookup keyed by file name.</param>
+        /// <param name="copiedRelativePaths">Relative paths already copied from the external project output.</param>
+        static void CopyTransitiveExternalGeneratedDependencies(
+            string sourceRootPath,
+            string destinationRootPath,
+            Dictionary<string, string> sourceFilesByFileName,
+            HashSet<string> copiedRelativePaths) {
+            Queue<string> pendingRelativePaths = new Queue<string>(copiedRelativePaths.OrderBy(value => value, StringComparer.OrdinalIgnoreCase));
+            while (pendingRelativePaths.Count > 0) {
+                string relativePath = pendingRelativePaths.Dequeue();
+                string destinationFilePath = Path.Combine(destinationRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                if (!File.Exists(destinationFilePath)) {
+                    continue;
+                }
+
+                string extension = Path.GetExtension(destinationFilePath);
+                if (!string.Equals(extension, ".cpp", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(extension, ".hpp", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string[] lines = File.ReadAllLines(destinationFilePath);
+                for (int lineIndex = 0; lineIndex < lines.Length; lineIndex++) {
+                    string includeFileName = TryParseQuotedIncludeFileName(lines[lineIndex]);
+                    if (string.IsNullOrWhiteSpace(includeFileName)) {
+                        continue;
+                    }
+                    if (includeFileName.IndexOf('/') >= 0 || includeFileName.IndexOf('\\') >= 0) {
+                        continue;
+                    }
+                    if (!includeFileName.EndsWith(".hpp", StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                    if (File.Exists(Path.Combine(destinationRootPath, includeFileName))) {
+                        continue;
+                    }
+                    if (!sourceFilesByFileName.TryGetValue(includeFileName, out string dependencyHeaderPath)) {
+                        continue;
+                    }
+
+                    string dependencyHeaderRelativePath = Path.GetRelativePath(sourceRootPath, dependencyHeaderPath).Replace('\\', '/');
+                    if (!copiedRelativePaths.Contains(dependencyHeaderRelativePath)) {
+                        CopyGeneratedSourceFile(sourceRootPath, destinationRootPath, dependencyHeaderPath, copiedRelativePaths);
+                        pendingRelativePaths.Enqueue(dependencyHeaderRelativePath);
+                    }
+
+                    string dependencySourceFileName = Path.GetFileNameWithoutExtension(includeFileName) + ".cpp";
+                    if (!sourceFilesByFileName.TryGetValue(dependencySourceFileName, out string dependencySourcePath)) {
+                        continue;
+                    }
+
+                    string dependencySourceRelativePath = Path.GetRelativePath(sourceRootPath, dependencySourcePath).Replace('\\', '/');
+                    if (copiedRelativePaths.Contains(dependencySourceRelativePath)) {
+                        continue;
+                    }
+
+                    CopyGeneratedSourceFile(sourceRootPath, destinationRootPath, dependencySourcePath, copiedRelativePaths);
+                    pendingRelativePaths.Enqueue(dependencySourceRelativePath);
+                }
+            }
+        }
+
+        /// <summary>
         /// Merges one generated conversion report into the combined generated-core report so feature summaries and native feature manifests reflect all merged projects.
         /// </summary>
         /// <param name="sourceRootPath">Temporary generated output root that may contain a conversion report.</param>
@@ -607,6 +825,215 @@ namespace helengine.editor {
             if (!File.Exists(generatedRuntimeComponentRegistrationSourcePath)) {
                 EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
             }
+        }
+
+        /// <summary>
+        /// Emits root-level compatibility headers for generated include statements that target PascalCase filenames while the merged runtime support tree ships only nested snake_case headers.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root that should receive missing include shims.</param>
+        internal static void EnsureGeneratedIncludeCompatibilityShims(string generatedCoreRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (!Directory.Exists(generatedCoreRootPath)) {
+                return;
+            }
+
+            string[] generatedSourceFiles = Directory.GetFiles(generatedCoreRootPath, "*", SearchOption.AllDirectories);
+            Dictionary<string, string> availableHeadersByFileName = BuildGeneratedHeaderLookup(generatedCoreRootPath, generatedSourceFiles);
+            HashSet<string> missingHeaderNames = DiscoverMissingGeneratedHeaderIncludes(generatedCoreRootPath, generatedSourceFiles, availableHeadersByFileName);
+            if (missingHeaderNames.Count < 1) {
+                return;
+            }
+
+            string[] availableHeaders = Directory.GetFiles(generatedCoreRootPath, "*.hpp", SearchOption.AllDirectories);
+            for (int index = 0; index < availableHeaders.Length; index++) {
+                string headerPath = availableHeaders[index];
+                string headerFileName = Path.GetFileName(headerPath);
+                if (!availableHeadersByFileName.ContainsKey(headerFileName)) {
+                    availableHeadersByFileName.Add(headerFileName, headerPath);
+                }
+            }
+
+            foreach (string missingHeaderName in missingHeaderNames.OrderBy(value => value, StringComparer.OrdinalIgnoreCase)) {
+                if (availableHeadersByFileName.ContainsKey(missingHeaderName)) {
+                    continue;
+                }
+
+                string canonicalHeaderFileName = ToSnakeCaseHeaderFileName(missingHeaderName);
+                string resolvedHeaderPath = ResolveCompatibilityHeaderSourcePath(generatedCoreRootPath, availableHeaders, canonicalHeaderFileName);
+                if (string.IsNullOrWhiteSpace(resolvedHeaderPath)) {
+                    continue;
+                }
+
+                string shimHeaderPath = Path.Combine(generatedCoreRootPath, missingHeaderName);
+                string relativeIncludePath = Path.GetRelativePath(generatedCoreRootPath, resolvedHeaderPath).Replace('\\', '/');
+                File.WriteAllText(
+                    shimHeaderPath,
+                    "#pragma once" + Environment.NewLine
+                    + "#include \"" + relativeIncludePath + "\"" + Environment.NewLine);
+                availableHeadersByFileName[missingHeaderName] = shimHeaderPath;
+            }
+        }
+
+        /// <summary>
+        /// Builds one file-name lookup for generated root headers so include resolution can detect what already exists.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root.</param>
+        /// <param name="generatedSourceFiles">All generated files currently present under the output root.</param>
+        /// <returns>Dictionary keyed by case-sensitive header file name.</returns>
+        static Dictionary<string, string> BuildGeneratedHeaderLookup(string generatedCoreRootPath, string[] generatedSourceFiles) {
+            Dictionary<string, string> headersByFileName = new(StringComparer.Ordinal);
+            for (int index = 0; index < generatedSourceFiles.Length; index++) {
+                string filePath = generatedSourceFiles[index];
+                if (!string.Equals(Path.GetExtension(filePath), ".hpp", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string relativePath = Path.GetRelativePath(generatedCoreRootPath, filePath);
+                if (relativePath.IndexOf(Path.DirectorySeparatorChar) >= 0 || relativePath.IndexOf(Path.AltDirectorySeparatorChar) >= 0) {
+                    continue;
+                }
+
+                string fileName = Path.GetFileName(filePath);
+                if (!headersByFileName.ContainsKey(fileName)) {
+                    headersByFileName.Add(fileName, filePath);
+                }
+            }
+
+            return headersByFileName;
+        }
+
+        /// <summary>
+        /// Discovers generated root-header includes whose target files are not currently present at the generated core root.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root.</param>
+        /// <param name="generatedSourceFiles">All generated files currently present under the output root.</param>
+        /// <param name="availableHeadersByFileName">Existing root-header lookup keyed by file name.</param>
+        /// <returns>Set of missing PascalCase header names requested by generated code.</returns>
+        static HashSet<string> DiscoverMissingGeneratedHeaderIncludes(
+            string generatedCoreRootPath,
+            string[] generatedSourceFiles,
+            Dictionary<string, string> availableHeadersByFileName) {
+            HashSet<string> missingHeaderNames = new(StringComparer.Ordinal);
+            for (int fileIndex = 0; fileIndex < generatedSourceFiles.Length; fileIndex++) {
+                string filePath = generatedSourceFiles[fileIndex];
+                string extension = Path.GetExtension(filePath);
+                if (!string.Equals(extension, ".cpp", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(extension, ".hpp", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string[] lines = File.ReadAllLines(filePath);
+                for (int lineIndex = 0; lineIndex < lines.Length; lineIndex++) {
+                    string includeFileName = TryParseQuotedIncludeFileName(lines[lineIndex]);
+                    if (string.IsNullOrWhiteSpace(includeFileName)) {
+                        continue;
+                    }
+                    if (includeFileName.IndexOf('/') >= 0 || includeFileName.IndexOf('\\') >= 0) {
+                        continue;
+                    }
+                    if (!includeFileName.EndsWith(".hpp", StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                    if (availableHeadersByFileName.ContainsKey(includeFileName)) {
+                        continue;
+                    }
+
+                    string rootHeaderPath = Path.Combine(generatedCoreRootPath, includeFileName);
+                    if (File.Exists(rootHeaderPath)) {
+                        availableHeadersByFileName[includeFileName] = rootHeaderPath;
+                        continue;
+                    }
+
+                    missingHeaderNames.Add(includeFileName);
+                }
+            }
+
+            return missingHeaderNames;
+        }
+
+        /// <summary>
+        /// Resolves one missing root header include to a unique snake_case runtime support header already present under generated-core.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root.</param>
+        /// <param name="availableHeaders">All merged header files under generated-core.</param>
+        /// <param name="canonicalHeaderFileName">Canonical snake_case header file name expected on disk.</param>
+        /// <returns>Absolute path to the unique backing header, or an empty string when no safe match exists.</returns>
+        static string ResolveCompatibilityHeaderSourcePath(string generatedCoreRootPath, string[] availableHeaders, string canonicalHeaderFileName) {
+            if (string.IsNullOrWhiteSpace(canonicalHeaderFileName)) {
+                return string.Empty;
+            }
+
+            string resolvedPath = string.Empty;
+            for (int index = 0; index < availableHeaders.Length; index++) {
+                string headerPath = availableHeaders[index];
+                if (!string.Equals(Path.GetFileName(headerPath), canonicalHeaderFileName, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string relativePath = Path.GetRelativePath(generatedCoreRootPath, headerPath).Replace('\\', '/');
+                if (string.IsNullOrWhiteSpace(resolvedPath)) {
+                    resolvedPath = headerPath;
+                    continue;
+                }
+
+                string resolvedRelativePath = Path.GetRelativePath(generatedCoreRootPath, resolvedPath).Replace('\\', '/');
+                if (!string.Equals(resolvedRelativePath, relativePath, StringComparison.OrdinalIgnoreCase)) {
+                    return string.Empty;
+                }
+            }
+
+            return resolvedPath;
+        }
+
+        /// <summary>
+        /// Parses one quoted include directive and returns its included file name when the line declares one.
+        /// </summary>
+        /// <param name="sourceLine">One generated C++ source line.</param>
+        /// <returns>Included file name when the line is a quoted include; otherwise an empty string.</returns>
+        static string TryParseQuotedIncludeFileName(string sourceLine) {
+            if (string.IsNullOrWhiteSpace(sourceLine)) {
+                return string.Empty;
+            }
+
+            int includeIndex = sourceLine.IndexOf("#include \"", StringComparison.Ordinal);
+            if (includeIndex < 0) {
+                return string.Empty;
+            }
+
+            int pathStartIndex = includeIndex + "#include \"".Length;
+            int pathEndIndex = sourceLine.IndexOf('"', pathStartIndex);
+            if (pathEndIndex <= pathStartIndex) {
+                return string.Empty;
+            }
+
+            return sourceLine.Substring(pathStartIndex, pathEndIndex - pathStartIndex);
+        }
+
+        /// <summary>
+        /// Converts one PascalCase generated header request into the snake_case runtime-support filename produced by the codegen support tree.
+        /// </summary>
+        /// <param name="headerFileName">Generated header file name requested by one include directive.</param>
+        /// <returns>Snake_case header file name expected on disk.</returns>
+        static string ToSnakeCaseHeaderFileName(string headerFileName) {
+            if (string.IsNullOrWhiteSpace(headerFileName)) {
+                return string.Empty;
+            }
+
+            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(headerFileName);
+            StringBuilder builder = new StringBuilder(fileNameWithoutExtension.Length + 8);
+            for (int index = 0; index < fileNameWithoutExtension.Length; index++) {
+                char current = fileNameWithoutExtension[index];
+                if (char.IsUpper(current) && index > 0) {
+                    builder.Append('_');
+                }
+
+                builder.Append(char.ToLowerInvariant(current));
+            }
+
+            builder.Append(".hpp");
+            return builder.ToString();
         }
 
         /// <summary>
