@@ -14,6 +14,11 @@ namespace helengine {
         FontAsset font;
 
         /// <summary>
+        /// Uniform font scale applied to both overlay lines.
+        /// </summary>
+        float FontScaleValue = 1f;
+
+        /// <summary>
         /// Root entity that positions the overlay in viewport space.
         /// </summary>
         Entity OverlayHost;
@@ -110,6 +115,25 @@ namespace helengine {
 
                 font = value;
                 RefreshOverlayActivation();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the uniform font scale applied to both overlay lines.
+        /// </summary>
+        public float FontScale {
+            get { return FontScaleValue; }
+            set {
+                if (value <= 0f) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Font scale must be greater than zero.");
+                }
+
+                if (FontScaleValue == value) {
+                    return;
+                }
+
+                FontScaleValue = value;
+                ApplyFont();
             }
         }
 
@@ -267,6 +291,7 @@ namespace helengine {
             UpdateTextComponent = new TextComponent();
             UpdateTextComponent.Color = new byte4(255, 255, 255, 255);
             UpdateTextComponent.Font = Font;
+            UpdateTextComponent.FontScale = FontScale;
             UpdateRowHost.AddComponent(UpdateTextComponent);
 
             RenderRowHost = new Entity();
@@ -278,6 +303,7 @@ namespace helengine {
             RenderTextComponent = new TextComponent();
             RenderTextComponent.Color = new byte4(255, 255, 255, 255);
             RenderTextComponent.Font = Font;
+            RenderTextComponent.FontScale = FontScale;
             RenderRowHost.AddComponent(RenderTextComponent);
 
             Initialized = true;
@@ -378,14 +404,16 @@ namespace helengine {
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Font = Font;
+                UpdateTextComponent.FontScale = FontScale;
             }
 
             if (RenderTextComponent != null) {
                 RenderTextComponent.Font = Font;
+                RenderTextComponent.FontScale = FontScale;
             }
 
             if (RenderRowHost != null) {
-                RenderRowHost.LocalPosition = new float3(0f, Font.LineHeight, 0.1f);
+                RenderRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale, 0.1f);
             }
         }
 

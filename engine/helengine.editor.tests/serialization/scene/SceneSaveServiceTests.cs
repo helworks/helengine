@@ -462,6 +462,54 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures built-in text components persist authored font scale through the reflected tagged payload instead of silently dropping it.
+        /// </summary>
+        [Fact]
+        public void Save_WhenSceneContainsTextComponent_WritesTaggedPayloadUsingFontScaleMember() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextFontScale.helen");
+            SceneAssetReference fontReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "Fonts/Body",
+                ProviderId = "fonts",
+                AssetId = "body"
+            };
+
+            EditorEntity root = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
+            TextComponent textComponent = new TextComponent {
+                Font = CreateFont("Body"),
+                Text = "Scaled Body",
+                WrapText = true,
+                Size = new int2(320, 96),
+                Color = new byte4(12, 34, 56, 255),
+                SourceRect = new float4(0f, 0f, 1f, 1f),
+                Rotation = 0f,
+                FontScale = 2f,
+                RenderOrder2D = 12,
+                LayerMask = 5
+            };
+            root.AddComponent(textComponent);
+            GetSaveComponent(root).SetAssetReference(textComponent, nameof(TextComponent.Font), fontReference);
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset rootAsset = Assert.Single(asset.RootEntities);
+            SceneComponentAssetRecord textRecord = Assert.Single(rootAsset.Components);
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(textRecord.Payload ?? Array.Empty<byte>());
+
+            Assert.True(reader.TryGetFieldReader(nameof(TextComponent.FontScale), out EngineBinaryReader fontScaleReader));
+            using (fontScaleReader) {
+                Assert.Equal(2f, fontScaleReader.ReadSingle());
+            }
+        }
+
+        /// <summary>
         /// Ensures scene save persists the supplied scene-level canvas profile into the serialized scene asset.
         /// </summary>
         [Fact]

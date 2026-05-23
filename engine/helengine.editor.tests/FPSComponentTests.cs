@@ -105,6 +105,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a configured overlay font scale is applied to both text rows and their vertical spacing.
+        /// </summary>
+        [Fact]
+        public void FontScale_WhenAssignedBeforeAttachment_ScalesOverlayTextAndRowSpacing() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FontAsset font = CreateFont(24f);
+            FPSComponent fps = new FPSComponent {
+                Font = font,
+                FontScale = 2f
+            };
+
+            entity.AddComponent(fps);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            TextComponent updateText = Assert.Single(overlayHost.Children[0].Components.OfType<TextComponent>());
+            TextComponent renderText = Assert.Single(overlayHost.Children[1].Components.OfType<TextComponent>());
+
+            Assert.Equal(2f, updateText.FontScale);
+            Assert.Equal(2f, renderText.FontScale);
+            Assert.Equal(font.LineHeight * 2f, overlayHost.Children[1].LocalPosition.Y);
+        }
+
+        /// <summary>
         /// Ensures the parameterless constructor uses the configured default font asset.
         /// </summary>
         [Fact]

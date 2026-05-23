@@ -720,6 +720,7 @@ namespace helengine.editor.tests {
             Assert.Equal("Hello world", loadedTextComponent.Text);
             Assert.NotNull(loadedTextComponent.Font);
             Assert.Equal(defaultFont.FontInfo.Name, loadedTextComponent.Font.FontInfo.Name);
+            Assert.Equal(2f, loadedTextComponent.FontScale);
         }
 
         /// <summary>
@@ -3330,6 +3331,7 @@ namespace helengine.editor.tests {
                 Color = new byte4(12, 34, 56, 78),
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 Rotation = 0.25f,
+                FontScale = 2f,
                 RenderOrder2D = 19,
                 LayerMask = 7,
                 SelectionEnabled = true

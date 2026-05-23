@@ -68,6 +68,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a configured overlay font scale is applied to every debug row and their vertical spacing.
+        /// </summary>
+        [Fact]
+        public void FontScale_WhenAssignedBeforeAttachment_ScalesOverlayTextAndRowSpacing() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FontAsset font = CreateFont();
+            DebugComponent debug = new DebugComponent {
+                Font = font,
+                FontScale = 2f
+            };
+
+            entity.AddComponent(debug);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            Assert.Equal(5, overlayHost.Children.Count);
+
+            for (int index = 0; index < overlayHost.Children.Count; index++) {
+                TextComponent textComponent = Assert.Single(overlayHost.Children[index].Components.OfType<TextComponent>());
+                Assert.Equal(2f, textComponent.FontScale);
+            }
+
+            Assert.Equal(font.LineHeight * 2f, overlayHost.Children[1].LocalPosition.Y);
+            Assert.Equal(font.LineHeight * 4f, overlayHost.Children[2].LocalPosition.Y);
+        }
+
+        /// <summary>
         /// Ensures the debug overlay includes the measured render-manager draw duration next to render FPS.
         /// </summary>
         [Fact]

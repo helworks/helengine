@@ -29,6 +29,11 @@ namespace helengine {
         FontAsset FontValue;
 
         /// <summary>
+        /// Uniform font scale applied to every overlay row.
+        /// </summary>
+        float FontScaleValue = 1f;
+
+        /// <summary>
         /// Root entity that positions the overlay in viewport space.
         /// </summary>
         Entity OverlayHost;
@@ -189,6 +194,25 @@ namespace helengine {
                 }
 
                 FontValue = value;
+                RefreshOverlayActivation();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the uniform font scale applied to every overlay row.
+        /// </summary>
+        public float FontScale {
+            get { return FontScaleValue; }
+            set {
+                if (value <= 0f) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Font scale must be greater than zero.");
+                }
+
+                if (FontScaleValue == value) {
+                    return;
+                }
+
+                FontScaleValue = value;
                 RefreshOverlayActivation();
             }
         }
@@ -450,6 +474,7 @@ namespace helengine {
             TextComponent textComponent = new TextComponent();
             textComponent.Color = new byte4(255, 255, 255, 255);
             textComponent.Font = Font;
+            textComponent.FontScale = FontScale;
             rowHost.AddComponent(textComponent);
             return textComponent;
         }
@@ -497,38 +522,44 @@ namespace helengine {
 
             if (RenderFpsTextComponent != null) {
                 RenderFpsTextComponent.Font = Font;
+                RenderFpsTextComponent.FontScale = FontScale;
             }
             if (ResidentMemoryTextComponent != null) {
                 ResidentMemoryTextComponent.Font = Font;
+                ResidentMemoryTextComponent.FontScale = FontScale;
             }
             if (CommittedMemoryTextComponent != null) {
                 CommittedMemoryTextComponent.Font = Font;
+                CommittedMemoryTextComponent.FontScale = FontScale;
             }
             if (Drawables2DTextComponent != null) {
                 Drawables2DTextComponent.Font = Font;
+                Drawables2DTextComponent.FontScale = FontScale;
             }
             if (Drawables3DTextComponent != null) {
                 Drawables3DTextComponent.Font = Font;
+                Drawables3DTextComponent.FontScale = FontScale;
             }
             for (int index = 0; index < AdditionalLineTextComponents.Count; index++) {
                 AdditionalLineTextComponents[index].Font = Font;
+                AdditionalLineTextComponents[index].FontScale = FontScale;
             }
 
             if (ResidentMemoryRowHost != null) {
-                ResidentMemoryRowHost.LocalPosition = new float3(0f, Font.LineHeight, 0.1f);
+                ResidentMemoryRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale, 0.1f);
             }
             if (CommittedMemoryRowHost != null) {
-                CommittedMemoryRowHost.LocalPosition = new float3(0f, Font.LineHeight * 2f, 0.2f);
+                CommittedMemoryRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 2f, 0.2f);
             }
             if (Drawables2DRowHost != null) {
-                Drawables2DRowHost.LocalPosition = new float3(0f, Font.LineHeight * 3f, 0.3f);
+                Drawables2DRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 3f, 0.3f);
             }
             if (Drawables3DRowHost != null) {
-                Drawables3DRowHost.LocalPosition = new float3(0f, Font.LineHeight * 4f, 0.4f);
+                Drawables3DRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 4f, 0.4f);
             }
             for (int index = 0; index < AdditionalLineRowHosts.Count; index++) {
                 float rowIndex = 5f + index;
-                AdditionalLineRowHosts[index].LocalPosition = new float3(0f, Font.LineHeight * rowIndex, 0.5f + (0.1f * index));
+                AdditionalLineRowHosts[index].LocalPosition = new float3(0f, Font.LineHeight * FontScale * rowIndex, 0.5f + (0.1f * index));
             }
         }
 
