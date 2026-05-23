@@ -1355,8 +1355,26 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(componentType.FullName)) {
                 return false;
             }
+            if (HasExplicitRuntimeComponentDeserializer(componentType)) {
+                return false;
+            }
 
             return componentType.GetConstructor(Type.EmptyTypes) != null;
+        }
+
+        /// <summary>
+        /// Returns whether one component type is already covered by one hand-authored runtime component deserializer.
+        /// </summary>
+        /// <param name="componentType">Component type to inspect.</param>
+        /// <returns>True when the component already has one explicit runtime deserializer.</returns>
+        static bool HasExplicitRuntimeComponentDeserializer(Type componentType) {
+            if (componentType == null) {
+                return false;
+            }
+
+            return componentType == typeof(MeshComponent)
+                || componentType == typeof(CameraComponent)
+                || componentType == typeof(SceneMapComponent);
         }
 
         /// <summary>

@@ -377,11 +377,6 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorFileSystemTextureResolver FileSystemTextureResolver;
         /// <summary>
-        /// Resolver used to materialize automatic reflected components before packaged runtime rewriting.
-        /// </summary>
-        readonly EditorSceneAssetReferenceResolver AutomaticComponentReferenceResolver;
-
-        /// <summary>
         /// Deduplicated shader asset ids referenced while packaging the current scene set.
         /// </summary>
         readonly List<string> ReferencedShaderAssetIds;
@@ -494,12 +489,6 @@ namespace helengine.editor {
             FileSystemModelResolver = fileSystemModelResolver ?? throw new ArgumentNullException(nameof(fileSystemModelResolver));
             FileSystemFontResolver = new EditorFileSystemFontResolver(AssetImportManager);
             FileSystemTextureResolver = new EditorFileSystemTextureResolver(AssetImportManager);
-            AutomaticComponentReferenceResolver = new EditorSceneAssetReferenceResolver(
-                ProjectContentManager,
-                ResolveProjectRootPath(AssetsRootPath),
-                FileSystemModelResolver,
-                FileSystemFontResolver,
-                FileSystemTextureResolver);
             ReferencedShaderAssetIds = referencedShaderAssetIds ?? throw new ArgumentNullException(nameof(referencedShaderAssetIds));
             ReferencedShaderAssetIdsSet = referencedShaderAssetIdsSet ?? throw new ArgumentNullException(nameof(referencedShaderAssetIdsSet));
             MaterialAssetSettingsService = new MaterialAssetSettingsService();
@@ -690,7 +679,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            return descriptor.DeserializeComponent(record, saveComponent, AutomaticComponentReferenceResolver);
+            return descriptor.DeserializeComponent(record, saveComponent, null);
         }
 
         /// <summary>

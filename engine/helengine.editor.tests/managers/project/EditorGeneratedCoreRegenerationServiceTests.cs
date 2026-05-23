@@ -381,6 +381,25 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies automatic runtime deserializer generation excludes component types that still have explicit hand-authored runtime deserializers.
+    /// </summary>
+    [Fact]
+    public void Emit_generated_automatic_runtime_component_deserializers_excludes_components_with_explicit_runtime_deserializers() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-explicit-runtime-overlap");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        EditorGeneratedCoreRegenerationService.EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
+
+        string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
+        Assert.DoesNotContain("GeneratedRuntimeMeshComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeCameraComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeSceneMapComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeMeshComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeCameraComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSceneMapComponentDeserializer.cpp")));
+    }
+
+    /// <summary>
     /// Verifies cooked scenes that serialize assembly-qualified scripted component type ids cause matching native runtime deserializers to be generated.
     /// </summary>
     [Fact]

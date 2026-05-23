@@ -80,6 +80,11 @@ namespace helengine {
             }
 
             if (!DeserializersByTypeId.TryGetValue(componentTypeId, out IRuntimeComponentDeserializer deserializer)) {
+                string normalizedEngineComponentTypeId = NormalizeLegacyEngineComponentTypeId(componentTypeId);
+                if (!string.Equals(normalizedEngineComponentTypeId, componentTypeId, StringComparison.Ordinal)
+                    && DeserializersByTypeId.TryGetValue(normalizedEngineComponentTypeId, out deserializer)) {
+                    return deserializer;
+                }
 #if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
                 throw new InvalidOperationException($"Player builds do not support serialized component type '{componentTypeId}' yet.");
 #else
@@ -93,6 +98,72 @@ namespace helengine {
             }
 
             return deserializer;
+        }
+
+        /// <summary>
+        /// Normalizes legacy assembly-qualified engine component ids back to their short engine ids so packaged scenes saved before the reflected-persistence migration can still resolve generated runtime deserializers.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized component type id under evaluation.</param>
+        /// <returns>Short engine component type id when the supplied identifier uses the legacy engine assembly-qualified form; otherwise the original identifier.</returns>
+        static string NormalizeLegacyEngineComponentTypeId(string componentTypeId) {
+            if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                return componentTypeId;
+            }
+
+            switch (componentTypeId) {
+                case "helengine.AmbientLightComponent, helengine.core":
+                    return "helengine.AmbientLightComponent";
+                case "helengine.AnchorComponent, helengine.core":
+                    return "helengine.AnchorComponent";
+                case "helengine.AnimationPlayerComponent, helengine.core":
+                    return "helengine.AnimationPlayerComponent";
+                case "helengine.CameraComponent, helengine.core":
+                    return "helengine.CameraComponent";
+                case "helengine.ClipRectComponent, helengine.core":
+                    return "helengine.ClipRectComponent";
+                case "helengine.DebugComponent, helengine.core":
+                    return "helengine.DebugComponent";
+                case "helengine.DirectionalLightComponent, helengine.core":
+                    return "helengine.DirectionalLightComponent";
+                case "helengine.FPSComponent, helengine.core":
+                    return "helengine.FPSComponent";
+                case "helengine.InteractableComponent, helengine.core":
+                    return "helengine.InteractableComponent";
+                case "helengine.LineRendererComponent, helengine.core":
+                    return "helengine.LineRendererComponent";
+                case "helengine.MeshComponent, helengine.core":
+                    return "helengine.MeshComponent";
+                case "helengine.PointLightComponent, helengine.core":
+                    return "helengine.PointLightComponent";
+                case "helengine.ReferenceCanvasFitComponent, helengine.core":
+                    return "helengine.ReferenceCanvasFitComponent";
+                case "helengine.RoundedRectComponent, helengine.core":
+                    return "helengine.RoundedRectComponent";
+                case "helengine.SceneMapComponent, helengine.core":
+                    return "helengine.SceneMapComponent";
+                case "helengine.SceneMemoryProbeComponent, helengine.core":
+                    return "helengine.SceneMemoryProbeComponent";
+                case "helengine.ScrollComponent, helengine.core":
+                    return "helengine.ScrollComponent";
+                case "helengine.SpotLightComponent, helengine.core":
+                    return "helengine.SpotLightComponent";
+                case "helengine.SpriteComponent, helengine.core":
+                    return "helengine.SpriteComponent";
+                case "helengine.TextComponent, helengine.core":
+                    return "helengine.TextComponent";
+                case "helengine.ViewportComponent, helengine.core":
+                    return "helengine.ViewportComponent";
+                case "helengine.BoxCollider3DComponent, helengine.physics3d":
+                    return "helengine.BoxCollider3DComponent";
+                case "helengine.CharacterController3DComponent, helengine.physics3d":
+                    return "helengine.CharacterController3DComponent";
+                case "helengine.KinematicMotion3DComponent, helengine.physics3d":
+                    return "helengine.KinematicMotion3DComponent";
+                case "helengine.RigidBody3DComponent, helengine.physics3d":
+                    return "helengine.RigidBody3DComponent";
+                default:
+                    return componentTypeId;
+            }
         }
 
 #if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION

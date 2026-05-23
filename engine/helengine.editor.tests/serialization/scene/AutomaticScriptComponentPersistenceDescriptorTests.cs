@@ -198,6 +198,34 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the automatic reflected fallback still understands legacy tagged `TextComponent` payloads that persisted the font under `FontReference`.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenLegacyTextComponentPayloadUsesFontReference_RestoresFontAndSaveState() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneAssetReference fontReference = BuildFontReference("Fonts/Legacy.hefont", "fonts", "legacy");
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TextComponent)),
+                ComponentIndex = 0,
+                Payload = BuildLegacyTextComponentPayload(fontReference)
+            };
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            FontAsset loadedFont = CreateFont("LoadedLegacy");
+            resolver.RegisterFont(fontReference, loadedFont);
+            EntitySaveComponent loadedSaveComponent = new EntitySaveComponent();
+
+            TextComponent restored = Assert.IsType<TextComponent>(descriptor.DeserializeComponent(record, loadedSaveComponent, resolver));
+
+            Assert.Same(loadedFont, restored.Font);
+            Assert.Equal("Legacy", restored.Text);
+            Assert.True(loadedSaveComponent.TryGetComponentState(restored, out EntityComponentSaveState loadedSaveState));
+            Assert.True(loadedSaveState.TryGetAssetReference(nameof(TextComponent.Font), out SceneAssetReference loadedReference));
+            Assert.Equal(fontReference.RelativePath, loadedReference.RelativePath);
+            Assert.Equal(fontReference.ProviderId, loadedReference.ProviderId);
+            Assert.Equal(fontReference.AssetId, loadedReference.AssetId);
+        }
+
+        /// <summary>
         /// Ensures runtime-only scroll bindings are ignored while the remaining reflected members still round-trip.
         /// </summary>
         [Fact]
@@ -289,6 +317,33 @@ namespace helengine.editor.tests.serialization.scene {
                 ProviderId = providerId,
                 AssetId = assetId
             };
+        }
+
+        /// <summary>
+        /// Builds one legacy tagged `TextComponent` payload that still uses the removed `FontReference` field name.
+        /// </summary>
+        /// <param name="fontReference">Font reference stored under the legacy field name.</param>
+        /// <returns>Serialized legacy tagged payload.</returns>
+        static byte[] BuildLegacyTextComponentPayload(SceneAssetReference fontReference) {
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("FontReference", fieldWriter => {
+                fieldWriter.WriteByte(1);
+                fieldWriter.WriteInt32((int)fontReference.SourceKind);
+                fieldWriter.WriteString(fontReference.RelativePath);
+                fieldWriter.WriteString(fontReference.ProviderId);
+                fieldWriter.WriteString(fontReference.AssetId);
+            });
+            writer.WriteField(nameof(TextComponent.Text), fieldWriter => {
+                fieldWriter.WriteString("Legacy");
+            });
+            writer.WriteField(nameof(TextComponent.WrapText), fieldWriter => {
+                fieldWriter.WriteByte(1);
+            });
+            writer.WriteField(nameof(TextComponent.Size), fieldWriter => {
+                fieldWriter.WriteInt2(new int2(128, 32));
+            });
+
+            return writer.BuildPayload();
         }
     }
 }

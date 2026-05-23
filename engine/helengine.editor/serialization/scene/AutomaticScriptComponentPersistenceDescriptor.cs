@@ -124,7 +124,7 @@ namespace helengine.editor {
                 EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
                 for (int index = 0; index < schema.Members.Count; index++) {
                     ScriptComponentReflectionMember member = schema.Members[index];
-                    if (reader.TryGetFieldReader(member.Name, out EngineBinaryReader fieldReader)) {
+                    if (TryGetTaggedFieldReader(reader, member, out EngineBinaryReader fieldReader)) {
                         using (fieldReader) {
                             member.SetValue(component, ReadSupportedMemberValue(fieldReader, member, component, saveComponent, referenceResolver));
                         }
@@ -135,6 +135,62 @@ namespace helengine.editor {
             } catch (Exception ex) when (ex is EndOfStreamException || ex is InvalidOperationException) {
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Attempts to resolve one tagged field reader for the reflected member, including legacy authored field aliases kept for backward compatibility.
+        /// </summary>
+        /// <param name="reader">Tagged payload reader that owns the serialized fields.</param>
+        /// <param name="member">Reflected member that should be restored.</param>
+        /// <param name="fieldReader">Reader over the resolved field payload when available.</param>
+        /// <returns>True when the field or one supported legacy alias exists; otherwise false.</returns>
+        static bool TryGetTaggedFieldReader(
+            EditorTaggedSceneComponentFieldReader reader,
+            ScriptComponentReflectionMember member,
+            out EngineBinaryReader fieldReader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            } else if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            }
+
+            if (reader.TryGetFieldReader(member.Name, out fieldReader)) {
+                return true;
+            }
+
+            string legacyFieldName = ResolveLegacyTaggedFieldName(member);
+            if (string.IsNullOrWhiteSpace(legacyFieldName)) {
+                fieldReader = null;
+                return false;
+            }
+
+            return reader.TryGetFieldReader(legacyFieldName, out fieldReader);
+        }
+
+        /// <summary>
+        /// Resolves one supported legacy tagged field alias for the reflected member when older authored scenes used a different persisted field name.
+        /// </summary>
+        /// <param name="member">Reflected member under evaluation.</param>
+        /// <returns>Legacy tagged field name when one is supported; otherwise an empty string.</returns>
+        static string ResolveLegacyTaggedFieldName(ScriptComponentReflectionMember member) {
+            if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            }
+
+            if (member.ValueType == typeof(FontAsset) && string.Equals(member.Name, "Font", StringComparison.Ordinal)) {
+                return "FontReference";
+            }
+            if (member.ValueType == typeof(RuntimeTexture) && string.Equals(member.Name, "Texture", StringComparison.Ordinal)) {
+                return "TextureReference";
+            }
+            if (member.ValueType == typeof(RuntimeModel) && string.Equals(member.Name, "Model", StringComparison.Ordinal)) {
+                return "ModelReference";
+            }
+            if (member.ValueType == typeof(RuntimeMaterial) && string.Equals(member.Name, "Material", StringComparison.Ordinal)) {
+                return "MaterialReference";
+            }
+
+            return string.Empty;
         }
 
         /// <summary>
@@ -455,8 +511,7 @@ namespace helengine.editor {
                 return null;
             }
             if (referenceResolver == null) {
-                throw new InvalidOperationException(
-                    $"Component '{component.GetType().FullName}' requires an asset reference resolver before member '{member.Name}' can be deserialized.");
+                return null;
             }
 
             return ResolveEditorAssetReference(member.ValueType, referenceResolver, reference);

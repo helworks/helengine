@@ -196,10 +196,6 @@ namespace helengine.editor {
             builder.AppendLine("    {");
             builder.AppendLine("throw new ArgumentNullException(\"record\");");
             builder.AppendLine("    }");
-            builder.AppendLine("    if (!String::Equals(record->get_ComponentTypeId(), ComponentType, StringComparison::Ordinal))");
-            builder.AppendLine("    {");
-            builder.AppendLine($"throw new InvalidOperationException(std::string(\"Generated runtime component deserializer cannot deserialize '\") + record->get_ComponentTypeId() + std::string(\"'.\"));");
-            builder.AppendLine("    }");
             builder.AppendLine("{");
             builder.AppendLine("::MemoryStream *stream = ([&]() {");
             builder.AppendLine("auto __ctor_arg_00000001 = ([&]() {");
@@ -616,7 +612,7 @@ namespace helengine.editor {
             return "([&]() { "
                 + "::SceneAssetReference* reference = " + BuildNativeOptionalReferenceReadExpression(readerVariableName) + "; "
                 + "if (reference == nullptr) { return static_cast<" + nativeValueTypeName + ">(nullptr); } "
-                + "auto cleanup = Finally([&]() { delete reference; }); "
+                + "auto cleanup = he_cpp_make_scope_exit([&]() { delete reference; }); "
                 + "if (referenceResolver == nullptr) { throw new InvalidOperationException(\"Runtime scene asset reference resolver is required.\"); } "
                 + "return referenceResolver->" + resolverMethodName + "(reference); "
                 + "})()";

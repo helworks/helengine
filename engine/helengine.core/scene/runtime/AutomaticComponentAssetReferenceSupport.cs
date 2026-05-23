@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public static class AutomaticComponentAssetReferenceSupport {
         /// <summary>
+        /// Message used when one reflected member type is not supported by automatic runtime asset-reference restoration.
+        /// </summary>
+        const string UnsupportedAssetReferenceTypeMessage = "Automatic component asset-reference support does not handle the supplied member type.";
+
+        /// <summary>
         /// Returns whether the supplied reflected member type is persisted through scene asset references instead of direct value encoding.
         /// </summary>
         /// <param name="valueType">Reflected member type to inspect.</param>
@@ -44,7 +49,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(valueType));
             }
             if (!IsSupportedAssetReferenceType(valueType)) {
-                throw new InvalidOperationException($"Automatic component asset-reference support does not handle member type '{valueType.FullName}'.");
+                throw new InvalidOperationException(UnsupportedAssetReferenceTypeMessage);
             }
             if (reference == null) {
                 return null;
@@ -66,7 +71,7 @@ namespace helengine {
                 return referenceResolver.ResolveMaterial(reference);
             }
 
-            throw new InvalidOperationException($"Automatic component asset-reference support does not handle member type '{valueType.FullName}'.");
+            throw new InvalidOperationException(UnsupportedAssetReferenceTypeMessage);
         }
     }
 }
