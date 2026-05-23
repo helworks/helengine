@@ -87,5 +87,22 @@ namespace helengine.editor.tests.managers.project {
             Assert.Contains("const std::string& get_ComponentTypeId();", header, StringComparison.Ordinal);
             Assert.Contains("const std::string& GeneratedRuntimeClipRectComponentDeserializer::get_ComponentTypeId()", source, StringComparison.Ordinal);
         }
+
+        /// <summary>
+        /// Ensures generated native scripted-component deserializers rebuild <see cref="byte4"/> values by assigning channels explicitly instead of relying on one native constructor ordering contract.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsByte4Members_EmitsExplicitChannelAssignments() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(RoundedRectComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("X = reader->ReadByte();", source, StringComparison.Ordinal);
+            Assert.Contains("Y = reader->ReadByte();", source, StringComparison.Ordinal);
+            Assert.Contains("Z = reader->ReadByte();", source, StringComparison.Ordinal);
+            Assert.Contains("W = reader->ReadByte();", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("::byte4(reader->ReadByte(), reader->ReadByte(), reader->ReadByte(), reader->ReadByte())", source, StringComparison.Ordinal);
+        }
     }
 }

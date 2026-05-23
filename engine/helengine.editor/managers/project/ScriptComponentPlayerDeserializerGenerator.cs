@@ -429,7 +429,14 @@ namespace helengine.editor {
                 return true;
             }
             if (valueType == typeof(byte4)) {
-                expression = $"::byte4({readerVariableName}->ReadByte(), {readerVariableName}->ReadByte(), {readerVariableName}->ReadByte(), {readerVariableName}->ReadByte())";
+                expression = "([&]() { "
+                    + "::byte4 value {}; "
+                    + "value.X = " + readerVariableName + "->ReadByte(); "
+                    + "value.Y = " + readerVariableName + "->ReadByte(); "
+                    + "value.Z = " + readerVariableName + "->ReadByte(); "
+                    + "value.W = " + readerVariableName + "->ReadByte(); "
+                    + "return value; "
+                    + "})()";
                 return true;
             }
             if (valueType == typeof(SceneEntityReference)) {
