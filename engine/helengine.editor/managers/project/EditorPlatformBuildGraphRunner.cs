@@ -153,6 +153,7 @@ namespace helengine.editor {
             PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
             CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(cookedManifest, codeModules, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.ExecutionRootPath);
             EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.ExecutionRootPath);
+            EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(workspace.GeneratedCoreRootPath);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
@@ -497,6 +498,7 @@ namespace helengine.editor {
                 generatedCoreRootPath,
                 cookedSceneAssetPaths,
                 ScriptTypeResolver);
+            EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
         }
 
         /// <summary>

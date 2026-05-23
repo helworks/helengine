@@ -408,6 +408,91 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies scene-driven runtime component deserializer emission refreshes the generated-core unity translation unit so the emitted deserializer implementation files are compiled into native player builds.
+    /// </summary>
+    [Fact]
+    public void EmitGeneratedRuntimeComponentDeserializersForCookedScenes_refreshes_generated_core_unity_translation_unit() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string projectRootPath = Path.Combine(rootPath, "project");
+        Directory.CreateDirectory(projectRootPath);
+
+        try {
+            string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestAxisRotationScriptComponent));
+            string cookedScenePath = Path.Combine(rootPath, "workspace", "cooked", "scenes", "AxisScene.hasset");
+            WriteCookedSceneAssetForBuildGraphRunnerTest(cookedScenePath, "Scenes/AxisScene.helen", componentTypeId);
+
+            DictionaryScriptTypeResolver scriptTypeResolver = new DictionaryScriptTypeResolver();
+            scriptTypeResolver.Register(componentTypeId, typeof(TestAxisRotationScriptComponent));
+
+            EditorPlatformBuildGraphRunner runner = new(
+                projectRootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    "generated-core",
+                    "codegen.exe"),
+                PackagedFontAssetFactory.Create(),
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService(),
+                scriptTypeResolver);
+            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+            Directory.CreateDirectory(generatedCoreRootPath);
+            File.WriteAllText(Path.Combine(generatedCoreRootPath, "Component.cpp"), "void TouchComponentUnity() {}\n");
+            EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
+
+            PlatformBuildManifest manifest = new(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0",
+                "windows",
+                "1.0.0",
+                "Scenes/AxisScene.helen",
+                [
+                    new PlatformBuildScene(
+                        "Scenes/AxisScene.helen",
+                        "AxisScene",
+                        "cooked/scenes/AxisScene.hasset",
+                        [],
+                        [])
+                ],
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+            MethodInfo emitMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "EmitGeneratedRuntimeComponentDeserializersForCookedScenes",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(emitMethod);
+
+            emitMethod.Invoke(
+                runner,
+                [
+                    manifest,
+                    generatedCoreRootPath,
+                    Path.Combine(rootPath, "workspace")
+                ]);
+
+            string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
+            Assert.Contains("GeneratedRuntimeTestAxisRotationScriptComponentDeserializer.cpp", unitySource, StringComparison.Ordinal);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies the generic editor build-graph runner no longer owns runtime graphics renderer manifest emission.
     /// </summary>
     [Fact]
@@ -1279,7 +1364,7 @@ public class EditorPlatformBuildGraphRunnerTests {
     /// </summary>
     /// <param name="cookedScenePath">Absolute cooked scene asset path to create.</param>
     /// <param name="sceneId">Stable scene id stamped into the serialized asset.</param>
-    static void WriteCookedSceneAssetForBuildGraphRunnerTest(string cookedScenePath, string sceneId) {
+    static void WriteCookedSceneAssetForBuildGraphRunnerTest(string cookedScenePath, string sceneId, params string[] componentTypeIds) {
         if (string.IsNullOrWhiteSpace(cookedScenePath)) {
             throw new ArgumentException("Cooked scene path must be provided.", nameof(cookedScenePath));
         }
@@ -1291,6 +1376,22 @@ public class EditorPlatformBuildGraphRunnerTests {
             ?? throw new InvalidOperationException("Cooked scene directory path could not be resolved.");
         Directory.CreateDirectory(sceneDirectoryPath);
 
+        List<SceneComponentAssetRecord> componentRecords = new List<SceneComponentAssetRecord>();
+        if (componentTypeIds != null) {
+            for (int index = 0; index < componentTypeIds.Length; index++) {
+                string componentTypeId = componentTypeIds[index];
+                if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                    continue;
+                }
+
+                componentRecords.Add(new SceneComponentAssetRecord {
+                    ComponentTypeId = componentTypeId,
+                    ComponentIndex = (ushort)index,
+                    Payload = Array.Empty<byte>()
+                });
+            }
+        }
+
         SceneAsset sceneAsset = new() {
             Id = sceneId,
             AssetReferences = Array.Empty<SceneAssetReference>(),
@@ -1301,7 +1402,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                     LocalPosition = float3.Zero,
                     LocalScale = float3.One,
                     LocalOrientation = float4.Identity,
-                    Components = Array.Empty<SceneComponentAssetRecord>(),
+                    Components = componentRecords.ToArray(),
                     Children = Array.Empty<SceneEntityAsset>()
                 }
             ]
