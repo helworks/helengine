@@ -290,6 +290,64 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies regeneration failure does not leave one generated-core scratch workspace behind in the system temp folder.
+    /// </summary>
+    [Fact]
+    public void Regenerate_when_codegen_tool_is_missing_deletes_scratch_workspace() {
+        string platformId = "temp-cleanup-failure-" + Guid.NewGuid().ToString("N");
+        string platformScratchRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformId);
+        string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-failure-output");
+        EditorGeneratedCoreRegenerationService service = new();
+
+        try {
+            Assert.Throws<FileNotFoundException>(() => service.Regenerate(
+                CreatePlatformDefinition(platformId, runtimeGenerationContract: null),
+                CreateDefaultCodegenProfile(),
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                generatedCoreRootPath,
+                Path.Combine(RootPath, "missing-codegen.cmd"),
+                [],
+                [],
+                CancellationToken.None));
+
+            AssertScratchWorkspaceIsClean(platformScratchRootPath);
+        } finally {
+            DeleteDirectoryIfPresent(platformScratchRootPath);
+        }
+    }
+
+    /// <summary>
+    /// Verifies successful regeneration removes one generated-core scratch workspace after merging the final output tree.
+    /// </summary>
+    [Fact]
+    public void Regenerate_when_codegen_succeeds_deletes_scratch_workspace() {
+        string platformId = "temp-cleanup-success-" + Guid.NewGuid().ToString("N");
+        string platformScratchRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformId);
+        string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-success-output");
+        string codegenRootPath = Path.Combine(RootPath, "fake-codegen");
+        string fakeCodegenPath = CreateFakeCodegenTool(codegenRootPath);
+        EditorGeneratedCoreRegenerationService service = new();
+
+        try {
+            service.Regenerate(
+                CreatePlatformDefinition(platformId, runtimeGenerationContract: null),
+                CreateDefaultCodegenProfile(),
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                generatedCoreRootPath,
+                fakeCodegenPath,
+                [],
+                [],
+                CancellationToken.None);
+
+            Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp")));
+            Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp")));
+            AssertScratchWorkspaceIsClean(platformScratchRootPath);
+        } finally {
+            DeleteDirectoryIfPresent(platformScratchRootPath);
+        }
+    }
+
+    /// <summary>
     /// Verifies generated automatic runtime component emission writes the generated deserializer files without mutating the generated runtime registry source.
     /// </summary>
     [Fact]
@@ -535,6 +593,70 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             PlatformCodegenLanguage.Cpp,
             PlatformSerializationEndianness.LittleEndian,
             []);
+    }
+
+    /// <summary>
+    /// Creates one fake codegen tool that emits the minimal generated output required by regeneration tests.
+    /// </summary>
+    /// <param name="codegenRootPath">Directory that should contain the fake codegen tool and bundled runtime support root.</param>
+    /// <returns>Absolute path to the fake codegen command file.</returns>
+    static string CreateFakeCodegenTool(string codegenRootPath) {
+        Directory.CreateDirectory(codegenRootPath);
+        Directory.CreateDirectory(Path.Combine(codegenRootPath, ".net.cpp"));
+
+        string fakeCodegenPath = Path.Combine(codegenRootPath, "fake-codegen.cmd");
+        File.WriteAllText(
+            fakeCodegenPath,
+            "@echo off\r\n"
+            + "setlocal EnableDelayedExpansion\r\n"
+            + "set OUTPUT=\r\n"
+            + ":parse\r\n"
+            + "if \"%~1\"==\"\" goto done\r\n"
+            + "if /I \"%~1\"==\"--output\" (\r\n"
+            + "  set OUTPUT=%~2\r\n"
+            + "  shift\r\n"
+            + ")\r\n"
+            + "shift\r\n"
+            + "goto parse\r\n"
+            + ":done\r\n"
+            + "if \"%OUTPUT%\"==\"\" exit /b 2\r\n"
+            + "if not exist \"%OUTPUT%\" mkdir \"%OUTPUT%\"\r\n"
+            + "> \"%OUTPUT%\\GeneratedMarker.cpp\" echo // generated\r\n"
+            + "> \"%OUTPUT%\\cpp-conversion-report.json\" (\r\n"
+            + "  echo {\r\n"
+            + "  echo   \"assemblyName\": \"fake\",\r\n"
+            + "  echo   \"buildFeatures\": {\r\n"
+            + "  echo     \"decisions\": [],\r\n"
+            + "  echo     \"detectedRoots\": [],\r\n"
+            + "  echo     \"conflicts\": []\r\n"
+            + "  echo   }\r\n"
+            + "  echo }\r\n"
+            + ")\r\n"
+            + "exit /b 0\r\n");
+        return fakeCodegenPath;
+    }
+
+    /// <summary>
+    /// Verifies one platform scratch workspace root is absent or empty after regeneration completes.
+    /// </summary>
+    /// <param name="platformScratchRootPath">Platform-specific scratch workspace parent path.</param>
+    static void AssertScratchWorkspaceIsClean(string platformScratchRootPath) {
+        if (!Directory.Exists(platformScratchRootPath)) {
+            return;
+        }
+
+        Assert.Empty(Directory.GetDirectories(platformScratchRootPath));
+        Assert.Empty(Directory.GetFiles(platformScratchRootPath));
+    }
+
+    /// <summary>
+    /// Deletes one directory tree when it exists.
+    /// </summary>
+    /// <param name="path">Directory path to delete.</param>
+    static void DeleteDirectoryIfPresent(string path) {
+        if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path)) {
+            Directory.Delete(path, true);
+        }
     }
 
     /// <summary>

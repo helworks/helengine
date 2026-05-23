@@ -82,7 +82,6 @@ namespace helengine.editor {
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
             string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
-            string logPath = Path.Combine(tempRoot, "regeneration.log");
             StringBuilder logBuilder = new();
             bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
 
@@ -174,8 +173,7 @@ namespace helengine.editor {
                 EnsureGeneratedIncludeCompatibilityShims(generatedCoreOutputRoot);
                 WriteGeneratedCoreTranslationUnit(generatedCoreOutputRoot);
             } finally {
-                Directory.CreateDirectory(Path.GetDirectoryName(logPath) ?? tempRoot);
-                File.WriteAllText(logPath, logBuilder.ToString());
+                DeleteDirectoryIfPresent(tempRoot);
             }
         }
 
@@ -469,6 +467,16 @@ namespace helengine.editor {
 
             if (process.ExitCode != 0) {
                 throw new InvalidOperationException($"Process '{fileName} {displayArguments}' failed with exit code {process.ExitCode}.");
+            }
+        }
+
+        /// <summary>
+        /// Deletes one regeneration scratch directory tree when it exists.
+        /// </summary>
+        /// <param name="path">Scratch directory path to delete.</param>
+        static void DeleteDirectoryIfPresent(string path) {
+            if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path)) {
+                Directory.Delete(path, true);
             }
         }
 
