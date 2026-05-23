@@ -229,6 +229,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         Assert.Contains("--set", arguments);
         Assert.Contains("include-project-defined-preprocessor-symbols=false", arguments);
+        Assert.Contains("--feature-catalog", arguments);
+        Assert.Contains(
+            arguments,
+            argument => argument.EndsWith("helengine-feature-catalog.json", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

@@ -1,0 +1,38 @@
+{
+  "features": [
+    { "id": "render2d", "defaultMode": "auto", "conflictPolicy": "error" },
+    { "id": "sprites", "defaultMode": "auto", "conflictPolicy": "error" },
+    { "id": "text2d", "defaultMode": "auto", "conflictPolicy": "error" },
+    { "id": "shaders", "defaultMode": "auto", "conflictPolicy": "error" },
+    { "id": "debug_overlay", "defaultMode": "auto", "conflictPolicy": "error" },
+    { "id": "runtime_json", "defaultMode": "auto", "conflictPolicy": "error" },
+    { "id": "reflection_like_runtime", "defaultMode": "auto", "conflictPolicy": "error" },
+    { "id": "host_file_system", "defaultMode": "auto", "conflictPolicy": "error" },
+    { "id": "text_processing", "defaultMode": "auto", "conflictPolicy": "error" }
+  ],
+  "rootRules": [
+    { "typeName": "helengine.RenderManager2D", "featureIds": [ "render2d" ] },
+    { "typeName": "helengine.IDrawable2D", "featureIds": [ "render2d" ] },
+    { "typeName": "helengine.ISpriteDrawable2D", "featureIds": [ "sprites", "render2d" ] },
+    { "typeName": "helengine.core.graphics.ISpriteRenderable", "featureIds": [ "sprites", "render2d" ] },
+    { "typeName": "helengine.SpriteComponent", "featureIds": [ "sprites", "render2d" ] },
+    { "typeName": "helengine.ITextDrawable2D", "featureIds": [ "text2d", "render2d" ] },
+    { "typeName": "helengine.TextComponent", "featureIds": [ "text2d", "render2d" ] },
+    { "typeName": "helengine.DebugComponent", "featureIds": [ "debug_overlay" ] },
+    { "typeName": "helengine.DebugOverlayComponent", "featureIds": [ "debug_overlay" ] },
+    { "typeName": "helengine.ShaderAsset", "featureIds": [ "shaders", "text_processing" ] },
+    { "typeName": "helengine.ShaderRuntimeMaterial", "featureIds": [ "shaders", "text_processing" ] },
+    { "typeName": "helengine.IShaderRenderManager3D", "featureIds": [ "shaders", "text_processing" ] },
+    { "typeName": "helengine.core.content.RuntimeManifestJsonReader", "featureIds": [ "runtime_json", "text_processing" ] },
+    { "typeName": "helengine.TextContentProcessor", "featureIds": [ "text_processing" ] },
+    { "typeName": "helengine.core.content.RuntimeStartupManifest", "featureIds": [ "runtime_json", "host_file_system" ] },
+    { "typeName": "helengine.core.content.RuntimeCodeModuleManifest", "featureIds": [ "runtime_json", "host_file_system" ] },
+    { "typeName": "helengine.ContentManager", "featureIds": [ "host_file_system", "text_processing" ] }
+  ],
+  "runtimeRequirements": [
+    { "requirementId": "StringBuilder", "featureIds": [ "debug_overlay", "shaders", "text_processing" ] },
+    { "requirementId": "Regex", "featureIds": [ "shaders", "text_processing" ] },
+    { "requirementId": "StreamReader", "featureIds": [ "text_processing" ] },
+    { "requirementId": "StringReader", "featureIds": [ "shaders", "text_processing" ] }
+  ]
+}

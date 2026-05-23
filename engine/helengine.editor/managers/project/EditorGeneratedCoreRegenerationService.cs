@@ -333,6 +333,8 @@ namespace helengine.editor {
                 projectPath,
                 "--output",
                 outputRootPath,
+                "--feature-catalog",
+                ResolveHelengineFeatureCatalogPath(),
                 "--platform",
                 platformDefinition.PlatformId,
                 "--language",
@@ -369,6 +371,45 @@ namespace helengine.editor {
             }
 
             return arguments;
+        }
+
+        /// <summary>
+        /// Resolves the checked-in helengine codegen feature catalog path by searching upward from the editor process base directory and current working directory.
+        /// </summary>
+        /// <returns>Absolute path to the helengine feature catalog file.</returns>
+        static string ResolveHelengineFeatureCatalogPath() {
+            string relativeCatalogPath = Path.Combine(
+                "engine",
+                "helengine.editor",
+                "codegen",
+                "features",
+                "helengine-feature-catalog.json");
+
+            string[] searchRoots = new[] {
+                AppContext.BaseDirectory,
+                Directory.GetCurrentDirectory()
+            };
+
+            for (int rootIndex = 0; rootIndex < searchRoots.Length; rootIndex++) {
+                string searchRoot = searchRoots[rootIndex];
+                if (string.IsNullOrWhiteSpace(searchRoot)) {
+                    continue;
+                }
+
+                DirectoryInfo currentDirectory = new DirectoryInfo(Path.GetFullPath(searchRoot));
+                for (int depth = 0; depth < 10 && currentDirectory != null; depth++) {
+                    string candidatePath = Path.Combine(currentDirectory.FullName, relativeCatalogPath);
+                    if (File.Exists(candidatePath)) {
+                        return candidatePath;
+                    }
+
+                    currentDirectory = currentDirectory.Parent;
+                }
+            }
+
+            throw new FileNotFoundException(
+                "Could not locate the checked-in helengine codegen feature catalog.",
+                relativeCatalogPath);
         }
 
         /// <summary>
