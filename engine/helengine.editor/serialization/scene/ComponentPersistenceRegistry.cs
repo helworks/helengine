@@ -126,7 +126,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }
 
-            Type componentType = Type.GetType(componentTypeId, false);
+            Type componentType = PersistedComponentTypeResolver.TryResolve(componentTypeId);
             if (componentType == null && ScriptTypeResolver != null) {
                 componentType = ScriptTypeResolver.Resolve(componentTypeId);
             }

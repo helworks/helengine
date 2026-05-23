@@ -77,6 +77,11 @@ namespace helengine.editor {
 
             if (component is DebugComponent debugComponent) {
                 PopulateOverlayFontAssetReferences(nameof(DebugComponent), debugComponent.Font, saveState);
+                return;
+            }
+
+            if (component is TextComponent textComponent) {
+                PopulateOverlayFontAssetReferences(nameof(TextComponent), textComponent.Font, saveState);
             }
         }
 

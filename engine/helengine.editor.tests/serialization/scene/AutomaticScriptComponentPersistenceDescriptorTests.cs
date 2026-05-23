@@ -146,6 +146,58 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures engine-owned text components now use the same automatic reflected persistence path and retain authored font scale and font references.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenTextComponentUsesFontScale_RoundTripsThroughAutomaticPersistence() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneAssetReference fontReference = BuildFontReference("Fonts/Ui.hefont", "fonts", "ui");
+            TextComponent component = new TextComponent {
+                Font = CreateFont("Ui"),
+                Text = "Scaled heading",
+                WrapText = true,
+                Size = new int2(512, 128),
+                Color = new byte4(9, 18, 27, 255),
+                SourceRect = new float4(0.05f, 0.1f, 0.9f, 0.8f),
+                Rotation = 0.25f,
+                FontScale = 2.0f,
+                RenderOrder2D = 22,
+                LayerMask = 3,
+                SelectionEnabled = true,
+                Texture = new TestRuntimeTexture()
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(TextComponent.Font), fontReference);
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, saveState);
+
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            FontAsset loadedFont = CreateFont("LoadedUi");
+            resolver.RegisterFont(fontReference, loadedFont);
+            EntitySaveComponent loadedSaveComponent = new EntitySaveComponent();
+
+            TextComponent restored = Assert.IsType<TextComponent>(descriptor.DeserializeComponent(record, loadedSaveComponent, resolver));
+
+            Assert.Same(loadedFont, restored.Font);
+            Assert.Equal("Scaled heading", restored.Text);
+            Assert.True(restored.WrapText);
+            Assert.Equal(new int2(512, 128), restored.Size);
+            Assert.Equal(new byte4(9, 18, 27, 255), restored.Color);
+            Assert.Equal(new float4(0.05f, 0.1f, 0.9f, 0.8f), restored.SourceRect);
+            Assert.Equal(0.25f, restored.Rotation);
+            Assert.Equal(2.0f, restored.FontScale);
+            Assert.Equal((byte)22, restored.RenderOrder2D);
+            Assert.Equal((byte)3, restored.LayerMask);
+            Assert.True(restored.SelectionEnabled);
+            Assert.Null(restored.Texture);
+            Assert.True(loadedSaveComponent.TryGetComponentState(restored, out EntityComponentSaveState loadedSaveState));
+            Assert.True(loadedSaveState.TryGetAssetReference(nameof(TextComponent.Font), out SceneAssetReference loadedReference));
+            Assert.Equal(fontReference.RelativePath, loadedReference.RelativePath);
+            Assert.Equal(fontReference.ProviderId, loadedReference.ProviderId);
+            Assert.Equal(fontReference.AssetId, loadedReference.AssetId);
+        }
+
+        /// <summary>
         /// Ensures runtime-only scroll bindings are ignored while the remaining reflected members still round-trip.
         /// </summary>
         [Fact]
@@ -203,6 +255,40 @@ namespace helengine.editor.tests.serialization.scene {
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => descriptor.SerializeComponent(component, 0, new EntityComponentSaveState()));
 
             Assert.Contains(typeof(Entity).FullName, exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Creates one deterministic runtime font used by automatic persistence tests that restore asset-backed members.
+        /// </summary>
+        /// <param name="name">Friendly font name.</param>
+        /// <returns>Runtime font asset with stable metrics and atlas shape.</returns>
+        static FontAsset CreateFont(string name) {
+            return new FontAsset(
+                new FontInfo(name, 16, 4f),
+                new TestRuntimeTexture {
+                    Width = 1,
+                    Height = 1
+                },
+                new Dictionary<char, FontChar>(),
+                16f,
+                1,
+                1);
+        }
+
+        /// <summary>
+        /// Builds one deterministic scene asset reference for a font used by automatic persistence tests.
+        /// </summary>
+        /// <param name="relativePath">Project-relative path recorded for the font.</param>
+        /// <param name="providerId">Generated provider identifier.</param>
+        /// <param name="assetId">Provider-local asset identifier.</param>
+        /// <returns>Stable scene asset reference.</returns>
+        static SceneAssetReference BuildFontReference(string relativePath, string providerId, string assetId) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = relativePath,
+                ProviderId = providerId,
+                AssetId = assetId
+            };
         }
     }
 }

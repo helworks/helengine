@@ -161,7 +161,7 @@ namespace helengine.editor.tests.rendering {
             SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
             SceneComponentAssetRecord directionalLightRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.DirectionalLightComponent");
             CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
-            DirectionalLightComponentPersistenceDescriptor lightDescriptor = new DirectionalLightComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor lightDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
             DirectionalLightComponent directionalLightComponent = (DirectionalLightComponent)lightDescriptor.DeserializeComponent(directionalLightRecord, null, null);
 

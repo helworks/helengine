@@ -34,7 +34,7 @@ namespace helengine.editor.tests.managers.project {
             string source = generator.GenerateNativeDeserializerSource(schema);
 
             Assert.Contains("class GeneratedRuntimeClipRectComponentDeserializer", header, StringComparison.Ordinal);
-            Assert.Contains("helengine.ClipRectComponent, helengine.core", source, StringComparison.Ordinal);
+            Assert.Contains("helengine.ClipRectComponent", source, StringComparison.Ordinal);
             Assert.Contains("component->set_Size(reader->ReadInt2());", source, StringComparison.Ordinal);
             Assert.Contains("int32_t GeneratedRuntimeClipRectComponentDeserializer::MemberCount = 1;", source, StringComparison.Ordinal);
         }
@@ -103,6 +103,23 @@ namespace helengine.editor.tests.managers.project {
             Assert.Contains("Z = reader->ReadByte();", source, StringComparison.Ordinal);
             Assert.Contains("W = reader->ReadByte();", source, StringComparison.Ordinal);
             Assert.DoesNotContain("::byte4(reader->ReadByte(), reader->ReadByte(), reader->ReadByte(), reader->ReadByte())", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures generated native deserializers for engine-owned text components rebuild font references and authored font scale through the automatic reflected path.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsTextComponent_EmitsFontReferenceResolutionAndFontScaleRead() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TextComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("SceneAssetReference", header, StringComparison.Ordinal);
+            Assert.Contains("referenceResolver->ResolveFont(reference)", source, StringComparison.Ordinal);
+            Assert.Contains("component->set_FontScale(reader->ReadSingle());", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("component->set_Texture(", source, StringComparison.Ordinal);
         }
     }
 }

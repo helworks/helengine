@@ -540,14 +540,6 @@ namespace helengine.editor {
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new TextComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new RoundedRectComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new DebugComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new AmbientLightComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
             return persistenceRegistry;
         }
 

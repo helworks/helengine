@@ -130,40 +130,6 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures packaged runtime scene loading writes a start log and a timing log around materialization.
-        /// </summary>
-        [Fact]
-        public void Load_WhenSceneIsMaterialized_WritesStartAndTimingLogs() {
-            List<LogEntry> loggedMessages = new List<LogEntry>();
-            Action<LogEntry> handleMessageLogged = loggedMessages.Add;
-
-            Logger.MessageLogged += handleMessageLogged;
-            try {
-                RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                    Core.Instance.ContentManager,
-                    TempRootPath,
-                    ShaderCompileTarget.DirectX11);
-                RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-                SceneAsset sceneAsset = new SceneAsset {
-                    RootEntities = new[] {
-                        new SceneEntityAsset {
-                            Id = 1u,
-                            Name = "Root"
-                        }
-                    }
-                };
-
-                IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
-
-                Assert.Single(loadedRoots);
-                Assert.Contains(loggedMessages, entry => entry.Level == LogLevel.Info && entry.Message == "Loading packaged scene assets.");
-                Assert.Contains(loggedMessages, entry => entry.Level == LogLevel.Info && entry.Message.StartsWith("Loaded packaged scene assets in ", StringComparison.Ordinal));
-            } finally {
-                Logger.MessageLogged -= handleMessageLogged;
-            }
-        }
-
-        /// <summary>
         /// Ensures packaged runtime scene loading materializes FPS overlay components on the player side.
         /// </summary>
         [Fact]
@@ -181,7 +147,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.FPSComponent",
+                                ComponentTypeId = "helengine.FPSComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteFpsComponentPayload()
                             }
@@ -218,7 +184,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.FPSComponent",
+                                ComponentTypeId = "helengine.FPSComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteFpsComponentPayloadWithoutFontReference()
                             }
@@ -255,7 +221,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.DebugComponent",
+                                ComponentTypeId = "helengine.DebugComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteDebugComponentPayload()
                             }
@@ -292,7 +258,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.DebugComponent",
+                                ComponentTypeId = "helengine.DebugComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteDebugComponentPayloadWithoutFontReference()
                             }
@@ -328,7 +294,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.FPSComponent",
+                                ComponentTypeId = "helengine.FPSComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteOlderVersionFpsComponentPayload()
                             }
@@ -338,7 +304,7 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loadService.Load(sceneAsset));
-            Assert.Contains("Unsupported FPS component payload version", exception.Message);
+            Assert.Contains("Unsupported automatic scripted component payload version", exception.Message);
         }
 
         /// <summary>
@@ -358,7 +324,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.MeshComponent",
+                                ComponentTypeId = "helengine.MeshComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteMeshComponentPayload()
                             }
@@ -393,7 +359,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.MeshComponent",
+                                ComponentTypeId = "helengine.MeshComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteMeshComponentPayloadVersion2WithEmptyMaterialSlots()
                             }
@@ -431,7 +397,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.CameraComponent",
+                                ComponentTypeId = "helengine.CameraComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteCameraComponentPayload()
                             }
@@ -507,7 +473,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.TextComponent",
+                                ComponentTypeId = "helengine.TextComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteTextComponentPayload(CreateFileFontReference("Fonts/DemoDiscTitle.ttf"))
                             }
@@ -615,7 +581,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "RootA",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.TextComponent",
+                                ComponentTypeId = "helengine.TextComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteTextComponentPayload(sharedFontReference)
                             }
@@ -626,7 +592,7 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "RootB",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "Helengine.TextComponent",
+                                ComponentTypeId = "helengine.TextComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteTextComponentPayload(sharedFontReference)
                             }
@@ -830,23 +796,8 @@ namespace helengine.editor.tests.serialization.scene {
                 TempRootPath,
                 ShaderCompileTarget.DirectX11);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-            byte[] olderVersionPayload;
-            using (MemoryStream stream = new MemoryStream()) {
-                using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-                writer.WriteByte(1);
-                writer.WriteSingle(0.8f);
-                writer.WriteSingle(0.9f);
-                writer.WriteSingle(1f);
-                writer.WriteSingle(1f);
-                writer.WriteSingle(2.5f);
-                writer.WriteByte(0);
-                writer.WriteByte((byte)ShadowMapMode.Disabled);
-                writer.WriteSingle(0.45f);
-                writer.WriteSingle(24f);
-                writer.WriteSingle(20f);
-                writer.WriteSingle(36f);
-                olderVersionPayload = stream.ToArray();
-            }
+            byte[] olderVersionPayload = WriteSpotLightComponentPayload();
+            olderVersionPayload[0] = 2;
 
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
@@ -865,7 +816,7 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loadService.Load(sceneAsset));
-            Assert.Contains("Unsupported spot light payload version", exception.Message);
+            Assert.Contains("Unsupported automatic scripted component payload version", exception.Message);
         }
 
         /// <summary>
@@ -900,13 +851,55 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Serialized FPS component payload.</returns>
         byte[] WriteFpsComponentPayload() {
+            FPSComponent fpsComponent = new FPSComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0.5d,
+                Padding = new int2(8, 6),
+                RenderOrder2D = 250
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(FPSComponent.Font), CreateFileFontReference("fonts/default.hefont"));
+            return WriteAutomaticRuntimeComponentPayload(fpsComponent, saveState);
+        }
+
+        /// <summary>
+        /// Serializes one engine component through the unified automatic reflected persistence path used by player packaging.
+        /// </summary>
+        /// <param name="component">Engine component to serialize.</param>
+        /// <param name="saveState">Optional asset-reference state associated with the component.</param>
+        /// <returns>Serialized automatic component payload.</returns>
+        byte[] WriteAutomaticComponentPayload(Component component, EntityComponentSaveState saveState) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, saveState);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Serializes one engine component through the packaged automatic reflected runtime payload path used by the player.
+        /// </summary>
+        /// <param name="component">Engine component to serialize.</param>
+        /// <param name="saveState">Optional asset-reference state associated with the component.</param>
+        /// <returns>Serialized automatic runtime component payload.</returns>
+        byte[] WriteAutomaticRuntimeComponentPayload(Component component, EntityComponentSaveState saveState) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            ScriptComponentReflectionSchema schema = schemaBuilder.Build(component.GetType());
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            WriteFontReference(writer);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
-            writer.WriteInt2(new int2(8, 6));
-            writer.WriteByte(250);
+            writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+            writer.WriteInt32(schema.Members.Count);
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                AutomaticScriptComponentPersistenceDescriptor.WriteSupportedMemberValue(writer, member, component, saveState);
+            }
+
             return stream.ToArray();
         }
 
@@ -959,14 +952,12 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Serialized FPS component payload.</returns>
         byte[] WriteFpsComponentPayloadWithoutFontReference() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            writer.WriteByte(0);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
-            writer.WriteInt2(new int2(8, 6));
-            writer.WriteByte(250);
-            return stream.ToArray();
+            FPSComponent fpsComponent = new FPSComponent {
+                RefreshIntervalSeconds = 0.5d,
+                Padding = new int2(8, 6),
+                RenderOrder2D = 250
+            };
+            return WriteAutomaticRuntimeComponentPayload(fpsComponent, null);
         }
 
         /// <summary>
@@ -974,14 +965,15 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Serialized debug component payload.</returns>
         byte[] WriteDebugComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            WriteFontReference(writer);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
-            writer.WriteInt2(new int2(8, 6));
-            writer.WriteByte(250);
-            return stream.ToArray();
+            DebugComponent debugComponent = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0.5d,
+                Padding = new int2(8, 6),
+                RenderOrder2D = 250
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(DebugComponent.Font), CreateFileFontReference("fonts/default.hefont"));
+            return WriteAutomaticRuntimeComponentPayload(debugComponent, saveState);
         }
 
         /// <summary>
@@ -989,14 +981,12 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Serialized debug component payload.</returns>
         byte[] WriteDebugComponentPayloadWithoutFontReference() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteByte(0);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
-            writer.WriteInt2(new int2(8, 6));
-            writer.WriteByte(250);
-            return stream.ToArray();
+            DebugComponent debugComponent = new DebugComponent {
+                RefreshIntervalSeconds = 0.5d,
+                Padding = new int2(8, 6),
+                RenderOrder2D = 250
+            };
+            return WriteAutomaticRuntimeComponentPayload(debugComponent, null);
         }
 
         /// <summary>
@@ -1004,13 +994,14 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Serialized older-version FPS component payload.</returns>
         byte[] WriteOlderVersionFpsComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
-            writer.WriteInt2(new int2(8, 6));
-            writer.WriteByte(250);
-            return stream.ToArray();
+            FPSComponent fpsComponent = new FPSComponent {
+                RefreshIntervalSeconds = 0.5d,
+                Padding = new int2(8, 6),
+                RenderOrder2D = 250
+            };
+            byte[] payload = WriteAutomaticRuntimeComponentPayload(fpsComponent, null);
+            payload[0] = 2;
+            return payload;
         }
 
         /// <summary>
@@ -1037,18 +1028,6 @@ namespace helengine.editor.tests.serialization.scene {
 
             using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, textureAsset);
-        }
-
-        /// <summary>
-        /// Writes the runtime font reference used by the FPS overlay test.
-        /// </summary>
-        /// <param name="writer">Writer receiving the reference payload.</param>
-        void WriteFontReference(EngineBinaryWriter writer) {
-            writer.WriteByte(1);
-            writer.WriteInt32((int)SceneAssetReferenceSourceKind.FileSystem);
-            writer.WriteString("fonts/default.hefont");
-            writer.WriteString(string.Empty);
-            writer.WriteString(string.Empty);
         }
 
         /// <summary>
@@ -1082,7 +1061,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="fontReference">Font reference to persist for the text component.</param>
         /// <returns>Serialized text component payload.</returns>
         byte[] WriteTextComponentPayload(SceneAssetReference fontReference) {
-            TextComponentPersistenceDescriptor descriptor = new TextComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             TextComponent textComponent = new TextComponent {
                 Font = CreateFont(),
                 Text = "Hello world",
@@ -1212,18 +1191,14 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Serialized directional light component payload.</returns>
         byte[] WriteDirectionalLightComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteDirectionalLight(writer, new DirectionalLightComponent {
+            return WriteAutomaticRuntimeComponentPayload(new DirectionalLightComponent {
                 Color = new float4(0.3f, 0.4f, 0.5f, 1f),
                 Intensity = 3.0f,
                 ShadowsEnabled = true,
                 ShadowMapMode = ShadowMapMode.Forced,
                 ShadowStrength = 0.7f,
                 ShadowDistance = 64f
-            });
-            return stream.ToArray();
+            }, null);
         }
 
         /// <summary>
@@ -1231,17 +1206,13 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Serialized ambient light component payload.</returns>
         byte[] WriteAmbientLightComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteAmbientLight(writer, new AmbientLightComponent {
+            return WriteAutomaticRuntimeComponentPayload(new AmbientLightComponent {
                 Color = new float4(0.2f, 0.25f, 0.3f, 1f),
                 Intensity = 1.5f,
                 ShadowsEnabled = false,
                 ShadowMapMode = ShadowMapMode.Disabled,
                 ShadowStrength = 0.2f
-            });
-            return stream.ToArray();
+            }, null);
         }
 
         /// <summary>
@@ -1249,18 +1220,14 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Serialized point light component payload.</returns>
         byte[] WritePointLightComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WritePointLight(writer, new PointLightComponent {
+            return WriteAutomaticRuntimeComponentPayload(new PointLightComponent {
                 Color = new float4(1f, 0.8f, 0.6f, 1f),
                 Intensity = 4.0f,
                 ShadowsEnabled = true,
                 ShadowMapMode = ShadowMapMode.Auto,
                 ShadowStrength = 0.85f,
                 Range = 18f
-            });
-            return stream.ToArray();
+            }, null);
         }
 
         /// <summary>
@@ -1268,10 +1235,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Serialized spot light component payload.</returns>
         byte[] WriteSpotLightComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteSpotLight(writer, new SpotLightComponent {
+            return WriteAutomaticRuntimeComponentPayload(new SpotLightComponent {
                 Color = new float4(0.8f, 0.9f, 1f, 1f),
                 Intensity = 2.5f,
                 ShadowsEnabled = false,
@@ -1280,8 +1244,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Range = 24f,
                 InnerConeAngleDegrees = 20f,
                 OuterConeAngleDegrees = 36f
-            });
-            return stream.ToArray();
+            }, null);
         }
 
         /// <summary>

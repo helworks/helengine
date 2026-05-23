@@ -368,6 +368,18 @@ namespace helengine.editor {
         /// Resolver used to obtain processed `ModelAsset` payloads for file-backed source models.
         /// </summary>
         readonly EditorFileSystemModelResolver FileSystemModelResolver;
+        /// <summary>
+        /// Resolver used to obtain imported `FontAsset` payloads for file-backed source fonts.
+        /// </summary>
+        readonly EditorFileSystemFontResolver FileSystemFontResolver;
+        /// <summary>
+        /// Resolver used to obtain imported `TextureAsset` payloads for file-backed source textures.
+        /// </summary>
+        readonly EditorFileSystemTextureResolver FileSystemTextureResolver;
+        /// <summary>
+        /// Resolver used to materialize automatic reflected components before packaged runtime rewriting.
+        /// </summary>
+        readonly EditorSceneAssetReferenceResolver AutomaticComponentReferenceResolver;
 
         /// <summary>
         /// Deduplicated shader asset ids referenced while packaging the current scene set.
@@ -428,10 +440,6 @@ namespace helengine.editor {
         /// </summary>
         readonly CameraComponentPersistenceDescriptor CameraComponentDescriptor;
         /// <summary>
-        /// Rounded-rectangle descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
-        /// </summary>
-        readonly RoundedRectComponentPersistenceDescriptor RoundedRectComponentDescriptor;
-        /// <summary>
         /// Scene-map descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
         /// </summary>
         readonly SceneMapComponentPersistenceDescriptor SceneMapComponentDescriptor;
@@ -484,6 +492,14 @@ namespace helengine.editor {
             ProjectContentManager = projectContentManager ?? throw new ArgumentNullException(nameof(projectContentManager));
             AssetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             FileSystemModelResolver = fileSystemModelResolver ?? throw new ArgumentNullException(nameof(fileSystemModelResolver));
+            FileSystemFontResolver = new EditorFileSystemFontResolver(AssetImportManager);
+            FileSystemTextureResolver = new EditorFileSystemTextureResolver(AssetImportManager);
+            AutomaticComponentReferenceResolver = new EditorSceneAssetReferenceResolver(
+                ProjectContentManager,
+                ResolveProjectRootPath(AssetsRootPath),
+                FileSystemModelResolver,
+                FileSystemFontResolver,
+                FileSystemTextureResolver);
             ReferencedShaderAssetIds = referencedShaderAssetIds ?? throw new ArgumentNullException(nameof(referencedShaderAssetIds));
             ReferencedShaderAssetIdsSet = referencedShaderAssetIdsSet ?? throw new ArgumentNullException(nameof(referencedShaderAssetIdsSet));
             MaterialAssetSettingsService = new MaterialAssetSettingsService();
@@ -498,21 +514,11 @@ namespace helengine.editor {
             FileHasher = new AssetFileHasher();
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
-            RoundedRectComponentDescriptor = new RoundedRectComponentPersistenceDescriptor();
             SceneMapComponentDescriptor = new SceneMapComponentPersistenceDescriptor();
             PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
             PersistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             PersistenceRegistry.Register(CameraComponentDescriptor);
-            PersistenceRegistry.Register(new TextComponentPersistenceDescriptor());
-            PersistenceRegistry.Register(new SpriteComponentPersistenceDescriptor());
-            PersistenceRegistry.Register(RoundedRectComponentDescriptor);
             PersistenceRegistry.Register(SceneMapComponentDescriptor);
-            PersistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
-            PersistenceRegistry.Register(new DebugComponentPersistenceDescriptor());
-            PersistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
-            PersistenceRegistry.Register(new AmbientLightComponentPersistenceDescriptor());
-            PersistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
-            PersistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
         }
 
         /// <summary>
@@ -527,16 +533,7 @@ namespace helengine.editor {
 
             if (string.Equals(componentTypeId, MeshComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, CameraComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, DebugComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, SpriteComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, RoundedRectComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, SceneMapComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, PointLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                || string.Equals(componentTypeId, SceneMapComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
 
@@ -568,57 +565,12 @@ namespace helengine.editor {
                 return true;
             }
 
-            if (string.Equals(record.ComponentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteFPSComponentRecord(record, buildRootPath);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, DebugComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteDebugComponentRecord(record, buildRootPath);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteTextComponentRecord(record, buildRootPath);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, SpriteComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteSpriteComponentRecord(record, buildRootPath);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, RoundedRectComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteRoundedRectComponentRecord(record);
-                return true;
-            }
-
             if (string.Equals(record.ComponentTypeId, SceneMapComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteSceneMapComponentRecord(record);
                 return true;
             }
 
-            if (string.Equals(record.ComponentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteDirectionalLightComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteAmbientLightComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, PointLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewritePointLightComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteSpotLightComponentRecord(record);
-                return true;
-            }
-
-            if (TryRewriteAutomaticComponentRecord(record, out transformedRecord)) {
+            if (TryRewriteAutomaticComponentRecord(record, buildRootPath, out transformedRecord)) {
                 return true;
             }
 
@@ -653,14 +605,27 @@ namespace helengine.editor {
         /// <param name="record">Serialized component record to rewrite.</param>
         /// <param name="transformedRecord">Rewritten component record when successful.</param>
         /// <returns>True when the record was rewritten through the automatic reflected fallback; otherwise false.</returns>
-        bool TryRewriteAutomaticComponentRecord(SceneComponentAssetRecord record, out SceneComponentAssetRecord transformedRecord) {
+        bool TryRewriteAutomaticComponentRecord(
+            SceneComponentAssetRecord record,
+            string buildRootPath,
+            out SceneComponentAssetRecord transformedRecord) {
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
             if (!TryResolvePersistenceDescriptor(record.ComponentTypeId, out IComponentPersistenceDescriptor descriptor)) {
                 transformedRecord = null;
                 return false;
             }
 
-            Component component = DeserializeAutomaticComponentForPackaging(record, descriptor);
-            transformedRecord = BuildAutomaticRuntimeComponentRecord(record.ComponentTypeId, record.ComponentIndex, component);
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            Component component = DeserializeAutomaticComponentForPackaging(record, descriptor, saveComponent);
+            transformedRecord = BuildAutomaticRuntimeComponentRecord(
+                record.ComponentTypeId,
+                record.ComponentIndex,
+                component,
+                ResolveAutomaticComponentSaveState(saveComponent, component),
+                buildRootPath);
             return true;
         }
 
@@ -671,22 +636,31 @@ namespace helengine.editor {
         /// <param name="componentIndex">Stable component index assigned within the owning entity.</param>
         /// <param name="component">Live component instance whose reflected members should be serialized.</param>
         /// <returns>Runtime-ready automatic component record.</returns>
-        SceneComponentAssetRecord BuildAutomaticRuntimeComponentRecord(string componentTypeId, int componentIndex, Component component) {
+        SceneComponentAssetRecord BuildAutomaticRuntimeComponentRecord(
+            string componentTypeId,
+            int componentIndex,
+            Component component,
+            EntityComponentSaveState saveState,
+            string buildRootPath) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }
             if (component == null) {
                 throw new ArgumentNullException(nameof(component));
             }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
 
             ScriptComponentReflectionSchema schema = ScriptComponentSchemaBuilder.Build(component.GetType());
+            EntityComponentSaveState rewrittenSaveState = RewriteAutomaticComponentSaveStateReferences(schema, saveState, buildRootPath);
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
             writer.WriteInt32(schema.Members.Count);
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                AutomaticScriptComponentPersistenceDescriptor.WriteSupportedValue(writer, member.ValueType, member.GetValue(component));
+                AutomaticScriptComponentPersistenceDescriptor.WriteSupportedMemberValue(writer, member, component, rewrittenSaveState);
             }
 
             return new SceneComponentAssetRecord {
@@ -702,15 +676,118 @@ namespace helengine.editor {
         /// <param name="record">Serialized component record being packaged.</param>
         /// <param name="descriptor">Resolved persistence descriptor for the component type.</param>
         /// <returns>Live component instance ready for runtime payload emission.</returns>
-        Component DeserializeAutomaticComponentForPackaging(SceneComponentAssetRecord record, IComponentPersistenceDescriptor descriptor) {
+        Component DeserializeAutomaticComponentForPackaging(
+            SceneComponentAssetRecord record,
+            IComponentPersistenceDescriptor descriptor,
+            EntitySaveComponent saveComponent) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
             if (descriptor == null) {
                 throw new ArgumentNullException(nameof(descriptor));
             }
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
 
-            return descriptor.DeserializeComponent(record, null, null);
+            return descriptor.DeserializeComponent(record, saveComponent, AutomaticComponentReferenceResolver);
+        }
+
+        /// <summary>
+        /// Rewrites the saved asset references used by one automatic reflected component into packaged runtime references.
+        /// </summary>
+        /// <param name="schema">Reflected component schema whose asset-backed members should be inspected.</param>
+        /// <param name="saveState">Editor-time asset reference state restored for the component.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Cloned save-state containing packaged runtime references when asset references exist; otherwise the original save-state.</returns>
+        EntityComponentSaveState RewriteAutomaticComponentSaveStateReferences(
+            ScriptComponentReflectionSchema schema,
+            EntityComponentSaveState saveState,
+            string buildRootPath) {
+            if (schema == null) {
+                throw new ArgumentNullException(nameof(schema));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+            if (saveState == null) {
+                return null;
+            }
+
+            EntityComponentSaveState rewrittenSaveState = new EntityComponentSaveState {
+                ComponentKey = saveState.ComponentKey
+            };
+
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                if (!AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                    continue;
+                }
+                if (!saveState.TryGetAssetReference(member.Name, out SceneAssetReference sourceReference)) {
+                    continue;
+                }
+
+                rewrittenSaveState.SetAssetReference(
+                    member.Name,
+                    RewriteAutomaticComponentReference(member.ValueType, sourceReference, buildRootPath));
+            }
+
+            return rewrittenSaveState;
+        }
+
+        /// <summary>
+        /// Rewrites one automatic reflected asset reference according to the runtime asset type exposed by the persisted member.
+        /// </summary>
+        /// <param name="valueType">Runtime asset type expected by the persisted member.</param>
+        /// <param name="reference">Editor-time source reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged runtime asset reference.</returns>
+        SceneAssetReference RewriteAutomaticComponentReference(Type valueType, SceneAssetReference reference, string buildRootPath) {
+            if (valueType == null) {
+                throw new ArgumentNullException(nameof(valueType));
+            }
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
+            if (valueType == typeof(FontAsset)) {
+                return RewriteFontReference(reference, buildRootPath);
+            }
+            if (valueType == typeof(RuntimeTexture)) {
+                return RewriteTextureReference(reference, buildRootPath);
+            }
+            if (valueType == typeof(RuntimeModel)) {
+                return RewriteModelReference(reference, buildRootPath);
+            }
+            if (valueType == typeof(RuntimeMaterial)) {
+                return RewriteMaterialReference(reference, buildRootPath);
+            }
+
+            throw new InvalidOperationException($"Automatic component reference rewriting does not support asset type '{valueType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Resolves the temporary component save-state materialized while one automatic reflected component is prepared for packaged runtime rewriting.
+        /// </summary>
+        /// <param name="saveComponent">Temporary save-component that collected any restored asset references.</param>
+        /// <param name="component">Automatic reflected component whose save-state should be resolved.</param>
+        /// <returns>Resolved component save-state when one exists; otherwise null.</returns>
+        static EntityComponentSaveState ResolveAutomaticComponentSaveState(EntitySaveComponent saveComponent, Component component) {
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            if (saveComponent.TryGetComponentState(component, out EntityComponentSaveState saveState)) {
+                return saveState;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -1161,7 +1238,7 @@ namespace helengine.editor {
         /// <param name="record">Serialized directional light component record to rewrite.</param>
         /// <returns>Rewritten directional light component record.</returns>
         SceneComponentAssetRecord RewriteDirectionalLightComponentRecord(SceneComponentAssetRecord record) {
-            Component component = new DirectionalLightComponentPersistenceDescriptor().DeserializeComponent(record, null, null);
+            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
             if (component is not DirectionalLightComponent lightComponent) {
                 throw new InvalidOperationException($"Expected directional light descriptor to materialize '{DirectionalLightComponentTypeId}'.");
             }
@@ -1298,7 +1375,7 @@ namespace helengine.editor {
         /// <param name="record">Serialized ambient light component record to rewrite.</param>
         /// <returns>Rewritten ambient light component record.</returns>
         SceneComponentAssetRecord RewriteAmbientLightComponentRecord(SceneComponentAssetRecord record) {
-            Component component = new AmbientLightComponentPersistenceDescriptor().DeserializeComponent(record, null, null);
+            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
             if (component is not AmbientLightComponent lightComponent) {
                 throw new InvalidOperationException($"Expected ambient light descriptor to materialize '{AmbientLightComponentTypeId}'.");
             }
@@ -1321,7 +1398,7 @@ namespace helengine.editor {
         /// <param name="record">Serialized point light component record to rewrite.</param>
         /// <returns>Rewritten point light component record.</returns>
         SceneComponentAssetRecord RewritePointLightComponentRecord(SceneComponentAssetRecord record) {
-            Component component = new PointLightComponentPersistenceDescriptor().DeserializeComponent(record, null, null);
+            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
             if (component is not PointLightComponent lightComponent) {
                 throw new InvalidOperationException($"Expected point light descriptor to materialize '{PointLightComponentTypeId}'.");
             }
@@ -1344,7 +1421,7 @@ namespace helengine.editor {
         /// <param name="record">Serialized spot light component record to rewrite.</param>
         /// <returns>Rewritten spot light component record.</returns>
         SceneComponentAssetRecord RewriteSpotLightComponentRecord(SceneComponentAssetRecord record) {
-            Component component = new SpotLightComponentPersistenceDescriptor().DeserializeComponent(record, null, null);
+            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
             if (component is not SpotLightComponent lightComponent) {
                 throw new InvalidOperationException($"Expected spot light descriptor to materialize '{SpotLightComponentTypeId}'.");
             }
@@ -1604,7 +1681,7 @@ namespace helengine.editor {
         /// <param name="record">Scene component record to interpret.</param>
         /// <returns>Deserialized rounded rectangle component.</returns>
         RoundedRectComponent AssertRoundedRectComponent(SceneComponentAssetRecord record) {
-            Component component = RoundedRectComponentDescriptor.DeserializeComponent(record, null, null);
+            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
             if (component is not RoundedRectComponent roundedRectComponent) {
                 throw new InvalidOperationException("Rounded rectangle component payload did not materialize correctly before packaging.");
             }
@@ -2880,6 +2957,24 @@ namespace helengine.editor {
             }
 
             return relativePath.Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// Resolves the absolute project root path that owns the supplied assets root.
+        /// </summary>
+        /// <param name="assetsRootPath">Absolute project assets root path.</param>
+        /// <returns>Absolute project root path.</returns>
+        static string ResolveProjectRootPath(string assetsRootPath) {
+            if (string.IsNullOrWhiteSpace(assetsRootPath)) {
+                throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath));
+            }
+
+            DirectoryInfo assetsDirectory = Directory.GetParent(Path.GetFullPath(assetsRootPath));
+            if (assetsDirectory == null) {
+                throw new InvalidOperationException("Project root path could not be resolved from the assets root.");
+            }
+
+            return assetsDirectory.FullName;
         }
 
         string EnsureTrailingDirectorySeparator(string path) {

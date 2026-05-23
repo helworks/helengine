@@ -288,7 +288,6 @@ namespace helengine.editor.tests.serialization.scene {
             EditorCore editorCore = Assert.IsType<EditorCore>(Core.Instance);
             editorCore.SetDefaultFontAssetForEditor(CreateFont("EditorUi"));
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new FPSComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FpsFontInference.helen");
 
@@ -331,7 +330,6 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void SaveAndLoad_WhenSceneContainsMultipleTextComponents_CollectsAllFontReferences() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new TextComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextRoundTrip.helen");
 
@@ -708,7 +706,6 @@ namespace helengine.editor.tests.serialization.scene {
             EditorSceneCreationService creationService = new EditorSceneCreationService();
             EditorEntity pointLightEntity = creationService.CreatePointLight();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new PointLightComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "PointLightRoundTrip.helen");
 
@@ -748,7 +745,6 @@ namespace helengine.editor.tests.serialization.scene {
             EditorSceneCreationService creationService = new EditorSceneCreationService();
             EditorEntity directionalLightEntity = creationService.CreateDirectionalLight();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new DirectionalLightComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "DirectionalLightRoundTrip.helen");
 
@@ -788,7 +784,6 @@ namespace helengine.editor.tests.serialization.scene {
             EditorSceneCreationService creationService = new EditorSceneCreationService();
             EditorEntity spotLightEntity = creationService.CreateSpotLight();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new SpotLightComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "SpotLightRoundTrip.helen");
 
@@ -830,7 +825,6 @@ namespace helengine.editor.tests.serialization.scene {
             EditorSceneCreationService creationService = new EditorSceneCreationService();
             EditorEntity pointLightEntity = creationService.CreatePointLight();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new PointLightComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "PointLightPicker.helen");
 

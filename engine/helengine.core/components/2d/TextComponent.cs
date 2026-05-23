@@ -65,6 +65,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets an optional pre-rendered texture backing this text.
         /// </summary>
+        [ScenePersistenceIgnore]
         public RuntimeTexture Texture { get; set; }
 
         /// <summary>

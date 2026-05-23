@@ -58,7 +58,7 @@ namespace helengine.editor {
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                writer.WriteField(member.Name, fieldWriter => WriteSupportedValue(fieldWriter, member.ValueType, member.GetValue(component)));
+                writer.WriteField(member.Name, fieldWriter => WriteSupportedMemberValue(fieldWriter, member, component, saveState));
             }
 
             return new SceneComponentAssetRecord {
@@ -91,11 +91,11 @@ namespace helengine.editor {
                 return component;
             }
 
-            if (TryDeserializeTaggedPayload(component, schema, payload)) {
+            if (TryDeserializeTaggedPayload(component, schema, payload, saveComponent, referenceResolver)) {
                 return component;
             }
 
-            DeserializeRuntimePayload(component, schema, payload);
+            DeserializeRuntimePayload(component, schema, payload, saveComponent, referenceResolver);
             return component;
         }
 
@@ -106,7 +106,12 @@ namespace helengine.editor {
         /// <param name="schema">Reflected schema that defines the member layout.</param>
         /// <param name="payload">Serialized component payload bytes.</param>
         /// <returns>True when the payload matched the tagged editor format; otherwise false.</returns>
-        static bool TryDeserializeTaggedPayload(Component component, ScriptComponentReflectionSchema schema, byte[] payload) {
+        static bool TryDeserializeTaggedPayload(
+            Component component,
+            ScriptComponentReflectionSchema schema,
+            byte[] payload,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver) {
             if (component == null) {
                 throw new ArgumentNullException(nameof(component));
             } else if (schema == null) {
@@ -121,7 +126,7 @@ namespace helengine.editor {
                     ScriptComponentReflectionMember member = schema.Members[index];
                     if (reader.TryGetFieldReader(member.Name, out EngineBinaryReader fieldReader)) {
                         using (fieldReader) {
-                            member.SetValue(component, ReadSupportedValue(fieldReader, member.ValueType));
+                            member.SetValue(component, ReadSupportedMemberValue(fieldReader, member, component, saveComponent, referenceResolver));
                         }
                     }
                 }
@@ -138,7 +143,12 @@ namespace helengine.editor {
         /// <param name="component">Target component instance receiving restored member values.</param>
         /// <param name="schema">Reflected schema that defines the member layout.</param>
         /// <param name="payload">Serialized component payload bytes.</param>
-        static void DeserializeRuntimePayload(Component component, ScriptComponentReflectionSchema schema, byte[] payload) {
+        static void DeserializeRuntimePayload(
+            Component component,
+            ScriptComponentReflectionSchema schema,
+            byte[] payload,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver) {
             if (component == null) {
                 throw new ArgumentNullException(nameof(component));
             } else if (schema == null) {
@@ -162,8 +172,66 @@ namespace helengine.editor {
 
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                member.SetValue(component, ReadSupportedValue(reader, member.ValueType));
+                member.SetValue(component, ReadSupportedMemberValue(reader, member, component, saveComponent, referenceResolver));
             }
+        }
+
+        /// <summary>
+        /// Writes one reflected member value into one named field payload while honoring supported asset-backed member types.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the member payload.</param>
+        /// <param name="member">Reflected member being serialized.</param>
+        /// <param name="component">Live component instance that owns the member.</param>
+        /// <param name="saveState">Editor-time save metadata associated with the component.</param>
+        internal static void WriteSupportedMemberValue(
+            EngineBinaryWriter writer,
+            ScriptComponentReflectionMember member,
+            Component component,
+            EntityComponentSaveState saveState) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            } else if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                WriteAssetReferenceBackedMemberValue(writer, member, component, saveState);
+                return;
+            }
+
+            WriteSupportedValue(writer, member.ValueType, member.GetValue(component));
+        }
+
+        /// <summary>
+        /// Reads one reflected member value from one serialized payload while honoring supported asset-backed member types.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the member payload.</param>
+        /// <param name="member">Reflected member being restored.</param>
+        /// <param name="component">Live component instance that owns the member.</param>
+        /// <param name="saveComponent">Hidden entity save component that should receive restored metadata.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime asset references.</param>
+        /// <returns>Decoded member value.</returns>
+        internal static object ReadSupportedMemberValue(
+            EngineBinaryReader reader,
+            ScriptComponentReflectionMember member,
+            Component component,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            } else if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                return ReadAssetReferenceBackedMemberValue(reader, member, component, saveComponent, referenceResolver);
+            }
+
+            return ReadSupportedValue(reader, member.ValueType);
         }
 
         /// <summary>
@@ -177,6 +245,10 @@ namespace helengine.editor {
             }
             if (string.IsNullOrWhiteSpace(componentType.FullName)) {
                 throw new InvalidOperationException("Scripted component types must expose a full name.");
+            }
+
+            if (ShouldUseShortEngineComponentTypeId(componentType)) {
+                return componentType.FullName;
             }
 
             string assemblyName = componentType.Assembly.GetName().Name;
@@ -197,7 +269,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }
 
-            Type componentType = Type.GetType(componentTypeId, false);
+            Type componentType = PersistedComponentTypeResolver.TryResolve(componentTypeId);
             if (componentType == null && ScriptTypeResolver != null) {
                 componentType = ScriptTypeResolver.Resolve(componentTypeId);
             }
@@ -232,6 +304,22 @@ namespace helengine.editor {
             }
 
             return component;
+        }
+
+        /// <summary>
+        /// Returns whether one reflected component type should preserve the historical short engine type id instead of one assembly-qualified script id.
+        /// </summary>
+        /// <param name="componentType">Reflected component type under evaluation.</param>
+        /// <returns>True when the component should persist as one legacy short engine type id; otherwise false.</returns>
+        static bool ShouldUseShortEngineComponentTypeId(Type componentType) {
+            if (componentType == null) {
+                throw new ArgumentNullException(nameof(componentType));
+            }
+
+            string assemblyName = componentType.Assembly.GetName().Name ?? string.Empty;
+            string namespaceName = componentType.Namespace ?? string.Empty;
+            return assemblyName.StartsWith("helengine", StringComparison.Ordinal)
+                && string.Equals(namespaceName, "helengine", StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -294,6 +382,116 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Automatic script-component persistence does not support member type '{valueType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Writes one supported asset-backed member using the stable scene asset reference stored in the component save-state.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the encoded reference payload.</param>
+        /// <param name="member">Reflected asset-backed member being serialized.</param>
+        /// <param name="component">Live component instance that owns the member.</param>
+        /// <param name="saveState">Editor-time save metadata associated with the component.</param>
+        static void WriteAssetReferenceBackedMemberValue(
+            EngineBinaryWriter writer,
+            ScriptComponentReflectionMember member,
+            Component component,
+            EntityComponentSaveState saveState) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            } else if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (!AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                throw new InvalidOperationException($"Automatic script-component persistence does not support asset-backed member type '{member.ValueType.FullName}'.");
+            }
+
+            object runtimeValue = member.GetValue(component);
+            SceneAssetReference reference = null;
+            string referenceName = AutomaticComponentAssetReferenceSupport.BuildReferenceName(member.Name);
+            if (saveState != null && saveState.TryGetAssetReference(referenceName, out SceneAssetReference savedReference)) {
+                reference = savedReference;
+            }
+
+            if (runtimeValue != null && reference == null) {
+                throw new InvalidOperationException(
+                    $"Component '{component.GetType().FullName}' requires scene asset reference '{referenceName}' before member '{member.Name}' can be serialized.");
+            }
+
+            SceneComponentBinaryFieldEncoding.WriteOptionalReference(writer, reference);
+        }
+
+        /// <summary>
+        /// Reads one supported asset-backed member from the serialized reference payload and resolves it back into one runtime asset when possible.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the encoded reference payload.</param>
+        /// <param name="member">Reflected asset-backed member being restored.</param>
+        /// <param name="component">Live component instance that owns the member.</param>
+        /// <param name="saveComponent">Hidden entity save component that should receive restored metadata.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime asset references.</param>
+        /// <returns>Resolved runtime asset or null when the payload omitted the reference.</returns>
+        static object ReadAssetReferenceBackedMemberValue(
+            EngineBinaryReader reader,
+            ScriptComponentReflectionMember member,
+            Component component,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            } else if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (!AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                throw new InvalidOperationException($"Automatic script-component persistence does not support asset-backed member type '{member.ValueType.FullName}'.");
+            }
+
+            SceneAssetReference reference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
+            if (saveComponent != null && reference != null) {
+                string referenceName = AutomaticComponentAssetReferenceSupport.BuildReferenceName(member.Name);
+                saveComponent.SetAssetReference(component, referenceName, reference);
+            }
+            if (reference == null) {
+                return null;
+            }
+            if (referenceResolver == null) {
+                throw new InvalidOperationException(
+                    $"Component '{component.GetType().FullName}' requires an asset reference resolver before member '{member.Name}' can be deserialized.");
+            }
+
+            return ResolveEditorAssetReference(member.ValueType, referenceResolver, reference);
+        }
+
+        /// <summary>
+        /// Resolves one supported asset-backed member reference through the editor scene asset resolver.
+        /// </summary>
+        /// <param name="valueType">Reflected member type being restored.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime asset references.</param>
+        /// <param name="reference">Scene asset reference to resolve.</param>
+        /// <returns>Resolved runtime asset for the reflected member.</returns>
+        static object ResolveEditorAssetReference(Type valueType, ISceneAssetReferenceResolver referenceResolver, SceneAssetReference reference) {
+            if (valueType == null) {
+                throw new ArgumentNullException(nameof(valueType));
+            } else if (referenceResolver == null) {
+                throw new ArgumentNullException(nameof(referenceResolver));
+            } else if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            if (valueType == typeof(FontAsset)) {
+                return referenceResolver.ResolveFont(reference);
+            }
+            if (valueType == typeof(RuntimeTexture)) {
+                return referenceResolver.ResolveTexture(reference);
+            }
+            if (valueType == typeof(RuntimeModel)) {
+                return referenceResolver.ResolveModel(reference);
+            }
+            if (valueType == typeof(RuntimeMaterial)) {
+                return referenceResolver.ResolveMaterial(reference);
+            }
+
+            throw new InvalidOperationException($"Automatic script-component persistence does not support asset-backed member type '{valueType.FullName}'.");
         }
 
         /// <summary>

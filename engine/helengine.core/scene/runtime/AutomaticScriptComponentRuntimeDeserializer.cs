@@ -86,7 +86,7 @@ namespace helengine {
             }
 
             for (int index = 0; index < Members.Length; index++) {
-                SetMemberValue(component, Members[index], ReadSupportedValue(reader, MemberTypes[index]));
+                SetMemberValue(component, Members[index], ReadSupportedValue(reader, MemberTypes[index], referenceResolver));
             }
 
             return component;
@@ -224,28 +224,54 @@ namespace helengine {
         /// <param name="reader">Reader positioned at the member payload.</param>
         /// <param name="valueType">Runtime value type expected for the payload.</param>
         /// <returns>Decoded member value.</returns>
-        static object ReadSupportedValue(EngineBinaryReader reader, Type valueType) {
+        static object ReadSupportedValue(EngineBinaryReader reader, Type valueType, RuntimeSceneAssetReferenceResolver referenceResolver) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
             if (valueType == null) {
                 throw new ArgumentNullException(nameof(valueType));
             }
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(valueType)) {
+                SceneAssetReference reference = ReadOptionalReference(reader);
+                return AutomaticComponentAssetReferenceSupport.ResolveRuntimeAssetReference(valueType, reference, referenceResolver);
+            }
 
             if (TryReadLeafValue(reader, valueType, out object leafValue)) {
                 return leafValue;
             }
             if (valueType.IsEnum) {
-                return ReadEnumValue(reader, valueType);
+                return ReadEnumValue(reader, valueType, referenceResolver);
             }
-            if (TryReadArrayValue(reader, valueType, out object arrayValue)) {
+            if (TryReadArrayValue(reader, valueType, referenceResolver, out object arrayValue)) {
                 return arrayValue;
             }
             if (IsSupportedNestedObjectType(valueType)) {
-                return ReadNestedObjectValue(reader, valueType);
+                return ReadNestedObjectValue(reader, valueType, referenceResolver);
             }
 
             throw new InvalidOperationException($"Automatic scripted runtime deserialization does not support member type '{valueType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Reads one optional scene asset reference from the packaged ordinal payload.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the encoded reference payload.</param>
+        /// <returns>Decoded scene asset reference when present; otherwise null.</returns>
+        static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            if (reader.ReadByte() == 0) {
+                return null;
+            }
+
+            return new SceneAssetReference {
+                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
+                RelativePath = reader.ReadString(),
+                ProviderId = reader.ReadString(),
+                AssetId = reader.ReadString()
+            };
         }
 
         /// <summary>
@@ -331,9 +357,9 @@ namespace helengine {
         /// <param name="reader">Reader positioned at the enum payload.</param>
         /// <param name="enumType">Declared enum type expected for the payload.</param>
         /// <returns>Decoded enum value.</returns>
-        static object ReadEnumValue(EngineBinaryReader reader, Type enumType) {
+        static object ReadEnumValue(EngineBinaryReader reader, Type enumType, RuntimeSceneAssetReferenceResolver referenceResolver) {
             Type underlyingType = Enum.GetUnderlyingType(enumType);
-            object underlyingValue = ReadSupportedValue(reader, underlyingType);
+            object underlyingValue = ReadSupportedValue(reader, underlyingType, referenceResolver);
             return Enum.ToObject(enumType, underlyingValue);
         }
 
@@ -344,7 +370,7 @@ namespace helengine {
         /// <param name="valueType">Runtime value type expected for the payload.</param>
         /// <param name="value">Decoded array value when supported.</param>
         /// <returns>True when the supplied type was an array handled by automatic scripted runtime deserialization.</returns>
-        static bool TryReadArrayValue(EngineBinaryReader reader, Type valueType, out object value) {
+        static bool TryReadArrayValue(EngineBinaryReader reader, Type valueType, RuntimeSceneAssetReferenceResolver referenceResolver, out object value) {
             if (!valueType.IsArray || valueType.GetArrayRank() != 1) {
                 value = null;
                 return false;
@@ -362,7 +388,7 @@ namespace helengine {
 
             Array values = Array.CreateInstance(elementType, length);
             for (int index = 0; index < length; index++) {
-                values.SetValue(ReadSupportedValue(reader, elementType), index);
+                values.SetValue(ReadSupportedValue(reader, elementType, referenceResolver), index);
             }
 
             value = values;
@@ -394,7 +420,7 @@ namespace helengine {
         /// <param name="reader">Reader positioned at the nested object payload.</param>
         /// <param name="valueType">Runtime object type expected for the payload.</param>
         /// <returns>Decoded nested object instance or null when the payload omitted the object.</returns>
-        static object ReadNestedObjectValue(EngineBinaryReader reader, Type valueType) {
+        static object ReadNestedObjectValue(EngineBinaryReader reader, Type valueType, RuntimeSceneAssetReferenceResolver referenceResolver) {
             if (reader.ReadByte() == 0) {
                 return null;
             }
@@ -403,7 +429,7 @@ namespace helengine {
             IReadOnlyList<MemberInfo> members = GetSerializableMembers(valueType);
             for (int index = 0; index < members.Count; index++) {
                 MemberInfo member = members[index];
-                SetObjectMemberValue(value, member, ReadSupportedValue(reader, GetMemberType(member)));
+                SetObjectMemberValue(value, member, ReadSupportedValue(reader, GetMemberType(member), referenceResolver));
             }
 
             return value;

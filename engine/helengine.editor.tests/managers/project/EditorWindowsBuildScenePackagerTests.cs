@@ -604,7 +604,7 @@ namespace helengine.editor.tests {
         public void Package_WhenSceneContainsFpsOverlay_LeavesPackagedComponentLoadable() {
             string sceneId = "Scenes/FpsScene.helen";
 
-            WriteSceneAsset(sceneId, "Helengine.FPSComponent", WriteFpsComponentPayload(), new[] { CreateEditorFontReference() });
+            WriteSceneAsset(sceneId, "helengine.FPSComponent", WriteFpsComponentPayload(), new[] { CreateEditorFontReference() });
 
             FontAsset defaultFont = CreatePackagedFontAsset();
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -633,7 +633,7 @@ namespace helengine.editor.tests {
         public void Package_WhenSceneContainsOlderVersionFpsOverlay_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/OlderVersionFpsScene.helen";
 
-            WriteSceneAsset(sceneId, "Helengine.FPSComponent", WriteOlderVersionFpsComponentPayload(), Array.Empty<SceneAssetReference>());
+            WriteSceneAsset(sceneId, "helengine.FPSComponent", WriteOlderVersionFpsComponentPayload(), Array.Empty<SceneAssetReference>());
 
             FontAsset defaultFont = CreatePackagedFontAsset();
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -642,7 +642,7 @@ namespace helengine.editor.tests {
                 defaultFont);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
-            Assert.Contains("Unsupported FPS component payload version", exception.Message);
+            Assert.Contains("Unsupported automatic scripted component payload version", exception.Message);
         }
 
         /// <summary>
@@ -652,7 +652,7 @@ namespace helengine.editor.tests {
         public void PackageBuild_WhenSceneContainsDebugComponent_RewritesRuntimePayloadAndFontReference() {
             string sceneId = "Scenes/DebugScene.helen";
 
-            WriteSceneAsset(sceneId, "Helengine.DebugComponent", WriteDebugComponentPayload(), new[] { CreateEditorFontReference() });
+            WriteSceneAsset(sceneId, "helengine.DebugComponent", WriteDebugComponentPayload(), new[] { CreateEditorFontReference() });
 
             FontAsset defaultFont = CreatePackagedFontAsset();
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -683,7 +683,7 @@ namespace helengine.editor.tests {
         public void Package_WhenSceneContainsTextComponent_LeavesPackagedComponentLoadable() {
             string sceneId = "Scenes/TextScene.helen";
 
-            WriteSceneAsset(sceneId, "Helengine.TextComponent", WriteTextComponentPayload(), new[] { CreateEditorFontReference() });
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(), new[] { CreateEditorFontReference() });
 
             FontAsset defaultFont = CreatePackagedFontAsset();
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -963,7 +963,7 @@ namespace helengine.editor.tests {
 
             WriteSourceFont(fontRelativePath);
             SceneAssetReference fontReference = CreateFileFontReference(fontRelativePath);
-            WriteSceneAsset(sceneId, "Helengine.TextComponent", WriteTextComponentPayload(fontReference), new[] { fontReference });
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(fontReference), new[] { fontReference });
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
@@ -999,7 +999,7 @@ namespace helengine.editor.tests {
             string fontRelativePath = "Fonts/DemoDiscTitle.ttf";
             WriteSourceFont(fontRelativePath);
             SceneAssetReference fontReference = CreateFileFontReference(fontRelativePath);
-            WriteSceneAsset(sceneId, "Helengine.TextComponent", WriteTextComponentPayload(fontReference), new[] { fontReference });
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(fontReference), new[] { fontReference });
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
@@ -2040,7 +2040,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenDefaultFontAssetIsAvailable_WritesPackagedDefaultFontThatCanBeReloaded() {
             string sceneId = "Scenes/FontScene.helen";
-            WriteSceneAsset(sceneId, "Helengine.FPSComponent", WriteFpsComponentPayload(), new[] { CreateEditorFontReference() });
+            WriteSceneAsset(sceneId, "helengine.FPSComponent", WriteFpsComponentPayload(), new[] { CreateEditorFontReference() });
 
             FontAsset defaultFont = CreatePackagedFontAsset();
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -3237,7 +3237,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Serialized FPS component payload.</returns>
         byte[] WriteFpsComponentPayload() {
-            FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             FPSComponent fpsComponent = new FPSComponent {
                 Font = CreatePackagedFontAsset(),
                 RefreshIntervalSeconds = 0.5d,
@@ -3256,7 +3256,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Serialized debug component payload.</returns>
         byte[] WriteDebugComponentPayload() {
-            DebugComponentPersistenceDescriptor descriptor = new DebugComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             DebugComponent debugComponent = new DebugComponent {
                 Font = CreatePackagedFontAsset(),
                 RefreshIntervalSeconds = 0.5d,
@@ -3275,13 +3275,9 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Serialized older-version FPS component payload.</returns>
         byte[] WriteOlderVersionFpsComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
-            writer.WriteInt2(new int2(8, 6));
-            writer.WriteByte(250);
-            return stream.ToArray();
+            byte[] payload = WriteFpsComponentPayload();
+            payload[0] = 2;
+            return payload;
         }
 
         /// <summary>
@@ -3325,7 +3321,7 @@ namespace helengine.editor.tests {
         /// <param name="fontReference">Font reference to persist for the text component.</param>
         /// <returns>Serialized text component payload.</returns>
         byte[] WriteTextComponentPayload(SceneAssetReference fontReference) {
-            TextComponentPersistenceDescriptor descriptor = new TextComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             TextComponent textComponent = new TextComponent {
                 Font = CreatePackagedFontAsset(),
                 Text = "Hello world",
@@ -3434,7 +3430,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Serialized directional light payload.</returns>
         byte[] WriteDirectionalLightPayload() {
-            DirectionalLightComponentPersistenceDescriptor descriptor = new DirectionalLightComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             DirectionalLightComponent lightComponent = new DirectionalLightComponent {
                 Color = new float4(0.6f, 0.7f, 0.8f, 1f),
                 Intensity = 1.8f,
@@ -3453,7 +3449,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Serialized ambient light payload.</returns>
         byte[] WriteAmbientLightPayload() {
-            AmbientLightComponentPersistenceDescriptor descriptor = new AmbientLightComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             AmbientLightComponent lightComponent = new AmbientLightComponent {
                 Color = new float4(0.15f, 0.2f, 0.3f, 1f),
                 Intensity = 1.4f,
@@ -3471,7 +3467,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Serialized point light payload.</returns>
         byte[] WritePointLightPayload() {
-            PointLightComponentPersistenceDescriptor descriptor = new PointLightComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             PointLightComponent lightComponent = new PointLightComponent {
                 Color = new float4(1f, 0.9f, 0.7f, 1f),
                 Intensity = 2.2f,
@@ -3490,7 +3486,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Serialized spot light payload.</returns>
         byte[] WriteSpotLightPayload() {
-            SpotLightComponentPersistenceDescriptor descriptor = new SpotLightComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SpotLightComponent lightComponent = new SpotLightComponent {
                 Color = new float4(0.5f, 0.8f, 1f, 1f),
                 Intensity = 3.1f,
@@ -3511,7 +3507,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Serialized rounded rectangle payload.</returns>
         byte[] WriteRoundedRectPayload() {
-            RoundedRectComponentPersistenceDescriptor descriptor = new RoundedRectComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             RoundedRectComponent roundedRectComponent = new RoundedRectComponent {
                 RenderOrder2D = 8,
                 LayerMask = 3,

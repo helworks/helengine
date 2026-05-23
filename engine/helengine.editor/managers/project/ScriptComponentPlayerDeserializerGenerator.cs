@@ -324,6 +324,9 @@ namespace helengine.editor {
             if (valueType == typeof(byte4)) {
                 return $"new byte4({readerVariableName}.ReadByte(), {readerVariableName}.ReadByte(), {readerVariableName}.ReadByte(), {readerVariableName}.ReadByte())";
             }
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(valueType)) {
+                return BuildManagedAssetReferenceReadExpression(valueType, readerVariableName);
+            }
             if (valueType == typeof(SceneEntityReference)) {
                 return readerVariableName + ".ReadSceneEntityReference()";
             }
@@ -439,6 +442,10 @@ namespace helengine.editor {
                     + "})()";
                 return true;
             }
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(valueType)) {
+                expression = BuildNativeAssetReferenceReadExpression(valueType, readerVariableName);
+                return true;
+            }
             if (valueType == typeof(SceneEntityReference)) {
                 expression = readerVariableName + "->ReadSceneEntityReference()";
                 return true;
@@ -543,6 +550,100 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds one managed runtime reader expression for one asset-backed reflected member.
+        /// </summary>
+        /// <param name="valueType">Asset-backed reflected member type being restored.</param>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <returns>Generated managed reader expression.</returns>
+        string BuildManagedAssetReferenceReadExpression(Type valueType, string readerVariableName) {
+            string resolverMethodName = BuildManagedAssetResolverMethodName(valueType);
+            string managedTypeName = BuildManagedTypeName(valueType);
+            return "(() => { "
+                + "SceneAssetReference reference = " + BuildManagedOptionalReferenceReadExpression(readerVariableName) + "; "
+                + "return reference == null ? (" + managedTypeName + ")null : referenceResolver." + resolverMethodName + "(reference); "
+                + "})()";
+        }
+
+        /// <summary>
+        /// Builds one managed expression that reads one optional scene asset reference from the current ordinal payload.
+        /// </summary>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <returns>Generated managed reference-reader expression.</returns>
+        static string BuildManagedOptionalReferenceReadExpression(string readerVariableName) {
+            if (string.IsNullOrWhiteSpace(readerVariableName)) {
+                throw new ArgumentException("Reader variable name must be provided.", nameof(readerVariableName));
+            }
+
+            return "("
+                + readerVariableName + ".ReadByte() == 0 ? null : new SceneAssetReference { "
+                + "SourceKind = (SceneAssetReferenceSourceKind)" + readerVariableName + ".ReadInt32(), "
+                + "RelativePath = " + readerVariableName + ".ReadString(), "
+                + "ProviderId = " + readerVariableName + ".ReadString(), "
+                + "AssetId = " + readerVariableName + ".ReadString() })";
+        }
+
+        /// <summary>
+        /// Builds the managed runtime scene-asset resolver method name used for one asset-backed reflected member type.
+        /// </summary>
+        /// <param name="valueType">Asset-backed reflected member type under evaluation.</param>
+        /// <returns>Managed resolver method name.</returns>
+        static string BuildManagedAssetResolverMethodName(Type valueType) {
+            if (valueType == typeof(FontAsset)) {
+                return "ResolveFont";
+            }
+            if (valueType == typeof(RuntimeTexture)) {
+                return "ResolveTexture";
+            }
+            if (valueType == typeof(RuntimeModel)) {
+                return "ResolveModel";
+            }
+            if (valueType == typeof(RuntimeMaterial)) {
+                return "ResolveMaterial";
+            }
+
+            throw new InvalidOperationException($"Ordinal scripted component deserializer generation does not support asset-backed member type '{valueType?.FullName}'.");
+        }
+
+        /// <summary>
+        /// Builds one native runtime reader expression for one asset-backed reflected member.
+        /// </summary>
+        /// <param name="valueType">Asset-backed reflected member type being restored.</param>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <returns>Generated native reader expression.</returns>
+        string BuildNativeAssetReferenceReadExpression(Type valueType, string readerVariableName) {
+            string nativeValueTypeName = BuildNativeValueTypeName(valueType);
+            string resolverMethodName = BuildManagedAssetResolverMethodName(valueType);
+            return "([&]() { "
+                + "::SceneAssetReference* reference = " + BuildNativeOptionalReferenceReadExpression(readerVariableName) + "; "
+                + "if (reference == nullptr) { return static_cast<" + nativeValueTypeName + ">(nullptr); } "
+                + "auto cleanup = Finally([&]() { delete reference; }); "
+                + "if (referenceResolver == nullptr) { throw new InvalidOperationException(\"Runtime scene asset reference resolver is required.\"); } "
+                + "return referenceResolver->" + resolverMethodName + "(reference); "
+                + "})()";
+        }
+
+        /// <summary>
+        /// Builds one native expression that reads one optional scene asset reference from the current ordinal payload.
+        /// </summary>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <returns>Generated native reference-reader expression.</returns>
+        static string BuildNativeOptionalReferenceReadExpression(string readerVariableName) {
+            if (string.IsNullOrWhiteSpace(readerVariableName)) {
+                throw new ArgumentException("Reader variable name must be provided.", nameof(readerVariableName));
+            }
+
+            return "([&]() { "
+                + "if (" + readerVariableName + "->ReadByte() == 0) { return static_cast<::SceneAssetReference*>(nullptr); } "
+                + "::SceneAssetReference* value = new ::SceneAssetReference(); "
+                + "value->set_SourceKind(static_cast<::SceneAssetReferenceSourceKind>(" + readerVariableName + "->ReadInt32())); "
+                + "value->set_RelativePath(" + readerVariableName + "->ReadString()); "
+                + "value->set_ProviderId(" + readerVariableName + "->ReadString()); "
+                + "value->set_AssetId(" + readerVariableName + "->ReadString()); "
+                + "return value; "
+                + "})()";
+        }
+
+        /// <summary>
         /// Builds the helper-method declarations required to materialize nested authored object types in generated native deserializers.
         /// </summary>
         /// <param name="schema">Reflected component schema that drives the generated native deserializer.</param>
@@ -616,6 +717,11 @@ namespace helengine.editor {
             if (valueType.IsArray && valueType.GetArrayRank() == 1) {
                 CollectNativeIncludeTypesForValue(valueType.GetElementType(), includeTypes);
                 return;
+            }
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(valueType)) {
+                includeTypes.Add(valueType);
+                includeTypes.Add(typeof(SceneAssetReference));
+                includeTypes.Add(typeof(SceneAssetReferenceSourceKind));
             }
             if (valueType.IsEnum || IsSupportedNestedObjectType(valueType) || valueType == typeof(SceneEntityReference)) {
                 includeTypes.Add(valueType);
@@ -726,6 +832,18 @@ namespace helengine.editor {
             }
             if (valueType == typeof(byte4)) {
                 return "::byte4";
+            }
+            if (valueType == typeof(FontAsset)) {
+                return "::FontAsset*";
+            }
+            if (valueType == typeof(RuntimeTexture)) {
+                return "::RuntimeTexture*";
+            }
+            if (valueType == typeof(RuntimeModel)) {
+                return "::RuntimeModel*";
+            }
+            if (valueType == typeof(RuntimeMaterial)) {
+                return "::RuntimeMaterial*";
             }
             if (valueType == typeof(SceneEntityReference)) {
                 return "::SceneEntityReference*";

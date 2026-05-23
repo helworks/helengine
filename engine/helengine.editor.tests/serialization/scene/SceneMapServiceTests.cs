@@ -579,35 +579,24 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="fontRelativePath">Content-relative packaged font path used by the text component.</param>
         /// <returns>Serialized text component record.</returns>
         SceneComponentAssetRecord CreateTextComponentRecord(string fontRelativePath) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteByte(1);
-            writer.WriteInt32((int)SceneAssetReferenceSourceKind.FileSystem);
-            writer.WriteString(fontRelativePath);
-            writer.WriteString(string.Empty);
-            writer.WriteString(string.Empty);
-            writer.WriteString("Hello world");
-            writer.WriteByte(1);
-            writer.WriteInt32(320);
-            writer.WriteInt32(64);
-            writer.WriteByte(12);
-            writer.WriteByte(34);
-            writer.WriteByte(56);
-            writer.WriteByte(78);
-            writer.WriteSingle(0.1f);
-            writer.WriteSingle(0.2f);
-            writer.WriteSingle(0.3f);
-            writer.WriteSingle(0.4f);
-            writer.WriteSingle(0.25f);
-            writer.WriteByte(19);
-            writer.WriteByte(7);
-            writer.WriteByte(0);
+            TextComponent textComponent = new TextComponent {
+                Font = CreateFont(),
+                Text = "Hello world",
+                SelectionEnabled = false,
+                Size = new int2(320, 64),
+                Color = new byte4(12, 34, 56, 78),
+                SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
+                Rotation = 0.25f,
+                RenderOrder2D = 19,
+                LayerMask = 7
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(TextComponent.Font), CreateFileReference(fontRelativePath));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.TextComponent",
                 ComponentIndex = 0,
-                Payload = stream.ToArray()
+                Payload = WriteAutomaticRuntimeComponentPayload(textComponent, saveState)
             };
         }
 
@@ -619,19 +608,45 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="assetId">Asset identifier carried by the generated font reference.</param>
         /// <returns>Serialized FPS component record.</returns>
         SceneComponentAssetRecord CreateFpsComponentRecord(string fontRelativePath, string providerId, string assetId) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            WriteSceneAssetReference(writer, CreateGeneratedReference(fontRelativePath, providerId, assetId));
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
-            writer.WriteInt2(new int2(8, 6));
-            writer.WriteByte(250);
+            FPSComponent fpsComponent = new FPSComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0.5d,
+                Padding = new int2(8, 6),
+                RenderOrder2D = 250
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(FPSComponent.Font), CreateGeneratedReference(fontRelativePath, providerId, assetId));
 
             return new SceneComponentAssetRecord {
-                ComponentTypeId = "Helengine.FPSComponent",
+                ComponentTypeId = "helengine.FPSComponent",
                 ComponentIndex = 0,
-                Payload = stream.ToArray()
+                Payload = WriteAutomaticRuntimeComponentPayload(fpsComponent, saveState)
             };
+        }
+
+        /// <summary>
+        /// Serializes one engine component through the packaged automatic reflected runtime payload path used by the player.
+        /// </summary>
+        /// <param name="component">Engine component to serialize.</param>
+        /// <param name="saveState">Optional asset-reference state associated with the component.</param>
+        /// <returns>Serialized automatic runtime component payload.</returns>
+        byte[] WriteAutomaticRuntimeComponentPayload(Component component, EntityComponentSaveState saveState) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            ScriptComponentReflectionSchema schema = schemaBuilder.Build(component.GetType());
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+            writer.WriteInt32(schema.Members.Count);
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                AutomaticScriptComponentPersistenceDescriptor.WriteSupportedMemberValue(writer, member, component, saveState);
+            }
+
+            return stream.ToArray();
         }
 
         /// <summary>

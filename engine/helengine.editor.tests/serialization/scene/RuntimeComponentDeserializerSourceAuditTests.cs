@@ -2,26 +2,14 @@ using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
     /// <summary>
-    /// Locks native ownership cleanup for runtime component deserializers that materialize transient scene asset references.
+    /// Locks native ownership cleanup for the remaining explicit runtime component deserializers that still materialize transient scene asset references.
     /// </summary>
     public sealed class RuntimeComponentDeserializerSourceAuditTests {
         /// <summary>
-        /// Ensures runtime text, sprite, debug, fps, and mesh deserializers release transient scene asset references after resolving runtime assets.
+        /// Ensures the explicit mesh deserializer releases transient scene asset references after resolving runtime assets.
         /// </summary>
         [Fact]
-        public void Deserialize_whenRuntimeComponentDeserializersResolveTransientSceneAssetReferences_releasesTransientReferencesThroughNativeOwnership() {
-            AssertDeserializerContains(
-                "RuntimeTextComponentDeserializer.cs",
-                "NativeOwnership.Delete(fontReference);");
-            AssertDeserializerContains(
-                "RuntimeSpriteComponentDeserializer.cs",
-                "NativeOwnership.Delete(textureReference);");
-            AssertDeserializerContains(
-                "RuntimeDebugComponentDeserializer.cs",
-                "NativeOwnership.Delete(fontReference);");
-            AssertDeserializerContains(
-                "RuntimeFPSComponentDeserializer.cs",
-                "NativeOwnership.Delete(fontReference);");
+        public void Deserialize_whenExplicitRuntimeMeshDeserializerResolvesTransientSceneAssetReferences_releasesTransientReferencesThroughNativeOwnership() {
             AssertDeserializerContains(
                 "RuntimeMeshComponentDeserializer.cs",
                 "NativeOwnership.Delete(modelReference);");

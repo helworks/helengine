@@ -301,7 +301,6 @@ namespace helengine.editor.tests {
         EditorSession CreateSessionForSceneSave() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             registry.Register(new MeshComponentPersistenceDescriptor());
-            registry.Register(new FPSComponentPersistenceDescriptor());
 
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);

@@ -23,15 +23,6 @@ namespace helengine {
             RuntimeComponentRegistry registry = new RuntimeComponentRegistry();
             registry.Register(new RuntimeMeshComponentDeserializer());
             registry.Register(new RuntimeCameraComponentDeserializer());
-            registry.Register(new RuntimeFPSComponentDeserializer());
-            registry.Register(new RuntimeDebugComponentDeserializer());
-            registry.Register(new RuntimeTextComponentDeserializer());
-            registry.Register(new RuntimeSpriteComponentDeserializer());
-            registry.Register(new RuntimeRoundedRectComponentDeserializer());
-            registry.Register(new RuntimeDirectionalLightComponentDeserializer());
-            registry.Register(new RuntimeAmbientLightComponentDeserializer());
-            registry.Register(new RuntimePointLightComponentDeserializer());
-            registry.Register(new RuntimeSpotLightComponentDeserializer());
             registry.Register(new RuntimeSceneMapComponentDeserializer());
             RegisterGeneratedRuntimeComponentDeserializers(registry);
             return registry;
@@ -115,7 +106,7 @@ namespace helengine {
                 return null;
             }
 
-            Type componentType = Type.GetType(componentTypeId, false);
+            Type componentType = PersistedComponentTypeResolver.TryResolve(componentTypeId);
             if (componentType == null) {
                 return null;
             }
