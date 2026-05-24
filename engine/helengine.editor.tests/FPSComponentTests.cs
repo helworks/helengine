@@ -131,6 +131,50 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures authored extra overlay rows are generated beneath the two FPS rows and inherit the configured font scale.
+        /// </summary>
+        [Fact]
+        public void AdditionalText_WhenAssignedBeforeAttachment_BuildsAdditionalOverlayRows() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FontAsset font = CreateFont(24f);
+            FPSComponent fps = new FPSComponent {
+                Font = font,
+                FontScale = 2f,
+                AdditionalText = "Light: On (L / South Toggle)\nCamera: WASD / DPad / Stick"
+            };
+
+            entity.AddComponent(fps);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            Assert.Equal(4, overlayHost.Children.Count);
+
+            TextComponent lightText = Assert.Single(overlayHost.Children[2].Components.OfType<TextComponent>());
+            TextComponent cameraText = Assert.Single(overlayHost.Children[3].Components.OfType<TextComponent>());
+
+            Assert.Equal("Light: On (L / South Toggle)", lightText.Text);
+            Assert.Equal("Camera: WASD / DPad / Stick", cameraText.Text);
+            Assert.Equal(2f, lightText.FontScale);
+            Assert.Equal(2f, cameraText.FontScale);
+            Assert.Equal(font.LineHeight * 4f, overlayHost.Children[2].LocalPosition.Y);
+            Assert.Equal(font.LineHeight * 6f, overlayHost.Children[3].LocalPosition.Y);
+        }
+
+        /// <summary>
+        /// Ensures optional authored instruction text can be absent without throwing during runtime deserialization.
+        /// </summary>
+        [Fact]
+        public void AdditionalText_WhenAssignedNull_NormalizesToEmptyString() {
+            FPSComponent fps = new FPSComponent();
+
+            fps.AdditionalText = null;
+
+            Assert.Equal(string.Empty, fps.AdditionalText);
+        }
+
+        /// <summary>
         /// Ensures the parameterless constructor uses the configured default font asset.
         /// </summary>
         [Fact]

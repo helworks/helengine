@@ -19,6 +19,11 @@ namespace helengine {
         float FontScaleValue = 1f;
 
         /// <summary>
+        /// Additional authored overlay rows rendered beneath the update and render FPS text.
+        /// </summary>
+        string AdditionalTextValue = string.Empty;
+
+        /// <summary>
         /// Root entity that positions the overlay in viewport space.
         /// </summary>
         Entity OverlayHost;
@@ -42,6 +47,16 @@ namespace helengine {
         /// Text component that displays render FPS.
         /// </summary>
         TextComponent RenderTextComponent;
+
+        /// <summary>
+        /// Child entities that host authored extra overlay rows.
+        /// </summary>
+        readonly List<Entity> AdditionalLineRowHosts;
+
+        /// <summary>
+        /// Text components that display authored extra overlay rows.
+        /// </summary>
+        readonly List<TextComponent> AdditionalLineTextComponents;
 
         /// <summary>
         /// Core elapsed-seconds marker used to measure the current sampling window.
@@ -138,6 +153,25 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets authored instruction rows rendered beneath the FPS lines.
+        /// </summary>
+        public string AdditionalText {
+            get { return AdditionalTextValue; }
+            set {
+                if (value == null) {
+                    value = string.Empty;
+                }
+
+                if (AdditionalTextValue == value) {
+                    return;
+                }
+
+                AdditionalTextValue = value;
+                RebuildAdditionalLineRows();
+            }
+        }
+
+        /// <summary>
         /// Gets the last formatted update-FPS line.
         /// </summary>
         public string UpdateFpsText { get; private set; }
@@ -171,6 +205,8 @@ namespace helengine {
         /// Creates a new FPS overlay with no implicit font fallback.
         /// </summary>
         public FPSComponent() {
+            AdditionalLineRowHosts = new List<Entity>();
+            AdditionalLineTextComponents = new List<TextComponent>();
             ResetSamplingWindow();
         }
 
@@ -309,6 +345,7 @@ namespace helengine {
             Initialized = true;
             ActiveComponents.Add(this);
             ApplyFont();
+            RebuildAdditionalLineRows();
         }
 
         /// <summary>
@@ -332,6 +369,8 @@ namespace helengine {
             RenderRowHost = null;
             UpdateTextComponent = null;
             RenderTextComponent = null;
+            AdditionalLineRowHosts.Clear();
+            AdditionalLineTextComponents.Clear();
             Initialized = false;
         }
 
@@ -391,6 +430,10 @@ namespace helengine {
             if (RenderTextComponent != null) {
                 RenderTextComponent.RenderOrder2D = RenderOrder2D;
             }
+
+            for (int lineIndex = 0; lineIndex < AdditionalLineTextComponents.Count; lineIndex++) {
+                AdditionalLineTextComponents[lineIndex].RenderOrder2D = RenderOrder2D;
+            }
         }
 
         /// <summary>
@@ -412,9 +455,7 @@ namespace helengine {
                 RenderTextComponent.FontScale = FontScale;
             }
 
-            if (RenderRowHost != null) {
-                RenderRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale, 0.1f);
-            }
+            ApplyRowLayout();
         }
 
         /// <summary>
@@ -511,6 +552,102 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Rebuilds the authored extra overlay rows so they match the current additional text block.
+        /// </summary>
+        void RebuildAdditionalLineRows() {
+            if (!Initialized) {
+                return;
+            }
+
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
+            DisposeAdditionalLineRows();
+            if (string.IsNullOrWhiteSpace(AdditionalTextValue)) {
+                return;
+            }
+
+            string currentLine = string.Empty;
+            for (int characterIndex = 0; characterIndex < AdditionalTextValue.Length; characterIndex++) {
+                char currentCharacter = AdditionalTextValue[characterIndex];
+                if (currentCharacter == '\r') {
+                    continue;
+                }
+
+                if (currentCharacter == '\n') {
+                    AppendAdditionalLineRow(currentLine);
+                    currentLine = string.Empty;
+                    continue;
+                }
+
+                currentLine += currentCharacter;
+            }
+
+            AppendAdditionalLineRow(currentLine);
+
+            ApplyRenderOrder();
+            ApplyRowLayout();
+        }
+
+        /// <summary>
+        /// Disposes every currently generated authored extra overlay row.
+        /// </summary>
+        void DisposeAdditionalLineRows() {
+            for (int lineIndex = AdditionalLineRowHosts.Count - 1; lineIndex >= 0; lineIndex--) {
+                NativeOwnership.DisposeAndDelete(AdditionalLineRowHosts[lineIndex]);
+            }
+
+            AdditionalLineRowHosts.Clear();
+            AdditionalLineTextComponents.Clear();
+        }
+
+        /// <summary>
+        /// Appends one authored extra overlay row when the supplied text is non-empty.
+        /// </summary>
+        /// <param name="lineText">Visible line text that should become one overlay row.</param>
+        void AppendAdditionalLineRow(string lineText) {
+            if (lineText.Length == 0) {
+                return;
+            }
+
+            Entity rowHost = new Entity();
+            rowHost.LayerMask = Parent.LayerMask;
+            rowHost.InitChildren();
+            rowHost.InitComponents();
+            OverlayHost.AddChild(rowHost);
+
+            TextComponent textComponent = new TextComponent();
+            textComponent.Color = new byte4(255, 255, 255, 255);
+            textComponent.Font = Font;
+            textComponent.FontScale = FontScale;
+            textComponent.Text = lineText;
+            rowHost.AddComponent(textComponent);
+
+            AdditionalLineRowHosts.Add(rowHost);
+            AdditionalLineTextComponents.Add(textComponent);
+        }
+
+        /// <summary>
+        /// Repositions the generated overlay rows using the current font metrics and font scale.
+        /// </summary>
+        void ApplyRowLayout() {
+            if (Font == null) {
+                return;
+            }
+
+            float rowHeight = Font.LineHeight * FontScale;
+            if (RenderRowHost != null) {
+                RenderRowHost.LocalPosition = new float3(0f, rowHeight, 0.1f);
+            }
+
+            for (int lineIndex = 0; lineIndex < AdditionalLineRowHosts.Count; lineIndex++) {
+                AdditionalLineRowHosts[lineIndex].LocalPosition = new float3(0f, rowHeight * (lineIndex + 2), 0.1f);
+            }
+        }
+
+        /// <summary>
         /// Formats one FPS value using exactly one decimal place without relying on composite formatting.
         /// </summary>
         /// <param name="fps">FPS value to format.</param>
@@ -602,7 +739,8 @@ namespace helengine {
                 && !OverlayHost.IsDisposed
                 && OverlayHost.ParentUnsafe == Parent
                 && IsLiveRow(UpdateRowHost, OverlayHost, UpdateTextComponent)
-                && IsLiveRow(RenderRowHost, OverlayHost, RenderTextComponent);
+                && IsLiveRow(RenderRowHost, OverlayHost, RenderTextComponent)
+                && AreAdditionalRowsLive();
         }
 
         /// <summary>
@@ -619,6 +757,24 @@ namespace helengine {
                 && textComponent != null
                 && !textComponent.IsDisposed
                 && textComponent.ParentUnsafe == rowHost;
+        }
+
+        /// <summary>
+        /// Returns whether every authored extra overlay row is still attached to the expected live hierarchy.
+        /// </summary>
+        /// <returns>True when every authored extra overlay row host and text component is still live.</returns>
+        bool AreAdditionalRowsLive() {
+            if (AdditionalLineRowHosts.Count != AdditionalLineTextComponents.Count) {
+                return false;
+            }
+
+            for (int lineIndex = 0; lineIndex < AdditionalLineRowHosts.Count; lineIndex++) {
+                if (!IsLiveRow(AdditionalLineRowHosts[lineIndex], OverlayHost, AdditionalLineTextComponents[lineIndex])) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
     }
