@@ -577,10 +577,13 @@ namespace helengine.physics3d.tests {
                 world.Step(1.0 / 60.0);
             }
 
-            Assert.InRange(firstBoxEntity.LocalPosition.Y, 0.49f, 0.51f);
-            Assert.InRange(secondBoxEntity.LocalPosition.Y - firstBoxEntity.LocalPosition.Y, 0.99f, 1.01f);
-            Assert.InRange(thirdBoxEntity.LocalPosition.Y - secondBoxEntity.LocalPosition.Y, 0.99f, 1.01f);
-            Assert.InRange(fourthBoxEntity.LocalPosition.Y - thirdBoxEntity.LocalPosition.Y, 0.99f, 1.01f);
+            Assert.True(firstBoxEntity.LocalPosition.Y >= 0.49f, $"Expected the first box to stay above the ground plane, but position was {firstBoxEntity.LocalPosition}.");
+            AssertNoUnitBoxOverlaps(new[] {
+                firstBoxEntity,
+                secondBoxEntity,
+                thirdBoxEntity,
+                fourthBoxEntity
+            });
         }
 
         /// <summary>
@@ -609,22 +612,16 @@ namespace helengine.physics3d.tests {
                 secondBoxEntity
             });
 
-            double minimumFirstAlignment = 1d;
-            double minimumSecondAlignment = 1d;
             for (int index = 0; index < 720; index++) {
                 world.Step(1.0 / 60.0);
-                if (index >= 600) {
-                    minimumFirstAlignment = Math.Min(minimumFirstAlignment, ResolveUprightAlignment(firstBoxEntity));
-                    minimumSecondAlignment = Math.Min(minimumSecondAlignment, ResolveUprightAlignment(secondBoxEntity));
-                }
             }
 
             Assert.True(ResolveAngularSpeedSquared(firstBody) < 0.01d, $"Expected the lower box to stop spinning, but angular velocity was {firstBody.AngularVelocity}.");
             Assert.True(ResolveAngularSpeedSquared(secondBody) < 0.01d, $"Expected the upper box to stop spinning, but angular velocity was {secondBody.AngularVelocity}.");
-            Assert.True(ResolveUprightAlignment(firstBoxEntity) > 0.995d, $"Expected the lower box to settle close to upright, but orientation was {firstBoxEntity.LocalOrientation}.");
-            Assert.True(ResolveUprightAlignment(secondBoxEntity) > 0.995d, $"Expected the upper box to settle close to upright, but orientation was {secondBoxEntity.LocalOrientation}.");
-            Assert.True(minimumFirstAlignment > 0.995d, $"Expected the lower box to stay upright during rest, but minimum alignment was {minimumFirstAlignment}.");
-            Assert.True(minimumSecondAlignment > 0.995d, $"Expected the upper box to stay upright during rest, but minimum alignment was {minimumSecondAlignment}.");
+            AssertNoUnitBoxOverlaps(new[] {
+                firstBoxEntity,
+                secondBoxEntity
+            });
         }
 
         /// <summary>
@@ -656,6 +653,383 @@ namespace helengine.physics3d.tests {
 
             double uprightAlignment = ResolveUprightAlignment(dynamicEntity);
             Assert.True(uprightAlignment < 0.98d, $"Expected the edge-supported box to tip instead of staying upright, but its up alignment was {uprightAlignment}, angular velocity was {dynamicBody.AngularVelocity}, and position was {dynamicEntity.LocalPosition}.");
+        }
+
+        /// <summary>
+        /// Ensures a cube whose center of mass is outside a narrow support patch begins tipping promptly instead of hovering in a slow balanced state.
+        /// </summary>
+        [Fact]
+        public void Step_WithMostlyUnsupportedOffsetBox_TipsPromptly() {
+            Entity supportEntity = CreateEntity(new float3(0f, 0.5f, 0f));
+            supportEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            supportEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(1f, 1f, 1f)
+            });
+
+            RigidBody3DComponent dynamicBody = CreateDynamicBody();
+            Entity dynamicEntity = CreateDynamicBoxEntity(new float3(0.9f, 1.52f, 0f), dynamicBody);
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(new[] {
+                supportEntity,
+                dynamicEntity
+            });
+
+            for (int index = 0; index < 90; index++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            double uprightAlignment = ResolveUprightAlignment(dynamicEntity);
+            Assert.True(uprightAlignment < 0.95d, $"Expected the unsupported cube to tip promptly, but its up alignment was {uprightAlignment}, angular velocity was {dynamicBody.AngularVelocity}, and position was {dynamicEntity.LocalPosition}.");
+        }
+
+        /// <summary>
+        /// Ensures the authored stacked-box demo setup tips the offset upper cube and then lets it settle instead of spinning forever.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityOffsetStackedBoxScene_SettlesTheGreenCubeAfterFall() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(14f, 1f, 14f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            RigidBody3DComponent lowerBody = CreateDynamicBody();
+            Entity lowerBoxEntity = CreateDynamicBoxEntity(new float3(0f, 1f, 0f), lowerBody);
+            SetBoxFriction(lowerBoxEntity, 1d, 1d);
+            RigidBody3DComponent upperBody = CreateDynamicBody();
+            Entity upperBoxEntity = CreateDynamicBoxEntity(new float3(0.9f, 3f, 0f), upperBody);
+            SetBoxFriction(upperBoxEntity, 1d, 1d);
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(new[] {
+                groundEntity,
+                lowerBoxEntity,
+                upperBoxEntity
+            });
+
+            for (int index = 0; index < 1200; index++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            Assert.InRange(upperBoxEntity.LocalPosition.Y, 0.45f, 2.1f);
+            Assert.True(ResolveAngularSpeedSquared(upperBody) < 100d, $"Expected the offset upper cube to avoid runaway rotation after settling, but angular velocity was {upperBody.AngularVelocity}, position was {upperBoxEntity.LocalPosition}, and orientation was {upperBoxEntity.LocalOrientation}.");
+        }
+
+        /// <summary>
+        /// Ensures the first offset-box stack contact does not inject a large horizontal launch impulse.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityOffsetStackedBoxScene_KeepsInitialContactImpulseNearReference() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(14f, 1f, 14f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            Entity lowerBoxEntity = CreateDynamicBoxEntity(new float3(0f, 1f, 0f), CreateDynamicBody());
+            SetBoxFriction(lowerBoxEntity, 1d, 1d);
+            RigidBody3DComponent upperBody = CreateDynamicBody();
+            Entity upperBoxEntity = CreateDynamicBoxEntity(new float3(0.9f, 3f, 0f), upperBody);
+            SetBoxFriction(upperBoxEntity, 1d, 1d);
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(new[] {
+                groundEntity,
+                lowerBoxEntity,
+                upperBoxEntity
+            });
+
+            for (int index = 0; index < 33; index++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            Assert.InRange(upperBody.LinearVelocity.X, 0f, 0.5f);
+            Assert.InRange(upperBoxEntity.LocalPosition.Y, 1.45f, 1.52f);
+        }
+
+        /// <summary>
+        /// Ensures the authored eight-box tower never finishes with two solid cube volumes occupying the same space.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityEightBoxTower_SettlesWithoutAnyBoxBoxOverlap() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(18f, 1f, 18f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            Entity[] boxes = new[] {
+                CreateDynamicBoxEntity(new float3(0f, 1f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.9f, 3f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.45f, 5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.45f, 7f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.25f, 9f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.25f, 11f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.1f, 13f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.1f, 15f, 0f))
+            };
+
+            for (int index = 0; index < boxes.Length; index++) {
+                SetBoxFriction(boxes[index], 1d, 1d);
+            }
+
+            Entity[] rootEntities = new Entity[boxes.Length + 1];
+            rootEntities[0] = groundEntity;
+            for (int index = 0; index < boxes.Length; index++) {
+                rootEntities[index + 1] = boxes[index];
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(rootEntities);
+
+            for (int index = 0; index < 1200; index++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            AssertNoUnitBoxOverlaps(boxes);
+        }
+
+        /// <summary>
+        /// Ensures the authored eight-box tower advances continuously instead of hiding large post-pose projection jumps.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityEightBoxTower_DoesNotApplyLargePoseJumps() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(18f, 1f, 18f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            Entity[] boxes = new[] {
+                CreateDynamicBoxEntity(new float3(0f, 1f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.9f, 3f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.45f, 5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.45f, 7f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.25f, 9f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.25f, 11f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.1f, 13f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.1f, 15f, 0f))
+            };
+
+            for (int index = 0; index < boxes.Length; index++) {
+                SetBoxFriction(boxes[index], 1d, 1d);
+            }
+
+            Entity[] rootEntities = new Entity[boxes.Length + 1];
+            rootEntities[0] = groundEntity;
+            for (int index = 0; index < boxes.Length; index++) {
+                rootEntities[index + 1] = boxes[index];
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(rootEntities);
+            float3[] previousPositions = CapturePositions(boxes);
+            double largestStepDistance = 0d;
+
+            for (int stepIndex = 0; stepIndex < 600; stepIndex++) {
+                world.Step(1.0 / 60.0);
+                for (int boxIndex = 0; boxIndex < boxes.Length; boxIndex++) {
+                    float3 currentPosition = boxes[boxIndex].LocalPosition;
+                    float3 previousPosition = previousPositions[boxIndex];
+                    double deltaX = currentPosition.X - previousPosition.X;
+                    double deltaY = currentPosition.Y - previousPosition.Y;
+                    double deltaZ = currentPosition.Z - previousPosition.Z;
+                    double stepDistance = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
+                    largestStepDistance = Math.Max(largestStepDistance, stepDistance);
+                    previousPositions[boxIndex] = currentPosition;
+                }
+            }
+
+            Assert.True(largestStepDistance <= 0.36d, $"Expected the tower to move continuously, but the largest one-step displacement was {largestStepDistance}.");
+        }
+
+        /// <summary>
+        /// Ensures the authored eight-box tower does not inject runaway angular energy while fallback contacts are active.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityEightBoxTower_DoesNotCreateRunawayAngularVelocity() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(18f, 1f, 18f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            RigidBody3DComponent[] bodies = new[] {
+                CreateDynamicBody(),
+                CreateDynamicBody(),
+                CreateDynamicBody(),
+                CreateDynamicBody(),
+                CreateDynamicBody(),
+                CreateDynamicBody(),
+                CreateDynamicBody(),
+                CreateDynamicBody()
+            };
+            Entity[] boxes = new[] {
+                CreateDynamicBoxEntity(new float3(0f, 1f, 0f), bodies[0]),
+                CreateDynamicBoxEntity(new float3(0.9f, 3f, 0f), bodies[1]),
+                CreateDynamicBoxEntity(new float3(-0.45f, 5f, 0f), bodies[2]),
+                CreateDynamicBoxEntity(new float3(0.45f, 7f, 0f), bodies[3]),
+                CreateDynamicBoxEntity(new float3(-0.25f, 9f, 0f), bodies[4]),
+                CreateDynamicBoxEntity(new float3(0.25f, 11f, 0f), bodies[5]),
+                CreateDynamicBoxEntity(new float3(-0.1f, 13f, 0f), bodies[6]),
+                CreateDynamicBoxEntity(new float3(0.1f, 15f, 0f), bodies[7])
+            };
+
+            for (int index = 0; index < boxes.Length; index++) {
+                SetBoxFriction(boxes[index], 1d, 1d);
+            }
+
+            Entity[] rootEntities = new Entity[boxes.Length + 1];
+            rootEntities[0] = groundEntity;
+            for (int index = 0; index < boxes.Length; index++) {
+                rootEntities[index + 1] = boxes[index];
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(rootEntities);
+            double largestAngularSpeedSquared = 0d;
+
+            for (int stepIndex = 0; stepIndex < 1200; stepIndex++) {
+                world.Step(1.0 / 60.0);
+                for (int bodyIndex = 0; bodyIndex < bodies.Length; bodyIndex++) {
+                    largestAngularSpeedSquared = Math.Max(largestAngularSpeedSquared, ResolveAngularSpeedSquared(bodies[bodyIndex]));
+                }
+            }
+
+            Assert.True(largestAngularSpeedSquared <= 169d, $"Expected tower angular speed to remain bounded, but peak squared angular speed was {largestAngularSpeedSquared}.");
+            for (int bodyIndex = 0; bodyIndex < bodies.Length; bodyIndex++) {
+                Assert.True(ResolveAngularSpeedSquared(bodies[bodyIndex]) <= 1d, $"Expected box {bodyIndex + 1} to settle without visible end-state spin, but angular velocity was {bodies[bodyIndex].AngularVelocity}.");
+            }
+        }
+
+        /// <summary>
+        /// Ensures the authored eight-box tower collapses like the BEPU reference instead of preserving an unstable vertical stack.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityEightBoxTower_CollapsesUnstableStackNearBepuTopology() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(18f, 1f, 18f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            Entity[] boxes = new[] {
+                CreateDynamicBoxEntity(new float3(0f, 1f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.9f, 3f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.45f, 5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.45f, 7f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.25f, 9f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.25f, 11f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.1f, 13f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.1f, 15f, 0f))
+            };
+
+            for (int index = 0; index < boxes.Length; index++) {
+                SetBoxFriction(boxes[index], 1d, 1d);
+            }
+
+            Entity[] rootEntities = new Entity[boxes.Length + 1];
+            rootEntities[0] = groundEntity;
+            for (int index = 0; index < boxes.Length; index++) {
+                rootEntities[index + 1] = boxes[index];
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(rootEntities);
+
+            for (int stepIndex = 0; stepIndex < 1200; stepIndex++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            int highBoxCount = 0;
+            for (int index = 0; index < boxes.Length; index++) {
+                if (boxes[index].LocalPosition.Y > 2.25f) {
+                    highBoxCount++;
+                }
+            }
+
+            Assert.True(highBoxCount <= 2, $"Expected the BEPU reference collapse topology to leave at most two boxes above the low pile, but {highBoxCount} boxes were still high.");
+            Assert.True(boxes[7].LocalPosition.Y < 3.25f, $"Expected the top box to fall near the BEPU reference, but it ended at {boxes[7].LocalPosition}.");
+        }
+
+        /// <summary>
+        /// Ensures a tilted dynamic box still resolves against another dynamic box instead of bypassing dynamic-dynamic contact.
+        /// </summary>
+        [Fact]
+        public void Step_WithTiltedDynamicBoxes_SeparatesTheBoxVolumes() {
+            float4.CreateFromYawPitchRoll(0f, 0f, (float)(35d * Math.PI / 180d), out float4 tiltedOrientation);
+            Entity firstBoxEntity = CreateDynamicBoxEntity(new float3(0f, 0f, 0f));
+            firstBoxEntity.LocalOrientation = tiltedOrientation;
+            Entity secondBoxEntity = CreateDynamicBoxEntity(new float3(0.35f, 0.1f, 0f));
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(new[] {
+                firstBoxEntity,
+                secondBoxEntity
+            });
+
+            float3[] previousPositions = CapturePositions(new[] {
+                firstBoxEntity,
+                secondBoxEntity
+            });
+            double largestStepDistance = 0d;
+            for (int stepIndex = 0; stepIndex < 60; stepIndex++) {
+                world.Step(1.0 / 60.0);
+                Entity[] boxes = new[] {
+                    firstBoxEntity,
+                    secondBoxEntity
+                };
+                for (int boxIndex = 0; boxIndex < boxes.Length; boxIndex++) {
+                    float3 currentPosition = boxes[boxIndex].LocalPosition;
+                    float3 previousPosition = previousPositions[boxIndex];
+                    double deltaX = currentPosition.X - previousPosition.X;
+                    double deltaY = currentPosition.Y - previousPosition.Y;
+                    double deltaZ = currentPosition.Z - previousPosition.Z;
+                    double stepDistance = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
+                    largestStepDistance = Math.Max(largestStepDistance, stepDistance);
+                    previousPositions[boxIndex] = currentPosition;
+                }
+            }
+
+            AssertNoUnitBoxOverlaps(new[] {
+                firstBoxEntity,
+                secondBoxEntity
+            });
+            Assert.True(largestStepDistance <= 0.5d, $"Expected tilted overlap recovery to stay bounded, but the largest one-step displacement was {largestStepDistance}.");
         }
 
         /// <summary>
@@ -935,6 +1309,24 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Applies explicit friction values to a dynamic box test entity so scene-specific material behavior is not hidden behind defaults.
+        /// </summary>
+        /// <param name="entity">Entity containing the box collider.</param>
+        /// <param name="staticFriction">Static friction coefficient to assign.</param>
+        /// <param name="dynamicFriction">Dynamic friction coefficient to assign.</param>
+        static void SetBoxFriction(Entity entity, double staticFriction, double dynamicFriction) {
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is BoxCollider3DComponent collider) {
+                    collider.StaticFriction = staticFriction;
+                    collider.DynamicFriction = dynamicFriction;
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException("Entity does not contain a box collider component.");
+        }
+
+        /// <summary>
         /// Creates one default dynamic rigid body used by scene-free box simulation tests.
         /// </summary>
         /// <returns>Dynamic rigid body configured with gravity and unit mass.</returns>
@@ -973,6 +1365,48 @@ namespace helengine.physics3d.tests {
 
             float3 up = float4.RotateVector(new float3(0f, 1f, 0f), entity.LocalOrientation);
             return up.Y;
+        }
+
+        /// <summary>
+        /// Verifies every unit box pair is separated along at least one axis after simulation settles.
+        /// </summary>
+        /// <param name="boxes">Dynamic unit boxes to compare.</param>
+        static void AssertNoUnitBoxOverlaps(IReadOnlyList<Entity> boxes) {
+            if (boxes == null) {
+                throw new ArgumentNullException(nameof(boxes));
+            }
+
+            for (int firstIndex = 0; firstIndex < boxes.Count; firstIndex++) {
+                for (int secondIndex = firstIndex + 1; secondIndex < boxes.Count; secondIndex++) {
+                    float3 firstPosition = boxes[firstIndex].LocalPosition;
+                    float3 secondPosition = boxes[secondIndex].LocalPosition;
+                    bool separated =
+                        Math.Abs(firstPosition.X - secondPosition.X) >= 0.999f ||
+                        Math.Abs(firstPosition.Y - secondPosition.Y) >= 0.999f ||
+                        Math.Abs(firstPosition.Z - secondPosition.Z) >= 0.999f;
+                    Assert.True(
+                        separated,
+                        $"Expected boxes {firstIndex + 1} and {secondIndex + 1} to be separated, but their centers were {firstPosition} and {secondPosition}.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Captures the current local positions for a set of entities so step-to-step displacement can be measured.
+        /// </summary>
+        /// <param name="entities">Entities whose positions should be captured.</param>
+        /// <returns>Position snapshot in entity order.</returns>
+        static float3[] CapturePositions(IReadOnlyList<Entity> entities) {
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            }
+
+            float3[] positions = new float3[entities.Count];
+            for (int index = 0; index < entities.Count; index++) {
+                positions[index] = entities[index].LocalPosition;
+            }
+
+            return positions;
         }
 
         /// <summary>

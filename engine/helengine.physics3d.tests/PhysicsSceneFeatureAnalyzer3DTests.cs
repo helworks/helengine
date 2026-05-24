@@ -265,6 +265,46 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Ensures legacy serialized box-collider payloads remain analyzable while older scenes are still present in projects.
+        /// </summary>
+        [Fact]
+        public void Analyze_WithSerializedBoxColliderVersion1_ReportsBoxContactFeature() {
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/PhysicsSerializedLegacyBoxCollider.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1,
+                        Name = "Ground",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateRigidBodyRecord(BodyKind3D.Static, false, 1),
+                            CreateBoxColliderRecord(new float3(8f, 1f, 8f), false, 1)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 2,
+                        Name = "DynamicBox",
+                        LocalPosition = new float3(0f, 2f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateRigidBodyRecord(BodyKind3D.Dynamic, true, 1),
+                            CreateBoxColliderRecord(new float3(1f, 1f, 1f), false, 1)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            PhysicsSceneFeatureFlags3D features = PhysicsSceneFeatureAnalyzer3D.Analyze(sceneAsset);
+
+            Assert.True((features & PhysicsSceneFeatureFlags3D.BoxBoxContact) != 0);
+        }
+
+        /// <summary>
         /// Creates one initialized entity suitable for scene feature analysis tests.
         /// </summary>
         /// <param name="localPosition">Initial local position.</param>
@@ -342,13 +382,26 @@ namespace helengine.physics3d.tests {
         /// <param name="isTrigger">True when the collider should be encoded as a trigger.</param>
         /// <returns>Serialized box-collider scene record.</returns>
         static SceneComponentAssetRecord CreateBoxColliderRecord(float3 size, bool isTrigger) {
+            return CreateBoxColliderRecord(size, isTrigger, 2);
+        }
+
+        /// <summary>
+        /// Creates one serialized box-collider component record with a specific payload version.
+        /// </summary>
+        /// <param name="size">Full collider size to encode.</param>
+        /// <param name="isTrigger">True when the collider should be encoded as a trigger.</param>
+        /// <param name="version">Box-collider payload format version to encode.</param>
+        /// <returns>Serialized box-collider scene record.</returns>
+        static SceneComponentAssetRecord CreateBoxColliderRecord(float3 size, bool isTrigger, byte version) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
+            writer.WriteByte(version);
             writer.WriteFloat3(size);
-            writer.WriteUInt16(1);
-            writer.WriteUInt16(ushort.MaxValue);
-            writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
+            if (version >= 2) {
+                writer.WriteUInt16(1);
+                writer.WriteUInt16(ushort.MaxValue);
+                writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
+            }
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.BoxCollider3DComponent",

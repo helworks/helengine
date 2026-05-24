@@ -167,6 +167,16 @@ namespace helengine {
         public float MaximumContactNormalY { get; set; }
 
         /// <summary>
+        /// Gets or sets whether this body is supported by a box contact whose footprint does not contain this body's center.
+        /// </summary>
+        public bool HasUnstableSupportContactThisStep { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether this body is supported by a box contact whose footprint contains this body's center.
+        /// </summary>
+        public bool HasStableSupportContactThisStep { get; set; }
+
+        /// <summary>
         /// Gets or sets the largest horizontal distance from the body center to a normal contact point during the current step.
         /// </summary>
         public float MaximumNormalContactLeverArmXZ { get; set; }
@@ -209,10 +219,29 @@ namespace helengine {
 
             float3 radius = worldPoint - Position;
             float3 angularImpulse = float3.Cross(radius, worldImpulse);
-            AngularVelocity = new float3(
-                AngularVelocity.X + (angularImpulse.X * InverseInertia.X),
-                AngularVelocity.Y + (angularImpulse.Y * InverseInertia.Y),
-                AngularVelocity.Z + (angularImpulse.Z * InverseInertia.Z));
+            AngularVelocity = AngularVelocity + ResolveAngularVelocityDelta(angularImpulse);
+        }
+
+        /// <summary>
+        /// Converts a world-space angular impulse into the angular velocity delta produced by this body's oriented inverse inertia.
+        /// </summary>
+        /// <param name="angularImpulse">World-space angular impulse around the body's center of mass.</param>
+        /// <returns>World-space angular velocity delta created by the impulse.</returns>
+        public float3 ResolveAngularVelocityDelta(float3 angularImpulse) {
+            if (RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                return float3.Zero;
+            }
+            if (InverseInertia == float3.Zero) {
+                return float3.Zero;
+            }
+
+            float4 inverseOrientation = float4.Inverse(Orientation);
+            float3 localAngularImpulse = float4.RotateVector(angularImpulse, inverseOrientation);
+            float3 localAngularVelocityDelta = new float3(
+                localAngularImpulse.X * InverseInertia.X,
+                localAngularImpulse.Y * InverseInertia.Y,
+                localAngularImpulse.Z * InverseInertia.Z);
+            return float4.RotateVector(localAngularVelocityDelta, Orientation);
         }
 
         /// <summary>

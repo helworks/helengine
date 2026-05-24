@@ -54,6 +54,42 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Ensures legacy serialized box-collider payloads still load through the runtime scene loader and simulate correctly.
+        /// </summary>
+        [Fact]
+        public void LoadSceneAsset_WithLegacyBoxColliderVersion1_LoadsAndSimulatesDynamicGroundContact() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = AppContext.BaseDirectory
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            Physics3DRuntimeComponentRegistration.Register(core);
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "scenes/physics/test_scene_runtime_load_legacy_box.helen",
+                RootEntities = new[] {
+                    CreateBodyEntity("ground", new float3(0f, -0.5f, 0f), BodyKind3D.Static, false, new float3(8f, 1f, 8f), 1),
+                    CreateBodyEntity("dynamic", new float3(0f, 2f, 0f), BodyKind3D.Dynamic, true, new float3(1f, 1f, 1f), 1)
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            };
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(rootEntities);
+
+            for (int index = 0; index < 60; index++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            Entity dynamicEntity = rootEntities[1];
+            RigidBody3DComponent rigidBody = FindRigidBody(dynamicEntity);
+
+            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
+            Assert.NotNull(rigidBody);
+            Assert.InRange(rigidBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+        }
+
+        /// <summary>
         /// Ensures a serialized rigid body and sphere collider can be loaded through the runtime scene loader and simulated by the physics world.
         /// </summary>
         [Fact]
@@ -443,7 +479,27 @@ namespace helengine.physics3d.tests {
             BodyKind3D bodyKind,
             bool useGravity,
             float3 boxSize) {
-            return CreateBodyEntity(entityId, localPosition, boxSize, float4.Identity, bodyKind, useGravity);
+            return CreateBodyEntity(entityId, localPosition, bodyKind, useGravity, boxSize, 2);
+        }
+
+        /// <summary>
+        /// Creates one serialized body entity that owns a rigid body and box collider payload with a specific box-collider version.
+        /// </summary>
+        /// <param name="entityId">Stable scene entity id.</param>
+        /// <param name="localPosition">Initial local position.</param>
+        /// <param name="bodyKind">Rigid body kind to serialize.</param>
+        /// <param name="useGravity">True when the rigid body should receive gravity.</param>
+        /// <param name="boxSize">Full collider size.</param>
+        /// <param name="boxColliderVersion">Box-collider payload format version to encode.</param>
+        /// <returns>Serialized scene entity.</returns>
+        static SceneEntityAsset CreateBodyEntity(
+            string entityId,
+            float3 localPosition,
+            BodyKind3D bodyKind,
+            bool useGravity,
+            float3 boxSize,
+            byte boxColliderVersion) {
+            return CreateBodyEntity(entityId, localPosition, boxSize, float4.Identity, bodyKind, useGravity, boxColliderVersion);
         }
 
         /// <summary>
@@ -463,6 +519,28 @@ namespace helengine.physics3d.tests {
             float4 localOrientation,
             BodyKind3D bodyKind,
             bool useGravity) {
+            return CreateBodyEntity(entityId, localPosition, boxSize, localOrientation, bodyKind, useGravity, 2);
+        }
+
+        /// <summary>
+        /// Creates one serialized body entity that owns a rigid body and box collider payload with a specific box-collider version.
+        /// </summary>
+        /// <param name="entityId">Stable scene entity id.</param>
+        /// <param name="localPosition">Initial local position.</param>
+        /// <param name="boxSize">Full collider size.</param>
+        /// <param name="localOrientation">Initial local orientation.</param>
+        /// <param name="bodyKind">Rigid body kind to serialize.</param>
+        /// <param name="useGravity">True when the rigid body should receive gravity.</param>
+        /// <param name="boxColliderVersion">Box-collider payload format version to encode.</param>
+        /// <returns>Serialized scene entity.</returns>
+        static SceneEntityAsset CreateBodyEntity(
+            string entityId,
+            float3 localPosition,
+            float3 boxSize,
+            float4 localOrientation,
+            BodyKind3D bodyKind,
+            bool useGravity,
+            byte boxColliderVersion) {
             if (string.IsNullOrWhiteSpace(entityId)) {
                 throw new ArgumentException("Entity id must be provided.", nameof(entityId));
             }
@@ -475,7 +553,7 @@ namespace helengine.physics3d.tests {
                 LocalOrientation = localOrientation,
                 Components = new[] {
                     CreateRigidBodyRecord(bodyKind, useGravity),
-                    CreateBoxColliderRecord(boxSize)
+                    CreateBoxColliderRecord(boxSize, boxColliderVersion)
                 },
                 Children = Array.Empty<SceneEntityAsset>()
             };
@@ -708,13 +786,25 @@ namespace helengine.physics3d.tests {
         /// <param name="boxSize">Full collider size.</param>
         /// <returns>Serialized scene component record.</returns>
         static SceneComponentAssetRecord CreateBoxColliderRecord(float3 boxSize) {
+            return CreateBoxColliderRecord(boxSize, 2);
+        }
+
+        /// <summary>
+        /// Creates one serialized box collider component record with a specific payload version.
+        /// </summary>
+        /// <param name="boxSize">Full collider size.</param>
+        /// <param name="version">Box-collider payload format version to encode.</param>
+        /// <returns>Serialized scene component record.</returns>
+        static SceneComponentAssetRecord CreateBoxColliderRecord(float3 boxSize, byte version) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
+            writer.WriteByte(version);
             writer.WriteFloat3(boxSize);
-            writer.WriteUInt16(1);
-            writer.WriteUInt16(ushort.MaxValue);
-            writer.WriteByte(0);
+            if (version >= 2) {
+                writer.WriteUInt16(1);
+                writer.WriteUInt16(ushort.MaxValue);
+                writer.WriteByte(0);
+            }
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.BoxCollider3DComponent",

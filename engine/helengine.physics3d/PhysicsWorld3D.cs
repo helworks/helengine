@@ -9,14 +9,19 @@ namespace helengine {
         static readonly float3 GravityAcceleration = new float3(0f, -9.81f, 0f);
 
         /// <summary>
-        /// Default exponential damping rate applied to dynamic angular velocity to drain contact rocking energy.
+        /// Angular damping rate applied only to upright contacted boxes to drain settled contact jitter.
         /// </summary>
-        const double DynamicAngularDampingPerSecond = 16d;
+        const double RestingUprightAngularDampingPerSecond = 16d;
 
         /// <summary>
         /// Angular speed squared below which solver noise is treated as fully settled.
         /// </summary>
         const double AngularSleepSpeedSquared = 0.0001d;
+
+        /// <summary>
+        /// Maximum angular speed allowed for one dynamic body after contact solving.
+        /// </summary>
+        const double MaximumDynamicAngularSpeed = 10d;
 
         /// <summary>
         /// Linear speed squared below which a contacted dynamic body is treated as resting.
@@ -29,19 +34,19 @@ namespace helengine {
         const double ContactAngularSleepSpeedSquared = 0.04d;
 
         /// <summary>
-        /// Maximum horizontal normal-contact lever arm that can be considered stable enough for contact sleep.
+        /// Angular damping applied to tilted bodies resting on stable support footprints.
         /// </summary>
-        const float ContactAngularSleepLeverArmThreshold = 0.25f;
-
-        /// <summary>
-        /// Extra angular damping applied to tilted bodies that are linearly resting on contact.
-        /// </summary>
-        const float TiltedContactAngularDamping = 0.35f;
+        const float StableTiltedContactAngularDamping = 0.2f;
 
         /// <summary>
         /// Minimum current upright alignment required before a resting box can be stabilized without flipping side-resting bodies.
         /// </summary>
         const float RestingUprightCandidateYThreshold = 0.85f;
+
+        /// <summary>
+        /// Minimum speculative contact distance used when relative velocity is very small.
+        /// </summary>
+        const float MinimumSpeculativeContactMargin = 0.05f;
 
         /// <summary>
         /// Dense body-state list currently bound to the runtime scene.
@@ -79,6 +84,11 @@ namespace helengine {
         readonly List<TriggerPairKey3D> CurrentTriggerPairsValue;
 
         /// <summary>
+        /// Warm-started box-box contact constraints keyed by persistent body pair.
+        /// </summary>
+        readonly List<BoxBoxContactConstraint3D> BoxBoxContactConstraintsValue;
+
+        /// <summary>
         /// Initializes a new 3D physics world.
         /// </summary>
         /// <param name="settings">Effective world settings resolved from profile defaults and local overrides.</param>
@@ -90,6 +100,7 @@ namespace helengine {
             TriggerEventsValue = new List<TriggerEvent3D>();
             ActiveTriggerPairsValue = new List<TriggerPairKey3D>();
             CurrentTriggerPairsValue = new List<TriggerPairKey3D>();
+            BoxBoxContactConstraintsValue = new List<BoxBoxContactConstraint3D>();
             BroadphaseValue = CreateBroadphase(settings);
         }
 
@@ -138,6 +149,7 @@ namespace helengine {
             TriggerEventsValue.Clear();
             ActiveTriggerPairsValue.Clear();
             CurrentTriggerPairsValue.Clear();
+            BoxBoxContactConstraintsValue.Clear();
             RequiredSceneFeatures = PhysicsSceneFeatureAnalyzer3D.Analyze(rootEntities);
             for (int index = 0; index < rootEntities.Count; index++) {
                 CollectBodyStates(rootEntities[index]);
@@ -157,8 +169,10 @@ namespace helengine {
             ClearStepContactState();
             AdvanceKinematicBodies(stepSeconds);
             AdvanceCharacterControllers(stepSeconds);
-            IntegrateDynamicBodies(stepSeconds);
-            ResolveContacts();
+            IntegrateDynamicBodyVelocities(stepSeconds);
+            ResolveSpeculativeBoxBoxContacts(stepSeconds);
+            IntegrateDynamicBodyPoses(stepSeconds);
+            ResolveContacts(stepSeconds, true);
             ApplyDynamicDamping(stepSeconds);
             SynchronizeToScene();
         }
@@ -191,11 +205,10 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Advances every dynamic body forward by one gravity-integrated fixed step.
+        /// Advances every dynamic body's velocity by one gravity-integrated fixed step.
         /// </summary>
         /// <param name="stepSeconds">Simulation step length in seconds.</param>
-        void IntegrateDynamicBodies(double stepSeconds) {
-            float stepSecondsFloat = (float)stepSeconds;
+        void IntegrateDynamicBodyVelocities(double stepSeconds) {
             for (int index = 0; index < BodyStatesValue.Count; index++) {
                 BodyState3D bodyState = BodyStatesValue[index];
                 if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
@@ -211,10 +224,25 @@ namespace helengine {
                 }
 
                 bodyState.Velocity = velocity;
+            }
+        }
+
+        /// <summary>
+        /// Advances every dynamic body's pose using the velocities produced by integration and contact solving.
+        /// </summary>
+        /// <param name="stepSeconds">Simulation step length in seconds.</param>
+        void IntegrateDynamicBodyPoses(double stepSeconds) {
+            float stepSecondsFloat = (float)stepSeconds;
+            for (int index = 0; index < BodyStatesValue.Count; index++) {
+                BodyState3D bodyState = BodyStatesValue[index];
+                if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                    continue;
+                }
+
                 bodyState.Position = new float3(
-                    bodyState.Position.X + (velocity.X * stepSecondsFloat),
-                    bodyState.Position.Y + (velocity.Y * stepSecondsFloat),
-                    bodyState.Position.Z + (velocity.Z * stepSecondsFloat));
+                    bodyState.Position.X + (bodyState.Velocity.X * stepSecondsFloat),
+                    bodyState.Position.Y + (bodyState.Velocity.Y * stepSecondsFloat),
+                    bodyState.Position.Z + (bodyState.Velocity.Z * stepSecondsFloat));
                 IntegrateDynamicBodyOrientation(bodyState, stepSecondsFloat);
                 bodyState.RefreshDerivedShapeState();
             }
@@ -227,6 +255,8 @@ namespace helengine {
             for (int index = 0; index < BodyStatesValue.Count; index++) {
                 BodyStatesValue[index].ContactWasResolvedThisStep = false;
                 BodyStatesValue[index].MaximumContactNormalY = 0f;
+                BodyStatesValue[index].HasUnstableSupportContactThisStep = false;
+                BodyStatesValue[index].HasStableSupportContactThisStep = false;
                 BodyStatesValue[index].MaximumNormalContactLeverArmXZ = 0f;
             }
         }
@@ -253,7 +283,7 @@ namespace helengine {
             double angularSpeed = Math.Sqrt(angularSpeedSquared);
             float3 axis = angularVelocity / (float)angularSpeed;
             float4.CreateFromAxisAngle(ref axis, (float)(angularSpeed * stepSeconds), out float4 deltaRotation);
-            float4 orientation = bodyState.Orientation * deltaRotation;
+            float4 orientation = deltaRotation * bodyState.Orientation;
             orientation.Normalize();
             bodyState.Orientation = orientation;
         }
@@ -263,19 +293,30 @@ namespace helengine {
         /// </summary>
         /// <param name="stepSeconds">Simulation step length in seconds.</param>
         void ApplyDynamicDamping(double stepSeconds) {
-            double angularDamping = Math.Max(0d, 1d - (DynamicAngularDampingPerSecond * stepSeconds));
+            double angularDamping = Math.Max(0d, 1d - (RestingUprightAngularDampingPerSecond * stepSeconds));
             for (int index = 0; index < BodyStatesValue.Count; index++) {
                 BodyState3D bodyState = BodyStatesValue[index];
                 if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
                     continue;
                 }
 
-                float3 angularVelocity = bodyState.AngularVelocity * (float)angularDamping;
+                bool isRestingUprightCandidate = IsRestingUprightCandidate(bodyState);
+                bool canApplyRestingAngularDamping = isRestingUprightCandidate &&
+                    bodyState.ContactWasResolvedThisStep &&
+                    bodyState.HasStableSupportContactThisStep &&
+                    !bodyState.HasUnstableSupportContactThisStep;
+                float3 angularVelocity = canApplyRestingAngularDamping
+                    ? bodyState.AngularVelocity * (float)angularDamping
+                    : bodyState.AngularVelocity;
                 double angularSpeedSquared =
                     (angularVelocity.X * angularVelocity.X) +
                     (angularVelocity.Y * angularVelocity.Y) +
                     (angularVelocity.Z * angularVelocity.Z);
-                if (angularSpeedSquared <= AngularSleepSpeedSquared) {
+                double linearSpeedSquared =
+                    (bodyState.Velocity.X * bodyState.Velocity.X) +
+                    (bodyState.Velocity.Y * bodyState.Velocity.Y) +
+                    (bodyState.Velocity.Z * bodyState.Velocity.Z);
+                if (canApplyRestingAngularDamping && linearSpeedSquared <= ContactLinearSleepSpeedSquared && angularSpeedSquared <= AngularSleepSpeedSquared) {
                     bodyState.AngularVelocity = float3.Zero;
                 } else {
                     bodyState.AngularVelocity = angularVelocity;
@@ -284,7 +325,26 @@ namespace helengine {
                 if (bodyState.ContactWasResolvedThisStep) {
                     ApplyContactSleep(bodyState);
                 }
+                ClampDynamicAngularVelocity(bodyState);
             }
+        }
+
+        /// <summary>
+        /// Limits angular velocity so a bad contact island cannot carry nonphysical spin into the next frame.
+        /// </summary>
+        /// <param name="bodyState">Dynamic body whose angular velocity should be constrained.</param>
+        static void ClampDynamicAngularVelocity(BodyState3D bodyState) {
+            double angularSpeedSquared =
+                (bodyState.AngularVelocity.X * bodyState.AngularVelocity.X) +
+                (bodyState.AngularVelocity.Y * bodyState.AngularVelocity.Y) +
+                (bodyState.AngularVelocity.Z * bodyState.AngularVelocity.Z);
+            double maximumAngularSpeedSquared = MaximumDynamicAngularSpeed * MaximumDynamicAngularSpeed;
+            if (angularSpeedSquared <= maximumAngularSpeedSquared) {
+                return;
+            }
+
+            double angularSpeed = Math.Sqrt(angularSpeedSquared);
+            bodyState.AngularVelocity = bodyState.AngularVelocity * (float)(MaximumDynamicAngularSpeed / angularSpeed);
         }
 
         /// <summary>
@@ -297,13 +357,10 @@ namespace helengine {
                 (bodyState.Velocity.Y * bodyState.Velocity.Y) +
                 (bodyState.Velocity.Z * bodyState.Velocity.Z);
             bool linearCanSleep = linearSpeedSquared <= ContactLinearSleepSpeedSquared;
-            if (linearCanSleep) {
-                bodyState.Velocity = float3.Zero;
-            }
 
             bool isRestingUprightCandidate = IsRestingUprightCandidate(bodyState);
-            if (linearCanSleep && !isRestingUprightCandidate) {
-                bodyState.AngularVelocity = bodyState.AngularVelocity * TiltedContactAngularDamping;
+            if (linearCanSleep && bodyState.HasStableSupportContactThisStep && !isRestingUprightCandidate) {
+                bodyState.AngularVelocity = bodyState.AngularVelocity * StableTiltedContactAngularDamping;
             }
 
             double angularSpeedSquared =
@@ -311,10 +368,9 @@ namespace helengine {
                 (bodyState.AngularVelocity.Y * bodyState.AngularVelocity.Y) +
                 (bodyState.AngularVelocity.Z * bodyState.AngularVelocity.Z);
             bool angularCanSleep = angularSpeedSquared <= ContactAngularSleepSpeedSquared;
-            bool contactCanAngularSleep = bodyState.MaximumNormalContactLeverArmXZ <= ContactAngularSleepLeverArmThreshold;
-            if (linearCanSleep && angularCanSleep && contactCanAngularSleep && StabilizeRestingBoxOrientation(bodyState)) {
-                bodyState.AngularVelocity = float3.Zero;
-                return;
+            bool contactCanAngularSleep = bodyState.HasStableSupportContactThisStep || !bodyState.HasUnstableSupportContactThisStep;
+            if (linearCanSleep) {
+                bodyState.Velocity = float3.Zero;
             }
             if (angularCanSleep && contactCanAngularSleep && isRestingUprightCandidate) {
                 bodyState.AngularVelocity = float3.Zero;
@@ -366,20 +422,50 @@ namespace helengine {
         /// <summary>
         /// Resolves overlapping box contacts using a simple iterative axis-aligned solver.
         /// </summary>
-        void ResolveContacts() {
+        void ResolveSpeculativeBoxBoxContacts(double stepSeconds) {
+            IReadOnlyList<BodyPair3D> candidatePairs = BroadphaseValue.CollectCandidatePairs(BodyStatesValue);
+            LastBroadphaseCandidatePairCount = candidatePairs.Count;
+            PrepareBoxBoxContactConstraints();
+            for (int iteration = 0; iteration < Settings.SolverIterations; iteration++) {
+                for (int pairIndex = 0; pairIndex < candidatePairs.Count; pairIndex++) {
+                    BodyPair3D candidatePair = candidatePairs[pairIndex];
+                    ResolveBoxBoxPairByMobility(BodyStatesValue[candidatePair.FirstBodyIndex], BodyStatesValue[candidatePair.SecondBodyIndex], stepSeconds, true, false);
+                }
+
+                for (int pairIndex = 0; pairIndex < candidatePairs.Count; pairIndex++) {
+                    BodyPair3D candidatePair = candidatePairs[pairIndex];
+                    ResolveBoxBoxPairByMobility(BodyStatesValue[candidatePair.FirstBodyIndex], BodyStatesValue[candidatePair.SecondBodyIndex], stepSeconds, false, false);
+                }
+            }
+
+            PruneStaleBoxBoxContactConstraints();
+        }
+
+        /// <summary>
+        /// Resolves the post-pose contact pass for non-box primitive pairs, static meshes, and trigger overlaps.
+        /// </summary>
+        /// <param name="stepSeconds">Simulation step length in seconds.</param>
+        /// <param name="processSolidBoxBoxContacts">True when solid box-box contacts should be solved by this pass.</param>
+        void ResolveContacts(double stepSeconds, bool processSolidBoxBoxContacts) {
             IReadOnlyList<BodyPair3D> candidatePairs = BroadphaseValue.CollectCandidatePairs(BodyStatesValue);
             LastBroadphaseCandidatePairCount = candidatePairs.Count;
             TriggerEventsValue.Clear();
             CurrentTriggerPairsValue.Clear();
+            if (processSolidBoxBoxContacts) {
+                PrepareBoxBoxContactConstraints();
+            }
             for (int iteration = 0; iteration < Settings.SolverIterations; iteration++) {
                 for (int pairIndex = 0; pairIndex < candidatePairs.Count; pairIndex++) {
                     BodyPair3D candidatePair = candidatePairs[pairIndex];
-                    ResolvePair(BodyStatesValue[candidatePair.FirstBodyIndex], BodyStatesValue[candidatePair.SecondBodyIndex], iteration == 0);
+                    ResolvePair(BodyStatesValue[candidatePair.FirstBodyIndex], BodyStatesValue[candidatePair.SecondBodyIndex], iteration == 0, stepSeconds, processSolidBoxBoxContacts);
                 }
 
                 ResolveStaticMeshContacts();
             }
 
+            if (processSolidBoxBoxContacts) {
+                PruneStaleBoxBoxContactConstraints();
+            }
             CollectStaticMeshTriggerOverlaps();
             CollectCharacterControllerTriggerOverlaps();
             FinalizeTriggerEvents();
@@ -503,12 +589,53 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Marks every cached box-box contact constraint as untouched before the current collision pass rebuilds active contacts.
+        /// </summary>
+        void PrepareBoxBoxContactConstraints() {
+            for (int index = 0; index < BoxBoxContactConstraintsValue.Count; index++) {
+                BoxBoxContactConstraintsValue[index].BeginStep();
+            }
+        }
+
+        /// <summary>
+        /// Removes persistent box-box contact constraints that were not produced by the current collision pass.
+        /// </summary>
+        void PruneStaleBoxBoxContactConstraints() {
+            for (int index = BoxBoxContactConstraintsValue.Count - 1; index >= 0; index--) {
+                if (!BoxBoxContactConstraintsValue[index].WasTouchedThisStep) {
+                    BoxBoxContactConstraintsValue.RemoveAt(index);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Resolves the persistent box-box contact constraint cache entry for an active body pair.
+        /// </summary>
+        /// <param name="first">First box body state.</param>
+        /// <param name="second">Second box body state.</param>
+        /// <returns>Persistent contact constraint cache for the body pair.</returns>
+        BoxBoxContactConstraint3D ResolveBoxBoxContactConstraint(BodyState3D first, BodyState3D second) {
+            for (int index = 0; index < BoxBoxContactConstraintsValue.Count; index++) {
+                BoxBoxContactConstraint3D existingConstraint = BoxBoxContactConstraintsValue[index];
+                if (existingConstraint.Matches(first.Entity, second.Entity)) {
+                    return existingConstraint;
+                }
+            }
+
+            BoxBoxContactConstraint3D constraint = new BoxBoxContactConstraint3D(first.Entity, second.Entity);
+            BoxBoxContactConstraintsValue.Add(constraint);
+            return constraint;
+        }
+
+        /// <summary>
         /// Resolves one pair of overlapping axis-aligned box bodies.
         /// </summary>
         /// <param name="first">First body state.</param>
         /// <param name="second">Second body state.</param>
         /// <param name="collectTriggerEvents">True when this pass should collect trigger overlap events for the current step.</param>
-        void ResolvePair(BodyState3D first, BodyState3D second, bool collectTriggerEvents) {
+        /// <param name="stepSeconds">Simulation step length in seconds.</param>
+        /// <param name="processSolidBoxBoxContacts">True when this pass should solve solid box-box contacts.</param>
+        void ResolvePair(BodyState3D first, BodyState3D second, bool collectTriggerEvents, double stepSeconds, bool processSolidBoxBoxContacts) {
             if (first == null) {
                 throw new ArgumentNullException(nameof(first));
             }
@@ -518,10 +645,13 @@ namespace helengine {
             if (!CanBodiesInteract(first, second)) {
                 return;
             }
-            if (!PrimitiveContactMath3D.Overlaps(first, second)) {
+            bool bodiesOverlap = PrimitiveContactMath3D.Overlaps(first, second);
+            bool canUseSpeculativeBoxContact = first.ColliderShapeKind == ColliderShapeKind3D.Box &&
+                second.ColliderShapeKind == ColliderShapeKind3D.Box;
+            if (!bodiesOverlap && !canUseSpeculativeBoxContact) {
                 return;
             }
-            if (collectTriggerEvents && (first.Collider.IsTrigger || second.Collider.IsTrigger)) {
+            if (collectTriggerEvents && bodiesOverlap && (first.Collider.IsTrigger || second.Collider.IsTrigger)) {
                 TrackTriggerPair(first, second);
             }
             if (first.Collider.IsTrigger || second.Collider.IsTrigger) {
@@ -532,13 +662,17 @@ namespace helengine {
             }
 
             float penetration = 0f;
-            int axisIndex = 0;
             float3 collisionNormal = float3.Zero;
             if (first.ColliderShapeKind == ColliderShapeKind3D.Box &&
                 second.ColliderShapeKind == ColliderShapeKind3D.Box) {
 #if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_BOX_BOX_CONTACT
-                if (BoxBoxContactResolver3D.TryResolveContact(first, second, out penetration, out axisIndex)) {
-                    ResolveAxis(first, second, penetration, axisIndex);
+                if (!processSolidBoxBoxContacts &&
+                    first.RigidBody.BodyKind == BodyKind3D.Dynamic &&
+                    second.RigidBody.BodyKind == BodyKind3D.Dynamic) {
+                    return;
+                }
+                if (processSolidBoxBoxContacts || !CanUseAxisAlignedBoxAxisConstraint(first, second)) {
+                    ResolveBoxBoxPair(first, second, stepSeconds, true);
                 }
 #endif
                 return;
@@ -620,18 +754,138 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves one solid box-box pair using speculative contact distance and persistent contact impulses.
+        /// </summary>
+        /// <param name="first">First body state.</param>
+        /// <param name="second">Second body state.</param>
+        /// <param name="stepSeconds">Simulation step length in seconds.</param>
+        /// <param name="applyPositionCorrection">True when direct projection should be used after pose integration.</param>
+        void ResolveBoxBoxPair(BodyState3D first, BodyState3D second, double stepSeconds, bool applyPositionCorrection) {
+            if (first.ColliderShapeKind != ColliderShapeKind3D.Box || second.ColliderShapeKind != ColliderShapeKind3D.Box) {
+                return;
+            }
+            if (first.Collider.IsTrigger || second.Collider.IsTrigger) {
+                return;
+            }
+            if (!CanBeDisplaced(first) && !CanBeDisplaced(second)) {
+                return;
+            }
+            if (applyPositionCorrection && IsDynamicDynamicPair(first, second)) {
+                return;
+            }
+
+            float speculativeContactMargin = ResolveSpeculativeContactMargin(first, second, stepSeconds);
+            if (BoxBoxContactResolver3D.TryResolveManifold(first, second, speculativeContactMargin, out BoxBoxContactManifold3D manifold)) {
+                ResolveBoxBoxManifold(first, second, manifold, stepSeconds, applyPositionCorrection);
+                return;
+            }
+            if (IsDynamicDynamicPair(first, second) &&
+                BoxBoxContactResolver3D.TryResolveOrientedManifold(first, second, speculativeContactMargin, out BoxBoxContactManifold3D orientedManifold)) {
+                ResolveBoxBoxManifold(first, second, orientedManifold, stepSeconds, applyPositionCorrection);
+                return;
+            }
+            if (BoxBoxContactResolver3D.TryResolveContact(first, second, speculativeContactMargin, out float penetration, out int axisIndex)) {
+                ResolveAxis(first, second, penetration, axisIndex, stepSeconds, applyPositionCorrection);
+            }
+        }
+
+        /// <summary>
+        /// Resolves one box-box pair only when it belongs to the requested dynamic-dynamic or support-contact phase.
+        /// </summary>
+        /// <param name="first">First body state.</param>
+        /// <param name="second">Second body state.</param>
+        /// <param name="stepSeconds">Simulation step length in seconds.</param>
+        /// <param name="resolveDynamicPairs">True for dynamic-dynamic pairs; false for pairs involving a static or kinematic support.</param>
+        /// <param name="applyPositionCorrection">True when direct projection should be used for legacy post-pose contacts.</param>
+        void ResolveBoxBoxPairByMobility(BodyState3D first, BodyState3D second, double stepSeconds, bool resolveDynamicPairs, bool applyPositionCorrection) {
+            bool isDynamicPair = first.RigidBody.BodyKind == BodyKind3D.Dynamic && second.RigidBody.BodyKind == BodyKind3D.Dynamic;
+            if (isDynamicPair != resolveDynamicPairs) {
+                return;
+            }
+
+            ResolveBoxBoxPair(first, second, stepSeconds, applyPositionCorrection);
+        }
+
+        /// <summary>
+        /// Applies separation and distributed velocity response for one box-box contact manifold.
+        /// </summary>
+        /// <param name="first">First box body state.</param>
+        /// <param name="second">Second box body state.</param>
+        /// <param name="manifold">Resolved box-box contact manifold.</param>
+        /// <param name="stepSeconds">Simulation step length in seconds.</param>
+        /// <param name="applyPositionCorrection">True when direct projection should be used after pose integration.</param>
+        void ResolveBoxBoxManifold(BodyState3D first, BodyState3D second, BoxBoxContactManifold3D manifold, double stepSeconds, bool applyPositionCorrection) {
+            bool canMoveFirst = CanBeDisplaced(first);
+            bool canMoveSecond = CanBeDisplaced(second);
+            float correctionPenetration = applyPositionCorrection ? Math.Max(0f, manifold.Penetration) : 0f;
+            float moveFirst = 0f;
+            float moveSecond = 0f;
+            float3 firstCorrection = float3.Zero;
+            float3 secondCorrection = float3.Zero;
+
+            if (canMoveFirst && canMoveSecond) {
+                moveFirst = correctionPenetration * 0.5f;
+                moveSecond = correctionPenetration * 0.5f;
+            } else if (canMoveFirst) {
+                moveFirst = correctionPenetration;
+            } else if (canMoveSecond) {
+                moveSecond = correctionPenetration;
+            }
+
+            if (moveFirst != 0f) {
+                firstCorrection = manifold.Normal * moveFirst;
+                first.Position = first.Position + firstCorrection;
+            }
+
+            if (moveSecond != 0f) {
+                secondCorrection = manifold.Normal * (moveSecond * -1f);
+                second.Position = second.Position + secondCorrection;
+            }
+
+            if (manifold.ContactCount > 0) {
+                if (!applyPositionCorrection || !IsDynamicDynamicPair(first, second)) {
+                    ContactMaterialResponse3D.ApplyBoxBoxConstraintResponse(first, second, manifold, ResolveBoxBoxContactConstraint(first, second), stepSeconds);
+                }
+                first.ContactWasResolvedThisStep = true;
+                second.ContactWasResolvedThisStep = true;
+                RecordContactNormal(first, manifold.Normal);
+                RecordContactNormal(second, manifold.Normal * -1f);
+                RecordBoxBoxSupportStability(first, second, manifold.Normal);
+            }
+
+            ClipVelocityAgainstCorrection(first, firstCorrection);
+            ClipVelocityAgainstCorrection(second, secondCorrection);
+        }
+
+        /// <summary>
         /// Applies separation and velocity clipping for one collision axis.
         /// </summary>
         /// <param name="first">First body state.</param>
         /// <param name="second">Second body state.</param>
         /// <param name="penetration">Positive overlap distance on the selected axis.</param>
         /// <param name="axisIndex">Zero for X, one for Y, two for Z.</param>
-        void ResolveAxis(BodyState3D first, BodyState3D second, float penetration, int axisIndex) {
+        /// <param name="stepSeconds">Simulation step length in seconds.</param>
+        /// <param name="applyPositionCorrection">True when direct projection should be used after pose integration.</param>
+        void ResolveAxis(BodyState3D first, BodyState3D second, float penetration, int axisIndex, double stepSeconds, bool applyPositionCorrection) {
+            if (penetration <= 0f) {
+                return;
+            }
+            if (CanUseAxisAlignedBoxAxisConstraint(first, second)) {
+                ResolveBoxBoxManifold(first, second, CreateAxisBoxBoxManifold(first, second, penetration, axisIndex), stepSeconds, applyPositionCorrection);
+                return;
+            }
+            if (!applyPositionCorrection) {
+                ContactMaterialResponse3D.ApplyAxisPairResponse(first, second, axisIndex, PrimitiveContactMath3D.GetAxisDirection(first, second, axisIndex));
+                return;
+            }
+
             float axisDirection = PrimitiveContactMath3D.GetAxisDirection(first, second, axisIndex);
             bool canMoveFirst = CanBeDisplaced(first);
             bool canMoveSecond = CanBeDisplaced(second);
             float moveFirst = 0f;
             float moveSecond = 0f;
+            float3 firstCorrection = float3.Zero;
+            float3 secondCorrection = float3.Zero;
 
             if (canMoveFirst && canMoveSecond) {
                 moveFirst = penetration * 0.5f * axisDirection;
@@ -644,20 +898,186 @@ namespace helengine {
 
             if (moveFirst != 0f) {
                 first.Position = PrimitiveContactMath3D.OffsetAxis(first.Position, axisIndex, moveFirst);
+                firstCorrection = CreateAxisNormal(axisIndex, moveFirst > 0f ? 1f : -1f) * Math.Abs(moveFirst);
             }
 
             if (moveSecond != 0f) {
                 second.Position = PrimitiveContactMath3D.OffsetAxis(second.Position, axisIndex, moveSecond);
+                secondCorrection = CreateAxisNormal(axisIndex, moveSecond > 0f ? 1f : -1f) * Math.Abs(moveSecond);
             }
 
             if (moveFirst != 0f || moveSecond != 0f) {
                 float3 collisionNormal = CreateAxisNormal(axisIndex, axisDirection);
-                ContactMaterialResponse3D.ApplyAxisPairResponse(first, second, axisIndex, axisDirection);
+                if (!IsDynamicDynamicPair(first, second)) {
+                    ContactMaterialResponse3D.ApplyAxisPairResponse(first, second, axisIndex, axisDirection);
+                }
                 first.ContactWasResolvedThisStep = true;
                 second.ContactWasResolvedThisStep = true;
                 RecordContactNormal(first, collisionNormal);
                 RecordContactNormal(second, collisionNormal * -1f);
+                RecordBoxBoxSupportStability(first, second, collisionNormal);
             }
+
+            ClipVelocityAgainstCorrection(first, firstCorrection);
+            ClipVelocityAgainstCorrection(second, secondCorrection);
+        }
+
+        /// <summary>
+        /// Returns whether a one-point axis constraint can use axis-aligned box overlap coordinates instead of oriented support points.
+        /// </summary>
+        /// <param name="first">First box body state.</param>
+        /// <param name="second">Second box body state.</param>
+        /// <returns>True when both boxes are upright enough for an axis-aligned persistent contact feature.</returns>
+        static bool CanUseAxisAlignedBoxAxisConstraint(BodyState3D first, BodyState3D second) {
+            if (first.ColliderShapeKind != ColliderShapeKind3D.Box || second.ColliderShapeKind != ColliderShapeKind3D.Box) {
+                return false;
+            }
+
+            return IsAxisAlignedBoxConstraintCandidate(first) && IsAxisAlignedBoxConstraintCandidate(second);
+        }
+
+        /// <summary>
+        /// Returns whether both bodies are dynamic rigid bodies whose velocity response should already be handled by the speculative solver.
+        /// </summary>
+        /// <param name="first">First body state.</param>
+        /// <param name="second">Second body state.</param>
+        /// <returns>True when both bodies are dynamic.</returns>
+        static bool IsDynamicDynamicPair(BodyState3D first, BodyState3D second) {
+            return first.RigidBody.BodyKind == BodyKind3D.Dynamic &&
+                second.RigidBody.BodyKind == BodyKind3D.Dynamic;
+        }
+
+        /// <summary>
+        /// Removes the velocity component that would immediately push a corrected dynamic body back into the resolved contact.
+        /// </summary>
+        /// <param name="bodyState">Body that received a positional correction.</param>
+        /// <param name="correction">World-space correction applied to the body position.</param>
+        static void ClipVelocityAgainstCorrection(BodyState3D bodyState, float3 correction) {
+            if (bodyState == null) {
+                throw new ArgumentNullException(nameof(bodyState));
+            }
+            if (bodyState.RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                return;
+            }
+
+            double correctionLengthSquared = float3.Dot(correction, correction);
+            if (correctionLengthSquared <= 0.0000001d) {
+                return;
+            }
+
+            float3 correctionNormal = correction / (float)Math.Sqrt(correctionLengthSquared);
+            float velocityTowardContact = float3.Dot(bodyState.Velocity, correctionNormal);
+            if (velocityTowardContact < 0f) {
+                bodyState.Velocity = bodyState.Velocity - (correctionNormal * velocityTowardContact);
+            }
+        }
+
+        /// <summary>
+        /// Returns whether one box is upright enough for the one-point axis constraint to use its axis-aligned bounds.
+        /// </summary>
+        /// <param name="bodyState">Box body state to inspect.</param>
+        /// <returns>True when the local up axis is close to world up.</returns>
+        static bool IsAxisAlignedBoxConstraintCandidate(BodyState3D bodyState) {
+            float3 up = float4.RotateVector(new float3(0f, 1f, 0f), bodyState.Orientation);
+            return up.Y >= RestingUprightCandidateYThreshold;
+        }
+
+        /// <summary>
+        /// Resolves a BEPU-style speculative contact margin from relative body speed over the current fixed step.
+        /// </summary>
+        /// <param name="first">First body state.</param>
+        /// <param name="second">Second body state.</param>
+        /// <param name="stepSeconds">Simulation step length in seconds.</param>
+        /// <returns>Speculative contact margin for the current pair.</returns>
+        static float ResolveSpeculativeContactMargin(BodyState3D first, BodyState3D second, double stepSeconds) {
+            float3 relativeVelocity = first.Velocity - second.Velocity;
+            double relativeSpeedSquared = (relativeVelocity.X * relativeVelocity.X) +
+                (relativeVelocity.Y * relativeVelocity.Y) +
+                (relativeVelocity.Z * relativeVelocity.Z);
+            float velocityMargin = (float)(Math.Sqrt(relativeSpeedSquared) * stepSeconds);
+            return Math.Max(MinimumSpeculativeContactMargin, velocityMargin);
+        }
+
+        /// <summary>
+        /// Builds a one-point manifold for an upright box-box contact whose overlap is best represented by one separating axis.
+        /// </summary>
+        /// <param name="first">First box body state.</param>
+        /// <param name="second">Second box body state.</param>
+        /// <param name="penetration">Positive overlap distance on the selected axis.</param>
+        /// <param name="axisIndex">Zero for X, one for Y, two for Z.</param>
+        /// <returns>One-point box-box manifold.</returns>
+        static BoxBoxContactManifold3D CreateAxisBoxBoxManifold(BodyState3D first, BodyState3D second, float penetration, int axisIndex) {
+            float axisDirection = PrimitiveContactMath3D.GetAxisDirection(first, second, axisIndex);
+            float3 normal = CreateAxisNormal(axisIndex, axisDirection);
+            return new BoxBoxContactManifold3D {
+                Normal = normal,
+                Penetration = penetration,
+                Penetration0 = penetration,
+                Contact0 = CreateAxisBoxBoxContactPoint(first, second, normal, axisIndex),
+                FeatureId0 = 100 + axisIndex,
+                ContactCount = 1
+            };
+        }
+
+        /// <summary>
+        /// Creates one contact point on the selected axis and centered inside the tangent overlap patch.
+        /// </summary>
+        /// <param name="first">First box body state.</param>
+        /// <param name="second">Second box body state.</param>
+        /// <param name="normal">Contact normal pointing from the second box toward the first box.</param>
+        /// <param name="axisIndex">Normal axis index.</param>
+        /// <returns>World-space contact point.</returns>
+        static float3 CreateAxisBoxBoxContactPoint(BodyState3D first, BodyState3D second, float3 normal, int axisIndex) {
+            float x = ResolveAxisBoxBoxContactComponent(first, second, normal, axisIndex, 0);
+            float y = ResolveAxisBoxBoxContactComponent(first, second, normal, axisIndex, 1);
+            float z = ResolveAxisBoxBoxContactComponent(first, second, normal, axisIndex, 2);
+            return new float3(x, y, z);
+        }
+
+        /// <summary>
+        /// Resolves one component of an axis manifold contact point.
+        /// </summary>
+        /// <param name="first">First box body state.</param>
+        /// <param name="second">Second box body state.</param>
+        /// <param name="normal">Contact normal pointing from the second box toward the first box.</param>
+        /// <param name="axisIndex">Normal axis index.</param>
+        /// <param name="componentIndex">Component index to resolve.</param>
+        /// <returns>Resolved contact coordinate.</returns>
+        static float ResolveAxisBoxBoxContactComponent(BodyState3D first, BodyState3D second, float3 normal, int axisIndex, int componentIndex) {
+            if (componentIndex == axisIndex) {
+                float normalComponent = ReadComponent(normal, componentIndex);
+                float firstCenter = ReadComponent(first.Position, componentIndex);
+                float firstExtent = ReadComponent(first.AxisAlignedHalfExtents, componentIndex);
+                return normalComponent >= 0f
+                    ? firstCenter - firstExtent
+                    : firstCenter + firstExtent;
+            }
+
+            float firstMinimum = ReadComponent(first.Position, componentIndex) - ReadComponent(first.AxisAlignedHalfExtents, componentIndex);
+            float firstMaximum = ReadComponent(first.Position, componentIndex) + ReadComponent(first.AxisAlignedHalfExtents, componentIndex);
+            float secondMinimum = ReadComponent(second.Position, componentIndex) - ReadComponent(second.AxisAlignedHalfExtents, componentIndex);
+            float secondMaximum = ReadComponent(second.Position, componentIndex) + ReadComponent(second.AxisAlignedHalfExtents, componentIndex);
+            return (Math.Max(firstMinimum, secondMinimum) + Math.Min(firstMaximum, secondMaximum)) * 0.5f;
+        }
+
+        /// <summary>
+        /// Reads one vector component by numeric index.
+        /// </summary>
+        /// <param name="value">Vector to inspect.</param>
+        /// <param name="componentIndex">Zero for X, one for Y, two for Z.</param>
+        /// <returns>Selected vector component.</returns>
+        static float ReadComponent(float3 value, int componentIndex) {
+            if (componentIndex == 0) {
+                return value.X;
+            }
+            if (componentIndex == 1) {
+                return value.Y;
+            }
+            if (componentIndex == 2) {
+                return value.Z;
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(componentIndex), "Component index must be between zero and two.");
         }
 
         /// <summary>
@@ -672,6 +1092,8 @@ namespace helengine {
             bool canMoveSecond = CanBeDisplaced(second);
             float moveFirst = 0f;
             float moveSecond = 0f;
+            float3 firstCorrection = float3.Zero;
+            float3 secondCorrection = float3.Zero;
 
             if (canMoveFirst && canMoveSecond) {
                 moveFirst = penetration * 0.5f;
@@ -683,12 +1105,13 @@ namespace helengine {
             }
 
             if (moveFirst != 0f) {
-                first.Position = first.Position + (collisionNormal * moveFirst);
+                firstCorrection = collisionNormal * moveFirst;
+                first.Position = first.Position + firstCorrection;
             }
 
             if (moveSecond != 0f) {
-                float3 secondNormal = collisionNormal * -1f;
-                second.Position = second.Position + (secondNormal * moveSecond);
+                secondCorrection = collisionNormal * (moveSecond * -1f);
+                second.Position = second.Position + secondCorrection;
             }
 
             if (moveFirst != 0f || moveSecond != 0f) {
@@ -698,6 +1121,9 @@ namespace helengine {
                 RecordContactNormal(first, collisionNormal);
                 RecordContactNormal(second, collisionNormal * -1f);
             }
+
+            ClipVelocityAgainstCorrection(first, firstCorrection);
+            ClipVelocityAgainstCorrection(second, secondCorrection);
         }
 
         /// <summary>
@@ -825,8 +1251,10 @@ namespace helengine {
                 return;
             }
 
-            bodyState.Position = bodyState.Position + (collisionNormal * penetration);
+            float3 correction = collisionNormal * penetration;
+            bodyState.Position = bodyState.Position + correction;
             ContactMaterialResponse3D.ApplyStaticSurfaceResponse(bodyState, surfaceCollider, collisionNormal);
+            ClipVelocityAgainstCorrection(bodyState, correction);
             bodyState.ContactWasResolvedThisStep = true;
             RecordContactNormal(bodyState, collisionNormal);
         }
@@ -843,6 +1271,79 @@ namespace helengine {
             if (contactNormal.Y > bodyState.MaximumContactNormalY) {
                 bodyState.MaximumContactNormalY = contactNormal.Y;
             }
+        }
+
+        /// <summary>
+        /// Marks dynamic boxes that are balanced outside the footprint of their supporting box contact.
+        /// </summary>
+        /// <param name="first">First box body state.</param>
+        /// <param name="second">Second box body state.</param>
+        /// <param name="firstContactNormal">Contact normal pointing away from the second body and into the first body.</param>
+        static void RecordBoxBoxSupportStability(BodyState3D first, BodyState3D second, float3 firstContactNormal) {
+            if (first == null) {
+                throw new ArgumentNullException(nameof(first));
+            }
+            if (second == null) {
+                throw new ArgumentNullException(nameof(second));
+            }
+            if (first.RigidBody.BodyKind == BodyKind3D.Dynamic && second.RigidBody.BodyKind == BodyKind3D.Dynamic) {
+                return;
+            }
+
+            if (firstContactNormal.Y > 0.6f) {
+                RecordBoxSupportStability(first, second);
+                return;
+            }
+            if (firstContactNormal.Y < -0.6f) {
+                RecordBoxSupportStability(second, first);
+            }
+        }
+
+        /// <summary>
+        /// Marks one supported dynamic box as unstable when its center does not project into the support footprint.
+        /// </summary>
+        /// <param name="supportedBody">Dynamic body resting above the support body.</param>
+        /// <param name="supportBody">Body providing the upward support contact.</param>
+        static void RecordBoxSupportStability(BodyState3D supportedBody, BodyState3D supportBody) {
+            if (supportedBody == null) {
+                throw new ArgumentNullException(nameof(supportedBody));
+            }
+            if (supportBody == null) {
+                throw new ArgumentNullException(nameof(supportBody));
+            }
+            if (supportedBody.RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                return;
+            }
+
+            if (IsCenterOutsideSupportFootprint(supportedBody, supportBody)) {
+                supportedBody.HasUnstableSupportContactThisStep = true;
+            } else {
+                supportedBody.HasStableSupportContactThisStep = true;
+            }
+        }
+
+        /// <summary>
+        /// Determines whether a supported body's center sits outside the horizontal bounds of the supporting box.
+        /// </summary>
+        /// <param name="supportedBody">Body being supported.</param>
+        /// <param name="supportBody">Box body providing support.</param>
+        /// <returns>True when the supported center projects outside the support footprint.</returns>
+        static bool IsCenterOutsideSupportFootprint(BodyState3D supportedBody, BodyState3D supportBody) {
+            if (supportedBody == null) {
+                throw new ArgumentNullException(nameof(supportedBody));
+            }
+            if (supportBody == null) {
+                throw new ArgumentNullException(nameof(supportBody));
+            }
+
+            float supportMinimumX = supportBody.Position.X - supportBody.AxisAlignedHalfExtents.X;
+            float supportMaximumX = supportBody.Position.X + supportBody.AxisAlignedHalfExtents.X;
+            float supportMinimumZ = supportBody.Position.Z - supportBody.AxisAlignedHalfExtents.Z;
+            float supportMaximumZ = supportBody.Position.Z + supportBody.AxisAlignedHalfExtents.Z;
+            return supportedBody.Position.X < supportMinimumX ||
+                supportedBody.Position.X > supportMaximumX ||
+                supportedBody.Position.Z < supportMinimumZ ||
+                supportedBody.Position.Z > supportMaximumZ;
         }
 
         /// <summary>
@@ -866,24 +1367,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Snaps a nearly resting box onto its yaw-only upright pose so simple one-point support contacts do not freeze visible lean.
-        /// </summary>
-        /// <param name="bodyState">Resting dynamic body that may need upright stabilization.</param>
-        /// <returns>True when the body orientation was stabilized.</returns>
-        static bool StabilizeRestingBoxOrientation(BodyState3D bodyState) {
-            if (bodyState == null) {
-                throw new ArgumentNullException(nameof(bodyState));
-            }
-            if (!IsRestingUprightCandidate(bodyState)) {
-                return false;
-            }
-
-            bodyState.Orientation = CreateYawOnlyOrientation(bodyState.Orientation);
-            bodyState.RefreshDerivedShapeState();
-            return true;
-        }
-
-        /// <summary>
         /// Determines whether a body is close enough to upright for rest stabilization to remove tiny angular noise.
         /// </summary>
         /// <param name="bodyState">Body state whose current orientation should be inspected.</param>
@@ -896,67 +1379,21 @@ namespace helengine {
                 return false;
             }
 
+            return ResolveBodyUpY(bodyState) >= RestingUprightCandidateYThreshold;
+        }
+
+        /// <summary>
+        /// Resolves the world Y component of a box body's local up axis.
+        /// </summary>
+        /// <param name="bodyState">Body state whose up axis should be inspected.</param>
+        /// <returns>World Y component of the local up axis.</returns>
+        static float ResolveBodyUpY(BodyState3D bodyState) {
+            if (bodyState == null) {
+                throw new ArgumentNullException(nameof(bodyState));
+            }
+
             float3 up = float4.RotateVector(new float3(0f, 1f, 0f), bodyState.Orientation);
-            return up.Y >= RestingUprightCandidateYThreshold;
-        }
-
-        /// <summary>
-        /// Creates an upright orientation that preserves the current horizontal yaw as closely as possible.
-        /// </summary>
-        /// <param name="orientation">Current box orientation.</param>
-        /// <returns>Yaw-only orientation with no pitch or roll tilt.</returns>
-        static float4 CreateYawOnlyOrientation(float4 orientation) {
-            float3 forward = float4.RotateVector(new float3(0f, 0f, 1f), orientation);
-            float forwardLengthSquared = (forward.X * forward.X) + (forward.Z * forward.Z);
-            if (forwardLengthSquared > 0.000001f) {
-                return CreateYawOnlyOrientationFromForward(forward.X, forward.Z, forwardLengthSquared);
-            }
-
-            float3 right = float4.RotateVector(new float3(1f, 0f, 0f), orientation);
-            float fallbackForwardX = right.Z * -1f;
-            float fallbackForwardZ = right.X;
-            float fallbackLengthSquared = (fallbackForwardX * fallbackForwardX) + (fallbackForwardZ * fallbackForwardZ);
-            if (fallbackLengthSquared > 0.000001f) {
-                return CreateYawOnlyOrientationFromForward(fallbackForwardX, fallbackForwardZ, fallbackLengthSquared);
-            }
-
-            return float4.Identity;
-        }
-
-        /// <summary>
-        /// Creates a yaw-only quaternion from a horizontal forward projection.
-        /// </summary>
-        /// <param name="forwardX">Horizontal forward X component.</param>
-        /// <param name="forwardZ">Horizontal forward Z component.</param>
-        /// <param name="lengthSquared">Squared horizontal projection length.</param>
-        /// <returns>Yaw-only orientation matching the supplied horizontal forward direction.</returns>
-        static float4 CreateYawOnlyOrientationFromForward(float forwardX, float forwardZ, float lengthSquared) {
-            double inverseLength = 1d / Math.Sqrt(lengthSquared);
-            double normalizedForwardX = forwardX * inverseLength;
-            double normalizedForwardZ = forwardZ * inverseLength;
-            double clampedForwardZ = ClampUnit(normalizedForwardZ);
-            double cosHalf = Math.Sqrt(Math.Max(0d, (1d + clampedForwardZ) * 0.5d));
-            double sinHalfMagnitude = Math.Sqrt(Math.Max(0d, (1d - clampedForwardZ) * 0.5d));
-            double sinHalf = normalizedForwardX >= 0d ? sinHalfMagnitude : -sinHalfMagnitude;
-            float4 result = new float4(0f, (float)sinHalf, 0f, (float)cosHalf);
-            result.Normalize();
-            return result;
-        }
-
-        /// <summary>
-        /// Clamps one scalar value into the inclusive unit range.
-        /// </summary>
-        /// <param name="value">Value to clamp.</param>
-        /// <returns>Value restricted to the range [-1, 1].</returns>
-        static double ClampUnit(double value) {
-            if (value < -1d) {
-                return -1d;
-            }
-            if (value > 1d) {
-                return 1d;
-            }
-
-            return value;
+            return up.Y;
         }
 
         /// <summary>

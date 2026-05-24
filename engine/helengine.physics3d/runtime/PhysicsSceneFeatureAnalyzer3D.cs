@@ -14,9 +14,29 @@ namespace helengine {
         const byte CurrentRigidBodyPayloadVersion = 2;
 
         /// <summary>
+        /// Automatic reflected rigid-body payload member count used after built-in component persistence moved onto the shared reflected path.
+        /// </summary>
+        const int AutomaticRigidBodyMemberCount = 6;
+
+        /// <summary>
+        /// Legacy box-collider payload version that only serialized the collider size.
+        /// </summary>
+        const byte LegacyBoxColliderPayloadVersion = 1;
+
+        /// <summary>
+        /// Current box-collider payload version that also serializes layer, mask, and trigger state.
+        /// </summary>
+        const byte CurrentBoxColliderPayloadVersion = 2;
+
+        /// <summary>
         /// Stable serialized component id for 3D box colliders.
         /// </summary>
         const string BoxCollider3DComponentTypeId = "helengine.BoxCollider3DComponent";
+
+        /// <summary>
+        /// Automatic reflected box-collider payload member count used after built-in component persistence moved onto the shared reflected path.
+        /// </summary>
+        const int AutomaticBoxColliderMemberCount = 7;
 
         /// <summary>
         /// Stable serialized component id for 3D sphere colliders.
@@ -24,9 +44,19 @@ namespace helengine {
         const string SphereCollider3DComponentTypeId = "helengine.SphereCollider3DComponent";
 
         /// <summary>
+        /// Automatic reflected sphere-collider payload member count used after built-in component persistence moved onto the shared reflected path.
+        /// </summary>
+        const int AutomaticSphereColliderMemberCount = 7;
+
+        /// <summary>
         /// Stable serialized component id for 3D capsule colliders.
         /// </summary>
         const string CapsuleCollider3DComponentTypeId = "helengine.CapsuleCollider3DComponent";
+
+        /// <summary>
+        /// Automatic reflected capsule-collider payload member count used after built-in component persistence moved onto the shared reflected path.
+        /// </summary>
+        const int AutomaticCapsuleColliderMemberCount = 8;
 
         /// <summary>
         /// Stable serialized component id for 3D cooked static-mesh colliders.
@@ -579,11 +609,23 @@ namespace helengine {
                 return false;
             }
 
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != CurrentRigidBodyPayloadVersion) {
+            if (version == CurrentRigidBodyPayloadVersion) {
+                bodyKind = (BodyKind3D)reader.ReadByte();
+                return true;
+            }
+            if (version != 1) {
                 throw new InvalidOperationException($"Unsupported rigid body component payload version '{version}'.");
+            }
+
+            if (TryReadAutomaticMemberCount(payload, AutomaticRigidBodyMemberCount)) {
+                reader.ReadInt32();
+                reader.ReadFloat3();
+                bodyKind = (BodyKind3D)reader.ReadInt32();
+                return true;
             }
 
             bodyKind = (BodyKind3D)reader.ReadByte();
@@ -619,17 +661,29 @@ namespace helengine {
         /// <param name="record">Serialized box-collider scene component record.</param>
         /// <returns>True when the collider is configured as a trigger; otherwise false.</returns>
         static bool ReadBoxColliderIsTrigger(SceneComponentAssetRecord record) {
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 2) {
+            if (version == CurrentBoxColliderPayloadVersion) {
+                reader.ReadFloat3();
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                return reader.ReadByte() != 0;
+            }
+            if (version == LegacyBoxColliderPayloadVersion && TryReadAutomaticMemberCount(payload, AutomaticBoxColliderMemberCount)) {
+                reader.ReadInt32();
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                reader.ReadDouble();
+                return reader.ReadByte() != 0;
+            }
+            if (version != LegacyBoxColliderPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported box collider component payload version '{version}'.");
             }
 
             reader.ReadFloat3();
-            reader.ReadUInt16();
-            reader.ReadUInt16();
-            return reader.ReadByte() != 0;
+            return false;
         }
 
         /// <summary>
@@ -638,11 +692,20 @@ namespace helengine {
         /// <param name="record">Serialized sphere-collider scene component record.</param>
         /// <returns>True when the collider is configured as a trigger; otherwise false.</returns>
         static bool ReadSphereColliderIsTrigger(SceneComponentAssetRecord record) {
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
             if (version != 1) {
                 throw new InvalidOperationException($"Unsupported sphere collider component payload version '{version}'.");
+            }
+
+            if (TryReadAutomaticMemberCount(payload, AutomaticSphereColliderMemberCount)) {
+                reader.ReadInt32();
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                reader.ReadDouble();
+                return reader.ReadByte() != 0;
             }
 
             reader.ReadSingle();
@@ -655,16 +718,48 @@ namespace helengine {
         /// <param name="record">Serialized capsule-collider scene component record.</param>
         /// <returns>True when the collider is configured as a trigger; otherwise false.</returns>
         static bool ReadCapsuleColliderIsTrigger(SceneComponentAssetRecord record) {
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
             if (version != 1) {
                 throw new InvalidOperationException($"Unsupported capsule collider component payload version '{version}'.");
             }
 
+            if (TryReadAutomaticMemberCount(payload, AutomaticCapsuleColliderMemberCount)) {
+                reader.ReadInt32();
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                reader.ReadDouble();
+                reader.ReadSingle();
+                return reader.ReadByte() != 0;
+            }
+
             reader.ReadSingle();
             reader.ReadSingle();
             return false;
+        }
+
+        /// <summary>
+        /// Attempts to read the automatic reflected member-count header that follows one legacy-compatible version byte.
+        /// </summary>
+        /// <param name="payload">Serialized component payload whose leading member-count header should be inspected.</param>
+        /// <param name="expectedMemberCount">Expected reflected member count for the automatic payload layout.</param>
+        /// <returns>True when the payload uses the automatic reflected layout; otherwise false.</returns>
+        static bool TryReadAutomaticMemberCount(byte[] payload, int expectedMemberCount) {
+            if (payload == null) {
+                throw new ArgumentNullException(nameof(payload));
+            }
+            if (payload.Length < 5) {
+                return false;
+            }
+
+            int memberCount =
+                payload[1]
+                | (payload[2] << 8)
+                | (payload[3] << 16)
+                | (payload[4] << 24);
+            return memberCount == expectedMemberCount;
         }
 
         /// <summary>
