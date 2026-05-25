@@ -30,7 +30,7 @@ namespace helengine.directx11 {
         /// </summary>
         static readonly float3 DefaultUp = new float3(0f, 1f, 0f);
         /// <summary>
-        /// Temporary trace file used while comparing directional-shadow plaza face lighting between DirectX11 and PSP.
+        /// Temporary trace file used while comparing directional-shadow plaza face lighting between DirectX11 and one external console renderer.
         /// </summary>
         static readonly string PlazaFaceTracePath = Path.Combine(Path.GetTempPath(), "helengine_windows_plaza_trace.log");
         /// <summary>
@@ -1634,7 +1634,7 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Appends one parity trace line for the authored central plaza tower so DirectX11 face lighting can be compared against PSP.
+        /// Appends one parity trace line for the authored central plaza tower so DirectX11 face lighting can be compared against one external console renderer.
         /// </summary>
         /// <param name="entity">Tower entity currently being rendered.</param>
         void WritePlazaTowerFaceDebugTrace(Entity entity) {

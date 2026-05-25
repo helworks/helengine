@@ -1228,7 +1228,9 @@ namespace helengine.editor {
                     throw new FileNotFoundException($"Cooked scene asset '{cookedSceneAssetPath}' was not found.", cookedSceneAssetPath);
                 }
 
+                string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
                 try {
+                    EngineBinaryReadContext.CurrentAssetPath = cookedSceneAssetPath;
                     using FileStream stream = File.OpenRead(cookedSceneAssetPath);
                     Asset asset = AssetSerializer.Deserialize(stream);
                     if (asset is not SceneAsset sceneAsset) {
@@ -1238,6 +1240,8 @@ namespace helengine.editor {
                     CollectAutomaticRuntimeComponentTypes(sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>(), scriptTypeResolver, componentTypes);
                 } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(cookedSceneAssetPath, StringComparison.Ordinal)) {
                     throw new InvalidOperationException($"Cooked scene asset '{cookedSceneAssetPath}' could not be deserialized while discovering automatic runtime components.", ex);
+                } finally {
+                    EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
                 }
             }
 

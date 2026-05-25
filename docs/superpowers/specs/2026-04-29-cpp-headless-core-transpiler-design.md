@@ -4,7 +4,7 @@
 
 Add the first real design for `cs2.cpp` so it can convert `helengine.core` into portable C++ for a headless engine core.
 
-The generated output should target a platform-neutral core first, then allow a native Windows runner to plug into that core later. Windows is only the first validation host. The design must avoid locking the generated code to Windows-specific assumptions because the long-term target includes retro consoles such as PlayStation 2, GameCube, Wii, and PSP.
+The generated output should target a platform-neutral core first, then allow a native Windows runner to plug into that core later. Windows is only the first validation host. The design must avoid locking the generated code to Windows-specific assumptions because the long-term target includes retro consoles such as PlayStation 2, GameCube, Wii, and external package-owned console targets.
 
 ## Scope
 
@@ -72,7 +72,7 @@ Planned future profiles:
 - `ps2-headless`
 - `gamecube-headless`
 - `wii-headless`
-- `psp-headless`
+- `external-console-headless`
 
 This profile controls behavior such as:
 

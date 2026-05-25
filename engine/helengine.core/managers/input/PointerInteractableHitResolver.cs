@@ -40,13 +40,14 @@ namespace helengine {
                     continue;
                 }
 
-                if (!IsInsideActiveClipRegions(interactable, pointerX, pointerY)) {
+                ResolvePointerInInteractableSpace(interactable, camera, pointerX, pointerY, out int localPointerX, out int localPointerY);
+                if (!IsInsideActiveClipRegions(interactable, localPointerX, localPointerY)) {
                     continue;
                 }
 
                 float3 position = interactable.Parent.Position;
                 float4 rect = new float4(position.X, position.Y, interactable.Size.X, interactable.Size.Y);
-                if (!rect.Contains(pointerX, pointerY)) {
+                if (!rect.Contains(localPointerX, localPointerY)) {
                     continue;
                 }
 
@@ -114,9 +115,69 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(interactable));
             }
 
+            ResolvePointerInInteractableSpace(interactable, camera, pointerX, pointerY, out int localPointerX, out int localPointerY);
             float3 position = interactable.Parent.Position;
-            relativeX = (int)Math.Round(pointerX - position.X);
-            relativeY = (int)Math.Round(pointerY - position.Y);
+            relativeX = (int)Math.Round(localPointerX - position.X);
+            relativeY = (int)Math.Round(localPointerY - position.Y);
+        }
+
+        /// <summary>
+        /// Normalizes one window-space pointer into the local coordinate space used by one interactable subtree.
+        /// </summary>
+        /// <param name="interactable">Interactable whose viewport ownership should be considered.</param>
+        /// <param name="camera">Camera currently routing the pointer.</param>
+        /// <param name="pointerX">Pointer X coordinate in window space.</param>
+        /// <param name="pointerY">Pointer Y coordinate in window space.</param>
+        /// <param name="resolvedPointerX">Receives the pointer X coordinate in the interactable subtree space.</param>
+        /// <param name="resolvedPointerY">Receives the pointer Y coordinate in the interactable subtree space.</param>
+        static void ResolvePointerInInteractableSpace(
+            IInteractable2D interactable,
+            ICamera camera,
+            int pointerX,
+            int pointerY,
+            out int resolvedPointerX,
+            out int resolvedPointerY) {
+            resolvedPointerX = pointerX;
+            resolvedPointerY = pointerY;
+            if (interactable == null || interactable.Parent == null || camera == null) {
+                return;
+            }
+
+            ICameraBoundViewportOwner viewportOwner = FindNearestViewportOwner(interactable.Parent);
+            if (viewportOwner == null) {
+                return;
+            }
+
+            CameraComponent boundCamera = viewportOwner.GetBoundCameraComponent();
+            if (!ReferenceEquals(boundCamera, camera)) {
+                return;
+            }
+
+            float4 viewportBounds = viewportOwner.ResolvedViewportBounds;
+            resolvedPointerX -= (int)Math.Round(viewportBounds.X);
+            resolvedPointerY -= (int)Math.Round(viewportBounds.Y);
+        }
+
+        /// <summary>
+        /// Resolves the nearest viewport owner governing one interactable subtree.
+        /// </summary>
+        /// <param name="entity">Interactable owner whose ancestors should be inspected.</param>
+        /// <returns>Nearest viewport owner, or null when none applies.</returns>
+        static ICameraBoundViewportOwner FindNearestViewportOwner(Entity entity) {
+            Entity current = entity;
+            while (current != null) {
+                if (current.Components != null) {
+                    for (int componentIndex = 0; componentIndex < current.Components.Count; componentIndex++) {
+                        if (current.Components[componentIndex] is ICameraBoundViewportOwner viewportOwner) {
+                            return viewportOwner;
+                        }
+                    }
+                }
+
+                current = current.Parent;
+            }
+
+            return null;
         }
 
         /// <summary>

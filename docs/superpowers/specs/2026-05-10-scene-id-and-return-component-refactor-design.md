@@ -139,7 +139,7 @@ Required restriction:
 - only desktop platforms may reference `Keys`
 - non-desktop generated/player builds must not contain `Keys` references from this component
 
-This should be enforced with explicit platform gating in the authored component so the generated native output for PSP/PS2 does not need post-generation cleanup for keyboard-only code.
+This should be enforced with explicit platform gating in the authored component so the generated native output for external package-owned console targets and PS2 does not need post-generation cleanup for keyboard-only code.
 
 ### Future Direction
 
@@ -171,7 +171,7 @@ The longer-term direction is still input actions/contexts rather than raw `Keys`
 
 ### Regression Coverage
 
-Add targeted regression coverage around the generic scene-id contract so PSP/PS2 work does not accidentally reintroduce path-based scene identity or keyboard enum leakage.
+Add targeted regression coverage around the generic scene-id contract so external package-owned console work and PS2 work do not accidentally reintroduce path-based scene identity or keyboard enum leakage.
 
 ## Implementation Outline
 

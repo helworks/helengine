@@ -3,6 +3,7 @@ using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Descriptors;
 using helengine.baseplatform.Manifest;
+using helengine.baseplatform.Paths;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Reporting;
 using helengine.baseplatform.Results;
@@ -724,6 +725,48 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures PS2-targeted scene packaging emits rooted runtime font paths directly inside both packaged scene references and the automatic text payload.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPs2PlatformAllowsRootedPackagedPaths_TextComponentFontReferenceUsesRootedRuntimePath() {
+            string sceneId = "Scenes/TextScene.helen";
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(), new[] { CreateEditorFontReference() });
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            PlatformDefinition platformDefinition = CreatePs2RootedPathPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                defaultFont);
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string expectedFontRuntimePath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+                platformDefinition.PlatformId,
+                platformDefinition.RuntimeGenerationContract,
+                "cooked/fonts/default.hefont");
+            using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+
+            Assert.Equal(expectedFontRuntimePath, Assert.Single(packagedScene.AssetReferences).RelativePath);
+
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            reader.ReadInt32();
+            reader.ReadByte();
+            reader.ReadByte();
+            reader.ReadByte();
+            reader.ReadByte();
+
+            SceneAssetReference fontReference = ReadOptionalReference(reader);
+            Assert.NotNull(fontReference);
+            Assert.Equal(expectedFontRuntimePath, fontReference.RelativePath);
+        }
+
+        /// <summary>
         /// Ensures file-backed material references in packaged mesh payloads are rewritten to the cooked player-material location.
         /// </summary>
         [Fact]
@@ -988,6 +1031,51 @@ namespace helengine.editor.tests {
             using FileStream fontStream = File.OpenRead(cookedFontPath);
             FontAsset cookedFontAsset = helengine.files.FontAssetBinarySerializer.Deserialize(fontStream);
             Assert.Equal("cooked/Fonts/DemoDiscTitle.ps2tex", cookedFontAsset.CookedAtlasTextureRelativePath);
+            Assert.Null(cookedFontAsset.SourceTextureAsset);
+        }
+
+        /// <summary>
+        /// Ensures PS2-targeted packaged fonts store their external cooked atlas path in rooted runtime form while platform cook work items stay logical.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPs2PlatformUsesBuilderOwnedFontAtlasTexture_FontAssetStoresRootedAtlasRuntimePath() {
+            string sceneId = "Scenes/TextScene.helen";
+            string fontRelativePath = "Fonts/DemoDiscTitle.ttf";
+            const string defaultSerializedTextureSettings = "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\"}";
+
+            WriteSourceFont(fontRelativePath);
+            SceneAssetReference fontReference = CreateFileFontReference(fontRelativePath);
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(fontReference), new[] { fontReference });
+
+            PlatformDefinition platformDefinition = CreatePs2BuilderOwnedFontAtlasTexturePlatformDefinition(defaultSerializedTextureSettings);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                [
+                    new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"])
+                ],
+                platformDefinition,
+                CreatePackagedFontAsset());
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+
+            PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
+            Assert.Equal("cooked/Fonts/DemoDiscTitle.ps2tex", workItem.OutputRelativePath);
+
+            string expectedFontRuntimePath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+                platformDefinition.PlatformId,
+                platformDefinition.RuntimeGenerationContract,
+                "cooked/Fonts/DemoDiscTitle.hefont");
+            using FileStream sceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(sceneStream));
+            Assert.Equal(expectedFontRuntimePath, Assert.Single(packagedScene.AssetReferences).RelativePath);
+
+            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "Fonts", "DemoDiscTitle.hefont");
+            using FileStream fontStream = File.OpenRead(cookedFontPath);
+            FontAsset cookedFontAsset = helengine.files.FontAssetBinarySerializer.Deserialize(fontStream);
+            string expectedAtlasRuntimePath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+                platformDefinition.PlatformId,
+                platformDefinition.RuntimeGenerationContract,
+                "cooked/Fonts/DemoDiscTitle.ps2tex");
+            Assert.Equal(expectedAtlasRuntimePath, cookedFontAsset.CookedAtlasTextureRelativePath);
             Assert.Null(cookedFontAsset.SourceTextureAsset);
         }
 
@@ -1531,10 +1619,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures builder-supplied support metadata does not remove the default pass-through physics component support rules required by packaged runtime scenes.
+        /// Ensures builder-supplied support metadata does not remove the default physics component packaging rules required to load and simulate packaged runtime scenes.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformOmitsPassThroughPhysicsSupportRules_PreservesDefaultPhysicsSupportRules() {
+        public void Package_WhenPlatformOmitsPhysicsSupportRules_PreservesDefaultPhysicsPackagingSupport() {
             string sceneId = "Scenes/PhysicsScene.helen";
             WriteSceneAsset(sceneId, new SceneAsset {
                 Id = sceneId,
@@ -1542,19 +1630,39 @@ namespace helengine.editor.tests {
                     new SceneEntityAsset {
                         Id = 1u,
                         Name = "PhysicsRoot",
-                        LocalPosition = float3.Zero,
+                        LocalPosition = new float3(0f, 3f, 0f),
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
                         Components = new[] {
                             new SceneComponentAssetRecord {
                                 ComponentTypeId = "helengine.RigidBody3DComponent",
                                 ComponentIndex = 0,
-                                Payload = WriteRigidBody3DComponentPayload(BodyKind3D.Dynamic, true)
+                                Payload = WriteAutomaticRigidBody3DComponentPayload(BodyKind3D.Dynamic, true)
                             },
                             new SceneComponentAssetRecord {
                                 ComponentTypeId = "helengine.BoxCollider3DComponent",
                                 ComponentIndex = 1,
-                                Payload = WriteBoxCollider3DComponentPayload(new float3(1f, 2f, 3f))
+                                Payload = WriteAutomaticBoxCollider3DComponentPayload(new float3(1f, 2f, 3f))
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 2u,
+                        Name = "Ground",
+                        LocalPosition = new float3(0f, -0.5f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.RigidBody3DComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteAutomaticRigidBody3DComponentPayload(BodyKind3D.Static, false)
+                            },
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.BoxCollider3DComponent",
+                                ComponentIndex = 1,
+                                Payload = WriteAutomaticBoxCollider3DComponentPayload(new float3(8f, 1f, 8f))
                             }
                         },
                         Children = Array.Empty<SceneEntityAsset>()
@@ -1577,16 +1685,25 @@ namespace helengine.editor.tests {
                 packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
-            SceneEntityAsset loadedRoot = Assert.Single(packagedScene.RootEntities);
-            SceneComponentAssetRecord rigidBodyRecord = Assert.Single(
-                loadedRoot.Components,
-                componentRecord => string.Equals(componentRecord.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
-            SceneComponentAssetRecord boxColliderRecord = Assert.Single(
-                loadedRoot.Components,
-                componentRecord => string.Equals(componentRecord.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
-            Assert.Equal(WriteRigidBody3DComponentPayload(BodyKind3D.Dynamic, true), rigidBodyRecord.Payload);
-            Assert.Equal(WriteBoxCollider3DComponentPayload(new float3(1f, 2f, 3f)), boxColliderRecord.Payload);
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(loadedRoots);
+            Entity fallingRoot = loadedRoots[0];
+            float initialY = fallingRoot.LocalPosition.Y;
+            for (int index = 0; index < 60; index++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            Assert.True(fallingRoot.LocalPosition.Y < initialY - 0.25f, $"Expected the packaged dynamic physics root to fall, but its Y position only moved from {initialY} to {fallingRoot.LocalPosition.Y}.");
         }
 
         /// <summary>
@@ -3362,6 +3479,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one automatic reflected rigid-body component payload used by scene-packager tests.
+        /// </summary>
+        /// <param name="bodyKind">Rigid-body participation mode to encode.</param>
+        /// <param name="useGravity">True when gravity should be enabled.</param>
+        /// <returns>Serialized tagged rigid-body component payload.</returns>
+        byte[] WriteAutomaticRigidBody3DComponentPayload(BodyKind3D bodyKind, bool useGravity) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            RigidBody3DComponent component = new RigidBody3DComponent {
+                AngularVelocity = float3.Zero,
+                BodyKind = bodyKind,
+                GravityScale = 1d,
+                LinearVelocity = float3.Zero,
+                Mass = 1d,
+                UseGravity = useGravity
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, null);
+            return record.Payload;
+        }
+
+        /// <summary>
         /// Writes one serialized box-collider component payload used by scene-packager tests.
         /// </summary>
         /// <param name="size">Full collider size to encode.</param>
@@ -3376,6 +3514,28 @@ namespace helengine.editor.tests {
             writer.WriteUInt16(ushort.MaxValue);
             writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
             return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one automatic reflected box-collider component payload used by scene-packager tests.
+        /// </summary>
+        /// <param name="size">Full collider size to encode.</param>
+        /// <param name="isTrigger">True when the collider should be encoded as a trigger.</param>
+        /// <returns>Serialized tagged box-collider component payload.</returns>
+        byte[] WriteAutomaticBoxCollider3DComponentPayload(float3 size, bool isTrigger = false) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            BoxCollider3DComponent component = new BoxCollider3DComponent {
+                CollisionLayer = 1,
+                CollisionMask = ushort.MaxValue,
+                DynamicFriction = 0.5d,
+                IsTrigger = isTrigger,
+                Restitution = 0d,
+                Size = size,
+                StaticFriction = 0.5d
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, null);
+            return record.Payload;
         }
 
         /// <summary>
@@ -3821,6 +3981,46 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one minimal PS2 platform definition that requires rooted packaged runtime paths while preserving the default transform support rules.
+        /// </summary>
+        /// <param name="componentSupportRules">Component support metadata exposed by the platform.</param>
+        /// <returns>Minimal PS2 platform definition for rooted packaged-path tests.</returns>
+        static PlatformDefinition CreatePs2RootedPathPlatformDefinition(PlatformComponentSupportRule[] componentSupportRules) {
+            if (componentSupportRules == null) {
+                throw new ArgumentNullException(nameof(componentSupportRules));
+            }
+
+            return new PlatformDefinition(
+                "ps2",
+                "PS2",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "debug",
+                        "Debug",
+                        "Debug PS2 build",
+                        "ps2-standard-forward",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "ps2-standard-forward",
+                        "PS2 Standard Forward",
+                        "Standard PS2 forward renderer",
+                        [])
+                ],
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                componentSupportRules,
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                new RuntimeGenerationContract(
+                    RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                    true,
+                    PackagedPathPolicy.RootedOrContentRelative));
+        }
+
+        /// <summary>
         /// Creates one minimal DS platform definition that publishes the standard fixed-pipeline material schema for cook verification.
         /// </summary>
         /// <returns>Minimal DS platform definition with one generated standard material schema.</returns>
@@ -3895,6 +4095,51 @@ namespace helengine.editor.tests {
                     RuntimeMaterialResolutionMode.CookedPlatformOwned,
                     true,
                     PackagedPathPolicy.ContentRelativeOnly));
+        }
+
+        /// <summary>
+        /// Creates one PS2 platform definition that publishes builder-owned font-atlas texture cooking with rooted packaged runtime paths.
+        /// </summary>
+        /// <param name="defaultSerializedTextureSettings">Default serialized texture settings emitted when the source font has no platform override.</param>
+        /// <returns>Platform definition used by rooted PS2 font-atlas texture packaging tests.</returns>
+        static PlatformDefinition CreatePs2BuilderOwnedFontAtlasTexturePlatformDefinition(string defaultSerializedTextureSettings) {
+            return new PlatformDefinition(
+                "ps2",
+                "PS2",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "debug",
+                        "Debug",
+                        "Debug PS2 build",
+                        "ps2-standard-forward",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "ps2-standard-forward",
+                        "PS2 Standard Forward",
+                        "Standard PS2 forward renderer",
+                        [])
+                ],
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                new RuntimeGenerationContract(
+                    RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                    true,
+                    PackagedPathPolicy.RootedOrContentRelative),
+                null,
+                [
+                    new PlatformAssetCookCapabilityDefinition(
+                        "font-atlas-texture",
+                        "runtime-texture",
+                        PlatformAssetCookOwnershipKind.BuilderOwned,
+                        "ps2-font-atlas-texture",
+                        defaultSerializedTextureSettings)
+                ]);
         }
 
         /// <summary>

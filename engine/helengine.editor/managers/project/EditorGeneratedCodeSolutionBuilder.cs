@@ -7,9 +7,14 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorGeneratedCodeSolutionBuilder {
         /// <summary>
-        /// Default target framework used by generated script projects.
+        /// Default target framework used by generated runtime script projects.
         /// </summary>
-        const string TargetFrameworkValue = "net9.0";
+        const string RuntimeTargetFrameworkValue = "net9.0";
+
+        /// <summary>
+        /// Target framework used by generated editor-only script projects that bind against Windows-hosted editor assemblies.
+        /// </summary>
+        const string EditorTargetFrameworkValue = "net9.0-windows";
 
         /// <summary>
         /// Builds the generated code solution description for the supplied authored modules.
@@ -37,7 +42,10 @@ namespace helengine.editor {
                 string generatedGlobalUsingsFilePath = Path.Combine(projectDirectoryPath, "GlobalUsings.g.cs");
                 string baseIntermediateOutputPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "obj", module.ModuleId);
                 string baseOutputPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "bin", module.ModuleId);
-                string outputDirectoryPath = Path.Combine(baseOutputPath, "Debug", TargetFrameworkValue);
+                string targetFramework = module.ModuleKind == EditorCodeModuleKind.Editor
+                    ? EditorTargetFrameworkValue
+                    : RuntimeTargetFrameworkValue;
+                string outputDirectoryPath = Path.Combine(baseOutputPath, "Debug", targetFramework);
                 Guid projectGuid = CreateStableGuid(fullProjectRootPath + "|" + module.ModuleId);
                 moduleProjects.Add(new EditorGeneratedCodeModuleProject(
                     module.ModuleId,
@@ -48,6 +56,7 @@ namespace helengine.editor {
                     generatedGlobalUsingsFilePath,
                     baseIntermediateOutputPath,
                     baseOutputPath,
+                    targetFramework,
                     outputDirectoryPath,
                     projectGuid,
                     module.ModuleKind));

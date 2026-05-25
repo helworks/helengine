@@ -29,7 +29,7 @@ Refactor `RuntimeMaterial` so it no longer owns shader-only layout/property stat
 
 Implementation notes:
 - Keep only behavior that is genuinely cross-platform.
-- Preserve the public surface needed by DS/PSP/PS2 and generic runtime systems.
+- Preserve the public surface needed by DS, external package-owned platforms, PS2, and generic runtime systems.
 - Move shader-layout/property synchronization behavior into `ShaderRuntimeMaterial`.
 
 Validation:

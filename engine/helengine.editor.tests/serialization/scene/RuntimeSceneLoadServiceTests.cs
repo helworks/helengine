@@ -57,11 +57,55 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Equal(string.Empty, resolver.LastTextLoadStage);
             Assert.Equal(string.Empty, resolver.LastTextFontRelativePath);
+            Assert.Equal(string.Empty, resolver.LastTextureLoadStage);
+            Assert.Equal(string.Empty, resolver.LastTextureRelativePath);
             Assert.Equal(string.Empty, loadService.LastTraceStage);
             Assert.Equal(string.Empty, loadService.LastTraceComponentTypeId);
             Assert.Equal(string.Empty, loadService.LastTextLoadStage);
             Assert.Equal(string.Empty, loadService.LastTextFontRelativePath);
+            Assert.Equal(string.Empty, loadService.LastTextureLoadStage);
+            Assert.Equal(string.Empty, loadService.LastTextureRelativePath);
             Assert.NotNull(loadService.LastFontDeserializeStage);
+        }
+
+        /// <summary>
+        /// Ensures packaged runtime texture resolution records a stable diagnostic stage and relative path after the runtime texture has been tracked.
+        /// </summary>
+        [Fact]
+        public void ResolveTexture_WhenPackagedTextureLoads_recordsTextureLoadDiagnostics() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            TestRenderManager2D renderManager2D = Assert.IsType<TestRenderManager2D>(Core.Instance.RenderManager2D);
+            TextureAsset packagedTextureAsset = new TextureAsset {
+                Width = 2,
+                Height = 2,
+                Colors = new byte[] {
+                    255, 255, 255, 255,
+                    255, 255, 255, 255,
+                    255, 255, 255, 255,
+                    255, 255, 255, 255
+                }
+            };
+
+            WriteTextureAsset("cooked/imported/runtime-scene-load-texture.hetex", packagedTextureAsset);
+            resolver.BeginOwnedAssetTracking();
+            try {
+                RuntimeTexture runtimeTexture = resolver.ResolveTexture(new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                    RelativePath = "cooked/imported/runtime-scene-load-texture.hetex",
+                    ProviderId = string.Empty,
+                    AssetId = string.Empty
+                });
+
+                Assert.NotNull(runtimeTexture);
+                Assert.Equal("ResolveTextureTracked", resolver.LastTextureLoadStage);
+                Assert.Equal("cooked/imported/runtime-scene-load-texture.hetex", resolver.LastTextureRelativePath);
+                Assert.Equal(1, renderManager2D.BuildTextureFromRawCallCount);
+            } finally {
+                resolver.CancelOwnedAssetTracking();
+            }
         }
 
         /// <summary>

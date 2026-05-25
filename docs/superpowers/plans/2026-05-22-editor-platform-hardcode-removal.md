@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove the remaining PS2, Nintendo DS, PSP, and GameCube production policy from `helengine.editor` so the editor only orchestrates generic platform builds.
+**Goal:** Remove the remaining PS2, Nintendo DS, GameCube, and other external package-owned production policy from `helengine.editor` so the editor only orchestrates generic platform builds.
 
 **Architecture:** This pass is deletion-first. The editor will stop branching on concrete platform ids for build graph behavior, scene expansion, import defaults, and native manifest generation. If external platform repos still depended on these editor-side behaviors, the breakage is intentional and must be fixed in the platform repos or through a future generic plugin contract.
 
@@ -270,7 +270,7 @@ rtk git add engine/helengine.editor/managers/project/EditorBuildQueueItemDocumen
 rtk git commit -m "Remove DS scene expansion from editor queue items"
 ```
 
-### Task 4: Remove PSP Preprocessor Symbol Special Cases
+### Task 4: Remove Hardcoded External Platform Symbol Special Cases
 
 **Files:**
 - Modify: `engine/helengine.editor/managers/project/EditorPlatformPreprocessorSymbolService.cs`
@@ -278,14 +278,14 @@ rtk git commit -m "Remove DS scene expansion from editor queue items"
 
 - [ ] **Step 1: Write the failing test edits**
 
-Replace the PSP-specific symbol assertion with a generic assertion that the service does not inject platform-id-specific symbols on its own.
+Replace the external-platform-specific symbol assertion with a generic assertion that the service does not inject platform-id-specific symbols on its own.
 
 ```csharp
 [Fact]
-public void ResolveSymbols_does_not_inject_psp_platform_symbol() {
-    // Arrange a PSP platform selection using the existing test fixture style.
+public void ResolveSymbols_does_not_inject_external_platform_symbol() {
+    // Arrange one external platform selection using the existing test fixture style.
     // Resolve symbols.
-    // Assert "PSP_PLATFORM" is absent.
+    // Assert the hardcoded external symbol is absent.
 }
 ```
 
@@ -297,21 +297,21 @@ Run:
 rtk proxy powershell -NoProfile -Command "dotnet test 'engine\helengine.editor.tests\helengine.editor.tests.csproj' --filter 'FullyQualifiedName~EditorGeneratedCoreRegenerationServiceTests' 2>&1 | Select-Object -Last 180 | Out-String -Width 260 | Write-Output"
 ```
 
-Expected: FAIL because the current symbol service still emits `PSP_PLATFORM`.
+Expected: FAIL because the current symbol service still emits a hardcoded platform-specific symbol.
 
-- [ ] **Step 3: Remove the PSP branch**
+- [ ] **Step 3: Remove the hardcoded platform branch**
 
 In `EditorPlatformPreprocessorSymbolService.cs`, delete the branch that adds:
 
 ```csharp
-"PSP_PLATFORM"
+"EXTERNAL_PLATFORM"
 ```
 
 Do not replace it with another hardcoded platform symbol. Leave only generic symbol generation that is not based on explicit platform ids.
 
 - [ ] **Step 4: Update the tests**
 
-Delete or rewrite the tests that assert the editor injects PSP-specific symbols. Keep any generic codegen symbol assertions that are still valid.
+Delete or rewrite the tests that assert the editor injects one named external platform symbol. Keep any generic codegen symbol assertions that are still valid.
 
 - [ ] **Step 5: Run the focused symbol/codegen tests**
 
@@ -327,7 +327,7 @@ Expected: PASS.
 
 ```powershell
 rtk git add engine/helengine.editor/managers/project/EditorPlatformPreprocessorSymbolService.cs engine/helengine.editor.tests/managers/project/EditorGeneratedCoreRegenerationServiceTests.cs
-rtk git commit -m "Remove PSP symbol injection from editor"
+rtk git commit -m "Remove hardcoded platform symbol injection from editor"
 ```
 
 ### Task 5: Remove DS Texture Import Defaults From Shared Editor Code
@@ -437,7 +437,7 @@ Use the Graphiti durable handoff note flow and record that:
 - editor no longer owns PS2 manifest/depth behavior
 - editor no longer owns platform repository-root env-var overrides
 - editor no longer expands DS companion scenes
-- editor no longer injects PSP platform symbols
+- editor no longer injects hardcoded external platform symbols
 - editor no longer applies DS-specific texture defaults
 
 - [ ] **Step 4: Commit the final cleanup if needed**

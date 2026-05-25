@@ -60,7 +60,7 @@ namespace helengine {
         public byte ReadByte() {
             int value = BaseStream.ReadByte();
             if (value < 0) {
-                throw new EndOfStreamException("Unexpected end of stream while reading engine binary data.");
+                throw CreateEndOfStreamException();
             }
 
             return (byte)value;
@@ -258,11 +258,24 @@ namespace helengine {
             while (totalBytesRead < buffer.Length) {
                 int bytesRead = BaseStream.Read(buffer.Slice(totalBytesRead));
                 if (bytesRead <= 0) {
-                    throw new EndOfStreamException("Unexpected end of stream while reading engine binary data.");
+                    throw CreateEndOfStreamException();
                 }
 
                 totalBytesRead += bytesRead;
             }
+        }
+
+        /// <summary>
+        /// Creates one end-of-stream exception that includes the current asset path when available.
+        /// </summary>
+        /// <returns>Configured end-of-stream exception.</returns>
+        static EndOfStreamException CreateEndOfStreamException() {
+            string assetPath = EngineBinaryReadContext.CurrentAssetPath;
+            if (string.IsNullOrWhiteSpace(assetPath)) {
+                return new EndOfStreamException("Unexpected end of stream while reading engine binary data.");
+            }
+
+            return new EndOfStreamException($"Unexpected end of stream while reading engine binary data from '{assetPath}'.");
         }
     }
 }

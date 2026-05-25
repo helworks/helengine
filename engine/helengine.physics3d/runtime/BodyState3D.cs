@@ -265,6 +265,9 @@ namespace helengine {
             if (ColliderShapeKind == ColliderShapeKind3D.Box) {
                 return GetBoxSupportPoint(direction);
             }
+            if (ColliderShapeKind == ColliderShapeKind3D.Sphere) {
+                return GetSphereSupportPoint(direction);
+            }
 
             return Position + new float3(
                 ResolveSignedExtent(direction.X, HalfExtents.X),
@@ -288,7 +291,7 @@ namespace helengine {
                 SphereRadius = CreateScaledSphereRadius(SphereCollider.Radius, Entity.LocalScale);
                 HalfExtents = new float3(SphereRadius, SphereRadius, SphereRadius);
                 CapsuleSegmentHalfLength = 0f;
-                InverseInertia = float3.Zero;
+                InverseInertia = CreateSphereInverseInertia(SphereRadius, RigidBody.Mass, RigidBody.BodyKind);
                 RefreshDerivedShapeState();
                 return;
             }
@@ -345,6 +348,21 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Finds the furthest world-space point on this sphere in the supplied direction.
+        /// </summary>
+        /// <param name="direction">World-space direction used to choose the support point.</param>
+        /// <returns>World-space support point on the sphere surface.</returns>
+        float3 GetSphereSupportPoint(float3 direction) {
+            double lengthSquared = float3.Dot(direction, direction);
+            if (lengthSquared <= 0.0000001d) {
+                return Position;
+            }
+
+            float inverseLength = (float)(1d / Math.Sqrt(lengthSquared));
+            return Position + (direction * inverseLength * SphereRadius);
+        }
+
+        /// <summary>
         /// Chooses a signed extent for one support direction component.
         /// </summary>
         /// <param name="direction">Direction component or projected direction value.</param>
@@ -383,6 +401,23 @@ namespace helengine {
                 ResolveInverseInertiaComponent(inertiaX),
                 ResolveInverseInertiaComponent(inertiaY),
                 ResolveInverseInertiaComponent(inertiaZ));
+        }
+
+        /// <summary>
+        /// Builds the diagonal inverse inertia for one solid sphere body.
+        /// </summary>
+        /// <param name="radius">Current scaled sphere radius.</param>
+        /// <param name="mass">Dynamic body mass.</param>
+        /// <param name="bodyKind">Rigid body simulation kind.</param>
+        /// <returns>Inverse inertia around the world X, Y, and Z axes.</returns>
+        static float3 CreateSphereInverseInertia(float radius, double mass, BodyKind3D bodyKind) {
+            if (bodyKind != BodyKind3D.Dynamic) {
+                return float3.Zero;
+            }
+
+            double inertia = 0.4d * mass * radius * radius;
+            float inverseInertia = ResolveInverseInertiaComponent(inertia);
+            return new float3(inverseInertia, inverseInertia, inverseInertia);
         }
 
         /// <summary>

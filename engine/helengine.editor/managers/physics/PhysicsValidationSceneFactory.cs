@@ -19,9 +19,59 @@ namespace helengine.editor {
         const byte DefaultMeshRenderOrder = 0;
 
         /// <summary>
+        /// Stable tagged field name used for mesh model-reference persistence.
+        /// </summary>
+        const string MeshModelReferenceFieldName = "ModelReference";
+
+        /// <summary>
+        /// Stable tagged field name used for mesh material-reference array persistence.
+        /// </summary>
+        const string MeshMaterialReferencesFieldName = "MaterialReferences";
+
+        /// <summary>
+        /// Stable tagged field name used for mesh render-order persistence.
+        /// </summary>
+        const string MeshRenderOrder3DFieldName = "RenderOrder3D";
+
+        /// <summary>
         /// Stable camera draw order assigned to validation-scene cameras.
         /// </summary>
         const byte DefaultCameraDrawOrder = 0;
+
+        /// <summary>
+        /// Stable tagged field name used for camera draw-order persistence.
+        /// </summary>
+        const string CameraDrawOrderFieldName = "CameraDrawOrder";
+
+        /// <summary>
+        /// Stable tagged field name used for camera layer-mask persistence.
+        /// </summary>
+        const string CameraLayerMaskFieldName = "LayerMask";
+
+        /// <summary>
+        /// Stable tagged field name used for camera viewport persistence.
+        /// </summary>
+        const string CameraViewportFieldName = "Viewport";
+
+        /// <summary>
+        /// Stable tagged field name used for camera near clip-plane persistence.
+        /// </summary>
+        const string CameraNearPlaneDistanceFieldName = "NearPlaneDistance";
+
+        /// <summary>
+        /// Stable tagged field name used for camera far clip-plane persistence.
+        /// </summary>
+        const string CameraFarPlaneDistanceFieldName = "FarPlaneDistance";
+
+        /// <summary>
+        /// Stable tagged field name used for camera clear-settings persistence.
+        /// </summary>
+        const string CameraClearSettingsFieldName = "ClearSettings";
+
+        /// <summary>
+        /// Stable tagged field name used for camera render-settings persistence.
+        /// </summary>
+        const string CameraRenderSettingsFieldName = "RenderSettings";
 
         /// <summary>
         /// File-system scene-asset source kind used for authored shader and material assets.
@@ -64,6 +114,21 @@ namespace helengine.editor {
         const string PhysicsDemoCyanMaterialRelativePath = "Materials/physics/PhysicsDemoCyan" + EditorFileTemplateRegistry.MaterialExtension;
 
         /// <summary>
+        /// Relative project asset path for the red physics demo material.
+        /// </summary>
+        const string PhysicsDemoRedMaterialRelativePath = "Materials/physics/PhysicsDemoRed" + EditorFileTemplateRegistry.MaterialExtension;
+
+        /// <summary>
+        /// Relative project asset path for the orange physics demo material.
+        /// </summary>
+        const string PhysicsDemoOrangeMaterialRelativePath = "Materials/physics/PhysicsDemoOrange" + EditorFileTemplateRegistry.MaterialExtension;
+
+        /// <summary>
+        /// Relative project asset path for the purple physics demo material.
+        /// </summary>
+        const string PhysicsDemoPurpleMaterialRelativePath = "Materials/physics/PhysicsDemoPurple" + EditorFileTemplateRegistry.MaterialExtension;
+
+        /// <summary>
         /// Shader asset identifier derived from the shared physics demo shader path.
         /// </summary>
         const string PhysicsDemoShaderAssetId = "Shaders.physics.PhysicsDemoMesh";
@@ -87,6 +152,41 @@ namespace helengine.editor {
         /// Material constant-buffer name consumed by the shared physics demo shader.
         /// </summary>
         const string MaterialColorBufferName = "MaterialColorBuffer";
+
+        /// <summary>
+        /// Material schema id used by the shared forward standard shader.
+        /// </summary>
+        const string StandardShaderSchemaId = "standard-shader";
+
+        /// <summary>
+        /// Material field id that disables custom shader overrides on standard materials.
+        /// </summary>
+        const string UseCustomShaderFieldId = "use-custom-shader";
+
+        /// <summary>
+        /// Material field id that stores the authored standard-shader base color.
+        /// </summary>
+        const string BaseColorFieldId = "base-color";
+
+        /// <summary>
+        /// Material field id that stores the authored diffuse texture id.
+        /// </summary>
+        const string TextureAssetIdFieldId = "texture-id";
+
+        /// <summary>
+        /// Material field id that controls shadow-map casting.
+        /// </summary>
+        const string CastsShadowFieldId = "casts-shadow";
+
+        /// <summary>
+        /// Material field id that controls shadow attenuation receiving.
+        /// </summary>
+        const string ReceivesShadowFieldId = "receives-shadow";
+
+        /// <summary>
+        /// Camera clear color used by physics validation scenes.
+        /// </summary>
+        static readonly float4 CornflowerBlueClearColor = new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f);
 
         /// <summary>
         /// Shared shader source used to render the exported physics demo meshes with per-material colors and shadowed forward lighting.
@@ -335,6 +435,11 @@ namespace helengine.editor {
         const byte BoxColliderComponentPayloadVersion = 1;
 
         /// <summary>
+        /// Current payload version for serialized sphere-collider component scene records.
+        /// </summary>
+        const byte SphereColliderComponentPayloadVersion = 1;
+
+        /// <summary>
         /// Current payload version for serialized kinematic-motion component scene records.
         /// </summary>
         const byte KinematicMotionComponentPayloadVersion = 1;
@@ -391,8 +496,10 @@ namespace helengine.editor {
                 return CreateCharacterMovingPlatformScene();
             } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.DynamicStackBoxesSceneId, StringComparison.Ordinal)) {
                 return CreateDynamicStackBoxesScene();
-            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.DynamicSphereRampSceneId, StringComparison.Ordinal)) {
-                return CreateDynamicSphereRampScene();
+            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.DynamicSphereStackSceneId, StringComparison.Ordinal)) {
+                return CreateDynamicSphereStackScene();
+            } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.DynamicMixedStackSceneId, StringComparison.Ordinal)) {
+                return CreateDynamicMixedStackScene();
             } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.KinematicPushSceneId, StringComparison.Ordinal)) {
                 return CreateKinematicPushScene();
             } else if (string.Equals(sceneId, PhysicsValidationSceneCatalog.MeshGroundStabilitySceneId, StringComparison.Ordinal)) {
@@ -523,20 +630,72 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates the sphere-ramp validation scene.
+        /// Creates the dynamic sphere-stack validation scene.
         /// </summary>
-        /// <returns>Authored sphere-ramp validation scene asset.</returns>
-        SceneAsset CreateDynamicSphereRampScene() {
+        /// <returns>Authored sphere-stack validation scene asset.</returns>
+        SceneAsset CreateDynamicSphereStackScene() {
             SceneEntityAsset scenarioEntity = CreateScenarioRoot(
-                "dynamic_sphere_ramp.scenario",
-                new[] {
-                    CreateCubeMeshEntity("dynamic_sphere_ramp.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(16f, 1f, 14f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
-                    CreateCubeMeshEntity("dynamic_sphere_ramp.ramp", "Ramp", new float3(2.5f, 0.8f, 0f), new float3(6f, 0.6f, 4f), CreateYawPitchRollDegrees(0.0, 0.0, -16.0), CreatePhysicsDemoMaterialReference(PhysicsDemoCyanMaterialRelativePath)),
-                    CreateMarkerEntity("dynamic_sphere_ramp.spawn", "SphereSpawn", new float3(-3.5f, 1.5f, 0f)),
-                    CreateMarkerEntity("dynamic_sphere_ramp.goal", "RampGoal", new float3(5.5f, 1.75f, 0f))
-                });
-            SceneEntityAsset cameraEntity = CreateCameraEntity("dynamic_sphere_ramp.camera", new float3(9.5f, 5.5f, 8.5f), CreateYawPitchRollDegrees(-138.0, -18.0, 0.0));
-            return CreateSceneAsset(PhysicsValidationSceneCatalog.DynamicSphereRampSceneId, cameraEntity, scenarioEntity);
+                "dynamic_sphere_stack.scenario",
+                CreateDynamicSphereStackChildren());
+            SceneEntityAsset cameraEntity = CreateCameraEntity("dynamic_sphere_stack.camera", new float3(9.5f, 6.75f, 9f), CreateYawPitchRollDegrees(45.0, -18.0, 0.0));
+            return CreateSceneAsset(PhysicsValidationSceneCatalog.DynamicSphereStackSceneId, cameraEntity, scenarioEntity);
+        }
+
+        /// <summary>
+        /// Creates the static floor and dynamic sphere tower used by the sphere-stack validation scene.
+        /// </summary>
+        /// <returns>Scenario children containing a ground body, stacked spheres, and one spawn marker.</returns>
+        SceneEntityAsset[] CreateDynamicSphereStackChildren() {
+            List<SceneEntityAsset> children = new List<SceneEntityAsset>(10);
+            children.Add(CreatePhysicsBoxMeshEntity("dynamic_sphere_stack.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(16f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreateGeneratedStandardMaterialReference()));
+
+            for (int sphereIndex = 0; sphereIndex < 8; sphereIndex++) {
+                int sphereNumber = sphereIndex + 1;
+                float staggerX = sphereIndex % 2 == 0 ? 0f : 0.08f;
+                float staggerZ = sphereIndex % 3 == 0 ? -0.06f : 0.06f;
+                children.Add(CreatePhysicsSphereMeshEntity(
+                    "dynamic_sphere_stack.sphere" + sphereNumber.ToString("00"),
+                    "StackSphere" + sphereNumber.ToString("00"),
+                    new float3(staggerX, 0.5f + sphereIndex, staggerZ),
+                    float4.Identity,
+                    DynamicBodyKindCode,
+                    true,
+                    CreateSphereStackMaterialReference(sphereIndex)));
+            }
+
+            children.Add(CreateMarkerEntity("dynamic_sphere_stack.spawn", "SphereStackSpawn", new float3(0f, 0.5f, 0f)));
+            return children.ToArray();
+        }
+
+        /// <summary>
+        /// Creates the mixed dynamic box and sphere stack validation scene.
+        /// </summary>
+        /// <returns>Authored mixed primitive-stack validation scene asset.</returns>
+        SceneAsset CreateDynamicMixedStackScene() {
+            SceneEntityAsset scenarioEntity = CreateScenarioRoot(
+                "dynamic_mixed_stack.scenario",
+                CreateDynamicMixedStackChildren());
+            SceneEntityAsset cameraEntity = CreateCameraEntity("dynamic_mixed_stack.camera", new float3(9.5f, 6.5f, 9f), CreateYawPitchRollDegrees(45.0, -18.0, 0.0));
+            return CreateSceneAsset(PhysicsValidationSceneCatalog.DynamicMixedStackSceneId, cameraEntity, scenarioEntity);
+        }
+
+        /// <summary>
+        /// Creates one alternating stack of dynamic cubes and spheres to expose box-sphere and sphere-box contacts in the same scene.
+        /// </summary>
+        /// <returns>Scenario children containing a ground body, mixed primitive stack, and one spawn marker.</returns>
+        SceneEntityAsset[] CreateDynamicMixedStackChildren() {
+            return new[] {
+                CreatePhysicsBoxMeshEntity("dynamic_mixed_stack.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(16f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
+                CreatePhysicsBoxMeshEntity("dynamic_mixed_stack.box01", "StackBox01", new float3(0f, 0.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoBlueMaterialRelativePath)),
+                CreatePhysicsSphereMeshEntity("dynamic_mixed_stack.sphere01", "StackSphere01", new float3(0.08f, 1.5f, -0.04f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
+                CreatePhysicsBoxMeshEntity("dynamic_mixed_stack.box02", "StackBox02", new float3(-0.06f, 2.5f, 0.05f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoMagentaMaterialRelativePath)),
+                CreatePhysicsSphereMeshEntity("dynamic_mixed_stack.sphere02", "StackSphere02", new float3(0.05f, 3.5f, 0.08f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoYellowMaterialRelativePath)),
+                CreatePhysicsBoxMeshEntity("dynamic_mixed_stack.box03", "StackBox03", new float3(0.07f, 4.5f, -0.07f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoCyanMaterialRelativePath)),
+                CreatePhysicsSphereMeshEntity("dynamic_mixed_stack.sphere03", "StackSphere03", new float3(-0.05f, 5.5f, 0.04f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoRedMaterialRelativePath)),
+                CreatePhysicsBoxMeshEntity("dynamic_mixed_stack.box04", "StackBox04", new float3(0.03f, 6.5f, 0.06f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoOrangeMaterialRelativePath)),
+                CreatePhysicsSphereMeshEntity("dynamic_mixed_stack.sphere04", "StackSphere04", new float3(-0.04f, 7.5f, -0.05f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoPurpleMaterialRelativePath)),
+                CreateMarkerEntity("dynamic_mixed_stack.spawn", "MixedStackSpawn", new float3(0f, 0.5f, 0f))
+            };
         }
 
         /// <summary>
@@ -765,6 +924,50 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates one mesh-backed sphere entity that also carries serialized 3D physics records.
+        /// </summary>
+        /// <param name="entityId">Stable serialized entity id.</param>
+        /// <param name="name">Authored entity name.</param>
+        /// <param name="position">Entity position.</param>
+        /// <param name="orientation">Entity orientation.</param>
+        /// <param name="bodyKindCode">Rigid-body participation mode byte to serialize.</param>
+        /// <param name="useGravity">True when the serialized rigid body should receive gravity.</param>
+        /// <param name="materialReference">Material reference used by the visible sphere mesh.</param>
+        /// <returns>Mesh-backed entity with serialized rigid-body and sphere-collider records.</returns>
+        SceneEntityAsset CreatePhysicsSphereMeshEntity(
+            string entityId,
+            string name,
+            float3 position,
+            float4 orientation,
+            byte bodyKindCode,
+            bool useGravity,
+            SceneAssetReference materialReference) {
+            if (string.IsNullOrWhiteSpace(entityId)) {
+                throw new ArgumentException("Physics sphere entity id must be provided.", nameof(entityId));
+            }
+            if (string.IsNullOrWhiteSpace(name)) {
+                throw new ArgumentException("Physics sphere entity name must be provided.", nameof(name));
+            }
+            if (materialReference == null) {
+                throw new ArgumentNullException(nameof(materialReference));
+            }
+
+            return new SceneEntityAsset {
+                Id = AllocateSceneEntityId(),
+                Name = name,
+                LocalPosition = position,
+                LocalScale = float3.One,
+                LocalOrientation = orientation,
+                Components = new[] {
+                    CreateMeshComponentRecord(CreateGeneratedReference(EngineGeneratedAssetProvider.SphereRelativePath, EngineGeneratedModelCache.SphereAssetId), materialReference),
+                    CreateRigidBodyComponentRecord(bodyKindCode, useGravity, 1d, 1d, float3.Zero, 1),
+                    CreateSphereColliderComponentRecord(0.5f, 2)
+                },
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
         /// Creates one mesh-backed box entity that also carries serialized 3D kinematic-motion records.
         /// </summary>
         /// <param name="entityId">Stable serialized entity id.</param>
@@ -898,13 +1101,41 @@ namespace helengine.editor {
         static SceneAssetReference[] CreateAssetReferences() {
             return new[] {
                 CreateGeneratedReference(EngineGeneratedAssetProvider.CubeRelativePath, EngineGeneratedModelCache.CubeAssetId),
+                CreateGeneratedReference(EngineGeneratedAssetProvider.SphereRelativePath, EngineGeneratedModelCache.SphereAssetId),
+                CreateGeneratedStandardMaterialReference(),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoBlueMaterialRelativePath),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoMagentaMaterialRelativePath),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoYellowMaterialRelativePath),
-                CreatePhysicsDemoMaterialReference(PhysicsDemoCyanMaterialRelativePath)
+                CreatePhysicsDemoMaterialReference(PhysicsDemoCyanMaterialRelativePath),
+                CreatePhysicsDemoMaterialReference(PhysicsDemoRedMaterialRelativePath),
+                CreatePhysicsDemoMaterialReference(PhysicsDemoOrangeMaterialRelativePath),
+                CreatePhysicsDemoMaterialReference(PhysicsDemoPurpleMaterialRelativePath)
             };
+        }
+
+        /// <summary>
+        /// Creates the file-backed material reference assigned to one dynamic sphere in the sphere-stack validation scene.
+        /// </summary>
+        /// <param name="sphereIndex">Zero-based sphere index.</param>
+        /// <returns>Distinct colored material reference for the requested sphere.</returns>
+        static SceneAssetReference CreateSphereStackMaterialReference(int sphereIndex) {
+            if (sphereIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(sphereIndex), "Sphere index must be non-negative.");
+            }
+
+            string[] materialPaths = {
+                PhysicsDemoBlueMaterialRelativePath,
+                PhysicsDemoGreenMaterialRelativePath,
+                PhysicsDemoMagentaMaterialRelativePath,
+                PhysicsDemoYellowMaterialRelativePath,
+                PhysicsDemoCyanMaterialRelativePath,
+                PhysicsDemoRedMaterialRelativePath,
+                PhysicsDemoOrangeMaterialRelativePath,
+                PhysicsDemoPurpleMaterialRelativePath
+            };
+            return CreatePhysicsDemoMaterialReference(materialPaths[sphereIndex % materialPaths.Length]);
         }
 
         /// <summary>
@@ -923,6 +1154,14 @@ namespace helengine.editor {
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };
+        }
+
+        /// <summary>
+        /// Creates one generated reference to the platform-owned standard material.
+        /// </summary>
+        /// <returns>Generated standard material scene asset reference.</returns>
+        static SceneAssetReference CreateGeneratedStandardMaterialReference() {
+            return CreateGeneratedReference(EngineGeneratedAssetProvider.StandardMaterialRelativePath, EngineGeneratedMaterialCache.StandardAssetId);
         }
 
         /// <summary>
@@ -958,18 +1197,32 @@ namespace helengine.editor {
 
             SceneAssetReference modelReference = CreateGeneratedReference(EngineGeneratedAssetProvider.CubeRelativePath, EngineGeneratedModelCache.CubeAssetId);
 
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            MeshComponentScenePayloadSerializer.Write(
-                writer,
-                modelReference,
-                new[] { materialReference },
-                DefaultMeshRenderOrder);
+            return CreateMeshComponentRecord(modelReference, materialReference);
+        }
+
+        /// <summary>
+        /// Creates one serialized mesh component record that references the supplied generated model and material.
+        /// </summary>
+        /// <param name="modelReference">Generated model reference serialized into the mesh component payload.</param>
+        /// <param name="materialReference">Material reference serialized into the mesh component payload.</param>
+        /// <returns>Serialized mesh component record.</returns>
+        static SceneComponentAssetRecord CreateMeshComponentRecord(SceneAssetReference modelReference, SceneAssetReference materialReference) {
+            if (modelReference == null) {
+                throw new ArgumentNullException(nameof(modelReference));
+            }
+            if (materialReference == null) {
+                throw new ArgumentNullException(nameof(materialReference));
+            }
+
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField(MeshModelReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, modelReference));
+            writer.WriteField(MeshMaterialReferencesFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(fieldWriter, new[] { materialReference }));
+            writer.WriteField(MeshRenderOrder3DFieldName, fieldWriter => fieldWriter.WriteByte(DefaultMeshRenderOrder));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.MeshComponent",
                 ComponentIndex = 0,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 
@@ -978,26 +1231,25 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Serialized camera component record.</returns>
         static SceneComponentAssetRecord CreateCameraComponentRecord() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            writer.WriteByte(DefaultCameraDrawOrder);
-            writer.WriteUInt16(EditorLayerMasks.SceneObjects);
-            WriteFloat4(writer, new float4(0f, 0f, 1f, 1f));
-            writer.WriteByte(1);
-            WriteFloat4(writer, new float4(0f, 0f, 0f, 0f));
-            writer.WriteByte(1);
-            writer.WriteSingle(1f);
-            writer.WriteByte(0);
-            writer.WriteByte(0);
-            writer.WriteByte((byte)DepthPrepassMode.Disabled);
-            writer.WriteSingle(0f);
-            writer.WriteByte((byte)PostProcessTier.Disabled);
+            CameraClearSettings clearSettings = new CameraClearSettings(true, CornflowerBlueClearColor, true, 1f, false, 0);
+            CameraRenderSettings renderSettings = new CameraRenderSettings {
+                DepthPrepassMode = DepthPrepassMode.Disabled,
+                ShadowDistance = 0f,
+                PostProcessTier = PostProcessTier.Disabled
+            };
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField(CameraDrawOrderFieldName, fieldWriter => fieldWriter.WriteByte(DefaultCameraDrawOrder));
+            writer.WriteField(CameraLayerMaskFieldName, fieldWriter => fieldWriter.WriteUInt16(EditorLayerMasks.SceneObjects));
+            writer.WriteField(CameraViewportFieldName, fieldWriter => fieldWriter.WriteFloat4(new float4(0f, 0f, 1f, 1f)));
+            writer.WriteField(CameraNearPlaneDistanceFieldName, fieldWriter => fieldWriter.WriteSingle(0.1f));
+            writer.WriteField(CameraFarPlaneDistanceFieldName, fieldWriter => fieldWriter.WriteSingle(100f));
+            writer.WriteField(CameraClearSettingsFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraClearSettings(fieldWriter, clearSettings));
+            writer.WriteField(CameraRenderSettingsFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraRenderSettings(fieldWriter, renderSettings));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.CameraComponent",
                 ComponentIndex = 0,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 
@@ -1040,22 +1292,12 @@ namespace helengine.editor {
         static SceneComponentAssetRecord CreateDirectionalLightComponentRecord() {
             DirectionalLightComponent lightComponent = new DirectionalLightComponent {
                 Color = new float4(1.0f, 0.96f, 0.90f, 1.0f),
-                Intensity = 2.35f,
+                Intensity = 1f,
                 ShadowsEnabled = true,
                 ShadowMapMode = ShadowMapMode.Forced,
                 ShadowStrength = 0.95f
             };
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteDirectionalLight(writer, lightComponent);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = "helengine.DirectionalLightComponent",
-                ComponentIndex = 0,
-                Payload = stream.ToArray()
-            };
+            return CreateAutomaticComponentRecord(lightComponent, 0);
         }
 
         /// <summary>
@@ -1067,13 +1309,31 @@ namespace helengine.editor {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
 
-            WriteShaderAsset(projectRootPath);
+            DeleteObsoletePhysicsDemoShaderAsset(projectRootPath);
             WriteMaterialAsset(projectRootPath, PhysicsDemoNeutralMaterialRelativePath, "PhysicsDemoNeutral", new float4(0.77f, 0.80f, 0.84f, 1.0f));
             WriteMaterialAsset(projectRootPath, PhysicsDemoBlueMaterialRelativePath, "PhysicsDemoBlue", new float4(0.33f, 0.56f, 0.90f, 1.0f));
             WriteMaterialAsset(projectRootPath, PhysicsDemoGreenMaterialRelativePath, "PhysicsDemoGreen", new float4(0.38f, 0.76f, 0.49f, 1.0f));
             WriteMaterialAsset(projectRootPath, PhysicsDemoMagentaMaterialRelativePath, "PhysicsDemoMagenta", new float4(0.84f, 0.42f, 0.73f, 1.0f));
             WriteMaterialAsset(projectRootPath, PhysicsDemoYellowMaterialRelativePath, "PhysicsDemoYellow", new float4(0.92f, 0.79f, 0.33f, 1.0f));
             WriteMaterialAsset(projectRootPath, PhysicsDemoCyanMaterialRelativePath, "PhysicsDemoCyan", new float4(0.31f, 0.79f, 0.82f, 1.0f));
+            WriteMaterialAsset(projectRootPath, PhysicsDemoRedMaterialRelativePath, "PhysicsDemoRed", new float4(0.90f, 0.32f, 0.29f, 1.0f));
+            WriteMaterialAsset(projectRootPath, PhysicsDemoOrangeMaterialRelativePath, "PhysicsDemoOrange", new float4(0.95f, 0.52f, 0.22f, 1.0f));
+            WriteMaterialAsset(projectRootPath, PhysicsDemoPurpleMaterialRelativePath, "PhysicsDemoPurple", new float4(0.55f, 0.43f, 0.92f, 1.0f));
+        }
+
+        /// <summary>
+        /// Deletes the obsolete custom shader generated by older physics demo material exports.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute project root path that owns the `assets` directory.</param>
+        static void DeleteObsoletePhysicsDemoShaderAsset(string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            string fullPath = Path.Combine(projectRootPath, "assets", PhysicsDemoShaderRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(fullPath)) {
+                File.Delete(fullPath);
+            }
         }
 
         /// <summary>
@@ -1101,7 +1361,7 @@ namespace helengine.editor {
         /// <param name="projectRootPath">Absolute project root path that owns the `assets` directory.</param>
         /// <param name="relativePath">Relative project asset path for the material file.</param>
         /// <param name="assetId">Serialized material asset identifier.</param>
-        /// <param name="surfaceColor">Authored constant-buffer color passed into the demo shader.</param>
+        /// <param name="surfaceColor">Authored standard material base color.</param>
         static void WriteMaterialAsset(string projectRootPath, string relativePath, string assetId, float4 surfaceColor) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
@@ -1113,45 +1373,52 @@ namespace helengine.editor {
                 throw new ArgumentException("Asset id must be provided.", nameof(assetId));
             }
 
-            string fullPath = Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
-            string directoryPath = Path.GetDirectoryName(fullPath);
-            if (string.IsNullOrWhiteSpace(directoryPath)) {
-                throw new InvalidOperationException($"Could not resolve a directory path for material '{relativePath}'.");
-            }
-
-            Directory.CreateDirectory(directoryPath);
-
-            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
-                Id = assetId,
-                ShaderAssetId = PhysicsDemoShaderAssetId,
-                VertexProgram = PhysicsDemoVertexProgramName,
-                PixelProgram = PhysicsDemoPixelProgramName,
-                Variant = PhysicsDemoVariantName,
-                ConstantBuffers = new[] {
-                    new MaterialConstantBufferAsset {
-                        Name = MaterialColorBufferName,
-                        Data = CreateFloat4ConstantBufferData(surfaceColor)
-                    }
+            GeneratedMaterialAssetDefinition definition = new GeneratedMaterialAssetDefinition {
+                MaterialAsset = new MaterialAsset {
+                    Id = assetId,
+                    RenderState = new MaterialRenderState(),
+                    CastsShadows = true,
+                    ReceivesShadows = true
                 }
             };
 
-            using FileStream stream = File.Create(fullPath);
-            AssetSerializer.Serialize(stream, materialAsset);
+            IReadOnlyList<string> supportedPlatforms = new EditorProjectPlatformsService(projectRootPath).Load().SupportedPlatforms;
+            for (int platformIndex = 0; platformIndex < supportedPlatforms.Count; platformIndex++) {
+                GeneratedMaterialPlatformDefinition platformDefinition = definition.GetOrCreatePlatform(supportedPlatforms[platformIndex]);
+                platformDefinition.SchemaId = StandardShaderSchemaId;
+                platformDefinition.SetFieldValue(UseCustomShaderFieldId, "false");
+                platformDefinition.SetFieldValue(TextureAssetIdFieldId, string.Empty);
+                platformDefinition.SetFieldValue(CastsShadowFieldId, "true");
+                platformDefinition.SetFieldValue(ReceivesShadowFieldId, "true");
+                platformDefinition.SetFieldValue(BaseColorFieldId, ConvertColorToHtml(surfaceColor));
+            }
+
+            GeneratedMaterialAssetWriteService writeService = new GeneratedMaterialAssetWriteService();
+            writeService.WriteMaterial(projectRootPath, relativePath, definition);
         }
 
         /// <summary>
-        /// Packs one <see cref="float4"/> into the exact 16-byte constant-buffer payload consumed by the demo mesh shader.
+        /// Converts one normalized color into the material settings HTML color format.
         /// </summary>
-        /// <param name="value">Vector value to serialize.</param>
-        /// <returns>Packed constant-buffer bytes.</returns>
-        static byte[] CreateFloat4ConstantBufferData(float4 value) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
-            writer.WriteSingle(value.W);
-            return stream.ToArray();
+        /// <param name="color">Normalized color value to serialize.</param>
+        /// <returns>HTML color string in #RRGGBBAA format.</returns>
+        static string ConvertColorToHtml(float4 color) {
+            return string.Concat(
+                "#",
+                ConvertColorChannelToByte(color.X).ToString("X2"),
+                ConvertColorChannelToByte(color.Y).ToString("X2"),
+                ConvertColorChannelToByte(color.Z).ToString("X2"),
+                ConvertColorChannelToByte(color.W).ToString("X2"));
+        }
+
+        /// <summary>
+        /// Converts one normalized color channel into an 8-bit channel value.
+        /// </summary>
+        /// <param name="value">Normalized channel value.</param>
+        /// <returns>Clamped byte channel.</returns>
+        static byte ConvertColorChannelToByte(float value) {
+            double scaledValue = Math.Round(Math.Clamp((double)value, 0d, 1d) * 255d, MidpointRounding.AwayFromZero);
+            return (byte)scaledValue;
         }
 
         /// <summary>
@@ -1175,20 +1442,15 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(componentIndex), "Component index must be non-negative.");
             }
 
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(RigidBodyComponentPayloadVersion);
-            writer.WriteByte(bodyKindCode);
-            writer.WriteByte(useGravity ? (byte)1 : (byte)0);
-            writer.WriteSingle((float)mass);
-            writer.WriteSingle((float)gravityScale);
-            writer.WriteFloat3(linearVelocity);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = "helengine.RigidBody3DComponent",
-                ComponentIndex = componentIndex,
-                Payload = stream.ToArray()
+            RigidBody3DComponent component = new RigidBody3DComponent {
+                AngularVelocity = float3.Zero,
+                BodyKind = ResolveBodyKind(bodyKindCode),
+                GravityScale = gravityScale,
+                LinearVelocity = linearVelocity,
+                Mass = mass,
+                UseGravity = useGravity
             };
+            return CreateAutomaticComponentRecord(component, componentIndex);
         }
 
         /// <summary>
@@ -1202,16 +1464,79 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(componentIndex), "Component index must be non-negative.");
             }
 
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(BoxColliderComponentPayloadVersion);
-            writer.WriteFloat3(size);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = "helengine.BoxCollider3DComponent",
-                ComponentIndex = componentIndex,
-                Payload = stream.ToArray()
+            BoxCollider3DComponent component = new BoxCollider3DComponent {
+                CollisionLayer = 1,
+                CollisionMask = ushort.MaxValue,
+                DynamicFriction = 0.4d,
+                IsTrigger = false,
+                Restitution = 0d,
+                Size = size,
+                StaticFriction = 0.6d
             };
+            return CreateAutomaticComponentRecord(component, componentIndex);
+        }
+
+        /// <summary>
+        /// Creates one serialized sphere-collider component record.
+        /// </summary>
+        /// <param name="radius">Serialized authored sphere radius.</param>
+        /// <param name="componentIndex">Entity-local component order index.</param>
+        /// <returns>Serialized sphere-collider component record.</returns>
+        static SceneComponentAssetRecord CreateSphereColliderComponentRecord(float radius, int componentIndex) {
+            if (float.IsNaN(radius) || float.IsInfinity(radius) || radius <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(radius), "Sphere radius must be a finite value greater than zero.");
+            }
+            if (componentIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(componentIndex), "Component index must be non-negative.");
+            }
+
+            SphereCollider3DComponent component = new SphereCollider3DComponent {
+                CollisionLayer = 1,
+                CollisionMask = ushort.MaxValue,
+                DynamicFriction = 0.4d,
+                IsTrigger = false,
+                Radius = radius,
+                Restitution = 0d,
+                StaticFriction = 0.6d
+            };
+            return CreateAutomaticComponentRecord(component, componentIndex);
+        }
+
+        /// <summary>
+        /// Serializes one generated component through the same reflected editor payload path used by authored scene components.
+        /// </summary>
+        /// <param name="component">Component instance to serialize.</param>
+        /// <param name="componentIndex">Entity-local component order index.</param>
+        /// <returns>Serialized scene component record.</returns>
+        static SceneComponentAssetRecord CreateAutomaticComponentRecord(Component component, int componentIndex) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (componentIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(componentIndex), "Component index must be non-negative.");
+            }
+
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return descriptor.SerializeComponent(component, componentIndex, null);
+        }
+
+        /// <summary>
+        /// Converts the compact generated body-kind code into the runtime enum used by reflected persistence.
+        /// </summary>
+        /// <param name="bodyKindCode">Serialized generated body-kind code.</param>
+        /// <returns>Runtime body-kind enum value.</returns>
+        static BodyKind3D ResolveBodyKind(byte bodyKindCode) {
+            if (bodyKindCode == StaticBodyKindCode) {
+                return BodyKind3D.Static;
+            }
+            if (bodyKindCode == KinematicBodyKindCode) {
+                return BodyKind3D.Kinematic;
+            }
+            if (bodyKindCode == DynamicBodyKindCode) {
+                return BodyKind3D.Dynamic;
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(bodyKindCode), "Unsupported generated rigid-body kind code.");
         }
 
         /// <summary>

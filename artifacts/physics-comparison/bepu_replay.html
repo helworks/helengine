@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BEPU Box Stack Replay</title>
+  <style>
+    :root {
+      --bg: #0d1017;
+      --panel: rgba(20, 26, 38, 0.88);
+      --text: #e8eefc;
+      --muted: #92a1bc;
+      --accent: #7bc7a5;
+      --grid: rgba(128, 160, 190, 0.22);
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at top left, #20344a 0, var(--bg) 48%, #090b10 100%);
+      color: var(--text);
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #hud {
+      position: fixed;
+      left: 18px;
+      top: 18px;
+      min-width: 360px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      background: var(--panel);
+      box-shadow: 0 20px 70px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(12px);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    #status,
+    #stats {
+      margin: 6px 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    #controls {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+    }
+
+    button,
+    select {
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #07110d;
+      font-weight: 700;
+      padding: 9px 12px;
+    }
+
+    select {
+      background: #d8e7f6;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    #legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <section id="hud">
+    <h1>BEPU Box Stack Replay</h1>
+    <p id="status">Loading trace...</p>
+    <p id="stats"></p>
+    <div id="controls">
+      <button id="play">Pause</button>
+      <input id="scrub" type="range" min="0" max="1" value="0">
+      <select id="speed">
+        <option value="0.25">0.25x</option>
+        <option value="0.5">0.5x</option>
+        <option value="1" selected>1x</option>
+        <option value="2">2x</option>
+        <option value="4">4x</option>
+      </select>
+    </div>
+    <div id="legend"></div>
+  </section>
+
+  <script>
+    const canvas = document.getElementById("view");
+    const context = canvas.getContext("2d");
+    const statusText = document.getElementById("status");
+    const statsText = document.getElementById("stats");
+    const playButton = document.getElementById("play");
+    const scrub = document.getElementById("scrub");
+    const speed = document.getElementById("speed");
+    const legend = document.getElementById("legend");
+
+    const colors = ["#7bc7a5", "#6da8ff", "#f0c56a", "#f08a6a", "#bf91ff", "#70d6e5", "#eb77a6", "#c9d47b"];
+    const faceLight = [0.85, 0.95, 0.65, 0.75, 1.1, 0.55];
+    const cubeCorners = [
+      [-0.5, -0.5, -0.5],
+      [0.5, -0.5, -0.5],
+      [0.5, 0.5, -0.5],
+      [-0.5, 0.5, -0.5],
+      [-0.5, -0.5, 0.5],
+      [0.5, -0.5, 0.5],
+      [0.5, 0.5, 0.5],
+      [-0.5, 0.5, 0.5]
+    ];
+    const cubeFaces = [
+      [0, 1, 2, 3],
+      [4, 7, 6, 5],
+      [0, 4, 5, 1],
+      [3, 2, 6, 7],
+      [1, 5, 6, 2],
+      [0, 3, 7, 4]
+    ];
+    const cubeEdges = [
+      [0, 1], [1, 2], [2, 3], [3, 0],
+      [4, 5], [5, 6], [6, 7], [7, 4],
+      [0, 4], [1, 5], [2, 6], [3, 7]
+    ];
+
+    let frames = [];
+    let bodyNames = [];
+    let currentStep = 0;
+    let playing = true;
+    let previousTimestamp = 0;
+
+    function resizeCanvas() {
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(window.innerWidth * ratio);
+      canvas.height = Math.floor(window.innerHeight * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function parseTrace(text) {
+      const lines = text.trim().split(/\r?\n/);
+      const header = lines[0].split(",");
+      const indexes = {};
+      const byStep = new Map();
+      const bodies = new Set();
+
+      for (let index = 0; index < header.length; index++) {
+        indexes[header[index]] = index;
+      }
+
+      for (let lineIndex = 1; lineIndex < lines.length; lineIndex++) {
+        const cells = lines[lineIndex].split(",");
+        const step = Number(cells[indexes.step]);
+        const body = cells[indexes.body];
+        const sample = {
+          body,
+          time: Number(cells[indexes.time]),
+          position: {
+            x: Number(cells[indexes.positionX]),
+            y: Number(cells[indexes.positionY]),
+            z: Number(cells[indexes.positionZ])
+          },
+          orientation: {
+            x: Number(cells[indexes.orientationX]),
+            y: Number(cells[indexes.orientationY]),
+            z: Number(cells[indexes.orientationZ]),
+            w: Number(cells[indexes.orientationW])
+          },
+          linearVelocity: {
+            x: Number(cells[indexes.linearVelocityX]),
+            y: Number(cells[indexes.linearVelocityY]),
+            z: Number(cells[indexes.linearVelocityZ])
+          },
+          angularVelocity: {
+            x: Number(cells[indexes.angularVelocityX]),
+            y: Number(cells[indexes.angularVelocityY]),
+            z: Number(cells[indexes.angularVelocityZ])
+          }
+        };
+
+        bodies.add(body);
+
+        if (!byStep.has(step)) {
+          byStep.set(step, []);
+        }
+
+        byStep.get(step).push(sample);
+      }
+
+      bodyNames = Array.from(bodies).sort();
+      frames = Array.from(byStep.keys())
+        .sort((left, right) => left - right)
+        .map(step => {
+          const bodiesByName = new Map();
+          for (const sample of byStep.get(step)) {
+            bodiesByName.set(sample.body, sample);
+          }
+
+          return {
+            step,
+            samples: bodyNames.map(body => bodiesByName.get(body)).filter(Boolean)
+          };
+        });
+    }
+
+    function add(left, right) {
+      return { x: left.x + right.x, y: left.y + right.y, z: left.z + right.z };
+    }
+
+    function subtract(left, right) {
+      return { x: left.x - right.x, y: left.y - right.y, z: left.z - right.z };
+    }
+
+    function scale(value, amount) {
+      return { x: value.x * amount, y: value.y * amount, z: value.z * amount };
+    }
+
+    function dot(left, right) {
+      return left.x * right.x + left.y * right.y + left.z * right.z;
+    }
+
+    function cross(left, right) {
+      return {
+        x: left.y * right.z - left.z * right.y,
+        y: left.z * right.x - left.x * right.z,
+        z: left.x * right.y - left.y * right.x
+      };
+    }
+
+    function normalize(value) {
+      const length = Math.sqrt(dot(value, value));
+      return scale(value, 1 / length);
+    }
+
+    function rotateByQuaternion(point, rotation) {
+      const vector = { x: rotation.x, y: rotation.y, z: rotation.z };
+      const uv = cross(vector, point);
+      const uuv = cross(vector, uv);
+      return add(point, add(scale(uv, 2 * rotation.w), scale(uuv, 2)));
+    }
+
+    function createCamera() {
+      const time = performance.now() * 0.00008;
+      const target = { x: 0, y: 5, z: 0 };
+      const camera = {
+        x: Math.cos(time) * 12,
+        y: 8,
+        z: Math.sin(time) * 12
+      };
+      const forward = normalize(subtract(target, camera));
+      const right = normalize(cross(forward, { x: 0, y: 1, z: 0 }));
+      const up = cross(right, forward);
+      return { camera, forward, right, up };
+    }
+
+    function project(point, camera) {
+      const relative = subtract(point, camera.camera);
+      const depth = dot(relative, camera.forward);
+
+      if (depth <= 0.1) {
+        return null;
+      }
+
+      const focal = Math.min(window.innerWidth, window.innerHeight) * 0.78;
+      return {
+        x: window.innerWidth * 0.5 + dot(relative, camera.right) * focal / depth,
+        y: window.innerHeight * 0.58 - dot(relative, camera.up) * focal / depth,
+        depth
+      };
+    }
+
+    function shadeColor(color, amount) {
+      const r = Math.min(255, Math.max(0, parseInt(color.slice(1, 3), 16) * amount));
+      const g = Math.min(255, Math.max(0, parseInt(color.slice(3, 5), 16) * amount));
+      const b = Math.min(255, Math.max(0, parseInt(color.slice(5, 7), 16) * amount));
+      return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+    }
+
+    function drawGrid(camera) {
+      context.lineWidth = 1;
+      context.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--grid");
+
+      for (let value = -8; value <= 8; value++) {
+        drawWorldLine({ x: value, y: 0, z: -8 }, { x: value, y: 0, z: 8 }, camera);
+        drawWorldLine({ x: -8, y: 0, z: value }, { x: 8, y: 0, z: value }, camera);
+      }
+    }
+
+    function drawWorldLine(start, end, camera) {
+      const projectedStart = project(start, camera);
+      const projectedEnd = project(end, camera);
+
+      if (!projectedStart || !projectedEnd) {
+        return;
+      }
+
+      context.beginPath();
+      context.moveTo(projectedStart.x, projectedStart.y);
+      context.lineTo(projectedEnd.x, projectedEnd.y);
+      context.stroke();
+    }
+
+    function drawCube(sample, bodyIndex, camera, drawCommands) {
+      const color = colors[bodyIndex % colors.length];
+      const worldCorners = cubeCorners.map(corner => {
+        const rotated = rotateByQuaternion({ x: corner[0], y: corner[1], z: corner[2] }, sample.orientation);
+        return add(sample.position, rotated);
+      });
+      const projected = worldCorners.map(corner => project(corner, camera));
+
+      for (let faceIndex = 0; faceIndex < cubeFaces.length; faceIndex++) {
+        const face = cubeFaces[faceIndex];
+        const facePoints = face.map(index => projected[index]);
+
+        if (facePoints.some(point => !point)) {
+          continue;
+        }
+
+        const depth = facePoints.reduce((sum, point) => sum + point.depth, 0) / facePoints.length;
+        drawCommands.push({
+          depth,
+          draw: () => {
+            context.beginPath();
+            context.moveTo(facePoints[0].x, facePoints[0].y);
+            for (let pointIndex = 1; pointIndex < facePoints.length; pointIndex++) {
+              context.lineTo(facePoints[pointIndex].x, facePoints[pointIndex].y);
+            }
+            context.closePath();
+            context.fillStyle = shadeColor(color, faceLight[faceIndex]);
+            context.fill();
+            context.strokeStyle = "rgba(5, 10, 18, 0.75)";
+            context.lineWidth = 1.5;
+            context.stroke();
+          }
+        });
+      }
+
+      drawCommands.push({
+        depth: Math.max(...projected.filter(Boolean).map(point => point.depth)),
+        draw: () => {
+          context.strokeStyle = "rgba(255, 255, 255, 0.24)";
+          context.lineWidth = 1;
+          for (const edge of cubeEdges) {
+            const start = projected[edge[0]];
+            const end = projected[edge[1]];
+
+            if (!start || !end) {
+              continue;
+            }
+
+            context.beginPath();
+            context.moveTo(start.x, start.y);
+            context.lineTo(end.x, end.y);
+            context.stroke();
+          }
+        }
+      });
+    }
+
+    function drawFrame(timestamp) {
+      if (!previousTimestamp) {
+        previousTimestamp = timestamp;
+      }
+
+      const elapsed = (timestamp - previousTimestamp) / 1000;
+      previousTimestamp = timestamp;
+
+      if (playing && frames.length > 0) {
+        currentStep = (currentStep + elapsed * 60 * Number(speed.value)) % frames.length;
+        scrub.value = String(Math.floor(currentStep));
+      }
+
+      context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+      if (frames.length > 0) {
+        const frame = frames[Math.min(frames.length - 1, Math.floor(currentStep))];
+        const camera = createCamera();
+        const drawCommands = [];
+
+        drawGrid(camera);
+
+        for (let index = 0; index < frame.samples.length; index++) {
+          drawCube(frame.samples[index], index, camera, drawCommands);
+        }
+
+        drawCommands.sort((left, right) => right.depth - left.depth);
+
+        for (const command of drawCommands) {
+          command.draw();
+        }
+
+        const maxAngular = frame.samples.reduce((max, sample) => {
+          const velocity = Math.sqrt(dot(sample.angularVelocity, sample.angularVelocity));
+          return Math.max(max, velocity);
+        }, 0);
+
+        statsText.textContent = `Step ${frame.step} / ${frames.length - 1} | Time ${frame.samples[0].time.toFixed(3)}s | Max angular ${maxAngular.toFixed(3)} rad/s`;
+      }
+
+      requestAnimationFrame(drawFrame);
+    }
+
+    function buildLegend() {
+      legend.innerHTML = "";
+
+      for (let index = 0; index < bodyNames.length; index++) {
+        const tag = document.createElement("span");
+        const swatch = document.createElement("span");
+        swatch.className = "swatch";
+        swatch.style.background = colors[index % colors.length];
+        tag.className = "tag";
+        tag.appendChild(swatch);
+        tag.append(document.createTextNode(bodyNames[index]));
+        legend.appendChild(tag);
+      }
+    }
+
+    playButton.addEventListener("click", () => {
+      playing = !playing;
+      playButton.textContent = playing ? "Pause" : "Play";
+    });
+
+    scrub.addEventListener("input", () => {
+      playing = false;
+      playButton.textContent = "Play";
+      currentStep = Number(scrub.value);
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    fetch("output/bepu-trace.csv")
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        return response.text();
+      })
+      .then(text => {
+        parseTrace(text);
+        scrub.max = String(frames.length - 1);
+        statusText.textContent = `Loaded ${frames.length} BEPU frames across ${bodyNames.length} bodies from output/bepu-trace.csv.`;
+        buildLegend();
+      })
+      .catch(error => {
+        statusText.textContent = `Failed to load BEPU trace: ${error.message}. Serve this directory over HTTP so the CSV can be fetched.`;
+      });
+
+    requestAnimationFrame(drawFrame);
+  </script>
+</body>
+</html>

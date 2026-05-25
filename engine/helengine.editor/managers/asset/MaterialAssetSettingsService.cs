@@ -259,6 +259,11 @@ namespace helengine.editor {
 
             MaterialAssetCommonSettingsDocument commonDocument;
             if (!TryLoadCommonDocument(materialAssetPath, out commonDocument)) {
+                ShaderMaterialAsset legacyShaderMaterialAsset;
+                if (TryLoadLegacyShaderMaterialAsset(materialAssetPath, out legacyShaderMaterialAsset)) {
+                    return legacyShaderMaterialAsset;
+                }
+
                 throw new InvalidOperationException($"Material document '{materialAssetPath}' could not be loaded.");
             }
 
@@ -272,6 +277,28 @@ namespace helengine.editor {
             shaderMaterialAsset.Id = commonDocument.Importer.AssetId ?? string.Empty;
             PopulateShaderMaterialAsset(shaderMaterialAsset, platformSettings);
             return shaderMaterialAsset;
+        }
+
+        /// <summary>
+        /// Attempts to load one legacy raw shader-material payload from the base material `.hasset` file.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="shaderMaterialAsset">Loaded shader-owned material payload when the base file stores one legacy raw shader material.</param>
+        /// <returns>True when the legacy raw shader material was loaded successfully.</returns>
+        bool TryLoadLegacyShaderMaterialAsset(string materialAssetPath, out ShaderMaterialAsset shaderMaterialAsset) {
+            shaderMaterialAsset = null;
+            if (string.IsNullOrWhiteSpace(materialAssetPath) || !File.Exists(materialAssetPath)) {
+                return false;
+            }
+
+            try {
+                using FileStream stream = new FileStream(materialAssetPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                shaderMaterialAsset = ShaderMaterialAssetBinarySerializer.Deserialize(stream);
+                return shaderMaterialAsset != null;
+            } catch {
+                shaderMaterialAsset = null;
+                return false;
+            }
         }
 
         /// <summary>

@@ -113,6 +113,40 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     }
 
     /// <summary>
+    /// Ensures scene-level material asset references also route through the builder-owned material cook path instead of being copied as raw authored assets.
+    /// </summary>
+    [Fact]
+    public void Package_when_scene_level_asset_reference_targets_material_routes_reference_through_material_cook_path() {
+        string sceneId = "Scenes/TestScene.helen";
+        string materialRelativePath = "Materials/TestMaterial.helmat";
+        SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
+        WriteMaterialAsset(materialRelativePath, "StaleShader");
+        WriteMaterialSettings(materialRelativePath);
+        WriteSceneAssetWithSceneLevelMaterialReference(sceneId, materialRelativePath);
+
+        IPlatformAssetBuilder builder = new TestPlatformAssetBuilder();
+        EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+            ProjectRootPath,
+            Array.Empty<IAssetImporterRegistration>(),
+            "windows",
+            builder,
+            "debug",
+            "directx11");
+        packager.Package(new[] { sceneId }, BuildRootPath);
+
+        string packagedScenePath = Path.Combine(BuildRootPath, sceneId.Replace('/', Path.DirectorySeparatorChar));
+        using FileStream sceneStream = new FileStream(packagedScenePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        SceneAsset packagedSceneAsset = Assert.IsType<SceneAsset>(global::helengine.editor.AssetSerializer.Deserialize(sceneStream));
+        SceneAssetReference packagedReference = Assert.Single(packagedSceneAsset.AssetReferences);
+        Assert.Equal("cooked/Materials/TestMaterial.hasset", packagedReference.RelativePath);
+
+        string packagedMaterialPath = Path.Combine(BuildRootPath, "cooked", "Materials", "TestMaterial.hasset");
+        using FileStream materialStream = new FileStream(packagedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        MaterialAsset packagedMaterial = Assert.IsType<MaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(materialStream));
+        Assert.Equal("CookedShader", packagedMaterial.ShaderAssetId);
+    }
+
+    /// <summary>
     /// Writes one serialized scene asset that references the supplied material path from a mesh component payload.
     /// </summary>
     /// <param name="sceneId">Scene asset id to write.</param>
@@ -140,6 +174,32 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
                     Children = Array.Empty<SceneEntityAsset>()
                 }
             ]
+        };
+
+        using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        global::helengine.editor.AssetSerializer.Serialize(stream, sceneAsset);
+    }
+
+    /// <summary>
+    /// Writes one serialized scene asset that carries the supplied material path only through the scene-level asset reference list.
+    /// </summary>
+    /// <param name="sceneId">Scene asset id to write.</param>
+    /// <param name="materialRelativePath">Project-relative material path to reference from the scene-level asset reference list.</param>
+    void WriteSceneAssetWithSceneLevelMaterialReference(string sceneId, string materialRelativePath) {
+        string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+        SceneAsset sceneAsset = new SceneAsset {
+            Id = sceneId,
+            AssetReferences = [
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                    RelativePath = materialRelativePath,
+                    ProviderId = string.Empty,
+                    AssetId = string.Empty
+                }
+            ],
+            RootEntities = Array.Empty<SceneEntityAsset>()
         };
 
         using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);

@@ -154,7 +154,7 @@ namespace helengine.editor.tests {
         public void Show_WhenImageTextureCapabilityMetadataExists_ConstrainsTextureFormatOptions() {
             AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
-            settings.Platforms["psp"] = new AssetPlatformProcessorSettings {
+            settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
                     MaxResolution = 128,
                     ColorFormat = TextureAssetColorFormat.Rgba4444,
@@ -166,8 +166,8 @@ namespace helengine.editor.tests {
                 ["pfim"],
                 "pfim",
                 settings,
-                ["psp"],
-                "psp",
+                ["external-platform"],
+                "external-platform",
                 AssetEntryKind.Image,
                 CreatePlatformDefinitionsById());
 
@@ -187,7 +187,7 @@ namespace helengine.editor.tests {
         public void Show_WhenFontTextureCapabilityMetadataExists_ConstrainsFontTextureFormatOptions() {
             AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
-            settings.Platforms["psp"] = new AssetPlatformProcessorSettings {
+            settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
                     MaxResolution = 64,
                     ColorFormat = TextureAssetColorFormat.Indexed8,
@@ -199,8 +199,8 @@ namespace helengine.editor.tests {
                 ["test-font"],
                 "test-font",
                 settings,
-                ["psp"],
-                "psp",
+                ["external-platform"],
+                "external-platform",
                 AssetEntryKind.Font,
                 CreatePlatformDefinitionsById());
 
@@ -220,7 +220,7 @@ namespace helengine.editor.tests {
         public void Show_WhenTextureCapabilityCombinationIsInvalid_RepairsPendingSelection() {
             AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
-            settings.Platforms["psp"] = new AssetPlatformProcessorSettings {
+            settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
                     MaxResolution = 128,
                     ColorFormat = TextureAssetColorFormat.Rgba4444,
@@ -232,8 +232,8 @@ namespace helengine.editor.tests {
                 ["pfim"],
                 "pfim",
                 settings,
-                ["psp"],
-                "psp",
+                ["external-platform"],
+                "external-platform",
                 AssetEntryKind.Image,
                 CreatePlatformDefinitionsById());
 
@@ -422,9 +422,9 @@ namespace helengine.editor.tests {
         /// <returns>Platform definitions keyed by platform id.</returns>
         IReadOnlyDictionary<string, PlatformDefinition> CreatePlatformDefinitionsById() {
             return new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase) {
-                ["psp"] = new PlatformDefinition(
-                    "psp",
-                    "PlayStation Portable",
+                ["external-platform"] = new PlatformDefinition(
+                    "external-platform",
+                    "External Platform",
                     Array.Empty<PlatformBuildProfileDefinition>(),
                     Array.Empty<PlatformGraphicsProfileDefinition>(),
                     Array.Empty<PlatformAssetRequirementDefinition>(),
@@ -438,7 +438,7 @@ namespace helengine.editor.tests {
                             "texture",
                             "runtime-texture",
                             PlatformAssetCookOwnershipKind.BuilderOwned,
-                            "psp-texture",
+                            "external-platform-texture",
                             textureFormatCapabilities: new PlatformTextureFormatCapabilityDefinition(
                                 [TextureAssetColorFormat.Rgba4444.ToString(), TextureAssetColorFormat.Indexed8.ToString()],
                                 [TextureAssetAlphaPrecision.A4, TextureAssetAlphaPrecision.A8],
@@ -450,7 +450,7 @@ namespace helengine.editor.tests {
                             "font-atlas-texture",
                             "runtime-texture",
                             PlatformAssetCookOwnershipKind.BuilderOwned,
-                            "psp-font-atlas-texture",
+                            "external-platform-font-atlas-texture",
                             textureFormatCapabilities: new PlatformTextureFormatCapabilityDefinition(
                                 [TextureAssetColorFormat.Indexed8.ToString()],
                                 [TextureAssetAlphaPrecision.A8],

@@ -1,6 +1,7 @@
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
+using helengine.baseplatform.Paths;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Results;
 
@@ -557,7 +558,9 @@ namespace helengine.editor {
             }
 
             string fullScenePath = ResolveProjectAssetPath(sceneId);
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
+                EngineBinaryReadContext.CurrentAssetPath = fullScenePath;
                 using FileStream stream = File.OpenRead(fullScenePath);
                 Asset asset = AssetSerializer.Deserialize(stream);
                 if (asset is not SceneAsset sceneAsset) {
@@ -567,6 +570,8 @@ namespace helengine.editor {
                 return sceneAsset;
             } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(sceneId, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"Scene '{sceneId}' at '{fullScenePath}' could not be deserialized.", ex);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
         }
 
@@ -785,6 +790,10 @@ namespace helengine.editor {
                     return RewriteFileSystemFontReference(reference, buildRootPath);
                 }
 
+                if (IsFileSystemMaterialReference(reference.RelativePath)) {
+                    return RewriteFileSystemMaterialReference(reference, buildRootPath);
+                }
+
                 string copiedRelativePath = NormalizeRelativePath(reference.RelativePath);
                 CopyFile(fullPath, Path.Combine(buildRootPath, copiedRelativePath));
                 return CreateFileSystemReference(copiedRelativePath);
@@ -814,6 +823,26 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported scene asset reference source kind '{reference.SourceKind}'.");
+        }
+
+        /// <summary>
+        /// Returns whether one scene-level file-system asset reference targets an authored material asset that must be routed through the material cook path.
+        /// </summary>
+        /// <param name="relativePath">Project-relative scene asset path to inspect.</param>
+        /// <returns>True when the reference points at one authored material asset; otherwise false.</returns>
+        static bool IsFileSystemMaterialReference(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                return false;
+            }
+
+            string normalizedPath = relativePath.Replace('\\', '/').TrimStart('/');
+            if (!normalizedPath.StartsWith("Materials/", StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
+            string extension = Path.GetExtension(normalizedPath);
+            return string.Equals(extension, ".helmat", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".hasset", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -963,23 +992,23 @@ namespace helengine.editor {
                     string.Empty),
                 new PlatformComponentSupportRule(
                     RigidBody3DComponentTypeId,
-                    PlatformComponentSupportKind.PassThrough,
-                    "3D rigid-body components are emitted unchanged for the current runtime loader.",
+                    PlatformComponentSupportKind.Transform,
+                    "3D rigid-body components are rewritten into packaged ordinal payloads during packaging.",
                     string.Empty),
                 new PlatformComponentSupportRule(
                     BoxCollider3DComponentTypeId,
-                    PlatformComponentSupportKind.PassThrough,
-                    "3D box collider components are emitted unchanged for the current runtime loader.",
+                    PlatformComponentSupportKind.Transform,
+                    "3D box collider components are rewritten into packaged ordinal payloads during packaging.",
                     string.Empty),
                 new PlatformComponentSupportRule(
                     KinematicMotion3DComponentTypeId,
-                    PlatformComponentSupportKind.PassThrough,
-                    "3D kinematic motion components are emitted unchanged for the current runtime loader.",
+                    PlatformComponentSupportKind.Transform,
+                    "3D kinematic motion components are rewritten into packaged ordinal payloads during packaging.",
                     string.Empty),
                 new PlatformComponentSupportRule(
                     CharacterController3DComponentTypeId,
-                    PlatformComponentSupportKind.PassThrough,
-                    "3D character-controller components are emitted unchanged for the current runtime loader.",
+                    PlatformComponentSupportKind.Transform,
+                    "3D character-controller components are rewritten into packaged ordinal payloads during packaging.",
                     string.Empty),
                 new PlatformComponentSupportRule(
                     "helengine.RoundedRectComponent",
@@ -1326,15 +1355,21 @@ namespace helengine.editor {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             }
 
-            using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return helengine.files.FontAssetBinarySerializer.Deserialize(stream);
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
+            try {
+                EngineBinaryReadContext.CurrentAssetPath = sourcePath;
+                using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                return helengine.files.FontAssetBinarySerializer.Deserialize(stream);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
+            }
         }
 
         /// <summary>
         /// Creates one packaged font asset clone that resolves its atlas through one external cooked texture path instead of embedded raw atlas bytes.
         /// </summary>
         /// <param name="fontAsset">Source font asset that still carries the raw atlas payload.</param>
-        /// <param name="cookedAtlasTextureRelativePath">Runtime-relative cooked atlas texture path that the packaged font should reference.</param>
+        /// <param name="cookedAtlasTextureRelativePath">Logical cooked atlas texture path that the packaged font should reference at runtime.</param>
         /// <returns>Packaged font asset rewritten for one external cooked atlas texture.</returns>
         FontAsset PrepareFontAssetForExternalCookedAtlas(FontAsset fontAsset, string cookedAtlasTextureRelativePath) {
             if (fontAsset == null) {
@@ -1356,8 +1391,8 @@ namespace helengine.editor {
                 fontAsset.LineHeight,
                 fontAsset.AtlasWidth,
                 fontAsset.AtlasHeight) {
-                SourceTextureAsset = null,
-                CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
+                    SourceTextureAsset = null,
+                    CookedAtlasTextureRelativePath = ResolveRuntimeReferencePath(cookedAtlasTextureRelativePath)
             };
         }
 
@@ -1722,6 +1757,7 @@ namespace helengine.editor {
             if (MaterialBuilder != null) {
                 return MaterialAssetSettingsService.LoadOrCreate(
                     materialAssetPath,
+                    materialAsset,
                     [TargetPlatformId],
                     ResolveSelectionModelForMaterialSettings);
             }
@@ -1786,8 +1822,11 @@ namespace helengine.editor {
 
             MaterialAssetProcessorSettings cookMaterialSettings = ResolveCookMaterialSettings(platformMaterialSettings);
             Dictionary<string, string> fieldValues = BuildMaterialCookFieldValues(materialAsset, cookMaterialSettings);
+            string materialAssetId = string.IsNullOrWhiteSpace(materialAsset.Id)
+                ? reference.RelativePath
+                : materialAsset.Id;
             return new PlatformMaterialCookRequest(
-                materialAsset.Id ?? reference.RelativePath,
+                materialAssetId,
                 reference.RelativePath,
                 TargetPlatformId,
                 SelectedBuildProfileId,
@@ -2066,7 +2105,7 @@ namespace helengine.editor {
         SceneAssetReference CreateFileSystemReference(string relativePath) {
             return new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = NormalizeRelativePath(relativePath),
+                RelativePath = ResolveRuntimeReferencePath(relativePath),
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };
@@ -2089,7 +2128,7 @@ namespace helengine.editor {
 
             return new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = NormalizeRelativePath(relativePath),
+                RelativePath = ResolveRuntimeReferencePath(relativePath),
                 ProviderId = providerId,
                 AssetId = assetId
             };
@@ -2424,6 +2463,23 @@ namespace helengine.editor {
             }
 
             return relativePath.Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// Resolves one logical packaged asset path into the final runtime path form required by the active platform contract.
+        /// </summary>
+        /// <param name="relativePath">Logical packaged asset path relative to the build content root.</param>
+        /// <returns>Final runtime asset path consumed by the active platform.</returns>
+        string ResolveRuntimeReferencePath(string relativePath) {
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            if (PlatformDefinition == null || PlatformDefinition.RuntimeGenerationContract == null) {
+                return normalizedRelativePath;
+            }
+
+            return PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+                PlatformId,
+                PlatformDefinition.RuntimeGenerationContract,
+                normalizedRelativePath);
         }
 
         /// <summary>

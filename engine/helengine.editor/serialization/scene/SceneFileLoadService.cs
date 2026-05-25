@@ -48,11 +48,13 @@ namespace helengine.editor {
 
             string normalizedPath = Path.GetFullPath(fullPath);
             HashSet<Entity> existingEntities = new HashSet<Entity>(Core.Instance.ObjectManager.Entities);
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 if (!normalizedPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
                     throw new InvalidOperationException("Scene path must be inside the current project.");
                 }
 
+                EngineBinaryReadContext.CurrentAssetPath = normalizedPath;
                 using FileStream stream = new FileStream(normalizedPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 Asset deserializedAsset = AssetSerializer.Deserialize(stream);
                 if (deserializedAsset is not SceneAsset sceneAsset) {
@@ -69,6 +71,8 @@ namespace helengine.editor {
             } catch (Exception ex) {
                 CleanupFailedLoad(existingEntities);
                 throw new InvalidOperationException($"Scene load failed: {ex.Message}", ex);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
         }
 

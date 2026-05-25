@@ -122,16 +122,16 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures PSP queued builds preserve the authored selected-scene order.
+        /// Ensures queued builds for external package-owned platforms preserve the authored selected-scene order.
         /// </summary>
         [Fact]
-        public void Create_WhenPspBuildOmitsStartupScene_PreservesSelectedSceneOrder() {
+        public void Create_WhenExternalPlatformBuildOmitsStartupScene_PreservesSelectedSceneOrder() {
             WriteScene("Scenes/MainMenuScene.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
-                PlatformId = "psp",
+                PlatformId = "external-platform",
                 SelectedSceneIds = [
                     "MainMenuScene",
                     "cube_test"
@@ -145,11 +145,11 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures queued builds preserve authored scene selections exactly even when generated companion scenes exist in the project.
+        /// Ensures Nintendo DS queued builds insert the generated boot scene and include authored DS companion scenes beside the generic source scenes.
         /// </summary>
         [Fact]
-        public void Create_preserves_selected_scene_order_without_platform_scene_expansion() {
-            WriteScene("Scenes/MainMenuScene.helen");
+        public void Create_WhenNintendoDsBuildIncludesGeneratedCompanionScenes_ExpandsSelectedSceneIds() {
+            WriteScene("Scenes/DemoDiscMainMenu.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
             WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
 
@@ -157,16 +157,49 @@ namespace helengine.editor.tests {
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "ds",
                 SelectedSceneIds = [
-                    "MainMenuScene",
+                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
                     "cube_test"
                 ]
             };
 
-            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreatePs2SelectionModel());
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
             EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "MainMenuScene", "cube_test" }, queueItem.SelectedSceneIds);
-            Assert.DoesNotContain("cube_test_ds", queueItem.SelectedSceneIds);
+            Assert.Equal(
+                [
+                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    "cube_test_ds",
+                    "cube_test"
+                ],
+                queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
+        /// Ensures Nintendo DS direct-scene builds place the authored DS companion scene first so startup lands on the DS-specific layout.
+        /// </summary>
+        [Fact]
+        public void Create_WhenNintendoDsBuildTargetsDirectScene_PrioritizesCompanionSceneForStartup() {
+            WriteScene("Scenes/rendering/cube_test.helen");
+            WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "ds",
+                SelectedSceneIds = [
+                    "cube_test"
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal(
+                [
+                    "cube_test_ds",
+                    "cube_test"
+                ],
+                queueItem.SelectedSceneIds);
         }
 
         /// <summary>

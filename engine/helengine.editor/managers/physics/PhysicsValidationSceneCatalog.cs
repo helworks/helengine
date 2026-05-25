@@ -24,9 +24,14 @@ namespace helengine.editor {
         public const string DynamicStackBoxesSceneId = "scenes/physics/test_scene_dynamic_stack_boxes.helen";
 
         /// <summary>
-        /// Relative scene id for the sphere-ramp validation scene.
+        /// Relative scene id for the dynamic sphere-stack validation scene.
         /// </summary>
-        public const string DynamicSphereRampSceneId = "scenes/physics/test_scene_dynamic_sphere_ramp.helen";
+        public const string DynamicSphereStackSceneId = "scenes/physics/test_scene_dynamic_sphere_stack.helen";
+
+        /// <summary>
+        /// Relative scene id for the mixed dynamic box and sphere stack validation scene.
+        /// </summary>
+        public const string DynamicMixedStackSceneId = "scenes/physics/test_scene_dynamic_mixed_stack.helen";
 
         /// <summary>
         /// Relative scene id for the kinematic push validation scene.
@@ -51,7 +56,8 @@ namespace helengine.editor {
             CharacterStepsSceneId,
             CharacterMovingPlatformSceneId,
             DynamicStackBoxesSceneId,
-            DynamicSphereRampSceneId,
+            DynamicSphereStackSceneId,
+            DynamicMixedStackSceneId,
             KinematicPushSceneId,
             MeshGroundStabilitySceneId,
             TriggerVolumeSceneId

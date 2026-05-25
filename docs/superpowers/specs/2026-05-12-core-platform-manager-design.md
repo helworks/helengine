@@ -11,7 +11,7 @@ Add runtime-owned `PlatformInfo` to `Core` so running game code can read the bui
 - `PlatformInfo` will expose:
   - `Name` as `string`
   - `Version` as `string`
-- `Name` will use the stable platform id, like `windows` or `psp`, not a human-readable display name.
+- `Name` will use the stable platform id, like `windows` or an external package-owned platform id, not a human-readable display name.
 - `Core.Initialize(...)` will require a `PlatformInfo` argument and throw when it is missing.
 - Packaged builders will stamp the selected stable platform id and builder version into generated startup/runtime metadata.
 - Runtime bootstrap code will construct the runtime `PlatformInfo` from the stamped metadata and inject it into `Core.Initialize(...)`.

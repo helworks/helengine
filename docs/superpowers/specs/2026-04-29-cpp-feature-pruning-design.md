@@ -2,7 +2,7 @@
 
 ## Summary
 
-`cs2.cpp` should support feature-pruned native builds so the generated C++ core only includes the engine subsystems required by the selected build. The design must support aggressive executable size reduction for constrained targets such as PlayStation 2, GameCube, Wii, and PSP while still working for the initial Windows headless core.
+`cs2.cpp` should support feature-pruned native builds so the generated C++ core only includes the engine subsystems required by the selected build. The design must support aggressive executable size reduction for constrained targets such as PlayStation 2, GameCube, Wii, and external package-owned console targets while still working for the initial Windows headless core.
 
 The system must combine automatic detection with explicit operator control. A build profile can force-enable or force-disable features, and the conversion/build output must report the final decision set both in generated files and from inside the engine at runtime.
 

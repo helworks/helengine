@@ -26,6 +26,16 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures Nintendo DS stacked dual-screen viewports resolve one normalized screen-height unit to half of the stacked target height.
+        /// </summary>
+        [Fact]
+        public void ResolveViewport_WhenViewportUsesNintendoDsBottomScreenNormalizedRegion_ReturnsBottomScreenPixels() {
+            float4 resolvedViewport = CameraViewportResolver.ResolveViewport(new float4(0f, 1f, 1f, 1f), 256d, 384d);
+
+            Assert.Equal(new float4(0f, 192f, 256f, 192f), resolvedViewport);
+        }
+
+        /// <summary>
         /// Ensures pixel-authored viewports remain unchanged.
         /// </summary>
         [Fact]

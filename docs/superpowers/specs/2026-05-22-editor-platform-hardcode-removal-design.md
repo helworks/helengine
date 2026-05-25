@@ -2,7 +2,7 @@
 
 ## Goal
 
-Remove the remaining platform-specific production behavior from `helengine.editor` so the main engine repository no longer owns PS2, Nintendo DS, PSP, or GameCube policy. The editor should orchestrate builds generically and leave platform-specific behavior to external platform plugins or project content.
+Remove the remaining platform-specific production behavior from `helengine.editor` so the main engine repository no longer owns PS2, Nintendo DS, GameCube, or other external package-owned platform policy. The editor should orchestrate builds generically and leave platform-specific behavior to external platform plugins or project content.
 
 ## Current Problems
 
@@ -11,7 +11,7 @@ The editor still contains production branches that interpret concrete platform i
 - `EditorPlatformBuildGraphRunner` hardcodes PS2, Nintendo DS, and GameCube repository-root environment overrides.
 - `EditorPlatformBuildGraphRunner` emits a runtime graphics renderer manifest that still includes PS2-owned depth-handler behavior.
 - `EditorBuildQueueItemDocument` expands scene lists specifically for Nintendo DS generated companion scenes.
-- `EditorPlatformPreprocessorSymbolService` still emits `PSP_PLATFORM`.
+- `EditorPlatformPreprocessorSymbolService` still emits a hardcoded external platform symbol.
 - `AssetImportManager` still applies Nintendo DS-specific default texture import behavior.
 
 These behaviors violate the repository boundary. They keep platform policy in the shared editor instead of the external platform repos.
@@ -60,9 +60,9 @@ If a platform needs compact defaults, that must come from generic platform metad
 
 ### Preprocessor Symbols
 
-`EditorPlatformPreprocessorSymbolService` will stop hardcoding `PSP_PLATFORM`.
+`EditorPlatformPreprocessorSymbolService` will stop hardcoding one named external platform symbol.
 
-The editor may still generate generic symbols if they are derived from a platform descriptor contract rather than a hardcoded platform id branch. This pass removes the existing hardcoded PSP behavior and does not replace it with a new engine-owned compatibility layer.
+The editor may still generate generic symbols if they are derived from a platform descriptor contract rather than a hardcoded platform id branch. This pass removes the existing hardcoded external-package behavior and does not replace it with a new engine-owned compatibility layer.
 
 ### PS2 Manifest Types
 
@@ -123,7 +123,7 @@ External platform repos may currently depend on:
 - repository-root environment overrides
 - PS2 manifest generation from the editor
 - DS scene expansion
-- PSP preprocessor symbol injection
+- hardcoded external platform symbol injection
 - DS import defaults
 
 This pass intentionally allows those dependencies to break so they can be moved to the correct owners.
@@ -136,9 +136,9 @@ Some editor tests may still encode platform-specific assumptions. Those tests sh
 
 The pass is complete when:
 
-- `helengine.editor` production code no longer branches on `ps2`, `ds`, `psp`, or `gamecube`
+- `helengine.editor` production code no longer branches on `ps2`, `ds`, `gamecube`, or any one named external package-owned platform
 - `RuntimeGraphicsRendererManifest` and `Ps2DepthHandlerMode` are gone from the main repo
 - `EditorBuildQueueItemDocument` preserves selected scene order without DS companion expansion
-- `EditorPlatformPreprocessorSymbolService` no longer hardcodes PSP behavior
+- `EditorPlatformPreprocessorSymbolService` no longer hardcodes external package behavior
 - `AssetImportManager` no longer has DS-specific default texture import logic
 - focused editor validation passes

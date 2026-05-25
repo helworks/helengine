@@ -29,6 +29,11 @@ namespace helengine {
         const double MaximumContactRecoveryVelocity = 2d;
 
         /// <summary>
+        /// Normal impulse scale used by dynamic-dynamic primitive contacts to approximate BEPU's soft contact response instead of a rigid one-shot stop.
+        /// </summary>
+        const double DynamicPrimitiveNormalImpulseScale = 0.45d;
+
+        /// <summary>
         /// Applies one axis-aligned body pair response after the overlap has already been separated.
         /// </summary>
         /// <param name="first">First body participating in the resolved contact.</param>
@@ -125,10 +130,28 @@ namespace helengine {
 
             double restitution = ResolveCombinedRestitution(first.Collider, second.Collider);
             double normalImpulseMagnitude = (-(1d + restitution) * relativeNormalVelocity) / inverseMassSum;
+            normalImpulseMagnitude *= ResolvePrimitiveNormalImpulseScale(first, second);
             float3 contactPoint = ResolvePairContactPoint(first, second, collisionNormal, firstInverseMass, secondInverseMass);
             ApplyNormalImpulse(first, second, collisionNormal, normalImpulseMagnitude, firstInverseMass, secondInverseMass, contactPoint);
 
             ApplyPairFriction(first, second, collisionNormal, normalImpulseMagnitude, firstInverseMass, secondInverseMass, contactPoint);
+        }
+
+        /// <summary>
+        /// Resolves the normal impulse scale for primitive contacts that do not use the persistent box-box contact constraint.
+        /// </summary>
+        /// <param name="first">First body participating in the contact.</param>
+        /// <param name="second">Second body participating in the contact.</param>
+        /// <returns>Impulse scale applied to the normal response.</returns>
+        static double ResolvePrimitiveNormalImpulseScale(BodyState3D first, BodyState3D second) {
+            if (first.RigidBody.BodyKind != BodyKind3D.Dynamic || second.RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                return 1d;
+            }
+            if (first.ColliderShapeKind == ColliderShapeKind3D.Box && second.ColliderShapeKind == ColliderShapeKind3D.Box) {
+                return 1d;
+            }
+
+            return DynamicPrimitiveNormalImpulseScale;
         }
 
         /// <summary>

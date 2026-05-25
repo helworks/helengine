@@ -31,6 +31,56 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures legacy raw shader-material payloads can still be loaded through the editor material settings service.
+        /// </summary>
+        [Fact]
+        public void LoadMaterialAsset_WhenLegacyShaderMaterialPayloadIsStoredInBaseFile_LoadsRawShaderMaterialAsset() {
+            string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectoryPath);
+
+            try {
+                string materialAssetPath = Path.Combine(tempDirectoryPath, "PhysicsDemoBlue.hasset");
+                ShaderMaterialAsset sourceMaterialAsset = new ShaderMaterialAsset {
+                    Id = "PhysicsDemoBlue",
+                    ShaderAssetId = "Shaders.physics.PhysicsDemoMesh",
+                    VertexProgram = "PhysicsDemoMesh.vs",
+                    PixelProgram = "PhysicsDemoMesh.ps",
+                    Variant = "default",
+                    ConstantBuffers = new[] {
+                        new MaterialConstantBufferAsset {
+                            Name = "MaterialColorBuffer",
+                            Data = new byte[] {
+                                0xC3, 0xF5, 0xA8, 0x3E,
+                                0x29, 0x5C, 0x0F, 0x3F,
+                                0x66, 0x66, 0x66, 0x3F,
+                                0x00, 0x00, 0x80, 0x3F
+                            }
+                        }
+                    },
+                    CastsShadows = true,
+                    ReceivesShadows = true
+                };
+                using (FileStream stream = File.Create(materialAssetPath)) {
+                    ShaderMaterialAssetBinarySerializer.Serialize(stream, sourceMaterialAsset);
+                }
+
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+
+                ShaderMaterialAsset loadedMaterialAsset = service.LoadMaterialAsset(materialAssetPath, "windows");
+                Assert.Equal("PhysicsDemoBlue", loadedMaterialAsset.Id);
+                Assert.Equal("Shaders.physics.PhysicsDemoMesh", loadedMaterialAsset.ShaderAssetId);
+                Assert.Equal("PhysicsDemoMesh.vs", loadedMaterialAsset.VertexProgram);
+                Assert.Equal("PhysicsDemoMesh.ps", loadedMaterialAsset.PixelProgram);
+                Assert.Equal("default", loadedMaterialAsset.Variant);
+                Assert.Contains(loadedMaterialAsset.ConstantBuffers, constantBuffer => string.Equals(constantBuffer.Name, "MaterialColorBuffer", StringComparison.Ordinal));
+            } finally {
+                if (Directory.Exists(tempDirectoryPath)) {
+                    Directory.Delete(tempDirectoryPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Creates one representative generated material settings payload that matches the city textured cube-grid generator.
         /// </summary>
         /// <param name="textureAssetId">Shared authored texture asset id that should survive save/load.</param>
@@ -61,15 +111,15 @@ namespace helengine.editor {
             ps2Settings.FieldValues["base-color"] = "#FFFFFFFF";
             settings.Processor.Platforms["ps2"] = ps2Settings;
 
-            MaterialAssetProcessorSettings pspSettings = new MaterialAssetProcessorSettings();
-            pspSettings.SchemaId = "standard-shader";
-            pspSettings.FieldValues["use-custom-shader"] = "false";
-            pspSettings.FieldValues["shader-asset-id"] = "ForwardStandardShader";
-            pspSettings.FieldValues["texture-id"] = textureAssetId;
-            pspSettings.FieldValues["casts-shadow"] = "true";
-            pspSettings.FieldValues["receives-shadow"] = "true";
-            pspSettings.FieldValues["base-color"] = "#FFFFFFFF";
-            settings.Processor.Platforms["psp"] = pspSettings;
+            MaterialAssetProcessorSettings externalPlatformSettings = new MaterialAssetProcessorSettings();
+            externalPlatformSettings.SchemaId = "standard-shader";
+            externalPlatformSettings.FieldValues["use-custom-shader"] = "false";
+            externalPlatformSettings.FieldValues["shader-asset-id"] = "ForwardStandardShader";
+            externalPlatformSettings.FieldValues["texture-id"] = textureAssetId;
+            externalPlatformSettings.FieldValues["casts-shadow"] = "true";
+            externalPlatformSettings.FieldValues["receives-shadow"] = "true";
+            externalPlatformSettings.FieldValues["base-color"] = "#FFFFFFFF";
+            settings.Processor.Platforms["external-platform"] = externalPlatformSettings;
 
             MaterialAssetProcessorSettings dsSettings = new MaterialAssetProcessorSettings();
             dsSettings.SchemaId = "ds-standard-textured";

@@ -761,6 +761,7 @@ namespace helengine {
         /// <param name="stepSeconds">Simulation step length in seconds.</param>
         /// <param name="applyPositionCorrection">True when direct projection should be used after pose integration.</param>
         void ResolveBoxBoxPair(BodyState3D first, BodyState3D second, double stepSeconds, bool applyPositionCorrection) {
+#if !HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES || HELENGINE_PHYSICS3D_FEATURE_BOX_BOX_CONTACT
             if (first.ColliderShapeKind != ColliderShapeKind3D.Box || second.ColliderShapeKind != ColliderShapeKind3D.Box) {
                 return;
             }
@@ -787,6 +788,7 @@ namespace helengine {
             if (BoxBoxContactResolver3D.TryResolveContact(first, second, speculativeContactMargin, out float penetration, out int axisIndex)) {
                 ResolveAxis(first, second, penetration, axisIndex, stepSeconds, applyPositionCorrection);
             }
+#endif
         }
 
         /// <summary>
@@ -1122,8 +1124,10 @@ namespace helengine {
                 RecordContactNormal(second, collisionNormal * -1f);
             }
 
-            ClipVelocityAgainstCorrection(first, firstCorrection);
-            ClipVelocityAgainstCorrection(second, secondCorrection);
+            if (!IsDynamicDynamicPair(first, second)) {
+                ClipVelocityAgainstCorrection(first, firstCorrection);
+                ClipVelocityAgainstCorrection(second, secondCorrection);
+            }
         }
 
         /// <summary>

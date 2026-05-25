@@ -6,7 +6,7 @@ Keep `RuntimeMaterial` as the cross-platform runtime material contract while mov
 
 ## Problem
 
-`RuntimeMaterial` is used by both shader-capable renderers and cooked platform-owned material paths such as DS, PSP, and PS2. However, the current core runtime material implementation also owns shader-only concepts:
+`RuntimeMaterial` is used by both shader-capable renderers and cooked platform-owned material paths such as DS, external package-owned platforms, and PS2. However, the current core runtime material implementation also owns shader-only concepts:
 
 - `MaterialLayout`
 - `MaterialLayoutBinding`
@@ -37,7 +37,7 @@ This means the right architectural split is not moving all runtime material beha
 `RuntimeMaterial` remains the type used by:
 
 - DS
-- PSP
+- External package-owned platform
 - PS2
 - other cooked platform-owned material paths
 - generic scene/runtime systems that only need runtime material identity
@@ -124,6 +124,6 @@ Focused validation should cover:
 ## Non-goals
 
 - redesigning authored material asset schemas
-- changing DS/PSP/PS2 cooked material behavior
+- changing DS/external package-owned platform/PS2 cooked material behavior
 - merging shader and cooked platform-owned material models
 - moving unrelated shader systems unless they are directly required by this split

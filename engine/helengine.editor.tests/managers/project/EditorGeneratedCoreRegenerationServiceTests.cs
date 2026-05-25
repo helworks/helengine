@@ -179,15 +179,15 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies portable input symbol resolution no longer injects PSP-specific runtime symbols.
+    /// Verifies portable input symbol resolution does not invent platform-id-specific runtime symbols for external packages.
     /// </summary>
     [Fact]
-    public void ResolveSymbols_does_not_inject_psp_platform_symbol() {
-        PlatformDefinition definition = CreatePlatformDefinition("psp", runtimeGenerationContract: null);
+    public void ResolveSymbols_does_not_inject_external_platform_symbol() {
+        PlatformDefinition definition = CreatePlatformDefinition("external-platform", runtimeGenerationContract: null);
 
         IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(definition);
 
-        Assert.DoesNotContain("PSP_PLATFORM", symbols);
+        Assert.DoesNotContain("EXTERNAL_PLATFORM", symbols);
     }
 
     /// <summary>

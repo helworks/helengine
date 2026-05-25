@@ -60,7 +60,8 @@ namespace helengine.editor.tests.managers.physics {
                 "scenes/physics/test_scene_character_steps.helen",
                 "scenes/physics/test_scene_character_moving_platform.helen",
                 "scenes/physics/test_scene_dynamic_stack_boxes.helen",
-                "scenes/physics/test_scene_dynamic_sphere_ramp.helen",
+                "scenes/physics/test_scene_dynamic_sphere_stack.helen",
+                "scenes/physics/test_scene_dynamic_mixed_stack.helen",
                 "scenes/physics/test_scene_kinematic_push.helen",
                 "scenes/physics/test_scene_mesh_ground_stability.helen",
                 "scenes/physics/test_scene_trigger_volume.helen"
@@ -132,6 +133,67 @@ namespace helengine.editor.tests.managers.physics {
         }
 
         /// <summary>
+        /// Ensures the sphere-stack validation scene includes serialized physics records for its static floor and dynamic stacked spheres.
+        /// </summary>
+        [Fact]
+        public void CreateSceneAsset_ForDynamicSphereStack_WritesPhysicsRecordsForGroundAndStackedSpheres() {
+            PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
+
+            SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.DynamicSphereStackSceneId);
+            SceneEntityAsset cameraEntity = FindRootEntity(sceneAsset, "Camera");
+            SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
+            SceneEntityAsset groundEntity = FindChildEntity(scenarioEntity, "Ground");
+            SceneEntityAsset firstSphereEntity = FindChildEntity(scenarioEntity, "StackSphere01");
+            SceneEntityAsset eighthSphereEntity = FindChildEntity(scenarioEntity, "StackSphere08");
+            SceneAssetReference firstSphereMaterialReference = ReadMaterialReference(firstSphereEntity);
+            SceneAssetReference eighthSphereMaterialReference = ReadMaterialReference(eighthSphereEntity);
+            float3 cameraForward = float4.RotateVector(new float3(0f, 0f, -1f), cameraEntity.LocalOrientation);
+            float3 cameraToStack = float3.Normalize(new float3(0f, 4f, 0f) - cameraEntity.LocalPosition);
+
+            Assert.True(float3.Dot(cameraForward, cameraToStack) > 0.95f, "The sphere-stack camera should look toward the stacked sphere volume.");
+            Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            Assert.DoesNotContain(scenarioEntity.Children, entity => string.Equals(entity.Name, "Ramp", StringComparison.Ordinal));
+            Assert.Contains(firstSphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.MeshComponent", StringComparison.Ordinal));
+            Assert.Contains(firstSphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(firstSphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.SphereCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(eighthSphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.SphereCollider3DComponent", StringComparison.Ordinal));
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, firstSphereMaterialReference.SourceKind);
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, eighthSphereMaterialReference.SourceKind);
+            Assert.NotEqual(firstSphereMaterialReference.RelativePath, eighthSphereMaterialReference.RelativePath);
+        }
+
+        /// <summary>
+        /// Ensures the mixed dynamic validation scene includes dynamic boxes and spheres so primitive cross-shape contacts can be inspected together.
+        /// </summary>
+        [Fact]
+        public void CreateSceneAsset_ForDynamicMixedStack_WritesBoxAndSpherePhysicsRecords() {
+            PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
+
+            SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.DynamicMixedStackSceneId);
+            SceneEntityAsset cameraEntity = FindRootEntity(sceneAsset, "Camera");
+            SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
+            SceneEntityAsset groundEntity = FindChildEntity(scenarioEntity, "Ground");
+            SceneEntityAsset firstBoxEntity = FindChildEntity(scenarioEntity, "StackBox01");
+            SceneEntityAsset firstSphereEntity = FindChildEntity(scenarioEntity, "StackSphere01");
+            SceneAssetReference firstBoxMaterialReference = ReadMaterialReference(firstBoxEntity);
+            SceneAssetReference firstSphereMaterialReference = ReadMaterialReference(firstSphereEntity);
+            float3 cameraForward = float4.RotateVector(new float3(0f, 0f, -1f), cameraEntity.LocalOrientation);
+            float3 cameraToStack = float3.Normalize(new float3(0f, 2.5f, 0f) - cameraEntity.LocalPosition);
+
+            Assert.True(float3.Dot(cameraForward, cameraToStack) > 0.9f, "The mixed-stack camera should look toward the cube and sphere contact volume.");
+            Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(firstBoxEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(firstBoxEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(firstSphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(firstSphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.SphereCollider3DComponent", StringComparison.Ordinal));
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, firstBoxMaterialReference.SourceKind);
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, firstSphereMaterialReference.SourceKind);
+            Assert.NotEqual(firstBoxMaterialReference.RelativePath, firstSphereMaterialReference.RelativePath);
+        }
+
+        /// <summary>
         /// Ensures the stacked-box validation scene includes one shadowed directional light and distinct file-backed materials for the visible stack meshes.
         /// </summary>
         [Fact]
@@ -151,7 +213,7 @@ namespace helengine.editor.tests.managers.physics {
             DirectionalLightComponent lightComponent = ReadDirectionalLight(lightRecord);
             Assert.True(lightComponent.ShadowsEnabled);
             Assert.Equal(ShadowMapMode.Forced, lightComponent.ShadowMapMode);
-            Assert.True(lightComponent.Intensity > 1f);
+            Assert.Equal(1f, lightComponent.Intensity);
 
             SceneAssetReference groundMaterialReference = ReadMaterialReference(groundEntity);
             SceneAssetReference firstBoxMaterialReference = ReadMaterialReference(firstStackBoxEntity);
@@ -168,10 +230,10 @@ namespace helengine.editor.tests.managers.physics {
         }
 
         /// <summary>
-        /// Ensures writing the physics validation scenes also emits the shared demo shader and material assets used for prettier presentation.
+        /// Ensures writing the physics validation scenes also emits schema-backed standard materials with authored base colors.
         /// </summary>
         [Fact]
-        public void WriteScenes_WritesSharedPhysicsDemoShaderAndMaterialAssets() {
+        public void WriteScenes_WritesSharedPhysicsDemoMaterialAssetsWithBaseColors() {
             PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
 
             factory.WriteScenes(TempProjectRootPath);
@@ -180,20 +242,19 @@ namespace helengine.editor.tests.managers.physics {
             string neutralMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoNeutral.hasset");
             string blueMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoBlue.hasset");
 
-            Assert.True(File.Exists(shaderPath));
+            Assert.False(File.Exists(shaderPath));
             Assert.True(File.Exists(neutralMaterialPath));
             Assert.True(File.Exists(blueMaterialPath));
 
-            string shaderSource = File.ReadAllText(shaderPath);
-            Assert.Contains("cbuffer MaterialColorBuffer", shaderSource);
-            Assert.Contains("surfaceColor", shaderSource);
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            ShaderMaterialAsset blueMaterialAsset = settingsService.LoadMaterialAsset(blueMaterialPath, "windows");
+            MaterialConstantBufferAsset baseColorBuffer = Assert.Single(blueMaterialAsset.ConstantBuffers, constantBuffer => string.Equals(constantBuffer.Name, "BaseColorBuffer", StringComparison.Ordinal));
+            float4 baseColor = ReadFloat4(baseColorBuffer.Data);
 
-            using FileStream materialStream = File.OpenRead(blueMaterialPath);
-            MaterialAsset blueMaterialAsset = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(materialStream));
-            Assert.Equal("Shaders.physics.PhysicsDemoMesh", blueMaterialAsset.ShaderAssetId);
-            Assert.Equal("PhysicsDemoMesh.vs", blueMaterialAsset.VertexProgram);
-            Assert.Equal("PhysicsDemoMesh.ps", blueMaterialAsset.PixelProgram);
-            Assert.Contains(blueMaterialAsset.ConstantBuffers, constantBuffer => string.Equals(constantBuffer.Name, "MaterialColorBuffer", StringComparison.Ordinal));
+            Assert.Equal("ForwardStandardShader", blueMaterialAsset.ShaderAssetId);
+            Assert.Equal("ForwardStandardShader.vs", blueMaterialAsset.VertexProgram);
+            Assert.Equal("ForwardStandardShader.ps", blueMaterialAsset.PixelProgram);
+            Assert.Equal(new float4(84f / 255f, 143f / 255f, 230f / 255f, 1.0f), baseColor);
         }
 
         /// <summary>
@@ -381,6 +442,74 @@ namespace helengine.editor.tests.managers.physics {
         }
 
         /// <summary>
+        /// Ensures automatic reflected rigid-body and box-collider payloads load into the runtime with a dynamic upper box that falls under gravity.
+        /// </summary>
+        [Fact]
+        public void Load_WhenAutomaticPhysicsPayloadsDescribeStackedBoxes_DynamicUpperBoxFalls() {
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/TestAutomaticPhysics.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Ground",
+                        LocalPosition = new float3(0f, -0.5f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateAutomaticRigidBodyRecord(BodyKind3D.Static, false),
+                            CreateAutomaticBoxColliderRecord(new float3(14f, 1f, 14f), false)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 2u,
+                        Name = "LowerBox",
+                        LocalPosition = new float3(0f, 1f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateAutomaticRigidBodyRecord(BodyKind3D.Dynamic, true),
+                            CreateAutomaticBoxColliderRecord(float3.One, false)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 3u,
+                        Name = "UpperBox",
+                        LocalPosition = new float3(0.9f, 3f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateAutomaticRigidBodyRecord(BodyKind3D.Dynamic, true),
+                            CreateAutomaticBoxColliderRecord(float3.One, false)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempProjectRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            Physics3DRuntimeComponentRegistration.Register(core);
+
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(rootEntities);
+
+            Entity upperBoxEntity = rootEntities[2];
+            float initialY = upperBoxEntity.LocalPosition.Y;
+
+            for (int index = 0; index < 60; index++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            Assert.True(upperBoxEntity.LocalPosition.Y < initialY - 0.25f, $"Expected the upper automatic-payload box to fall, but its Y position only moved from {initialY} to {upperBoxEntity.LocalPosition.Y}.");
+        }
+
+        /// <summary>
         /// Resolves the absolute scene file path for one generated relative scene id.
         /// </summary>
         /// <param name="projectRootPath">Absolute project root path.</param>
@@ -466,6 +595,27 @@ namespace helengine.editor.tests.managers.physics {
         }
 
         /// <summary>
+        /// Reads one packed little-endian float4 payload written into a material constant buffer.
+        /// </summary>
+        /// <param name="data">Sixteen-byte float payload to decode.</param>
+        /// <returns>Decoded vector value.</returns>
+        static float4 ReadFloat4(byte[] data) {
+            if (data == null) {
+                throw new ArgumentNullException(nameof(data));
+            } else if (data.Length != 16) {
+                throw new InvalidOperationException("Float4 material constant buffers must contain exactly sixteen bytes.");
+            }
+
+            using MemoryStream stream = new MemoryStream(data, false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            return new float4(
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle());
+        }
+
+        /// <summary>
         /// Reads the material reference from one serialized mesh component payload.
         /// </summary>
         /// <param name="entity">Entity whose mesh record should be decoded.</param>
@@ -504,6 +654,57 @@ namespace helengine.editor.tests.managers.physics {
                 RelativePath = reader.ReadString(),
                 ProviderId = reader.ReadString(),
                 AssetId = reader.ReadString()
+            };
+        }
+
+        /// <summary>
+        /// Creates one reflected automatic rigid-body scene record using the shared ordinal member order.
+        /// </summary>
+        /// <param name="bodyKind">Rigid-body participation mode to encode.</param>
+        /// <param name="useGravity">True when gravity should be enabled.</param>
+        /// <returns>Serialized rigid-body scene record.</returns>
+        static SceneComponentAssetRecord CreateAutomaticRigidBodyRecord(BodyKind3D bodyKind, bool useGravity) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(6);
+            writer.WriteFloat3(float3.Zero);
+            writer.WriteInt32((int)bodyKind);
+            writer.WriteDouble(1d);
+            writer.WriteFloat3(float3.Zero);
+            writer.WriteDouble(1d);
+            writer.WriteByte(useGravity ? (byte)1 : (byte)0);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.RigidBody3DComponent",
+                ComponentIndex = 0,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates one reflected automatic box-collider scene record using the shared ordinal member order.
+        /// </summary>
+        /// <param name="size">Full collider size to encode.</param>
+        /// <param name="isTrigger">True when the collider should be encoded as a trigger.</param>
+        /// <returns>Serialized box-collider scene record.</returns>
+        static SceneComponentAssetRecord CreateAutomaticBoxColliderRecord(float3 size, bool isTrigger) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(7);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteDouble(0.4d);
+            writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
+            writer.WriteDouble(0d);
+            writer.WriteFloat3(size);
+            writer.WriteDouble(0.6d);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.BoxCollider3DComponent",
+                ComponentIndex = 1,
+                Payload = stream.ToArray()
             };
         }
     }

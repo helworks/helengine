@@ -69,6 +69,16 @@ namespace helengine {
         public string LastTextFontRelativePath { get; set; } = string.Empty;
 
         /// <summary>
+        /// Gets the last recorded texture-load stage that passed through this resolver.
+        /// </summary>
+        public string LastTextureLoadStage { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets the last recorded packaged texture relative path that passed through this resolver.
+        /// </summary>
+        public string LastTextureRelativePath { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets the most recent packaged font-deserialization stage reached by the active content loader.
         /// </summary>
         public string LastFontDeserializeStage => FontAssetBinarySerializer.LastDeserializeStage;
@@ -248,16 +258,25 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(reference));
             }
 
+            LastTextureLoadStage = "ResolveTextureBegin";
+            LastTextureRelativePath = reference.RelativePath ?? string.Empty;
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
+            LastTextureLoadStage = "ResolveTextureBeforeBuild";
             RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(fullPath);
+            LastTextureLoadStage = "ResolveTextureAfterBuild";
             TrackOwnedTexture(runtimeTexture);
+            LastTextureLoadStage = "ResolveTextureTracked";
             return runtimeTexture;
 #else
+            LastTextureLoadStage = "ResolveTextureBeforeContentLoad";
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(fullPath, RuntimeContentProcessorIds.TextureAsset);
             try {
+                LastTextureLoadStage = "ResolveTextureBeforeBuild";
                 RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+                LastTextureLoadStage = "ResolveTextureAfterBuild";
                 TrackOwnedTexture(runtimeTexture);
+                LastTextureLoadStage = "ResolveTextureTracked";
                 return runtimeTexture;
             } finally {
                 ReleaseTransientTextureAsset(textureAsset);

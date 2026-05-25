@@ -207,7 +207,7 @@ namespace helengine.editor {
             StringBuilder builder = new StringBuilder();
             builder.AppendLine("<Project Sdk=\"Microsoft.NET.Sdk\">");
             builder.AppendLine("  <PropertyGroup>");
-            builder.AppendLine("    <TargetFramework>" + TargetFrameworkValue + "</TargetFramework>");
+            builder.AppendLine("    <TargetFramework>" + moduleProject.TargetFramework + "</TargetFramework>");
             builder.AppendLine("    <OutputType>Library</OutputType>");
             builder.AppendLine("    <ImplicitUsings>enable</ImplicitUsings>");
             builder.AppendLine("    <Nullable>disable</Nullable>");

@@ -44,6 +44,16 @@ namespace helengine {
         public string LastTextFontRelativePath => ReferenceResolver.LastTextFontRelativePath;
 
         /// <summary>
+        /// Gets the last recorded texture-load stage emitted by the shared scene asset reference resolver.
+        /// </summary>
+        public string LastTextureLoadStage => ReferenceResolver.LastTextureLoadStage;
+
+        /// <summary>
+        /// Gets the last recorded packaged texture relative path emitted by the shared scene asset reference resolver.
+        /// </summary>
+        public string LastTextureRelativePath => ReferenceResolver.LastTextureRelativePath;
+
+        /// <summary>
         /// Gets the most recent packaged font-deserialization stage emitted by the shared scene asset reference resolver.
         /// </summary>
         public string LastFontDeserializeStage => ReferenceResolver.LastFontDeserializeStage;

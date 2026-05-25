@@ -9,22 +9,20 @@ namespace helengine.tools.textureimportsettingssetter {
         /// <summary>
         /// Entry point for the texture import settings setter tool.
         /// </summary>
-        /// <param name="args">Command-line arguments: project root, texture source path, windows max, ps2 max, psp max.</param>
+        /// <param name="args">Command-line arguments: project root, texture source path, then one or more repeating platform-id/max-resolution pairs.</param>
         /// <returns>Exit code indicating success or failure.</returns>
         static int Main(string[] args) {
             if (args == null) {
                 throw new ArgumentNullException(nameof(args));
             }
-            if (args.Length != 5) {
-                Console.Error.WriteLine("Usage: <project-root> <texture-source-path> <windows-max> <ps2-max> <psp-max>");
+            if (args.Length < 4 || ((args.Length - 2) % 2) != 0) {
+                Console.Error.WriteLine("Usage: <project-root> <texture-source-path> <platform-id> <max-resolution> [<platform-id> <max-resolution> ...]");
                 return 1;
             }
 
             string projectRootPath = Path.GetFullPath(args[0]);
             string textureSourcePath = Path.GetFullPath(args[1]);
-            int windowsMaxResolution = ParseResolutionArgument(args[2], "windows");
-            int ps2MaxResolution = ParseResolutionArgument(args[3], "ps2");
-            int pspMaxResolution = ParseResolutionArgument(args[4], "psp");
+            Dictionary<string, int> maxResolutionsByPlatformId = ParsePlatformResolutionArguments(args);
 
             ContentManager contentManager = new ContentManager(Path.Combine(projectRootPath, "assets"));
             AssetImportManager importManager = new AssetImportManager(projectRootPath, contentManager);
@@ -37,9 +35,9 @@ namespace helengine.tools.textureimportsettingssetter {
                 throw new InvalidOperationException("Texture import settings could not be created.");
             }
 
-            EnsureTexturePlatformSettings(settings, "windows").MaxResolution = windowsMaxResolution;
-            EnsureTexturePlatformSettings(settings, "ps2").MaxResolution = ps2MaxResolution;
-            EnsureTexturePlatformSettings(settings, "psp").MaxResolution = pspMaxResolution;
+            foreach (KeyValuePair<string, int> entry in maxResolutionsByPlatformId) {
+                EnsureTexturePlatformSettings(settings, entry.Key).MaxResolution = entry.Value;
+            }
 
             importManager.SaveImportSettings(textureSourcePath, settings);
             TextureAsset textureAsset = importManager.ImportTexture(textureSourcePath);
@@ -63,6 +61,29 @@ namespace helengine.tools.textureimportsettingssetter {
             }
 
             return parsedValue;
+        }
+
+        /// <summary>
+        /// Parses the repeating platform-id/max-resolution command-line arguments into one lookup keyed by platform id.
+        /// </summary>
+        /// <param name="args">Full command-line argument array supplied to the process entry point.</param>
+        /// <returns>Per-platform max-resolution values keyed by platform id.</returns>
+        static Dictionary<string, int> ParsePlatformResolutionArguments(string[] args) {
+            if (args == null) {
+                throw new ArgumentNullException(nameof(args));
+            }
+
+            Dictionary<string, int> maxResolutionsByPlatformId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int index = 2; index < args.Length; index += 2) {
+                string platformId = args[index];
+                if (string.IsNullOrWhiteSpace(platformId)) {
+                    throw new InvalidOperationException("Platform id arguments must not be empty.");
+                }
+
+                maxResolutionsByPlatformId[platformId] = ParseResolutionArgument(args[index + 1], platformId);
+            }
+
+            return maxResolutionsByPlatformId;
         }
 
         /// <summary>

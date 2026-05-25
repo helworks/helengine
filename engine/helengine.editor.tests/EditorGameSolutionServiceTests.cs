@@ -187,6 +187,7 @@ namespace helengine.editor.tests {
             string projectFilePath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools", "menu.tools.csproj");
             string projectFileContents = File.ReadAllText(projectFilePath);
             string globalUsingsContents = File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools", "GlobalUsings.g.cs"));
+            Assert.Contains("<TargetFramework>net9.0-windows</TargetFramework>", projectFileContents, StringComparison.Ordinal);
             Assert.Contains("helengine.core", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("helengine.editor", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("..\\gameplay\\gameplay.csproj", projectFileContents, StringComparison.OrdinalIgnoreCase);

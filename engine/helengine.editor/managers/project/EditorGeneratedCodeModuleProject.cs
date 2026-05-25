@@ -14,6 +14,7 @@ namespace helengine.editor {
         /// <param name="generatedGlobalUsingsFilePath">Absolute path to the generated global-usings file emitted for the project.</param>
         /// <param name="baseIntermediateOutputPath">Absolute base intermediate output path.</param>
         /// <param name="baseOutputPath">Absolute base output path.</param>
+        /// <param name="targetFramework">Target framework emitted into the generated project file and output layout.</param>
         /// <param name="outputDirectoryPath">Absolute final output directory path for the module DLL.</param>
         /// <param name="projectGuid">Stable project GUID emitted into the solution.</param>
         /// <param name="moduleKind">Declares whether the generated project is runtime or editor-only.</param>
@@ -26,6 +27,7 @@ namespace helengine.editor {
             string generatedGlobalUsingsFilePath,
             string baseIntermediateOutputPath,
             string baseOutputPath,
+            string targetFramework,
             string outputDirectoryPath,
             Guid projectGuid,
             EditorCodeModuleKind moduleKind) {
@@ -53,6 +55,9 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(baseOutputPath)) {
                 throw new ArgumentException("Base output path must be provided.", nameof(baseOutputPath));
             }
+            if (string.IsNullOrWhiteSpace(targetFramework)) {
+                throw new ArgumentException("Target framework must be provided.", nameof(targetFramework));
+            }
             if (string.IsNullOrWhiteSpace(outputDirectoryPath)) {
                 throw new ArgumentException("Output directory path must be provided.", nameof(outputDirectoryPath));
             }
@@ -65,6 +70,7 @@ namespace helengine.editor {
             GeneratedGlobalUsingsFilePath = generatedGlobalUsingsFilePath;
             BaseIntermediateOutputPath = baseIntermediateOutputPath;
             BaseOutputPath = baseOutputPath;
+            TargetFramework = targetFramework;
             OutputDirectoryPath = outputDirectoryPath;
             ProjectGuid = projectGuid;
             ModuleKind = moduleKind;
@@ -109,6 +115,11 @@ namespace helengine.editor {
         /// Gets the absolute base output path for the generated project.
         /// </summary>
         public string BaseOutputPath { get; }
+
+        /// <summary>
+        /// Gets the target framework emitted into the generated project file and output layout.
+        /// </summary>
+        public string TargetFramework { get; }
 
         /// <summary>
         /// Gets the absolute final output directory path for the generated module assembly.

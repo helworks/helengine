@@ -119,6 +119,37 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Ensures automatic reflected sphere-collider payloads preserve radius and collide with box ground when loaded by the player runtime.
+        /// </summary>
+        [Fact]
+        public void LoadSceneAsset_WithAutomaticSphereColliderPayload_LoadsRadiusAndSimulatesDynamicGroundContact() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = AppContext.BaseDirectory
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            Physics3DRuntimeComponentRegistration.Register(core);
+
+            SceneAsset sceneAsset = CreateAutomaticSpherePhysicsSceneAsset();
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(rootEntities);
+
+            for (int index = 0; index < 60; index++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            Entity dynamicEntity = rootEntities[1];
+            RigidBody3DComponent rigidBody = FindRigidBody(dynamicEntity);
+            SphereCollider3DComponent sphereCollider = FindSphereCollider(dynamicEntity);
+
+            Assert.Equal(0.5f, sphereCollider.Radius);
+            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
+            Assert.NotNull(rigidBody);
+            Assert.InRange(rigidBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+        }
+
+        /// <summary>
         /// Ensures a serialized rigid body and capsule collider can be loaded through the runtime scene loader and simulated by the physics world.
         /// </summary>
         [Fact]
@@ -344,6 +375,21 @@ namespace helengine.physics3d.tests {
                 RootEntities = new[] {
                     CreateBodyEntity("ground", new float3(0f, -0.5f, 0f), BodyKind3D.Static, false, new float3(8f, 1f, 8f)),
                     CreateSphereBodyEntity("dynamicSphere", new float3(0f, 2f, 0f), BodyKind3D.Dynamic, true, 0.5f)
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            };
+        }
+
+        /// <summary>
+        /// Creates one minimal scene asset that contains a static ground body and one dynamic sphere body serialized with the automatic collider payload layout.
+        /// </summary>
+        /// <returns>Scene asset ready for runtime loading.</returns>
+        static SceneAsset CreateAutomaticSpherePhysicsSceneAsset() {
+            return new SceneAsset {
+                Id = "scenes/physics/test_scene_runtime_automatic_sphere_load.helen",
+                RootEntities = new[] {
+                    CreateBodyEntity("ground", new float3(0f, -0.5f, 0f), BodyKind3D.Static, false, new float3(8f, 1f, 8f)),
+                    CreateAutomaticSphereBodyEntity("dynamicSphere", new float3(0f, 2f, 0f), BodyKind3D.Dynamic, true, 0.5f)
                 },
                 AssetReferences = Array.Empty<SceneAssetReference>()
             };
@@ -662,6 +708,39 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Creates one serialized body entity that owns a rigid body and automatic reflected sphere-collider payload.
+        /// </summary>
+        /// <param name="entityId">Stable scene entity id.</param>
+        /// <param name="localPosition">Initial local position.</param>
+        /// <param name="bodyKind">Rigid body kind to serialize.</param>
+        /// <param name="useGravity">True when the rigid body should receive gravity.</param>
+        /// <param name="radius">Sphere collider radius.</param>
+        /// <returns>Serialized scene entity.</returns>
+        static SceneEntityAsset CreateAutomaticSphereBodyEntity(
+            string entityId,
+            float3 localPosition,
+            BodyKind3D bodyKind,
+            bool useGravity,
+            float radius) {
+            if (string.IsNullOrWhiteSpace(entityId)) {
+                throw new ArgumentException("Entity id must be provided.", nameof(entityId));
+            }
+
+            return new SceneEntityAsset {
+                Id = CreateSceneEntityId(entityId),
+                Name = entityId,
+                LocalPosition = localPosition,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = new[] {
+                    CreateRigidBodyRecord(bodyKind, useGravity),
+                    CreateAutomaticSphereColliderRecord(radius)
+                },
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
         /// Creates one serialized body entity that owns a rigid body and capsule collider payload.
         /// </summary>
         /// <param name="entityId">Stable scene entity id.</param>
@@ -823,6 +902,31 @@ namespace helengine.physics3d.tests {
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
             writer.WriteSingle(radius);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.SphereCollider3DComponent",
+                ComponentIndex = 1,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates one serialized sphere collider component record using the automatic reflected member order.
+        /// </summary>
+        /// <param name="radius">Sphere collider radius.</param>
+        /// <returns>Serialized scene component record.</returns>
+        static SceneComponentAssetRecord CreateAutomaticSphereColliderRecord(float radius) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(7);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteDouble(0.4d);
+            writer.WriteByte(0);
+            writer.WriteSingle(radius);
+            writer.WriteDouble(0d);
+            writer.WriteDouble(0.6d);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.SphereCollider3DComponent",
@@ -994,6 +1098,28 @@ namespace helengine.physics3d.tests {
             }
 
             throw new InvalidOperationException("Expected a rigid body component on the loaded runtime entity.");
+        }
+
+        /// <summary>
+        /// Finds the sphere collider component attached to one runtime entity.
+        /// </summary>
+        /// <param name="entity">Entity whose sphere collider should be resolved.</param>
+        /// <returns>Attached sphere collider component.</returns>
+        static SphereCollider3DComponent FindSphereCollider(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (entity.Components == null) {
+                throw new InvalidOperationException("Entity components were not initialized.");
+            }
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is SphereCollider3DComponent sphereCollider) {
+                    return sphereCollider;
+                }
+            }
+
+            throw new InvalidOperationException("Expected a sphere collider component on the loaded runtime entity.");
         }
     }
 }

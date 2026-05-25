@@ -173,6 +173,46 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures camera-bound viewport content on the Nintendo DS bottom screen resolves touch hits using viewport-local coordinates.
+        /// </summary>
+        [Fact]
+        public void ResolveTopInteractableAt_WhenInteractableLivesInBottomScreenViewport_HitsUsingViewportLocalCoordinates() {
+            TestRenderManager3D renderManager = InitializeCoreWithWindow(256, 384);
+            CameraComponent camera = CreateCamera(new float4(0f, 1f, 1f, 1f), EditorLayerMasks.EditorUi);
+            InteractableComponent interactable = CreateViewportBoundInteractableEntity(camera, new float3(16f, 32f, 0f), new int2(80, 32), 5);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 256, 384);
+            Core.Instance.Update();
+
+            IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
+                Core.Instance.ObjectManager.Interactables,
+                Core.Instance.ObjectManager.Drawables2D,
+                camera,
+                40,
+                240);
+
+            Assert.Same(interactable, hit);
+        }
+
+        /// <summary>
+        /// Ensures relative pointer coordinates for camera-bound bottom-screen content are resolved inside the viewport instead of raw window space.
+        /// </summary>
+        [Fact]
+        public void GetRelativePointerForInteractable_WhenInteractableLivesInBottomScreenViewport_UsesViewportLocalCoordinates() {
+            TestRenderManager3D renderManager = InitializeCoreWithWindow(256, 384);
+            CameraComponent camera = CreateCamera(new float4(0f, 1f, 1f, 1f), EditorLayerMasks.EditorUi);
+            InteractableComponent interactable = CreateViewportBoundInteractableEntity(camera, new float3(16f, 32f, 0f), new int2(80, 32), 5);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 256, 384);
+            Core.Instance.Update();
+
+            PointerInteractableHitResolver.GetRelativePointerForInteractable(interactable, 40, 240, camera, out int relativeX, out int relativeY);
+
+            Assert.Equal(24, relativeX);
+            Assert.Equal(16, relativeY);
+        }
+
+        /// <summary>
         /// Initializes the lightweight core services required by pointer hit-resolution tests.
         /// </summary>
         void InitializeCore() {
@@ -228,6 +268,53 @@ namespace helengine.editor.tests {
                 LayerMask = EditorLayerMasks.EditorUi,
                 Position = position
             };
+
+            SpriteComponent sprite = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Size = size,
+                RenderOrder2D = renderOrder
+            };
+            entity.AddComponent(sprite);
+
+            InteractableComponent interactable = new InteractableComponent {
+                Size = size
+            };
+            entity.AddComponent(interactable);
+            return interactable;
+        }
+
+        /// <summary>
+        /// Creates one interactable entity beneath a camera-bound viewport subtree so hit resolution can exercise bottom-screen local coordinates.
+        /// </summary>
+        /// <param name="camera">Camera that owns the viewport subtree.</param>
+        /// <param name="localPosition">Top-left interactable position in viewport-local coordinates.</param>
+        /// <param name="size">Interactable size in pixels.</param>
+        /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
+        /// <returns>Interactable component registered for hit resolution.</returns>
+        InteractableComponent CreateViewportBoundInteractableEntity(CameraComponent camera, float3 localPosition, int2 size, byte renderOrder) {
+            if (camera?.Parent == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+
+            EditorEntity viewportRoot = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi
+            };
+            camera.Parent.AddChild(viewportRoot);
+            viewportRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.AncestorCameraBindingMode,
+                FixedSize = new int2(256, 192),
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                ReferenceWidth = 256,
+                ReferenceHeight = 192
+            });
+
+            EditorEntity entity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi,
+                LocalPosition = localPosition
+            };
+            viewportRoot.AddChild(entity);
 
             SpriteComponent sprite = new SpriteComponent {
                 Texture = TextureUtils.PixelTexture,

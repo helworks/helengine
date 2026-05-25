@@ -6,7 +6,7 @@ HelEngine should use Docker as the standard local build execution contract for n
 
 This design extends the existing deployment-root generated-build model rather than replacing it. Generated source remains target-scoped under `GeneratedSource/<target-id>`, native intermediates remain target-scoped under `Intermediate/<target-id>`, and final packaged output continues to merge into the shared `Build` folder.
 
-The first supported Docker target is `windows-directx`, using a Windows-capable builder image and local Docker execution. Later targets such as `windows-vulkan`, `linux`, `mac`, `ps2`, `gamecube`, `wii`, and `psp` can adopt the same contract with different images.
+The first supported Docker target is `windows-directx`, using a Windows-capable builder image and local Docker execution. Later targets such as `windows-vulkan`, `linux`, `mac`, `ps2`, `gamecube`, `wii`, and external package-owned console builders can adopt the same contract with different images.
 
 ## Goals
 

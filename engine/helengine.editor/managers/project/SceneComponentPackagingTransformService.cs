@@ -1,6 +1,7 @@
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
+using helengine.baseplatform.Paths;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Results;
 using System.Reflection;
@@ -1749,7 +1750,7 @@ namespace helengine.editor {
         SceneAssetReference CreateFontFileReference(string relativePath) {
             return new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = NormalizeRelativePath(relativePath),
+                RelativePath = ResolveRuntimeReferencePath(relativePath),
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };
@@ -1848,7 +1849,7 @@ namespace helengine.editor {
         /// Creates one packaged font asset clone that resolves its atlas through one external cooked texture path instead of embedded raw atlas bytes.
         /// </summary>
         /// <param name="fontAsset">Source font asset that still carries the raw atlas payload.</param>
-        /// <param name="cookedAtlasTextureRelativePath">Runtime-relative cooked atlas texture path that the packaged font should reference.</param>
+        /// <param name="cookedAtlasTextureRelativePath">Logical cooked atlas texture path that the packaged font should reference at runtime.</param>
         /// <returns>Packaged font asset rewritten for one external cooked atlas texture.</returns>
         FontAsset PrepareFontAssetForExternalCookedAtlas(FontAsset fontAsset, string cookedAtlasTextureRelativePath) {
             if (fontAsset == null) {
@@ -1870,8 +1871,8 @@ namespace helengine.editor {
                 fontAsset.LineHeight,
                 fontAsset.AtlasWidth,
                 fontAsset.AtlasHeight) {
-                SourceTextureAsset = null,
-                CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
+                    SourceTextureAsset = null,
+                CookedAtlasTextureRelativePath = ResolveRuntimeReferencePath(cookedAtlasTextureRelativePath)
             };
         }
 
@@ -2339,11 +2340,14 @@ namespace helengine.editor {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (string.IsNullOrWhiteSpace(materialRelativePath)) {
                 throw new ArgumentException("Material relative path must be provided.", nameof(materialRelativePath));
+            } else if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
             }
 
             if (MaterialBuilder != null) {
                 return MaterialAssetSettingsService.LoadOrCreate(
                     materialAssetPath,
+                    materialAsset,
                     [TargetPlatformId],
                     ResolveSelectionModelForMaterialSettings);
             }
@@ -2394,8 +2398,11 @@ namespace helengine.editor {
 
             MaterialAssetProcessorSettings cookMaterialSettings = ResolveCookMaterialSettings(platformMaterialSettings);
             Dictionary<string, string> fieldValues = BuildMaterialCookFieldValues(materialAsset, cookMaterialSettings);
+            string materialAssetId = string.IsNullOrWhiteSpace(materialAsset.Id)
+                ? reference.RelativePath
+                : materialAsset.Id;
             return new PlatformMaterialCookRequest(
-                materialAsset.Id ?? reference.RelativePath,
+                materialAssetId,
                 reference.RelativePath,
                 TargetPlatformId,
                 SelectedBuildProfileId,
@@ -2659,7 +2666,7 @@ namespace helengine.editor {
         SceneAssetReference CreateFileSystemReference(string relativePath) {
             return new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = NormalizeRelativePath(relativePath),
+                RelativePath = ResolveRuntimeReferencePath(relativePath),
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };
@@ -2682,7 +2689,7 @@ namespace helengine.editor {
 
             return new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = NormalizeRelativePath(relativePath),
+                RelativePath = ResolveRuntimeReferencePath(relativePath),
                 ProviderId = providerId,
                 AssetId = assetId
             };
@@ -2946,6 +2953,23 @@ namespace helengine.editor {
             }
 
             return relativePath.Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// Resolves one logical packaged asset path into the final runtime path form required by the selected platform contract.
+        /// </summary>
+        /// <param name="relativePath">Logical packaged asset path relative to the build content root.</param>
+        /// <returns>Final runtime asset path consumed by the selected platform.</returns>
+        string ResolveRuntimeReferencePath(string relativePath) {
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            if (PlatformDefinition == null || PlatformDefinition.RuntimeGenerationContract == null) {
+                return normalizedRelativePath;
+            }
+
+            return PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+                TargetPlatformId,
+                PlatformDefinition.RuntimeGenerationContract,
+                normalizedRelativePath);
         }
 
         /// <summary>

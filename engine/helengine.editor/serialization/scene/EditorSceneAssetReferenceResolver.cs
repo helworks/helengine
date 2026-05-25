@@ -386,11 +386,15 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute path to the authored material asset.</param>
         /// <returns>Legacy binary material asset, or null when the file is already a settings document or another asset type.</returns>
         MaterialAsset TryLoadLegacyBinaryMaterialAsset(string fullPath) {
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
+                EngineBinaryReadContext.CurrentAssetPath = fullPath;
                 using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 return AssetSerializer.Deserialize(stream) as MaterialAsset;
             } catch {
                 return null;
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
         }
 

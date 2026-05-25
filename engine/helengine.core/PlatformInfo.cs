@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Initializes one immutable runtime platform metadata record.
         /// </summary>
-        /// <param name="name">Stable platform identifier, such as windows or psp.</param>
+        /// <param name="name">Stable platform identifier, such as windows or an external package-owned platform id.</param>
         /// <param name="version">Builder-stamped platform version string reported by the running artifact.</param>
         public PlatformInfo(string name, string version) {
             if (string.IsNullOrWhiteSpace(name)) {

@@ -1409,13 +1409,17 @@ namespace helengine.editor {
                 return false;
             }
 
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
+                EngineBinaryReadContext.CurrentAssetPath = outputPath;
                 using FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 asset = RestoreRuntimeTextureForCachedFontAsset(FontAssetBinarySerializer.Deserialize(stream));
                 return true;
             } catch {
                 asset = null;
                 return false;
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
         }
 
@@ -1521,7 +1525,9 @@ namespace helengine.editor {
                 return false;
             }
 
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
+                EngineBinaryReadContext.CurrentAssetPath = outputPath;
                 using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
                     asset = AssetSerializer.Deserialize(stream);
                 }
@@ -1529,6 +1535,8 @@ namespace helengine.editor {
             } catch {
                 asset = null;
                 return false;
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
         }
 

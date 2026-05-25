@@ -358,6 +358,45 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Ensures the authored eight-sphere tower keeps falling near the BEPU reference instead of freezing after the first dynamic contact.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityEightSphereTower_DoesNotFreezeTopSphereOnFirstDynamicContact() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(16f, 1f, 14f)
+            });
+
+            Entity[] spheres = new Entity[8];
+            RigidBody3DComponent[] bodies = new RigidBody3DComponent[spheres.Length];
+            for (int sphereIndex = 0; sphereIndex < spheres.Length; sphereIndex++) {
+                float staggerX = sphereIndex % 2 == 0 ? 0f : 0.08f;
+                float staggerZ = sphereIndex % 3 == 0 ? -0.06f : 0.06f;
+                bodies[sphereIndex] = CreateDynamicBody();
+                spheres[sphereIndex] = CreateDynamicSphereEntity(new float3(staggerX, 0.5f + sphereIndex, staggerZ), bodies[sphereIndex]);
+            }
+
+            Entity[] rootEntities = new Entity[spheres.Length + 1];
+            rootEntities[0] = groundEntity;
+            for (int index = 0; index < spheres.Length; index++) {
+                rootEntities[index + 1] = spheres[index];
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(rootEntities);
+
+            for (int stepIndex = 0; stepIndex < 8; stepIndex++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            Assert.True(bodies[7].LinearVelocity.Y < -0.5f, $"Expected the top sphere to keep falling like BEPU after early dynamic contact, but its velocity was {bodies[7].LinearVelocity}.");
+        }
+
+        /// <summary>
         /// Ensures friction cancels small tangential motion when one dynamic sphere settles onto one static ground box.
         /// </summary>
         [Fact]
@@ -393,6 +432,7 @@ namespace helengine.physics3d.tests {
             world.Step(1.0 / 60.0);
 
             Assert.InRange(dynamicBody.LinearVelocity.X, -0.0001f, 0.0001f);
+            Assert.NotEqual(float3.Zero, dynamicBody.AngularVelocity);
         }
 
         /// <summary>
@@ -1304,6 +1344,25 @@ namespace helengine.physics3d.tests {
             entity.AddComponent(body);
             entity.AddComponent(new BoxCollider3DComponent {
                 Size = new float3(1f, 1f, 1f)
+            });
+            return entity;
+        }
+
+        /// <summary>
+        /// Creates one initialized dynamic sphere around an already retained rigid-body component reference.
+        /// </summary>
+        /// <param name="localPosition">Initial local position.</param>
+        /// <param name="body">Rigid body component that should drive the sphere.</param>
+        /// <returns>Initialized dynamic sphere entity.</returns>
+        static Entity CreateDynamicSphereEntity(float3 localPosition, RigidBody3DComponent body) {
+            if (body == null) {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            Entity entity = CreateEntity(localPosition);
+            entity.AddComponent(body);
+            entity.AddComponent(new SphereCollider3DComponent {
+                Radius = 0.5f
             });
             return entity;
         }

@@ -114,6 +114,8 @@ namespace helengine.editor {
             EnsurePlatformSelectionDefaults(platformConfig, selectionModel);
             EnsureSelectedScenes(sceneCatalogService, platformConfig);
             List<string> orderedSceneIds = BuildOrderedSceneIds(sceneCatalogService, platformConfig, platformConfig.SelectedSceneIds);
+            ApplyPlatformSceneExpansions(sceneCatalogService, platformConfig.PlatformId, orderedSceneIds);
+            ApplyPlatformStartupSceneOverrides(platformConfig.PlatformId, orderedSceneIds);
             if (orderedSceneIds.Count == 0) {
                 throw new InvalidOperationException($"Platform '{platformConfig.PlatformId}' does not have any selected scenes.");
             }
@@ -392,6 +394,185 @@ namespace helengine.editor {
             });
 
             return orderedSceneIds;
+        }
+
+        /// <summary>
+        /// Applies platform-specific scene-set expansions that must happen before the build item is persisted.
+        /// </summary>
+        /// <param name="sceneCatalogService">Project scene catalog used to resolve authored scene paths.</param>
+        /// <param name="platformId">Platform identifier selected for the queued build.</param>
+        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
+        static void ApplyPlatformSceneExpansions(EditorProjectSceneCatalogService sceneCatalogService, string platformId, List<string> orderedSceneIds) {
+            if (sceneCatalogService == null) {
+                throw new ArgumentNullException(nameof(sceneCatalogService));
+            }
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+            if (!string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            ApplyNintendoDsCompanionSceneExpansions(sceneCatalogService, orderedSceneIds);
+        }
+
+        /// <summary>
+        /// Expands one Nintendo DS scene set so authored DS companion scenes cook beside their default authored source scenes.
+        /// </summary>
+        /// <param name="sceneCatalogService">Project scene catalog used to resolve authored scene paths.</param>
+        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
+        static void ApplyNintendoDsCompanionSceneExpansions(EditorProjectSceneCatalogService sceneCatalogService, List<string> orderedSceneIds) {
+            if (sceneCatalogService == null) {
+                throw new ArgumentNullException(nameof(sceneCatalogService));
+            }
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+
+            IReadOnlyList<string> sceneCatalogIds = sceneCatalogService.GetSceneIds();
+            HashSet<string> sceneCatalogIdSet = new HashSet<string>(sceneCatalogIds, StringComparer.Ordinal);
+            List<string> expandedSceneIds = new List<string>(orderedSceneIds.Count);
+            for (int index = 0; index < orderedSceneIds.Count; index++) {
+                string sceneId = orderedSceneIds[index];
+                if (!TryResolveNintendoDsCompanionSceneId(sceneCatalogService, sceneId, sceneCatalogIdSet, out string companionSceneId)) {
+                    if (IndexOf(expandedSceneIds, sceneId) < 0) {
+                        expandedSceneIds.Add(sceneId);
+                    }
+                    continue;
+                }
+                if (IndexOf(expandedSceneIds, companionSceneId) < 0) {
+                    expandedSceneIds.Add(companionSceneId);
+                }
+                if (IndexOf(expandedSceneIds, sceneId) < 0) {
+                    expandedSceneIds.Add(sceneId);
+                }
+            }
+
+            orderedSceneIds.Clear();
+            orderedSceneIds.AddRange(expandedSceneIds);
+        }
+
+        /// <summary>
+        /// Resolves the authored Nintendo DS companion-scene id for one default authored scene when the companion exists.
+        /// </summary>
+        /// <param name="sceneCatalogService">Project scene catalog used to resolve authored scene paths.</param>
+        /// <param name="sceneId">Default authored scene id selected for the build.</param>
+        /// <param name="sceneCatalogIdSet">Project scene ids currently present in the catalog.</param>
+        /// <param name="companionSceneId">Resolved companion-scene id when the authored DS scene exists.</param>
+        /// <returns>True when the selected scene has an authored DS companion scene.</returns>
+        static bool TryResolveNintendoDsCompanionSceneId(EditorProjectSceneCatalogService sceneCatalogService, string sceneId, ISet<string> sceneCatalogIdSet, out string companionSceneId) {
+            if (sceneCatalogService == null) {
+                throw new ArgumentNullException(nameof(sceneCatalogService));
+            }
+            if (sceneCatalogIdSet == null) {
+                throw new ArgumentNullException(nameof(sceneCatalogIdSet));
+            }
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                companionSceneId = string.Empty;
+                return false;
+            }
+
+            string authoredScenePath = NormalizeScenePath(sceneCatalogService.ResolveScenePath(sceneId));
+            if (IsNintendoDsCompanionScenePath(authoredScenePath)) {
+                companionSceneId = string.Empty;
+                return false;
+            }
+
+            string directoryPath = Path.GetDirectoryName(authoredScenePath)?.Replace('\\', '/') ?? string.Empty;
+            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(authoredScenePath);
+            string sceneExtension = Path.GetExtension(authoredScenePath);
+            string companionScenePath = string.IsNullOrWhiteSpace(directoryPath)
+                ? "ds/" + fileNameWithoutExtension + "_ds" + sceneExtension
+                : directoryPath + "/ds/" + fileNameWithoutExtension + "_ds" + sceneExtension;
+            companionSceneId = SceneIdUtility.FromPath(companionScenePath);
+            return sceneCatalogIdSet.Contains(companionSceneId);
+        }
+
+        /// <summary>
+        /// Resolves whether one authored scene path already targets a Nintendo DS companion-scene file.
+        /// </summary>
+        /// <param name="scenePath">Project-relative authored scene path.</param>
+        /// <returns>True when the path already points at a Nintendo DS companion scene.</returns>
+        static bool IsNintendoDsCompanionScenePath(string scenePath) {
+            if (string.IsNullOrWhiteSpace(scenePath)) {
+                return false;
+            }
+
+            string normalizedScenePath = NormalizeScenePath(scenePath);
+            return normalizedScenePath.Contains("/ds/", StringComparison.Ordinal)
+                && normalizedScenePath.EndsWith("_ds.helen", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Normalizes one authored scene path to forward slashes so naming-contract checks remain stable across hosts.
+        /// </summary>
+        /// <param name="scenePath">Project-relative authored scene path.</param>
+        /// <returns>Normalized project-relative authored scene path.</returns>
+        static string NormalizeScenePath(string scenePath) {
+            if (string.IsNullOrWhiteSpace(scenePath)) {
+                return string.Empty;
+            }
+
+            return scenePath.Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// Applies platform-specific startup scene overrides to the ordered scene list.
+        /// </summary>
+        /// <param name="platformId">Platform identifier selected for the queued build.</param>
+        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
+        static void ApplyPlatformStartupSceneOverrides(string platformId, List<string> orderedSceneIds) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+            if (!string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+            if (!RequiresGeneratedBootScene(orderedSceneIds)) {
+                return;
+            }
+
+            EnsureStartupSceneFirst(orderedSceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId);
+        }
+
+        /// <summary>
+        /// Resolves whether the selected scene set needs generated boot-scene routing for demo-disc menu startup.
+        /// </summary>
+        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
+        /// <returns>True when the scene set includes the desktop menu or already selected the generated boot scene.</returns>
+        static bool RequiresGeneratedBootScene(IReadOnlyList<string> orderedSceneIds) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+
+            return IndexOf(orderedSceneIds, PlatformMenuSceneResolver.DesktopMainMenuSceneId) >= 0
+                || IndexOf(orderedSceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId) >= 0;
+        }
+
+        /// <summary>
+        /// Ensures one startup scene always cooks and stages first.
+        /// </summary>
+        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
+        /// <param name="startupSceneId">Stable startup scene identifier that must be staged first.</param>
+        static void EnsureStartupSceneFirst(List<string> orderedSceneIds, string startupSceneId) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+            if (string.IsNullOrWhiteSpace(startupSceneId)) {
+                throw new ArgumentException("Startup scene id must be provided.", nameof(startupSceneId));
+            }
+
+            int startupSceneIndex = IndexOf(orderedSceneIds, startupSceneId);
+            if (startupSceneIndex < 0) {
+                orderedSceneIds.Insert(0, startupSceneId);
+                return;
+            }
+            if (startupSceneIndex == 0) {
+                return;
+            }
+
+            orderedSceneIds.RemoveAt(startupSceneIndex);
+            orderedSceneIds.Insert(0, startupSceneId);
         }
 
         /// <summary>
