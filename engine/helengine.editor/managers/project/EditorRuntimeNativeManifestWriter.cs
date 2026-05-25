@@ -27,6 +27,7 @@ namespace helengine.editor {
             WriteCodeModuleManifestSource(runtimeRootPath, cookedManifest);
             WritePhysics3DSceneFeatureManifestSource(runtimeRootPath, cookedManifest);
             WriteStandardPlatformInputManifestSource(runtimeRootPath, cookedManifest);
+            EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
         }
 
         /// <summary>
@@ -463,7 +464,7 @@ namespace helengine.editor {
             builder.AppendLine("#include \"runtime/runtime_standard_platform_input_manifest.hpp\"");
             builder.AppendLine();
 
-            IReadOnlyList<StandardPlatformActionBinding> bindings = cookedManifest.StandardPlatformInputConfiguration?.Bindings ?? Array.Empty<StandardPlatformActionBinding>();
+            List<StandardPlatformActionBinding> bindings = cookedManifest.StandardPlatformInputConfiguration?.Bindings ?? [];
             if (bindings.Count == 0) {
                 builder.AppendLine("static const HERuntimeStandardPlatformActionEntry* kRuntimeStandardPlatformActionEntries = nullptr;");
                 builder.AppendLine("static const std::size_t kRuntimeStandardPlatformActionEntryCount = 0;");

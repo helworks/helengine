@@ -40,6 +40,7 @@ namespace helengine.editor {
             PlatformInfo platformInfo = new PlatformInfo("editor", bootstrap.RequiredEngineVersion);
             core.Initialize(renderer3D, renderer3D.Render2D, null, platformInfo, initializationOptions);
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
+            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             EditorProjectPaths.Initialize(bootstrap.ProjectRootPath);
             ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));

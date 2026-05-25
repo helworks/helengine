@@ -133,4 +133,52 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         Assert.Contains("0, 0, 0, 0, 0", standardPlatformInputSource);
         Assert.Contains("1, 0, 0, 0, 3", standardPlatformInputSource);
     }
+
+    /// <summary>
+    /// Ensures writing runtime native manifest sources refreshes the generated-core unity translation unit so native builds compile the emitted standard-platform-input manifest.
+    /// </summary>
+    [Fact]
+    public void Write_refreshes_generated_core_unity_translation_unit_for_standard_platform_input_manifest() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-core");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "ExistingComponent.cpp"), "void existing_component() {}");
+        EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
+
+        PlatformBuildScene startupScene = new(
+            "NewScene",
+            "NewScene",
+            "Scenes/NewScene.helen",
+            Array.Empty<PlatformBuildPayloadReference>(),
+            [
+                new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "cooked/scenes/NewScene.hasset"),
+                new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags, "0")
+            ]);
+
+        PlatformBuildManifest manifest = new(
+            1,
+            "project",
+            "1.0.0",
+            "1.0.0",
+            "ds",
+            "2026.05.25",
+            "NewScene",
+            [startupScene],
+            Array.Empty<PlatformBuildAsset>(),
+            Array.Empty<PlatformBuildArtifact>(),
+            Array.Empty<PlatformBuildCodeModule>(),
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+        manifest.StandardPlatformInputConfiguration = new StandardPlatformInputConfiguration([
+            new StandardPlatformActionBinding(
+                StandardPlatformAction.Accept,
+                new InputControlId(InputDeviceKind.Gamepad, InputControlKind.Button, 0, (int)InputGamepadButton.South))
+        ]);
+
+        EditorRuntimeNativeManifestWriter writer = new();
+        writer.Write(generatedCoreRootPath, manifest);
+
+        string unitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
+        string unitySourceContents = File.ReadAllText(unitySourcePath);
+        Assert.Contains("#include \"runtime/runtime_standard_platform_input_manifest.cpp\"", unitySourceContents);
+    }
 }

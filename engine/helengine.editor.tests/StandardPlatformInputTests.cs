@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         /// <param name="bindings">Bindings that should be registered for the current runtime.</param>
         /// <returns>Configuration that contains the supplied standard platform action bindings.</returns>
         StandardPlatformInputConfiguration CreateConfiguration(params StandardPlatformActionBinding[] bindings) {
-            return new StandardPlatformInputConfiguration(bindings);
+            return new StandardPlatformInputConfiguration([.. bindings]);
         }
 
         /// <summary>
