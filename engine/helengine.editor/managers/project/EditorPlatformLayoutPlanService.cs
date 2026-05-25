@@ -64,7 +64,7 @@ namespace helengine.editor {
                     new PlatformContainerArtifact("container-0", containerKind, 0)
                 ]);
 
-            return new PlatformBuildManifest(
+            PlatformBuildManifest manifest = new PlatformBuildManifest(
                 cookedManifest.ManifestVersion,
                 cookedManifest.ProjectId,
                 cookedManifest.ProjectVersion,
@@ -79,6 +79,8 @@ namespace helengine.editor {
                 [.. placements],
                 containerWritePlan,
                 cookedManifest.PlatformCookWorkItems);
+            manifest.StandardPlatformInputConfiguration = cookedManifest.StandardPlatformInputConfiguration;
+            return manifest;
         }
 
         static Dictionary<string, int> BuildScenePriorityByRelativePath(PlatformBuildManifest cookedManifest) {

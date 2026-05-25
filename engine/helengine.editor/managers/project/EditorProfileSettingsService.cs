@@ -196,7 +196,8 @@ namespace helengine.editor {
                 PlatformId = platformId,
                 Build = new EditorBuildProfileSettingsDocument(),
                 Graphics = new EditorGraphicsProfileSettingsDocument(),
-                Codegen = new EditorCodegenProfileSettingsDocument()
+                Codegen = new EditorCodegenProfileSettingsDocument(),
+                Input = new EditorInputProfileSettingsDocument()
             };
 
             NormalizePlatform(document, platformId);
@@ -220,6 +221,7 @@ namespace helengine.editor {
             platform.Build ??= new EditorBuildProfileSettingsDocument();
             platform.Graphics ??= new EditorGraphicsProfileSettingsDocument();
             platform.Codegen ??= new EditorCodegenProfileSettingsDocument();
+            platform.Input ??= new EditorInputProfileSettingsDocument();
             platform.Build.SelectedBuildProfileId ??= string.Empty;
             platform.Build.SelectedOptionValues ??= [];
             platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
@@ -227,6 +229,29 @@ namespace helengine.editor {
             platform.Graphics.RendererShadowQualityTier ??= "medium";
             platform.Codegen.SelectedCodegenProfileId ??= string.Empty;
             platform.Codegen.SelectedOptionValues ??= [];
+            platform.Input.StandardActions ??= new EditorStandardPlatformActionSettingsDocument();
+
+            if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
+                platform.Input.StandardActions.Accept ??= CreateGamepadButtonControl((int)InputGamepadButton.South);
+                platform.Input.StandardActions.Return ??= CreateGamepadButtonControl((int)InputGamepadButton.East);
+            } else if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
+                platform.Input.StandardActions.Accept ??= CreateGamepadButtonControl((int)InputGamepadButton.South);
+                platform.Input.StandardActions.Return ??= CreateGamepadButtonControl((int)InputGamepadButton.North);
+            }
+        }
+
+        /// <summary>
+        /// Creates one persisted gamepad-button control reference.
+        /// </summary>
+        /// <param name="controlIndex">Zero-based button index that should be persisted.</param>
+        /// <returns>Persisted control reference for the requested gamepad button.</returns>
+        EditorInputControlSettingsDocument CreateGamepadButtonControl(int controlIndex) {
+            return new EditorInputControlSettingsDocument {
+                DeviceKind = InputDeviceKind.Gamepad,
+                ControlKind = InputControlKind.Button,
+                DeviceIndex = 0,
+                ControlIndex = controlIndex
+            };
         }
     }
 }

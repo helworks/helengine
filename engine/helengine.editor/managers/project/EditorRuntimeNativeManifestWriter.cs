@@ -26,6 +26,7 @@ namespace helengine.editor {
             WriteSceneCatalogManifestSource(runtimeRootPath, cookedManifest);
             WriteCodeModuleManifestSource(runtimeRootPath, cookedManifest);
             WritePhysics3DSceneFeatureManifestSource(runtimeRootPath, cookedManifest);
+            WriteStandardPlatformInputManifestSource(runtimeRootPath, cookedManifest);
         }
 
         /// <summary>
@@ -79,6 +80,19 @@ namespace helengine.editor {
 
             File.WriteAllText(headerPath, BuildPhysics3DSceneFeatureManifestHeaderContents());
             File.WriteAllText(sourcePath, BuildPhysics3DSceneFeatureManifestSourceContents(cookedManifest));
+        }
+
+        /// <summary>
+        /// Writes the generated standard-platform-input manifest header and implementation.
+        /// </summary>
+        /// <param name="runtimeRootPath">Runtime source folder inside the generated core tree.</param>
+        /// <param name="cookedManifest">Final cooked manifest whose standard platform actions should be embedded.</param>
+        void WriteStandardPlatformInputManifestSource(string runtimeRootPath, PlatformBuildManifest cookedManifest) {
+            string headerPath = Path.Combine(runtimeRootPath, "runtime_standard_platform_input_manifest.hpp");
+            string sourcePath = Path.Combine(runtimeRootPath, "runtime_standard_platform_input_manifest.cpp");
+
+            File.WriteAllText(headerPath, BuildStandardPlatformInputManifestHeaderContents());
+            File.WriteAllText(sourcePath, BuildStandardPlatformInputManifestSourceContents(cookedManifest));
         }
 
         /// <summary>
@@ -256,6 +270,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds the generated standard-platform-input manifest header.
+        /// </summary>
+        /// <returns>Generated C++ header text.</returns>
+        static string BuildStandardPlatformInputManifestHeaderContents() {
+            StringBuilder builder = new();
+            builder.AppendLine("#pragma once");
+            builder.AppendLine();
+            builder.AppendLine("#include <cstddef>");
+            builder.AppendLine();
+            builder.AppendLine("struct HERuntimeStandardPlatformActionEntry {");
+            builder.AppendLine("    int ActionId;");
+            builder.AppendLine("    int DeviceKind;");
+            builder.AppendLine("    int ControlKind;");
+            builder.AppendLine("    int DeviceIndex;");
+            builder.AppendLine("    int ControlIndex;");
+            builder.AppendLine("};");
+            builder.AppendLine();
+            builder.AppendLine("const HERuntimeStandardPlatformActionEntry* he_runtime_standard_platform_action_entries(std::size_t* count);");
+            return builder.ToString();
+        }
+
+        /// <summary>
         /// Builds the generated runtime code-module manifest implementation.
         /// </summary>
         /// <param name="codeModules">Cooked code-module records to embed into native source.</param>
@@ -409,6 +445,57 @@ namespace helengine.editor {
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.AppendLine("    throw std::runtime_error(\"Runtime scene id was not found in the physics feature manifest.\");");
+            builder.AppendLine("}");
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Builds the generated standard-platform-input manifest implementation.
+        /// </summary>
+        /// <param name="cookedManifest">Final cooked manifest whose standard platform actions should be embedded.</param>
+        /// <returns>Generated C++ implementation text.</returns>
+        static string BuildStandardPlatformInputManifestSourceContents(PlatformBuildManifest cookedManifest) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
+
+            StringBuilder builder = new();
+            builder.AppendLine("#include \"runtime/runtime_standard_platform_input_manifest.hpp\"");
+            builder.AppendLine();
+
+            IReadOnlyList<StandardPlatformActionBinding> bindings = cookedManifest.StandardPlatformInputConfiguration?.Bindings ?? Array.Empty<StandardPlatformActionBinding>();
+            if (bindings.Count == 0) {
+                builder.AppendLine("static const HERuntimeStandardPlatformActionEntry* kRuntimeStandardPlatformActionEntries = nullptr;");
+                builder.AppendLine("static const std::size_t kRuntimeStandardPlatformActionEntryCount = 0;");
+            } else {
+                builder.AppendLine("static const HERuntimeStandardPlatformActionEntry kRuntimeStandardPlatformActionEntries[] = {");
+                for (int index = 0; index < bindings.Count; index++) {
+                    StandardPlatformActionBinding binding = bindings[index];
+                    builder.Append("    { ");
+                    builder.Append(((int)binding.Action).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    builder.Append(", ");
+                    builder.Append(((int)binding.Control.DeviceKind).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    builder.Append(", ");
+                    builder.Append(((int)binding.Control.ControlKind).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    builder.Append(", ");
+                    builder.Append(binding.Control.DeviceIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    builder.Append(", ");
+                    builder.Append(binding.Control.ControlIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    builder.AppendLine(" },");
+                }
+                builder.AppendLine("};");
+                builder.Append("static const std::size_t kRuntimeStandardPlatformActionEntryCount = ");
+                builder.Append(bindings.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                builder.AppendLine(";");
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("const HERuntimeStandardPlatformActionEntry* he_runtime_standard_platform_action_entries(std::size_t* count) {");
+            builder.AppendLine("    if (count != nullptr) {");
+            builder.AppendLine("        *count = kRuntimeStandardPlatformActionEntryCount;");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    return kRuntimeStandardPlatformActionEntries;");
             builder.AppendLine("}");
             return builder.ToString();
         }

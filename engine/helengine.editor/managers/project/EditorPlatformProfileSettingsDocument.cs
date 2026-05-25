@@ -26,6 +26,11 @@ namespace helengine.editor {
         public EditorCodegenProfileSettingsDocument Codegen { get; set; } = new EditorCodegenProfileSettingsDocument();
 
         /// <summary>
+        /// Gets or sets the input-profile values used to resolve platform-standard actions for this platform.
+        /// </summary>
+        public EditorInputProfileSettingsDocument Input { get; set; } = new EditorInputProfileSettingsDocument();
+
+        /// <summary>
         /// Gets or sets the cached builder metadata for the selected platform.
         /// </summary>
         [JsonIgnore]

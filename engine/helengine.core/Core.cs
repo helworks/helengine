@@ -74,6 +74,7 @@ namespace helengine {
             InitializationOptions.Normalize();
             PhysicsSchedulerValue = CreatePhysicsScheduler(InitializationOptions);
             Input = new InputSystem();
+            StandardPlatformInput = new StandardPlatformInput(Input);
             PointerInteractionSystem = new PointerInteractionSystem(this, Input);
             TextClipboardServiceValue = new NullTextClipboardService();
             TextBoxShortcutRegistryValue = new TextBoxShortcutRegistry();
@@ -180,6 +181,11 @@ namespace helengine {
         /// Gets the portable input system that resolves logical actions from raw frame data.
         /// </summary>
         public InputSystem InputSystem => Input;
+
+        /// <summary>
+        /// Gets the engine-owned helper that resolves platform-standard actions such as accept and return.
+        /// </summary>
+        public StandardPlatformInput StandardPlatformInput { get; private set; }
 
         /// <summary>
         /// Gets the pointer interaction router used to translate raw pointer state into hover and press events.
@@ -333,6 +339,7 @@ namespace helengine {
             options.Normalize();
             InitializationOptions = options;
             PhysicsSchedulerValue = CreatePhysicsScheduler(options);
+            StandardPlatformInput.Configure(options.StandardPlatformInputConfiguration);
 
             ObjectManager = new ObjectManager(options);
             EntityFactory = CreateEntityFactory();
@@ -478,8 +485,12 @@ namespace helengine {
         /// Releases managed resources for render managers.
         /// </summary>
         public void Dispose() {
-            RenderManager3D.Dispose();
-            RenderManager2D.Dispose();
+            if (RenderManager3D != null) {
+                RenderManager3D.Dispose();
+            }
+            if (RenderManager2D != null) {
+                RenderManager2D.Dispose();
+            }
             RuntimeDiagnosticsService = null;
         }
 

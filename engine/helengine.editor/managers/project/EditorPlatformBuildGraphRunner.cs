@@ -27,6 +27,7 @@ namespace helengine.editor {
         readonly FontAsset DefaultFontAsset;
         readonly EditorPlatformAssetBuilderLoader BuilderLoader;
         readonly EditorGeneratedCoreRegenerationService GeneratedCoreRegenerationService;
+        readonly EditorGeneratedBootScenePreparationService GeneratedBootScenePreparationService;
         readonly EditorPhysics3DCodegenFeatureSymbolService Physics3DCodegenFeatureSymbolService;
         readonly EditorPlatformBuildGraphWorkspaceFactory WorkspaceFactory;
         readonly EditorPlatformAssetCookService AssetCookService;
@@ -96,6 +97,7 @@ namespace helengine.editor {
             DefaultFontAsset = defaultFontAsset;
             BuilderLoader = builderLoader ?? throw new ArgumentNullException(nameof(builderLoader));
             GeneratedCoreRegenerationService = generatedCoreRegenerationService ?? throw new ArgumentNullException(nameof(generatedCoreRegenerationService));
+            GeneratedBootScenePreparationService = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
             Physics3DCodegenFeatureSymbolService = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
             WorkspaceFactory = workspaceFactory ?? new EditorPlatformBuildGraphWorkspaceFactory();
             AssetCookService = new EditorPlatformAssetCookService(
@@ -142,6 +144,7 @@ namespace helengine.editor {
             Directory.CreateDirectory(workspace.BuilderWorkingRootPath);
             Directory.CreateDirectory(workspace.LogsRootPath);
 
+            GeneratedBootScenePreparationService.EnsurePrepared(queueItem.PlatformId, queueItem.SelectedSceneIds ?? []);
             RunRegenerateCore(builder.Definition, selectedCodegenProfile, queueItem, workspace);
             PlatformBuildManifest cookedManifest = RunCookAssets(
                 builder,
@@ -763,7 +766,7 @@ namespace helengine.editor {
                 .. resolvedArtifactSet.PlatformVariants
             ];
 
-            return new PlatformBuildManifest(
+            PlatformBuildManifest manifest = new PlatformBuildManifest(
                 cookedManifest.ManifestVersion,
                 cookedManifest.ProjectId,
                 cookedManifest.ProjectVersion,
@@ -778,6 +781,8 @@ namespace helengine.editor {
                 cookedManifest.ArtifactPlacements,
                 cookedManifest.ContainerWritePlan,
                 cookedManifest.PlatformCookWorkItems);
+            manifest.StandardPlatformInputConfiguration = cookedManifest.StandardPlatformInputConfiguration;
+            return manifest;
         }
 
         /// <summary>
@@ -1287,7 +1292,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(manifest));
             }
 
-            return new PlatformBuildManifest(
+            PlatformBuildManifest updatedManifest = new PlatformBuildManifest(
                 manifest.ManifestVersion,
                 manifest.ProjectId,
                 manifest.ProjectVersion,
@@ -1302,6 +1307,8 @@ namespace helengine.editor {
                 manifest.ArtifactPlacements,
                 manifest.ContainerWritePlan,
                 manifest.PlatformCookWorkItems);
+            updatedManifest.StandardPlatformInputConfiguration = manifest.StandardPlatformInputConfiguration;
+            return updatedManifest;
         }
 
         static string ResolveSelectedBuildProfileId(EditorBuildQueueItemDocument queueItem, EditorPlatformBuildSelectionModel selectionModel) {

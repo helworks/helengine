@@ -247,6 +247,20 @@ public sealed class InputSystem {
     }
 
     /// <summary>
+    /// Removes every matching instance of the supplied context from the active stack.
+    /// </summary>
+    /// <param name="contextId">Context whose active instances should be removed.</param>
+    public void RemoveContextInstances(InputContextId contextId) {
+        for (int i = ActiveContextStack.Count - 1; i >= 0; i--) {
+            if (ActiveContextStack[i] != contextId.Value) {
+                continue;
+            }
+
+            ActiveContextStack.RemoveAt(i);
+        }
+    }
+
+    /// <summary>
     /// Clears every active context from the stack.
     /// </summary>
     public void ClearContexts() {

@@ -1,0 +1,34 @@
+namespace helengine;
+
+/// <summary>
+/// Stores the complete set of standard platform action bindings that should be registered for one runtime.
+/// </summary>
+public sealed class StandardPlatformInputConfiguration {
+    /// <summary>
+    /// Gets one empty configuration with no configured standard platform actions.
+    /// </summary>
+    public static StandardPlatformInputConfiguration Empty { get; } = new StandardPlatformInputConfiguration(Array.Empty<StandardPlatformActionBinding>());
+
+    /// <summary>
+    /// Initializes one standard platform input configuration from the supplied bindings.
+    /// </summary>
+    /// <param name="bindings">Configured standard platform action bindings that should be registered at runtime.</param>
+    public StandardPlatformInputConfiguration(IReadOnlyList<StandardPlatformActionBinding> bindings) {
+        if (bindings == null) {
+            throw new ArgumentNullException(nameof(bindings));
+        }
+
+        StandardPlatformActionBinding[] copiedBindings = new StandardPlatformActionBinding[bindings.Count];
+        for (int index = 0; index < bindings.Count; index++) {
+            StandardPlatformActionBinding binding = bindings[index];
+            copiedBindings[index] = binding ?? throw new InvalidOperationException("Standard platform action bindings cannot contain null entries.");
+        }
+
+        Bindings = copiedBindings;
+    }
+
+    /// <summary>
+    /// Gets the configured standard platform action bindings that should be registered at runtime.
+    /// </summary>
+    public IReadOnlyList<StandardPlatformActionBinding> Bindings { get; }
+}

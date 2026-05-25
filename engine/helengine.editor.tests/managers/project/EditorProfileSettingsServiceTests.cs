@@ -128,6 +128,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures one missing DS platform file seeds standard platform action mappings.
+        /// </summary>
+        [Fact]
+        public void Load_WhenDsPlatformFileIsMissing_SeedsStandardPlatformActions() {
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+
+            EditorProfileSettingsDocument document = service.Load(new List<string> { "ds" });
+
+            EditorPlatformProfileSettingsDocument platform = Assert.Single(document.Platforms);
+            Assert.Equal("ds", platform.PlatformId);
+            Assert.NotNull(platform.Input);
+            Assert.NotNull(platform.Input.StandardActions);
+            Assert.NotNull(platform.Input.StandardActions.Accept);
+            Assert.NotNull(platform.Input.StandardActions.Return);
+        }
+
+        /// <summary>
+        /// Ensures configured standard platform actions survive save and reload.
+        /// </summary>
+        [Fact]
+        public void SaveAndReload_WhenStandardPlatformActionsAreConfigured_PreservesInputSectionValues() {
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+            EditorProfileSettingsDocument document = CreateProfileDocument("ps2");
+
+            document.Platforms[0].Input.StandardActions.Accept.ControlIndex = 0;
+            document.Platforms[0].Input.StandardActions.Return.ControlIndex = 3;
+            service.Save(document);
+
+            EditorProfileSettingsDocument reloaded = service.Load(new List<string> { "ps2" });
+            Assert.Equal(0, reloaded.Platforms[0].Input.StandardActions.Accept.ControlIndex);
+            Assert.Equal(3, reloaded.Platforms[0].Input.StandardActions.Return.ControlIndex);
+        }
+
+        /// <summary>
         /// Creates one multi-platform profile document with stable values for the supplied platforms.
         /// </summary>
         /// <param name="platformIds">Platform identifiers that should be included in the document.</param>
@@ -151,6 +185,12 @@ namespace helengine.editor.tests {
                     },
                     Codegen = new EditorCodegenProfileSettingsDocument {
                         SelectedCodegenProfileId = "default"
+                    },
+                    Input = new EditorInputProfileSettingsDocument {
+                        StandardActions = new EditorStandardPlatformActionSettingsDocument {
+                            Accept = new EditorInputControlSettingsDocument(),
+                            Return = new EditorInputControlSettingsDocument()
+                        }
                     }
                 });
             }

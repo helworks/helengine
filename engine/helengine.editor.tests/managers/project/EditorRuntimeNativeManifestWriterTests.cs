@@ -66,6 +66,14 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
             codeModules,
             Array.Empty<PlatformArtifactPlacement>(),
             new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+        manifest.StandardPlatformInputConfiguration = new StandardPlatformInputConfiguration([
+            new StandardPlatformActionBinding(
+                StandardPlatformAction.Accept,
+                new InputControlId(InputDeviceKind.Gamepad, InputControlKind.Button, 0, (int)InputGamepadButton.South)),
+            new StandardPlatformActionBinding(
+                StandardPlatformAction.Return,
+                new InputControlId(InputDeviceKind.Gamepad, InputControlKind.Button, 0, (int)InputGamepadButton.North))
+        ]);
 
         EditorRuntimeNativeManifestWriter writer = new();
         writer.Write(generatedCoreRootPath, manifest);
@@ -79,6 +87,8 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         string codeModuleSourcePath = Path.Combine(runtimeRootPath, "runtime_code_module_manifest.cpp");
         string physicsHeaderPath = Path.Combine(runtimeRootPath, "runtime_physics3d_scene_feature_manifest.hpp");
         string physicsSourcePath = Path.Combine(runtimeRootPath, "runtime_physics3d_scene_feature_manifest.cpp");
+        string standardPlatformInputHeaderPath = Path.Combine(runtimeRootPath, "runtime_standard_platform_input_manifest.hpp");
+        string standardPlatformInputSourcePath = Path.Combine(runtimeRootPath, "runtime_standard_platform_input_manifest.cpp");
 
         Assert.True(File.Exists(startupHeaderPath));
         Assert.True(File.Exists(startupSourcePath));
@@ -88,6 +98,8 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         Assert.True(File.Exists(codeModuleSourcePath));
         Assert.True(File.Exists(physicsHeaderPath));
         Assert.True(File.Exists(physicsSourcePath));
+        Assert.True(File.Exists(standardPlatformInputHeaderPath));
+        Assert.True(File.Exists(standardPlatformInputSourcePath));
         Assert.False(File.Exists(Path.Combine(runtimeRootPath, "runtime-startup.json")));
         Assert.False(File.Exists(Path.Combine(runtimeRootPath, "runtime-scene-catalog.json")));
 
@@ -95,6 +107,7 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         string sceneCatalogSource = File.ReadAllText(sceneCatalogSourcePath);
         string codeModuleSource = File.ReadAllText(codeModuleSourcePath);
         string physicsSource = File.ReadAllText(physicsSourcePath);
+        string standardPlatformInputSource = File.ReadAllText(standardPlatformInputSourcePath);
 
         Assert.Contains("he_get_runtime_startup_scene_relative_path", startupSource);
         Assert.Contains("cooked/scenes/NewScene.hasset", startupSource);
@@ -115,5 +128,9 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         Assert.Contains("HERuntimeCodeModuleLoadState::ResidentAtStartup", codeModuleSource);
         Assert.Contains("HERuntimeCodeModuleLoadState::SceneResident", codeModuleSource);
         Assert.Contains("he_runtime_code_module_can_unload", codeModuleSource);
+        Assert.Contains("he_runtime_standard_platform_action_entries", standardPlatformInputSource);
+        Assert.Contains("kRuntimeStandardPlatformActionEntryCount", standardPlatformInputSource);
+        Assert.Contains("0, 0, 0, 0, 0", standardPlatformInputSource);
+        Assert.Contains("1, 0, 0, 0, 3", standardPlatformInputSource);
     }
 }

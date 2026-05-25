@@ -16,6 +16,8 @@ namespace helengine.editor {
         readonly AssetFileHasher FileHasher;
         readonly IScriptTypeResolver ScriptTypeResolver;
         readonly EditorProjectSceneCatalogService SceneCatalogService;
+        readonly EditorProfileSettingsService ProfileSettingsService;
+        readonly EditorStandardPlatformInputConfigurationFactory StandardPlatformInputConfigurationFactory;
 
         /// <summary>
         /// Initializes one asset-cook service for the supplied project and optional script resolver.
@@ -48,6 +50,8 @@ namespace helengine.editor {
             ScriptTypeResolver = scriptTypeResolver;
             FileHasher = fileHasher ?? new AssetFileHasher();
             SceneCatalogService = new EditorProjectSceneCatalogService(ProjectRootPath);
+            ProfileSettingsService = new EditorProfileSettingsService(ProjectRootPath);
+            StandardPlatformInputConfigurationFactory = new EditorStandardPlatformInputConfigurationFactory();
         }
 
         public PlatformBuildManifest Cook(
@@ -99,7 +103,7 @@ namespace helengine.editor {
                 targetIds,
                 platformCookWorkItems);
 
-            return new PlatformBuildManifest(
+            PlatformBuildManifest manifest = new PlatformBuildManifest(
                 2,
                 ProjectId,
                 ProjectVersion,
@@ -114,6 +118,27 @@ namespace helengine.editor {
                 Array.Empty<PlatformArtifactPlacement>(),
                 new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
                 platformCookWorkItems);
+            manifest.StandardPlatformInputConfiguration = ResolveStandardPlatformInputConfiguration(manifest.PlatformName);
+            return manifest;
+        }
+
+        /// <summary>
+        /// Resolves the runtime standard platform input configuration for the supplied platform id from project-shared profile settings.
+        /// </summary>
+        /// <param name="platformId">Stable platform identifier whose shared input settings should be loaded.</param>
+        /// <returns>Runtime standard platform input configuration resolved from project settings.</returns>
+        StandardPlatformInputConfiguration ResolveStandardPlatformInputConfiguration(string platformId) {
+            EditorProfileSettingsDocument profileSettings = ProfileSettingsService.Load(new[] { platformId });
+            for (int index = 0; index < profileSettings.Platforms.Count; index++) {
+                EditorPlatformProfileSettingsDocument platformSettings = profileSettings.Platforms[index];
+                if (!string.Equals(platformSettings.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                return StandardPlatformInputConfigurationFactory.Create(platformSettings);
+            }
+
+            return StandardPlatformInputConfiguration.Empty;
         }
 
         /// <summary>
@@ -238,7 +263,9 @@ namespace helengine.editor {
 
             string normalizedCookedRelativePath = NormalizeCookedRelativePath(cookedRelativePath);
             string fullScenePath = Path.Combine(cookRootPath, normalizedCookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
+                EngineBinaryReadContext.CurrentAssetPath = fullScenePath;
                 using FileStream stream = File.OpenRead(fullScenePath);
                 Asset asset = AssetSerializer.Deserialize(stream);
                 if (asset is not SceneAsset sceneAsset) {
@@ -248,6 +275,8 @@ namespace helengine.editor {
                 return sceneAsset.Physics3DSceneFeatureFlags;
             } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(cookedRelativePath, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"Cooked scene '{cookedRelativePath}' at '{fullScenePath}' could not be read for physics feature discovery.", ex);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
         }
 
@@ -397,7 +426,9 @@ namespace helengine.editor {
                 return string.Empty;
             }
 
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
+                EngineBinaryReadContext.CurrentAssetPath = fullPath;
                 using FileStream stream = File.OpenRead(fullPath);
                 if (!UsesGenericEditorAssetSerialization(stream)) {
                     return string.Empty;
@@ -410,11 +441,12 @@ namespace helengine.editor {
                 if (asset is MaterialAsset) {
                     return "material";
                 }
+                return string.Empty;
             } catch (Exception ex) {
                 throw new InvalidOperationException($"Cooked artifact '{relativePath}' at '{fullPath}' could not be classified from serialized content.", ex);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
-
-            return string.Empty;
         }
 
         static string ResolveImportedArtifactKind(string fullPath, string relativePath) {
@@ -425,7 +457,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Cooked imported artifact '{relativePath}' was not found at '{fullPath}' during classification.");
             }
 
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
+                EngineBinaryReadContext.CurrentAssetPath = fullPath;
                 using FileStream stream = File.OpenRead(fullPath);
                 if (!UsesGenericEditorAssetSerialization(stream)) {
                     return "asset";
@@ -441,6 +475,8 @@ namespace helengine.editor {
                 return "asset";
             } catch (Exception ex) {
                 throw new InvalidOperationException($"Cooked imported artifact '{relativePath}' at '{fullPath}' could not be classified from serialized content.", ex);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
         }
 

@@ -152,6 +152,11 @@ public class PlatformBuildManifest {
     }
 
     /// <summary>
+    /// Gets or sets the engine-owned standard platform action bindings that packaged runtimes should register during startup.
+    /// </summary>
+    public StandardPlatformInputConfiguration StandardPlatformInputConfiguration { get; set; } = StandardPlatformInputConfiguration.Empty;
+
+    /// <summary>
     /// Initializes a fully resolved build manifest with first-class scenes and loose assets.
     /// </summary>
     /// <param name="manifestVersion">The manifest schema version.</param>

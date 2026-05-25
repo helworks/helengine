@@ -64,6 +64,11 @@ namespace helengine {
         public IRuntimeDiagnosticsProvider RuntimeDiagnosticsProvider { get; set; }
 
         /// <summary>
+        /// Gets or sets the configured engine-owned platform-standard input actions that should be registered during startup.
+        /// </summary>
+        public StandardPlatformInputConfiguration StandardPlatformInputConfiguration { get; set; } = StandardPlatformInputConfiguration.Empty;
+
+        /// <summary>
         /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {
@@ -105,6 +110,10 @@ namespace helengine {
 
             if (PhysicsMaxStepsPerUpdate < 1) {
                 throw new InvalidOperationException("PhysicsMaxStepsPerUpdate must be at least 1.");
+            }
+
+            if (StandardPlatformInputConfiguration == null) {
+                throw new InvalidOperationException("StandardPlatformInputConfiguration must be provided.");
             }
         }
     }
