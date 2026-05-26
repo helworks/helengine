@@ -148,6 +148,125 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures indexed texture formats expose the shared indexing-method selector and default legacy blank settings to the quantized method in the UI.
+        /// </summary>
+        [Fact]
+        public void Show_WhenIndexedTextureProcessorSettingsExist_ShowsQuantizedIndexingMethodSelector() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Indexed8,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                    IndexingMethodId = string.Empty
+                }
+            };
+
+            view.Show(
+                ["pfim"],
+                "pfim",
+                settings,
+                ["external-platform"],
+                "external-platform",
+                AssetEntryKind.Image,
+                CreatePlatformDefinitionsById());
+
+            Assert.True(view.IsTextureIndexingMethodVisible);
+            Assert.Equal(TextureAssetIndexingMethod.QuantizedIndexed, view.CurrentTextureIndexingMethodValue);
+        }
+
+        /// <summary>
+        /// Ensures non-indexed texture formats hide the indexing-method selector.
+        /// </summary>
+        [Fact]
+        public void Show_WhenTextureFormatIsNotIndexed_HidesIndexingMethodSelector() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Rgba4444,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A4
+                }
+            };
+
+            view.Show(
+                ["pfim"],
+                "pfim",
+                settings,
+                ["external-platform"],
+                "external-platform",
+                AssetEntryKind.Image,
+                CreatePlatformDefinitionsById());
+
+            Assert.False(view.IsTextureIndexingMethodVisible);
+        }
+
+        /// <summary>
+        /// Ensures switching from a direct-color format to an indexed format assigns the default indexing method for the pending platform settings.
+        /// </summary>
+        [Fact]
+        public void HandleTextureColorFormatChanged_WhenIndexedFormatIsSelected_DefaultsQuantizedIndexingMethod() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Rgba4444,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A4,
+                    IndexingMethodId = string.Empty
+                }
+            };
+
+            view.Show(
+                ["pfim"],
+                "pfim",
+                settings,
+                ["external-platform"],
+                "external-platform",
+                AssetEntryKind.Image,
+                CreatePlatformDefinitionsById());
+
+            InvokePrivate(view, "HandleTextureColorFormatChanged", 1, TextureAssetColorFormat.Indexed8.ToString());
+
+            Assert.True(view.IsTextureIndexingMethodVisible);
+            Assert.Equal(TextureAssetIndexingMethod.QuantizedIndexed, view.CurrentTextureIndexingMethodValue);
+        }
+
+        /// <summary>
+        /// Ensures showing one legacy indexed texture setting without an explicit indexing method does not create a fake pending change.
+        /// </summary>
+        [Fact]
+        public void Apply_WhenIndexedTextureUsesImplicitDefaultIndexingMethod_DoesNotRaiseARequest() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsApplyRequest raisedRequest = null;
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Indexed8,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                    IndexingMethodId = string.Empty
+                }
+            };
+            view.ApplyRequested += request => raisedRequest = request;
+
+            view.Show(
+                ["pfim"],
+                "pfim",
+                settings,
+                ["external-platform"],
+                "external-platform",
+                AssetEntryKind.Image,
+                CreatePlatformDefinitionsById());
+
+            InvokePrivate(view, "HandleApplyClicked");
+
+            Assert.Null(raisedRequest);
+        }
+
+        /// <summary>
         /// Ensures image textures only expose color formats and alpha precisions published by the active platform texture capability.
         /// </summary>
         [Fact]

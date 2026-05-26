@@ -415,6 +415,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures legacy blank indexed settings and explicit quantized indexed settings resolve to the same cache identity.
+        /// </summary>
+        [Fact]
+        public void TryLoadTextureAsset_WhenLegacyIndexedSettingsAreSaved_UsesQuantizedIndexedIdentity() {
+            string sourcePath = WriteSourceTexture("indexed-method-default-cache-id.tga");
+            AssetImportManager manager = CreateTgaManager();
+            manager.CurrentPlatformId = "ds";
+
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"] = new TextureAssetProcessorSettings {
+                MaxResolution = 128,
+                ColorFormat = TextureAssetColorFormat.Indexed8,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                IndexingMethodId = string.Empty
+            };
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"].IndexingMethodId = TextureAssetIndexingMethod.QuantizedIndexed.ToString();
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            Assert.Equal(firstAssetId, secondAssetId);
+        }
+
+        /// <summary>
         /// Ensures texture imports use the shared default texture budget when no explicit per-platform override was authored yet.
         /// </summary>
         [Fact]

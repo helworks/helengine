@@ -4,6 +4,18 @@ namespace helengine.editor {
     /// </summary>
     public sealed class TextureAssetProcessor {
         /// <summary>
+        /// Shared indexed texture quantizer used whenever one indexed output format is requested.
+        /// </summary>
+        readonly TextureAssetIndexedQuantizer IndexedQuantizer;
+
+        /// <summary>
+        /// Initializes a new texture asset processor instance.
+        /// </summary>
+        public TextureAssetProcessor() {
+            IndexedQuantizer = new TextureAssetIndexedQuantizer();
+        }
+
+        /// <summary>
         /// Applies one texture processor settings object to one imported texture asset instance.
         /// </summary>
         /// <param name="asset">Imported texture asset to process.</param>
@@ -33,7 +45,11 @@ namespace helengine.editor {
                 return processedAsset;
             }
 
-            return ConvertColorFormat(processedAsset, settings.ColorFormat, settings.AlphaPrecision);
+            if (settings.UsesIndexedColorFormat()) {
+                settings.ResolveIndexingMethod();
+            }
+
+            return ConvertColorFormat(processedAsset, settings);
         }
 
         /// <summary>
@@ -74,24 +90,27 @@ namespace helengine.editor {
         /// Converts one RGBA32 texture asset into the requested serialized texture format.
         /// </summary>
         /// <param name="asset">Texture asset to convert.</param>
-        /// <param name="targetFormat">Serialized texture format to produce.</param>
-        /// <param name="alphaPrecision">Alpha precision to store in the processed payload.</param>
+        /// <param name="settings">Texture processor settings that describe the requested output format.</param>
         /// <returns>Converted texture asset payload.</returns>
-        TextureAsset ConvertColorFormat(TextureAsset asset, TextureAssetColorFormat targetFormat, TextureAssetAlphaPrecision alphaPrecision) {
+        TextureAsset ConvertColorFormat(TextureAsset asset, TextureAssetProcessorSettings settings) {
             if (asset == null) {
                 throw new ArgumentNullException(nameof(asset));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
             } else if (asset.ColorFormat != TextureAssetColorFormat.Rgba32) {
                 throw new InvalidOperationException($"Texture asset processor can only convert from '{TextureAssetColorFormat.Rgba32}'.");
             }
 
+            TextureAssetColorFormat targetFormat = settings.ColorFormat;
+            TextureAssetAlphaPrecision alphaPrecision = settings.AlphaPrecision;
             if (targetFormat == TextureAssetColorFormat.Rgba32) {
                 return ApplyAlphaPrecision(asset, alphaPrecision);
             } else if (targetFormat == TextureAssetColorFormat.Rgba4444) {
                 return ConvertToRgba4444(asset, alphaPrecision);
             } else if (targetFormat == TextureAssetColorFormat.Indexed4) {
-                return ConvertToIndexed(asset, 16, TextureAssetColorFormat.Indexed4, alphaPrecision);
+                return IndexedQuantizer.Quantize(asset, 16, TextureAssetColorFormat.Indexed4, alphaPrecision);
             } else if (targetFormat == TextureAssetColorFormat.Indexed8) {
-                return ConvertToIndexed(asset, 256, TextureAssetColorFormat.Indexed8, alphaPrecision);
+                return IndexedQuantizer.Quantize(asset, 256, TextureAssetColorFormat.Indexed8, alphaPrecision);
             }
 
             throw new InvalidOperationException($"Unsupported texture color format '{targetFormat}'.");
@@ -162,51 +181,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Converts one RGBA32 texture asset into an indexed cooked payload with palette-backed texel storage.
-        /// </summary>
-        /// <param name="asset">Texture asset to convert.</param>
-        /// <param name="paletteCapacity">Maximum number of palette entries allowed by the target format.</param>
-        /// <param name="targetFormat">Indexed texture format to produce.</param>
-        /// <param name="alphaPrecision">Alpha precision to store in the palette entries.</param>
-        /// <returns>Indexed cooked texture payload.</returns>
-        TextureAsset ConvertToIndexed(TextureAsset asset, int paletteCapacity, TextureAssetColorFormat targetFormat, TextureAssetAlphaPrecision alphaPrecision) {
-            if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            } else if (paletteCapacity < 1) {
-                throw new ArgumentOutOfRangeException(nameof(paletteCapacity), "Palette capacity must be greater than zero.");
-            }
-
-            Dictionary<uint, int> paletteIndices = new Dictionary<uint, int>();
-            List<byte> paletteColors = new List<byte>(paletteCapacity * 4);
-            int pixelCount = asset.Width * asset.Height;
-            byte[] indexPayload = targetFormat == TextureAssetColorFormat.Indexed4
-                ? new byte[(pixelCount + 1) / 2]
-                : new byte[pixelCount];
-            for (int pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++) {
-                int sourceIndex = pixelIndex * 4;
-                byte alpha = QuantizeAlpha(asset.Colors[sourceIndex + 3], alphaPrecision);
-                uint paletteKey = PackPaletteKey(
-                    asset.Colors[sourceIndex],
-                    asset.Colors[sourceIndex + 1],
-                    asset.Colors[sourceIndex + 2],
-                    alpha);
-                int paletteIndex = GetOrAddPaletteIndex(paletteIndices, paletteColors, paletteCapacity, paletteKey);
-                WritePackedIndex(indexPayload, pixelIndex, paletteIndex, targetFormat);
-            }
-
-            return new TextureAsset {
-                Id = asset.Id,
-                RuntimeAssetId = asset.RuntimeAssetId,
-                Width = asset.Width,
-                Height = asset.Height,
-                ColorFormat = targetFormat,
-                AlphaPrecision = alphaPrecision,
-                Colors = indexPayload,
-                PaletteColors = paletteColors.ToArray()
-            };
-        }
-
-        /// <summary>
         /// Packs one RGBA texel into a 16-bit RGBA4444 word.
         /// </summary>
         /// <param name="red">8-bit red channel.</param>
@@ -238,86 +212,6 @@ namespace helengine.editor {
             }
 
             return alpha;
-        }
-
-        /// <summary>
-        /// Packs one RGBA texel into one palette-key word used for exact indexed-color deduplication.
-        /// </summary>
-        /// <param name="red">8-bit red channel.</param>
-        /// <param name="green">8-bit green channel.</param>
-        /// <param name="blue">8-bit blue channel.</param>
-        /// <param name="alpha">8-bit alpha channel.</param>
-        /// <returns>Packed 32-bit palette key.</returns>
-        uint PackPaletteKey(byte red, byte green, byte blue, byte alpha) {
-            return red
-                | ((uint)green << 8)
-                | ((uint)blue << 16)
-                | ((uint)alpha << 24);
-        }
-
-        /// <summary>
-        /// Resolves or appends one palette entry and returns its palette index.
-        /// </summary>
-        /// <param name="paletteIndices">Known palette-index map keyed by packed RGBA value.</param>
-        /// <param name="paletteColors">Palette byte list being assembled.</param>
-        /// <param name="paletteCapacity">Maximum allowed number of palette entries.</param>
-        /// <param name="paletteKey">Packed RGBA palette key to resolve.</param>
-        /// <returns>Palette index for the supplied RGBA entry.</returns>
-        int GetOrAddPaletteIndex(Dictionary<uint, int> paletteIndices, List<byte> paletteColors, int paletteCapacity, uint paletteKey) {
-            if (paletteIndices == null) {
-                throw new ArgumentNullException(nameof(paletteIndices));
-            } else if (paletteColors == null) {
-                throw new ArgumentNullException(nameof(paletteColors));
-            }
-
-            int paletteIndex;
-            if (paletteIndices.TryGetValue(paletteKey, out paletteIndex)) {
-                return paletteIndex;
-            }
-
-            paletteIndex = paletteIndices.Count;
-            if (paletteIndex >= paletteCapacity) {
-                throw new InvalidOperationException($"Texture required more than {paletteCapacity} palette entries.");
-            }
-
-            paletteIndices.Add(paletteKey, paletteIndex);
-            paletteColors.Add((byte)(paletteKey & 0xFF));
-            paletteColors.Add((byte)((paletteKey >> 8) & 0xFF));
-            paletteColors.Add((byte)((paletteKey >> 16) & 0xFF));
-            paletteColors.Add((byte)((paletteKey >> 24) & 0xFF));
-            return paletteIndex;
-        }
-
-        /// <summary>
-        /// Writes one palette index into the indexed color payload for the requested target format.
-        /// </summary>
-        /// <param name="indexPayload">Indexed color payload being assembled.</param>
-        /// <param name="pixelIndex">Pixel index whose palette entry should be written.</param>
-        /// <param name="paletteIndex">Palette entry index to store.</param>
-        /// <param name="targetFormat">Indexed payload format that determines byte packing.</param>
-        void WritePackedIndex(byte[] indexPayload, int pixelIndex, int paletteIndex, TextureAssetColorFormat targetFormat) {
-            if (indexPayload == null) {
-                throw new ArgumentNullException(nameof(indexPayload));
-            } else if (pixelIndex < 0) {
-                throw new ArgumentOutOfRangeException(nameof(pixelIndex), "Pixel index cannot be negative.");
-            } else if (paletteIndex < 0) {
-                throw new ArgumentOutOfRangeException(nameof(paletteIndex), "Palette index cannot be negative.");
-            }
-
-            if (targetFormat == TextureAssetColorFormat.Indexed4) {
-                int targetIndex = pixelIndex / 2;
-                if ((pixelIndex & 1) == 0) {
-                    indexPayload[targetIndex] = (byte)(paletteIndex & 0x0F);
-                } else {
-                    indexPayload[targetIndex] = (byte)(indexPayload[targetIndex] | ((paletteIndex & 0x0F) << 4));
-                }
-                return;
-            } else if (targetFormat == TextureAssetColorFormat.Indexed8) {
-                indexPayload[pixelIndex] = (byte)paletteIndex;
-                return;
-            }
-
-            throw new InvalidOperationException($"Unsupported indexed texture format '{targetFormat}'.");
         }
 
         /// <summary>

@@ -35,11 +35,44 @@ namespace helengine.editor {
         public TextureAssetAlphaPrecision AlphaPrecision { get; set; }
 
         /// <summary>
+        /// Gets or sets the generic indexed-texture method identifier used when the selected color format is palette-backed.
+        /// </summary>
+        public string IndexingMethodId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Returns whether this settings record maps to one generic shared-engine texture format.
         /// </summary>
         /// <returns><c>true</c> when the color-format id is generic and can be handled by the shared texture processor.</returns>
         public bool UsesGenericColorFormat() {
             return TryResolveGenericColorFormat(ColorFormatId, out _);
+        }
+
+        /// <summary>
+        /// Returns whether the selected color format is one generic indexed format.
+        /// </summary>
+        /// <returns><c>true</c> when the selected color format is <c>Indexed4</c> or <c>Indexed8</c>.</returns>
+        public bool UsesIndexedColorFormat() {
+            if (!TryResolveGenericColorFormat(ColorFormatId, out TextureAssetColorFormat colorFormat)) {
+                return false;
+            }
+
+            return colorFormat == TextureAssetColorFormat.Indexed4
+                || colorFormat == TextureAssetColorFormat.Indexed8;
+        }
+
+        /// <summary>
+        /// Resolves the effective indexing method for the current texture settings.
+        /// </summary>
+        /// <returns>The configured indexing method, or the legacy indexed default when none was authored yet.</returns>
+        public TextureAssetIndexingMethod ResolveIndexingMethod() {
+            if (!UsesIndexedColorFormat()) {
+                throw new InvalidOperationException("Indexing methods are only valid for indexed texture formats.");
+            } else if (string.IsNullOrWhiteSpace(IndexingMethodId)
+                || string.Equals(IndexingMethodId, TextureAssetIndexingMethod.QuantizedIndexed.ToString(), StringComparison.Ordinal)) {
+                return TextureAssetIndexingMethod.QuantizedIndexed;
+            }
+
+            throw new InvalidOperationException($"Unsupported texture indexing method id '{IndexingMethodId}'.");
         }
 
         /// <summary>

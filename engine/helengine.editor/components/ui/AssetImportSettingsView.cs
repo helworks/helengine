@@ -66,6 +66,10 @@ namespace helengine.editor {
         /// </summary>
         const string TextureAlphaPrecisionLabel = "Alpha";
         /// <summary>
+        /// Label text used for the texture indexing-method processor setting.
+        /// </summary>
+        const string TextureIndexingMethodLabel = "Indexing";
+        /// <summary>
         /// Status prefix used for feedback messages.
         /// </summary>
         const string StatusPrefix = "Status:";
@@ -135,6 +139,10 @@ namespace helengine.editor {
         /// </summary>
         readonly List<string> TextureAlphaPrecisionValues;
         /// <summary>
+        /// Available texture indexing-method values shown in the processor combo box.
+        /// </summary>
+        readonly List<string> TextureIndexingMethodValues;
+        /// <summary>
         /// Host entity for the flip-winding label.
         /// </summary>
         readonly EditorEntity FlipWindingLabelHost;
@@ -198,6 +206,22 @@ namespace helengine.editor {
         /// Combo box used to edit texture alpha precision for the selected platform.
         /// </summary>
         readonly ComboBoxComponent TextureAlphaPrecisionComboBox;
+        /// <summary>
+        /// Host entity for the indexing-method label.
+        /// </summary>
+        readonly EditorEntity TextureIndexingMethodLabelHost;
+        /// <summary>
+        /// Text component used to render the indexing-method label.
+        /// </summary>
+        readonly TextComponent TextureIndexingMethodLabelText;
+        /// <summary>
+        /// Host entity for the indexing-method combo box.
+        /// </summary>
+        readonly EditorEntity TextureIndexingMethodComboBoxHost;
+        /// <summary>
+        /// Combo box used to edit the texture indexing method for the selected platform.
+        /// </summary>
+        readonly ComboBoxComponent TextureIndexingMethodComboBox;
         /// <summary>
         /// Host entity for the apply button.
         /// </summary>
@@ -289,6 +313,7 @@ namespace helengine.editor {
             PlatformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.Ordinal);
             TextureColorFormatValues = new List<string>(Enum.GetNames<TextureAssetColorFormat>());
             TextureAlphaPrecisionValues = new List<string>(Enum.GetNames<TextureAssetAlphaPrecision>());
+            TextureIndexingMethodValues = new List<string>(Enum.GetNames<TextureAssetIndexingMethod>());
             TextOrder = RenderOrder2D.PanelForeground;
 
             RootEntity = new EditorEntity();
@@ -420,6 +445,25 @@ namespace helengine.editor {
             TextureAlphaPrecisionComboBox.SelectionChanged += HandleTextureAlphaPrecisionChanged;
             TextureAlphaPrecisionComboBoxHost.AddComponent(TextureAlphaPrecisionComboBox);
 
+            TextureIndexingMethodLabelHost = new EditorEntity();
+            TextureIndexingMethodLabelHost.LayerMask = layerMask;
+            RootEntity.AddChild(TextureIndexingMethodLabelHost);
+
+            TextureIndexingMethodLabelText = new TextComponent();
+            TextureIndexingMethodLabelText.Font = font;
+            TextureIndexingMethodLabelText.Text = TextureIndexingMethodLabel;
+            TextureIndexingMethodLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            TextureIndexingMethodLabelText.RenderOrder2D = TextOrder;
+            TextureIndexingMethodLabelHost.AddComponent(TextureIndexingMethodLabelText);
+
+            TextureIndexingMethodComboBoxHost = new EditorEntity();
+            TextureIndexingMethodComboBoxHost.LayerMask = layerMask;
+            RootEntity.AddChild(TextureIndexingMethodComboBoxHost);
+
+            TextureIndexingMethodComboBox = new ComboBoxComponent(new int2(180, ControlHeight), font, TextureIndexingMethodValues, 0);
+            TextureIndexingMethodComboBox.SelectionChanged += HandleTextureIndexingMethodChanged;
+            TextureIndexingMethodComboBoxHost.AddComponent(TextureIndexingMethodComboBox);
+
             ApplyHost = new EditorEntity();
             ApplyHost.LayerMask = layerMask;
             RootEntity.AddChild(ApplyHost);
@@ -480,6 +524,10 @@ namespace helengine.editor {
         /// Gets a value indicating whether texture processor controls are visible.
         /// </summary>
         public bool IsTextureProcessorVisible => CurrentEntryKind == AssetEntryKind.Image || CurrentEntryKind == AssetEntryKind.Font;
+        /// <summary>
+        /// Gets a value indicating whether the indexing-method control should be shown for the selected platform texture settings.
+        /// </summary>
+        public bool IsTextureIndexingMethodVisible => IsTextureProcessorVisible && GetPendingPlatformSettings(CurrentPlatformId).Texture.UsesIndexedColorFormat();
 
         /// <summary>
         /// Gets the current pending flip-winding value for the selected platform.
@@ -500,6 +548,10 @@ namespace helengine.editor {
         /// Gets the current pending alpha-precision value for the selected platform texture settings.
         /// </summary>
         public TextureAssetAlphaPrecision CurrentTextureAlphaPrecisionValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.AlphaPrecision;
+        /// <summary>
+        /// Gets the current pending indexing-method value for the selected platform texture settings.
+        /// </summary>
+        public TextureAssetIndexingMethod CurrentTextureIndexingMethodValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.ResolveIndexingMethod();
 
         /// <summary>
         /// Shows the view with the provided importer list, current settings, and supported platforms.
@@ -643,6 +695,14 @@ namespace helengine.editor {
                 TextureAlphaPrecisionComboBoxHost.Position = new float3(controlLeft, currentTop, 0.1f);
                 TextureAlphaPrecisionComboBox.Size = new int2(controlWidth, ControlHeight);
                 currentTop += ControlHeight + RowSpacing;
+
+                if (IsTextureIndexingMethodVisible) {
+                    TextureIndexingMethodLabelHost.Position = new float3(ProcessorPanelPadding, currentTop + labelOffsetY, 0.1f);
+                    TextureIndexingMethodLabelText.Size = new int2(ProcessorFieldLabelWidth, labelHeight);
+                    TextureIndexingMethodComboBoxHost.Position = new float3(controlLeft, currentTop, 0.1f);
+                    TextureIndexingMethodComboBox.Size = new int2(controlWidth, ControlHeight);
+                    currentTop += ControlHeight + RowSpacing;
+                }
             }
 
             ApplyHost.Position = new float3(ProcessorPanelPadding, currentTop, 0.1f);
@@ -739,6 +799,7 @@ namespace helengine.editor {
             AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
             platformSettings.Texture.ColorFormatId = selectedValue;
             RepairTextureFormatSelection(platformSettings.Texture);
+            ApplyDefaultTextureIndexingMethodIfNeeded(platformSettings.Texture);
             UpdateStatusText();
             SyncTextureProcessorControlsFromPendingSettings();
         }
@@ -758,6 +819,28 @@ namespace helengine.editor {
             AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
             platformSettings.Texture.AlphaPrecision = Enum.Parse<TextureAssetAlphaPrecision>(selectedValue, false);
             RepairTextureFormatSelection(platformSettings.Texture);
+            UpdateStatusText();
+            SyncTextureProcessorControlsFromPendingSettings();
+        }
+
+        /// <summary>
+        /// Applies one indexing-method combo-box value to the currently selected platform texture settings.
+        /// </summary>
+        /// <param name="selectedIndex">Selected indexing-method index.</param>
+        /// <param name="selectedValue">Selected indexing-method name.</param>
+        void HandleTextureIndexingMethodChanged(int selectedIndex, string selectedValue) {
+            if (IsUpdatingTextureControls) {
+                return;
+            } else if (string.IsNullOrWhiteSpace(selectedValue)) {
+                throw new InvalidOperationException("Texture indexing method selection was not provided.");
+            }
+
+            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
+            if (!platformSettings.Texture.UsesIndexedColorFormat()) {
+                throw new InvalidOperationException("Texture indexing method can only be changed for indexed color formats.");
+            }
+
+            platformSettings.Texture.IndexingMethodId = selectedValue;
             UpdateStatusText();
             SyncTextureProcessorControlsFromPendingSettings();
         }
@@ -797,6 +880,8 @@ namespace helengine.editor {
             TextureColorFormatComboBoxHost.Enabled = showTextureProcessor;
             TextureAlphaPrecisionLabelHost.Enabled = showTextureProcessor;
             TextureAlphaPrecisionComboBoxHost.Enabled = showTextureProcessor;
+            TextureIndexingMethodLabelHost.Enabled = showTextureProcessor && IsTextureIndexingMethodVisible;
+            TextureIndexingMethodComboBoxHost.Enabled = showTextureProcessor && IsTextureIndexingMethodVisible;
 
             if (showModelProcessor) {
                 FlipWindingCheckBox.IsChecked = GetPendingPlatformSettings(CurrentPlatformId).Model.FlipWinding;
@@ -954,6 +1039,7 @@ namespace helengine.editor {
             TextureMaxResolutionTextBox.Text = textureSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture);
             TextureColorFormatComboBox.SetItems(TextureColorFormatValues, GetTextureColorFormatIndex(textureSettings.ColorFormatId));
             TextureAlphaPrecisionComboBox.SetItems(TextureAlphaPrecisionValues, GetTextureAlphaPrecisionIndex(textureSettings.AlphaPrecision));
+            TextureIndexingMethodComboBox.SetItems(TextureIndexingMethodValues, GetTextureIndexingMethodIndex(textureSettings));
             IsUpdatingTextureControls = false;
         }
 
@@ -997,6 +1083,38 @@ namespace helengine.editor {
             for (int i = 0; i < textureCapability.SupportedAlphaPrecisions.Length; i++) {
                 TextureAlphaPrecisionValues.Add(textureCapability.SupportedAlphaPrecisions[i].ToString());
             }
+        }
+
+        /// <summary>
+        /// Resolves the combo-box index for the current texture indexing method.
+        /// </summary>
+        /// <param name="textureSettings">Texture settings supplying the current indexing method.</param>
+        /// <returns>Selected indexing-method index, or <c>-1</c> when indexing is not active.</returns>
+        int GetTextureIndexingMethodIndex(TextureAssetProcessorSettings textureSettings) {
+            if (textureSettings == null) {
+                throw new ArgumentNullException(nameof(textureSettings));
+            } else if (!textureSettings.UsesIndexedColorFormat()) {
+                return -1;
+            }
+
+            TextureAssetIndexingMethod indexingMethod = textureSettings.ResolveIndexingMethod();
+            return TextureIndexingMethodValues.IndexOf(indexingMethod.ToString());
+        }
+
+        /// <summary>
+        /// Assigns the default indexing method when an indexed format becomes active without one explicit selection.
+        /// </summary>
+        /// <param name="textureSettings">Texture settings to normalize.</param>
+        void ApplyDefaultTextureIndexingMethodIfNeeded(TextureAssetProcessorSettings textureSettings) {
+            if (textureSettings == null) {
+                throw new ArgumentNullException(nameof(textureSettings));
+            } else if (!textureSettings.UsesIndexedColorFormat()) {
+                return;
+            } else if (!string.IsNullOrWhiteSpace(textureSettings.IndexingMethodId)) {
+                return;
+            }
+
+            textureSettings.IndexingMethodId = TextureAssetIndexingMethod.QuantizedIndexed.ToString();
         }
 
         /// <summary>
@@ -1232,6 +1350,7 @@ namespace helengine.editor {
             clone.MaxResolution = textureSettings.MaxResolution;
             clone.ColorFormatId = textureSettings.ColorFormatId;
             clone.AlphaPrecision = textureSettings.AlphaPrecision;
+            clone.IndexingMethodId = textureSettings.IndexingMethodId;
             return clone;
         }
 
@@ -1263,7 +1382,11 @@ namespace helengine.editor {
                 AssetPlatformProcessorSettings rightPlatform = ResolvePlatformSettings(right, platformId);
                 if (leftPlatform.Texture.MaxResolution != rightPlatform.Texture.MaxResolution
                     || leftPlatform.Texture.ColorFormat != rightPlatform.Texture.ColorFormat
-                    || leftPlatform.Texture.AlphaPrecision != rightPlatform.Texture.AlphaPrecision) {
+                    || leftPlatform.Texture.AlphaPrecision != rightPlatform.Texture.AlphaPrecision
+                    || !string.Equals(
+                        ResolveTextureIndexingMethodIdForComparison(leftPlatform.Texture),
+                        ResolveTextureIndexingMethodIdForComparison(rightPlatform.Texture),
+                        StringComparison.Ordinal)) {
                     return false;
                 }
 
@@ -1291,6 +1414,19 @@ namespace helengine.editor {
             }
 
             return new AssetPlatformProcessorSettings();
+        }
+
+        /// <summary>
+        /// Resolves one normalized indexing-method identifier for change detection.
+        /// </summary>
+        /// <param name="textureSettings">Texture settings to normalize.</param>
+        /// <returns>Normalized indexing-method identifier, or an empty string when indexing is inactive.</returns>
+        string ResolveTextureIndexingMethodIdForComparison(TextureAssetProcessorSettings textureSettings) {
+            if (textureSettings == null || !textureSettings.UsesIndexedColorFormat()) {
+                return string.Empty;
+            }
+
+            return textureSettings.ResolveIndexingMethod().ToString();
         }
     }
 }
