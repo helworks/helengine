@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current texture asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 4;
+        public const byte CurrentVersion = 5;
 
         /// <summary>
         /// Payload endianness used by the current texture asset import settings format.
@@ -64,6 +64,7 @@ namespace helengine.editor {
                 writer.WriteInt32(entry.Value.MaxResolution);
                 writer.WriteString(entry.Value.ColorFormatId);
                 writer.WriteByte((byte)entry.Value.AlphaPrecision);
+                writer.WriteString(entry.Value.IndexingMethodId ?? string.Empty);
             }
         }
 
@@ -114,6 +115,9 @@ namespace helengine.editor {
                 platformSettings.AlphaPrecision = header.Version >= 3
                     ? ReadTextureAssetAlphaPrecision(reader)
                     : TextureAssetAlphaPrecision.A8;
+                platformSettings.IndexingMethodId = header.Version >= CurrentVersion
+                    ? reader.ReadString()
+                    : string.Empty;
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }

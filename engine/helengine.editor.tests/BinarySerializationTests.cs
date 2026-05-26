@@ -598,6 +598,30 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures generic asset import settings preserve the selected indexing method for indexed texture formats.
+        /// </summary>
+        [Fact]
+        public void AssetImportSettingsBinarySerializer_RoundTripsTextureIndexingMethodPerPlatform() {
+            AssetImportSettings settings = CreateAssetImportSettings();
+            settings.Processor.Platforms["android"].Texture = new TextureAssetProcessorSettings {
+                MaxResolution = 256,
+                ColorFormat = TextureAssetColorFormat.Indexed8,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                IndexingMethodId = TextureAssetIndexingMethod.QuantizedIndexed.ToString()
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            stream.Position = 0;
+
+            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(
+                TextureAssetIndexingMethod.QuantizedIndexed.ToString(),
+                deserialized.Processor.Platforms["android"].Texture.IndexingMethodId);
+        }
+
+        /// <summary>
         /// Ensures generic asset import settings preserve opaque platform-owned texture color-format identifiers.
         /// </summary>
         [Fact]

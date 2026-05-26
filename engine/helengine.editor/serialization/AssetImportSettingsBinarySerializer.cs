@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 7;
+        public const byte CurrentVersion = 8;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -82,6 +82,7 @@ namespace helengine.editor {
                 writer.WriteInt32(entry.Value.Texture.MaxResolution);
                 writer.WriteString(entry.Value.Texture.ColorFormatId);
                 writer.WriteByte((byte)entry.Value.Texture.AlphaPrecision);
+                writer.WriteString(entry.Value.Texture.IndexingMethodId ?? string.Empty);
                 writer.WriteString(entry.Value.Material.SchemaId ?? string.Empty);
                 writer.WriteInt32(entry.Value.Material.FieldValues.Count);
                 foreach (KeyValuePair<string, string> fieldEntry in entry.Value.Material.FieldValues) {
@@ -140,6 +141,9 @@ namespace helengine.editor {
                 platformSettings.Texture.AlphaPrecision = header.Version >= 6
                     ? ReadTextureAssetAlphaPrecision(reader)
                     : TextureAssetAlphaPrecision.A8;
+                platformSettings.Texture.IndexingMethodId = header.Version >= CurrentVersion
+                    ? reader.ReadString()
+                    : string.Empty;
                 platformSettings.Material.SchemaId = reader.ReadString();
 
                 int fieldValueCount = reader.ReadInt32();

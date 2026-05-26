@@ -2601,6 +2601,9 @@ namespace helengine.editor {
             }
 
             TextureAssetProcessorSettings processorSettings = GetTextureProcessorSettings(settings, platformId);
+            string indexingMethodId = processorSettings.UsesIndexedColorFormat()
+                ? processorSettings.ResolveIndexingMethod().ToString()
+                : string.Empty;
             string identity = string.Concat(
                 "texture", "\n",
                 sourceChecksum, "\n",
@@ -2608,7 +2611,8 @@ namespace helengine.editor {
                 platformId, "\n",
                 processorSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
                 processorSettings.ColorFormatId ?? string.Empty, "\n",
-                ((int)processorSettings.AlphaPrecision).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                ((int)processorSettings.AlphaPrecision).ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
+                indexingMethodId);
             byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
             return Convert.ToHexString(hashBytes).ToLowerInvariant();

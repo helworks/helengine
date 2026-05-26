@@ -33,6 +33,32 @@ namespace helengine.editor.tests.serialization {
         }
 
         /// <summary>
+        /// Verifies typed texture sidecars preserve the selected indexing method for shared indexed texture formats.
+        /// </summary>
+        [Fact]
+        public void SerializeDeserialize_WhenIndexedTextureSettingsUseQuantizedIndexed_RoundTripsIndexingMethod() {
+            TextureAssetImportSettings settings = new TextureAssetImportSettings();
+            settings.Importer.ImporterId = "pfim";
+            settings.Importer.SourceChecksum = "sha256:test";
+            settings.Importer.AssetId = "asset/test";
+            settings.Processor.Platforms["ds"] = new TextureAssetProcessorSettings {
+                MaxResolution = 256,
+                ColorFormat = TextureAssetColorFormat.Indexed8,
+                AlphaPrecision = TextureAssetAlphaPrecision.A4,
+                IndexingMethodId = TextureAssetIndexingMethod.QuantizedIndexed.ToString()
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            stream.Position = 0;
+
+            TextureAssetImportSettings roundTripped = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
+
+            TextureAssetProcessorSettings dsSettings = Assert.Single(roundTripped.Processor.Platforms).Value;
+            Assert.Equal(TextureAssetIndexingMethod.QuantizedIndexed.ToString(), dsSettings.IndexingMethodId);
+        }
+
+        /// <summary>
         /// Verifies typed texture sidecars preserve opaque platform-owned texture color-format identifiers.
         /// </summary>
         [Fact]

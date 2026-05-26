@@ -211,7 +211,8 @@ internal static class EditorPlatformCookWorkItemFactory {
         return new TextureAssetProcessorSettings {
             MaxResolution = 0,
             ColorFormatId = TextureAssetColorFormat.Rgba32.ToString(),
-            AlphaPrecision = TextureAssetAlphaPrecision.A8
+            AlphaPrecision = TextureAssetAlphaPrecision.A8,
+            IndexingMethodId = string.Empty
         };
     }
 
@@ -231,6 +232,9 @@ internal static class EditorPlatformCookWorkItemFactory {
         string alphaPrecisionName = root.TryGetProperty("alphaPrecision", out JsonElement alphaPrecisionElement)
             ? alphaPrecisionElement.GetString() ?? TextureAssetAlphaPrecision.A8.ToString()
             : TextureAssetAlphaPrecision.A8.ToString();
+        string indexingMethodId = root.TryGetProperty("indexingMethod", out JsonElement indexingMethodElement)
+            ? indexingMethodElement.GetString() ?? string.Empty
+            : string.Empty;
 
         if (!Enum.TryParse(alphaPrecisionName, ignoreCase: true, out TextureAssetAlphaPrecision alphaPrecision)) {
             throw new InvalidOperationException($"Unsupported texture alpha precision '{alphaPrecisionName}'.");
@@ -239,7 +243,8 @@ internal static class EditorPlatformCookWorkItemFactory {
         return new TextureAssetProcessorSettings {
             MaxResolution = maxResolution,
             ColorFormatId = colorFormatId,
-            AlphaPrecision = alphaPrecision
+            AlphaPrecision = alphaPrecision,
+            IndexingMethodId = indexingMethodId
         };
     }
 
@@ -248,10 +253,14 @@ internal static class EditorPlatformCookWorkItemFactory {
             throw new ArgumentNullException(nameof(processorSettings));
         }
 
+        string indexingMethodId = processorSettings.UsesIndexedColorFormat()
+            ? processorSettings.ResolveIndexingMethod().ToString()
+            : string.Empty;
         return JsonSerializer.Serialize(new Dictionary<string, object> {
             ["maxResolution"] = processorSettings.MaxResolution,
             ["colorFormat"] = processorSettings.ColorFormatId,
-            ["alphaPrecision"] = processorSettings.AlphaPrecision.ToString()
+            ["alphaPrecision"] = processorSettings.AlphaPrecision.ToString(),
+            ["indexingMethod"] = indexingMethodId
         });
     }
 
