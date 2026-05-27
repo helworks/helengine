@@ -31,10 +31,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Ensures legacy raw shader-material payloads can still be loaded through the editor material settings service.
+        /// Ensures raw legacy shader-material payloads are rejected so project materials must use the shared per-platform settings flow.
         /// </summary>
         [Fact]
-        public void LoadMaterialAsset_WhenLegacyShaderMaterialPayloadIsStoredInBaseFile_LoadsRawShaderMaterialAsset() {
+        public void LoadMaterialAsset_WhenLegacyShaderMaterialPayloadIsStoredInBaseFile_ThrowsForMissingMaterialSettingsDocument() {
             string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tempDirectoryPath);
 
@@ -65,14 +65,8 @@ namespace helengine.editor {
                 }
 
                 MaterialAssetSettingsService service = new MaterialAssetSettingsService();
-
-                ShaderMaterialAsset loadedMaterialAsset = service.LoadMaterialAsset(materialAssetPath, "windows");
-                Assert.Equal("PhysicsDemoBlue", loadedMaterialAsset.Id);
-                Assert.Equal("Shaders.physics.PhysicsDemoMesh", loadedMaterialAsset.ShaderAssetId);
-                Assert.Equal("PhysicsDemoMesh.vs", loadedMaterialAsset.VertexProgram);
-                Assert.Equal("PhysicsDemoMesh.ps", loadedMaterialAsset.PixelProgram);
-                Assert.Equal("default", loadedMaterialAsset.Variant);
-                Assert.Contains(loadedMaterialAsset.ConstantBuffers, constantBuffer => string.Equals(constantBuffer.Name, "MaterialColorBuffer", StringComparison.Ordinal));
+                InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.LoadMaterialAsset(materialAssetPath, "windows"));
+                Assert.Contains("could not be loaded", exception.Message, StringComparison.Ordinal);
             } finally {
                 if (Directory.Exists(tempDirectoryPath)) {
                     Directory.Delete(tempDirectoryPath, true);

@@ -86,4 +86,33 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
         Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
     }
+
+    /// <summary>
+    /// Ensures Nintendo 3DS build preparation writes the same DS companion-scene mappings when the build selects the DS scene set.
+    /// </summary>
+    [Fact]
+    public void EnsurePrepared_WhenNintendo3DsBuildIncludesOnlyDsScenes_WritesSceneMapMappings() {
+        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+        service.EnsurePrepared(
+            "3ds",
+            [
+                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                "DemoDiscMainMenuDs",
+                "cube_test_ds"
+            ]);
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        Assert.True(File.Exists(scenePath));
+
+        using FileStream stream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+        SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
+
+        SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
+        SceneMapComponent sceneMapComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(rootEntity.Components[0], null, null));
+        Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
+        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+        Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
+    }
 }

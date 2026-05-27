@@ -145,6 +145,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures one missing GameCube platform file seeds standard platform action mappings.
+        /// </summary>
+        [Fact]
+        public void Load_WhenGameCubePlatformFileIsMissing_SeedsStandardPlatformActions() {
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+
+            EditorProfileSettingsDocument document = service.Load(new List<string> { "gamecube" });
+
+            EditorPlatformProfileSettingsDocument platform = Assert.Single(document.Platforms);
+            Assert.Equal("gamecube", platform.PlatformId);
+            Assert.NotNull(platform.Input);
+            Assert.NotNull(platform.Input.StandardActions);
+            Assert.NotNull(platform.Input.StandardActions.Accept);
+            Assert.NotNull(platform.Input.StandardActions.Return);
+            Assert.Equal(0, platform.Input.StandardActions.Accept.ControlIndex);
+            Assert.Equal(1, platform.Input.StandardActions.Return.ControlIndex);
+        }
+
+        /// <summary>
         /// Ensures configured standard platform actions survive save and reload.
         /// </summary>
         [Fact]

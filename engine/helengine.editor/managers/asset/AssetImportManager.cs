@@ -1707,7 +1707,10 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 settings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
-            } catch {
+            } catch (Exception ex) {
+                if (settingsPath.Contains("helengine-logo.png.hasset", StringComparison.OrdinalIgnoreCase)) {
+                    Console.WriteLine($"[helengine-editor] texture settings load failed path={settingsPath} error={ex.GetType().Name}: {ex.Message}");
+                }
                 settings = null;
                 return false;
             }
@@ -1981,6 +1984,9 @@ namespace helengine.editor {
             if (settingsFileExists && TryLoadTextureImportSettings(settingsPath, out settings)) {
                 bool repaired = RepairTextureImporterId(sourcePath, settings);
                 UpdateTextureImportSettingsChecksum(settings, sourcePath);
+                if (sourcePath.Contains("helengine-logo.png", StringComparison.OrdinalIgnoreCase)) {
+                    Console.WriteLine($"[helengine-editor] texture settings loaded path={settingsPath} platformCount={(settings.Processor?.Platforms == null ? -1 : settings.Processor.Platforms.Count)}");
+                }
                 if (repaired) {
                     SaveTextureImportSettings(sourcePath, settings);
                 }
@@ -1992,6 +1998,9 @@ namespace helengine.editor {
             }
 
             UpdateTextureImportSettingsChecksum(settings, sourcePath);
+            if (sourcePath.Contains("helengine-logo.png", StringComparison.OrdinalIgnoreCase)) {
+                Console.WriteLine($"[helengine-editor] texture settings defaulted path={settingsPath} platformCount={(settings.Processor?.Platforms == null ? -1 : settings.Processor.Platforms.Count)} settingsFileExists={settingsFileExists}");
+            }
             if (settingsFileExists) {
                 SaveTextureImportSettings(sourcePath, settings);
             }

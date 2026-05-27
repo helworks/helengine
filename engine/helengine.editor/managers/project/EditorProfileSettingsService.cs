@@ -237,6 +237,9 @@ namespace helengine.editor {
             } else if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
                 platform.Input.StandardActions.Accept ??= CreateGamepadButtonControl((int)InputGamepadButton.South);
                 platform.Input.StandardActions.Return ??= CreateGamepadButtonControl((int)InputGamepadButton.North);
+            } else if (string.Equals(platformId, "gamecube", StringComparison.OrdinalIgnoreCase)) {
+                platform.Input.StandardActions.Accept ??= CreateGamepadButtonControl((int)InputGamepadButton.South);
+                platform.Input.StandardActions.Return ??= CreateGamepadButtonControl((int)InputGamepadButton.East);
             }
         }
 

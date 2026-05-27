@@ -7,6 +7,10 @@ namespace helengine.editor {
         /// Stable Nintendo DS platform id used by scene-companion routing.
         /// </summary>
         const string NintendoDsPlatformId = "ds";
+        /// <summary>
+        /// Stable Nintendo 3DS platform id used by the DS companion-scene routing contract.
+        /// </summary>
+        const string Nintendo3DsPlatformId = "3ds";
 
         /// <summary>
         /// Absolute project root path that owns the assets directory.
@@ -75,7 +79,7 @@ namespace helengine.editor {
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
-            if (!string.Equals(platformId, NintendoDsPlatformId, StringComparison.OrdinalIgnoreCase)) {
+            if (!UsesNintendoDsCompanionSceneMappings(platformId)) {
                 return null;
             }
             if (!ContainsSceneId(sceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId)) {
@@ -85,6 +89,20 @@ namespace helengine.editor {
             Dictionary<string, string> mappings = new Dictionary<string, string>(StringComparer.Ordinal);
             AddNintendoDsCompanionSceneMappings(sceneIds, mappings);
             return mappings;
+        }
+
+        /// <summary>
+        /// Resolves whether one platform should route generated boot-scene startup through the Nintendo DS companion-scene mapping contract.
+        /// </summary>
+        /// <param name="platformId">Target platform identifier to inspect.</param>
+        /// <returns>True when the platform should use Nintendo DS companion-scene mappings; otherwise false.</returns>
+        static bool UsesNintendoDsCompanionSceneMappings(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            return string.Equals(platformId, NintendoDsPlatformId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, Nintendo3DsPlatformId, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
