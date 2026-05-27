@@ -348,6 +348,7 @@ namespace helengine.editor.tests.serialization.scene {
             WriteModelAsset("cooked/models/TestModel.hasset");
             WriteMaterialAsset("cooked/materials/TestMaterial.hasset", "ForwardStandardShader");
             WriteShaderAsset("cooked/shaders/ForwardStandardShader.dx11.hasset", "ForwardStandardShader");
+            WriteShaderAsset("cooked/shaders/ForwardStandardShader.vulkan.hasset", "ForwardStandardShader");
             WriteSceneAsset(
                 "cooked/scenes/Bootstrap.hasset",
                 1u,
@@ -368,11 +369,12 @@ namespace helengine.editor.tests.serialization.scene {
             ShaderRuntimeMaterial previousMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(previousMesh.Materials));
             Assert.Empty(renderManager3D.ReleasedModels);
             Assert.Empty(renderManager3D.ReleasedMaterials);
+            int flushReleasedAssetsCallCountBeforeReload = renderManager3D.FlushReleasedAssetsCallCount;
 
             core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
             Assert.Empty(renderManager3D.ReleasedModels);
             Assert.Empty(renderManager3D.ReleasedMaterials);
-            Assert.Equal(0, renderManager3D.FlushReleasedAssetsCallCount);
+            Assert.Equal(flushReleasedAssetsCallCountBeforeReload, renderManager3D.FlushReleasedAssetsCallCount);
             CommitFrame(core);
 
             RuntimeModel releasedModel = Assert.Single(renderManager3D.ReleasedModels);
@@ -383,6 +385,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Null(previousMaterial.Layout);
             Assert.Null(releasedMaterial.RenderState);
             Assert.Null(previousMaterial.Properties);
+            Assert.Equal(flushReleasedAssetsCallCountBeforeReload + 1, renderManager3D.FlushReleasedAssetsCallCount);
         }
 
         /// <summary>
@@ -750,30 +753,61 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="fontRelativePath">Content-relative packaged font path used by the text component.</param>
         /// <returns>Serialized text component record.</returns>
         SceneComponentAssetRecord CreateTextComponentRecord(string fontRelativePath) {
+            if (string.IsNullOrWhiteSpace(fontRelativePath)) {
+                throw new ArgumentException("Font path must be provided.", nameof(fontRelativePath));
+            }
+
+            TextComponent component = new TextComponent {
+                Font = CreateFont(),
+                Text = "Hello world",
+                WrapText = true,
+                Size = new int2(320, 64),
+                Color = new byte4(12, 34, 56, 78),
+                SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
+                FontScale = 0.25f,
+                RenderOrder2D = 19,
+                LayerMask = 7,
+                SelectionEnabled = false
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(
+                AutomaticComponentAssetReferenceSupport.BuildReferenceName(nameof(TextComponent.Font)),
+                CreateFileReference(fontRelativePath));
+            return CreateRuntimeAutomaticComponentRecord(component, 0, saveState);
+        }
+
+        /// <summary>
+        /// Serializes one automatic component through the packaged runtime payload format used by player scene builds.
+        /// </summary>
+        /// <param name="component">Component instance to serialize.</param>
+        /// <param name="componentIndex">Entity-local component order index.</param>
+        /// <param name="saveState">Editor-time asset-reference state associated with the component.</param>
+        /// <returns>Serialized scene component record.</returns>
+        SceneComponentAssetRecord CreateRuntimeAutomaticComponentRecord(
+            Component component,
+            int componentIndex,
+            EntityComponentSaveState saveState) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (componentIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(componentIndex), "Component index must be non-negative.");
+            }
+
+            ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            ScriptComponentReflectionSchema schema = schemaBuilder.Build(component.GetType());
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteByte(1);
-            writer.WriteInt32((int)SceneAssetReferenceSourceKind.FileSystem);
-            writer.WriteString(fontRelativePath);
-            writer.WriteString(string.Empty);
-            writer.WriteString(string.Empty);
-            writer.WriteString("Hello world");
-            writer.WriteByte(1);
-            writer.WriteInt2(new int2(320, 64));
-            writer.WriteByte(12);
-            writer.WriteByte(34);
-            writer.WriteByte(56);
-            writer.WriteByte(78);
-            writer.WriteFloat4(new float4(0.1f, 0.2f, 0.3f, 0.4f));
-            writer.WriteSingle(0.25f);
-            writer.WriteByte(19);
-            writer.WriteByte(7);
-            writer.WriteByte(0);
+            writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+            writer.WriteInt32(schema.Members.Count);
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                AutomaticScriptComponentPersistenceDescriptor.WriteSupportedMemberValue(writer, member, component, saveState);
+            }
 
             return new SceneComponentAssetRecord {
-                ComponentTypeId = "helengine.TextComponent",
-                ComponentIndex = 0,
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(component.GetType()),
+                ComponentIndex = componentIndex,
                 Payload = stream.ToArray()
             };
         }

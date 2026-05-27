@@ -477,6 +477,9 @@ namespace helengine {
         public virtual void Draw() {
             LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
             LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
+            if (SceneManager != null) {
+                SceneManager.CommitPendingOperationsAtFrameBoundary();
+            }
             FPSComponent.RecordRenderFrame();
             DebugComponent.RecordRenderFrame();
         }
@@ -574,15 +577,6 @@ namespace helengine {
             ObjectManager.Update();
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterObjectManagerUpdate");
-            }
-            if (SceneManager != null) {
-                if (shouldRecordUpdateStages) {
-                    RecordUpdateStage("BeforeSceneManagerFlushPendingOperations");
-                }
-                SceneManager.FlushPendingOperations();
-                if (shouldRecordUpdateStages) {
-                    RecordUpdateStage("AfterSceneManagerFlushPendingOperations");
-                }
             }
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeUpdatePhysics");

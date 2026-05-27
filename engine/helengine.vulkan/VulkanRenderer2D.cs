@@ -328,6 +328,7 @@ namespace helengine.vulkan {
             }
 
             DestroyTextureResource(vulkanTextureResource);
+            base.ReleaseTexture(texture);
         }
 
         /// <summary>

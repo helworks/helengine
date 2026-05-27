@@ -24,16 +24,21 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Releases one runtime texture previously created by this renderer.
+        /// Releases one runtime texture previously created by this renderer and assumes ownership for final destruction timing.
         /// </summary>
-        /// <param name="texture">Runtime texture that should release any renderer-owned resources.</param>
+        /// <param name="texture">Runtime texture that should release any renderer-owned resources and be disposed when safe.</param>
         public virtual void ReleaseTexture(RuntimeTexture texture) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+
+            NativeOwnership.DisposeAndDelete(texture);
         }
 
         /// <summary>
-        /// Releases one font asset previously materialized for this renderer.
+        /// Releases one font asset previously materialized for this renderer and assumes ownership for final destruction timing.
         /// </summary>
-        /// <param name="font">Font asset that should release any renderer-owned or native-owned resources.</param>
+        /// <param name="font">Font asset that should release any renderer-owned or native-owned resources when safe.</param>
         public virtual void ReleaseFont(FontAsset font) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
@@ -42,7 +47,6 @@ namespace helengine {
             RuntimeTexture texture = font.Texture;
             if (texture != null && !texture.IsDisposed) {
                 ReleaseTexture(texture);
-                NativeOwnership.DisposeAndDelete(texture);
             }
 
             font.Dispose();

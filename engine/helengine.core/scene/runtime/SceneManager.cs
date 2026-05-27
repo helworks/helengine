@@ -49,7 +49,7 @@ namespace helengine {
         readonly Dictionary<string, LoadedSceneRecord> LoadedSceneRecordsById;
 
         /// <summary>
-        /// Deferred scene operations requested during the active object-manager update sweep.
+        /// Deferred scene operations requested for the next frame-boundary commit.
         /// </summary>
         readonly List<PendingSceneOperation> PendingOperations;
 
@@ -74,9 +74,9 @@ namespace helengine {
         readonly Dictionary<RuntimeMaterial, int> ActiveOwnedMaterialReferenceCounts;
 
         /// <summary>
-        /// Tracks whether deferred scene operations are currently being flushed.
+        /// Tracks whether deferred scene operations are currently being committed at the frame boundary.
         /// </summary>
-        bool IsFlushingPendingOperations;
+        bool IsCommittingPendingOperations;
 
         /// <summary>
         /// Initializes one runtime scene manager.
@@ -214,43 +214,49 @@ namespace helengine {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
             RecordTraceState("LoadSceneRequest", sceneId);
-            if (ObjectManager.IsUpdateLoopActive && !IsFlushingPendingOperations) {
-                PendingOperations.Add(PendingSceneOperation.CreateLoad(sceneId, loadMode));
-                RecordTraceState("LoadSceneDeferred", sceneId);
-                return;
-            }
-
-            LoadSceneImmediate(sceneId, loadMode);
+            PendingOperations.Add(PendingSceneOperation.CreateLoad(sceneId, loadMode));
+            RecordTraceState("LoadSceneDeferred", sceneId);
         }
 
         /// <summary>
-        /// Flushes any runtime scene operations that were deferred during the active object-manager update sweep.
+        /// Commits any runtime scene operations that were deferred for the frame boundary.
         /// </summary>
-        public void FlushPendingOperations() {
+        public void CommitPendingOperationsAtFrameBoundary() {
             if (PendingOperations.Count == 0) {
                 return;
             }
 
-            RecordTraceState("FlushPendingOperationsBegin", string.Empty);
-            IsFlushingPendingOperations = true;
+            RecordTraceState("CommitPendingOperationsAtFrameBoundaryBegin", string.Empty);
+            int operationCountToCommit = PendingOperations.Count;
+            bool shouldFlushReleasedAssetsAtFrameBoundary = false;
+            IsCommittingPendingOperations = true;
             try {
-                while (PendingOperations.Count > 0) {
+                for (int operationIndex = 0; operationIndex < operationCountToCommit; operationIndex++) {
                     PendingSceneOperation operation = PendingOperations[0];
                     PendingOperations.RemoveAt(0);
-                    RecordTraceState("FlushPendingOperationsOperation", operation.SceneId);
+                    RecordTraceState("CommitPendingOperationsAtFrameBoundaryOperation", operation.SceneId);
+                    if (operation.OperationKind == PendingSceneOperationKind.Load && shouldFlushReleasedAssetsAtFrameBoundary) {
+                        FlushReleasedAssets();
+                        shouldFlushReleasedAssetsAtFrameBoundary = false;
+                    }
                     if (operation.OperationKind == PendingSceneOperationKind.Load) {
                         LoadSceneImmediate(operation.SceneId, operation.LoadMode);
                     } else {
                         UnloadSceneImmediate(operation.SceneId);
+                        shouldFlushReleasedAssetsAtFrameBoundary = true;
                     }
 
                     NativeOwnership.Delete(operation);
                 }
             } finally {
-                IsFlushingPendingOperations = false;
+                IsCommittingPendingOperations = false;
             }
 
-            RecordTraceState("FlushPendingOperationsEnd", string.Empty);
+            if (shouldFlushReleasedAssetsAtFrameBoundary) {
+                FlushReleasedAssets();
+            }
+
+            RecordTraceState("CommitPendingOperationsAtFrameBoundaryEnd", string.Empty);
         }
 
         /// <summary>
@@ -275,7 +281,7 @@ namespace helengine {
                 }
 
                 RecordTraceState("LoadSceneImmediateFlushReleasedTextures", sceneId);
-                FlushReleasedTextures();
+                FlushReleasedAssets();
             }
 
             SceneLoadingEventArgs sceneLoadingEventArgs = new SceneLoadingEventArgs(sceneId, sceneContentPath);
@@ -323,12 +329,8 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
-            if (ObjectManager.IsUpdateLoopActive && !IsFlushingPendingOperations) {
-                PendingOperations.Add(PendingSceneOperation.CreateUnload(sceneId));
-                return;
-            }
-
-            UnloadSceneImmediate(sceneId);
+            PendingOperations.Add(PendingSceneOperation.CreateUnload(sceneId));
+            RecordTraceState("UnloadSceneDeferred", sceneId);
         }
 
         /// <summary>
@@ -413,7 +415,7 @@ namespace helengine {
         void UnloadAllScenes() {
             RecordTraceState("UnloadAllScenesBegin", string.Empty);
             while (LoadedSceneRecords.Count > 0) {
-                UnloadScene(LoadedSceneRecords[0].SceneId);
+                UnloadSceneImmediate(LoadedSceneRecords[0].SceneId);
             }
             RecordTraceState("UnloadAllScenesEnd", string.Empty);
         }
@@ -431,7 +433,7 @@ namespace helengine {
             }
 
             for (int index = 0; index < sceneIdsToUnload.Count; index++) {
-                UnloadScene(sceneIdsToUnload[index]);
+                UnloadSceneImmediate(sceneIdsToUnload[index]);
             }
         }
 
@@ -955,7 +957,6 @@ namespace helengine {
             }
 
             Core.Instance.RenderManager2D.ReleaseTexture(ownedAsset);
-            NativeOwnership.DisposeAndDelete(ownedAsset);
         }
 
         /// <summary>
@@ -971,7 +972,6 @@ namespace helengine {
             }
 
             Core.Instance.RenderManager3D.ReleaseModel(ownedAsset);
-            NativeOwnership.DisposeAndDelete(ownedAsset);
         }
 
         /// <summary>
@@ -989,14 +989,12 @@ namespace helengine {
             RecordTraceState("MatBeforeRM3D", LastTraceSceneId);
             Core.Instance.RenderManager3D.ReleaseMaterial(ownedAsset);
             RecordTraceState("MatAfterRM3D", LastTraceSceneId);
-            NativeOwnership.DisposeAndDelete(ownedAsset);
-            RecordTraceState("MatAfterDelete", LastTraceSceneId);
         }
 
         /// <summary>
-        /// Flushes any renderer-owned runtime texture releases that were deferred during scene unload before the next scene begins loading.
+        /// Flushes any renderer-owned runtime asset releases that were deferred during scene unload before the next scene begins loading.
         /// </summary>
-        void FlushReleasedTextures() {
+        void FlushReleasedAssets() {
             if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
                 throw new InvalidOperationException("Deferred runtime texture release flushing requires an initialized 2D render manager.");
             }

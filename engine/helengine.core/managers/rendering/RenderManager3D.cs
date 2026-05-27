@@ -84,23 +84,27 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Releases one runtime model previously created by this renderer.
+        /// Releases one runtime model previously created by this renderer and assumes ownership for final destruction timing.
         /// </summary>
-        /// <param name="model">Runtime model that should release any renderer-owned resources.</param>
+        /// <param name="model">Runtime model that should release any renderer-owned resources and be disposed when safe.</param>
         public virtual void ReleaseModel(RuntimeModel model) {
             if (model == null) {
                 throw new ArgumentNullException(nameof(model));
             }
+
+            NativeOwnership.DisposeAndDelete(model);
         }
 
         /// <summary>
-        /// Releases one runtime material previously created by this renderer.
+        /// Releases one runtime material previously created by this renderer and assumes ownership for final destruction timing.
         /// </summary>
-        /// <param name="material">Runtime material that should release any renderer-owned resources.</param>
+        /// <param name="material">Runtime material that should release any renderer-owned resources and be disposed when safe.</param>
         public virtual void ReleaseMaterial(RuntimeMaterial material) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             }
+
+            NativeOwnership.DisposeAndDelete(material);
         }
 
         /// <summary>

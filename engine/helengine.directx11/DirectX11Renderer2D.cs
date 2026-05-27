@@ -482,6 +482,7 @@ namespace helengine.directx11 {
             directX11TextureResource.Resource = null;
             directX11TextureResource.Texture?.Dispose();
             directX11TextureResource.Texture = null;
+            base.ReleaseTexture(texture);
         }
 
         /// <summary>
