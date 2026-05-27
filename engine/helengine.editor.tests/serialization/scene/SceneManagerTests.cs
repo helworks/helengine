@@ -98,6 +98,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new FakeRuntimeDiagnosticsProvider(snapshot));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
 
             RuntimeMemoryDiagnosticsSnapshot capturedSnapshot = core.RuntimeDiagnosticsService.CaptureSnapshot();
 
@@ -132,6 +133,8 @@ namespace helengine.editor.tests.serialization.scene {
             Core core = CreateCore(sceneCatalog: null, scenePathResolver: scenePathResolver);
 
             core.SceneManager.LoadScene("Scenes/AuthoredMenu.helen", SceneLoadMode.Single);
+            Assert.Empty(core.SceneManager.LoadedScenes);
+            CommitFrame(core);
 
             LoadedSceneRecord loadedScene = Assert.Single(core.SceneManager.LoadedScenes);
             Assert.Equal("Scenes/AuthoredMenu.helen", loadedScene.SceneId);
@@ -164,6 +167,8 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            Assert.Empty(core.SceneManager.LoadedScenes);
+            CommitFrame(core);
 
             LoadedSceneRecord loadedScene = Assert.Single(core.SceneManager.LoadedScenes);
             Assert.Equal("Scenes/Bootstrap.helen", loadedScene.SceneId);
@@ -187,10 +192,60 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            Assert.Empty(core.SceneManager.LoadedScenes);
+            CommitFrame(core);
             core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Additive);
+            Assert.Single(core.SceneManager.LoadedScenes);
+            CommitFrame(core);
 
             Assert.Equal(2, core.SceneManager.LoadedScenes.Count);
             Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+        }
+
+        /// <summary>
+        /// Ensures single-scene requests stay pending until the frame-boundary draw commit completes.
+        /// </summary>
+        [Fact]
+        public void LoadScene_whenModeIsSingle_defersActivationUntilAfterDrawCompletes() {
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+
+            Assert.Empty(core.SceneManager.LoadedScenes);
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+
+            CommitFrame(core);
+
+            Assert.Single(core.SceneManager.LoadedScenes);
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+        }
+
+        /// <summary>
+        /// Ensures additive scene requests stay pending until the frame-boundary draw commit completes.
+        /// </summary>
+        [Fact]
+        public void LoadScene_whenModeIsAdditive_defersActivationUntilAfterDrawCompletes() {
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+
+            core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Additive);
+
+            Assert.Single(core.SceneManager.LoadedScenes);
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+
+            CommitFrame(core);
+
+            Assert.Equal(2, core.SceneManager.LoadedScenes.Count);
             Assert.True(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
         }
 
@@ -212,6 +267,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
 
             Entity previousRoot = Assert.Single(core.SceneManager.LoadedScenes).RootEntities[0];
             CameraComponent previousCamera = Assert.IsType<CameraComponent>(Assert.Single(previousRoot.Components));
@@ -219,6 +275,9 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Single(core.ObjectManager.Entities);
 
             core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+            CommitFrame(core);
 
             LoadedSceneRecord loadedScene = Assert.Single(core.SceneManager.LoadedScenes);
             Entity loadedRoot = Assert.Single(loadedScene.RootEntities);
@@ -251,6 +310,7 @@ namespace helengine.editor.tests.serialization.scene {
                     new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
 
             Entity previousRoot = Assert.Single(core.SceneManager.LoadedScenes).RootEntities[0];
             TextComponent previousText = Assert.IsType<TextComponent>(
@@ -259,12 +319,19 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeTexture previousFontTexture = previousText.Font.Texture;
             TextureAsset previousSourceTexture = previousText.Font.SourceTextureAsset;
             Assert.Empty(renderManager2D.ReleasedTextures);
+            Assert.Empty(renderManager2D.ReleasedFonts);
             int flushReleasedTexturesCallCountBeforeReload = renderManager2D.FlushReleasedTexturesCallCount;
 
             core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+            Assert.Empty(renderManager2D.ReleasedTextures);
+            Assert.Empty(renderManager2D.ReleasedFonts);
+            Assert.Equal(flushReleasedTexturesCallCountBeforeReload, renderManager2D.FlushReleasedTexturesCallCount);
+            CommitFrame(core);
 
             RuntimeTexture releasedTexture = Assert.Single(renderManager2D.ReleasedTextures);
+            FontAsset releasedFont = Assert.Single(renderManager2D.ReleasedFonts);
             Assert.Same(previousFontTexture, releasedTexture);
+            Assert.Same(previousFont, releasedFont);
             Assert.True(previousFont.IsDisposed);
             Assert.True(previousFontTexture.IsDisposed);
             Assert.NotNull(previousSourceTexture);
@@ -292,6 +359,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
 
             Entity previousRoot = Assert.Single(core.SceneManager.LoadedScenes).RootEntities[0];
             MeshComponent previousMesh = Assert.IsType<MeshComponent>(
@@ -302,6 +370,10 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Empty(renderManager3D.ReleasedMaterials);
 
             core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+            Assert.Empty(renderManager3D.ReleasedModels);
+            Assert.Empty(renderManager3D.ReleasedMaterials);
+            Assert.Equal(0, renderManager3D.FlushReleasedAssetsCallCount);
+            CommitFrame(core);
 
             RuntimeModel releasedModel = Assert.Single(renderManager3D.ReleasedModels);
             RuntimeMaterial releasedMaterial = Assert.Single(renderManager3D.ReleasedMaterials);
@@ -340,6 +412,8 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Empty(core.SceneManager.LoadedScenes);
 
             core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+            Assert.Empty(core.SceneManager.LoadedScenes);
+            CommitFrame(core);
 
             LoadedSceneRecord loadedScene = Assert.Single(core.SceneManager.LoadedScenes);
             Entity loadedRoot = Assert.Single(loadedScene.RootEntities);
@@ -365,6 +439,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
 
             Entity bootstrapRoot = Assert.Single(core.SceneManager.LoadedScenes).RootEntities[0];
             TestSceneLoadTriggerComponent triggerComponent = new TestSceneLoadTriggerComponent {
@@ -376,6 +451,11 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.True(triggerComponent.HasRequestedLoad);
             Assert.True(triggerComponent.WasStillAttachedAfterRequest);
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+
+            core.Draw();
+
             Assert.True(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
             Assert.False(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
         }
@@ -400,7 +480,11 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
             core.SceneManager.UnloadScene("Scenes/Bootstrap.helen");
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+            Assert.Single(core.SceneManager.LoadedScenes);
+            CommitFrame(core);
 
             Assert.False(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
             Assert.Empty(core.SceneManager.LoadedScenes);
@@ -420,7 +504,11 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
+            CommitFrame(core);
             core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Persistent.helen"));
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+            CommitFrame(core);
 
             Assert.Equal(2, core.SceneManager.LoadedScenes.Count);
             Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Persistent.helen"));
@@ -437,7 +525,10 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/Persistent.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
+            CommitFrame(core);
             core.SceneManager.UnloadScene("Scenes/Persistent.helen");
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Persistent.helen"));
+            CommitFrame(core);
 
             Assert.False(core.SceneManager.IsSceneLoaded("Scenes/Persistent.helen"));
             Assert.Empty(core.SceneManager.LoadedScenes);
@@ -453,9 +544,10 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/Persistent.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
+            CommitFrame(core);
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
-                core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single));
+            core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => core.Draw());
             Assert.Contains("already loaded", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -554,6 +646,18 @@ namespace helengine.editor.tests.serialization.scene {
             });
             core.Initialize(renderManager3D, renderManager2D, new TestInputBackend(), new PlatformInfo("test", "test-version"));
             return core;
+        }
+
+        /// <summary>
+        /// Advances one frame-boundary draw so queued scene operations commit under the shared runtime contract.
+        /// </summary>
+        /// <param name="core">Initialized core whose pending scene operations should commit.</param>
+        void CommitFrame(Core core) {
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+
+            core.Draw();
         }
 
         /// <summary>

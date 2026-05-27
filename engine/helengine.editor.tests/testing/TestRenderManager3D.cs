@@ -31,6 +31,11 @@ namespace helengine.editor.tests.testing {
         int LastDrawCallCountValue;
 
         /// <summary>
+        /// Gets how many times production code requested one deferred 3D release flush.
+        /// </summary>
+        public int FlushReleasedAssetsCallCount { get; private set; }
+
+        /// <summary>
         /// Initializes a new test render manager.
         /// </summary>
         public TestRenderManager3D() {
@@ -195,6 +200,7 @@ namespace helengine.editor.tests.testing {
             }
 
             ReleasedModelsValue.Add(model);
+            base.ReleaseModel(model);
         }
 
         /// <summary>
@@ -207,6 +213,14 @@ namespace helengine.editor.tests.testing {
             }
 
             ReleasedMaterialsValue.Add(material);
+            base.ReleaseMaterial(material);
+        }
+
+        /// <summary>
+        /// Records one deferred-release flush request so tests can assert frame-boundary ownership handoff.
+        /// </summary>
+        public override void FlushReleasedAssets() {
+            FlushReleasedAssetsCallCount++;
         }
     }
 }

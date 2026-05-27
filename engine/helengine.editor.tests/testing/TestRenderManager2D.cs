@@ -11,6 +11,11 @@ namespace helengine.editor.tests.testing {
         public List<RuntimeTexture> ReleasedTextures { get; } = new List<RuntimeTexture>();
 
         /// <summary>
+        /// Gets the runtime fonts released through this test renderer.
+        /// </summary>
+        public List<FontAsset> ReleasedFonts { get; } = new List<FontAsset>();
+
+        /// <summary>
         /// Gets how many times production code requested one deferred-texture flush.
         /// </summary>
         public int FlushReleasedTexturesCallCount { get; private set; }
@@ -47,6 +52,20 @@ namespace helengine.editor.tests.testing {
             }
 
             ReleasedTextures.Add(texture);
+            base.ReleaseTexture(texture);
+        }
+
+        /// <summary>
+        /// Records one released font and then applies the shared release behavior.
+        /// </summary>
+        /// <param name="font">Runtime font released by production code.</param>
+        public override void ReleaseFont(FontAsset font) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+
+            ReleasedFonts.Add(font);
+            base.ReleaseFont(font);
         }
 
         /// <summary>
