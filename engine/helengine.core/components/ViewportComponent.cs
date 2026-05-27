@@ -489,6 +489,10 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(cameraComponent));
             }
 
+            if (cameraComponent.RenderTarget != null && cameraComponent.RenderTarget.Width > 0 && cameraComponent.RenderTarget.Height > 0) {
+                return new float4(0f, 0f, cameraComponent.RenderTarget.Width, cameraComponent.RenderTarget.Height);
+            }
+
             float4 viewport = cameraComponent.Viewport;
             if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
                 return viewport;

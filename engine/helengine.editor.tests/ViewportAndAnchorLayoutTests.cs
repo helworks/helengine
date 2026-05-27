@@ -132,6 +132,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures camera-bound viewport layout resolves against the full camera render target instead of the camera's screen-placement viewport.
+        /// </summary>
+        [Fact]
+        public void ViewportComponent_WhenBoundCameraUsesRenderTarget_ExposesTheRenderTargetSize() {
+            TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
+            renderManager.OnWindowResize(IntPtr.Zero, 400, 240);
+
+            Entity cameraEntity = new Entity();
+            cameraEntity.InitComponents();
+            cameraEntity.InitChildren();
+            CameraComponent camera = new CameraComponent {
+                Viewport = new float4(0f, 1f, 1f, 1f),
+                RenderTarget = new TestRenderTarget {
+                    Width = 320,
+                    Height = 240
+                }
+            };
+            cameraEntity.AddComponent(camera);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.AncestorCameraBindingMode
+            };
+            viewportEntity.AddComponent(viewport);
+            cameraEntity.AddChild(viewportEntity);
+
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(320, 240), viewport.ResolvedViewportSize);
+        }
+
+        /// <summary>
         /// Ensures camera-bound viewports raise one bounds-change notification when the driving camera viewport changes.
         /// </summary>
         [Fact]
