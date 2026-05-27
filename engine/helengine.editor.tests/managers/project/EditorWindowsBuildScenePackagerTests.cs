@@ -717,11 +717,14 @@ namespace helengine.editor.tests {
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             TextComponent loadedTextComponent = Assert.IsType<TextComponent>(
                 Assert.Single(loadedRoots[0].Components, component => component is TextComponent));
+            System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
+            Assert.NotNull(alignmentProperty);
 
             Assert.Equal("Hello world", loadedTextComponent.Text);
             Assert.NotNull(loadedTextComponent.Font);
             Assert.Equal(defaultFont.FontInfo.Name, loadedTextComponent.Font.FontInfo.Name);
             Assert.Equal(2f, loadedTextComponent.FontScale);
+            Assert.Equal("Center", alignmentProperty.GetValue(loadedTextComponent)?.ToString());
         }
 
         /// <summary>
@@ -3453,6 +3456,9 @@ namespace helengine.editor.tests {
                 LayerMask = 7,
                 SelectionEnabled = true
             };
+            System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
+            Assert.NotNull(alignmentProperty);
+            alignmentProperty.SetValue(textComponent, Enum.Parse(alignmentProperty.PropertyType, "Center"));
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference("Font", fontReference);
 

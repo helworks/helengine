@@ -106,10 +106,10 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
-        /// Ensures generated native deserializers for engine-owned text components rebuild font references and authored font scale through the automatic reflected path.
+        /// Ensures generated native deserializers for engine-owned text components rebuild authored layout state through the automatic reflected path.
         /// </summary>
         [Fact]
-        public void GenerateNativeDeserializerSource_WhenSchemaContainsTextComponent_EmitsFontReferenceResolutionAndFontScaleRead() {
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsTextComponent_EmitsFontReferenceResolutionAndAlignmentRead() {
             ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TextComponent));
             ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
 
@@ -119,6 +119,7 @@ namespace helengine.editor.tests.managers.project {
             Assert.Contains("SceneAssetReference", header, StringComparison.Ordinal);
             Assert.Contains("referenceResolver->ResolveFont(reference)", source, StringComparison.Ordinal);
             Assert.Contains("component->set_FontScale(reader->ReadSingle());", source, StringComparison.Ordinal);
+            Assert.Contains("component->set_Alignment(static_cast<::TextAlignment>(reader->ReadInt32()));", source, StringComparison.Ordinal);
             Assert.DoesNotContain("component->set_Texture(", source, StringComparison.Ordinal);
         }
     }

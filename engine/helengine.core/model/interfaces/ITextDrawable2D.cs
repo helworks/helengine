@@ -37,5 +37,10 @@ namespace helengine {
         /// Gets or sets the uniform scale applied to glyph bounds, advances, and line height during rendering.
         /// </summary>
         float FontScale { get; set; }
+
+        /// <summary>
+        /// Gets or sets how glyphs are positioned horizontally inside the authored text layout box.
+        /// </summary>
+        TextAlignment Alignment { get; set; }
     }
 }

@@ -263,6 +263,7 @@ namespace helengine.editor {
             PreviewTextComponentValue.WrapText = sourceComponent.WrapText;
             PreviewTextComponentValue.Font = sourceComponent.Font;
             PreviewTextComponentValue.FontScale = sourceComponent.FontScale;
+            PreviewTextComponentValue.Alignment = sourceComponent.Alignment;
             PreviewTextComponentValue.RenderOrder2D = sourceComponent.RenderOrder2D;
         }
 

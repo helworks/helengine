@@ -146,10 +146,10 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures engine-owned text components now use the same automatic reflected persistence path and retain authored font scale and font references.
+        /// Ensures engine-owned text components now use the same automatic reflected persistence path and retain authored text layout state and font references.
         /// </summary>
         [Fact]
-        public void SerializeAndDeserialize_WhenTextComponentUsesFontScale_RoundTripsThroughAutomaticPersistence() {
+        public void SerializeAndDeserialize_WhenTextComponentUsesFontScaleAndAlignment_RoundTripsThroughAutomaticPersistence() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneAssetReference fontReference = BuildFontReference("Fonts/Ui.hefont", "fonts", "ui");
             TextComponent component = new TextComponent {
@@ -166,6 +166,9 @@ namespace helengine.editor.tests.serialization.scene {
                 SelectionEnabled = true,
                 Texture = new TestRuntimeTexture()
             };
+            System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
+            Assert.NotNull(alignmentProperty);
+            alignmentProperty.SetValue(component, Enum.Parse(alignmentProperty.PropertyType, "Right"));
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(nameof(TextComponent.Font), fontReference);
 
@@ -186,6 +189,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(new float4(0.05f, 0.1f, 0.9f, 0.8f), restored.SourceRect);
             Assert.Equal(0.25f, restored.Rotation);
             Assert.Equal(2.0f, restored.FontScale);
+            Assert.Equal("Right", alignmentProperty.GetValue(restored)?.ToString());
             Assert.Equal((byte)22, restored.RenderOrder2D);
             Assert.Equal((byte)3, restored.LayerMask);
             Assert.True(restored.SelectionEnabled);

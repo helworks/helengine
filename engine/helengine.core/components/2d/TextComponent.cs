@@ -133,6 +133,11 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets how glyphs are positioned horizontally inside the authored layout box.
+        /// </summary>
+        public TextAlignment Alignment { get; set; }
+
+        /// <summary>
         /// Gets or sets the layer mask used to filter cameras.
         /// </summary>
         public byte LayerMask { get; set; }
@@ -205,6 +210,7 @@ namespace helengine {
             SourceRect = new float4(0, 0, 1, 1);
             WrapText = false;
             FontScaleValue = 1f;
+            Alignment = TextAlignment.Left;
         }
 
         /// <summary>

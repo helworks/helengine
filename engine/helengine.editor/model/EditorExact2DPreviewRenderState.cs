@@ -62,6 +62,11 @@ namespace helengine.editor {
         public float FontScale { get; set; }
 
         /// <summary>
+        /// Gets or sets the horizontal alignment applied during text preview rendering.
+        /// </summary>
+        public TextAlignment Alignment { get; set; }
+
+        /// <summary>
         /// Gets or sets the local component rotation baked into the preview texture.
         /// </summary>
         public float Rotation { get; set; }

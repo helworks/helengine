@@ -386,11 +386,14 @@ namespace helengine.vulkan {
                 content = TextLayoutUtils.WrapText(content, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
             }
 
+            double[] lineOffsets = BuildTextLineOffsets(text, font, content, fontScale, texture.Width);
             double offsetX = 0.0;
             double offsetY = 0.0;
             double lineHeight = Math.Max(font.LineHeight * fontScale, 1.0f);
             double baseX = Math.Round(position.X);
             double baseY = Math.Round(position.Y);
+            int lineIndex = 0;
+            double lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
 
             for (int i = 0; i < content.Length; i++) {
                 char c = content[i];
@@ -398,6 +401,8 @@ namespace helengine.vulkan {
                 if (c == '\n') {
                     offsetY += lineHeight;
                     offsetX = 0.0;
+                    lineIndex++;
+                    lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
                     continue;
                 }
 
@@ -414,7 +419,7 @@ namespace helengine.vulkan {
                 double pixelH = info.SourceRect.W * texture.Height * fontScale;
                 double snappedLineOffsetY = Math.Round(offsetY);
 
-                double drawX = baseX + offsetX;
+                double drawX = lineOriginX + offsetX;
                 double drawY = baseY + snappedLineOffsetY + (info.OffsetY * fontScale);
 
                 DrawQuad(texture, drawX, drawY, pixelW, pixelH, info.SourceRect, color);
@@ -424,6 +429,56 @@ namespace helengine.vulkan {
                     : pixelW;
                 offsetX += advance;
             }
+        }
+
+        /// <summary>
+        /// Builds one horizontal offset per rendered text line so authored text alignment is respected consistently across wrapped and non-wrapped content.
+        /// </summary>
+        /// <param name="text">Text drawable that owns the authored layout box.</param>
+        /// <param name="font">Font used to render the text.</param>
+        /// <param name="content">Final rendered text content after wrapping has been applied.</param>
+        /// <param name="fontScale">Resolved glyph scale.</param>
+        /// <param name="textureWidth">Font-atlas texture width used to resolve glyph bounds.</param>
+        /// <returns>One horizontal offset per rendered line.</returns>
+        static double[] BuildTextLineOffsets(ITextDrawable2D text, FontAsset font, string content, double fontScale, int textureWidth) {
+            if (text == null) {
+                throw new ArgumentNullException(nameof(text));
+            } else if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            } else if (content == null) {
+                throw new ArgumentNullException(nameof(content));
+            } else if (fontScale <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(fontScale), "Font scale must be greater than zero.");
+            } else if (textureWidth <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(textureWidth), "Texture width must be greater than zero.");
+            }
+
+            string[] lines = content.Split('\n');
+            double[] lineOffsets = new double[lines.Length];
+            for (int index = 0; index < lines.Length; index++) {
+                double visibleWidth = TextLayoutAlignmentUtils.MeasureVisibleLineWidth(lines[index], font, fontScale, textureWidth);
+                lineOffsets[index] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(text.Alignment, text.Size.X, visibleWidth);
+            }
+
+            return lineOffsets;
+        }
+
+        /// <summary>
+        /// Resolves one previously measured line offset or returns zero when the requested line index is outside the rendered line array.
+        /// </summary>
+        /// <param name="lineOffsets">Per-line horizontal offsets computed for the rendered text.</param>
+        /// <param name="lineIndex">Rendered line index whose offset should be returned.</param>
+        /// <returns>Horizontal line offset in pixels.</returns>
+        static double ResolveTextLineOffset(double[] lineOffsets, int lineIndex) {
+            if (lineOffsets == null) {
+                throw new ArgumentNullException(nameof(lineOffsets));
+            }
+
+            if (lineIndex < 0 || lineIndex >= lineOffsets.Length) {
+                return 0d;
+            }
+
+            return lineOffsets[lineIndex];
         }
 
         /// <summary>

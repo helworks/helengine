@@ -25,6 +25,7 @@ namespace helengine.editor {
                 Color = sourceComponent.Color,
                 WrapText = sourceComponent.WrapText,
                 FontScale = sourceComponent.FontScale,
+                Alignment = sourceComponent.Alignment,
                 Rotation = sourceComponent.Rotation
             };
         }
@@ -85,6 +86,8 @@ namespace helengine.editor {
             } else if (previousState.WrapText != nextState.WrapText) {
                 return true;
             } else if (previousState.FontScale != nextState.FontScale) {
+                return true;
+            } else if (previousState.Alignment != nextState.Alignment) {
                 return true;
             } else if (previousState.Rotation != nextState.Rotation) {
                 return true;

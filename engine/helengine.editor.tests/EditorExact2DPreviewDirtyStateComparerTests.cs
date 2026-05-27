@@ -77,6 +77,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures changing authored text alignment marks the preview dirty because glyph placement changes inside the preview texture.
+        /// </summary>
+        [Fact]
+        public void IsTextPreviewDirty_WhenAlignmentChanges_ReturnsTrue() {
+            Entity sourceEntity = new Entity();
+            sourceEntity.InitComponents();
+            sourceEntity.InitChildren();
+
+            TextComponent sourceComponent = new TextComponent {
+                Size = new int2(200, 32),
+                Text = "Preview",
+                WrapText = false,
+                Rotation = 0f,
+                FontScale = 1f,
+                Color = new byte4(255, 255, 255, 255)
+            };
+            sourceEntity.AddComponent(sourceComponent);
+            System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
+            Assert.NotNull(alignmentProperty);
+            alignmentProperty.SetValue(sourceComponent, Enum.Parse(alignmentProperty.PropertyType, "Left"));
+
+            EditorExact2DPreviewRenderState previousState = EditorExact2DPreviewDirtyStateComparer.CaptureTextState(sourceEntity, sourceComponent);
+            alignmentProperty.SetValue(sourceComponent, Enum.Parse(alignmentProperty.PropertyType, "Right"));
+            EditorExact2DPreviewRenderState nextState = EditorExact2DPreviewDirtyStateComparer.CaptureTextState(sourceEntity, sourceComponent);
+
+            Assert.True(EditorExact2DPreviewDirtyStateComparer.RequiresRecapture(previousState, nextState));
+        }
+
+        /// <summary>
         /// Ensures changing visible rounded-rectangle shape data marks the preview dirty.
         /// </summary>
         [Fact]
