@@ -2168,7 +2168,7 @@ namespace helengine.editor {
                 PlatformDefinition,
                 TargetPlatformId,
                 Path.GetDirectoryName(AssetsRootPath) ?? throw new InvalidOperationException("Assets root parent path could not be resolved."),
-                NormalizeRelativePath(sourceRelativePath),
+                NormalizeSourceRelativePath(sourceRelativePath),
                 cookedRelativePath,
                 settings,
                 FileHasher);
@@ -2197,7 +2197,7 @@ namespace helengine.editor {
                 PlatformDefinition,
                 TargetPlatformId,
                 Path.GetDirectoryName(AssetsRootPath) ?? throw new InvalidOperationException("Assets root parent path could not be resolved."),
-                NormalizeRelativePath(sourceRelativePath),
+                NormalizeSourceRelativePath(sourceRelativePath),
                 cookedRelativePath,
                 settings,
                 FileHasher);
@@ -2952,6 +2952,19 @@ namespace helengine.editor {
                 throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
             }
 
+            return CanonicalPackagedAssetPath.Normalize(relativePath);
+        }
+
+        /// <summary>
+        /// Normalizes one project-relative source path to a stable slash direction without rewriting authored casing.
+        /// </summary>
+        /// <param name="relativePath">Project-relative source path to normalize.</param>
+        /// <returns>Project-relative path that uses forward slashes.</returns>
+        string NormalizeSourceRelativePath(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
             return relativePath.Replace('\\', '/');
         }
 
@@ -2961,7 +2974,7 @@ namespace helengine.editor {
         /// <param name="relativePath">Logical packaged asset path relative to the build content root.</param>
         /// <returns>Final runtime asset path consumed by the selected platform.</returns>
         string ResolveRuntimeReferencePath(string relativePath) {
-            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            string normalizedRelativePath = CanonicalPackagedAssetPath.ValidateCanonical(relativePath);
             if (PlatformDefinition == null || PlatformDefinition.RuntimeGenerationContract == null) {
                 return normalizedRelativePath;
             }

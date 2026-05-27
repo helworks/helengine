@@ -33,17 +33,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(canonicalKey));
             }
 
-            char[] characters = canonicalKey.ToCharArray();
-            for (int index = 0; index < characters.Length; index++) {
-                char currentCharacter = characters[index];
-                if (currentCharacter == '\\') {
-                    characters[index] = '/';
-                } else {
-                    characters[index] = char.ToLowerInvariant(currentCharacter);
-                }
-            }
-
-            return new string(characters);
+            return CanonicalPackagedAssetPath.Normalize(canonicalKey);
         }
 
         /// <summary>

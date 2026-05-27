@@ -43,4 +43,20 @@ public class PlatformPackagedAssetPathResolverTests {
 
         Assert.Equal("cdrom0:\\COOKED\\FONTS\\DEFAULT.HEF;1", resolvedPath);
     }
+
+    /// <summary>
+    /// Ensures mixed-case content-relative logical paths fail immediately instead of normalizing implicitly.
+    /// </summary>
+    [Fact]
+    public void ResolveRuntimeReferencePath_WhenContentRelativePathUsesUppercase_ThrowsInvalidOperationException() {
+        RuntimeGenerationContract contract = new RuntimeGenerationContract(
+            RuntimeMaterialResolutionMode.RawShaderBacked,
+            true,
+            PackagedPathPolicy.ContentRelativeOnly);
+
+        Assert.Throws<InvalidOperationException>(() => PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+            "windows",
+            contract,
+            "cooked/Fonts/default.hefont"));
+    }
 }

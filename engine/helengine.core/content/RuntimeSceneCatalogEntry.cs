@@ -36,13 +36,7 @@ namespace helengine {
         /// <param name="cookedRelativePath">Cooked relative path to normalize.</param>
         /// <returns>Normalized cooked relative path with forward slashes.</returns>
         static string NormalizeCookedRelativePath(string cookedRelativePath) {
-            char[] normalizedCharacters = new char[cookedRelativePath.Length];
-            for (int index = 0; index < cookedRelativePath.Length; index++) {
-                char character = cookedRelativePath[index];
-                normalizedCharacters[index] = character == '\\' ? '/' : character;
-            }
-
-            return new string(normalizedCharacters);
+            return CanonicalPackagedAssetPath.ValidateCanonical(cookedRelativePath);
         }
     }
 }

@@ -21,7 +21,7 @@ namespace helengine.editor {
             string changedExtensionPath = Path.ChangeExtension(normalizedSceneId, ".hasset");
             string trimmedScenePath = TrimLeadingScenesRoot(changedExtensionPath);
             string combinedRelativePath = Path.Combine("cooked", "scenes", trimmedScenePath.Replace('/', Path.DirectorySeparatorChar));
-            return NormalizeRelativePath(combinedRelativePath);
+            return CanonicalPackagedAssetPath.Normalize(combinedRelativePath);
         }
 
         /// <summary>

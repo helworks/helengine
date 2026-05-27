@@ -22,31 +22,18 @@ public static class PlatformPackagedAssetPathResolver {
             throw new ArgumentException("Packaged asset path must be provided.", nameof(packagedAssetPath));
         }
 
-        string normalizedPackagedAssetPath = NormalizePath(packagedAssetPath);
+        string canonicalPackagedAssetPath = CanonicalPackagedAssetPath.ValidateCanonical(packagedAssetPath);
         if (runtimeGenerationContract.PackagedPathPolicy == PackagedPathPolicy.ContentRelativeOnly) {
-            return normalizedPackagedAssetPath;
+            return canonicalPackagedAssetPath;
         }
         if (runtimeGenerationContract.PackagedPathPolicy == PackagedPathPolicy.RootedOrContentRelative) {
             if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
-                return Ps2DiscPathResolver.ResolveRuntimePath(normalizedPackagedAssetPath);
+                return Ps2DiscPathResolver.ResolveRuntimePath(canonicalPackagedAssetPath);
             }
 
             throw new InvalidOperationException($"Platform '{platformId}' requires rooted packaged paths, but no rooted runtime path resolver is registered.");
         }
 
         throw new InvalidOperationException($"Unsupported packaged path policy '{runtimeGenerationContract.PackagedPathPolicy}'.");
-    }
-
-    /// <summary>
-    /// Normalizes one logical packaged path to the forward-slash form used by the shared packaging pipeline.
-    /// </summary>
-    /// <param name="packagedAssetPath">Logical packaged asset path to normalize.</param>
-    /// <returns>Normalized packaged asset path using forward slashes.</returns>
-    static string NormalizePath(string packagedAssetPath) {
-        if (string.IsNullOrWhiteSpace(packagedAssetPath)) {
-            throw new ArgumentException("Packaged asset path must be provided.", nameof(packagedAssetPath));
-        }
-
-        return packagedAssetPath.Replace('\\', '/');
     }
 }

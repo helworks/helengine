@@ -755,18 +755,33 @@ namespace helengine.editor.tests {
             Assert.Equal(expectedFontRuntimePath, Assert.Single(packagedScene.AssetReferences).RelativePath);
 
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+            FontAsset expectedFont = CreatePackagedFontAsset();
+            TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
+            referenceResolver.RegisterFont(
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                    RelativePath = expectedFontRuntimePath
+                },
+                expectedFont);
+            TextComponent loadedTextComponent = new TextComponent();
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TextComponent));
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-            reader.ReadInt32();
-            reader.ReadByte();
-            reader.ReadByte();
-            reader.ReadByte();
-            reader.ReadByte();
+            Assert.Equal(schema.Members.Count, reader.ReadInt32());
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                object memberValue = AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(
+                    reader,
+                    member,
+                    loadedTextComponent,
+                    saveComponent,
+                    referenceResolver);
+                member.SetValue(loadedTextComponent, memberValue);
+            }
 
-            SceneAssetReference fontReference = ReadOptionalReference(reader);
-            Assert.NotNull(fontReference);
-            Assert.Equal(expectedFontRuntimePath, fontReference.RelativePath);
+            Assert.Same(expectedFont, loadedTextComponent.Font);
         }
 
         /// <summary>
@@ -1027,13 +1042,13 @@ namespace helengine.editor.tests {
             Assert.Equal(
                 Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", fontRelativePath.Replace('/', Path.DirectorySeparatorChar))),
                 workItem.SourceAssetPath);
-            Assert.Equal("cooked/Fonts/DemoDiscTitle.ps2tex", workItem.OutputRelativePath);
+            Assert.Equal("cooked/fonts/demodisctitle.ps2tex", workItem.OutputRelativePath);
             Assert.Equal(defaultSerializedTextureSettings, workItem.SerializedPlatformSettings);
 
-            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "Fonts", "DemoDiscTitle.hefont");
+            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "fonts", "demodisctitle.hefont");
             using FileStream fontStream = File.OpenRead(cookedFontPath);
             FontAsset cookedFontAsset = helengine.files.FontAssetBinarySerializer.Deserialize(fontStream);
-            Assert.Equal("cooked/Fonts/DemoDiscTitle.ps2tex", cookedFontAsset.CookedAtlasTextureRelativePath);
+            Assert.Equal("cooked/fonts/demodisctitle.ps2tex", cookedFontAsset.CookedAtlasTextureRelativePath);
             Assert.Null(cookedFontAsset.SourceTextureAsset);
         }
 
@@ -1061,23 +1076,23 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
             PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
-            Assert.Equal("cooked/Fonts/DemoDiscTitle.ps2tex", workItem.OutputRelativePath);
+            Assert.Equal("cooked/fonts/demodisctitle.ps2tex", workItem.OutputRelativePath);
 
             string expectedFontRuntimePath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
                 platformDefinition.PlatformId,
                 platformDefinition.RuntimeGenerationContract,
-                "cooked/Fonts/DemoDiscTitle.hefont");
+                "cooked/fonts/demodisctitle.hefont");
             using FileStream sceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
             SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(sceneStream));
             Assert.Equal(expectedFontRuntimePath, Assert.Single(packagedScene.AssetReferences).RelativePath);
 
-            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "Fonts", "DemoDiscTitle.hefont");
+            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "fonts", "demodisctitle.hefont");
             using FileStream fontStream = File.OpenRead(cookedFontPath);
             FontAsset cookedFontAsset = helengine.files.FontAssetBinarySerializer.Deserialize(fontStream);
             string expectedAtlasRuntimePath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
                 platformDefinition.PlatformId,
                 platformDefinition.RuntimeGenerationContract,
-                "cooked/Fonts/DemoDiscTitle.ps2tex");
+                "cooked/fonts/demodisctitle.ps2tex");
             Assert.Equal(expectedAtlasRuntimePath, cookedFontAsset.CookedAtlasTextureRelativePath);
             Assert.Null(cookedFontAsset.SourceTextureAsset);
         }
@@ -1101,7 +1116,7 @@ namespace helengine.editor.tests {
                 CreatePackagedFontAsset());
             packager.Package(new[] { sceneId }, BuildRootPath);
 
-            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "Fonts", "DemoDiscTitle.hefont");
+            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "fonts", "demodisctitle.hefont");
             Assert.True(File.Exists(cookedFontPath));
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -1111,7 +1126,7 @@ namespace helengine.editor.tests {
             }
 
             Assert.Contains(packagedScene.AssetReferences, reference =>
-                string.Equals(reference.RelativePath, "cooked/Fonts/DemoDiscTitle.hefont", StringComparison.Ordinal));
+                string.Equals(reference.RelativePath, "cooked/fonts/demodisctitle.hefont", StringComparison.Ordinal));
         }
 
         /// <summary>
