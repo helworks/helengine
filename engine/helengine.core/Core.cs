@@ -475,11 +475,11 @@ namespace helengine {
         /// Executes the engine draw cycle.
         /// </summary>
         public virtual void Draw() {
-            LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
-            LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
             if (SceneManager != null) {
                 SceneManager.CommitPendingOperationsAtFrameBoundary();
             }
+            LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
+            LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
             FPSComponent.RecordRenderFrame();
             DebugComponent.RecordRenderFrame();
         }
@@ -672,9 +672,6 @@ namespace helengine {
                 consumedStepCount++;
             }
 
-            if (consumedStepCount == InitializationOptions.PhysicsMaxStepsPerUpdate && PhysicsSchedulerValue.AccumulatedSeconds >= PhysicsSchedulerValue.StepSeconds) {
-                PhysicsSchedulerValue.Reset();
-            }
         }
     }
 }

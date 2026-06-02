@@ -177,6 +177,11 @@ namespace helengine {
         public bool HasStableSupportContactThisStep { get; set; }
 
         /// <summary>
+        /// Gets or sets whether this body saw a resolved upward support contact patch that still reached its center this step.
+        /// </summary>
+        public bool HasCenteredSupportContactThisStep { get; set; }
+
+        /// <summary>
         /// Gets or sets the largest horizontal distance from the body center to a normal contact point during the current step.
         /// </summary>
         public float MaximumNormalContactLeverArmXZ { get; set; }

@@ -17,8 +17,8 @@ namespace helengine.physics3d.tests {
 
                 Physics3DRuntimeComponentRegistration.Register(core);
 
-                PhysicsWorld3D world = Assert.IsType<PhysicsWorld3D>(core.PhysicsRuntime);
-                Assert.Empty(world.BodyStates);
+                BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+                Assert.Equal(0, world.RegisteredBodyCount);
             } finally {
                 core.Dispose();
             }

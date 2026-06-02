@@ -73,10 +73,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a very slow host frame cannot force physics to consume an unbounded backlog of fixed steps.
+        /// Ensures a very slow host frame cannot force physics to consume an unbounded backlog of fixed steps while still preserving the remaining simulation debt for later catch-up.
         /// </summary>
         [Fact]
-        public void Update_WithAttachedPhysicsRuntimeAndLargeElapsedSeconds_CapsFixedStepCatchUp() {
+        public void Update_WithAttachedPhysicsRuntimeAndLargeElapsedSeconds_PreservesRemainingBacklogAfterCappedCatchUp() {
             Core core = CreateCore(new CoreInitializationOptions {
                 PhysicsFixedStepSeconds = 1.0d / 60.0d,
                 PhysicsMaxStepsPerUpdate = 4
@@ -88,7 +88,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(4, runtime.StepCount);
             Assert.Equal(1.0d / 60.0d, runtime.LastStepSeconds, 10);
-            Assert.Equal(0d, core.PhysicsScheduler.AccumulatedSeconds, 10);
+            Assert.Equal(2.0d - (4.0d / 60.0d), core.PhysicsScheduler.AccumulatedSeconds, 10);
         }
 
         /// <summary>

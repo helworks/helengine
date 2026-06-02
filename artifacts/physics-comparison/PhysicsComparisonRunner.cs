@@ -38,6 +38,25 @@ namespace Helengine.PhysicsComparison {
             SphereStackComparisonReporter sphereReporter = new SphereStackComparisonReporter();
             sphereReporter.WriteReport(outputDirectoryPath, bepuSphereSamples, helengineSphereSamples);
 
+            BepuDynamicStackBoxesTraceRunner bepuDynamicStackRunner = new BepuDynamicStackBoxesTraceRunner();
+            IReadOnlyList<PhysicsTraceSample> bepuDynamicStackSamples = bepuDynamicStackRunner.Run(outputDirectoryPath, StepCount, StepSeconds);
+
+            HelengineDynamicStackBoxesTraceRunner helengineDynamicStackRunner = new HelengineDynamicStackBoxesTraceRunner();
+            IReadOnlyList<PhysicsTraceSample> helengineDynamicStackSamples = helengineDynamicStackRunner.Run(outputDirectoryPath, StepCount, StepSeconds);
+
+            FrameReplayComparisonReporter dynamicStackFixedStepReporter = new FrameReplayComparisonReporter();
+            dynamicStackFixedStepReporter.WriteReport(outputDirectoryPath, bepuDynamicStackSamples, helengineDynamicStackSamples, "dynamic-stack-fixed-step-comparison-summary.txt");
+
+            float[] frameDeltas = FrameReplaySequenceLibrary.CreateSingleHitchRecoverySequence();
+            BepuDynamicStackBoxesFrameReplayRunner bepuFrameReplayRunner = new BepuDynamicStackBoxesFrameReplayRunner();
+            IReadOnlyList<PhysicsTraceSample> bepuFrameReplaySamples = bepuFrameReplayRunner.Run(outputDirectoryPath, frameDeltas, StepSeconds);
+
+            HelengineDynamicStackBoxesFrameReplayRunner helengineFrameReplayRunner = new HelengineDynamicStackBoxesFrameReplayRunner();
+            IReadOnlyList<PhysicsTraceSample> helengineFrameReplaySamples = helengineFrameReplayRunner.Run(outputDirectoryPath, frameDeltas);
+
+            FrameReplayComparisonReporter frameReplayReporter = new FrameReplayComparisonReporter();
+            frameReplayReporter.WriteReport(outputDirectoryPath, bepuFrameReplaySamples, helengineFrameReplaySamples, "frame-replay-comparison-summary.txt");
+
             Console.WriteLine("Trace output: " + outputDirectoryPath);
         }
 

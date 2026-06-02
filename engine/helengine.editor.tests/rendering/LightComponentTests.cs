@@ -66,6 +66,31 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures parented directional lights preserve their local quaternion when the parent contributes no rotation.
+        /// </summary>
+        [Fact]
+        public void LightDirectionUtility_WhenDirectionalLightIsParentedUnderIdentityParent_PreservesChildOrientation() {
+            InitializeCore();
+            Entity parentEntity = CreateInitializedEntity();
+            parentEntity.InitChildren();
+            Entity lightEntity = CreateInitializedEntity();
+            float4 lightOrientation;
+            float4.CreateFromYawPitchRoll((float)(-48.0 * Math.PI / 180.0), (float)(-44.0 * Math.PI / 180.0), 0f, out lightOrientation);
+            lightEntity.LocalOrientation = lightOrientation;
+            parentEntity.AddChild(lightEntity);
+
+            DirectionalLightComponent lightComponent = new DirectionalLightComponent();
+            lightEntity.AddComponent(lightComponent);
+
+            float3 expectedDirection = float4.RotateVector(LightDirectionUtility.AuthoredForwardAxis, lightOrientation);
+            float3 actualDirection = LightDirectionUtility.GetLightDirection(lightComponent);
+
+            Assert.True(Math.Abs(expectedDirection.X - actualDirection.X) < 0.0001f, $"Expected X {expectedDirection.X} but found {actualDirection.X}.");
+            Assert.True(Math.Abs(expectedDirection.Y - actualDirection.Y) < 0.0001f, $"Expected Y {expectedDirection.Y} but found {actualDirection.Y}.");
+            Assert.True(Math.Abs(expectedDirection.Z - actualDirection.Z) < 0.0001f, $"Expected Z {expectedDirection.Z} but found {actualDirection.Z}.");
+        }
+
+        /// <summary>
         /// Ensures ambient lights reject directional resolution because they have no world-space facing axis.
         /// </summary>
         [Fact]

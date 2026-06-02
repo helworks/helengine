@@ -1,42 +1,42 @@
 Final sphere01
   bepu.position=(-44.789703, -1164.6621, 0.027744198) velocity=(-2.3857892, -151.11436, 0.02706705)
-  helengine.position=(0.069245, 0.5, -1.2486758) velocity=(0, 0, 0)
-  delta.position=(44.858948, 1165.1621, -1.27642) delta.velocity=(2.3857892, 151.11436, -0.02706705)
+  helengine.position=(-0.0404694, 0.5, -1.2671783) velocity=(0, 0, 0)
+  delta.position=(44.749233, 1165.1621, -1.2949225) delta.velocity=(2.3857892, 151.11436, -0.02706705)
 
 Final sphere02
   bepu.position=(9.861718, -1392.6877, 51.38019) velocity=(0.49032107, -165.24846, 2.6327045)
-  helengine.position=(0.7834197, 0.49999997, 0.9076794) velocity=(0, 0, 0)
-  delta.position=(-9.078299, 1393.1877, -50.47251) delta.velocity=(-0.49032107, 165.24846, -2.6327045)
+  helengine.position=(0.8362482, 0.5, 0.93296576) velocity=(0, 0, 0)
+  delta.position=(-9.02547, 1393.1877, -50.447227) delta.velocity=(-0.49032107, 165.24846, -2.6327045)
 
 Final sphere03
   bepu.position=(-40.557327, -1160.4835, 0.27361527) velocity=(-2.115086, -150.84302, -0.02524648)
-  helengine.position=(-0.5930529, 0.49999994, 1.3426505) velocity=(0, 0, 0)
-  delta.position=(39.964275, 1160.9835, 1.0690353) delta.velocity=(2.115086, 150.84302, 0.02524648)
+  helengine.position=(-0.760207, 0.5, 1.4177798) velocity=(0, 0, 0)
+  delta.position=(39.79712, 1160.9835, 1.1441646) delta.velocity=(2.115086, 150.84302, 0.02524648)
 
 Final sphere04
   bepu.position=(-9.496821, -1388.9691, -52.90181) velocity=(-0.5009822, -165.02766, -2.7262557)
-  helengine.position=(1.063185, 0.5, -1.0417906) velocity=(0, 0, 0)
-  delta.position=(10.560006, 1389.4691, 51.86002) delta.velocity=(0.5009822, 165.02766, 2.7262557)
+  helengine.position=(0.9215796, 0.5, -0.9941821) velocity=(-2.8406416E-11, 0, -2.0200343E-12)
+  delta.position=(10.418401, 1389.4691, 51.907627) delta.velocity=(0.5009822, 165.02766, 2.7262557)
 
 Final sphere05
   bepu.position=(-63.00274, -1363.3597, 11.317302) velocity=(-3.2985961, -163.49905, 0.6173181)
-  helengine.position=(-1.0943966, 0.5, 0.37416804) velocity=(0, 0, 0)
-  delta.position=(61.90834, 1363.8597, -10.943133) delta.velocity=(3.2985961, 163.49905, -0.6173181)
+  helengine.position=(-1.0842724, 0.5, 0.37468147) velocity=(0, 0, 0)
+  delta.position=(61.918465, 1363.8597, -10.94262) delta.velocity=(3.2985961, 163.49905, -0.6173181)
 
 Final sphere06
   bepu.position=(19.89447, -1032.6088, 28.76711) velocity=(1.0881859, -142.28639, 1.4907459)
-  helengine.position=(0.5942668, 0.49999997, -0.15854906) velocity=(0, 0, 0)
-  delta.position=(-19.300203, 1033.1088, -28.92566) delta.velocity=(-1.0881859, 142.28639, -1.4907459)
+  helengine.position=(0.59523284, 0.5, -0.048931934) velocity=(-6.97415E-13, 0, 2.0200343E-12)
+  delta.position=(-19.299238, 1033.1088, -28.816042) delta.velocity=(-1.0881859, 142.28639, -1.4907459)
 
 Final sphere07
   bepu.position=(12.354083, -1108.1998, -34.02294) velocity=(0.7004509, -147.40474, -1.7932374)
-  helengine.position=(-0.44035828, 0.49999997, -0.38826635) velocity=(0, 0, 0)
-  delta.position=(-12.794441, 1108.6998, 33.634674) delta.velocity=(-0.7004509, 147.40474, 1.7932374)
+  helengine.position=(-0.36681122, 0.5, -0.32192597) velocity=(0, 0, 0)
+  delta.position=(-12.720894, 1108.6998, 33.701015) delta.velocity=(-0.7004509, 147.40474, 1.7932374)
 
 Final sphere08
   bepu.position=(21.405914, -835.8163, 24.80693) velocity=(1.0575943, -128.0094, 1.3507804)
-  helengine.position=(-0.09790402, 0.76152045, 0.5141372) velocity=(0, 0, 0)
-  delta.position=(-21.503819, 836.5778, -24.292793) delta.velocity=(-1.0575943, 128.0094, -1.3507804)
+  helengine.position=(-0.12222615, 0.5, 0.6477019) velocity=(0, 0, 0)
+  delta.position=(-21.528141, 836.3163, -24.15923) delta.velocity=(-1.0575943, 128.0094, -1.3507804)
 
 Fall timing
   sphere01 below 0 bepu=4.916667 helengine=never
@@ -50,6 +50,6 @@ Fall timing
 
 First material sphere08 divergence
   step=9 time=0.15
-  positionDelta=0.0050186315 velocityDelta=0.5383748
-  bepu.position=(0.07965327, 7.3957067, 0.060219508) helengine.position=(0.080735095, 7.3908815, 0.061076585)
-  bepu.velocity=(-0.0019126737, -0.62312794, 0.023474844) helengine.velocity=(-0.0079564275, -1.1601559, -0.014099321)
+  positionDelta=0.005645803 velocityDelta=0.5492354
+  bepu.position=(0.07965327, 7.3957067, 0.060219508) helengine.position=(0.08068849, 7.3902125, 0.06100569)
+  bepu.velocity=(-0.0019126737, -0.62312794, 0.023474844) helengine.velocity=(-0.008409463, -1.1709884, -0.014815782)

@@ -57,11 +57,11 @@ namespace helengine.editor.tests {
                 ContentRootPath = AppContext.BaseDirectory
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
-            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
             world.BindScene(rootEntities);
 
             Entity upperBoxEntity = rootEntities[2];
@@ -125,11 +125,11 @@ namespace helengine.editor.tests {
                 ContentRootPath = AppContext.BaseDirectory
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
-            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
             world.BindScene(rootEntities);
 
             Entity lowerBoxEntity = rootEntities[1];

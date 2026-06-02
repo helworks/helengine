@@ -250,7 +250,7 @@ namespace helengine.editor {
             projectBuilder.AppendLine("  <PropertyGroup>");
             projectBuilder.AppendLine("    <TargetFramework>net9.0</TargetFramework>");
             projectBuilder.AppendLine("    <OutputType>Library</OutputType>");
-            projectBuilder.AppendLine("    <ImplicitUsings>disable</ImplicitUsings>");
+            projectBuilder.AppendLine("    <ImplicitUsings>enable</ImplicitUsings>");
             projectBuilder.AppendLine("    <Nullable>disable</Nullable>");
             projectBuilder.AppendLine("    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>");
             projectBuilder.AppendLine("    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>");
@@ -390,7 +390,12 @@ namespace helengine.editor {
             }
 
             string updatedContents = contents.Replace("float4 *orientation;", "float4 orientation;", StringComparison.Ordinal);
-            updatedContents = updatedContents.Replace("float4->CreateFromYawPitchRoll(", "float4::CreateFromYawPitchRoll(", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("float4->CreateFromYawPitchRoll__out3(", "float4::CreateFromYawPitchRoll__out3(", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("float4::CreateFromYawPitchRoll(", "float4::CreateFromYawPitchRoll__out3(", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("float4->CreateFromAxisAngle(", "float4::CreateFromAxisAngle__ref0_out2(", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("float4::CreateFromAxisAngle(", "float4::CreateFromAxisAngle__ref0_out2(", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("float4->Concatenate(", "float4::Concatenate__ref0_ref1_out2(", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("float4::Concatenate(", "float4::Concatenate__ref0_ref1_out2(", StringComparison.Ordinal);
             updatedContents = updatedContents.Replace("orientation->Normalize();", "orientation.Normalize();", StringComparison.Ordinal);
             return updatedContents;
         }

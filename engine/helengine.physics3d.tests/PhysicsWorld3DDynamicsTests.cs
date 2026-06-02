@@ -972,6 +972,62 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Ensures the authored eight-box tower keeps at least one upper box supported above the floor like the BEPU reference instead of collapsing every upper box into the ground pile.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityEightBoxTower_PreservesOneSupportedUpperBoxLikeBepu() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(18f, 1f, 18f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            Entity[] boxes = new[] {
+                CreateDynamicBoxEntity(new float3(0f, 1f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.9f, 3f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.45f, 5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.45f, 7f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.25f, 9f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.25f, 11f, 0f)),
+                CreateDynamicBoxEntity(new float3(-0.1f, 13f, 0f)),
+                CreateDynamicBoxEntity(new float3(0.1f, 15f, 0f))
+            };
+
+            for (int index = 0; index < boxes.Length; index++) {
+                SetBoxFriction(boxes[index], 1d, 1d);
+            }
+
+            Entity[] rootEntities = new Entity[boxes.Length + 1];
+            rootEntities[0] = groundEntity;
+            for (int index = 0; index < boxes.Length; index++) {
+                rootEntities[index + 1] = boxes[index];
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(rootEntities);
+
+            for (int stepIndex = 0; stepIndex < 1200; stepIndex++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            int supportedUpperBoxes = 0;
+            for (int index = 0; index < boxes.Length; index++) {
+                if (boxes[index].LocalPosition.Y > 1.75f) {
+                    supportedUpperBoxes++;
+                }
+            }
+
+            Assert.True(
+                supportedUpperBoxes >= 1,
+                $"Expected the tower to keep at least one box supported above Y=1.75 like the BEPU reference, but all boxes collapsed into the floor pile. Final topologies: {string.Join("; ", boxes.Select((box, index) => $"box{index + 1}={box.LocalPosition}"))}");
+        }
+
+        /// <summary>
         /// Ensures the authored eight-box tower collapses like the BEPU reference instead of preserving an unstable vertical stack.
         /// </summary>
         [Fact]
@@ -1024,6 +1080,196 @@ namespace helengine.physics3d.tests {
 
             Assert.True(highBoxCount <= 2, $"Expected the BEPU reference collapse topology to leave at most two boxes above the low pile, but {highBoxCount} boxes were still high.");
             Assert.True(boxes[7].LocalPosition.Y < 3.25f, $"Expected the top box to fall near the BEPU reference, but it ended at {boxes[7].LocalPosition}.");
+        }
+
+        /// <summary>
+        /// Ensures the authored four-box showcase stack does not put the top dynamic box to sleep on the first dynamic-dynamic contact step.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityDynamicStackBoxesScene_KeepsTopBoxFallingAfterFirstStep() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(14f, 1f, 14f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            RigidBody3DComponent topBody = CreateDynamicBody();
+            Entity[] boxes = new[] {
+                CreateDynamicBoxEntity(new float3(0f, 0.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 1.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 2.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 3.5f, 0f), topBody)
+            };
+            for (int index = 0; index < boxes.Length; index++) {
+                SetBoxFriction(boxes[index], 1d, 1d);
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(new[] { groundEntity, boxes[0], boxes[1], boxes[2], boxes[3] });
+
+            world.Step(1.0d / 60.0d);
+
+            Assert.True(topBody.LinearVelocity.Y < -0.02f, $"Expected the top showcase box to keep downward motion after the first step, but velocity was {topBody.LinearVelocity}.");
+        }
+
+        /// <summary>
+        /// Ensures the authored four-box showcase stack does not inject a large upward launch into the top box during the first settle frames.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityDynamicStackBoxesScene_DoesNotLaunchTopBoxUpwardDuringInitialSettle() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(14f, 1f, 14f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            RigidBody3DComponent topBody = CreateDynamicBody();
+            Entity[] boxes = new[] {
+                CreateDynamicBoxEntity(new float3(0f, 0.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 1.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 2.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 3.5f, 0f), topBody)
+            };
+            for (int index = 0; index < boxes.Length; index++) {
+                SetBoxFriction(boxes[index], 1d, 1d);
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(new[] { groundEntity, boxes[0], boxes[1], boxes[2], boxes[3] });
+
+            for (int stepIndex = 0; stepIndex < 8; stepIndex++) {
+                world.Step(1.0d / 60.0d);
+            }
+
+            Assert.True(topBody.LinearVelocity.Y < 0.05f, $"Expected the top showcase box to avoid a large upward launch during early settle, but velocity was {topBody.LinearVelocity}.");
+        }
+
+        /// <summary>
+        /// Ensures the authored four-box showcase stack does not over-damp the top box's angular motion while it is still rocking on an uncentered support contact.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityDynamicStackBoxesScene_DoesNotOverDampTopBoxOnUncenteredSupport() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(14f, 1f, 14f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            RigidBody3DComponent topBody = CreateDynamicBody();
+            Entity topEntity = null;
+            Entity[] boxes = new[] {
+                CreateDynamicBoxEntity(new float3(0f, 0.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 1.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 2.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 3.5f, 0f), topBody)
+            };
+            topEntity = boxes[3];
+            for (int index = 0; index < boxes.Length; index++) {
+                SetBoxFriction(boxes[index], 1d, 1d);
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(new[] { groundEntity, boxes[0], boxes[1], boxes[2], boxes[3] });
+
+            BodyState3D topState = world.BodyStates.Single(state => state.Entity == topEntity);
+            int overDampedStep = -1;
+            double previousAngularSpeedSquared = ResolveAngularSpeedSquared(topBody);
+            double previousLinearSpeedSquared =
+                (topState.Velocity.X * topState.Velocity.X) +
+                (topState.Velocity.Y * topState.Velocity.Y) +
+                (topState.Velocity.Z * topState.Velocity.Z);
+            double overDampedPreviousAngularSpeedSquared = 0d;
+            double overDampedCurrentAngularSpeedSquared = 0d;
+            double overDampedCurrentLinearSpeedSquared = 0d;
+            double overDampedUprightAlignment = 0d;
+            float3 overDampedAngularVelocity = float3.Zero;
+            for (int stepIndex = 0; stepIndex < 900; stepIndex++) {
+                world.Step(1.0d / 60.0d);
+
+                double currentLinearSpeedSquared =
+                    (topState.Velocity.X * topState.Velocity.X) +
+                    (topState.Velocity.Y * topState.Velocity.Y) +
+                    (topState.Velocity.Z * topState.Velocity.Z);
+                double currentAngularSpeedSquared = ResolveAngularSpeedSquared(topState.RigidBody);
+                double uprightAlignment = ResolveUprightAlignment(topEntity);
+                bool isUncenteredTiltedSupport =
+                    topState.ContactWasResolvedThisStep &&
+                    topState.HasStableSupportContactThisStep &&
+                    !topState.HasUnstableSupportContactThisStep &&
+                    !topState.HasCenteredSupportContactThisStep &&
+                    uprightAlignment > 0d &&
+                    uprightAlignment < 0.98d &&
+                    previousLinearSpeedSquared <= 0.04d;
+                if (isUncenteredTiltedSupport && currentAngularSpeedSquared < (previousAngularSpeedSquared * 0.1d)) {
+                    overDampedStep = stepIndex + 1;
+                    overDampedPreviousAngularSpeedSquared = previousAngularSpeedSquared;
+                    overDampedCurrentAngularSpeedSquared = currentAngularSpeedSquared;
+                    overDampedCurrentLinearSpeedSquared = currentLinearSpeedSquared;
+                    overDampedUprightAlignment = uprightAlignment;
+                    overDampedAngularVelocity = topState.AngularVelocity;
+                    break;
+                }
+
+                previousAngularSpeedSquared = currentAngularSpeedSquared;
+                previousLinearSpeedSquared = currentLinearSpeedSquared;
+            }
+
+            Assert.True(
+                overDampedStep < 0,
+                $"Expected the top showcase box to avoid heavy angular sleep while rocking on an uncentered support contact, but angular speed squared dropped from {overDampedPreviousAngularSpeedSquared} to {overDampedCurrentAngularSpeedSquared} at step {overDampedStep} with linear speed squared {overDampedCurrentLinearSpeedSquared}, upright alignment {overDampedUprightAlignment}, and angular velocity {overDampedAngularVelocity}.");
+        }
+
+        /// <summary>
+        /// Ensures the authored four-box showcase stack remains close to its stable BEPU topology instead of shearing across the floor.
+        /// </summary>
+        [Fact]
+        public void Step_WithCityDynamicStackBoxesScene_RemainsNearStableStackTopology() {
+            Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
+            groundEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            groundEntity.AddComponent(new BoxCollider3DComponent {
+                Size = new float3(14f, 1f, 14f),
+                StaticFriction = 1d,
+                DynamicFriction = 1d
+            });
+
+            Entity[] boxes = new[] {
+                CreateDynamicBoxEntity(new float3(0f, 0.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 1.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 2.5f, 0f)),
+                CreateDynamicBoxEntity(new float3(0f, 3.5f, 0f))
+            };
+            for (int index = 0; index < boxes.Length; index++) {
+                SetBoxFriction(boxes[index], 1d, 1d);
+            }
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(new[] { groundEntity, boxes[0], boxes[1], boxes[2], boxes[3] });
+
+            for (int stepIndex = 0; stepIndex < 120; stepIndex++) {
+                world.Step(1.0d / 60.0d);
+            }
+
+            Assert.True(boxes[3].LocalPosition.Y > 3.2f, $"Expected the top showcase box to remain near the stable stack height, but it ended at {boxes[3].LocalPosition}.");
+            Assert.True(Math.Abs(boxes[3].LocalPosition.X) < 0.25f, $"Expected the top showcase box to avoid large lateral drift in X, but it ended at {boxes[3].LocalPosition}.");
+            Assert.True(Math.Abs(boxes[3].LocalPosition.Z) < 0.25f, $"Expected the top showcase box to avoid large lateral drift in Z, but it ended at {boxes[3].LocalPosition}.");
         }
 
         /// <summary>

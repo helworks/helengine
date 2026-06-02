@@ -115,6 +115,33 @@ namespace helengine.editor.tests.managers.physics {
         }
 
         /// <summary>
+        /// Ensures the stacked-box showcase uses the authored stepped X offsets and a camera framing that separates the stack in screen space instead of collapsing it into one silhouette.
+        /// </summary>
+        [Fact]
+        public void CreateSceneAsset_ForDynamicStackBoxes_UsesSteppedOffsetsAndCameraFramingThatSeparatesBoxes() {
+            PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
+
+            SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.DynamicStackBoxesSceneId);
+            SceneEntityAsset cameraEntity = FindRootEntity(sceneAsset, "Camera");
+            SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
+            SceneEntityAsset firstStackBoxEntity = FindChildEntity(scenarioEntity, "StackBox01");
+            SceneEntityAsset secondStackBoxEntity = FindChildEntity(scenarioEntity, "StackBox02");
+            SceneEntityAsset thirdStackBoxEntity = FindChildEntity(scenarioEntity, "StackBox03");
+            SceneEntityAsset fourthStackBoxEntity = FindChildEntity(scenarioEntity, "StackBox04");
+
+            Assert.Equal(0f, firstStackBoxEntity.LocalPosition.X);
+            Assert.Equal(0.5f, secondStackBoxEntity.LocalPosition.X);
+            Assert.Equal(1.0f, thirdStackBoxEntity.LocalPosition.X);
+            Assert.Equal(1.5f, fourthStackBoxEntity.LocalPosition.X);
+
+            double firstProjectedX = ProjectWorldPointToNormalizedDeviceX(cameraEntity.LocalPosition, cameraEntity.LocalOrientation, firstStackBoxEntity.LocalPosition);
+            double fourthProjectedX = ProjectWorldPointToNormalizedDeviceX(cameraEntity.LocalPosition, cameraEntity.LocalOrientation, fourthStackBoxEntity.LocalPosition);
+            double projectedSpread = fourthProjectedX - firstProjectedX;
+
+            Assert.True(projectedSpread >= 0.18d, $"The stack-box showcase camera should spread the stepped stack across the screen. Actual spread: {projectedSpread}.");
+        }
+
+        /// <summary>
         /// Ensures the stack-box validation scene includes serialized rigid-body and box-collider records for the bodies the current runtime can simulate.
         /// </summary>
         [Fact]
@@ -223,6 +250,7 @@ namespace helengine.editor.tests.managers.physics {
 
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, groundMaterialReference.SourceKind);
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, firstBoxMaterialReference.SourceKind);
+            Assert.Contains("PhysicsDemoGround", groundMaterialReference.RelativePath, StringComparison.Ordinal);
             Assert.NotEqual(groundMaterialReference.RelativePath, firstBoxMaterialReference.RelativePath);
             Assert.NotEqual(firstBoxMaterialReference.RelativePath, secondBoxMaterialReference.RelativePath);
             Assert.NotEqual(secondBoxMaterialReference.RelativePath, thirdBoxMaterialReference.RelativePath);
@@ -239,18 +267,23 @@ namespace helengine.editor.tests.managers.physics {
             factory.WriteScenes(TempProjectRootPath);
 
             string shaderPath = Path.Combine(TempProjectRootPath, "assets", "Shaders", "physics", "PhysicsDemoMesh.hlsl");
+            string groundMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoGround.hasset");
             string neutralMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoNeutral.hasset");
             string blueMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoBlue.hasset");
 
             Assert.False(File.Exists(shaderPath));
+            Assert.True(File.Exists(groundMaterialPath));
             Assert.True(File.Exists(neutralMaterialPath));
             Assert.True(File.Exists(blueMaterialPath));
 
             MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            ShaderMaterialAsset groundMaterialAsset = settingsService.LoadMaterialAsset(groundMaterialPath, "windows");
             ShaderMaterialAsset blueMaterialAsset = settingsService.LoadMaterialAsset(blueMaterialPath, "windows");
             MaterialConstantBufferAsset baseColorBuffer = Assert.Single(blueMaterialAsset.ConstantBuffers, constantBuffer => string.Equals(constantBuffer.Name, "BaseColorBuffer", StringComparison.Ordinal));
             float4 baseColor = ReadFloat4(baseColorBuffer.Data);
 
+            Assert.False(groundMaterialAsset.CastsShadows);
+            Assert.True(groundMaterialAsset.ReceivesShadows);
             Assert.Equal("ForwardStandardShader", blueMaterialAsset.ShaderAssetId);
             Assert.Equal("ForwardStandardShader.vs", blueMaterialAsset.VertexProgram);
             Assert.Equal("ForwardStandardShader.ps", blueMaterialAsset.PixelProgram);
@@ -280,47 +313,94 @@ namespace helengine.editor.tests.managers.physics {
         /// Ensures the slope validation scene includes serialized controller and collider records for the runtime-driven character.
         /// </summary>
         [Fact]
-        public void CreateSceneAsset_ForCharacterSlope_WritesPhysicsRecordsForSlopeAndController() {
+        public void CreateSceneAsset_ForCharacterSlope_WritesControllerAndColliderRecords() {
             PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
 
             SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.CharacterSlopeSceneId);
             SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
-            SceneEntityAsset groundEntity = FindChildEntity(scenarioEntity, "Ground");
-            SceneEntityAsset rampEntity = FindChildEntity(scenarioEntity, "SlopeRamp");
             SceneEntityAsset controllerEntity = FindChildEntity(scenarioEntity, "CharacterController");
 
-            Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
-            Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
-            Assert.Contains(rampEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
-            Assert.Contains(rampEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
-            Assert.Contains(controllerEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
             Assert.Contains(controllerEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.CharacterController3DComponent", StringComparison.Ordinal));
+            Assert.Contains(controllerEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.CapsuleCollider3DComponent", StringComparison.Ordinal));
         }
 
         /// <summary>
-        /// Ensures the moving-platform validation scene includes serialized rigid-body, box-collider, and motion records for the runtime-driven platform.
+        /// Ensures the steps validation scene includes serialized controller, collider, and stair geometry records for the authored traversal path.
         /// </summary>
         [Fact]
-        public void CreateSceneAsset_ForCharacterMovingPlatform_WritesPhysicsRecordsForMovingPlatform() {
+        public void CreateSceneAsset_ForCharacterSteps_WritesControllerAndStepGeometryRecords() {
+            PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
+
+            SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.CharacterStepsSceneId);
+            SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
+            SceneEntityAsset controllerEntity = FindChildEntity(scenarioEntity, "CharacterController");
+            SceneEntityAsset firstStepEntity = FindChildEntity(scenarioEntity, "Step01");
+            SceneEntityAsset fifthStepEntity = FindChildEntity(scenarioEntity, "Step05");
+
+            Assert.Contains(controllerEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.CharacterController3DComponent", StringComparison.Ordinal));
+            Assert.Contains(controllerEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.CapsuleCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(firstStepEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(fifthStepEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures the trigger-volume validation scene includes one trigger collider, one dynamic sphere, and one marker for the overlap path.
+        /// </summary>
+        [Fact]
+        public void CreateSceneAsset_ForTriggerVolume_WritesTriggerAndDynamicSphereRecords() {
+            PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
+
+            SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.TriggerVolumeSceneId);
+            SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
+            SceneEntityAsset triggerEntity = FindChildEntity(scenarioEntity, "TriggerVolume");
+            SceneEntityAsset sphereEntity = FindChildEntity(scenarioEntity, "DynamicSphere");
+
+            Assert.Contains(triggerEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(sphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(sphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.SphereCollider3DComponent", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures the mesh-ground stability scene includes a static triangle-mesh collider and one dynamic sphere above it.
+        /// </summary>
+        [Fact]
+        public void CreateSceneAsset_ForMeshGroundStability_WritesMeshGroundAndDynamicSphereRecords() {
+            PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
+
+            SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.MeshGroundStabilitySceneId);
+            SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
+            SceneEntityAsset groundEntity = FindChildEntity(scenarioEntity, "Ground");
+            SceneEntityAsset sphereEntity = FindChildEntity(scenarioEntity, "DynamicSphere");
+
+            Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.MeshCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(sphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(sphereEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.SphereCollider3DComponent", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures the moving-platform validation scene includes the controller and kinematic platform components required by the runtime simulation.
+        /// </summary>
+        [Fact]
+        public void CreateSceneAsset_ForCharacterMovingPlatform_WritesControllerAndPlatformMotionRecords() {
             PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
 
             SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.CharacterMovingPlatformSceneId);
             SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
-            SceneEntityAsset groundEntity = FindChildEntity(scenarioEntity, "Ground");
+            SceneEntityAsset controllerEntity = FindChildEntity(scenarioEntity, "CharacterController");
             SceneEntityAsset platformEntity = FindChildEntity(scenarioEntity, "MovingPlatform");
 
-            Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
-            Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(controllerEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.CharacterController3DComponent", StringComparison.Ordinal));
+            Assert.Contains(controllerEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.CapsuleCollider3DComponent", StringComparison.Ordinal));
             Assert.Contains(platformEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
             Assert.Contains(platformEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
             Assert.Contains(platformEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.KinematicMotion3DComponent", StringComparison.Ordinal));
         }
 
         /// <summary>
-        /// Ensures the generated kinematic-push validation scene can be packaged, loaded through the runtime scene loader, and simulated by the current 3D physics runtime.
+        /// Ensures the generated kinematic-push validation scene can be packaged, loaded through the runtime scene loader, and simulated so the pusher advances and displaces the target.
         /// </summary>
         [Fact]
-        public void CreateSceneAsset_ForKinematicPush_PackagesLoadsAndSimulatesPusherDisplacingTarget() {
+        public void CreateSceneAsset_ForKinematicPush_PackagesLoadsAndMovesTarget() {
             PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
             string buildRootPath = Path.Combine(TempProjectRootPath, "Build");
             Directory.CreateDirectory(buildRootPath);
@@ -655,6 +735,27 @@ namespace helengine.editor.tests.managers.physics {
                 ProviderId = reader.ReadString(),
                 AssetId = reader.ReadString()
             };
+        }
+
+        /// <summary>
+        /// Projects one world-space point into normalized-device X using the Windows showcase perspective settings.
+        /// </summary>
+        /// <param name="cameraPosition">World-space camera position.</param>
+        /// <param name="cameraOrientation">World-space camera orientation.</param>
+        /// <param name="worldPoint">World-space point to project.</param>
+        /// <returns>Normalized-device X coordinate.</returns>
+        static double ProjectWorldPointToNormalizedDeviceX(float3 cameraPosition, float4 cameraOrientation, float3 worldPoint) {
+            float4 inverseOrientation = float4.Inverse(cameraOrientation);
+            float3 relativePoint = worldPoint - cameraPosition;
+            float3 cameraSpacePoint = float4.RotateVector(relativePoint, inverseOrientation);
+            if (cameraSpacePoint.Z >= -0.0001f) {
+                throw new InvalidOperationException("Projected point must remain in front of the camera.");
+            }
+
+            double fieldOfViewRadians = Math.PI / 4d;
+            double aspectRatio = 1280d / 720d;
+            double horizontalScale = Math.Tan(fieldOfViewRadians * 0.5d) * aspectRatio;
+            return cameraSpacePoint.X / ((-cameraSpacePoint.Z) * horizontalScale);
         }
 
         /// <summary>

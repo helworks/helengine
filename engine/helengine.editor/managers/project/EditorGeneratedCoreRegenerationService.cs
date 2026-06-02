@@ -170,6 +170,7 @@ namespace helengine.editor {
                     cancellationToken);
                 MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
                 EnsureGeneratedRuntimeComponentDeserializerSupport(generatedCoreOutputRoot, platformDefinition.PlatformId);
+                NormalizeMergedGeneratedSourceCaseInsensitiveConflicts(generatedCoreOutputRoot);
                 EnsureGeneratedIncludeCompatibilityShims(generatedCoreOutputRoot);
                 WriteGeneratedCoreTranslationUnit(generatedCoreOutputRoot);
             } finally {
@@ -926,6 +927,45 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Normalizes merged generated-core artifacts when separately generated projects introduce case-insensitive short-name collisions after their output trees are combined.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute merged generated-core output root.</param>
+        internal static void NormalizeMergedGeneratedSourceCaseInsensitiveConflicts(string generatedCoreRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (!Directory.Exists(generatedCoreRootPath)) {
+                return;
+            }
+
+            Dictionary<string, List<string>> qualifiedHeadersByLeafName = BuildQualifiedHeadersByLeafName(generatedCoreRootPath);
+            foreach (KeyValuePair<string, List<string>> collision in qualifiedHeadersByLeafName) {
+                if (collision.Value.Count < 2) {
+                    continue;
+                }
+
+                string unqualifiedHeaderPath = ResolveGeneratedRootFilePath(generatedCoreRootPath, collision.Key, ".hpp");
+                if (string.IsNullOrWhiteSpace(unqualifiedHeaderPath)) {
+                    continue;
+                }
+
+                string replacementHeaderPath = TryResolveQualifiedHeaderReplacement(unqualifiedHeaderPath, collision.Value);
+                if (string.IsNullOrWhiteSpace(replacementHeaderPath)) {
+                    continue;
+                }
+
+                string replacementHeaderFileName = Path.GetFileName(replacementHeaderPath);
+                RewriteGeneratedIncludeReferences(generatedCoreRootPath, Path.GetFileName(unqualifiedHeaderPath), replacementHeaderFileName);
+                RewriteHeaderAsCompatibilityShim(unqualifiedHeaderPath, replacementHeaderFileName);
+
+                string unqualifiedSourcePath = ResolveGeneratedRootFilePath(generatedCoreRootPath, collision.Key, ".cpp");
+                if (!string.IsNullOrWhiteSpace(unqualifiedSourcePath) && File.Exists(unqualifiedSourcePath)) {
+                    File.Delete(unqualifiedSourcePath);
+                }
+            }
+        }
+
+        /// <summary>
         /// Builds one file-name lookup for generated root headers so include resolution can detect what already exists.
         /// </summary>
         /// <param name="generatedCoreRootPath">Absolute generated core output root.</param>
@@ -951,6 +991,132 @@ namespace helengine.editor {
             }
 
             return headersByFileName;
+        }
+
+        /// <summary>
+        /// Resolves one generated root file path by leaf stem using the actual on-disk casing so later rewrites update the same include token written by the converter.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute merged generated-core output root.</param>
+        /// <param name="leafName">Leaf file stem to resolve.</param>
+        /// <param name="extension">Required file extension including the leading dot.</param>
+        /// <returns>Matching generated root file path when found; otherwise an empty string.</returns>
+        static string ResolveGeneratedRootFilePath(string generatedCoreRootPath, string leafName, string extension) {
+            string[] candidatePaths = Directory.GetFiles(generatedCoreRootPath, "*" + extension, SearchOption.TopDirectoryOnly);
+            for (int index = 0; index < candidatePaths.Length; index++) {
+                string candidatePath = candidatePaths[index];
+                string candidateStem = Path.GetFileNameWithoutExtension(candidatePath);
+                if (candidateStem.Contains('_', StringComparison.Ordinal)) {
+                    continue;
+                }
+                if (string.Equals(candidateStem, leafName, StringComparison.OrdinalIgnoreCase)) {
+                    return candidatePath;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Groups qualified generated headers by their leaf short name so post-merge normalization can detect case-insensitive collisions introduced across project outputs.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute merged generated-core output root.</param>
+        /// <returns>Lookup keyed by leaf type name with qualified header paths as values.</returns>
+        static Dictionary<string, List<string>> BuildQualifiedHeadersByLeafName(string generatedCoreRootPath) {
+            Dictionary<string, List<string>> qualifiedHeadersByLeafName = new(StringComparer.OrdinalIgnoreCase);
+            string[] headerPaths = Directory.GetFiles(generatedCoreRootPath, "*.hpp", SearchOption.TopDirectoryOnly);
+            for (int index = 0; index < headerPaths.Length; index++) {
+                string headerPath = headerPaths[index];
+                string headerStem = Path.GetFileNameWithoutExtension(headerPath);
+                int separatorIndex = headerStem.LastIndexOf('_');
+                if (separatorIndex <= 0 || separatorIndex >= headerStem.Length - 1) {
+                    continue;
+                }
+
+                string leafName = headerStem[(separatorIndex + 1)..];
+                if (!qualifiedHeadersByLeafName.TryGetValue(leafName, out List<string> matchingHeaders)) {
+                    matchingHeaders = [];
+                    qualifiedHeadersByLeafName.Add(leafName, matchingHeaders);
+                }
+
+                matchingHeaders.Add(headerPath);
+            }
+
+            return qualifiedHeadersByLeafName;
+        }
+
+        /// <summary>
+        /// Resolves the qualified generated header that exactly matches one merged unqualified header body.
+        /// </summary>
+        /// <param name="unqualifiedHeaderPath">Path to the merged unqualified header.</param>
+        /// <param name="candidateQualifiedHeaderPaths">Qualified header candidates that share the same short leaf name.</param>
+        /// <returns>Matching qualified header path when found; otherwise an empty string.</returns>
+        static string TryResolveQualifiedHeaderReplacement(string unqualifiedHeaderPath, IReadOnlyList<string> candidateQualifiedHeaderPaths) {
+            string unqualifiedHeaderContent = NormalizeText(File.ReadAllText(unqualifiedHeaderPath));
+            for (int index = 0; index < candidateQualifiedHeaderPaths.Count; index++) {
+                string candidateHeaderPath = candidateQualifiedHeaderPaths[index];
+                if (!File.Exists(candidateHeaderPath)) {
+                    continue;
+                }
+
+                string candidateHeaderContent = NormalizeText(File.ReadAllText(candidateHeaderPath));
+                if (string.Equals(unqualifiedHeaderContent, candidateHeaderContent, StringComparison.Ordinal)) {
+                    return candidateHeaderPath;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Rewrites generated include directives to point at the qualified replacement header after merged-tree normalization collapses one duplicate short-name artifact.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute merged generated-core output root.</param>
+        /// <param name="sourceHeaderFileName">Original short-name header file name.</param>
+        /// <param name="replacementHeaderFileName">Qualified replacement header file name.</param>
+        static void RewriteGeneratedIncludeReferences(string generatedCoreRootPath, string sourceHeaderFileName, string replacementHeaderFileName) {
+            string includeToken = "#include \"" + sourceHeaderFileName + "\"";
+            string replacementToken = "#include \"" + replacementHeaderFileName + "\"";
+            string[] sourceFiles = Directory.GetFiles(generatedCoreRootPath, "*", SearchOption.AllDirectories);
+            for (int index = 0; index < sourceFiles.Length; index++) {
+                string sourceFilePath = sourceFiles[index];
+                string extension = Path.GetExtension(sourceFilePath);
+                if (!string.Equals(extension, ".hpp", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(extension, ".cpp", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string fileContent = File.ReadAllText(sourceFilePath);
+                if (!fileContent.Contains(includeToken, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                File.WriteAllText(sourceFilePath, fileContent.Replace(includeToken, replacementToken, StringComparison.Ordinal));
+            }
+        }
+
+        /// <summary>
+        /// Replaces one merged duplicate short-name header with a compatibility shim that forwards to the qualified canonical header.
+        /// </summary>
+        /// <param name="headerPath">Path to the short-name header that should become a shim.</param>
+        /// <param name="replacementHeaderFileName">Qualified canonical header file name.</param>
+        static void RewriteHeaderAsCompatibilityShim(string headerPath, string replacementHeaderFileName) {
+            File.WriteAllText(
+                headerPath,
+                "#pragma once" + Environment.NewLine
+                + "#include \"" + replacementHeaderFileName + "\"" + Environment.NewLine);
+        }
+
+        /// <summary>
+        /// Normalizes generated text for stable cross-file content comparisons regardless of line ending differences.
+        /// </summary>
+        /// <param name="text">Generated file content to normalize.</param>
+        /// <returns>Line-ending-normalized text.</returns>
+        static string NormalizeText(string text) {
+            if (string.IsNullOrEmpty(text)) {
+                return string.Empty;
+            }
+
+            return text.Replace("\r\n", "\n", StringComparison.Ordinal);
         }
 
         /// <summary>

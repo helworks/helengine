@@ -89,6 +89,11 @@ namespace helengine.editor {
         const string PhysicsDemoNeutralMaterialRelativePath = "Materials/physics/PhysicsDemoNeutral" + EditorFileTemplateRegistry.MaterialExtension;
 
         /// <summary>
+        /// Relative project asset path for the non-shadow-casting ground physics demo material.
+        /// </summary>
+        const string PhysicsDemoGroundMaterialRelativePath = "Materials/physics/PhysicsDemoGround" + EditorFileTemplateRegistry.MaterialExtension;
+
+        /// <summary>
         /// Relative project asset path for the blue physics demo material.
         /// </summary>
         const string PhysicsDemoBlueMaterialRelativePath = "Materials/physics/PhysicsDemoBlue" + EditorFileTemplateRegistry.MaterialExtension;
@@ -551,7 +556,7 @@ namespace helengine.editor {
             SceneEntityAsset scenarioEntity = CreateScenarioRoot(
                 "character_slope.scenario",
                 new[] {
-                    CreatePhysicsBoxMeshEntity("character_slope.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(14f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
+                    CreatePhysicsBoxMeshEntity("character_slope.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(14f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath)),
                     CreatePhysicsBoxMeshEntity("character_slope.ramp", "SlopeRamp", new float3(2.25f, 0.6f, 0f), new float3(5f, 0.6f, 3f), CreateYawPitchRollDegrees(0.0, 0.0, 18.0), StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
                     CreateCharacterControllerBoxMeshEntity("character_slope.controller", "CharacterController", new float3(-4f, 0.75f, 0f), new float3(0.9f, 1.5f, 0.9f), float4.Identity, new float3(1f, 0f, 0f), 3d, 1d, 0.75d, 0.3d, CreatePhysicsDemoMaterialReference(PhysicsDemoMagentaMaterialRelativePath)),
                     CreateMarkerEntity("character_slope.spawn", "ControllerSpawn", new float3(-4f, 0.75f, 0f)),
@@ -569,7 +574,7 @@ namespace helengine.editor {
             SceneEntityAsset scenarioEntity = CreateScenarioRoot(
                 "character_steps.scenario",
                 new[] {
-                    CreateCubeMeshEntity("character_steps.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(16f, 1f, 12f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
+                    CreateCubeMeshEntity("character_steps.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(16f, 1f, 12f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath)),
                     CreateCubeMeshEntity("character_steps.step01", "Step01", new float3(0.75f, 0.15f, 0f), new float3(1.5f, 0.3f, 3f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoBlueMaterialRelativePath)),
                     CreateCubeMeshEntity("character_steps.step02", "Step02", new float3(2.25f, 0.45f, 0f), new float3(1.5f, 0.9f, 3f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
                     CreateCubeMeshEntity("character_steps.step03", "Step03", new float3(3.75f, 0.75f, 0f), new float3(1.5f, 1.5f, 3f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoYellowMaterialRelativePath)),
@@ -588,7 +593,7 @@ namespace helengine.editor {
             SceneEntityAsset scenarioEntity = CreateScenarioRoot(
                 "character_moving_platform.scenario",
                 new[] {
-                    CreatePhysicsBoxMeshEntity("character_moving_platform.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(18f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
+                    CreatePhysicsBoxMeshEntity("character_moving_platform.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(18f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath)),
                     CreatePhysicsBoxMeshEntity("character_moving_platform.gap_a", "GapEdgeA", new float3(-1.75f, 0.25f, 0f), new float3(4f, 0.5f, 4f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
                     CreatePhysicsBoxMeshEntity("character_moving_platform.gap_b", "GapEdgeB", new float3(4.75f, 0.25f, 0f), new float3(4f, 0.5f, 4f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoYellowMaterialRelativePath)),
                     CreateKinematicPhysicsBoxMeshEntity(
@@ -618,14 +623,14 @@ namespace helengine.editor {
             SceneEntityAsset scenarioEntity = CreateScenarioRoot(
                 "dynamic_stack_boxes.scenario",
                 new[] {
-                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(14f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
+                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(14f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath)),
                     CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box01", "StackBox01", new float3(0f, 0.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoBlueMaterialRelativePath)),
-                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box02", "StackBox02", new float3(0f, 1.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
-                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box03", "StackBox03", new float3(0f, 2.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoMagentaMaterialRelativePath)),
-                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box04", "StackBox04", new float3(0f, 3.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoYellowMaterialRelativePath)),
+                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box02", "StackBox02", new float3(0.5f, 1.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
+                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box03", "StackBox03", new float3(1.0f, 2.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoMagentaMaterialRelativePath)),
+                    CreatePhysicsBoxMeshEntity("dynamic_stack_boxes.box04", "StackBox04", new float3(1.5f, 3.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoYellowMaterialRelativePath)),
                     CreateMarkerEntity("dynamic_stack_boxes.spawn", "DynamicSpawn", new float3(-2.5f, 1.5f, 0f))
                 });
-            SceneEntityAsset cameraEntity = CreateCameraEntity("dynamic_stack_boxes.camera", new float3(8f, 5.25f, 8f), CreateYawPitchRollDegrees(-135.0, -20.0, 0.0));
+            SceneEntityAsset cameraEntity = CreateCameraEntity("dynamic_stack_boxes.camera", new float3(2.25f, 4.8f, 10.25f), CreateYawPitchRollDegrees(8.0, -16.0, 0.0));
             return CreateSceneAsset(PhysicsValidationSceneCatalog.DynamicStackBoxesSceneId, cameraEntity, scenarioEntity);
         }
 
@@ -685,7 +690,7 @@ namespace helengine.editor {
         /// <returns>Scenario children containing a ground body, mixed primitive stack, and one spawn marker.</returns>
         SceneEntityAsset[] CreateDynamicMixedStackChildren() {
             return new[] {
-                CreatePhysicsBoxMeshEntity("dynamic_mixed_stack.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(16f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
+                CreatePhysicsBoxMeshEntity("dynamic_mixed_stack.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(16f, 1f, 14f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath)),
                 CreatePhysicsBoxMeshEntity("dynamic_mixed_stack.box01", "StackBox01", new float3(0f, 0.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoBlueMaterialRelativePath)),
                 CreatePhysicsSphereMeshEntity("dynamic_mixed_stack.sphere01", "StackSphere01", new float3(0.08f, 1.5f, -0.04f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
                 CreatePhysicsBoxMeshEntity("dynamic_mixed_stack.box02", "StackBox02", new float3(-0.06f, 2.5f, 0.05f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoMagentaMaterialRelativePath)),
@@ -706,7 +711,7 @@ namespace helengine.editor {
             SceneEntityAsset scenarioEntity = CreateScenarioRoot(
                 "kinematic_push.scenario",
                 new[] {
-                    CreatePhysicsBoxMeshEntity("kinematic_push.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(16f, 1f, 12f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
+                    CreatePhysicsBoxMeshEntity("kinematic_push.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(16f, 1f, 12f), float4.Identity, StaticBodyKindCode, false, CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath)),
                     CreatePhysicsBoxMeshEntity("kinematic_push.block", "DynamicTarget", new float3(1.5f, 0.5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoYellowMaterialRelativePath)),
                     CreateKinematicPhysicsBoxMeshEntity(
                         "kinematic_push.pusher",
@@ -735,7 +740,7 @@ namespace helengine.editor {
             SceneEntityAsset scenarioEntity = CreateScenarioRoot(
                 "mesh_ground_stability.scenario",
                 new[] {
-                    CreateCubeMeshEntity("mesh_ground_stability.base", "GroundBase", new float3(0f, -0.5f, 0f), new float3(20f, 1f, 14f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
+                    CreateCubeMeshEntity("mesh_ground_stability.base", "GroundBase", new float3(0f, -0.5f, 0f), new float3(20f, 1f, 14f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath)),
                     CreateCubeMeshEntity("mesh_ground_stability.section01", "StaticMeshGround01", new float3(-2.5f, 0.15f, 0f), new float3(3f, 0.3f, 4f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoBlueMaterialRelativePath)),
                     CreateCubeMeshEntity("mesh_ground_stability.section02", "StaticMeshGround02", new float3(0.5f, 0.35f, 0f), new float3(3f, 0.7f, 4f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath)),
                     CreateCubeMeshEntity("mesh_ground_stability.section03", "StaticMeshGround03", new float3(3.5f, 0.2f, 0f), new float3(3f, 0.4f, 4f), CreateYawPitchRollDegrees(0.0, 0.0, -6.0), CreatePhysicsDemoMaterialReference(PhysicsDemoMagentaMaterialRelativePath)),
@@ -754,7 +759,7 @@ namespace helengine.editor {
             SceneEntityAsset scenarioEntity = CreateScenarioRoot(
                 "trigger_volume.scenario",
                 new[] {
-                    CreateCubeMeshEntity("trigger_volume.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(18f, 1f, 12f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath)),
+                    CreateCubeMeshEntity("trigger_volume.ground", "Ground", new float3(0f, -0.5f, 0f), new float3(18f, 1f, 12f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath)),
                     CreateCubeMeshEntity("trigger_volume.arch", "TriggerVolume", new float3(1.5f, 1.5f, 0f), new float3(2.5f, 3f, 2.5f), float4.Identity, CreatePhysicsDemoMaterialReference(PhysicsDemoCyanMaterialRelativePath)),
                     CreateMarkerEntity("trigger_volume.start", "PlayerPathStart", new float3(-5f, 0.75f, 0f)),
                     CreateMarkerEntity("trigger_volume.end", "PlayerPathEnd", new float3(5.5f, 0.75f, 0f))
@@ -1103,6 +1108,7 @@ namespace helengine.editor {
                 CreateGeneratedReference(EngineGeneratedAssetProvider.CubeRelativePath, EngineGeneratedModelCache.CubeAssetId),
                 CreateGeneratedReference(EngineGeneratedAssetProvider.SphereRelativePath, EngineGeneratedModelCache.SphereAssetId),
                 CreateGeneratedStandardMaterialReference(),
+                CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoBlueMaterialRelativePath),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoGreenMaterialRelativePath),
@@ -1310,15 +1316,16 @@ namespace helengine.editor {
             }
 
             DeleteObsoletePhysicsDemoShaderAsset(projectRootPath);
-            WriteMaterialAsset(projectRootPath, PhysicsDemoNeutralMaterialRelativePath, "PhysicsDemoNeutral", new float4(0.77f, 0.80f, 0.84f, 1.0f));
-            WriteMaterialAsset(projectRootPath, PhysicsDemoBlueMaterialRelativePath, "PhysicsDemoBlue", new float4(0.33f, 0.56f, 0.90f, 1.0f));
-            WriteMaterialAsset(projectRootPath, PhysicsDemoGreenMaterialRelativePath, "PhysicsDemoGreen", new float4(0.38f, 0.76f, 0.49f, 1.0f));
-            WriteMaterialAsset(projectRootPath, PhysicsDemoMagentaMaterialRelativePath, "PhysicsDemoMagenta", new float4(0.84f, 0.42f, 0.73f, 1.0f));
-            WriteMaterialAsset(projectRootPath, PhysicsDemoYellowMaterialRelativePath, "PhysicsDemoYellow", new float4(0.92f, 0.79f, 0.33f, 1.0f));
-            WriteMaterialAsset(projectRootPath, PhysicsDemoCyanMaterialRelativePath, "PhysicsDemoCyan", new float4(0.31f, 0.79f, 0.82f, 1.0f));
-            WriteMaterialAsset(projectRootPath, PhysicsDemoRedMaterialRelativePath, "PhysicsDemoRed", new float4(0.90f, 0.32f, 0.29f, 1.0f));
-            WriteMaterialAsset(projectRootPath, PhysicsDemoOrangeMaterialRelativePath, "PhysicsDemoOrange", new float4(0.95f, 0.52f, 0.22f, 1.0f));
-            WriteMaterialAsset(projectRootPath, PhysicsDemoPurpleMaterialRelativePath, "PhysicsDemoPurple", new float4(0.55f, 0.43f, 0.92f, 1.0f));
+            WriteMaterialAsset(projectRootPath, PhysicsDemoGroundMaterialRelativePath, "PhysicsDemoGround", new float4(0.77f, 0.80f, 0.84f, 1.0f), false, true);
+            WriteMaterialAsset(projectRootPath, PhysicsDemoNeutralMaterialRelativePath, "PhysicsDemoNeutral", new float4(0.77f, 0.80f, 0.84f, 1.0f), true, true);
+            WriteMaterialAsset(projectRootPath, PhysicsDemoBlueMaterialRelativePath, "PhysicsDemoBlue", new float4(0.33f, 0.56f, 0.90f, 1.0f), true, true);
+            WriteMaterialAsset(projectRootPath, PhysicsDemoGreenMaterialRelativePath, "PhysicsDemoGreen", new float4(0.38f, 0.76f, 0.49f, 1.0f), true, true);
+            WriteMaterialAsset(projectRootPath, PhysicsDemoMagentaMaterialRelativePath, "PhysicsDemoMagenta", new float4(0.84f, 0.42f, 0.73f, 1.0f), true, true);
+            WriteMaterialAsset(projectRootPath, PhysicsDemoYellowMaterialRelativePath, "PhysicsDemoYellow", new float4(0.92f, 0.79f, 0.33f, 1.0f), true, true);
+            WriteMaterialAsset(projectRootPath, PhysicsDemoCyanMaterialRelativePath, "PhysicsDemoCyan", new float4(0.31f, 0.79f, 0.82f, 1.0f), true, true);
+            WriteMaterialAsset(projectRootPath, PhysicsDemoRedMaterialRelativePath, "PhysicsDemoRed", new float4(0.90f, 0.32f, 0.29f, 1.0f), true, true);
+            WriteMaterialAsset(projectRootPath, PhysicsDemoOrangeMaterialRelativePath, "PhysicsDemoOrange", new float4(0.95f, 0.52f, 0.22f, 1.0f), true, true);
+            WriteMaterialAsset(projectRootPath, PhysicsDemoPurpleMaterialRelativePath, "PhysicsDemoPurple", new float4(0.55f, 0.43f, 0.92f, 1.0f), true, true);
         }
 
         /// <summary>
@@ -1362,7 +1369,7 @@ namespace helengine.editor {
         /// <param name="relativePath">Relative project asset path for the material file.</param>
         /// <param name="assetId">Serialized material asset identifier.</param>
         /// <param name="surfaceColor">Authored standard material base color.</param>
-        static void WriteMaterialAsset(string projectRootPath, string relativePath, string assetId, float4 surfaceColor) {
+        static void WriteMaterialAsset(string projectRootPath, string relativePath, string assetId, float4 surfaceColor, bool castsShadows, bool receivesShadows) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -1377,8 +1384,8 @@ namespace helengine.editor {
                 MaterialAsset = new MaterialAsset {
                     Id = assetId,
                     RenderState = new MaterialRenderState(),
-                    CastsShadows = true,
-                    ReceivesShadows = true
+                    CastsShadows = castsShadows,
+                    ReceivesShadows = receivesShadows
                 }
             };
 
@@ -1388,8 +1395,8 @@ namespace helengine.editor {
                 platformDefinition.SchemaId = StandardShaderSchemaId;
                 platformDefinition.SetFieldValue(UseCustomShaderFieldId, "false");
                 platformDefinition.SetFieldValue(TextureAssetIdFieldId, string.Empty);
-                platformDefinition.SetFieldValue(CastsShadowFieldId, "true");
-                platformDefinition.SetFieldValue(ReceivesShadowFieldId, "true");
+                platformDefinition.SetFieldValue(CastsShadowFieldId, castsShadows ? "true" : "false");
+                platformDefinition.SetFieldValue(ReceivesShadowFieldId, receivesShadows ? "true" : "false");
                 platformDefinition.SetFieldValue(BaseColorFieldId, ConvertColorToHtml(surfaceColor));
             }
 

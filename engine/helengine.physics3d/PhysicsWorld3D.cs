@@ -39,9 +39,19 @@ namespace helengine {
         const float StableTiltedContactAngularDamping = 0.2f;
 
         /// <summary>
+        /// Angular damping applied to tilted bodies rocking on support contacts that do not yet reach the body center.
+        /// </summary>
+        const float UncenteredTiltedContactAngularDamping = 0.6f;
+
+        /// <summary>
         /// Minimum current upright alignment required before a resting box can be stabilized without flipping side-resting bodies.
         /// </summary>
         const float RestingUprightCandidateYThreshold = 0.85f;
+
+        /// <summary>
+        /// Horizontal tolerance applied when testing whether a support contact patch reaches the supported body's center.
+        /// </summary>
+        const float SupportContactPatchTolerance = 0.05f;
 
         /// <summary>
         /// Minimum speculative contact distance used when relative velocity is very small.
@@ -257,6 +267,7 @@ namespace helengine {
                 BodyStatesValue[index].MaximumContactNormalY = 0f;
                 BodyStatesValue[index].HasUnstableSupportContactThisStep = false;
                 BodyStatesValue[index].HasStableSupportContactThisStep = false;
+                BodyStatesValue[index].HasCenteredSupportContactThisStep = false;
                 BodyStatesValue[index].MaximumNormalContactLeverArmXZ = 0f;
             }
         }
@@ -348,7 +359,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Snaps tiny residual velocities to zero for a body that already resolved solid contact this step.
+        /// Snaps tiny residual velocities to zero for a body that already resolved solid contact this step, but only after tilted support motion finished rocking.
         /// </summary>
         /// <param name="bodyState">Dynamic body that may be resting on contact.</param>
         static void ApplyContactSleep(BodyState3D bodyState) {
@@ -359,8 +370,20 @@ namespace helengine {
             bool linearCanSleep = linearSpeedSquared <= ContactLinearSleepSpeedSquared;
 
             bool isRestingUprightCandidate = IsRestingUprightCandidate(bodyState);
-            if (linearCanSleep && bodyState.HasStableSupportContactThisStep && !isRestingUprightCandidate) {
-                bodyState.AngularVelocity = bodyState.AngularVelocity * StableTiltedContactAngularDamping;
+            bool canUseCenteredTiltedSupport =
+                bodyState.HasStableSupportContactThisStep &&
+                bodyState.HasCenteredSupportContactThisStep &&
+                !bodyState.HasUnstableSupportContactThisStep;
+            bool canUseUncenteredTiltedSupport =
+                bodyState.HasStableSupportContactThisStep &&
+                !bodyState.HasCenteredSupportContactThisStep &&
+                !bodyState.HasUnstableSupportContactThisStep;
+            if (linearCanSleep && !isRestingUprightCandidate) {
+                if (canUseCenteredTiltedSupport) {
+                    bodyState.AngularVelocity = bodyState.AngularVelocity * StableTiltedContactAngularDamping;
+                } else if (canUseUncenteredTiltedSupport) {
+                    bodyState.AngularVelocity = bodyState.AngularVelocity * UncenteredTiltedContactAngularDamping;
+                }
             }
 
             double angularSpeedSquared =
@@ -368,8 +391,14 @@ namespace helengine {
                 (bodyState.AngularVelocity.Y * bodyState.AngularVelocity.Y) +
                 (bodyState.AngularVelocity.Z * bodyState.AngularVelocity.Z);
             bool angularCanSleep = angularSpeedSquared <= ContactAngularSleepSpeedSquared;
+            bool tiltedSupportFinishedRocking = isRestingUprightCandidate || angularSpeedSquared <= AngularSleepSpeedSquared;
+            bool contactCanLinearSleep =
+                bodyState.HasStableSupportContactThisStep &&
+                !bodyState.HasUnstableSupportContactThisStep &&
+                (isRestingUprightCandidate || bodyState.HasCenteredSupportContactThisStep) &&
+                tiltedSupportFinishedRocking;
             bool contactCanAngularSleep = bodyState.HasStableSupportContactThisStep || !bodyState.HasUnstableSupportContactThisStep;
-            if (linearCanSleep) {
+            if (linearCanSleep && contactCanLinearSleep) {
                 bodyState.Velocity = float3.Zero;
             }
             if (angularCanSleep && contactCanAngularSleep && isRestingUprightCandidate) {
@@ -777,6 +806,10 @@ namespace helengine {
 
             float speculativeContactMargin = ResolveSpeculativeContactMargin(first, second, stepSeconds);
             if (BoxBoxContactResolver3D.TryResolveManifold(first, second, speculativeContactMargin, out BoxBoxContactManifold3D manifold)) {
+                if (IsDynamicDynamicPair(first, second) &&
+                    BoxBoxContactResolver3D.TryResolveOrientedManifold(first, second, speculativeContactMargin, out BoxBoxContactManifold3D orientedReferenceManifold)) {
+                    manifold = ClampAxisAlignedDynamicManifoldPenetration(manifold, orientedReferenceManifold);
+                }
                 ResolveBoxBoxManifold(first, second, manifold, stepSeconds, applyPositionCorrection);
                 return;
             }
@@ -853,6 +886,7 @@ namespace helengine {
                 RecordContactNormal(first, manifold.Normal);
                 RecordContactNormal(second, manifold.Normal * -1f);
                 RecordBoxBoxSupportStability(first, second, manifold.Normal);
+                RecordBoxBoxCenteredSupportContact(first, second, manifold);
             }
 
             ClipVelocityAgainstCorrection(first, firstCorrection);
@@ -947,6 +981,44 @@ namespace helengine {
         static bool IsDynamicDynamicPair(BodyState3D first, BodyState3D second) {
             return first.RigidBody.BodyKind == BodyKind3D.Dynamic &&
                 second.RigidBody.BodyKind == BodyKind3D.Dynamic;
+        }
+
+        /// <summary>
+        /// Caps one upright face manifold's penetration against the oriented manifold depth so dynamic stacks do not over-support slightly tilted boxes.
+        /// </summary>
+        /// <param name="axisAlignedManifold">Axis-aligned face manifold used by the cheap upright stack path.</param>
+        /// <param name="orientedReferenceManifold">More exact oriented manifold resolved for the same pair.</param>
+        /// <returns>Adjusted manifold whose penetration depths do not exceed the oriented reference depth.</returns>
+        static BoxBoxContactManifold3D ClampAxisAlignedDynamicManifoldPenetration(
+            BoxBoxContactManifold3D axisAlignedManifold,
+            BoxBoxContactManifold3D orientedReferenceManifold) {
+            if (orientedReferenceManifold.ContactCount <= 0) {
+                return axisAlignedManifold;
+            }
+
+            float clampedPenetration = Math.Min(axisAlignedManifold.Penetration, orientedReferenceManifold.Penetration);
+            axisAlignedManifold.Penetration = clampedPenetration;
+            if (axisAlignedManifold.ContactCount == 4 && orientedReferenceManifold.ContactCount == 4) {
+                axisAlignedManifold.Contact0 = orientedReferenceManifold.Contact0;
+                axisAlignedManifold.Contact1 = orientedReferenceManifold.Contact1;
+                axisAlignedManifold.Contact2 = orientedReferenceManifold.Contact2;
+                axisAlignedManifold.Contact3 = orientedReferenceManifold.Contact3;
+                axisAlignedManifold.FeatureId0 = orientedReferenceManifold.FeatureId0;
+                axisAlignedManifold.FeatureId1 = orientedReferenceManifold.FeatureId1;
+                axisAlignedManifold.FeatureId2 = orientedReferenceManifold.FeatureId2;
+                axisAlignedManifold.FeatureId3 = orientedReferenceManifold.FeatureId3;
+                axisAlignedManifold.Penetration0 = Math.Min(axisAlignedManifold.Penetration0, orientedReferenceManifold.Penetration0);
+                axisAlignedManifold.Penetration1 = Math.Min(axisAlignedManifold.Penetration1, orientedReferenceManifold.Penetration1);
+                axisAlignedManifold.Penetration2 = Math.Min(axisAlignedManifold.Penetration2, orientedReferenceManifold.Penetration2);
+                axisAlignedManifold.Penetration3 = Math.Min(axisAlignedManifold.Penetration3, orientedReferenceManifold.Penetration3);
+                return axisAlignedManifold;
+            }
+
+            axisAlignedManifold.Penetration0 = Math.Min(axisAlignedManifold.Penetration0, clampedPenetration);
+            axisAlignedManifold.Penetration1 = Math.Min(axisAlignedManifold.Penetration1, clampedPenetration);
+            axisAlignedManifold.Penetration2 = Math.Min(axisAlignedManifold.Penetration2, clampedPenetration);
+            axisAlignedManifold.Penetration3 = Math.Min(axisAlignedManifold.Penetration3, clampedPenetration);
+            return axisAlignedManifold;
         }
 
         /// <summary>
@@ -1327,6 +1399,50 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Marks box support contacts whose resolved patch still reaches the supported body's center.
+        /// </summary>
+        /// <param name="first">First box body state.</param>
+        /// <param name="second">Second box body state.</param>
+        /// <param name="manifold">Current contact manifold describing the support patch.</param>
+        static void RecordBoxBoxCenteredSupportContact(BodyState3D first, BodyState3D second, BoxBoxContactManifold3D manifold) {
+            if (first == null) {
+                throw new ArgumentNullException(nameof(first));
+            }
+            if (second == null) {
+                throw new ArgumentNullException(nameof(second));
+            }
+            if (first.RigidBody.BodyKind == BodyKind3D.Dynamic && second.RigidBody.BodyKind == BodyKind3D.Dynamic) {
+                return;
+            }
+
+            if (manifold.Normal.Y > 0.6f) {
+                RecordCenteredSupportContact(first, manifold);
+                return;
+            }
+            if (manifold.Normal.Y < -0.6f) {
+                RecordCenteredSupportContact(second, manifold);
+            }
+        }
+
+        /// <summary>
+        /// Marks one supported dynamic box when the resolved support patch still reaches its center.
+        /// </summary>
+        /// <param name="supportedBody">Dynamic body resting above the support body.</param>
+        /// <param name="manifold">Current contact manifold describing the support patch.</param>
+        static void RecordCenteredSupportContact(BodyState3D supportedBody, BoxBoxContactManifold3D manifold) {
+            if (supportedBody == null) {
+                throw new ArgumentNullException(nameof(supportedBody));
+            }
+            if (supportedBody.RigidBody.BodyKind != BodyKind3D.Dynamic) {
+                return;
+            }
+
+            if (!IsCenterOutsideSupportContactPatch(supportedBody, manifold)) {
+                supportedBody.HasCenteredSupportContactThisStep = true;
+            }
+        }
+
+        /// <summary>
         /// Determines whether a supported body's center sits outside the horizontal bounds of the supporting box.
         /// </summary>
         /// <param name="supportedBody">Body being supported.</param>
@@ -1348,6 +1464,102 @@ namespace helengine {
                 supportedBody.Position.X > supportMaximumX ||
                 supportedBody.Position.Z < supportMinimumZ ||
                 supportedBody.Position.Z > supportMaximumZ;
+        }
+
+        /// <summary>
+        /// Determines whether a supported body's center sits outside the current horizontal support contact patch.
+        /// </summary>
+        /// <param name="supportedBody">Body being supported.</param>
+        /// <param name="manifold">Current contact manifold describing the support patch.</param>
+        /// <returns>True when the supported center projects outside the active contact patch.</returns>
+        static bool IsCenterOutsideSupportContactPatch(BodyState3D supportedBody, BoxBoxContactManifold3D manifold) {
+            if (supportedBody == null) {
+                throw new ArgumentNullException(nameof(supportedBody));
+            }
+            if (manifold.ContactCount <= 0) {
+                return true;
+            }
+
+            float minimumX = 0f;
+            float maximumX = 0f;
+            float minimumZ = 0f;
+            float maximumZ = 0f;
+            bool hasResolvedSupportContact = false;
+            for (int contactIndex = 0; contactIndex < manifold.ContactCount; contactIndex++) {
+                if (ResolveSupportContactPenetration(manifold, contactIndex) < 0f) {
+                    continue;
+                }
+
+                float3 contactPoint = ResolveSupportContactPoint(manifold, contactIndex);
+                if (!hasResolvedSupportContact) {
+                    minimumX = contactPoint.X;
+                    maximumX = contactPoint.X;
+                    minimumZ = contactPoint.Z;
+                    maximumZ = contactPoint.Z;
+                    hasResolvedSupportContact = true;
+                    continue;
+                }
+
+                minimumX = Math.Min(minimumX, contactPoint.X);
+                maximumX = Math.Max(maximumX, contactPoint.X);
+                minimumZ = Math.Min(minimumZ, contactPoint.Z);
+                maximumZ = Math.Max(maximumZ, contactPoint.Z);
+            }
+
+            if (!hasResolvedSupportContact) {
+                return true;
+            }
+
+            return supportedBody.Position.X < (minimumX - SupportContactPatchTolerance) ||
+                supportedBody.Position.X > (maximumX + SupportContactPatchTolerance) ||
+                supportedBody.Position.Z < (minimumZ - SupportContactPatchTolerance) ||
+                supportedBody.Position.Z > (maximumZ + SupportContactPatchTolerance);
+        }
+
+        /// <summary>
+        /// Resolves one support contact point from a box-box manifold by index.
+        /// </summary>
+        /// <param name="manifold">Manifold containing the contact points.</param>
+        /// <param name="contactIndex">Zero-based contact index.</param>
+        /// <returns>World-space contact point for the requested manifold contact.</returns>
+        static float3 ResolveSupportContactPoint(BoxBoxContactManifold3D manifold, int contactIndex) {
+            if (contactIndex == 0) {
+                return manifold.Contact0;
+            }
+            if (contactIndex == 1) {
+                return manifold.Contact1;
+            }
+            if (contactIndex == 2) {
+                return manifold.Contact2;
+            }
+            if (contactIndex == 3) {
+                return manifold.Contact3;
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(contactIndex), "Contact index must be between zero and three.");
+        }
+
+        /// <summary>
+        /// Resolves one support contact penetration from a box-box manifold by index.
+        /// </summary>
+        /// <param name="manifold">Manifold containing the contact penetrations.</param>
+        /// <param name="contactIndex">Zero-based contact index.</param>
+        /// <returns>Signed penetration for the requested manifold contact.</returns>
+        static float ResolveSupportContactPenetration(BoxBoxContactManifold3D manifold, int contactIndex) {
+            if (contactIndex == 0) {
+                return manifold.Penetration0;
+            }
+            if (contactIndex == 1) {
+                return manifold.Penetration1;
+            }
+            if (contactIndex == 2) {
+                return manifold.Penetration2;
+            }
+            if (contactIndex == 3) {
+                return manifold.Penetration3;
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(contactIndex), "Contact index must be between zero and three.");
         }
 
         /// <summary>

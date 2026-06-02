@@ -538,19 +538,25 @@ namespace helengine {
             BodyState3D second,
             BoxBoxContactManifold3D manifold,
             BoxBoxContactConstraint3D constraint) {
-            float totalNormalImpulse = ResolveTotalNormalImpulse(constraint);
-            if (totalNormalImpulse <= 0f) {
+            float friction = ResolveManifoldDynamicFriction(first, second, manifold);
+            if (friction <= 0f) {
                 return 0f;
             }
 
             float3 center = ResolveManifoldCenter(manifold);
-            float maximumRadius = 0f;
+            float weightedRadiusImpulse = 0f;
             for (int contactIndex = 0; contactIndex < manifold.ContactCount; contactIndex++) {
+                float normalImpulse = ResolveNormalImpulse(constraint, contactIndex);
+                if (normalImpulse <= 0f) {
+                    continue;
+                }
+
                 float3 offset = ResolveManifoldContactPoint(manifold, contactIndex) - center;
-                maximumRadius = Math.Max(maximumRadius, (float)Math.Sqrt(float3.Dot(offset, offset)));
+                float radius = (float)Math.Sqrt(float3.Dot(offset, offset));
+                weightedRadiusImpulse += normalImpulse * radius;
             }
 
-            return totalNormalImpulse * ResolveManifoldDynamicFriction(first, second, manifold) * maximumRadius;
+            return weightedRadiusImpulse * friction;
         }
 
         /// <summary>
@@ -561,11 +567,12 @@ namespace helengine {
         /// <param name="manifold">Current box-box manifold.</param>
         /// <returns>Dynamic friction coefficient scaled for the manifold contact count.</returns>
         static float ResolveManifoldDynamicFriction(BodyState3D first, BodyState3D second, BoxBoxContactManifold3D manifold) {
+            float friction = (float)ResolveCombinedDynamicFriction(first.Collider, second.Collider);
             if (manifold.ContactCount <= 1) {
-                return (float)ResolveCombinedDynamicFriction(first.Collider, second.Collider);
+                return friction;
             }
 
-            return (float)ResolveCombinedDynamicFriction(first.Collider, second.Collider) / manifold.ContactCount;
+            return friction / manifold.ContactCount;
         }
 
         /// <summary>
@@ -737,6 +744,17 @@ namespace helengine {
         /// <param name="manifold">Manifold to inspect.</param>
         /// <returns>Average world-space contact center.</returns>
         static float3 ResolveManifoldCenter(BoxBoxContactManifold3D manifold) {
+            float totalWeight = 0f;
+            float3 weightedTotal = float3.Zero;
+            for (int contactIndex = 0; contactIndex < manifold.ContactCount; contactIndex++) {
+                float weight = ResolveManifoldContactPenetration(manifold, contactIndex) < 0f ? 0f : 1f;
+                weightedTotal = weightedTotal + (ResolveManifoldContactPoint(manifold, contactIndex) * weight);
+                totalWeight += weight;
+            }
+            if (totalWeight > 0f) {
+                return weightedTotal * (1f / totalWeight);
+            }
+
             float3 total = float3.Zero;
             for (int contactIndex = 0; contactIndex < manifold.ContactCount; contactIndex++) {
                 total = total + ResolveManifoldContactPoint(manifold, contactIndex);

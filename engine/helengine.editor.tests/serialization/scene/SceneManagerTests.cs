@@ -464,6 +464,30 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures one newly requested scene is committed before the first frame renders so startup cameras are visible immediately.
+        /// </summary>
+        [Fact]
+        public void Draw_whenSceneLoadIsPending_commitsSceneBeforeRenderManagerDrawRuns() {
+            WriteSceneAsset(
+                "cooked/scenes/bootstrap.hasset",
+                1u,
+                CreateCameraComponentRecord(0));
+            CameraCountRecordingRenderManager3D renderManager3D = new CameraCountRecordingRenderManager3D();
+            Core core = CreateCore(
+                renderManager3D,
+                new TestRenderManager2D(),
+                CreateSceneCatalog(new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+
+            core.Draw();
+
+            Assert.Equal(1, renderManager3D.LastObservedCameraCount);
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+            Assert.Single(core.ObjectManager.Cameras);
+        }
+
+        /// <summary>
         /// Ensures unload notifications expose the tracked root entities and remove scene bookkeeping.
         /// </summary>
         [Fact]

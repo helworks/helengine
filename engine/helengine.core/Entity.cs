@@ -105,7 +105,8 @@ namespace helengine {
                 float4 ori = orientation;
 
                 if (Parent != null) {
-                    ori *= Parent.Orientation;
+                    float4 parentOrientation = Parent.Orientation;
+                    float4.Concatenate(ref ori, ref parentOrientation, out ori);
                 }
 
                 return ori;

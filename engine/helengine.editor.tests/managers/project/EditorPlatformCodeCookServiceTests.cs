@@ -197,6 +197,7 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
 
         Assert.True(File.Exists(globalUsingsPath));
         Assert.Contains("global using helengine;", File.ReadAllText(globalUsingsPath), StringComparison.Ordinal);
+        Assert.Contains("<ImplicitUsings>enable</ImplicitUsings>", File.ReadAllText(projectFilePath), StringComparison.Ordinal);
         Assert.Contains(EscapePathForProjectInclude(globalUsingsPath), File.ReadAllText(projectFilePath), StringComparison.Ordinal);
     }
 
@@ -302,7 +303,7 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
                 + "void DirectionalShadowSunSweepComponent::Update()\n"
                 + "{\n"
                 + "    float4 *orientation;\n"
-                + "    float4->CreateFromYawPitchRoll(static_cast<float>(yawRadians), this->PitchRadians, 0.0f, orientation);\n"
+                + "    float4->CreateFromYawPitchRoll__out3(static_cast<float>(yawRadians), this->PitchRadians, 0.0f, orientation);\n"
                 + "    orientation->Normalize();\n"
                 + "    Parent->LocalOrientation = orientation;\n"
                 + "}\n"
@@ -331,12 +332,94 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
         string generatedSourcePath = Path.Combine(OutputRootPath, "gameplay", "DirectionalShadowSunSweepComponent.cpp");
         string generatedSource = File.ReadAllText(generatedSourcePath);
         Assert.Contains("    float4 orientation;", generatedSource);
-        Assert.Contains("    float4::CreateFromYawPitchRoll(static_cast<float>(yawRadians), this->PitchRadians, 0.0f, orientation);", generatedSource);
+        Assert.Contains("    float4::CreateFromYawPitchRoll__out3(static_cast<float>(yawRadians), this->PitchRadians, 0.0f, orientation);", generatedSource);
         Assert.Contains("    orientation.Normalize();", generatedSource);
         Assert.Contains("    Parent->LocalOrientation = orientation;", generatedSource);
         Assert.DoesNotContain("float4 *orientation;", generatedSource);
-        Assert.DoesNotContain("float4->CreateFromYawPitchRoll", generatedSource);
+        Assert.DoesNotContain("float4->CreateFromYawPitchRoll__out3", generatedSource);
         Assert.DoesNotContain("orientation->Normalize()", generatedSource);
+    }
+
+    [Fact]
+    public void Compile_code_modules_normalizes_generated_float4_axis_angle_calls() {
+        RecordingCodegenToolRunner toolRunner = new() {
+            GeneratedRelativePath = Path.Combine("AxisRotationComponent.cpp"),
+            GeneratedContents =
+                "#include \"AxisRotationComponent.hpp\"\n"
+                + "void AxisRotationComponent::Update()\n"
+                + "{\n"
+                + "    float3 normalizedAxis;\n"
+                + "    float deltaAngleRadians = 0.1f;\n"
+                + "    float4 deltaRotation;\n"
+                + "    float4::CreateFromAxisAngle(normalizedAxis, deltaAngleRadians, deltaRotation);\n"
+                + "}\n"
+        };
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+            []),
+            ["gameplay"],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        string generatedSourcePath = Path.Combine(OutputRootPath, "gameplay", "AxisRotationComponent.cpp");
+        string generatedSource = File.ReadAllText(generatedSourcePath);
+        Assert.Contains("    float4::CreateFromAxisAngle__ref0_out2(normalizedAxis, deltaAngleRadians, deltaRotation);", generatedSource);
+        Assert.DoesNotContain("float4::CreateFromAxisAngle(normalizedAxis, deltaAngleRadians, deltaRotation);", generatedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compile_code_modules_normalizes_generated_float4_concatenate_calls() {
+        RecordingCodegenToolRunner toolRunner = new() {
+            GeneratedRelativePath = Path.Combine("AxisRotationComponent.cpp"),
+            GeneratedContents =
+                "#include \"AxisRotationComponent.hpp\"\n"
+                + "void AxisRotationComponent::Update()\n"
+                + "{\n"
+                + "    float4 currentOrientation;\n"
+                + "    float4 deltaRotation;\n"
+                + "    float4 orientation;\n"
+                + "    float4::Concatenate(currentOrientation, deltaRotation, orientation);\n"
+                + "}\n"
+        };
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+            []),
+            ["gameplay"],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        string generatedSourcePath = Path.Combine(OutputRootPath, "gameplay", "AxisRotationComponent.cpp");
+        string generatedSource = File.ReadAllText(generatedSourcePath);
+        Assert.Contains("    float4::Concatenate__ref0_ref1_out2(currentOrientation, deltaRotation, orientation);", generatedSource);
+        Assert.DoesNotContain("float4::Concatenate(currentOrientation, deltaRotation, orientation);", generatedSource, StringComparison.Ordinal);
     }
 
     [Fact]

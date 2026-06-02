@@ -44,7 +44,7 @@ namespace helengine {
         public double PhysicsFixedStepSeconds { get; set; } = 1.0d / 60.0d;
 
         /// <summary>
-        /// Gets or sets the maximum number of fixed physics steps that one core update may consume before dropping excess accumulated time.
+        /// Gets or sets the maximum number of fixed physics steps that one core update may consume before deferring the remaining simulation debt to later updates.
         /// </summary>
         public int PhysicsMaxStepsPerUpdate { get; set; } = 8;
 

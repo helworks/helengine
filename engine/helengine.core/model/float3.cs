@@ -17,6 +17,18 @@ namespace helengine {
         /// Unit vector with all components set to one.
         /// </summary>
         private static readonly float3 one = new float3(1f, 1f, 1f);
+        /// <summary>
+        /// Unit vector aligned with the X axis.
+        /// </summary>
+        private static readonly float3 unitX = new float3(1f, 0f, 0f);
+        /// <summary>
+        /// Unit vector aligned with the Y axis.
+        /// </summary>
+        private static readonly float3 unitY = new float3(0f, 1f, 0f);
+        /// <summary>
+        /// Unit vector aligned with the Z axis.
+        /// </summary>
+        private static readonly float3 unitZ = new float3(0f, 0f, 1f);
 
         /// <summary>
         /// X component of the vector.
@@ -81,6 +93,55 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the unit vector aligned with the X axis.
+        /// </summary>
+        public static float3 UnitX {
+            get { return unitX; }
+        }
+
+        /// <summary>
+        /// Gets the unit vector aligned with the Y axis.
+        /// </summary>
+        public static float3 UnitY {
+            get { return unitY; }
+        }
+
+        /// <summary>
+        /// Gets the unit vector aligned with the Z axis.
+        /// </summary>
+        public static float3 UnitZ {
+            get { return unitZ; }
+        }
+
+        /// <summary>
+        /// Returns the component-wise square root of the supplied vector.
+        /// </summary>
+        /// <param name="value">Vector whose components should be square-rooted.</param>
+        /// <returns>Vector composed of the square roots of each component.</returns>
+        public static float3 SquareRoot(float3 value) {
+            return new float3(
+                (float)Math.Sqrt(value.X),
+                (float)Math.Sqrt(value.Y),
+                (float)Math.Sqrt(value.Z));
+        }
+
+        /// <summary>
+        /// Computes the squared Euclidean length of this vector.
+        /// </summary>
+        /// <returns>Squared magnitude.</returns>
+        public float LengthSquared() {
+            return X * X + Y * Y + Z * Z;
+        }
+
+        /// <summary>
+        /// Computes the Euclidean length of this vector.
+        /// </summary>
+        /// <returns>Vector magnitude.</returns>
+        public float Length() {
+            return (float)Math.Sqrt(LengthSquared());
+        }
+
+        /// <summary>
         /// Returns a string representing the vector components.
         /// </summary>
         /// <returns>Formatted string.</returns>
@@ -112,6 +173,44 @@ namespace helengine {
                 (float)(start.X + ((end.X - start.X) * normalizedAmount)),
                 (float)(start.Y + ((end.Y - start.Y) * normalizedAmount)),
                 (float)(start.Z + ((end.Z - start.Z) * normalizedAmount)));
+        }
+
+        /// <summary>
+        /// Returns the component-wise minimum between two vectors.
+        /// </summary>
+        /// <param name="left">First vector to compare.</param>
+        /// <param name="right">Second vector to compare.</param>
+        /// <returns>Vector composed of the minimum component values.</returns>
+        public static float3 Min(float3 left, float3 right) {
+            return new float3(
+                left.X < right.X ? left.X : right.X,
+                left.Y < right.Y ? left.Y : right.Y,
+                left.Z < right.Z ? left.Z : right.Z);
+        }
+
+        /// <summary>
+        /// Returns the component-wise maximum between two vectors.
+        /// </summary>
+        /// <param name="left">First vector to compare.</param>
+        /// <param name="right">Second vector to compare.</param>
+        /// <returns>Vector composed of the maximum component values.</returns>
+        public static float3 Max(float3 left, float3 right) {
+            return new float3(
+                left.X > right.X ? left.X : right.X,
+                left.Y > right.Y ? left.Y : right.Y,
+                left.Z > right.Z ? left.Z : right.Z);
+        }
+
+        /// <summary>
+        /// Returns the component-wise absolute value of the provided vector.
+        /// </summary>
+        /// <param name="value">Vector whose components should be projected to their absolute magnitudes.</param>
+        /// <returns>Vector composed of the absolute component values.</returns>
+        public static float3 Abs(float3 value) {
+            return new float3(
+                Math.Abs(value.X),
+                Math.Abs(value.Y),
+                Math.Abs(value.Z));
         }
 
         /// <summary>
@@ -227,6 +326,15 @@ namespace helengine {
         /// <returns>Resulting vector.</returns>
         public static float3 operator -(float3 a, float3 b) {
             return new float3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+        }
+
+        /// <summary>
+        /// Negates every component of one vector.
+        /// </summary>
+        /// <param name="value">Vector to negate.</param>
+        /// <returns>Vector with each component sign-inverted.</returns>
+        public static float3 operator -(float3 value) {
+            return new float3(-value.X, -value.Y, -value.Z);
         }
 
         /// <summary>

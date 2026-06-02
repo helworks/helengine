@@ -57,6 +57,49 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies merged generated-core output rewrites duplicate short-name includes to the matching qualified header when a later merged project introduces a case-insensitive type-name collision.
+    /// </summary>
+    [Fact]
+    public void Normalize_merged_generated_source_case_insensitive_conflicts_rewrites_duplicate_short_name_artifacts() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-core-case-conflicts");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "int2.hpp"),
+            "#pragma once\nclass int2 {};\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "int2.cpp"),
+            "#include \"int2.hpp\"\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "helengine_int2.hpp"),
+            "#pragma once\nclass int2 {};\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "helengine_int2.cpp"),
+            "#include \"helengine_int2.hpp\"\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "BepuUtilities_Int2.hpp"),
+            "#pragma once\nclass Int2 {};\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "BepuUtilities_Int2.cpp"),
+            "#include \"BepuUtilities_Int2.hpp\"\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "Consumer.hpp"),
+            "#pragma once\n#include \"int2.hpp\"\n");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "Consumer.cpp"),
+            "#include \"int2.hpp\"\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeMergedGeneratedSourceCaseInsensitiveConflicts(generatedCoreRootPath);
+
+        Assert.Equal(
+            "#pragma once" + Environment.NewLine + "#include \"helengine_int2.hpp\"" + Environment.NewLine,
+            File.ReadAllText(Path.Combine(generatedCoreRootPath, "int2.hpp")).Replace("\r\n", "\n").Replace("\n", Environment.NewLine));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "int2.cpp")));
+        Assert.Contains("#include \"helengine_int2.hpp\"", File.ReadAllText(Path.Combine(generatedCoreRootPath, "Consumer.hpp")));
+        Assert.Contains("#include \"helengine_int2.hpp\"", File.ReadAllText(Path.Combine(generatedCoreRootPath, "Consumer.cpp")));
+    }
+
+    /// <summary>
     /// Verifies merged generated-core reports promote shader feature detection from shader-only generated projects into the combined report consumed by build summaries and feature manifests.
     /// </summary>
     [Fact]

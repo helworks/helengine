@@ -6,13 +6,23 @@
 
 namespace helengine {
     /// <summary>
-    /// Represents a quaternion with single-precision floating point components.
+    /// Represents a four-component single-precision value used for quaternion storage and generated wide-math surfaces.
     /// </summary>
     public struct float4 {
+        /// <summary>
+        /// Zero value with all components set to 0.
+        /// </summary>
+        private static readonly float4 zero = new float4(0, 0, 0, 0);
+
         /// <summary>
         /// Identity quaternion representing no rotation.
         /// </summary>
         private static readonly float4 identity = new float4(0, 0, 0, 1);
+
+        /// <summary>
+        /// Value with all components set to one.
+        /// </summary>
+        private static readonly float4 one = new float4(1, 1, 1, 1);
 
         /// <summary>
         /// X component of the quaternion.
@@ -49,10 +59,76 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Constructs a four-component value with all components set to the same scalar.
+        /// </summary>
+        /// <param name="value">Scalar applied to every component.</param>
+        public float4(float value) {
+            X = value;
+            Y = value;
+            Z = value;
+            W = value;
+        }
+
+        /// <summary>
+        /// Constructs a four-component value from one three-component vector and one scalar tail component.
+        /// </summary>
+        /// <param name="xyz">Three-component source used for X, Y, and Z.</param>
+        /// <param name="w">Scalar used for W.</param>
+        public float4(float3 xyz, float w) {
+            X = xyz.X;
+            Y = xyz.Y;
+            Z = xyz.Z;
+            W = w;
+        }
+
+        /// <summary>
         /// Returns a quaternion representing no rotation.
         /// </summary>
         public static float4 Identity {
             get { return identity; }
+        }
+
+        /// <summary>
+        /// Returns a zero value with all components cleared.
+        /// </summary>
+        public static float4 Zero {
+            get { return zero; }
+        }
+
+        /// <summary>
+        /// Returns a value with all components set to one.
+        /// </summary>
+        public static float4 One {
+            get { return one; }
+        }
+
+        /// <summary>
+        /// Returns the component-wise square root of the supplied value.
+        /// </summary>
+        /// <param name="value">Value whose components should be square-rooted.</param>
+        /// <returns>Value composed of the square roots of each component.</returns>
+        public static float4 SquareRoot(float4 value) {
+            return new float4(
+                (float)Math.Sqrt(value.X),
+                (float)Math.Sqrt(value.Y),
+                (float)Math.Sqrt(value.Z),
+                (float)Math.Sqrt(value.W));
+        }
+
+        /// <summary>
+        /// Computes the squared Euclidean length of this quaternion value.
+        /// </summary>
+        /// <returns>Squared magnitude.</returns>
+        public float LengthSquared() {
+            return X * X + Y * Y + Z * Z + W * W;
+        }
+
+        /// <summary>
+        /// Computes the Euclidean length of this quaternion value.
+        /// </summary>
+        /// <returns>Quaternion magnitude.</returns>
+        public float Length() {
+            return (float)Math.Sqrt(LengthSquared());
         }
 
         /// <summary>
@@ -111,6 +187,63 @@ namespace helengine {
                 (float)(start.W + ((adjustedEnd.W - start.W) * normalizedAmount)));
             result.Normalize();
             return result;
+        }
+
+        /// <summary>
+        /// Returns the component-wise minimum between two four-component values.
+        /// </summary>
+        /// <param name="left">First value to compare.</param>
+        /// <param name="right">Second value to compare.</param>
+        /// <returns>Value composed of the minimum components.</returns>
+        public static float4 Min(float4 left, float4 right) {
+            return new float4(
+                left.X < right.X ? left.X : right.X,
+                left.Y < right.Y ? left.Y : right.Y,
+                left.Z < right.Z ? left.Z : right.Z,
+                left.W < right.W ? left.W : right.W);
+        }
+
+        /// <summary>
+        /// Returns the component-wise maximum between two four-component values.
+        /// </summary>
+        /// <param name="left">First value to compare.</param>
+        /// <param name="right">Second value to compare.</param>
+        /// <returns>Value composed of the maximum components.</returns>
+        public static float4 Max(float4 left, float4 right) {
+            return new float4(
+                left.X > right.X ? left.X : right.X,
+                left.Y > right.Y ? left.Y : right.Y,
+                left.Z > right.Z ? left.Z : right.Z,
+                left.W > right.W ? left.W : right.W);
+        }
+
+        /// <summary>
+        /// Clamps each component of a value between the corresponding minimum and maximum bounds.
+        /// </summary>
+        /// <param name="value">Value to clamp.</param>
+        /// <param name="min">Minimum component bounds.</param>
+        /// <param name="max">Maximum component bounds.</param>
+        /// <returns>Clamped value.</returns>
+        public static float4 Clamp(float4 value, float4 min, float4 max) {
+            return new float4(
+                value.X < min.X ? min.X : value.X > max.X ? max.X : value.X,
+                value.Y < min.Y ? min.Y : value.Y > max.Y ? max.Y : value.Y,
+                value.Z < min.Z ? min.Z : value.Z > max.Z ? max.Z : value.Z,
+                value.W < min.W ? min.W : value.W > max.W ? max.W : value.W);
+        }
+
+        /// <summary>
+        /// Computes the dot product between two four-component values.
+        /// </summary>
+        /// <param name="left">First value.</param>
+        /// <param name="right">Second value.</param>
+        /// <returns>Sum of the component-wise products.</returns>
+        public static float Dot(float4 left, float4 right) {
+            return
+                (left.X * right.X) +
+                (left.Y * right.Y) +
+                (left.Z * right.Z) +
+                (left.W * right.W);
         }
 
         /// <summary>
@@ -217,6 +350,16 @@ namespace helengine {
         /// <param name="axis">Axis of rotation.</param>
         /// <param name="angle">Angle in radians.</param>
         /// <param name="result">Output quaternion.</param>
+        public static void CreateFromAxisAngle(float3 axis, float angle, out float4 result) {
+            CreateFromAxisAngle(ref axis, angle, out result);
+        }
+
+        /// <summary>
+        /// Creates a quaternion from an axis and angle.
+        /// </summary>
+        /// <param name="axis">Axis of rotation.</param>
+        /// <param name="angle">Angle in radians.</param>
+        /// <param name="result">Output quaternion.</param>
         public static void CreateFromAxisAngle(ref float3 axis, float angle, out float4 result) {
             float half = angle * 0.5f;
             float sin = (float)Math.Sin(half);
@@ -228,30 +371,72 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Multiplies two quaternions.
+        /// Negates every component of the provided four-component value.
         /// </summary>
-        /// <param name="quaternion1">Left operand.</param>
-        /// <param name="quaternion2">Right operand.</param>
-        /// <returns>Product quaternion.</returns>
-        public static float4 operator *(float4 quaternion1, float4 quaternion2) {
-            float4 quaternion;
-            float x = quaternion1.X;
-            float y = quaternion1.Y;
-            float z = quaternion1.Z;
-            float w = quaternion1.W;
-            float num4 = quaternion2.X;
-            float num3 = quaternion2.Y;
-            float num2 = quaternion2.Z;
-            float num = quaternion2.W;
-            float num12 = (y * num2) - (z * num3);
-            float num11 = (z * num4) - (x * num2);
-            float num10 = (x * num3) - (y * num4);
-            float num9 = ((x * num4) + (y * num3)) + (z * num2);
-            quaternion.X = ((x * num) + (num4 * w)) + num12;
-            quaternion.Y = ((y * num) + (num3 * w)) + num11;
-            quaternion.Z = ((z * num) + (num2 * w)) + num10;
-            quaternion.W = (w * num) - num9;
-            return quaternion;
+        /// <param name="value">Value to negate.</param>
+        /// <returns>Negated four-component value.</returns>
+        public static float4 operator -(float4 value) {
+            return new float4(-value.X, -value.Y, -value.Z, -value.W);
+        }
+
+        /// <summary>
+        /// Adds two values component-wise.
+        /// </summary>
+        /// <param name="left">Left operand.</param>
+        /// <param name="right">Right operand.</param>
+        /// <returns>Component-wise sum.</returns>
+        public static float4 operator +(float4 left, float4 right) {
+            return new float4(left.X + right.X, left.Y + right.Y, left.Z + right.Z, left.W + right.W);
+        }
+
+        /// <summary>
+        /// Subtracts two values component-wise.
+        /// </summary>
+        /// <param name="left">Left operand.</param>
+        /// <param name="right">Right operand.</param>
+        /// <returns>Component-wise difference.</returns>
+        public static float4 operator -(float4 left, float4 right) {
+            return new float4(left.X - right.X, left.Y - right.Y, left.Z - right.Z, left.W - right.W);
+        }
+
+        /// <summary>
+        /// Multiplies two values component-wise.
+        /// </summary>
+        /// <param name="left">Left operand.</param>
+        /// <param name="right">Right operand.</param>
+        /// <returns>Component-wise product.</returns>
+        public static float4 operator *(float4 left, float4 right) {
+            return new float4(left.X * right.X, left.Y * right.Y, left.Z * right.Z, left.W * right.W);
+        }
+
+        /// <summary>
+        /// Multiplies a value by a scalar.
+        /// </summary>
+        /// <param name="value">Value to scale.</param>
+        /// <param name="scalar">Scalar multiplier.</param>
+        /// <returns>Scaled value.</returns>
+        public static float4 operator *(float4 value, float scalar) {
+            return new float4(value.X * scalar, value.Y * scalar, value.Z * scalar, value.W * scalar);
+        }
+
+        /// <summary>
+        /// Divides two values component-wise.
+        /// </summary>
+        /// <param name="left">Left operand.</param>
+        /// <param name="right">Right operand.</param>
+        /// <returns>Component-wise quotient.</returns>
+        public static float4 operator /(float4 left, float4 right) {
+            return new float4(left.X / right.X, left.Y / right.Y, left.Z / right.Z, left.W / right.W);
+        }
+
+        /// <summary>
+        /// Divides a value by a scalar.
+        /// </summary>
+        /// <param name="value">Value to scale.</param>
+        /// <param name="scalar">Scalar divisor.</param>
+        /// <returns>Scaled value.</returns>
+        public static float4 operator /(float4 value, float scalar) {
+            return new float4(value.X / scalar, value.Y / scalar, value.Z / scalar, value.W / scalar);
         }
     }
 }
