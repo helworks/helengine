@@ -74,6 +74,8 @@ namespace helengine {
             for (int index = 0; index < rootEntities.Count; index++) {
                 RegisterEntityHierarchy(rootEntities[index]);
             }
+
+            BepuPhysicsWorld3DDiagnostics.Reset(BodyRegistryValue.Handles);
         }
 
         /// <summary>
@@ -202,6 +204,22 @@ namespace helengine {
             CollidablePropertiesValue.Allocate(bodyHandle) = CreateCollidableProperties(sphereCollider);
             GravityAccelerationsValue.Allocate(bodyHandle) = ResolveGravityAcceleration(rigidBody);
             BodyRegistryValue.Add(new BepuBodyHandle3D(entity, rigidBody, sphereCollider, shapeIndex, bodyHandle));
+        }
+
+        /// <summary>
+        /// Builds one bounded debug snapshot string for the authored four-way stack-box validation scene.
+        /// </summary>
+        /// <returns>Snapshot text when the currently bound scene matches the traced stack-box layout; otherwise an empty string.</returns>
+        public string TryBuildStackBoxesDebugSnapshot() {
+            return BepuPhysicsWorld3DDiagnostics.BuildSyncSnapshot(BodyRegistryValue.Handles, SimulationValue);
+        }
+
+        /// <summary>
+        /// Returns one direct sentinel string so the native host can verify generated string-return plumbing independently of the diagnostics builder path.
+        /// </summary>
+        /// <returns>One constant sentinel line.</returns>
+        public string TryBuildStackBoxesDebugSentinel() {
+            return "[BepuWorldSentinel]\n";
         }
 
         /// <summary>

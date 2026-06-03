@@ -58,6 +58,7 @@ namespace helengine {
         /// </summary>
         /// <param name="dt">Current step duration.</param>
         public void PrepareForIntegration(float dt) {
+            BepuPhysicsWorld3DDiagnostics.BeginPhysicsStep();
         }
 
         /// <summary>
@@ -72,6 +73,8 @@ namespace helengine {
         /// <param name="dt">Current per-lane timestep duration.</param>
         /// <param name="velocity">Velocity bundle to update.</param>
         public void IntegrateVelocity(Vector<int> bodyIndices, Vector3Wide position, QuaternionWide orientation, BodyInertiaWide localInertia, Vector<int> integrationMask, int workerIndex, Vector<float> dt, ref BodyVelocityWide velocity) {
+            Vector<float> linearYBefore = velocity.Linear.Y;
+
             Span<float> gravityValues = stackalloc float[Vector<float>.Count];
             for (int bundleSlotIndex = 0; bundleSlotIndex < Vector<int>.Count; bundleSlotIndex++) {
                 int bodyIndex = bodyIndices[bundleSlotIndex];
@@ -84,6 +87,7 @@ namespace helengine {
             }
 
             velocity.Linear.Y += new Vector<float>(gravityValues) * dt;
+            BepuPhysicsWorld3DDiagnostics.RecordIntegrateVelocity(bodyIndices, integrationMask, BodiesValue, GravityAccelerations, dt, position, orientation, velocity, linearYBefore, velocity.Linear.Y);
         }
     }
 }

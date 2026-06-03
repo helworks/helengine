@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace helengine.bepu.tests {
     /// <summary>
     /// Verifies the cooked city stacked-box validation scene topples when loaded through the BEPU-backed runtime registration path.
@@ -136,6 +138,169 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures the second support box does not remain perfectly frozen while the overhung upper boxes start toppling.
+        /// </summary>
+        [Fact]
+        public void LoadCityStackBoxesScene_WhenAdvancedThroughCoreUpdate_SecondSupportBoxRespondsToOverhungLoad() {
+            string scenePath = ResolveCityCookedStackBoxesScenePath();
+            using FileStream stream = File.OpenRead(scenePath);
+            SceneAsset cookedSceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAsset(cookedSceneAsset);
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = AppContext.BaseDirectory,
+                PhysicsFixedStepSeconds = 1.0d / 60.0d
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            BepuRuntimeComponentRegistration.Register(core);
+
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(physicsOnlySceneAsset);
+            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+            world.BindScene(rootEntities);
+
+            List<Entity> stackBoxEntities = FindDynamicUnitBoxEntities(rootEntities);
+            Assert.Equal(4, stackBoxEntities.Count);
+            SortEntitiesByAscendingX(stackBoxEntities);
+            Entity secondBoxEntity = stackBoxEntities[1];
+            for (int index = 0; index < 120; index++) {
+                core.Update(1.0d / 60.0d);
+            }
+
+            bool secondBoxResponded =
+                secondBoxEntity.LocalPosition.X > 0.52f
+                || Math.Abs(secondBoxEntity.LocalOrientation.Z) > 0.01f
+                || Math.Abs(secondBoxEntity.LocalOrientation.X) > 0.01f;
+
+            Assert.True(
+                secondBoxResponded,
+                $"Expected the second support box to respond to the overhung load, but it stayed at ({secondBoxEntity.LocalPosition.X}, {secondBoxEntity.LocalPosition.Y}, {secondBoxEntity.LocalPosition.Z}) with orientation ({secondBoxEntity.LocalOrientation.X}, {secondBoxEntity.LocalOrientation.Y}, {secondBoxEntity.LocalOrientation.Z}, {secondBoxEntity.LocalOrientation.W}).");
+        }
+
+        /// <summary>
+        /// Ensures the authored scenario-parent hierarchy does not freeze the second support box under the overhung load.
+        /// </summary>
+        [Fact]
+        public void LoadCityStackBoxesScene_WhenAdvancedThroughCoreUpdate_WithScenarioParent_SecondSupportBoxRespondsToOverhungLoad() {
+            string scenePath = ResolveCityCookedStackBoxesScenePath();
+            using FileStream stream = File.OpenRead(scenePath);
+            SceneAsset cookedSceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAssetPreservingScenarioParent(cookedSceneAsset);
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = AppContext.BaseDirectory,
+                PhysicsFixedStepSeconds = 1.0d / 60.0d
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            BepuRuntimeComponentRegistration.Register(core);
+
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(physicsOnlySceneAsset);
+            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+            world.BindScene(rootEntities);
+
+            List<Entity> stackBoxEntities = FindDynamicUnitBoxEntities(rootEntities);
+            Assert.Equal(4, stackBoxEntities.Count);
+            SortEntitiesByAscendingX(stackBoxEntities);
+            Entity secondBoxEntity = stackBoxEntities[1];
+            for (int index = 0; index < 120; index++) {
+                core.Update(1.0d / 60.0d);
+            }
+
+            bool secondBoxResponded =
+                secondBoxEntity.LocalPosition.X > 0.52f
+                || Math.Abs(secondBoxEntity.LocalOrientation.Z) > 0.01f
+                || Math.Abs(secondBoxEntity.LocalOrientation.X) > 0.01f;
+
+            Assert.True(
+                secondBoxResponded,
+                $"Expected the scenario-parented second support box to respond to the overhung load, but it stayed at ({secondBoxEntity.LocalPosition.X}, {secondBoxEntity.LocalPosition.Y}, {secondBoxEntity.LocalPosition.Z}) with orientation ({secondBoxEntity.LocalOrientation.X}, {secondBoxEntity.LocalOrientation.Y}, {secondBoxEntity.LocalOrientation.Z}, {secondBoxEntity.LocalOrientation.W}).");
+        }
+
+        /// <summary>
+        /// Emits a compact headless C# trace for the simplified four-way stack so native-runtime divergence can be compared against managed behavior.
+        /// </summary>
+        [Fact]
+        public void LoadCityStackBoxesScene_WhenAdvancedThroughCoreUpdate_HeadlessTraceShowsSecondSupportBoxMoving() {
+            string scenePath = ResolveCityCookedStackBoxesScenePath();
+            using FileStream stream = File.OpenRead(scenePath);
+            SceneAsset cookedSceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAsset(cookedSceneAsset);
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = AppContext.BaseDirectory,
+                PhysicsFixedStepSeconds = 1.0d / 60.0d
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            BepuRuntimeComponentRegistration.Register(core);
+
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(physicsOnlySceneAsset);
+            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+            world.BindScene(rootEntities);
+
+            List<Entity> stackBoxEntities = FindDynamicUnitBoxEntities(rootEntities);
+            Assert.Equal(4, stackBoxEntities.Count);
+            SortEntitiesByAscendingX(stackBoxEntities);
+
+            Entity firstBoxEntity = stackBoxEntities[0];
+            Entity secondBoxEntity = stackBoxEntities[1];
+            Entity thirdBoxEntity = stackBoxEntities[2];
+            Entity fourthBoxEntity = stackBoxEntities[3];
+
+            StringBuilder traceBuilder = new StringBuilder();
+            const int TraceFrameCount = 200;
+            AppendHeadlessTraceLine(traceBuilder, 0, firstBoxEntity, secondBoxEntity, thirdBoxEntity, fourthBoxEntity);
+            for (int frameIndex = 1; frameIndex <= TraceFrameCount; frameIndex++) {
+                core.Update(1.0d / 60.0d);
+                AppendHeadlessTraceLine(traceBuilder, frameIndex, firstBoxEntity, secondBoxEntity, thirdBoxEntity, fourthBoxEntity);
+            }
+
+            Console.WriteLine(traceBuilder.ToString());
+            Console.WriteLine(world.TryBuildStackBoxesDebugSnapshot());
+
+            bool secondBoxResponded =
+                secondBoxEntity.LocalPosition.X > 0.52f
+                || Math.Abs(secondBoxEntity.LocalOrientation.Z) > 0.01f
+                || Math.Abs(secondBoxEntity.LocalOrientation.X) > 0.01f;
+
+            Assert.True(
+                secondBoxResponded,
+                $"Expected the headless managed trace to show the second support box moving, but it stayed at ({secondBoxEntity.LocalPosition.X}, {secondBoxEntity.LocalPosition.Y}, {secondBoxEntity.LocalPosition.Z}) with orientation ({secondBoxEntity.LocalOrientation.X}, {secondBoxEntity.LocalOrientation.Y}, {secondBoxEntity.LocalOrientation.Z}, {secondBoxEntity.LocalOrientation.W}).");
+        }
+
+        /// <summary>
+        /// Ensures the reduced managed stack-box run emits structured differential trace records for the shared harness schema.
+        /// </summary>
+        [Fact]
+        public void LoadCityStackBoxesScene_WhenDifferentialTraceCaptured_EmitsStructuredManagedGoldenTrace() {
+            string traceText = CaptureManagedDifferentialTrace(4);
+            List<BepuDifferentialTraceRecord3D> traceRecords = ParseStructuredTraceRecords(traceText);
+
+            List<BepuDifferentialTraceRecord3D> integrateRecords = traceRecords
+                .Where(
+                    record => record.Phase == BepuDifferentialTracePhase3D.IntegrateVelocityCallback
+                        && record.BodyHandle == 1)
+                .ToList();
+            List<BepuDifferentialTraceRecord3D> syncRecords = traceRecords
+                .Where(
+                    record => record.Phase == BepuDifferentialTracePhase3D.SyncSnapshot
+                        && record.BodyHandle == 1)
+                .ToList();
+
+            Assert.NotEmpty(integrateRecords);
+            Assert.NotEmpty(syncRecords);
+
+            BepuDifferentialTraceRecord3D integrateRecord = integrateRecords[integrateRecords.Count - 1];
+            BepuDifferentialTraceRecord3D syncRecord = syncRecords[syncRecords.Count - 1];
+
+            Assert.Equal(1, integrateRecord.BodyIndex);
+            Assert.Equal(1, syncRecord.BodyIndex);
+            Assert.True(syncRecord.Position.Y < 1.5f, $"Expected the second support box to start falling in the managed golden trace, but sync position Y remained {syncRecord.Position.Y}.");
+            Assert.True(Math.Abs(syncRecord.LinearVelocity.Y) > 0.01f, $"Expected the second support box to carry nonzero vertical velocity in the managed golden trace, but sync velocity Y remained {syncRecord.LinearVelocity.Y}.");
+        }
+
+        /// <summary>
         /// Ensures the cooked city stacked-boxes scene still materializes one playable camera and one directional light through the runtime loader.
         /// </summary>
         [Fact]
@@ -199,6 +364,205 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Appends one compact frame snapshot for the simplified four-way stack trace.
+        /// </summary>
+        /// <param name="traceBuilder">Target text builder receiving the frame snapshot.</param>
+        /// <param name="frameIndex">Zero-based fixed-step frame index.</param>
+        /// <param name="firstBoxEntity">First stack box on the ground contact.</param>
+        /// <param name="secondBoxEntity">Second stack box that diverges in the native build.</param>
+        /// <param name="thirdBoxEntity">Third stack box in the overhung tower.</param>
+        /// <param name="fourthBoxEntity">Fourth stack box at the top of the tower.</param>
+        static void AppendHeadlessTraceLine(StringBuilder traceBuilder, int frameIndex, Entity firstBoxEntity, Entity secondBoxEntity, Entity thirdBoxEntity, Entity fourthBoxEntity) {
+            if (traceBuilder == null) {
+                throw new ArgumentNullException(nameof(traceBuilder));
+            }
+            if (firstBoxEntity == null) {
+                throw new ArgumentNullException(nameof(firstBoxEntity));
+            }
+            if (secondBoxEntity == null) {
+                throw new ArgumentNullException(nameof(secondBoxEntity));
+            }
+            if (thirdBoxEntity == null) {
+                throw new ArgumentNullException(nameof(thirdBoxEntity));
+            }
+            if (fourthBoxEntity == null) {
+                throw new ArgumentNullException(nameof(fourthBoxEntity));
+            }
+
+            traceBuilder.Append("[ManagedStackTrace] frame=");
+            traceBuilder.Append(frameIndex);
+            traceBuilder.Append(" first=");
+            traceBuilder.Append(FormatEntityTrace(firstBoxEntity));
+            traceBuilder.Append(" second=");
+            traceBuilder.Append(FormatEntityTrace(secondBoxEntity));
+            traceBuilder.Append(" third=");
+            traceBuilder.Append(FormatEntityTrace(thirdBoxEntity));
+            traceBuilder.Append(" fourth=");
+            traceBuilder.Append(FormatEntityTrace(fourthBoxEntity));
+            traceBuilder.Append('\n');
+        }
+
+        /// <summary>
+        /// Captures one structured managed differential trace for the reduced four-way stack-box scene over a bounded number of fixed steps.
+        /// </summary>
+        /// <param name="frameCount">Number of fixed steps to advance before completing the trace.</param>
+        /// <returns>Structured trace text drained from the managed BEPU diagnostics path.</returns>
+        static string CaptureManagedDifferentialTrace(int frameCount) {
+            if (frameCount <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(frameCount));
+            }
+
+            string scenePath = ResolveCityCookedStackBoxesScenePath();
+            using FileStream stream = File.OpenRead(scenePath);
+            SceneAsset cookedSceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAsset(cookedSceneAsset);
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = AppContext.BaseDirectory,
+                PhysicsFixedStepSeconds = 1.0d / 60.0d
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            BepuRuntimeComponentRegistration.Register(core);
+
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(physicsOnlySceneAsset);
+            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+            world.BindScene(rootEntities);
+
+            StringBuilder traceBuilder = new StringBuilder();
+            for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+                core.Update(1.0d / 60.0d);
+                traceBuilder.Append(world.TryBuildStackBoxesDebugSnapshot());
+            }
+
+            return traceBuilder.ToString();
+        }
+
+        /// <summary>
+        /// Captures the first managed sync snapshot in which body handle <c>1</c> has visibly started moving.
+        /// </summary>
+        /// <param name="frameCount">Number of fixed simulation steps to capture.</param>
+        /// <returns>First moving managed sync snapshot for body handle <c>1</c>.</returns>
+        internal static BepuDifferentialTraceRecord3D CaptureManagedBodyOneFirstMovingSyncRecord(int frameCount) {
+            List<BepuDifferentialTraceRecord3D> traceRecords = ParseStructuredTraceRecords(CaptureManagedDifferentialTrace(frameCount));
+
+            for (int index = 0; index < traceRecords.Count; index++) {
+                BepuDifferentialTraceRecord3D traceRecord = traceRecords[index];
+                if (traceRecord.Phase != BepuDifferentialTracePhase3D.SyncSnapshot || traceRecord.BodyHandle != 1) {
+                    continue;
+                }
+                if (traceRecord.Position.Y < 1.5f || Math.Abs(traceRecord.LinearVelocity.Y) > 0.01f || Math.Abs(traceRecord.Orientation.Z) > 0.001f) {
+                    return traceRecord;
+                }
+            }
+
+            throw new InvalidOperationException("The managed differential trace did not contain a moving sync snapshot for body handle 1.");
+        }
+
+        /// <summary>
+        /// Loads the first native sync snapshot recorded for body handle <c>1</c> from the latest differential-harness package output.
+        /// </summary>
+        /// <returns>First native sync snapshot for body handle <c>1</c>.</returns>
+        internal static BepuDifferentialTraceRecord3D LoadNativeBodyOneFirstSyncRecord() {
+            string tracePath = ResolveLatestNativeDifferentialTracePath();
+            string traceText = File.ReadAllText(tracePath);
+            List<BepuDifferentialTraceRecord3D> traceRecords = ParseStructuredTraceRecords(traceText);
+
+            for (int index = 0; index < traceRecords.Count; index++) {
+                BepuDifferentialTraceRecord3D traceRecord = traceRecords[index];
+                if (traceRecord.Phase == BepuDifferentialTracePhase3D.SyncSnapshot && traceRecord.BodyHandle == 1) {
+                    return traceRecord;
+                }
+            }
+
+            throw new InvalidOperationException($"The native differential trace '{tracePath}' did not contain a sync snapshot for body handle 1.");
+        }
+
+        /// <summary>
+        /// Loads the first native sync snapshot in which body handle <c>1</c> has visibly started moving from the latest differential-harness package output.
+        /// </summary>
+        /// <returns>First moving native sync snapshot for body handle <c>1</c>.</returns>
+        internal static BepuDifferentialTraceRecord3D LoadNativeBodyOneFirstMovingSyncRecord() {
+            string tracePath = ResolveLatestNativeDifferentialTracePath();
+            string traceText = File.ReadAllText(tracePath);
+            List<BepuDifferentialTraceRecord3D> traceRecords = ParseStructuredTraceRecords(traceText);
+
+            for (int index = 0; index < traceRecords.Count; index++) {
+                BepuDifferentialTraceRecord3D traceRecord = traceRecords[index];
+                if (traceRecord.Phase != BepuDifferentialTracePhase3D.SyncSnapshot || traceRecord.BodyHandle != 1) {
+                    continue;
+                }
+                if (traceRecord.Position.Y < 1.5f || Math.Abs(traceRecord.LinearVelocity.Y) > 0.01f || Math.Abs(traceRecord.Orientation.Z) > 0.001f) {
+                    return traceRecord;
+                }
+            }
+
+            throw new InvalidOperationException($"The native differential trace '{tracePath}' did not contain a moving sync snapshot for body handle 1.");
+        }
+
+        /// <summary>
+        /// Parses the shared-schema differential trace lines from one mixed diagnostic text payload.
+        /// </summary>
+        /// <param name="traceText">Combined managed trace payload to scan.</param>
+        /// <returns>Structured differential trace records recovered from the payload.</returns>
+        static List<BepuDifferentialTraceRecord3D> ParseStructuredTraceRecords(string traceText) {
+            if (string.IsNullOrWhiteSpace(traceText)) {
+                throw new ArgumentException("The trace text must contain at least one line.", nameof(traceText));
+            }
+
+            List<BepuDifferentialTraceRecord3D> traceRecords = new List<BepuDifferentialTraceRecord3D>();
+            using StringReader reader = new StringReader(traceText);
+            string traceLine = reader.ReadLine();
+            while (traceLine != null) {
+                if (traceLine.StartsWith("frame=", StringComparison.Ordinal)) {
+                    traceRecords.Add(BepuDifferentialTraceParser.ParseLine(traceLine));
+                }
+
+                traceLine = reader.ReadLine();
+            }
+
+            return traceRecords;
+        }
+
+        /// <summary>
+        /// Resolves the latest native differential trace file emitted by the dedicated stack-box harness package.
+        /// </summary>
+        /// <returns>Absolute path to the latest native differential trace file.</returns>
+        static string ResolveLatestNativeDifferentialTracePath() {
+            DirectoryInfo currentDirectory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (currentDirectory != null) {
+                string cityProjectRootPath = Path.Combine(currentDirectory.FullName, "helprojs", "city");
+                if (Directory.Exists(cityProjectRootPath)) {
+                    string[] buildDirectories = Directory.GetDirectories(cityProjectRootPath, "windows-build*stack-boxes*differential-harness*", SearchOption.TopDirectoryOnly);
+                    Array.Sort(buildDirectories, CompareBuildDirectoriesByDescendingWriteTime);
+                    for (int index = 0; index < buildDirectories.Length; index++) {
+                        string tracePath = Path.Combine(buildDirectories[index], "helengine_windows.bepu_differential_trace.log");
+                        if (File.Exists(tracePath)) {
+                            return tracePath;
+                        }
+                    }
+                }
+
+                currentDirectory = currentDirectory.Parent;
+            }
+
+            throw new FileNotFoundException("The native stack-box differential trace file could not be found from the current test execution hierarchy.");
+        }
+
+        /// <summary>
+        /// Formats one entity position and orientation for the compact managed stack trace.
+        /// </summary>
+        /// <param name="entity">Entity to format.</param>
+        /// <returns>Compact position and orientation text for the supplied entity.</returns>
+        static string FormatEntityTrace(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            return $"pos=({entity.LocalPosition.X:F6},{entity.LocalPosition.Y:F6},{entity.LocalPosition.Z:F6}) orient=({entity.LocalOrientation.X:F6},{entity.LocalOrientation.Y:F6},{entity.LocalOrientation.Z:F6},{entity.LocalOrientation.W:F6})";
+        }
+
+        /// <summary>
         /// Orders build directories by most-recent write time first.
         /// </summary>
         /// <param name="first">First directory path to compare.</param>
@@ -247,6 +611,46 @@ namespace helengine.bepu.tests {
             return new SceneAsset {
                 Id = cookedSceneAsset.Id,
                 RootEntities = physicsEntities.ToArray(),
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            };
+        }
+
+        /// <summary>
+        /// Builds one physics-only scene asset that preserves the authored scenario parent around the stack-box children.
+        /// </summary>
+        /// <param name="cookedSceneAsset">Cooked city stack-boxes scene asset.</param>
+        /// <returns>Scene asset containing the authored scenario parent and only the rigid-body and collider entities required for the stack-boxes scenario.</returns>
+        static SceneAsset CreatePhysicsOnlyStackBoxesSceneAssetPreservingScenarioParent(SceneAsset cookedSceneAsset) {
+            if (cookedSceneAsset == null) {
+                throw new ArgumentNullException(nameof(cookedSceneAsset));
+            }
+
+            SceneEntityAsset scenarioEntity = FindScenarioEntity(cookedSceneAsset.RootEntities);
+            List<SceneEntityAsset> physicsChildren = new List<SceneEntityAsset>();
+            for (int index = 0; index < scenarioEntity.Children.Length; index++) {
+                SceneEntityAsset childEntity = scenarioEntity.Children[index];
+                if (string.Equals(childEntity.Name, "Ground", StringComparison.Ordinal)
+                    || childEntity.Name.StartsWith("StackBox", StringComparison.Ordinal)) {
+                    physicsChildren.Add(CreatePhysicsOnlyEntity(childEntity));
+                }
+            }
+
+            SceneEntityAsset physicsOnlyScenarioEntity = new SceneEntityAsset {
+                Id = scenarioEntity.Id,
+                Name = scenarioEntity.Name,
+                IsStatic = scenarioEntity.IsStatic,
+                LocalPosition = scenarioEntity.LocalPosition,
+                LocalScale = scenarioEntity.LocalScale,
+                LocalOrientation = scenarioEntity.LocalOrientation,
+                Components = Array.Empty<SceneComponentAssetRecord>(),
+                PlatformComponentOverrides = Array.Empty<SceneEntityPlatformComponentOverrideAsset>(),
+                PlatformTransformOverrides = Array.Empty<SceneEntityPlatformTransformOverrideAsset>(),
+                Children = physicsChildren.ToArray()
+            };
+
+            return new SceneAsset {
+                Id = cookedSceneAsset.Id,
+                RootEntities = new[] { physicsOnlyScenarioEntity },
                 AssetReferences = Array.Empty<SceneAssetReference>()
             };
         }
