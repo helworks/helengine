@@ -557,44 +557,56 @@ namespace helengine {
             PreviousMeasuredUpdateSeconds = currentMeasuredUpdateSeconds;
             HasPreviousMeasuredUpdateSeconds = true;
 
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeInputEarlyUpdatePhaseId);
             bool shouldRecordUpdateStages = UpdateStageDiagnosticsProviderValue != null;
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeInputEarlyUpdate");
             }
             Input.EarlyUpdate();
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterInputEarlyUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterInputEarlyUpdate");
                 RecordUpdateStage("BeforeFpsRecordUpdateFrame");
             }
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeFpsRecordUpdateFramePhaseId);
             FPSComponent.RecordUpdateFrame();
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterFpsRecordUpdateFramePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterFpsRecordUpdateFrame");
             }
 
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeObjectManagerUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeObjectManagerUpdate");
             }
             ObjectManager.Update();
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterObjectManagerUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterObjectManagerUpdate");
             }
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeUpdatePhysicsPhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeUpdatePhysics");
             }
             UpdatePhysics(elapsedSeconds);
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterUpdatePhysicsPhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterUpdatePhysics");
             }
 
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeInputUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeInputUpdate");
             }
             Input.Update();
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterInputUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterInputUpdate");
                 RecordUpdateStage("BeforePointerInteractionSystemUpdate");
             }
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforePointerInteractionSystemUpdatePhaseId);
             PointerInteractionSystem.Update();
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterPointerInteractionSystemUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterPointerInteractionSystemUpdate");
             }

@@ -33,6 +33,11 @@ namespace helengine {
         static bool IsEnabled { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether stack-box differential diagnostics are allowed for the current process.
+        /// </summary>
+        static bool DiagnosticsAllowed { get; set; } = true;
+
+        /// <summary>
         /// Gets or sets the zero-based synchronization frame index written to the log.
         /// </summary>
         static int LoggedFrameCount { get; set; }
@@ -83,8 +88,24 @@ namespace helengine {
             PendingIntegrateVelocitySnapshotText = string.Empty;
             PendingManagedDifferentialTraceText = string.Empty;
             PendingDisableReasonSnapshotText = DescribeTraceDisableReason(handles);
-            IsEnabled = string.IsNullOrEmpty(PendingDisableReasonSnapshotText);
+            IsEnabled = DiagnosticsAllowed && string.IsNullOrEmpty(PendingDisableReasonSnapshotText);
             BepuPhysics.BepuNativeConversionDiagnostics.Reset(IsEnabled);
+        }
+
+        /// <summary>
+        /// Enables or disables stack-box differential diagnostics for the current process before future scene bindings reset trace state.
+        /// </summary>
+        /// <param name="isAllowed">True to allow diagnostics when the traced scene matches; false to suppress all trace buffering.</param>
+        public static void SetDiagnosticsAllowed(bool isAllowed) {
+            DiagnosticsAllowed = isAllowed;
+            if (!isAllowed) {
+                IsEnabled = false;
+                PendingIntegrateVelocitySnapshotText = string.Empty;
+                PendingManagedDifferentialTraceText = string.Empty;
+                PendingDisableReasonSnapshotText = string.Empty;
+                LoggedManagedDifferentialTraceLineCount = 0;
+                BepuPhysics.BepuNativeConversionDiagnostics.Reset(false);
+            }
         }
 
         /// <summary>

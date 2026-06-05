@@ -14,6 +14,16 @@ namespace helengine {
         static readonly SpringSettings DefaultContactSpringSettings = new SpringSettings(30f, 1f);
 
         /// <summary>
+        /// Stores the minimum block size used by the BEPU memory pool for the reduced Helengine runtime slice.
+        /// </summary>
+        const int DefaultBufferPoolBlockSize = 16384;
+
+        /// <summary>
+        /// Stores the expected number of pooled BEPU memory resources retained by the reduced Helengine runtime slice.
+        /// </summary>
+        const int DefaultBufferPoolResourceCount = 8;
+
+        /// <summary>
         /// Shared memory pool used by the active BEPU simulation.
         /// </summary>
         readonly BufferPool BufferPoolValue;
@@ -42,7 +52,7 @@ namespace helengine {
         /// Initializes one BEPU-backed physics world.
         /// </summary>
         public BepuPhysicsWorld3D() {
-            BufferPoolValue = new BufferPool();
+            BufferPoolValue = new BufferPool(DefaultBufferPoolBlockSize, DefaultBufferPoolResourceCount);
             BodyRegistryValue = new BepuBodyRegistry3D();
             ResetSimulation();
         }
@@ -87,8 +97,11 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(stepSeconds), "Simulation step must be a finite value greater than zero.");
             }
 
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeBepuTimestepPhaseId);
             SimulationValue.Timestep((float)stepSeconds);
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterBepuTimestepBeforeSyncPhaseId);
             SynchronizeBodiesBackToEntities();
+            RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterBepuSyncPhaseId);
         }
 
         /// <summary>
@@ -107,7 +120,23 @@ namespace helengine {
                 BufferPoolValue,
                 narrowPhaseCallbacks,
                 poseIntegratorCallbacks,
-                new SolveDescription(4, 1));
+                new SolveDescription(4, 1),
+                initialAllocationSizes: CreateDefaultSimulationAllocationSizes());
+        }
+
+        /// <summary>
+        /// Creates one conservative initial-allocation profile sized for Helengine's reduced box-and-sphere BEPU runtime slice.
+        /// </summary>
+        /// <returns>Initial simulation allocation sizes for the reduced runtime slice.</returns>
+        static SimulationAllocationSizes CreateDefaultSimulationAllocationSizes() {
+            return new SimulationAllocationSizes(
+                bodies: 64,
+                statics: 64,
+                islands: 32,
+                shapesPerType: 16,
+                constraints: 256,
+                constraintsPerTypeBatch: 64,
+                constraintCountPerBodyEstimate: 4);
         }
 
         /// <summary>

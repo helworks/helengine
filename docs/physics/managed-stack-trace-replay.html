@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Managed BEPU Stack Trace Replay</title>
+  <style>
+    :root {
+      --bg0: #f5efe3;
+      --bg1: #e7dcc5;
+      --panel: rgba(255, 251, 242, 0.92);
+      --ink: #1f1b17;
+      --muted: #605a52;
+      --accent: #1768ac;
+      --line: rgba(31, 27, 23, 0.08);
+      --c1: #d1495b;
+      --c2: #2e8b57;
+      --c3: #2b59c3;
+      --c4: #f18701;
+      --ground: #6f675d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 22px;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.72), transparent 30%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+    }
+
+    .layout {
+      width: min(1380px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 20px 44px rgba(75, 56, 32, 0.12);
+      backdrop-filter: blur(14px);
+    }
+
+    .viewer {
+      padding: 18px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-height: 720px;
+      border-radius: 14px;
+      border: 1px solid rgba(31, 27, 23, 0.08);
+      background:
+        radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.78), transparent 34%),
+        linear-gradient(180deg, rgba(246, 240, 228, 0.94), rgba(225, 211, 188, 0.98));
+    }
+
+    .panel {
+      padding: 22px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.55rem;
+      line-height: 1.08;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font: inherit;
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 10px 20px rgba(23, 104, 172, 0.22);
+    }
+
+    button.secondary {
+      background: rgba(31, 27, 23, 0.08);
+      color: var(--ink);
+      box-shadow: none;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .stat {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(31, 27, 23, 0.08);
+    }
+
+    .stat strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex: none;
+    }
+
+    code {
+      font-family: "Consolas", "SFMono-Regular", monospace;
+      font-size: 0.9rem;
+      background: rgba(31, 27, 23, 0.06);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    @media (max-width: 1080px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <section class="card viewer">
+      <canvas id="scene" width="980" height="760"></canvas>
+    </section>
+
+    <aside class="card panel">
+      <div>
+        <h1>Managed C# BEPU 3D Replay</h1>
+        <p>This is a canvas-rendered 3D replay of the 200-frame managed headless stack trace. It shows what the C# BEPU path actually does, independent of the native Windows build.</p>
+      </div>
+
+      <div class="controls">
+        <div class="button-row">
+          <button id="toggleButton">Pause</button>
+          <button id="restartButton" class="secondary">Restart</button>
+          <button id="resetCameraButton" class="secondary">Reset Camera</button>
+        </div>
+        <label for="frameSlider">Frame</label>
+        <input id="frameSlider" type="range" min="0" max="200" step="0.001" value="0">
+      </div>
+
+      <div class="stat">
+        <strong>Current Frame</strong>
+        <span id="frameLabel">0.00 / 200</span>
+      </div>
+
+      <div class="stat">
+        <strong>Second Box</strong>
+        <span id="secondBoxLabel">x=0.500000, y=1.500000, z=0.000000, roll=0.00°</span>
+      </div>
+
+      <div class="stat">
+        <strong>What This Proves</strong>
+        <span>The managed trace clearly moves and rotates the second support cube. Drag on the canvas to orbit the camera if the default angle is not readable.</span>
+      </div>
+
+      <div>
+        <strong style="display:block; margin-bottom:8px;">Legend</strong>
+        <div class="legend">
+          <div class="legend-item"><span class="swatch" style="background:var(--c1)"></span> First support box</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--c2)"></span> Second support box</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--c3)"></span> Third overhang box</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--c4)"></span> Fourth top box</div>
+        </div>
+      </div>
+
+      <p>Source test: <code>LoadCityStackBoxesScene_WhenAdvancedThroughCoreUpdate_HeadlessTraceShowsSecondSupportBoxMoving</code></p>
+    </aside>
+  </div>
+
+  <script src="./managed-stack-trace-data.js"></script>
+  <script>
+    const canvas = document.getElementById("scene");
+    const context = canvas.getContext("2d");
+    const frameSlider = document.getElementById("frameSlider");
+    const frameLabel = document.getElementById("frameLabel");
+    const secondBoxLabel = document.getElementById("secondBoxLabel");
+    const toggleButton = document.getElementById("toggleButton");
+    const restartButton = document.getElementById("restartButton");
+    const resetCameraButton = document.getElementById("resetCameraButton");
+
+    const colors = ["#d1495b", "#2e8b57", "#2b59c3", "#f18701"];
+    const labels = ["First", "Second", "Third", "Fourth"];
+
+    const state = {
+      playing: true,
+      frameValue: 0,
+      lastTime: performance.now(),
+      cameraYaw: -0.32,
+      cameraPitch: 0.62,
+      dragActive: false,
+      dragStartX: 0,
+      dragStartY: 0,
+      dragYaw: -0.32,
+      dragPitch: 0.62
+    };
+
+    function parseTriplet(source) {
+      const parts = source.split(",");
+      return [
+        Number(`${parts[0]}.${parts[1]}`),
+        Number(`${parts[2]}.${parts[3]}`),
+        Number(`${parts[4]}.${parts[5]}`)
+      ];
+    }
+
+    function parseQuaternion(source) {
+      const parts = source.split(",");
+      return [
+        Number(`${parts[0]}.${parts[1]}`),
+        Number(`${parts[2]}.${parts[3]}`),
+        Number(`${parts[4]}.${parts[5]}`),
+        Number(`${parts[6]}.${parts[7]}`)
+      ];
+    }
+
+    function parseTraceLine(line) {
+      const match = line.match(/frame=(\d+)\s+first=pos=\(([^)]*)\) orient=\(([^)]*)\) second=pos=\(([^)]*)\) orient=\(([^)]*)\) third=pos=\(([^)]*)\) orient=\(([^)]*)\) fourth=pos=\(([^)]*)\) orient=\(([^)]*)\)/);
+      if (!match) {
+        throw new Error(`Failed to parse trace line: ${line}`);
+      }
+
+      return {
+        frame: Number(match[1]),
+        cubes: [
+          { position: parseTriplet(match[2]), orientation: parseQuaternion(match[3]) },
+          { position: parseTriplet(match[4]), orientation: parseQuaternion(match[5]) },
+          { position: parseTriplet(match[6]), orientation: parseQuaternion(match[7]) },
+          { position: parseTriplet(match[8]), orientation: parseQuaternion(match[9]) }
+        ]
+      };
+    }
+
+    const frames = window.MANAGED_STACK_TRACE.trim().split("\n").filter(Boolean).map(parseTraceLine);
+    frameSlider.max = String(frames.length - 1);
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function quaternionToMatrix(q) {
+      const [x, y, z, w] = q;
+      const xx = x * x;
+      const yy = y * y;
+      const zz = z * z;
+      const xy = x * y;
+      const xz = x * z;
+      const yz = y * z;
+      const wx = w * x;
+      const wy = w * y;
+      const wz = w * z;
+      return [
+        [1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy)],
+        [2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx)],
+        [2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy)]
+      ];
+    }
+
+    function quaternionToRollDegrees(q) {
+      const [x, y, z, w] = q;
+      const sinrCosp = 2 * (w * x + y * z);
+      const cosrCosp = 1 - 2 * (x * x + y * y);
+      return Math.atan2(sinrCosp, cosrCosp) * 180 / Math.PI;
+    }
+
+    function multiplyMatrixVector(matrix, vector) {
+      return [
+        matrix[0][0] * vector[0] + matrix[0][1] * vector[1] + matrix[0][2] * vector[2],
+        matrix[1][0] * vector[0] + matrix[1][1] * vector[1] + matrix[1][2] * vector[2],
+        matrix[2][0] * vector[0] + matrix[2][1] * vector[1] + matrix[2][2] * vector[2]
+      ];
+    }
+
+    function rotateWorld(point) {
+      const yaw = state.cameraYaw;
+      const pitch = state.cameraPitch;
+      const cy = Math.cos(yaw);
+      const sy = Math.sin(yaw);
+      const cp = Math.cos(pitch);
+      const sp = Math.sin(pitch);
+
+      const x1 = point[0] * cy - point[2] * sy;
+      const z1 = point[0] * sy + point[2] * cy;
+      const y2 = point[1] * cp - z1 * sp;
+      const z2 = point[1] * sp + z1 * cp;
+      return [x1, y2, z2];
+    }
+
+    function project(point) {
+      const rotated = rotateWorld(point);
+      const distance = 18;
+      const depth = distance - rotated[2];
+      const perspective = 520 / depth;
+      return {
+        x: canvas.width * 0.48 + rotated[0] * perspective,
+        y: canvas.height * 0.78 - rotated[1] * perspective,
+        depth: rotated[2],
+        scale: perspective
+      };
+    }
+
+    function shade(hex, amount) {
+      const value = hex.replace("#", "");
+      const r = parseInt(value.slice(0, 2), 16);
+      const g = parseInt(value.slice(2, 4), 16);
+      const b = parseInt(value.slice(4, 6), 16);
+      const mix = (channel) => Math.max(0, Math.min(255, Math.round(channel + amount * 255)));
+      return `rgb(${mix(r)} ${mix(g)} ${mix(b)})`;
+    }
+
+    function sampleFrame(frameValue) {
+      if (frames.length === 0) {
+        return [];
+      }
+
+      const safeFrameValue = Math.max(0, Math.min(frames.length - 1, Number.isFinite(frameValue) ? frameValue : 0));
+      const lowerIndex = Math.floor(safeFrameValue);
+      const upperIndex = Math.min(frames.length - 1, lowerIndex + 1);
+      const blend = safeFrameValue - lowerIndex;
+      const lower = frames[lowerIndex];
+      const upper = frames[upperIndex];
+
+      return lower.cubes.map((cube, index) => ({
+        position: cube.position.map((value, axis) => lerp(value, upper.cubes[index].position[axis], blend)),
+        orientation: cube.orientation.map((value, axis) => lerp(value, upper.cubes[index].orientation[axis], blend))
+      }));
+    }
+
+    function cubeFaces(position, orientation, size, color, label) {
+      const sizeX = size[0];
+      const sizeY = size[1];
+      const sizeZ = size[2];
+      const halfX = sizeX / 2;
+      const halfY = sizeY / 2;
+      const halfZ = sizeZ / 2;
+      const matrix = quaternionToMatrix(orientation);
+      const localVertices = [
+        [-halfX, -halfY, -halfZ],
+        [ halfX, -halfY, -halfZ],
+        [ halfX,  halfY, -halfZ],
+        [-halfX,  halfY, -halfZ],
+        [-halfX, -halfY,  halfZ],
+        [ halfX, -halfY,  halfZ],
+        [ halfX,  halfY,  halfZ],
+        [-halfX,  halfY,  halfZ]
+      ];
+
+      const worldVertices = localVertices.map((vertex) => {
+        const rotated = multiplyMatrixVector(matrix, vertex);
+        return [rotated[0] + position[0], rotated[1] + position[1], rotated[2] + position[2]];
+      });
+
+      const faces = [
+        { indices: [4, 5, 6, 7], color: shade(color, 0.18) },
+        { indices: [0, 1, 2, 3], color: shade(color, -0.16) },
+        { indices: [0, 4, 7, 3], color: shade(color, -0.03) },
+        { indices: [1, 5, 6, 2], color: shade(color, -0.08) },
+        { indices: [3, 2, 6, 7], color: shade(color, 0.1) },
+        { indices: [0, 1, 5, 4], color: shade(color, -0.22) }
+      ];
+
+      return faces.map((face) => {
+        const points = face.indices.map((index) => project(worldVertices[index]));
+        const depth = points.reduce((sum, point) => sum + point.depth, 0) / points.length;
+        return { points, depth, color: face.color, label };
+      });
+    }
+
+    function drawPolygon(points, color, stroke) {
+      context.beginPath();
+      context.moveTo(points[0].x, points[0].y);
+      for (let index = 1; index < points.length; index++) {
+        context.lineTo(points[index].x, points[index].y);
+      }
+      context.closePath();
+      context.fillStyle = color;
+      context.fill();
+      context.strokeStyle = stroke;
+      context.lineWidth = 1.2;
+      context.stroke();
+    }
+
+    function drawScene(cubes) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+
+      const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, "rgba(255,255,255,0.35)");
+      gradient.addColorStop(1, "rgba(0,0,0,0)");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      const allFaces = [];
+      allFaces.push(...cubeFaces([0, -0.5, 0], [0, 0, 0, 1], [15, 1, 15], getComputedStyle(document.documentElement).getPropertyValue("--ground").trim(), "Ground"));
+      cubes.forEach((cube, index) => {
+        allFaces.push(...cubeFaces(cube.position, cube.orientation, [1, 1, 1], colors[index], labels[index]));
+      });
+
+      allFaces.sort((a, b) => a.depth - b.depth);
+      allFaces.forEach((face) => drawPolygon(face.points, face.color, "rgba(0,0,0,0.18)"));
+
+      context.font = "16px Georgia";
+      context.textBaseline = "bottom";
+      cubes.forEach((cube, index) => {
+        const anchor = project([cube.position[0] + 0.72, cube.position[1] + 0.78, cube.position[2]]);
+        context.fillStyle = "rgba(255,255,255,0.92)";
+        const text = labels[index];
+        const width = context.measureText(text).width + 12;
+        context.fillRect(anchor.x - 6, anchor.y - 20, width, 24);
+        context.strokeStyle = "rgba(31,27,23,0.12)";
+        context.strokeRect(anchor.x - 6, anchor.y - 20, width, 24);
+        context.fillStyle = colors[index];
+        context.fillText(text, anchor.x, anchor.y - 4);
+      });
+    }
+
+    function render() {
+      const cubes = sampleFrame(state.frameValue);
+      drawScene(cubes);
+
+      const secondCube = cubes[1];
+      frameLabel.textContent = `${state.frameValue.toFixed(2)} / ${frames.length - 1}`;
+      secondBoxLabel.textContent =
+        `x=${secondCube.position[0].toFixed(6)}, y=${secondCube.position[1].toFixed(6)}, z=${secondCube.position[2].toFixed(6)}, roll=${quaternionToRollDegrees(secondCube.orientation).toFixed(2)}°`;
+      frameSlider.value = state.frameValue.toFixed(3);
+    }
+
+    function tick(now) {
+      const deltaSeconds = (now - state.lastTime) / 1000;
+      state.lastTime = now;
+      if (state.playing) {
+        state.frameValue += deltaSeconds * 24;
+        if (state.frameValue > frames.length - 1) {
+          state.frameValue = 0;
+        }
+      }
+      render();
+      requestAnimationFrame(tick);
+    }
+
+    toggleButton.addEventListener("click", () => {
+      state.playing = !state.playing;
+      toggleButton.textContent = state.playing ? "Pause" : "Play";
+    });
+
+    restartButton.addEventListener("click", () => {
+      state.frameValue = 0;
+      state.lastTime = performance.now();
+      render();
+    });
+
+    resetCameraButton.addEventListener("click", () => {
+      state.cameraYaw = -0.32;
+      state.cameraPitch = 0.62;
+      render();
+    });
+
+    frameSlider.addEventListener("input", (event) => {
+      state.frameValue = Number(event.target.value);
+      render();
+    });
+
+    canvas.addEventListener("pointerdown", (event) => {
+      state.dragActive = true;
+      state.dragStartX = event.clientX;
+      state.dragStartY = event.clientY;
+      state.dragYaw = state.cameraYaw;
+      state.dragPitch = state.cameraPitch;
+      canvas.style.cursor = "grabbing";
+      canvas.setPointerCapture(event.pointerId);
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      if (!state.dragActive) {
+        return;
+      }
+
+      const deltaX = event.clientX - state.dragStartX;
+      const deltaY = event.clientY - state.dragStartY;
+      state.cameraYaw = state.dragYaw - deltaX * 0.008;
+      state.cameraPitch = Math.max(0.28, Math.min(1.15, state.dragPitch - deltaY * 0.008));
+      render();
+    });
+
+    function stopDragging(event) {
+      if (!state.dragActive) {
+        return;
+      }
+
+      state.dragActive = false;
+      canvas.style.cursor = "default";
+      if (event) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    canvas.addEventListener("pointerup", stopDragging);
+    canvas.addEventListener("pointercancel", stopDragging);
+    canvas.addEventListener("pointerleave", stopDragging);
+
+    window.__managedReplay = { frames };
+    render();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

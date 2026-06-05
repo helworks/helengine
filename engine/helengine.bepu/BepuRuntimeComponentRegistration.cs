@@ -13,9 +13,19 @@ namespace helengine {
         /// </summary>
         /// <param name="core">Initialized core that owns the runtime scene loader.</param>
         public static void Register(Core core) {
-            if (core == null) {
-                throw new ArgumentNullException(nameof(core));
-            }
+            ValidateCore(core);
+            RegisterRuntimeComponentDeserializers(core);
+            BepuPhysicsWorld3D world = CreateRuntimeWorld();
+            AttachRuntimeWorld(core, world);
+            RegisterSceneBinding(core);
+        }
+
+        /// <summary>
+        /// Registers every packaged-scene component deserializer required by the BEPU-backed runtime.
+        /// </summary>
+        /// <param name="core">Initialized core that owns the runtime component registry.</param>
+        public static void RegisterRuntimeComponentDeserializers(Core core) {
+            ValidateCore(core);
 
             core.RegisterRuntimeComponentDeserializer(new RuntimeRigidBody3DComponentDeserializer());
             core.RegisterRuntimeComponentDeserializer(new RuntimeBoxCollider3DComponentDeserializer());
@@ -24,12 +34,58 @@ namespace helengine {
             core.RegisterRuntimeComponentDeserializer(new RuntimeStaticMeshCollider3DComponentDeserializer());
             core.RegisterRuntimeComponentDeserializer(new RuntimeKinematicMotion3DComponentDeserializer());
             core.RegisterRuntimeComponentDeserializer(new RuntimeCharacterController3DComponentDeserializer());
+        }
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+        /// <summary>
+        /// Creates one default BEPU-backed physics world for attachment to a runtime core.
+        /// </summary>
+        /// <returns>Constructed BEPU-backed physics world.</returns>
+        public static BepuPhysicsWorld3D CreateRuntimeWorld() {
+            return BepuPhysicsWorld3D.CreateDefault();
+        }
+
+        /// <summary>
+        /// Attaches one created BEPU-backed physics world to the runtime core and stores it for scene-load rebinding.
+        /// </summary>
+        /// <param name="core">Initialized core that will own the physics runtime.</param>
+        /// <param name="world">Constructed BEPU-backed physics world.</param>
+        public static void AttachRuntimeWorld(Core core, BepuPhysicsWorld3D world) {
+            ValidateCore(core);
+            ValidateWorld(world);
+
             RuntimeWorld = world;
             core.AttachPhysicsRuntime(world);
+        }
+
+        /// <summary>
+        /// Hooks the runtime scene manager so newly loaded scenes bind into the attached BEPU-backed physics world.
+        /// </summary>
+        /// <param name="core">Initialized core that owns the runtime scene manager.</param>
+        public static void RegisterSceneBinding(Core core) {
+            ValidateCore(core);
+
             if (core.SceneManager != null) {
                 core.SceneManager.SceneLoaded += BindLoadedScene;
+            }
+        }
+
+        /// <summary>
+        /// Validates that one core instance is available before registration proceeds.
+        /// </summary>
+        /// <param name="core">Core instance under validation.</param>
+        static void ValidateCore(Core core) {
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+        }
+
+        /// <summary>
+        /// Validates that one BEPU-backed world is available before runtime attachment proceeds.
+        /// </summary>
+        /// <param name="world">World instance under validation.</param>
+        static void ValidateWorld(BepuPhysicsWorld3D world) {
+            if (world == null) {
+                throw new ArgumentNullException(nameof(world));
             }
         }
 
