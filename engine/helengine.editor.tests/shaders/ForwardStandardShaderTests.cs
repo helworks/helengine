@@ -1,4 +1,5 @@
 using helengine.editor;
+using helengine.editor.tests;
 using Xunit;
 
 namespace helengine.editor.tests.shaders {
@@ -57,6 +58,7 @@ namespace helengine.editor.tests.shaders {
         /// </summary>
         /// <param name="target">Shader backend that should receive the compiled built-in shader.</param>
         static void AssertShaderAssetLayout(ShaderCompileTarget target) {
+            DesktopShaderBackendRegistryFactory.ConfigureEditorBuiltInShaderBackends();
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, "ForwardStandardShader.hlsl");
 
             Assert.Equal("ForwardStandardShader", shaderAsset.Id);

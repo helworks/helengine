@@ -1,6 +1,3 @@
-using helengine.directx11;
-using helengine.vulkan;
-
 namespace helengine.render.validation {
     /// <summary>
     /// Builds runtime shader and material assets used by render validation scenarios.
@@ -145,10 +142,12 @@ namespace helengine.render.validation {
         /// Creates a shader asset for the selected render backend.
         /// </summary>
         /// <param name="backend">Backend requiring compiled shader binaries.</param>
+        /// <param name="shaderBackendRegistry">Registry populated by validation bootstrap code with the required shader backend.</param>
         /// <returns>Compiled shader asset.</returns>
-        public static ShaderAsset BuildShaderAsset(RenderBackend backend) {
+        public static ShaderAsset BuildShaderAsset(RenderBackend backend, ShaderBackendRegistry shaderBackendRegistry) {
             return BuildShaderAssetInternal(
                 backend,
+                shaderBackendRegistry,
                 ShaderAssetId,
                 VertexProgramName,
                 PixelProgramName,
@@ -160,10 +159,12 @@ namespace helengine.render.validation {
         /// Creates a transform gizmo shader asset for the selected render backend.
         /// </summary>
         /// <param name="backend">Backend requiring compiled shader binaries.</param>
+        /// <param name="shaderBackendRegistry">Registry populated by validation bootstrap code with the required shader backend.</param>
         /// <returns>Compiled transform gizmo shader asset.</returns>
-        public static ShaderAsset BuildTransformGizmoShaderAsset(RenderBackend backend) {
+        public static ShaderAsset BuildTransformGizmoShaderAsset(RenderBackend backend, ShaderBackendRegistry shaderBackendRegistry) {
             return BuildShaderAssetInternal(
                 backend,
+                shaderBackendRegistry,
                 TransformGizmoShaderAssetId,
                 TransformGizmoVertexProgramName,
                 TransformGizmoPixelProgramName,
@@ -199,6 +200,7 @@ namespace helengine.render.validation {
         /// Creates a shader asset from the supplied source and program names.
         /// </summary>
         /// <param name="backend">Backend requiring compiled shader binaries.</param>
+        /// <param name="shaderBackendRegistry">Registry populated by validation bootstrap code with the required shader backend.</param>
         /// <param name="shaderAssetId">Shader asset identifier.</param>
         /// <param name="vertexProgramName">Vertex program name.</param>
         /// <param name="pixelProgramName">Pixel program name.</param>
@@ -207,6 +209,7 @@ namespace helengine.render.validation {
         /// <returns>Compiled shader asset.</returns>
         static ShaderAsset BuildShaderAssetInternal(
             RenderBackend backend,
+            ShaderBackendRegistry shaderBackendRegistry,
             string shaderAssetId,
             string vertexProgramName,
             string pixelProgramName,
@@ -233,7 +236,7 @@ namespace helengine.render.validation {
             }
 
             ShaderCompileTarget target = ResolveTarget(backend);
-            ShaderCompileService compileService = CreateCompileService(target);
+            ShaderCompileService compileService = CreateCompileService(target, shaderBackendRegistry);
             ShaderCompileOptions compileOptions = CreateCompileOptions();
             ShaderSourceInfo sourceInfo = new ShaderSourceInfo(sourcePath, shaderSource);
             ShaderDefine[] defines = Array.Empty<ShaderDefine>();
@@ -361,25 +364,24 @@ namespace helengine.render.validation {
         /// Creates a compile service and registers the backend matching the target.
         /// </summary>
         /// <param name="target">Target backend to register.</param>
+        /// <param name="shaderBackendRegistry">Registry populated by validation bootstrap code with the required shader backend.</param>
         /// <returns>Configured compile service.</returns>
-        static ShaderCompileService CreateCompileService(ShaderCompileTarget target) {
+        static ShaderCompileService CreateCompileService(
+            ShaderCompileTarget target,
+            ShaderBackendRegistry shaderBackendRegistry) {
+            if (shaderBackendRegistry == null) {
+                throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            }
+
+            if (!shaderBackendRegistry.ContainsTarget(target)) {
+                throw new InvalidOperationException("No shader backend was registered for the requested validation target.");
+            }
+
             string includeRoot = Environment.CurrentDirectory;
             var includeResolver = new ShaderFilesystemIncludeResolver(includeRoot);
             var cache = new ShaderMemoryCompileCache();
             var hasher = new ShaderSourceHasher();
-            var service = new ShaderCompileService(includeResolver, cache, hasher);
-
-            if (target == ShaderCompileTarget.DirectX11) {
-                service.RegisterBackend(new DirectX11ShaderBackend());
-                return service;
-            }
-
-            if (target == ShaderCompileTarget.Vulkan) {
-                service.RegisterBackend(new VulkanShaderBackend());
-                return service;
-            }
-
-            throw new InvalidOperationException("Unsupported shader compile target.");
+            return shaderBackendRegistry.CreateCompileService(includeResolver, cache, hasher);
         }
 
         /// <summary>

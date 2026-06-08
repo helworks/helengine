@@ -1,5 +1,6 @@
 using helengine.editor;
 using helengine.directx11;
+using helengine.editor.tests;
 using Xunit;
 
 namespace helengine.editor.tests.rendering {
@@ -12,6 +13,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenUsingBuiltInStandardShader_CompilesForDirectX11() {
+            DesktopShaderBackendRegistryFactory.ConfigureEditorBuiltInShaderBackends();
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl");
 
             Assert.NotNull(shaderAsset);
@@ -25,6 +27,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenUsingBuiltInShadowDepthShader_CompilesForDirectX11() {
+            DesktopShaderBackendRegistryFactory.ConfigureEditorBuiltInShaderBackends();
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "EditorShadowDepth.hlsl");
 
             Assert.NotNull(shaderAsset);
@@ -38,6 +41,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenUsingBuiltInPointShadowDepthShader_CompilesForDirectX11() {
+            DesktopShaderBackendRegistryFactory.ConfigureEditorBuiltInShaderBackends();
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "EditorPointShadowDepth.hlsl");
 
             Assert.NotNull(shaderAsset);
@@ -51,6 +55,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void BuildMaterialFromRaw_WhenUsingBuiltInStandardShaderMeshVariant_CompilesForDirectX11() {
+            DesktopShaderBackendRegistryFactory.ConfigureEditorBuiltInShaderBackends();
             using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl");
             ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {

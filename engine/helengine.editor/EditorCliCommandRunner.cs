@@ -42,6 +42,8 @@ namespace helengine.editor {
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             EditorProjectPaths.Initialize(bootstrap.ProjectRootPath);
+            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry();
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
             ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(
@@ -56,6 +58,7 @@ namespace helengine.editor {
                 Path.Combine(bootstrap.ProjectRootPath, "cache", "shader-cache"),
                 shaderPackageBuildOptions,
                 runtimeTarget,
+                shaderBackendRegistry,
                 250));
             EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget, core.ContentManager);
             shaderModuleManager.Start();
@@ -83,6 +86,16 @@ namespace helengine.editor {
             } catch (Exception exception) {
                 return EditorBuildExecutionResult.Failure($"Editor command '{options.CommandId}' failed: {exception}");
             }
+        }
+
+        /// <summary>
+        /// Creates the shader backend registry required by the headless editor command runner.
+        /// </summary>
+        /// <returns>Registry populated with the desktop shader backends supported by the command runner.</returns>
+        static ShaderBackendRegistry CreateShaderBackendRegistry() {
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            return shaderBackendRegistry;
         }
     }
 }

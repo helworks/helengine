@@ -311,6 +311,7 @@ namespace helengine.editor.tests.serialization.scene {
                 packageOutputPath,
                 buildOptions,
                 ShaderCompileTarget.DirectX11,
+                DesktopShaderBackendRegistryFactory.Create(),
                 100);
             return new ShaderModuleManager(options);
         }

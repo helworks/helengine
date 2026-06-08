@@ -916,12 +916,7 @@ namespace helengine.editor {
             ShaderFilesystemIncludeResolver includeResolver = new ShaderFilesystemIncludeResolver(options.ShaderRootPath);
             ShaderMemoryCompileCache cache = new ShaderMemoryCompileCache();
             ShaderSourceHasher hasher = new ShaderSourceHasher();
-            ShaderCompileService service = new ShaderCompileService(includeResolver, cache, hasher);
-            service.RegisterBackend(new helengine.directx11.DirectX11ShaderBackend());
-            if (options.BuildOptions.HasTarget(ShaderCompileTarget.Vulkan)) {
-                service.RegisterBackend(new helengine.vulkan.VulkanShaderBackend());
-            }
-            return service;
+            return options.ShaderBackendRegistry.CreateCompileService(includeResolver, cache, hasher);
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
 using helengine.editor;
+using helengine.editor.tests;
 using Xunit;
 
 namespace helengine.editor.tests.shaders {
@@ -14,6 +15,7 @@ namespace helengine.editor.tests.shaders {
         [InlineData(ShaderCompileTarget.DirectX11)]
         [InlineData(ShaderCompileTarget.Vulkan)]
         public void LoadShaderAsset_whenForwardSolidColorShaderIsRequested_compilesForDesktopTargets(ShaderCompileTarget target) {
+            DesktopShaderBackendRegistryFactory.ConfigureEditorBuiltInShaderBackends();
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, "ForwardSolidColorShader.hlsl");
 
             Assert.Equal("ForwardSolidColorShader", shaderAsset.Id);

@@ -139,12 +139,14 @@ namespace helengine.render.validation {
             Core core = null;
             RenderValidationWindow window = null;
             bool selectionSet = false;
+            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(backend);
 
             try {
                 window = new RenderValidationWindow(Options.FrameWidth, Options.FrameHeight, backend);
                 window.Show();
                 window.BringToFront();
                 Application.DoEvents();
+                EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
 
                 CreateRenderManagers(backend, out renderer3D, out renderer2D);
 
@@ -153,7 +155,7 @@ namespace helengine.render.validation {
                 core.Initialize(renderer3D, renderer2D, inputManager, new CoreInitializationOptions());
                 renderer3D.AddWindow(window.Handle, Options.FrameWidth, Options.FrameHeight);
 
-                CameraComponent validationSceneCamera = CreateScene(renderer3D, renderer2D, Options.FrameWidth, Options.FrameHeight, backend);
+                CameraComponent validationSceneCamera = CreateScene(renderer3D, renderer2D, Options.FrameWidth, Options.FrameHeight, backend, shaderBackendRegistry);
                 RenderFrames(core, Options.FrameCount);
 
                 RenderImageCapture.CaptureClientArea(window, outputPath);
@@ -170,7 +172,7 @@ namespace helengine.render.validation {
 
                 validationSceneCamera.Parent.Enabled = false;
 
-                CameraComponent gizmoCamera = CreateGizmoValidationScene(renderer3D, backend, Options.FrameWidth, Options.FrameHeight);
+                CameraComponent gizmoCamera = CreateGizmoValidationScene(renderer3D, backend, Options.FrameWidth, Options.FrameHeight, shaderBackendRegistry);
                 selectionSet = true;
                 bool gizmoScalePass;
                 string gizmoScaleMessage;
@@ -239,8 +241,15 @@ namespace helengine.render.validation {
         /// <param name="width">Viewport width in pixels.</param>
         /// <param name="height">Viewport height in pixels.</param>
         /// <param name="backend">Backend used for shader compilation target selection.</param>
+        /// <param name="shaderBackendRegistry">Registry populated by validation bootstrap code with the required shader backend.</param>
         /// <returns>Camera used to render the baseline validation scene.</returns>
-        CameraComponent CreateScene(RenderManager3D renderer3D, RenderManager2D renderer2D, int width, int height, RenderBackend backend) {
+        CameraComponent CreateScene(
+            RenderManager3D renderer3D,
+            RenderManager2D renderer2D,
+            int width,
+            int height,
+            RenderBackend backend,
+            ShaderBackendRegistry shaderBackendRegistry) {
             if (renderer3D == null) {
                 throw new ArgumentNullException(nameof(renderer3D));
             }
@@ -284,7 +293,7 @@ namespace helengine.render.validation {
             ModelAsset cubeModelAsset = ModelUtils.GenerateCubeMesh(float3.Zero, new float3(1.25f, 1.25f, 1.25f));
             mesh.Model = renderer3D.BuildModelFromRaw(cubeModelAsset);
 
-            ShaderAsset shaderAsset = RenderShaderFactory.BuildShaderAsset(backend);
+            ShaderAsset shaderAsset = RenderShaderFactory.BuildShaderAsset(backend, shaderBackendRegistry);
             MaterialAsset materialAsset = RenderShaderFactory.BuildMaterialAsset();
             mesh.Material = renderer3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
 
@@ -299,8 +308,14 @@ namespace helengine.render.validation {
         /// <param name="backend">Backend used for shader compilation target selection.</param>
         /// <param name="width">Viewport width in pixels.</param>
         /// <param name="height">Viewport height in pixels.</param>
+        /// <param name="shaderBackendRegistry">Registry populated by validation bootstrap code with the required shader backend.</param>
         /// <returns>Camera component used to render transform gizmo captures.</returns>
-        CameraComponent CreateGizmoValidationScene(RenderManager3D renderer3D, RenderBackend backend, int width, int height) {
+        CameraComponent CreateGizmoValidationScene(
+            RenderManager3D renderer3D,
+            RenderBackend backend,
+            int width,
+            int height,
+            ShaderBackendRegistry shaderBackendRegistry) {
             if (renderer3D == null) {
                 throw new ArgumentNullException(nameof(renderer3D));
             }
@@ -338,7 +353,7 @@ namespace helengine.render.validation {
             };
             gizmoCameraEntity.AddComponent(gizmoCamera);
 
-            RuntimeMaterial gizmoMaterial = BuildTransformGizmoMaterial(renderer3D, backend);
+            RuntimeMaterial gizmoMaterial = BuildTransformGizmoMaterial(renderer3D, backend, shaderBackendRegistry);
             TransformTranslationGizmoFactory.Create(renderer3D, gizmoCamera, gizmoMaterial);
             return gizmoCamera;
         }
@@ -348,15 +363,39 @@ namespace helengine.render.validation {
         /// </summary>
         /// <param name="renderer3D">Renderer that owns runtime material resources.</param>
         /// <param name="backend">Backend used for shader compilation target selection.</param>
+        /// <param name="shaderBackendRegistry">Registry populated by validation bootstrap code with the required shader backend.</param>
         /// <returns>Runtime gizmo material instance.</returns>
-        RuntimeMaterial BuildTransformGizmoMaterial(RenderManager3D renderer3D, RenderBackend backend) {
+        RuntimeMaterial BuildTransformGizmoMaterial(
+            RenderManager3D renderer3D,
+            RenderBackend backend,
+            ShaderBackendRegistry shaderBackendRegistry) {
             if (renderer3D == null) {
                 throw new ArgumentNullException(nameof(renderer3D));
             }
 
-            ShaderAsset shaderAsset = RenderShaderFactory.BuildTransformGizmoShaderAsset(backend);
+            ShaderAsset shaderAsset = RenderShaderFactory.BuildTransformGizmoShaderAsset(backend, shaderBackendRegistry);
             MaterialAsset materialAsset = RenderShaderFactory.BuildTransformGizmoMaterialAsset();
             return renderer3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Creates the explicit shader backend registry used by one validation backend run.
+        /// </summary>
+        /// <param name="backend">Validation backend that determines which shader compiler backend must be registered.</param>
+        /// <returns>Registry populated with the shader backend required by the validation run.</returns>
+        ShaderBackendRegistry CreateShaderBackendRegistry(RenderBackend backend) {
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            if (backend == RenderBackend.DirectX11) {
+                shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+                return shaderBackendRegistry;
+            }
+
+            if (backend == RenderBackend.Vulkan) {
+                shaderBackendRegistry.Register(new VulkanShaderBackend());
+                return shaderBackendRegistry;
+            }
+
+            throw new InvalidOperationException("Unsupported backend.");
         }
 
         /// <summary>
