@@ -26,6 +26,11 @@ namespace helengine {
         /// <summary>
         /// Metal shader library target.
         /// </summary>
-        Metal
+        Metal,
+
+        /// <summary>
+        /// PlayStation Vita shader target.
+        /// </summary>
+        PsVita
     }
 }

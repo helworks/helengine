@@ -61,6 +61,8 @@ namespace helengine {
                     return "HEL_API_VULKAN";
                 case ShaderCompileTarget.Metal:
                     return "HEL_API_METAL";
+                case ShaderCompileTarget.PsVita:
+                    return "HELENGINE_PLATFORM_PSVITA";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(target), "Unsupported compile target.");
             }

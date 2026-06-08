@@ -20,6 +20,8 @@ namespace helengine {
                     return "vulkan";
                 case ShaderCompileTarget.Metal:
                     return "metal";
+                case ShaderCompileTarget.PsVita:
+                    return "psvita";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(target), "Unsupported compile target.");
             }
@@ -52,6 +54,9 @@ namespace helengine {
                     return true;
                 case "metal":
                     target = ShaderCompileTarget.Metal;
+                    return true;
+                case "psvita":
+                    target = ShaderCompileTarget.PsVita;
                     return true;
                 default:
                     target = ShaderCompileTarget.DirectX11;
