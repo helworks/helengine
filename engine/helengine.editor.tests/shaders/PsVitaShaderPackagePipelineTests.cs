@@ -1,4 +1,12 @@
 using helengine.editor;
+using helengine.baseplatform.Builders;
+using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Descriptors;
+using helengine.baseplatform.Manifest;
+using helengine.baseplatform.Reporting;
+using helengine.baseplatform.Requests;
+using helengine.baseplatform.Results;
+using helengine.platforms;
 using Xunit;
 
 namespace helengine.editor.tests.shaders {
@@ -53,6 +61,122 @@ namespace helengine.editor.tests.shaders {
             Assert.Contains("ShaderBackendRegistry", builtInLibrarySource, StringComparison.Ordinal);
             Assert.Contains("IShaderCompileTargetProvider", builtInLibrarySource, StringComparison.Ordinal);
             Assert.Contains("IShaderCompileTargetProvider", editorSessionSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures dynamically loaded platform builders can contribute shader backends into the shared registry without a compile-time editor dependency on PS Vita assemblies.
+        /// </summary>
+        [Fact]
+        public void RegisterShaderBackends_whenLoadedPlatformBuilderImplementsShaderBackendContributor_registersContributedTarget() {
+            AvailablePlatformDescriptor descriptor = new AvailablePlatformDescriptor("psvita", "PS Vita");
+            EditorLoadedPlatformBuilder loadedBuilder = new EditorLoadedPlatformBuilder(descriptor, new TestShaderBackendContributorBuilder());
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+
+            loadedBuilder.RegisterShaderBackends(shaderBackendRegistry);
+
+            Assert.True(shaderBackendRegistry.ContainsTarget(ShaderCompileTarget.PsVita));
+        }
+
+        /// <summary>
+        /// Supplies one fake loaded platform builder that contributes a PS Vita shader backend through the shared contributor contract.
+        /// </summary>
+        sealed class TestShaderBackendContributorBuilder : IPlatformAssetBuilder, IShaderBackendRegistryContributor {
+            /// <summary>
+            /// Gets the fake builder descriptor required by the loaded-builder wrapper.
+            /// </summary>
+            public PlatformBuilderDescriptor Descriptor { get; } = new PlatformBuilderDescriptor(
+                "test.psvita.builder",
+                "1.0.0",
+                "psvita",
+                new EngineCompatibilityRange("1.0.0", "1.0.0"),
+                new ManifestCompatibilityRange(1, 1),
+                ["psvita"],
+                ["debug"]);
+
+            /// <summary>
+            /// Gets the minimal platform definition required by the loaded-builder wrapper.
+            /// </summary>
+            public PlatformDefinition Definition { get; } = new PlatformDefinition(
+                "psvita",
+                "PS Vita",
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                new RuntimeGenerationContract(
+                    RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                    true,
+                    PackagedPathPolicy.ContentRelativeOnly));
+
+            /// <summary>
+            /// This fake builder does not participate in material cooking during this registry test.
+            /// </summary>
+            /// <param name="request">Unused material cook request.</param>
+            /// <returns>Never returns because the test should not call this path.</returns>
+            public PlatformMaterialCookResult CookMaterial(PlatformMaterialCookRequest request) {
+                throw new NotSupportedException();
+            }
+
+            /// <summary>
+            /// This fake builder does not participate in build execution during this registry test.
+            /// </summary>
+            /// <param name="request">Unused build request.</param>
+            /// <param name="progressReporter">Unused progress reporter.</param>
+            /// <param name="diagnosticReporter">Unused diagnostic reporter.</param>
+            /// <param name="cancellationToken">Unused cancellation token.</param>
+            /// <returns>Never returns because the test should not call this path.</returns>
+            public Task<PlatformBuildReport> BuildAsync(
+                PlatformBuildRequest request,
+                IPlatformBuildProgressReporter progressReporter,
+                IPlatformBuildDiagnosticReporter diagnosticReporter,
+                CancellationToken cancellationToken) {
+                throw new NotSupportedException();
+            }
+
+            /// <summary>
+            /// Registers one fake PS Vita backend into the supplied registry.
+            /// </summary>
+            /// <param name="shaderBackendRegistry">Registry that should receive the fake PS Vita backend.</param>
+            public void RegisterShaderBackends(ShaderBackendRegistry shaderBackendRegistry) {
+                if (shaderBackendRegistry == null) {
+                    throw new ArgumentNullException(nameof(shaderBackendRegistry));
+                }
+
+                shaderBackendRegistry.Register(new TestPsVitaShaderBackend());
+            }
+        }
+
+        /// <summary>
+        /// Supplies one fake PS Vita shader backend for the dynamic builder contribution test.
+        /// </summary>
+        sealed class TestPsVitaShaderBackend : IShaderBackend {
+            /// <summary>
+            /// Gets the target associated with the fake backend.
+            /// </summary>
+            public ShaderCompileTarget Target => ShaderCompileTarget.PsVita;
+
+            /// <summary>
+            /// Gets the fake capability set exposed by the backend.
+            /// </summary>
+            public ShaderBackendCapabilities Capabilities { get; } = new ShaderBackendCapabilities(
+                new ShaderModel(4, 0),
+                new ShaderModel(4, 0),
+                [ShaderStage.Vertex, ShaderStage.Pixel],
+                false);
+
+            /// <summary>
+            /// This fake backend is never asked to compile during the registry contribution test.
+            /// </summary>
+            /// <param name="request">Unused compile request.</param>
+            /// <param name="includeResolver">Unused include resolver.</param>
+            /// <returns>Never returns because the test should not call this path.</returns>
+            public ShaderCompileResult Compile(ShaderCompileRequest request, IShaderIncludeResolver includeResolver) {
+                throw new NotSupportedException();
+            }
         }
     }
 }

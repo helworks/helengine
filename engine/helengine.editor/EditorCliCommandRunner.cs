@@ -42,7 +42,7 @@ namespace helengine.editor {
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             EditorProjectPaths.Initialize(bootstrap.ProjectRootPath);
-            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry();
+            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
             EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
@@ -91,10 +91,16 @@ namespace helengine.editor {
         /// <summary>
         /// Creates the shader backend registry required by the headless editor command runner.
         /// </summary>
+        /// <param name="platformCatalogService">Dynamic platform catalog that can contribute additional shader backends from loaded platform builders.</param>
         /// <returns>Registry populated with the desktop shader backends supported by the command runner.</returns>
-        static ShaderBackendRegistry CreateShaderBackendRegistry() {
+        static ShaderBackendRegistry CreateShaderBackendRegistry(EditorPlatformCatalogService platformCatalogService) {
+            if (platformCatalogService == null) {
+                throw new ArgumentNullException(nameof(platformCatalogService));
+            }
+
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            platformCatalogService.RegisterShaderBackends(shaderBackendRegistry);
             return shaderBackendRegistry;
         }
     }
