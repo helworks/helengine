@@ -231,7 +231,8 @@ namespace helengine.editor {
                 throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
             }
 
-            if (string.Equals(shaderName, "ForwardStandardShader", StringComparison.Ordinal)) {
+            if (string.Equals(shaderName, "ForwardStandardShader", StringComparison.Ordinal)
+                || string.Equals(shaderName, "ForwardSolidColorShader", StringComparison.Ordinal)) {
                 return new[] {
                     DefaultVariantName,
                     MeshVariantName
