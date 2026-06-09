@@ -55,6 +55,25 @@
                           "playerSourceRootPath":  "../../helengine-gc",
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
                           "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+                      },
+                      {
+                          "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+                          "platformId":  "wii",
+                          "displayName":  "Nintendo Wii",
+                          "builderAssemblyPath":  "../../helengine-wii/builder/bin/Debug/net9.0-windows/helengine.wii.builder.dll",
+                          "playerSourceRootPath":  "../../helengine-wii",
+                          "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+                      },
+                      {
+                          "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+                          "platformId":  "switch",
+                          "displayName":  "Nintendo Switch",
+                          "builderAssemblyPath":  "C:\\dev\\helworks\\helengine-switch\\builder\\bin\\Debug\\net9.0\\helengine.switch.builder.dll",
+                          "playerSourceRootPath":  "../../helengine-switch",
+                          "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe",
+                          "pluginManifestPath":  "../../helengine-switch/platform-plugin.json"
                       }
                   ]
 }
