@@ -117,6 +117,7 @@ namespace helengine.editor.app {
         private void InitializeEditor() {
             EditorCore core = new EditorCore(null);
             string projectRootPath = ResolveProjectRootPath(projectPath);
+            EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(projectRootPath);
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
             uiScaleController = new EditorUiScaleController(new EditorPreferencesService(ResolveEditorPreferencesRootPath()));
             EditorPreferencesSettings initialEditorPreferences = uiScaleController.LoadPreferences();
@@ -165,6 +166,7 @@ namespace helengine.editor.app {
             EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons(contentManager, AppContext.BaseDirectory);
             RuntimeTexture titleBarIcon = EditorToolbarIconLoader.LoadTitleBarIcon(contentManager, AppContext.BaseDirectory);
             IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault();
+            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
             editorSession = new EditorSession(
                 core,
                 projectPath,
@@ -180,7 +182,8 @@ namespace helengine.editor.app {
                 toolbarIcons,
                 titleBarIcon,
                 importers,
-                FolderDialog.OpenFolderDialog);
+                FolderDialog.OpenFolderDialog,
+                shaderBackendRegistry);
 
             editorSession.TitleChanged += SetWindowTitle;
             editorSession.CloseRequested += HandleEditorSessionCloseRequested;
@@ -197,6 +200,22 @@ namespace helengine.editor.app {
             thread.Start();
 
             initialized = true;
+        }
+
+        /// <summary>
+        /// Creates the shader backend registry required by the WinForms editor host.
+        /// </summary>
+        /// <param name="platformCatalogService">Dynamic platform catalog that can contribute additional shader backends from loaded platform builders.</param>
+        /// <returns>Registry populated with the desktop shader backends supported by the editor app host.</returns>
+        static ShaderBackendRegistry CreateShaderBackendRegistry(EditorPlatformCatalogService platformCatalogService) {
+            if (platformCatalogService == null) {
+                throw new ArgumentNullException(nameof(platformCatalogService));
+            }
+
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            platformCatalogService.RegisterShaderBackends(shaderBackendRegistry);
+            return shaderBackendRegistry;
         }
 
         /// <summary>
