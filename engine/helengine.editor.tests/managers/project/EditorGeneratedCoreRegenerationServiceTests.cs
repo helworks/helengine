@@ -305,6 +305,27 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated-core regeneration forwards the selected AppContext base-directory mode through the generic <c>--set</c> option surface.
+    /// </summary>
+    [Fact]
+    public void Build_arguments_includes_app_context_base_directory_mode_setting() {
+        Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase) {
+            [PlatformCodegenSettingIds.AppContextBaseDirectoryMode] = "static-dot"
+        };
+
+        IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
+            @"C:\tmp\fixture.csproj",
+            @"C:\tmp\generated",
+            CreatePlatformDefinition("psvita", runtimeGenerationContract: null),
+            CreateDefaultCodegenProfile(),
+            values,
+            []);
+
+        Assert.Contains("--set", arguments);
+        Assert.Contains($"{PlatformCodegenSettingIds.AppContextBaseDirectoryMode}=static-dot", arguments);
+    }
+
+    /// <summary>
     /// Verifies portable input symbols and scene-derived stripping symbols merge into one ordered unique list.
     /// </summary>
     [Fact]

@@ -45,8 +45,8 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(compileService));
             }
 
-            foreach (var pair in Backends) {
-                compileService.RegisterBackend(pair.Value);
+            foreach (IShaderBackend backend in Backends.Values) {
+                compileService.RegisterBackend(backend);
             }
         }
 
