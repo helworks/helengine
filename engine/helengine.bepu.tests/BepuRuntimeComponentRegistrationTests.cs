@@ -17,5 +17,39 @@ namespace helengine.bepu.tests {
 
             Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
         }
+
+        /// <summary>
+        /// Ensures the Nintendo DS runtime registration path attaches a BEPU world configured with the reduced solve schedule required by constrained hardware.
+        /// </summary>
+        [Fact]
+        public void Register_WhenPlatformIsNintendoDs_AttachesReducedSolveScheduleWorld() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = AppContext.BaseDirectory
+            });
+            core.Initialize(null, null, null, new PlatformInfo("DS", "test-version"));
+
+            BepuRuntimeComponentRegistration.Register(core);
+
+            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+            Assert.Equal(2, world.SolveVelocityIterationCount);
+            Assert.Equal(1, world.SolveSubstepCount);
+        }
+
+        /// <summary>
+        /// Ensures non-DS runtimes keep the existing default BEPU solve schedule.
+        /// </summary>
+        [Fact]
+        public void Register_WhenPlatformIsNotNintendoDs_KeepsDefaultSolveSchedule() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = AppContext.BaseDirectory
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+
+            BepuRuntimeComponentRegistration.Register(core);
+
+            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+            Assert.Equal(4, world.SolveVelocityIterationCount);
+            Assert.Equal(1, world.SolveSubstepCount);
+        }
     }
 }

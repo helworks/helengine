@@ -14,6 +14,16 @@ namespace helengine {
         static readonly SpringSettings DefaultContactSpringSettings = new SpringSettings(30f, 1f);
 
         /// <summary>
+        /// Stores the default velocity-iteration count used by the standard runtime solve schedule.
+        /// </summary>
+        const int DefaultSolveVelocityIterationCount = 4;
+
+        /// <summary>
+        /// Stores the default substep count used by the standard runtime solve schedule.
+        /// </summary>
+        const int DefaultSolveSubstepCount = 1;
+
+        /// <summary>
         /// Stores the minimum block size used by the BEPU memory pool for the reduced Helengine runtime slice.
         /// </summary>
         const int DefaultBufferPoolBlockSize = 16384;
@@ -34,6 +44,16 @@ namespace helengine {
         readonly BepuBodyRegistry3D BodyRegistryValue;
 
         /// <summary>
+        /// Stores the configured BEPU velocity-iteration count used whenever the world recreates its simulation.
+        /// </summary>
+        readonly int SolveVelocityIterationCountValue;
+
+        /// <summary>
+        /// Stores the configured BEPU substep count used whenever the world recreates its simulation.
+        /// </summary>
+        readonly int SolveSubstepCountValue;
+
+        /// <summary>
         /// Active BEPU simulation owned by the world.
         /// </summary>
         Simulation SimulationValue;
@@ -52,6 +72,27 @@ namespace helengine {
         /// Initializes one BEPU-backed physics world.
         /// </summary>
         public BepuPhysicsWorld3D() {
+            SolveVelocityIterationCountValue = DefaultSolveVelocityIterationCount;
+            SolveSubstepCountValue = DefaultSolveSubstepCount;
+            BufferPoolValue = new BufferPool(DefaultBufferPoolBlockSize, DefaultBufferPoolResourceCount);
+            BodyRegistryValue = new BepuBodyRegistry3D();
+            ResetSimulation();
+        }
+
+        /// <summary>
+        /// Initializes one BEPU-backed physics world with an explicit solve schedule.
+        /// </summary>
+        /// <param name="solveVelocityIterationCount">Velocity-iteration count applied to each simulation step.</param>
+        /// <param name="solveSubstepCount">Substep count applied to each simulation step.</param>
+        public BepuPhysicsWorld3D(int solveVelocityIterationCount, int solveSubstepCount) {
+            if (solveVelocityIterationCount <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(solveVelocityIterationCount), "Velocity iteration count must be greater than zero.");
+            } else if (solveSubstepCount <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(solveSubstepCount), "Substep count must be greater than zero.");
+            }
+
+            SolveVelocityIterationCountValue = solveVelocityIterationCount;
+            SolveSubstepCountValue = solveSubstepCount;
             BufferPoolValue = new BufferPool(DefaultBufferPoolBlockSize, DefaultBufferPoolResourceCount);
             BodyRegistryValue = new BepuBodyRegistry3D();
             ResetSimulation();
@@ -66,9 +107,29 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Creates one BEPU-backed physics world with an explicit solve schedule.
+        /// </summary>
+        /// <param name="solveVelocityIterationCount">Velocity-iteration count applied to each simulation step.</param>
+        /// <param name="solveSubstepCount">Substep count applied to each simulation step.</param>
+        /// <returns>Constructed physics world instance.</returns>
+        public static BepuPhysicsWorld3D CreateWithSolveSchedule(int solveVelocityIterationCount, int solveSubstepCount) {
+            return new BepuPhysicsWorld3D(solveVelocityIterationCount, solveSubstepCount);
+        }
+
+        /// <summary>
         /// Gets the number of rigid bodies currently registered in the bound scene.
         /// </summary>
         public int RegisteredBodyCount => BodyRegistryValue.Handles.Count;
+
+        /// <summary>
+        /// Gets the configured BEPU velocity-iteration count used by the active world.
+        /// </summary>
+        public int SolveVelocityIterationCount => SolveVelocityIterationCountValue;
+
+        /// <summary>
+        /// Gets the configured BEPU substep count used by the active world.
+        /// </summary>
+        public int SolveSubstepCount => SolveSubstepCountValue;
 
         /// <summary>
         /// Binds one scene hierarchy to the active BEPU simulation.
@@ -120,7 +181,7 @@ namespace helengine {
                 BufferPoolValue,
                 narrowPhaseCallbacks,
                 poseIntegratorCallbacks,
-                new SolveDescription(4, 1),
+                new SolveDescription(SolveVelocityIterationCountValue, SolveSubstepCountValue),
                 initialAllocationSizes: CreateDefaultSimulationAllocationSizes());
         }
 
