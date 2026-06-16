@@ -202,6 +202,35 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures automatic reflected persistence preserves the authored build-time sprite conversion flag on engine-owned text components.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenTextComponentUsesBuildTimeSpriteConversion_RoundTripsThroughAutomaticPersistence() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneAssetReference fontReference = BuildFontReference("Fonts/Demo.hefont", "fonts", "demo");
+            TextComponent component = new TextComponent {
+                Font = CreateFont("Demo"),
+                Text = "Bake me",
+                Size = new int2(128, 32),
+                ConvertTextToSprite = true
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(TextComponent.Font), fontReference);
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, saveState);
+
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            FontAsset loadedFont = CreateFont("LoadedDemo");
+            resolver.RegisterFont(fontReference, loadedFont);
+            EntitySaveComponent loadedSaveComponent = new EntitySaveComponent();
+
+            TextComponent restored = Assert.IsType<TextComponent>(descriptor.DeserializeComponent(record, loadedSaveComponent, resolver));
+
+            Assert.Same(loadedFont, restored.Font);
+            Assert.True(restored.ConvertTextToSprite);
+        }
+
+        /// <summary>
         /// Ensures the automatic reflected fallback still understands legacy tagged `TextComponent` payloads that persisted the font under `FontReference`.
         /// </summary>
         [Fact]

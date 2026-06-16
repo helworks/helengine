@@ -510,6 +510,48 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures built-in text components persist the authored build-time sprite conversion flag through the reflected tagged payload.
+        /// </summary>
+        [Fact]
+        public void Save_WhenSceneContainsTextComponent_WritesTaggedPayloadUsingConvertTextToSpriteMember() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextConvertTextToSprite.helen");
+            SceneAssetReference fontReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "Fonts/Body",
+                ProviderId = "fonts",
+                AssetId = "body"
+            };
+
+            EditorEntity root = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
+            TextComponent textComponent = new TextComponent {
+                Font = CreateFont("Body"),
+                Text = "Tagged",
+                Size = new int2(96, 24),
+                ConvertTextToSprite = true
+            };
+            root.AddComponent(textComponent);
+            GetSaveComponent(root).SetAssetReference(textComponent, nameof(TextComponent.Font), fontReference);
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset rootAsset = Assert.Single(asset.RootEntities);
+            SceneComponentAssetRecord textRecord = Assert.Single(rootAsset.Components);
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(textRecord.Payload ?? Array.Empty<byte>());
+
+            Assert.True(reader.TryGetFieldReader(nameof(TextComponent.ConvertTextToSprite), out EngineBinaryReader convertTextToSpriteReader));
+            using (convertTextToSpriteReader) {
+                Assert.Equal((byte)1, convertTextToSpriteReader.ReadByte());
+            }
+        }
+
+        /// <summary>
         /// Ensures scene save persists the supplied scene-level canvas profile into the serialized scene asset.
         /// </summary>
         [Fact]

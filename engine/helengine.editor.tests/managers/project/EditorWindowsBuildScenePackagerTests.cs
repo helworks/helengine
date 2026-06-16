@@ -133,7 +133,7 @@ namespace helengine.editor.tests {
             using (MemoryStream payloadStream = new MemoryStream(packagedTowerSpinRecord.Payload ?? Array.Empty<byte>(), false))
             using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
                 Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-                Assert.Equal(2, reader.ReadInt32());
+                Assert.Equal(3, reader.ReadInt32());
             }
         }
 
@@ -306,7 +306,9 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                platformDefinition);
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             SceneAsset packagedSceneAsset;
@@ -328,8 +330,8 @@ namespace helengine.editor.tests {
 
             Assert.Null(modelReference);
             Assert.Equal(2, materialReferenceCount);
-            Assert.Equal("cooked/Materials/SponzaWalls.hasset", firstMaterialReference.RelativePath);
-            Assert.Equal("cooked/Materials/SponzaTrim.hasset", secondMaterialReference.RelativePath);
+            Assert.Equal("cooked/materials/sponzawalls.hasset", firstMaterialReference.RelativePath);
+            Assert.Equal("cooked/materials/sponzatrim.hasset", secondMaterialReference.RelativePath);
             Assert.Equal((byte)0, renderOrder3D);
         }
 
@@ -485,6 +487,11 @@ namespace helengine.editor.tests {
             WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
             WriteSceneAsset(sceneId, materialRelativePath);
 
+            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService();
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            ShaderMaterialAsset loadedMaterialAsset = materialSettingsService.LoadMaterialAsset(materialPath, "ps2");
+            Assert.Equal(textureAssetId, loadedMaterialAsset.DiffuseTextureAssetId);
+
             RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
                 CreatePs2MaterialBuilderDefinition(),
                 request => new PlatformMaterialCookResult(
@@ -501,10 +508,14 @@ namespace helengine.editor.tests {
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
-            Assert.NotNull(materialBuilder.LastMaterialCookRequest);
+            Assert.True(materialSettingsService.TryLoadPlatformSettings(materialPath, "ps2", out MaterialAssetProcessorSettings ps2Settings));
             Assert.Equal(
                 "cooked/imported/" + textureAssetId,
-                materialBuilder.LastMaterialCookRequest.FieldValues["texture-relative-path"]);
+                ps2Settings.FieldValues["texture-relative-path"]);
+            PlatformMaterialCookRequest ps2CookRequest = materialBuilder.MaterialCookRequests.First(request => string.Equals(request.MaterialRelativePath, materialRelativePath, StringComparison.Ordinal));
+            Assert.Equal(
+                "cooked/imported/" + textureAssetId,
+                ps2CookRequest.FieldValues["texture-relative-path"]);
         }
 
         /// <summary>
@@ -565,6 +576,11 @@ namespace helengine.editor.tests {
             WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
             WriteSceneAsset(sceneId, materialRelativePath);
 
+            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService();
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            ShaderMaterialAsset loadedMaterialAsset = materialSettingsService.LoadMaterialAsset(materialPath, "ds");
+            Assert.Equal(textureAssetId, loadedMaterialAsset.DiffuseTextureAssetId);
+
             RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
                 CreateDsMaterialBuilderDefinition(),
                 request => new PlatformMaterialCookResult(
@@ -591,11 +607,15 @@ namespace helengine.editor.tests {
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
-            Assert.NotNull(materialBuilder.LastMaterialCookRequest);
-            Assert.Equal("ds-standard-textured", materialBuilder.LastMaterialCookRequest.SchemaId);
+            Assert.True(materialSettingsService.TryLoadPlatformSettings(materialPath, "ds", out MaterialAssetProcessorSettings dsSettings));
             Assert.Equal(
                 "cooked/imported/" + textureAssetId,
-                materialBuilder.LastMaterialCookRequest.FieldValues["texture-relative-path"]);
+                dsSettings.FieldValues["texture-relative-path"]);
+            PlatformMaterialCookRequest dsCookRequest = materialBuilder.MaterialCookRequests.First(request => string.Equals(request.MaterialRelativePath, materialRelativePath, StringComparison.Ordinal));
+            Assert.Equal("ds-standard-textured", dsCookRequest.SchemaId);
+            Assert.Equal(
+                "cooked/imported/" + textureAssetId,
+                dsCookRequest.FieldValues["texture-relative-path"]);
         }
 
         /// <summary>
@@ -728,6 +748,60 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures flagged text components are rewritten into sprite components in the packaged runtime scene.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsFlaggedTextComponent_WritesSpriteComponentIntoPackagedScene() {
+            string sceneId = "Scenes/BakedTextScene.helen";
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(CreateEditorFontReference(), true), new[] { CreateEditorFontReference() });
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont,
+                new StubTextComponentSpriteBakeService());
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Equal("helengine.SpriteComponent", packagedScene.RootEntities[0].Components[0].ComponentTypeId);
+        }
+
+        /// <summary>
+        /// Ensures flagged text components produce one packaged generated texture referenced by the rewritten sprite payload.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsFlaggedTextComponent_WritesPackagedTextureReferencedByTheSpritePayload() {
+            string sceneId = "Scenes/BakedTextScene.helen";
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(CreateEditorFontReference(), true), new[] { CreateEditorFontReference() });
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont,
+                new StubTextComponentSpriteBakeService());
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord spriteRecord = packagedScene.RootEntities[0].Components[0];
+            using MemoryStream payloadStream = new MemoryStream(spriteRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(1, reader.ReadByte());
+            SceneAssetReference textureReference = ReadOptionalReference(reader);
+            Assert.NotNull(textureReference);
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, textureReference.RelativePath.Replace('/', Path.DirectorySeparatorChar))));
+        }
+
+        /// <summary>
         /// Ensures PS2-targeted scene packaging emits rooted runtime font paths directly inside both packaged scene references and the automatic text payload.
         /// </summary>
         [Fact]
@@ -755,33 +829,12 @@ namespace helengine.editor.tests {
             Assert.Equal(expectedFontRuntimePath, Assert.Single(packagedScene.AssetReferences).RelativePath);
 
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
-            FontAsset expectedFont = CreatePackagedFontAsset();
-            TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
-            referenceResolver.RegisterFont(
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = expectedFontRuntimePath
-                },
-                expectedFont);
-            TextComponent loadedTextComponent = new TextComponent();
-            EntitySaveComponent saveComponent = new EntitySaveComponent();
-            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TextComponent));
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-            Assert.Equal(schema.Members.Count, reader.ReadInt32());
-            for (int index = 0; index < schema.Members.Count; index++) {
-                ScriptComponentReflectionMember member = schema.Members[index];
-                object memberValue = AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(
-                    reader,
-                    member,
-                    loadedTextComponent,
-                    saveComponent,
-                    referenceResolver);
-                member.SetValue(loadedTextComponent, memberValue);
-            }
-
-            Assert.Same(expectedFont, loadedTextComponent.Font);
+            Assert.Equal(2, reader.ReadByte());
+            SceneAssetReference packagedFontReference = ReadOptionalReference(reader);
+            Assert.NotNull(packagedFontReference);
+            Assert.Equal(expectedFontRuntimePath, packagedFontReference.RelativePath);
         }
 
         /// <summary>
@@ -1008,9 +1061,11 @@ namespace helengine.editor.tests {
             PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
             Assert.Equal("texture", workItem.SourceAssetKind);
             Assert.Equal("runtime-texture", workItem.TargetArtifactKind);
-            Assert.Equal(
-                Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", textureRelativePath.Replace('/', Path.DirectorySeparatorChar))),
-                workItem.SourceAssetPath);
+            Assert.True(
+                string.Equals(
+                    Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", textureRelativePath.Replace('/', Path.DirectorySeparatorChar))),
+                    workItem.SourceAssetPath,
+                    StringComparison.OrdinalIgnoreCase));
             Assert.Equal($"cooked/imported/{textureAssetId}", workItem.OutputRelativePath);
         }
 
@@ -1021,7 +1076,7 @@ namespace helengine.editor.tests {
         public void Package_WhenPlatformOwnsFontAtlasTextureCooking_ExternalizesImportedSourceFontAtlasAndEmitsAtlasWorkItem() {
             string sceneId = "Scenes/TextScene.helen";
             string fontRelativePath = "Fonts/DemoDiscTitle.ttf";
-            const string defaultSerializedTextureSettings = "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\"}";
+            const string defaultSerializedTextureSettings = "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\",\"indexingMethod\":\"QuantizedIndexed\"}";
 
             WriteSourceFont(fontRelativePath);
             SceneAssetReference fontReference = CreateFileFontReference(fontRelativePath);
@@ -1059,7 +1114,7 @@ namespace helengine.editor.tests {
         public void Package_WhenPs2PlatformUsesBuilderOwnedFontAtlasTexture_FontAssetStoresRootedAtlasRuntimePath() {
             string sceneId = "Scenes/TextScene.helen";
             string fontRelativePath = "Fonts/DemoDiscTitle.ttf";
-            const string defaultSerializedTextureSettings = "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\"}";
+            const string defaultSerializedTextureSettings = "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\",\"indexingMethod\":\"QuantizedIndexed\"}";
 
             WriteSourceFont(fontRelativePath);
             SceneAssetReference fontReference = CreateFileFontReference(fontRelativePath);
@@ -1403,7 +1458,9 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                platformDefinition);
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -1465,6 +1522,11 @@ namespace helengine.editor.tests {
             };
             SceneComponentAssetRecord serializedRecord = persistenceRegistry.GetDescriptor(component)
                 .SerializeComponent(component, 0, new EntityComponentSaveState());
+            DictionaryScriptTypeResolver runtimeScriptTypeResolver = new DictionaryScriptTypeResolver();
+            runtimeScriptTypeResolver.Register("project.rendering.CameraOrbitComponent, gameplay", typeof(TestDirectionalShadowMotionScriptComponent));
+            runtimeScriptTypeResolver.Register("project.rendering.OrbitComponent, gameplay", typeof(TestDirectionalShadowMotionScriptComponent));
+            runtimeScriptTypeResolver.Register("project.rendering.SunSweepComponent, gameplay", typeof(TestDirectionalShadowMotionScriptComponent));
+            runtimeScriptTypeResolver.Register("project.rendering.TowerSpinComponent, gameplay", typeof(TestDirectionalShadowMotionScriptComponent));
 
             WriteSceneAsset(sceneId, new SceneAsset {
                 Id = sceneId,
@@ -1523,7 +1585,7 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestDirectionalShadowMotionScriptComponent)));
+                runtimeScriptTypeResolver);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -1547,7 +1609,14 @@ namespace helengine.editor.tests {
                 runtimeContentManager,
                 BuildRootPath,
                 ShaderCompileTarget.DirectX11);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(
+                resolver,
+                CreateRuntimeComponentRegistry(
+                    runtimeScriptTypeResolver,
+                    "project.rendering.CameraOrbitComponent, gameplay",
+                    "project.rendering.OrbitComponent, gameplay",
+                    "project.rendering.SunSweepComponent, gameplay",
+                    "project.rendering.TowerSpinComponent, gameplay"));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             Assert.Collection(
@@ -1693,7 +1762,9 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                platformDefinition);
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -1900,7 +1971,7 @@ namespace helengine.editor.tests {
             SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
             Assert.Single(packagedScene.AssetReferences);
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, packagedScene.AssetReferences[0].SourceKind);
-            Assert.Equal("cooked/imported/Models/Sponza.hasset", packagedScene.AssetReferences[0].RelativePath);
+            Assert.Equal("cooked/imported/models/sponza.hasset", packagedScene.AssetReferences[0].RelativePath);
         }
 
         /// <summary>
@@ -2150,7 +2221,9 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                platformDefinition);
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
 
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
             Assert.NotNull(result);
@@ -2166,7 +2239,7 @@ namespace helengine.editor.tests {
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-            Assert.Equal(2, reader.ReadInt32());
+            Assert.Equal(3, reader.ReadInt32());
         }
 
 
@@ -2428,8 +2501,13 @@ namespace helengine.editor.tests {
                         LocalOrientation = float4.Identity,
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.CharacterController3DComponent",
+                                ComponentTypeId = "helengine.BoxCollider3DComponent",
                                 ComponentIndex = 0,
+                                Payload = WriteBoxCollider3DComponentPayload(new float3(1f, 2f, 1f))
+                            },
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.CharacterController3DComponent",
+                                ComponentIndex = 1,
                                 Payload = WriteCharacterController3DComponentPayload(new float3(1f, 0f, 0f), 4.5d, 1d, 0.4d, 0.25d)
                             }
                         },
@@ -2448,6 +2526,35 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             using FileStream packagedSceneStream = File.OpenRead(packagedScenePath);
             SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+
+            RigidBody3DComponent loadedGroundRigidBody = Assert.IsType<RigidBody3DComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is RigidBody3DComponent));
+            BoxCollider3DComponent loadedGroundBoxCollider = Assert.IsType<BoxCollider3DComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is BoxCollider3DComponent));
+            BoxCollider3DComponent loadedControllerBoxCollider = Assert.IsType<BoxCollider3DComponent>(
+                Assert.Single(loadedRoots[1].Components, component => component is BoxCollider3DComponent));
+            Assert.IsType<CharacterController3DComponent>(
+                Assert.Single(loadedRoots[1].Components, component => component is CharacterController3DComponent));
+            Assert.Equal(BodyKind3D.Static, loadedGroundRigidBody.BodyKind);
+            Assert.False(loadedGroundBoxCollider.IsTrigger);
+            Assert.False(loadedControllerBoxCollider.IsTrigger);
+
+            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
+            world.BindScene(loadedRoots);
+            Assert.Single(world.ControllerStates);
+            Assert.Equal(
+                (uint)(PhysicsSceneFeatureFlags3D.CharacterController | PhysicsSceneFeatureFlags3D.CharacterControllerBodySupport),
+                (uint)world.RequiredSceneFeatures);
 
             Assert.Contains(packagedScene.RootEntities[1].Components, component => string.Equals(component.ComponentTypeId, "helengine.CharacterController3DComponent", StringComparison.Ordinal));
             Assert.Equal(
@@ -2765,11 +2872,43 @@ namespace helengine.editor.tests {
         /// Initializes one runtime core instance for packaged-content loading against the current build root.
         /// </summary>
         /// <param name="contentRootPath">Packaged content root that should back the runtime content manager.</param>
+        /// <summary>
+        /// Creates one runtime component registry that extends the built-in registry with automatic script deserializers for explicit persisted script ids.
+        /// </summary>
+        /// <param name="scriptTypeResolver">Resolver that maps persisted script ids to runtime component types.</param>
+        /// <param name="componentTypeIds">Persisted script ids that should deserialize through the automatic runtime component path.</param>
+        /// <returns>Runtime component registry that can load the supplied script components.</returns>
+        static RuntimeComponentRegistry CreateRuntimeComponentRegistry(IScriptTypeResolver scriptTypeResolver, params string[] componentTypeIds) {
+            if (scriptTypeResolver == null) {
+                throw new ArgumentNullException(nameof(scriptTypeResolver));
+            }
+
+            RuntimeComponentRegistry registry = RuntimeComponentRegistry.CreateDefault();
+            if (componentTypeIds == null) {
+                return registry;
+            }
+
+            for (int index = 0; index < componentTypeIds.Length; index++) {
+                string componentTypeId = componentTypeIds[index];
+                if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                    throw new ArgumentException("Component type id must be provided.", nameof(componentTypeIds));
+                }
+
+                registry.Register(new AutomaticScriptComponentRuntimeDeserializer(componentTypeId, scriptTypeResolver.Resolve(componentTypeId)));
+            }
+
+            return registry;
+        }
+
+        /// <summary>
+        /// Initializes one runtime core instance backed by the supplied packaged content root.
+        /// </summary>
+        /// <param name="contentRootPath">Absolute content root path used by the runtime core.</param>
         void InitializeRuntimeCore(string contentRootPath) {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = contentRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            core.Initialize(new TestRenderManager3D(ShaderCompileTarget.DirectX11), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
@@ -3369,6 +3508,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Provides one deterministic generated text-sprite bake result for end-to-end packager tests.
+        /// </summary>
+        sealed class StubTextComponentSpriteBakeService : ITextComponentSpriteBakeService {
+            /// <summary>
+            /// Bakes the supplied text request into one deterministic generated texture result.
+            /// </summary>
+            /// <param name="request">Authored text request being packaged.</param>
+            /// <returns>Generated texture asset and processor settings for packager verification.</returns>
+            public TextComponentSpriteBakeResult Bake(TextComponentSpriteBakeRequest request) {
+                return new TextComponentSpriteBakeResult(
+                    new TextureAsset {
+                        Id = "generated:text-sprite",
+                        Width = 96,
+                        Height = 24,
+                        ColorFormat = TextureAssetColorFormat.Rgba32,
+                        AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                        Colors = new byte[96 * 24 * 4]
+                    },
+                    new TextureAssetProcessorSettings {
+                        ColorFormat = TextureAssetColorFormat.Rgba32,
+                        AlphaPrecision = TextureAssetAlphaPrecision.A8
+                    },
+                    "packager-text-sprite");
+            }
+        }
+
+        /// <summary>
         /// Writes one serialized FPS component payload.
         /// </summary>
         /// <returns>Serialized FPS component payload.</returns>
@@ -3470,6 +3636,38 @@ namespace helengine.editor.tests {
                 RenderOrder2D = 19,
                 LayerMask = 7,
                 SelectionEnabled = true
+            };
+            System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
+            Assert.NotNull(alignmentProperty);
+            alignmentProperty.SetValue(textComponent, Enum.Parse(alignmentProperty.PropertyType, "Center"));
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Font", fontReference);
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(textComponent, 0, saveState);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized text component payload using the supplied font reference and build-time sprite-conversion flag.
+        /// </summary>
+        /// <param name="fontReference">Font reference to persist for the text component.</param>
+        /// <param name="convertTextToSprite">True when the authored text should be baked into a sprite during packaging.</param>
+        /// <returns>Serialized text component payload.</returns>
+        byte[] WriteTextComponentPayload(SceneAssetReference fontReference, bool convertTextToSprite) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TextComponent textComponent = new TextComponent {
+                Font = CreatePackagedFontAsset(),
+                Text = "Hello world",
+                WrapText = true,
+                Size = new int2(320, 64),
+                Color = new byte4(12, 34, 56, 78),
+                SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
+                Rotation = 0.25f,
+                FontScale = 2f,
+                RenderOrder2D = 19,
+                LayerMask = 7,
+                SelectionEnabled = true,
+                ConvertTextToSprite = convertTextToSprite
             };
             System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
             Assert.NotNull(alignmentProperty);
@@ -3998,7 +4196,11 @@ namespace helengine.editor.tests {
                 Array.Empty<PlatformComponentSupportRule>(),
                 Array.Empty<PlatformCodegenProfileDefinition>(),
                 Array.Empty<PlatformStorageProfileDefinition>(),
-                Array.Empty<PlatformMediaProfileDefinition>());
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                new RuntimeGenerationContract(
+                    RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                    true,
+                    PackagedPathPolicy.RootedOrContentRelative));
         }
 
         /// <summary>
@@ -4185,6 +4387,11 @@ namespace helengine.editor.tests {
             readonly Func<PlatformMaterialCookRequest, PlatformMaterialCookResult> CookMaterialFactory;
 
             /// <summary>
+            /// Captures every material cook request received by the fake builder.
+            /// </summary>
+            readonly List<PlatformMaterialCookRequest> MaterialCookRequestsValue;
+
+            /// <summary>
             /// Creates one recording builder that returns an empty cooked payload.
             /// </summary>
             /// <param name="definition">Builder definition exposed to the packager.</param>
@@ -4204,6 +4411,7 @@ namespace helengine.editor.tests {
                 Func<PlatformMaterialCookRequest, PlatformMaterialCookResult> cookMaterialFactory) {
                 Definition = definition ?? throw new ArgumentNullException(nameof(definition));
                 CookMaterialFactory = cookMaterialFactory ?? throw new ArgumentNullException(nameof(cookMaterialFactory));
+                MaterialCookRequestsValue = new List<PlatformMaterialCookRequest>();
                 Descriptor = new PlatformBuilderDescriptor(
                     "test.material.builder",
                     "1.0.0",
@@ -4230,12 +4438,18 @@ namespace helengine.editor.tests {
             public PlatformMaterialCookRequest LastMaterialCookRequest { get; private set; }
 
             /// <summary>
+            /// Gets every material cook request passed to the fake builder in call order.
+            /// </summary>
+            public IReadOnlyList<PlatformMaterialCookRequest> MaterialCookRequests => MaterialCookRequestsValue;
+
+            /// <summary>
             /// Records the incoming cook request and returns a minimal cooked payload.
             /// </summary>
             /// <param name="request">Material cook request to capture.</param>
             /// <returns>Empty cooked payload with no shader dependencies.</returns>
             public PlatformMaterialCookResult CookMaterial(PlatformMaterialCookRequest request) {
                 LastMaterialCookRequest = request;
+                MaterialCookRequestsValue.Add(request);
                 return CookMaterialFactory(request);
             }
 
