@@ -91,6 +91,66 @@ internal static class EditorPlatformCookWorkItemFactory {
             fileHasher);
     }
 
+    /// <summary>
+    /// Creates one builder-owned generated-texture cook work item when the selected platform publishes that capability.
+    /// </summary>
+    /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
+    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+    /// <param name="sourceAssetPath">Absolute generated texture source path that the builder should cook from.</param>
+    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+    /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
+    /// <param name="processorSettings">Resolved texture processor settings for the generated texture.</param>
+    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+    /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
+    public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
+        PlatformDefinition platformDefinition,
+        string targetPlatformId,
+        string sourceAssetPath,
+        string outputRelativePath,
+        string sourceAssetId,
+        TextureAssetProcessorSettings processorSettings,
+        AssetFileHasher fileHasher) {
+        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+        } else if (processorSettings == null) {
+            throw new ArgumentNullException(nameof(processorSettings));
+        } else if (fileHasher == null) {
+            throw new ArgumentNullException(nameof(fileHasher));
+        }
+
+        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
+        if (capability == null) {
+            return null;
+        }
+
+        string fullSourcePath = Path.GetFullPath(sourceAssetPath);
+        if (!File.Exists(fullSourcePath)) {
+            throw new InvalidOperationException($"Builder-owned generated texture source '{fullSourcePath}' was not found.");
+        }
+
+        string normalizedOutputRelativePath = outputRelativePath.Replace('\\', '/');
+        string serializedSettings = SerializeTextureSettings(processorSettings);
+        string settingsHash = ComputeStringHash(fileHasher, serializedSettings);
+        string sourceHash = fileHasher.ComputeHash(fullSourcePath);
+        string workItemId = string.Concat(targetPlatformId, ":texture:", normalizedOutputRelativePath);
+
+        return new PlatformCookWorkItem(
+            workItemId,
+            fullSourcePath,
+            "texture",
+            targetPlatformId,
+            capability.TargetArtifactKind,
+            normalizedOutputRelativePath,
+            string.Concat(capability.TargetArtifactKind, ":", normalizedOutputRelativePath),
+            sourceHash,
+            settingsHash,
+            serializedSettings,
+            [
+                new PlatformCookWorkItemMetadata("source-asset-id", string.IsNullOrWhiteSpace(sourceAssetId) ? normalizedOutputRelativePath : sourceAssetId),
+                new PlatformCookWorkItemMetadata("settings-contract-id", capability.SettingsContractId)
+            ]);
+    }
+
     static PlatformCookWorkItem CreateWorkItem(
         PlatformAssetCookCapabilityDefinition capability,
         string targetPlatformId,

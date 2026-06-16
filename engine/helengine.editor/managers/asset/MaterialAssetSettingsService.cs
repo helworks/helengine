@@ -21,6 +21,16 @@ namespace helengine.editor {
         const string TextureAssetIdFieldId = "texture-id";
 
         /// <summary>
+        /// Field id used by builder-owned schemas for the cooked diffuse texture path.
+        /// </summary>
+        const string TextureRelativePathFieldId = "texture-relative-path";
+
+        /// <summary>
+        /// Packaged directory prefix used for imported cooked textures.
+        /// </summary>
+        const string ImportedTextureDirectoryPath = "cooked/imported";
+
+        /// <summary>
         /// Field id used by shader-backed schemas for the vertex program identifier.
         /// </summary>
         const string VertexProgramFieldId = "vertex-program";
@@ -759,6 +769,7 @@ namespace helengine.editor {
             }
 
             SeedFieldValues(platformSettings, materialSchema, materialAsset);
+            HydrateBuilderOwnedTextureRelativePath(platformSettings, materialAsset);
         }
 
         /// <summary>
@@ -802,7 +813,48 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(field));
             }
 
+            if (string.Equals(field.FieldId, TextureRelativePathFieldId, StringComparison.OrdinalIgnoreCase) &&
+                materialAsset is ShaderMaterialAsset shaderMaterialAsset &&
+                !string.IsNullOrWhiteSpace(shaderMaterialAsset.DiffuseTextureAssetId)) {
+                return BuildImportedTextureCookedRelativePath(shaderMaterialAsset.DiffuseTextureAssetId);
+            }
+
             return field.DefaultValue ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Builds the cooked runtime texture path used by builder-owned diffuse-texture schemas.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier authored on the source shader material.</param>
+        /// <returns>Canonical cooked runtime texture path.</returns>
+        string BuildImportedTextureCookedRelativePath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            return string.Concat(ImportedTextureDirectoryPath, "/", assetId);
+        }
+
+        /// <summary>
+        /// Copies the authored diffuse-texture asset id into one builder-owned runtime texture path field when schema selection has already created that field with an empty default.
+        /// </summary>
+        /// <param name="platformSettings">Effective platform settings being normalized.</param>
+        /// <param name="materialAsset">Current material asset whose authored diffuse texture should be preserved.</param>
+        void HydrateBuilderOwnedTextureRelativePath(MaterialAssetProcessorSettings platformSettings, MaterialAsset materialAsset) {
+            if (platformSettings == null) {
+                throw new ArgumentNullException(nameof(platformSettings));
+            }
+            if (platformSettings.FieldValues == null) {
+                return;
+            }
+            if (!platformSettings.FieldValues.TryGetValue(TextureRelativePathFieldId, out string textureRelativePath) ||
+                !string.IsNullOrWhiteSpace(textureRelativePath) ||
+                materialAsset is not ShaderMaterialAsset shaderMaterialAsset ||
+                string.IsNullOrWhiteSpace(shaderMaterialAsset.DiffuseTextureAssetId)) {
+                return;
+            }
+
+            platformSettings.FieldValues[TextureRelativePathFieldId] = BuildImportedTextureCookedRelativePath(shaderMaterialAsset.DiffuseTextureAssetId);
         }
 
         /// <summary>

@@ -34,12 +34,17 @@ namespace helengine.editor {
         /// <summary>
         /// Current payload version for serialized text component scene records.
         /// </summary>
-        const byte TextComponentPayloadVersion = 1;
+        const byte TextComponentPayloadVersion = 2;
 
         /// <summary>
         /// Current payload version for serialized sprite component scene records.
         /// </summary>
         const byte SpriteComponentPayloadVersion = 1;
+
+        /// <summary>
+        /// Generated cooked relative directory used for build-time text sprite outputs.
+        /// </summary>
+        const string GeneratedTextSpriteCookedRelativeDirectory = "cooked/generated/text-sprites";
 
         /// <summary>
         /// Stable serialized component id for mesh components.
@@ -137,6 +142,11 @@ namespace helengine.editor {
         const string TextComponentTypeId = "helengine.TextComponent";
 
         /// <summary>
+        /// Stable tagged field name used for text build-time sprite-conversion persistence.
+        /// </summary>
+        const string TextConvertTextToSpriteFieldName = "ConvertTextToSprite";
+
+        /// <summary>
         /// Stable serialized component id for debug overlay components.
         /// </summary>
         const string DebugComponentTypeId = "helengine.DebugComponent";
@@ -230,6 +240,56 @@ namespace helengine.editor {
         /// Stable serialized component id for spot light components.
         /// </summary>
         const string SpotLightComponentTypeId = "helengine.SpotLightComponent";
+
+        /// <summary>
+        /// Stable serialized component id for 3D rigid-body components.
+        /// </summary>
+        const string RigidBody3DComponentTypeId = "helengine.RigidBody3DComponent";
+
+        /// <summary>
+        /// Stable serialized component id for 3D box-collider components.
+        /// </summary>
+        const string BoxCollider3DComponentTypeId = "helengine.BoxCollider3DComponent";
+
+        /// <summary>
+        /// Stable serialized component id for 3D kinematic-motion components.
+        /// </summary>
+        const string KinematicMotion3DComponentTypeId = "helengine.KinematicMotion3DComponent";
+
+        /// <summary>
+        /// Stable serialized component id for 3D character-controller components.
+        /// </summary>
+        const string CharacterController3DComponentTypeId = "helengine.CharacterController3DComponent";
+
+        /// <summary>
+        /// Serialized byte length of the legacy rigid-body payload that predates packaged angular velocity.
+        /// </summary>
+        const int LegacyRigidBodyPayloadLength = 23;
+
+        /// <summary>
+        /// Serialized byte length of the current strict rigid-body payload.
+        /// </summary>
+        const int CurrentRigidBodyPayloadLength = 35;
+
+        /// <summary>
+        /// Serialized byte length of the legacy box-collider payload that only stores size.
+        /// </summary>
+        const int LegacyBoxColliderPayloadLength = 13;
+
+        /// <summary>
+        /// Serialized byte length of the current strict box-collider payload.
+        /// </summary>
+        const int CurrentBoxColliderPayloadLength = 18;
+
+        /// <summary>
+        /// Serialized byte length of the strict kinematic-motion payload.
+        /// </summary>
+        const int KinematicMotionPayloadLength = 34;
+
+        /// <summary>
+        /// Serialized byte length of the strict character-controller payload.
+        /// </summary>
+        const int CharacterControllerPayloadLength = 45;
 
         /// <summary>
         /// Generated provider id reserved for the editor's built-in font asset.
@@ -453,6 +513,11 @@ namespace helengine.editor {
         readonly AssetFileHasher FileHasher;
 
         /// <summary>
+        /// Optional bake service used to convert authored text into generated sprite textures during packaging.
+        /// </summary>
+        readonly ITextComponentSpriteBakeService TextComponentSpriteBakeService;
+
+        /// <summary>
         /// Initializes one shared scene-component transform service.
         /// </summary>
         /// <param name="assetsRootPath">Absolute source assets root path.</param>
@@ -468,6 +533,7 @@ namespace helengine.editor {
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         /// <param name="platformCookWorkItemSink">Optional callback that records builder-owned platform cook work items discovered while packaging.</param>
         /// <param name="platformDefinition">Optional platform definition that publishes builder-owned asset cook capabilities.</param>
+        /// <param name="textComponentSpriteBakeService">Optional bake service used to convert authored text components into sprite-backed runtime payloads.</param>
         public SceneComponentPackagingTransformService(
             string assetsRootPath,
             ContentManager projectContentManager,
@@ -481,7 +547,8 @@ namespace helengine.editor {
             string selectedGraphicsProfileId = "",
             IScriptTypeResolver scriptTypeResolver = null,
             Action<PlatformCookWorkItem> platformCookWorkItemSink = null,
-            PlatformDefinition platformDefinition = null) {
+            PlatformDefinition platformDefinition = null,
+            ITextComponentSpriteBakeService textComponentSpriteBakeService = null) {
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
                 : Path.GetFullPath(assetsRootPath);
@@ -502,6 +569,7 @@ namespace helengine.editor {
             PlatformCookWorkItemSink = platformCookWorkItemSink;
             PlatformDefinition = platformDefinition;
             FileHasher = new AssetFileHasher();
+            TextComponentSpriteBakeService = textComponentSpriteBakeService;
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
             SceneMapComponentDescriptor = new SceneMapComponentPersistenceDescriptor();
@@ -523,6 +591,15 @@ namespace helengine.editor {
 
             if (string.Equals(componentTypeId, MeshComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, CameraComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, DebugComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, SpriteComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, RoundedRectComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, PointLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, SceneMapComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
@@ -555,8 +632,58 @@ namespace helengine.editor {
                 return true;
             }
 
+            if (string.Equals(record.ComponentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteFPSComponentRecord(record, buildRootPath);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, DebugComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteDebugComponentRecord(record, buildRootPath);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteTextComponentRecord(record, buildRootPath);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, SpriteComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteSpriteComponentRecord(record, buildRootPath);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, RoundedRectComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteRoundedRectComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteDirectionalLightComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteAmbientLightComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, PointLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewritePointLightComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteSpotLightComponentRecord(record);
+                return true;
+            }
+
             if (string.Equals(record.ComponentTypeId, SceneMapComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteSceneMapComponentRecord(record);
+                return true;
+            }
+
+            if (UsesLegacyBuiltInPhysicsPayload(record) &&
+                TryRewriteBuiltInPhysicsComponentRecord(record, buildRootPath, out transformedRecord)) {
                 return true;
             }
 
@@ -564,7 +691,106 @@ namespace helengine.editor {
                 return true;
             }
 
+            if (TryRewriteBuiltInPhysicsComponentRecord(record, buildRootPath, out transformedRecord)) {
+                return true;
+            }
+
             transformedRecord = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Rewrites one built-in physics component record into the shared automatic runtime payload shape expected by default packaged-scene loading.
+        /// </summary>
+        /// <param name="record">Serialized physics component record to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <param name="transformedRecord">Rewritten automatic runtime component record when the component type is supported.</param>
+        /// <returns>True when the component record was rewritten as a built-in physics payload; otherwise false.</returns>
+        bool TryRewriteBuiltInPhysicsComponentRecord(
+            SceneComponentAssetRecord record,
+            string buildRootPath,
+            out SceneComponentAssetRecord transformedRecord) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
+            if (!string.Equals(record.ComponentTypeId, RigidBody3DComponentTypeId, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(record.ComponentTypeId, BoxCollider3DComponentTypeId, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(record.ComponentTypeId, KinematicMotion3DComponentTypeId, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(record.ComponentTypeId, CharacterController3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = null;
+                return false;
+            }
+
+            Component component = DeserializeBuiltInPhysicsComponentForPackaging(record);
+            transformedRecord = BuildAutomaticRuntimeComponentRecord(
+                record.ComponentTypeId,
+                record.ComponentIndex,
+                component,
+                null,
+                buildRootPath);
+            return true;
+        }
+
+        /// <summary>
+        /// Deserializes one built-in physics component record through the matching runtime deserializer so legacy strict payloads can be normalized during packaging.
+        /// </summary>
+        /// <param name="record">Serialized physics component record to materialize.</param>
+        /// <returns>Live physics component instance reconstructed from the serialized payload.</returns>
+        Component DeserializeBuiltInPhysicsComponentForPackaging(SceneComponentAssetRecord record) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            if (string.Equals(record.ComponentTypeId, RigidBody3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                return new RuntimeRigidBody3DComponentDeserializer().Deserialize(record, null);
+            }
+            if (string.Equals(record.ComponentTypeId, BoxCollider3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                return new RuntimeBoxCollider3DComponentDeserializer().Deserialize(record, null);
+            }
+            if (string.Equals(record.ComponentTypeId, KinematicMotion3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                return new RuntimeKinematicMotion3DComponentDeserializer().Deserialize(record, null);
+            }
+            if (string.Equals(record.ComponentTypeId, CharacterController3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                return new RuntimeCharacterController3DComponentDeserializer().Deserialize(record, null);
+            }
+
+            throw new InvalidOperationException($"Built-in physics packaging does not support component type '{record.ComponentTypeId}'.");
+        }
+
+        /// <summary>
+        /// Returns whether one built-in physics component payload uses a legacy strict binary layout that must bypass the generic automatic reflected path.
+        /// </summary>
+        /// <param name="record">Serialized component record to inspect.</param>
+        /// <returns>True when the payload uses a strict built-in physics layout; otherwise false.</returns>
+        bool UsesLegacyBuiltInPhysicsPayload(SceneComponentAssetRecord record) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            if (payload.Length == 0) {
+                return false;
+            }
+
+            if (string.Equals(record.ComponentTypeId, RigidBody3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                return (payload[0] == 1 && payload.Length == LegacyRigidBodyPayloadLength)
+                    || (payload[0] == 2 && payload.Length == CurrentRigidBodyPayloadLength);
+            }
+            if (string.Equals(record.ComponentTypeId, BoxCollider3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                return (payload[0] == 1 && payload.Length == LegacyBoxColliderPayloadLength)
+                    || (payload[0] == 2 && payload.Length == CurrentBoxColliderPayloadLength);
+            }
+            if (string.Equals(record.ComponentTypeId, KinematicMotion3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                return payload[0] == 1 && payload.Length == KinematicMotionPayloadLength;
+            }
+            if (string.Equals(record.ComponentTypeId, CharacterController3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                return payload[0] == 1 && payload.Length == CharacterControllerPayloadLength;
+            }
+
             return false;
         }
 
@@ -608,15 +834,41 @@ namespace helengine.editor {
                 return false;
             }
 
-            EntitySaveComponent saveComponent = new EntitySaveComponent();
-            Component component = DeserializeAutomaticComponentForPackaging(record, descriptor, saveComponent);
-            transformedRecord = BuildAutomaticRuntimeComponentRecord(
-                record.ComponentTypeId,
-                record.ComponentIndex,
-                component,
-                ResolveAutomaticComponentSaveState(saveComponent, component),
-                buildRootPath);
-            return true;
+            if (descriptor is not AutomaticScriptComponentPersistenceDescriptor) {
+                transformedRecord = null;
+                return false;
+            }
+
+            try {
+                EntitySaveComponent saveComponent = new EntitySaveComponent();
+                Component component = DeserializeAutomaticComponentForPackaging(record, descriptor, saveComponent);
+                transformedRecord = BuildAutomaticRuntimeComponentRecord(
+                    record.ComponentTypeId,
+                    record.ComponentIndex,
+                    component,
+                    ResolveAutomaticComponentSaveState(saveComponent, component),
+                    buildRootPath);
+                return true;
+            } catch (InvalidOperationException) when (CanPreserveCurrentRuntimePayload(record.ComponentTypeId)) {
+                transformedRecord = null;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether the supplied component type already uses a runtime-safe binary payload shape that packaging should preserve when automatic reflected deserialization does not apply.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized component type id to inspect.</param>
+        /// <returns>True when packaging should keep the existing runtime payload bytes unchanged.</returns>
+        bool CanPreserveCurrentRuntimePayload(string componentTypeId) {
+            if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                return false;
+            }
+
+            return string.Equals(componentTypeId, RigidBody3DComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, BoxCollider3DComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, KinematicMotion3DComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, CharacterController3DComponentTypeId, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -967,6 +1219,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns whether one payload uses the strict ordinal automatic runtime-component layout with the expected reflected member count.
+        /// </summary>
+        /// <param name="payload">Serialized payload bytes to inspect.</param>
+        /// <param name="expectedMemberCount">Expected reflected member count for the automatic runtime component.</param>
+        /// <returns>True when the payload matches the ordinal automatic runtime-component layout; otherwise false.</returns>
+        bool IsAutomaticRuntimePayloadWithExpectedMemberCount(byte[] payload, int expectedMemberCount) {
+            if (payload == null || payload.Length < 5) {
+                return false;
+            }
+
+            int memberCount = BitConverter.ToInt32(payload, 1);
+            return memberCount == expectedMemberCount;
+        }
+
+        /// <summary>
         /// Reads the leading payload version byte when one is available.
         /// </summary>
         /// <param name="payload">Serialized payload bytes to inspect.</param>
@@ -1055,6 +1322,17 @@ namespace helengine.editor {
 
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             if (TryReadTaggedFPSComponentRecord(payload, out fontReference, out refreshIntervalSeconds, out padding, out renderOrder2D)) {
+                if (fontReference != null) {
+                    return;
+                }
+            }
+            if (IsAutomaticRuntimePayloadWithExpectedMemberCount(
+                payload,
+                ScriptComponentSchemaBuilder.Build(typeof(FPSComponent)).Members.Count) &&
+                payload[0] != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported automatic scripted component payload version '{payload[0]}'.");
+            }
+            if (TryReadAutomaticFPSComponentRecord(record, out fontReference, out refreshIntervalSeconds, out padding, out renderOrder2D)) {
                 return;
             }
 
@@ -1128,6 +1406,45 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attempts to read one FPS payload from the current automatic reflected editor format.
+        /// </summary>
+        /// <param name="record">Serialized component record to inspect.</param>
+        /// <param name="fontReference">Persisted font reference when decoding succeeds.</param>
+        /// <param name="refreshIntervalSeconds">Persisted refresh interval when decoding succeeds.</param>
+        /// <param name="padding">Persisted overlay padding when decoding succeeds.</param>
+        /// <param name="renderOrder2D">Persisted 2D render order when decoding succeeds.</param>
+        /// <returns>True when the payload matched the automatic reflected editor format; otherwise false.</returns>
+        bool TryReadAutomaticFPSComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference fontReference,
+            out double refreshIntervalSeconds,
+            out int2 padding,
+            out byte renderOrder2D) {
+            fontReference = null;
+            refreshIntervalSeconds = 0d;
+            padding = int2.Zero;
+            renderOrder2D = 0;
+
+            try {
+                EntitySaveComponent saveComponent = new EntitySaveComponent();
+                Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, saveComponent, null);
+                if (component is not FPSComponent fpsComponent) {
+                    return false;
+                }
+
+                fontReference = ReadAutomaticComponentAssetReference(saveComponent, fpsComponent, "Font");
+                refreshIntervalSeconds = fpsComponent.RefreshIntervalSeconds;
+                padding = fpsComponent.Padding;
+                renderOrder2D = fpsComponent.RenderOrder2D;
+                return true;
+            } catch (InvalidOperationException) {
+                return false;
+            } catch (EndOfStreamException) {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Rewrites one serialized text payload into the strict runtime text payload shape.
         /// </summary>
         /// <param name="record">Serialized text component record to rewrite.</param>
@@ -1144,7 +1461,27 @@ namespace helengine.editor {
                 out float rotation,
                 out byte renderOrder2D,
                 out byte layerMask,
-                out bool selectionEnabled);
+                out bool selectionEnabled,
+                out float fontScale,
+                out TextAlignment alignment,
+                out bool convertTextToSprite);
+
+            if (convertTextToSprite) {
+                return RewriteTextComponentAsSpriteRecord(
+                    record,
+                    buildRootPath,
+                    fontReference,
+                    text,
+                    wrapText,
+                    size,
+                    color,
+                    sourceRect,
+                    rotation,
+                    renderOrder2D,
+                    layerMask,
+                    fontScale,
+                    alignment);
+            }
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -1159,9 +1496,91 @@ namespace helengine.editor {
             writer.WriteByte(renderOrder2D);
             writer.WriteByte(layerMask);
             writer.WriteByte(selectionEnabled ? (byte)1 : (byte)0);
+            writer.WriteSingle(fontScale);
+            writer.WriteInt32((int)alignment);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = TextComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Rewrites one authored text component into a sprite-backed runtime payload using the configured bake service.
+        /// </summary>
+        /// <param name="record">Serialized text component record being packaged.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <param name="fontReference">Authored font reference resolved from the serialized text component.</param>
+        /// <param name="text">Authored text string that should be baked.</param>
+        /// <param name="wrapText">Authored wrap-text mode.</param>
+        /// <param name="size">Authored text layout size that must be preserved by the baked sprite.</param>
+        /// <param name="color">Authored text color.</param>
+        /// <param name="sourceRect">Authored source rectangle that should carry into the replacement sprite.</param>
+        /// <param name="rotation">Authored rotation that should carry into the replacement sprite.</param>
+        /// <param name="renderOrder2D">Authored 2D render order that should carry into the replacement sprite.</param>
+        /// <param name="layerMask">Authored layer mask that should carry into the replacement sprite.</param>
+        /// <param name="fontScale">Authored font scale used during the bake.</param>
+        /// <param name="alignment">Authored horizontal alignment used during the bake.</param>
+        /// <returns>Sprite component record that replaces the authored text component at runtime.</returns>
+        SceneComponentAssetRecord RewriteTextComponentAsSpriteRecord(
+            SceneComponentAssetRecord record,
+            string buildRootPath,
+            SceneAssetReference fontReference,
+            string text,
+            bool wrapText,
+            int2 size,
+            byte4 color,
+            float4 sourceRect,
+            float rotation,
+            byte renderOrder2D,
+            byte layerMask,
+            float fontScale,
+            TextAlignment alignment) {
+            if (TextComponentSpriteBakeService == null) {
+                throw new InvalidOperationException("Text-to-sprite packaging requires a configured bake service.");
+            }
+
+            TextComponentSpriteBakeRequest request = new TextComponentSpriteBakeRequest(
+                record.ComponentIndex,
+                TargetPlatformId,
+                fontReference,
+                text,
+                size,
+                color,
+                wrapText,
+                fontScale,
+                alignment,
+                rotation,
+                renderOrder2D,
+                layerMask);
+            TextComponentSpriteBakeResult bakeResult = TextComponentSpriteBakeService.Bake(request);
+            string generatedTextureFileName = string.Concat(bakeResult.StableKey, ".hasset");
+            string sourceRelativePath = NormalizeRelativePath(Path.Combine("generated", "text-sprites", generatedTextureFileName));
+            string cookedRelativePath = NormalizeRelativePath(Path.Combine(GeneratedTextSpriteCookedRelativeDirectory, generatedTextureFileName));
+            string sourceFullPath = Path.Combine(buildRootPath, sourceRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (SupportsBuilderOwnedPlatformCookKind("texture")) {
+                WriteAsset(sourceFullPath, bakeResult.TextureAsset);
+                RememberGeneratedTextureCookWorkItem(sourceFullPath, cookedRelativePath, bakeResult);
+            } else {
+                WriteAsset(Path.Combine(buildRootPath, cookedRelativePath.Replace('/', Path.DirectorySeparatorChar)), bakeResult.TextureAsset);
+            }
+
+            SceneAssetReference textureReference = CreateFileSystemReference(cookedRelativePath);
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(SpriteComponentPayloadVersion);
+            WriteOptionalReference(writer, textureReference);
+            WriteFloat4(writer, sourceRect);
+            writer.WriteInt2(size);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, color);
+            writer.WriteSingle(rotation);
+            writer.WriteByte(renderOrder2D);
+            writer.WriteByte(layerMask);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = SpriteComponentTypeId,
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
@@ -1585,6 +2004,9 @@ namespace helengine.editor {
         /// <param name="renderOrder2D">Persisted render order.</param>
         /// <param name="layerMask">Persisted layer mask.</param>
         /// <param name="selectionEnabled">Persisted selection flag.</param>
+        /// <param name="fontScale">Persisted font scale.</param>
+        /// <param name="alignment">Persisted horizontal alignment.</param>
+        /// <param name="convertTextToSprite">Persisted build-time sprite-conversion flag.</param>
         void ReadTaggedTextComponentRecord(
             SceneComponentAssetRecord record,
             out SceneAssetReference fontReference,
@@ -1596,7 +2018,10 @@ namespace helengine.editor {
             out float rotation,
             out byte renderOrder2D,
             out byte layerMask,
-            out bool selectionEnabled) {
+            out bool selectionEnabled,
+            out float fontScale,
+            out TextAlignment alignment,
+            out bool convertTextToSprite) {
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             fontReference = null;
             text = string.Empty;
@@ -1608,6 +2033,13 @@ namespace helengine.editor {
             renderOrder2D = 0;
             layerMask = 0;
             selectionEnabled = false;
+            fontScale = 1f;
+            alignment = TextAlignment.Left;
+            convertTextToSprite = false;
+
+            if (TryReadAutomaticTextComponentRecord(record, out fontReference, out text, out wrapText, out size, out color, out sourceRect, out rotation, out renderOrder2D, out layerMask, out selectionEnabled, out fontScale, out alignment, out convertTextToSprite)) {
+                return;
+            }
 
             if (reader.TryGetFieldReader("FontReference", out EngineBinaryReader fontReferenceReader)) {
                 using (fontReferenceReader) {
@@ -1659,9 +2091,99 @@ namespace helengine.editor {
                     selectionEnabled = selectionEnabledReader.ReadByte() != 0;
                 }
             }
+            if (reader.TryGetFieldReader("FontScale", out EngineBinaryReader fontScaleReader)) {
+                using (fontScaleReader) {
+                    fontScale = fontScaleReader.ReadSingle();
+                }
+            }
+            if (reader.TryGetFieldReader("Alignment", out EngineBinaryReader alignmentReader)) {
+                using (alignmentReader) {
+                    alignment = (TextAlignment)alignmentReader.ReadInt32();
+                }
+            }
+            if (reader.TryGetFieldReader(TextConvertTextToSpriteFieldName, out EngineBinaryReader convertTextToSpriteReader)) {
+                using (convertTextToSpriteReader) {
+                    convertTextToSprite = convertTextToSpriteReader.ReadByte() != 0;
+                }
+            }
 
             if (fontReference == null) {
                 throw new InvalidOperationException("Text component payload did not provide a font reference before packaging.");
+            }
+        }
+
+        /// <summary>
+        /// Attempts to read one text payload from the current automatic reflected editor format.
+        /// </summary>
+        /// <param name="record">Serialized component record to inspect.</param>
+        /// <param name="fontReference">Persisted font reference when decoding succeeds.</param>
+        /// <param name="text">Persisted text string when decoding succeeds.</param>
+        /// <param name="wrapText">Persisted wrap-text flag when decoding succeeds.</param>
+        /// <param name="size">Persisted text bounds when decoding succeeds.</param>
+        /// <param name="color">Persisted text color when decoding succeeds.</param>
+        /// <param name="sourceRect">Persisted source rectangle when decoding succeeds.</param>
+        /// <param name="rotation">Persisted rotation when decoding succeeds.</param>
+        /// <param name="renderOrder2D">Persisted render order when decoding succeeds.</param>
+        /// <param name="layerMask">Persisted layer mask when decoding succeeds.</param>
+        /// <param name="selectionEnabled">Persisted selection flag when decoding succeeds.</param>
+        /// <param name="fontScale">Persisted font scale when decoding succeeds.</param>
+        /// <param name="alignment">Persisted horizontal alignment when decoding succeeds.</param>
+        /// <param name="convertTextToSprite">Persisted build-time sprite-conversion flag when decoding succeeds.</param>
+        /// <returns>True when the payload matched the automatic reflected editor format; otherwise false.</returns>
+        bool TryReadAutomaticTextComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference fontReference,
+            out string text,
+            out bool wrapText,
+            out int2 size,
+            out byte4 color,
+            out float4 sourceRect,
+            out float rotation,
+            out byte renderOrder2D,
+            out byte layerMask,
+            out bool selectionEnabled,
+            out float fontScale,
+            out TextAlignment alignment,
+            out bool convertTextToSprite) {
+            fontReference = null;
+            text = string.Empty;
+            wrapText = false;
+            size = int2.Zero;
+            color = new byte4(255, 255, 255, 255);
+            sourceRect = new float4(0f, 0f, 1f, 1f);
+            rotation = 0f;
+            renderOrder2D = 0;
+            layerMask = 0;
+            selectionEnabled = false;
+            fontScale = 1f;
+            alignment = TextAlignment.Left;
+            convertTextToSprite = false;
+
+            try {
+                EntitySaveComponent saveComponent = new EntitySaveComponent();
+                Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, saveComponent, null);
+                if (component is not TextComponent textComponent) {
+                    return false;
+                }
+
+                fontReference = ReadAutomaticComponentAssetReference(saveComponent, textComponent, "Font");
+                text = textComponent.Text ?? string.Empty;
+                wrapText = textComponent.WrapText;
+                size = textComponent.Size;
+                color = textComponent.Color;
+                sourceRect = textComponent.SourceRect;
+                rotation = textComponent.Rotation;
+                renderOrder2D = textComponent.RenderOrder2D;
+                layerMask = textComponent.LayerMask;
+                selectionEnabled = textComponent.SelectionEnabled;
+                fontScale = textComponent.FontScale;
+                alignment = textComponent.Alignment;
+                convertTextToSprite = textComponent.ConvertTextToSprite;
+                return true;
+            } catch (InvalidOperationException) {
+                return false;
+            } catch (EndOfStreamException) {
+                return false;
             }
         }
 
@@ -1677,6 +2199,36 @@ namespace helengine.editor {
             }
 
             return roundedRectComponent;
+        }
+
+        /// <summary>
+        /// Reads one serialized automatic-component asset reference restored through the hidden save-state component.
+        /// </summary>
+        /// <param name="saveComponent">Hidden save-state component populated while deserializing the automatic payload.</param>
+        /// <param name="component">Live component instance whose asset reference should be resolved.</param>
+        /// <param name="memberName">Public member name that owns the asset reference.</param>
+        /// <returns>Persisted scene asset reference when one exists; otherwise null.</returns>
+        SceneAssetReference ReadAutomaticComponentAssetReference(EntitySaveComponent saveComponent, Component component, string memberName) {
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Member name must be provided.", nameof(memberName));
+            }
+
+            if (!saveComponent.TryGetComponentState(component, out EntityComponentSaveState saveState)) {
+                return null;
+            }
+
+            string referenceName = AutomaticComponentAssetReferenceSupport.BuildReferenceName(memberName);
+            if (!saveState.TryGetAssetReference(referenceName, out SceneAssetReference reference)) {
+                return null;
+            }
+
+            return reference;
         }
 
         /// <summary>
@@ -2177,6 +2729,39 @@ namespace helengine.editor {
             }
         }
 
+        /// <summary>
+        /// Records one builder-owned cook work item for a generated text-sprite texture written during scene packaging.
+        /// </summary>
+        /// <param name="sourceAssetPath">Absolute generated texture source path written under the build root.</param>
+        /// <param name="cookedRelativePath">Runtime-relative cooked output path that the builder should produce.</param>
+        /// <param name="bakeResult">Generated text-sprite bake result containing the source asset id and texture settings.</param>
+        void RememberGeneratedTextureCookWorkItem(
+            string sourceAssetPath,
+            string cookedRelativePath,
+            TextComponentSpriteBakeResult bakeResult) {
+            if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedPlatformCookKind("texture")) {
+                return;
+            } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+                throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+            } else if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
+                throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
+            } else if (bakeResult == null) {
+                throw new ArgumentNullException(nameof(bakeResult));
+            }
+
+            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedTextureWorkItem(
+                PlatformDefinition,
+                TargetPlatformId,
+                sourceAssetPath,
+                cookedRelativePath,
+                bakeResult.TextureAsset?.Id,
+                bakeResult.ProcessorSettings,
+                FileHasher);
+            if (workItem != null) {
+                PlatformCookWorkItemSink(workItem);
+            }
+        }
+
         void RememberFontCookWorkItem(string sourceRelativePath, string sourcePath, string cookedRelativePath) {
             if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedPlatformCookKind("font-atlas-texture")) {
                 return;
@@ -2255,6 +2840,11 @@ namespace helengine.editor {
 
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             if (TryReadTaggedDebugComponentRecord(payload, out fontReference, out refreshIntervalSeconds, out padding, out renderOrder2D)) {
+                if (fontReference != null) {
+                    return;
+                }
+            }
+            if (TryReadAutomaticDebugComponentRecord(record, out fontReference, out refreshIntervalSeconds, out padding, out renderOrder2D)) {
                 return;
             }
 
@@ -2325,6 +2915,45 @@ namespace helengine.editor {
                 refreshIntervalSeconds = 0d;
                 padding = int2.Zero;
                 renderOrder2D = 0;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to read one debug payload from the current automatic reflected editor format.
+        /// </summary>
+        /// <param name="record">Serialized component record to inspect.</param>
+        /// <param name="fontReference">Persisted font reference when decoding succeeds.</param>
+        /// <param name="refreshIntervalSeconds">Persisted refresh interval when decoding succeeds.</param>
+        /// <param name="padding">Persisted overlay padding when decoding succeeds.</param>
+        /// <param name="renderOrder2D">Persisted 2D render order when decoding succeeds.</param>
+        /// <returns>True when the payload matched the automatic reflected editor format; otherwise false.</returns>
+        bool TryReadAutomaticDebugComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference fontReference,
+            out double refreshIntervalSeconds,
+            out int2 padding,
+            out byte renderOrder2D) {
+            fontReference = null;
+            refreshIntervalSeconds = 0d;
+            padding = int2.Zero;
+            renderOrder2D = 0;
+
+            try {
+                EntitySaveComponent saveComponent = new EntitySaveComponent();
+                Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, saveComponent, null);
+                if (component is not DebugComponent debugComponent) {
+                    return false;
+                }
+
+                fontReference = ReadAutomaticComponentAssetReference(saveComponent, debugComponent, "Font");
+                refreshIntervalSeconds = debugComponent.RefreshIntervalSeconds;
+                padding = debugComponent.Padding;
+                renderOrder2D = debugComponent.RenderOrder2D;
+                return true;
+            } catch (InvalidOperationException) {
+                return false;
+            } catch (EndOfStreamException) {
                 return false;
             }
         }
@@ -2468,12 +3097,15 @@ namespace helengine.editor {
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             bool useCustomShader = IsCustomShaderEnabled(fieldValues);
+            bool usesCookedPlatformOwnedMaterialResolution = UsesCookedPlatformOwnedMaterialResolution();
             if (IsStandardShaderSchema(materialSettings.SchemaId) && !useCustomShader) {
                 fieldValues[VariantFieldId] = StandardShaderVariantName;
-                ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
-                fieldValues[ShaderAssetIdFieldId] = shaderAsset.Id;
-                fieldValues[VertexProgramFieldId] = StandardVertexProgramName;
-                fieldValues[PixelProgramFieldId] = StandardPixelProgramName;
+                if (!usesCookedPlatformOwnedMaterialResolution) {
+                    ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                    fieldValues[ShaderAssetIdFieldId] = shaderAsset.Id;
+                    fieldValues[VertexProgramFieldId] = StandardVertexProgramName;
+                    fieldValues[PixelProgramFieldId] = StandardPixelProgramName;
+                }
             } else {
                 fieldValues[VariantFieldId] = MeshVariantName;
             }
