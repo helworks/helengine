@@ -321,19 +321,29 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies physics generated-core support is requested only when scene-derived physics symbols are present.
+    /// Verifies physics generated-core support is requested when scene-derived physics symbols or the GameCube runtime force symbol are present.
     /// </summary>
     [Fact]
-    public void Should_regenerate_physics3d_project_returns_true_only_for_scene_physics_symbols() {
-        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject([
-            PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol,
-            PhysicsSceneFeatureSymbolCatalog3D.BoxBoxContactSymbol
-        ]));
+    public void Should_regenerate_physics3d_project_returns_true_for_scene_physics_symbols_or_gamecube_force_symbol() {
+        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            [
+                PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol,
+                PhysicsSceneFeatureSymbolCatalog3D.BoxBoxContactSymbol
+            ]));
 
-        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject([
-            "HELENGINE_INPUT_KEYBOARD",
-            "DESKTOP_PLATFORM"
-        ]));
+        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                ["additional-preprocessor-symbols"] = "HELENGINE_GAMECUBE_INCLUDE_PHYSICS3D_RUNTIME"
+            },
+            []));
+
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            [
+                "HELENGINE_INPUT_KEYBOARD",
+                "DESKTOP_PLATFORM"
+            ]));
     }
 
     /// <summary>
@@ -437,9 +447,27 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.DoesNotContain("GeneratedRuntimeMeshComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.DoesNotContain("GeneratedRuntimeCameraComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.DoesNotContain("GeneratedRuntimeSceneMapComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeFPSComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeDebugComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeTextComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeSpriteComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeRoundedRectComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeDirectionalLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeAmbientLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimePointLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeSpotLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeMeshComponentDeserializer.cpp")));
         Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeCameraComponentDeserializer.cpp")));
         Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSceneMapComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeFPSComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDebugComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeTextComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSpriteComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeRoundedRectComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDirectionalLightComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeAmbientLightComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimePointLightComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSpotLightComponentDeserializer.cpp")));
     }
 
     /// <summary>
