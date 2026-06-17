@@ -35,6 +35,7 @@ namespace helengine.editor {
             '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
 
             // symbols
+            ' ',
             '!', '@', '#', '$', '%', '^', '&', '*',
             '(', ')', '-', '_', '=', '+', '?', ',', '.',
             '/', @"\"[0], ':', ';', '|',
@@ -96,6 +97,11 @@ namespace helengine.editor {
                         Bottom = Math.Max(Bottom, y);
                     }
                 }
+            }
+
+            if (X == int.MaxValue || Y == int.MaxValue || Right == int.MinValue || Bottom == int.MinValue) {
+                rectangle = new Rectangle(offset, offset, 1, 1);
+                return;
             }
 
             int Width = (Right - X) + 1;

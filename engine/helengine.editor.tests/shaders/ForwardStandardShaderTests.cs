@@ -1,4 +1,6 @@
 using helengine.editor;
+using helengine.directx11;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests.shaders {
@@ -6,6 +8,16 @@ namespace helengine.editor.tests.shaders {
     /// Verifies the built-in forward standard shader compiles for both renderer backends and exposes the expected standard-material contract.
     /// </summary>
     public class ForwardStandardShaderTests {
+        /// <summary>
+        /// Configures the shared built-in shader backend registry for the shader layout tests.
+        /// </summary>
+        public ForwardStandardShaderTests() {
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+        }
+
         /// <summary>
         /// Ensures the built-in forward standard shader compiles for DirectX11 and exposes the expected standard-material bindings.
         /// </summary>

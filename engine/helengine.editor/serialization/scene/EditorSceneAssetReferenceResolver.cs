@@ -1,4 +1,5 @@
 using helengine.platforms;
+using System.Reflection;
 
 namespace helengine.editor {
     /// <summary>
@@ -24,6 +25,11 @@ namespace helengine.editor {
         /// Stable asset id used for the editor's built-in font asset.
         /// </summary>
         const string EditorFontAssetId = "ui-font";
+
+        /// <summary>
+        /// Stable asset id used for the generated Nintendo DS debug font.
+        /// </summary>
+        const string NintendoDsDebugFontAssetId = "ds-debug-font";
 
         /// <summary>
         /// Absolute path to the project root folder.
@@ -594,14 +600,38 @@ namespace helengine.editor {
             if (!string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"Unsupported generated font provider '{reference.ProviderId}'.");
             }
-            if (!string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
-                throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
+            if (string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
+                if (Core.Instance is not EditorCore editorCore || editorCore.DefaultFontAssetForEditor == null) {
+                    throw new InvalidOperationException("The editor font is not available in the active editor core.");
+                }
+
+                return editorCore.DefaultFontAssetForEditor;
             }
-            if (Core.Instance is not EditorCore editorCore || editorCore.DefaultFontAssetForEditor == null) {
-                throw new InvalidOperationException("The editor font is not available in the active editor core.");
+            if (string.Equals(reference.AssetId, NintendoDsDebugFontAssetId, StringComparison.Ordinal)) {
+                return ResolveGeneratedNintendoDsDebugFont();
             }
 
-            return editorCore.DefaultFontAssetForEditor;
+            throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
+        }
+
+        /// <summary>
+        /// Resolves the generated Nintendo DS debug font through the editor host font factory.
+        /// </summary>
+        /// <returns>Runtime Nintendo DS debug font asset.</returns>
+        FontAsset ResolveGeneratedNintendoDsDebugFont() {
+            Assembly appAssembly = Assembly.Load("helengine.editor.app");
+            Type debugFontFactoryType = appAssembly.GetType("helengine.editor.app.NintendoDsDebugFontFactory", throwOnError: true);
+            MethodInfo createFontMethod = debugFontFactoryType.GetMethod("CreateBottomOverlayFont", BindingFlags.Public | BindingFlags.Static);
+            if (createFontMethod == null) {
+                throw new InvalidOperationException("NintendoDsDebugFontFactory.CreateBottomOverlayFont was not found.");
+            }
+
+            object result = createFontMethod.Invoke(null, Array.Empty<object>());
+            if (result is not FontAsset fontAsset) {
+                throw new InvalidOperationException("Nintendo DS debug font factory did not return a FontAsset.");
+            }
+
+            return fontAsset;
         }
 
         /// <summary>

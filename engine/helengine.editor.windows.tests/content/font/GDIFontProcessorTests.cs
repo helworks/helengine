@@ -81,5 +81,21 @@ namespace helengine.editor.windows.tests.content.font {
             Assert.True(foundCrossbarRow);
             Assert.True(widestOpaqueRowPixelCount >= 3);
         }
+
+        /// <summary>
+        /// Ensures blank glyphs such as spaces can be imported into the generated DS debug font without crashing atlas generation.
+        /// </summary>
+        [Fact]
+        public void ImportFont_WhenUsingNintendoDsDebugFontPixelSize_IncludesSpaceGlyphWithoutThrowing() {
+            using Font font = new Font("Consolas", 8f, FontStyle.Regular, GraphicsUnit.Pixel);
+
+            FontAsset fontAsset = GDIFontProcessor.ImportFont(font);
+
+            Assert.NotNull(fontAsset);
+            Assert.True(fontAsset.Characters.TryGetValue(' ', out FontChar glyph));
+            Assert.True(glyph.AdvanceWidth > 0f);
+            Assert.True(glyph.SourceRect.Z >= 0f);
+            Assert.True(glyph.SourceRect.W >= 0f);
+        }
     }
 }

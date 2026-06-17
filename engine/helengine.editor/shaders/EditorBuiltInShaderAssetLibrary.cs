@@ -35,6 +35,25 @@ namespace helengine.editor {
         /// Caches compiled built-in shader assets by target and absolute source path.
         /// </summary>
         static readonly Dictionary<string, ShaderAsset> ShaderAssetsByKey = new Dictionary<string, ShaderAsset>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>
+        /// Stores the shader backend registry configured by bootstrap code for built-in shader compilation.
+        /// </summary>
+        static ShaderBackendRegistry ConfiguredShaderBackendRegistry;
+
+        /// <summary>
+        /// Configures the shader backend registry used when built-in shader sources are compiled on demand.
+        /// </summary>
+        /// <param name="shaderBackendRegistry">Registry populated by bootstrap code with the available shader backends.</param>
+        public static void ConfigureShaderBackends(ShaderBackendRegistry shaderBackendRegistry) {
+            if (shaderBackendRegistry == null) {
+                throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            }
+
+            lock (SyncRoot) {
+                ConfiguredShaderBackendRegistry = shaderBackendRegistry;
+                ShaderAssetsByKey.Clear();
+            }
+        }
 
         /// <summary>
         /// Loads one built-in editor shader asset for the backend used by the supplied renderer.
@@ -231,7 +250,8 @@ namespace helengine.editor {
                 throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
             }
 
-            if (string.Equals(shaderName, "ForwardStandardShader", StringComparison.Ordinal)) {
+            if (string.Equals(shaderName, "ForwardStandardShader", StringComparison.Ordinal)
+                || string.Equals(shaderName, "ForwardSolidColorShader", StringComparison.Ordinal)) {
                 return new[] {
                     DefaultVariantName,
                     MeshVariantName
@@ -254,21 +274,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Include root path must be provided.", nameof(includeRootPath));
             }
 
+            ShaderBackendRegistry shaderBackendRegistry = GetRequiredShaderBackendRegistry(target);
             var includeResolver = new ShaderFilesystemIncludeResolver(includeRootPath);
             var cache = new ShaderMemoryCompileCache();
             var hasher = new ShaderSourceHasher();
-            var compileService = new ShaderCompileService(includeResolver, cache, hasher);
-
-            switch (target) {
-                case ShaderCompileTarget.DirectX11:
-                    compileService.RegisterBackend(new helengine.directx11.DirectX11ShaderBackend());
-                    return compileService;
-                case ShaderCompileTarget.Vulkan:
-                    compileService.RegisterBackend(new helengine.vulkan.VulkanShaderBackend());
-                    return compileService;
-                default:
-                    throw new InvalidOperationException("Unsupported editor built-in shader target.");
-            }
+            return shaderBackendRegistry.CreateCompileService(includeResolver, cache, hasher);
         }
 
         /// <summary>
@@ -390,13 +400,26 @@ namespace helengine.editor {
                 return targetProvider.ShaderCompileTarget;
             }
 
-            if (render3D is helengine.directx11.DirectX11Renderer3D) {
-                return ShaderCompileTarget.DirectX11;
-            } else if (render3D is helengine.vulkan.VulkanRenderer3D) {
-                return ShaderCompileTarget.Vulkan;
-            }
-
             throw new InvalidOperationException("Unsupported renderer backend for editor built-in shaders.");
+        }
+
+        /// <summary>
+        /// Resolves the configured shader backend registry and validates that it contains the requested target.
+        /// </summary>
+        /// <param name="target">Target that will be compiled from the built-in shader source.</param>
+        /// <returns>Configured registry that can service the requested target.</returns>
+        static ShaderBackendRegistry GetRequiredShaderBackendRegistry(ShaderCompileTarget target) {
+            lock (SyncRoot) {
+                if (ConfiguredShaderBackendRegistry == null) {
+                    throw new InvalidOperationException("Editor built-in shader backends have not been configured.");
+                }
+
+                if (!ConfiguredShaderBackendRegistry.ContainsTarget(target)) {
+                    throw new InvalidOperationException("No configured built-in shader backend matches the requested target.");
+                }
+
+                return ConfiguredShaderBackendRegistry;
+            }
         }
 
         /// <summary>

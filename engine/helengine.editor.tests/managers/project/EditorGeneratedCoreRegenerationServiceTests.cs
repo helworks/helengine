@@ -321,29 +321,19 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies physics generated-core support is requested when scene-derived physics symbols or the GameCube runtime force symbol are present.
+    /// Verifies physics generated-core support is requested only when scene-derived physics symbols are present.
     /// </summary>
     [Fact]
-    public void Should_regenerate_physics3d_project_returns_true_for_scene_physics_symbols_or_gamecube_force_symbol() {
-        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            [
-                PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol,
-                PhysicsSceneFeatureSymbolCatalog3D.BoxBoxContactSymbol
-            ]));
+    public void Should_regenerate_physics3d_project_returns_true_only_for_scene_physics_symbols() {
+        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject([
+            PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol,
+            PhysicsSceneFeatureSymbolCatalog3D.BoxBoxContactSymbol
+        ]));
 
-        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
-                ["additional-preprocessor-symbols"] = "HELENGINE_GAMECUBE_INCLUDE_PHYSICS3D_RUNTIME"
-            },
-            []));
-
-        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            [
-                "HELENGINE_INPUT_KEYBOARD",
-                "DESKTOP_PLATFORM"
-            ]));
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject([
+            "HELENGINE_INPUT_KEYBOARD",
+            "DESKTOP_PLATFORM"
+        ]));
     }
 
     /// <summary>

@@ -11,11 +11,6 @@ namespace helengine.editor {
     /// </summary>
     public class EditorGeneratedCoreRegenerationService {
         /// <summary>
-        /// Shared preprocessor symbol that forces generated-core regeneration to include the 3D physics runtime even when scene selection does not surface physics feature symbols.
-        /// </summary>
-        const string GameCubeIncludePhysics3DRuntimeSymbol = "HELENGINE_GAMECUBE_INCLUDE_PHYSICS3D_RUNTIME";
-
-        /// <summary>
         /// Loads the HelEngine repository root for local source builds.
         /// </summary>
         readonly EditorSourceBuildWorkspaceLocator WorkspaceLocator;
@@ -88,9 +83,7 @@ namespace helengine.editor {
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
             string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
             StringBuilder logBuilder = new();
-            bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(
-                selectedCodegenOptionValues,
-                additionalPreprocessorSymbols);
+            bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
 
             if (!File.Exists(helengineCoreProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.core project at '{helengineCoreProjectPath}'.", helengineCoreProjectPath);
@@ -452,29 +445,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns whether selected codegen options or scene-derived symbols require the 3D physics project in the generated native core.
+        /// Returns whether scene-derived preprocessor symbols require the 3D physics project in the generated native core.
         /// </summary>
-        /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor.</param>
         /// <param name="additionalPreprocessorSymbols">Scene-derived symbols forwarded to generated-core regeneration.</param>
-        /// <returns>True when physics scene features or explicit platform symbols require native physics runtime sources.</returns>
-        internal static bool ShouldRegeneratePhysics3DProject(
-            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
-            IReadOnlyList<string> additionalPreprocessorSymbols) {
-            if (selectedCodegenOptionValues == null) {
-                throw new ArgumentNullException(nameof(selectedCodegenOptionValues));
-            }
+        /// <returns>True when physics scene features require native physics runtime sources.</returns>
+        internal static bool ShouldRegeneratePhysics3DProject(IReadOnlyList<string> additionalPreprocessorSymbols) {
             if (additionalPreprocessorSymbols == null) {
                 throw new ArgumentNullException(nameof(additionalPreprocessorSymbols));
-            }
-
-            if (selectedCodegenOptionValues.TryGetValue("additional-preprocessor-symbols", out string selectedSymbols)
-                && !string.IsNullOrWhiteSpace(selectedSymbols)) {
-                string[] authoredSymbols = selectedSymbols.Split([';', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                for (int authoredSymbolIndex = 0; authoredSymbolIndex < authoredSymbols.Length; authoredSymbolIndex++) {
-                    if (string.Equals(authoredSymbols[authoredSymbolIndex], GameCubeIncludePhysics3DRuntimeSymbol, StringComparison.OrdinalIgnoreCase)) {
-                        return true;
-                    }
-                }
             }
 
             for (int index = 0; index < additionalPreprocessorSymbols.Count; index++) {

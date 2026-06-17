@@ -14,9 +14,19 @@ namespace helengine.editor {
         const string EditorFontAssetId = "ui-font";
 
         /// <summary>
+        /// Stable asset id used for the generated Nintendo DS debug font.
+        /// </summary>
+        const string NintendoDsDebugFontAssetId = "ds-debug-font";
+
+        /// <summary>
         /// Stable relative path used for the editor's built-in font asset.
         /// </summary>
         const string EditorFontRelativePath = "generated/editor/fonts/ui.hefont";
+
+        /// <summary>
+        /// Stable relative path used for the generated Nintendo DS debug font asset.
+        /// </summary>
+        const string NintendoDsDebugFontRelativePath = "generated/editor/fonts/ds-debug.hefont";
 
         /// <summary>
         /// Stable reference slot name used for font references.
@@ -103,6 +113,19 @@ namespace helengine.editor {
                 RelativePath = EditorFontRelativePath,
                 ProviderId = EditorGeneratedProviderId,
                 AssetId = EditorFontAssetId
+            };
+        }
+
+        /// <summary>
+        /// Builds the stable scene asset reference for the generated Nintendo DS debug font.
+        /// </summary>
+        /// <returns>Stable generated Nintendo DS debug-font reference.</returns>
+        internal static SceneAssetReference BuildNintendoDsDebugFontReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = NintendoDsDebugFontRelativePath,
+                ProviderId = EditorGeneratedProviderId,
+                AssetId = NintendoDsDebugFontAssetId
             };
         }
 

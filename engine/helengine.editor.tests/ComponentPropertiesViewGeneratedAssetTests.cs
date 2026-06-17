@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
+using helengine.directx11;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -320,11 +321,15 @@ namespace helengine.editor.tests {
                 false,
                 false,
                 Array.Empty<ShaderDefine>());
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             ShaderModuleManagerOptions options = new ShaderModuleManagerOptions(
                 shaderRootPath,
                 packageOutputPath,
                 buildOptions,
                 ShaderCompileTarget.DirectX11,
+                shaderBackendRegistry,
                 100);
             return new ShaderModuleManager(options);
         }

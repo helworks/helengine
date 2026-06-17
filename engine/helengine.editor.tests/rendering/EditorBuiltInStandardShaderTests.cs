@@ -8,6 +8,15 @@ namespace helengine.editor.tests.rendering {
     /// </summary>
     public class EditorBuiltInStandardShaderTests {
         /// <summary>
+        /// Configures the shared built-in shader backend registry for the shader-compilation tests.
+        /// </summary>
+        public EditorBuiltInStandardShaderTests() {
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+        }
+
+        /// <summary>
         /// Ensures the built-in forward standard shader compiles for the DirectX11 target.
         /// </summary>
         [Fact]
