@@ -23,6 +23,10 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 return null;
             }
+            if (string.Equals(componentTypeId, "helengine.AnchorComponent", StringComparison.Ordinal)
+                || string.Equals(componentTypeId, "helengine.AnchorComponent, helengine.core", StringComparison.Ordinal)) {
+                return typeof(LayoutComponent);
+            }
 
             Type componentType = TryResolveAssemblyQualifiedType(componentTypeId);
             if (componentType != null) {

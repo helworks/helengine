@@ -185,7 +185,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(spriteComponent);
 
-            AnchorComponent anchorComponent = new AnchorComponent();
+            LayoutComponent anchorComponent = new LayoutComponent();
             anchorComponent.SetAnchorDistances(right: 44f, bottom: 36f);
             sourceEntity.AddComponent(anchorComponent);
 

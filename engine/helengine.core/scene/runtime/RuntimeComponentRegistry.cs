@@ -122,8 +122,10 @@ namespace helengine {
             switch (componentTypeId) {
                 case "helengine.AmbientLightComponent, helengine.core":
                     return "helengine.AmbientLightComponent";
+                case "helengine.AnchorComponent":
+                    return "helengine.LayoutComponent";
                 case "helengine.AnchorComponent, helengine.core":
-                    return "helengine.AnchorComponent";
+                    return "helengine.LayoutComponent";
                 case "helengine.AnimationPlayerComponent, helengine.core":
                     return "helengine.AnimationPlayerComponent";
                 case "helengine.CameraComponent, helengine.core":

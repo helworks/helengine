@@ -46,7 +46,7 @@ namespace helengine.editor.tests.components {
                 Radius = 18f,
                 BorderThickness = 3f
             };
-            AnchorComponent panelAnchor = new AnchorComponent();
+            LayoutComponent panelAnchor = new LayoutComponent();
             panelEntity.AddComponent(panelBackground);
             panelEntity.AddComponent(panelAnchor);
             generatedRoot.AddChild(panelEntity);
@@ -164,7 +164,7 @@ namespace helengine.editor.tests.components {
             SpriteComponent sprite = new SpriteComponent {
                 Size = new int2(220, 220)
             };
-            AnchorComponent anchor = new AnchorComponent();
+            LayoutComponent anchor = new LayoutComponent();
             anchor.SetAnchorDistances(right: 44f, bottom: 36f);
             logoEntity.AddComponent(sprite);
             logoEntity.AddComponent(anchor);
@@ -205,7 +205,7 @@ namespace helengine.editor.tests.components {
                 Radius = 18f,
                 BorderThickness = 3f
             };
-            AnchorComponent panelAnchor = new AnchorComponent();
+            LayoutComponent panelAnchor = new LayoutComponent();
             panelEntity.AddComponent(panelBackground);
             panelEntity.AddComponent(panelAnchor);
             generatedRoot.AddChild(panelEntity);
@@ -247,7 +247,7 @@ namespace helengine.editor.tests.components {
                 Radius = 18f,
                 BorderThickness = 3f
             };
-            AnchorComponent panelAnchor = new AnchorComponent();
+            LayoutComponent panelAnchor = new LayoutComponent();
             panelEntity.AddComponent(panelBackground);
             panelEntity.AddComponent(panelAnchor);
             generatedRoot.AddChild(panelEntity);

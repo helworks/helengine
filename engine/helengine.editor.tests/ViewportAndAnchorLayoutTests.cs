@@ -30,7 +30,7 @@ namespace helengine.editor.tests {
         /// Ensures anchors follow a viewport component that binds to the current screen size.
         /// </summary>
         [Fact]
-        public void AnchorComponent_WhenViewportBindsToScreen_RepositionsWhenTheWindowResizes() {
+        public void LayoutComponent_WhenViewportBindsToScreen_RepositionsWhenTheWindowResizes() {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
 
@@ -49,10 +49,10 @@ namespace helengine.editor.tests {
             contentEntity.AddComponent(new RoundedRectComponent {
                 Size = new int2(100, 50)
             });
-            contentEntity.AddComponent(new AnchorComponent());
+            contentEntity.AddComponent(new LayoutComponent());
             viewportEntity.AddChild(contentEntity);
 
-            AnchorComponent anchor = Assert.IsType<AnchorComponent>(Assert.Single(contentEntity.Components, component => component is AnchorComponent));
+            LayoutComponent anchor = Assert.IsType<LayoutComponent>(Assert.Single(contentEntity.Components, component => component is LayoutComponent));
             anchor.EnableAnchoring(right: true, bottom: true);
 
             Assert.Equal(new float3(530f, 390f, 0f), contentEntity.LocalPosition);
@@ -66,7 +66,7 @@ namespace helengine.editor.tests {
         /// Ensures anchors follow a viewport component that binds to an ancestor camera component.
         /// </summary>
         [Fact]
-        public void AnchorComponent_WhenViewportBindsToAncestorCamera_RepositionsWhenTheCameraViewportChanges() {
+        public void LayoutComponent_WhenViewportBindsToAncestorCamera_RepositionsWhenTheCameraViewportChanges() {
             Entity cameraEntity = new Entity();
             cameraEntity.InitComponents();
             cameraEntity.InitChildren();
@@ -91,10 +91,10 @@ namespace helengine.editor.tests {
             contentEntity.AddComponent(new RoundedRectComponent {
                 Size = new int2(100, 50)
             });
-            contentEntity.AddComponent(new AnchorComponent());
+            contentEntity.AddComponent(new LayoutComponent());
             viewportEntity.AddChild(contentEntity);
 
-            AnchorComponent anchor = Assert.IsType<AnchorComponent>(Assert.Single(contentEntity.Components, component => component is AnchorComponent));
+            LayoutComponent anchor = Assert.IsType<LayoutComponent>(Assert.Single(contentEntity.Components, component => component is LayoutComponent));
             anchor.EnableAnchoring(right: true, bottom: true);
 
             Assert.Equal(new float3(200f, 110f, 0f), contentEntity.LocalPosition);
@@ -202,7 +202,7 @@ namespace helengine.editor.tests {
         /// Ensures anchored sizing can be resolved from a text component on the same entity.
         /// </summary>
         [Fact]
-        public void AnchorComponent_WhenTextComponentProvidesSize_UsesTheTextBoundsForPlacement() {
+        public void LayoutComponent_WhenTextComponentProvidesSize_UsesTheTextBoundsForPlacement() {
             Entity viewportEntity = new Entity();
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
@@ -220,10 +220,10 @@ namespace helengine.editor.tests {
                 Size = new int2(80, 40)
             };
             contentEntity.AddComponent(text);
-            contentEntity.AddComponent(new AnchorComponent());
+            contentEntity.AddComponent(new LayoutComponent());
             viewportEntity.AddChild(contentEntity);
 
-            AnchorComponent anchor = Assert.IsType<AnchorComponent>(Assert.Single(contentEntity.Components, component => component is AnchorComponent));
+            LayoutComponent anchor = Assert.IsType<LayoutComponent>(Assert.Single(contentEntity.Components, component => component is LayoutComponent));
             anchor.EnableAnchoring(right: true, bottom: true);
 
             Assert.Equal(new float3(540f, 395f, 0f), contentEntity.LocalPosition);
@@ -233,7 +233,7 @@ namespace helengine.editor.tests {
         /// Ensures same-aspect widescreen shrink targets preserve normalized anchored placement when reference-canvas fit is active.
         /// </summary>
         [Fact]
-        public void AnchorComponent_WhenReferenceCanvasFitUses853x480_Matches1280x720NormalizedPlacement() {
+        public void LayoutComponent_WhenReferenceCanvasFitUses853x480_Matches1280x720NormalizedPlacement() {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
 
@@ -256,10 +256,10 @@ namespace helengine.editor.tests {
             contentEntity.AddComponent(new RoundedRectComponent {
                 Size = new int2(560, 420)
             });
-            contentEntity.AddComponent(new AnchorComponent());
+            contentEntity.AddComponent(new LayoutComponent());
             viewportEntity.AddChild(contentEntity);
 
-            AnchorComponent anchor = Assert.IsType<AnchorComponent>(Assert.Single(contentEntity.Components, component => component is AnchorComponent));
+            LayoutComponent anchor = Assert.IsType<LayoutComponent>(Assert.Single(contentEntity.Components, component => component is LayoutComponent));
             anchor.SetAnchorDistances(left: 88f, top: 190f);
 
             renderManager.OnWindowResize(IntPtr.Zero, 853, 480);
@@ -272,7 +272,7 @@ namespace helengine.editor.tests {
         /// Ensures anchors can resolve against an explicitly assigned camera instead of relying on ancestor camera lookup.
         /// </summary>
         [Fact]
-        public void AnchorComponent_WhenViewportBindsToExplicitCamera_UsesTheTargetCameraViewport() {
+        public void LayoutComponent_WhenViewportBindsToExplicitCamera_UsesTheTargetCameraViewport() {
             Entity leftCameraEntity = new Entity();
             leftCameraEntity.InitComponents();
             leftCameraEntity.InitChildren();
@@ -305,10 +305,10 @@ namespace helengine.editor.tests {
             contentEntity.AddComponent(new RoundedRectComponent {
                 Size = new int2(100, 50)
             });
-            contentEntity.AddComponent(new AnchorComponent());
+            contentEntity.AddComponent(new LayoutComponent());
             viewportEntity.AddChild(contentEntity);
 
-            AnchorComponent anchor = Assert.IsType<AnchorComponent>(Assert.Single(contentEntity.Components, component => component is AnchorComponent));
+            LayoutComponent anchor = Assert.IsType<LayoutComponent>(Assert.Single(contentEntity.Components, component => component is LayoutComponent));
             anchor.EnableAnchoring(right: true, bottom: true);
 
             Assert.Equal(new float3(520f, 290f, 0f), contentEntity.LocalPosition);
@@ -318,7 +318,7 @@ namespace helengine.editor.tests {
         /// Ensures camera-bound viewports resolve normalized camera rectangles into pixel-space bounds before anchored layout runs.
         /// </summary>
         [Fact]
-        public void AnchorComponent_WhenViewportBindsToNormalizedAncestorCamera_UsesResolvedPixelBounds() {
+        public void LayoutComponent_WhenViewportBindsToNormalizedAncestorCamera_UsesResolvedPixelBounds() {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 256, 192);
 
@@ -346,13 +346,94 @@ namespace helengine.editor.tests {
             contentEntity.AddComponent(new RoundedRectComponent {
                 Size = new int2(100, 50)
             });
-            contentEntity.AddComponent(new AnchorComponent());
+            contentEntity.AddComponent(new LayoutComponent());
             viewportEntity.AddChild(contentEntity);
 
-            AnchorComponent anchor = Assert.IsType<AnchorComponent>(Assert.Single(contentEntity.Components, component => component is AnchorComponent));
+            LayoutComponent anchor = Assert.IsType<LayoutComponent>(Assert.Single(contentEntity.Components, component => component is LayoutComponent));
             anchor.EnableAnchoring(right: true, bottom: true);
 
             Assert.Equal(new float3(156f, 142f, 0f), contentEntity.LocalPosition);
+        }
+
+        /// <summary>
+        /// Ensures layout components stretch width automatically when opposing horizontal anchors are set against an explicit camera viewport layout space.
+        /// </summary>
+        [Fact]
+        public void LayoutComponent_WhenViewportSpaceUsesOpposingHorizontalAnchors_StretchesWidthAutomatically() {
+            Entity cameraEntity = new Entity();
+            cameraEntity.InitComponents();
+            cameraEntity.InitChildren();
+            CameraComponent camera = new CameraComponent {
+                Viewport = new float4(0f, 0f, 640f, 480f)
+            };
+            cameraEntity.AddComponent(camera);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            viewportEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.AncestorCameraBindingMode
+            });
+            cameraEntity.AddChild(viewportEntity);
+
+            Entity contentEntity = new Entity {
+                LocalPosition = new float3(20f, 30f, 0f)
+            };
+            contentEntity.InitComponents();
+            contentEntity.InitChildren();
+            RoundedRectComponent shape = new RoundedRectComponent {
+                Size = new int2(100, 50)
+            };
+            contentEntity.AddComponent(shape);
+            LayoutComponent layout = new LayoutComponent {
+                LayoutSpace = LayoutComponent.CameraViewportLayoutSpace
+            };
+            contentEntity.AddComponent(layout);
+            viewportEntity.AddChild(contentEntity);
+
+            layout.SetAnchorDistances(left: 20f, right: 30f, top: 30f);
+            layout.RefreshAnchoring();
+
+            Assert.Equal(new float3(20f, 30f, 0f), contentEntity.LocalPosition);
+            Assert.Equal(new int2(590, 50), shape.Size);
+        }
+
+        /// <summary>
+        /// Ensures layout components can answer to the immediate parent layout rect instead of the nearest viewport or reference-canvas provider.
+        /// </summary>
+        [Fact]
+        public void LayoutComponent_WhenUsingParentLayoutSpace_UsesTheImmediateParentRect() {
+            Entity panelEntity = new Entity();
+            panelEntity.InitComponents();
+            panelEntity.InitChildren();
+            RoundedRectComponent panelShape = new RoundedRectComponent {
+                Size = new int2(300, 120)
+            };
+            panelEntity.AddComponent(panelShape);
+            panelEntity.AddComponent(new LayoutComponent());
+
+            Entity contentEntity = new Entity {
+                LocalPosition = new float3(210f, 5f, 0f)
+            };
+            contentEntity.InitComponents();
+            contentEntity.InitChildren();
+            TextComponent text = new TextComponent {
+                Size = new int2(80, 20)
+            };
+            contentEntity.AddComponent(text);
+            LayoutComponent layout = new LayoutComponent {
+                LayoutSpace = LayoutComponent.ParentLayoutRectSpace
+            };
+            contentEntity.AddComponent(layout);
+            panelEntity.AddChild(contentEntity);
+
+            layout.EnableAnchoring(right: true, top: true);
+            Assert.Equal(new float3(210f, 5f, 0f), contentEntity.LocalPosition);
+
+            panelShape.Size = new int2(420, 120);
+            layout.RefreshAnchoring();
+
+            Assert.Equal(new float3(330f, 5f, 0f), contentEntity.LocalPosition);
         }
 
         /// <summary>

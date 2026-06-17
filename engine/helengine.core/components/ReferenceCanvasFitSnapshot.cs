@@ -13,9 +13,9 @@ namespace helengine {
             IsRootEntity = isRootEntity;
             LocalPosition = entity.LocalPosition;
 
-            TrackedAnchorComponent = FindAnchorComponent(entity);
-            if (TrackedAnchorComponent != null) {
-                AnchorDistances = TrackedAnchorComponent.AnchorDistances;
+            TrackedLayoutComponent = FindLayoutComponent(entity);
+            if (TrackedLayoutComponent != null) {
+                AnchorDistances = TrackedLayoutComponent.AnchorDistances;
             }
 
             TrackedRoundedRectComponent = FindRoundedRectComponent(entity);
@@ -71,7 +71,7 @@ namespace helengine {
         /// <summary>
         /// Gets the attached anchor component when one exists.
         /// </summary>
-        public AnchorComponent TrackedAnchorComponent { get; }
+        public LayoutComponent TrackedLayoutComponent { get; }
 
         /// <summary>
         /// Gets the authored anchor distances captured from the anchor component.
@@ -181,8 +181,8 @@ namespace helengine {
                 positionY,
                 LocalPosition.Z);
 
-            if (TrackedAnchorComponent != null) {
-                TrackedAnchorComponent.AnchorDistances = new float4(
+            if (TrackedLayoutComponent != null) {
+                TrackedLayoutComponent.AnchorDistances = new float4(
                     ScaleFloat(AnchorDistances.X, widthScale),
                     ScaleFloat(AnchorDistances.Y, widthScale),
                     ScaleFloat(AnchorDistances.Z, heightScale),
@@ -222,23 +222,23 @@ namespace helengine {
         /// Refreshes anchored layout after the scaled bounds and distances have been applied.
         /// </summary>
         public void RefreshAnchoring() {
-            if (TrackedAnchorComponent != null) {
-                TrackedAnchorComponent.RefreshAnchoring();
+            if (TrackedLayoutComponent != null) {
+                TrackedLayoutComponent.RefreshAnchoring();
             }
         }
 
         /// <summary>
-        /// Finds the first attached anchor component.
+        /// Finds the first attached layout component.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
-        /// <returns>Attached anchor component when one exists; otherwise null.</returns>
-        static AnchorComponent FindAnchorComponent(Entity entity) {
+        /// <returns>Attached layout component when one exists; otherwise null.</returns>
+        static LayoutComponent FindLayoutComponent(Entity entity) {
             if (entity.Components == null) {
                 return null;
             }
 
             for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
-                if (entity.Components[componentIndex] is AnchorComponent component) {
+                if (entity.Components[componentIndex] is LayoutComponent component) {
                     return component;
                 }
             }

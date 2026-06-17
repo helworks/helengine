@@ -61,7 +61,7 @@ namespace helengine.editor {
         /// <summary>
         /// Anchor component that keeps the message block pinned to the upper-left content area.
         /// </summary>
-        readonly AnchorComponent MessageAnchor;
+        readonly LayoutComponent MessageAnchor;
 
         /// <summary>
         /// Message text shown above the footer buttons.
@@ -101,7 +101,7 @@ namespace helengine.editor {
         /// <summary>
         /// Anchor component that keeps the footer row pinned to the bottom-right of the dialog.
         /// </summary>
-        readonly AnchorComponent FooterAnchor;
+        readonly LayoutComponent FooterAnchor;
 
         /// <summary>
         /// Invisible sprite that provides the footer group size for anchoring.
@@ -154,7 +154,7 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(MessageHost);
-            MessageAnchor = new AnchorComponent();
+            MessageAnchor = new LayoutComponent();
             MessageHost.AddComponent(MessageAnchor);
             MessageAnchor.SetAnchorDistances(left: GetPanelPaddingPixels(), top: GetMessageTop());
 
@@ -185,7 +185,7 @@ namespace helengine.editor {
                 Size = GetFooterBoundsSize()
             };
             FooterHost.AddComponent(FooterBoundsSurface);
-            FooterAnchor = new AnchorComponent();
+            FooterAnchor = new LayoutComponent();
             FooterHost.AddComponent(FooterAnchor);
             FooterAnchor.SetAnchorDistances(right: GetPanelPaddingPixels(), bottom: GetPanelPaddingPixels());
 

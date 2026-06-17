@@ -306,6 +306,23 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures legacy scenes persisted with the old anchor component id now materialize the renamed layout component.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenLegacyAnchorComponentTypeIdIsUsed_ReturnsLayoutComponent() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.AnchorComponent",
+                ComponentIndex = 0,
+                Payload = Array.Empty<byte>()
+            };
+
+            LayoutComponent component = Assert.IsType<LayoutComponent>(descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal(0, component.AnchorFlags);
+        }
+
+        /// <summary>
         /// Ensures unsupported reflected member types fail clearly instead of being silently skipped.
         /// </summary>
         [Fact]
