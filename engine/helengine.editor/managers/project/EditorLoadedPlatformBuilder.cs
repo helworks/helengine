@@ -45,5 +45,19 @@ namespace helengine.editor {
         /// Gets the selection model the editor can use to populate build dialogs.
         /// </summary>
         public EditorPlatformBuildSelectionModel SelectionModel { get; }
+
+        /// <summary>
+        /// Registers any shader backends contributed by the dynamically loaded platform builder into the supplied registry.
+        /// </summary>
+        /// <param name="shaderBackendRegistry">Registry that should receive contributed shader backends.</param>
+        public void RegisterShaderBackends(ShaderBackendRegistry shaderBackendRegistry) {
+            if (shaderBackendRegistry == null) {
+                throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            }
+
+            if (Builder is IShaderBackendRegistryContributor contributor) {
+                contributor.RegisterShaderBackends(shaderBackendRegistry);
+            }
+        }
     }
 }

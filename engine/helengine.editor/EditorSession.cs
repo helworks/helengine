@@ -260,6 +260,10 @@ namespace helengine.editor {
         /// </summary>
         readonly AssetImportManager assetImportManager;
         /// <summary>
+        /// Explicitly registered shader backends available to this editor session.
+        /// </summary>
+        readonly ShaderBackendRegistry ShaderBackends;
+        /// <summary>
         /// Service that loads and saves per-platform material settings sidecars.
         /// </summary>
         readonly MaterialAssetSettingsService materialAssetSettingsService;
@@ -454,6 +458,7 @@ namespace helengine.editor {
         /// <param name="titleBarIcon">Runtime texture rendered in the editor title bar's left icon slot.</param>
         /// <param name="importers">Asset importers to register for import settings.</param>
         /// <param name="browseOutputFolderResolver">Host callback that opens a folder picker for build output selection.</param>
+        /// <param name="shaderBackendRegistry">Registry populated by bootstrap code with the shader backends available to the editor host.</param>
         public EditorSession(
             EditorCore core,
             string projectPath,
@@ -469,9 +474,11 @@ namespace helengine.editor {
             EditorViewportToolbarIconSet toolbarIcons,
             RuntimeTexture titleBarIcon,
             IReadOnlyList<IAssetImporterRegistration> importers,
-            Func<string> browseOutputFolderResolver) {
+            Func<string> browseOutputFolderResolver,
+            ShaderBackendRegistry shaderBackendRegistry) {
             this.core = core ?? throw new ArgumentNullException(nameof(core));
             BrowseOutputFolderResolver = browseOutputFolderResolver ?? throw new ArgumentNullException(nameof(browseOutputFolderResolver));
+            ShaderBackends = shaderBackendRegistry ?? throw new ArgumentNullException(nameof(shaderBackendRegistry));
             CanonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
             this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
             ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
@@ -503,6 +510,7 @@ namespace helengine.editor {
             core.Input.SetKeyboardActive(true);
 
             EditorProjectPaths.Initialize(this.projectPath);
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(ShaderBackends);
 
             assetImportManager = InitializeAssetImports(Importers);
             materialAssetSettingsService = new MaterialAssetSettingsService();
@@ -4181,6 +4189,7 @@ namespace helengine.editor {
                 packageOutputPath,
                 buildOptions,
                 runtimeTarget,
+                ShaderBackends,
                 ShaderBuildDelayMilliseconds);
             return new ShaderModuleManager(options);
         }
@@ -4223,12 +4232,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(render3D));
             }
 
-            if (render3D is helengine.directx11.DirectX11Renderer3D) {
-                return ShaderCompileTarget.DirectX11;
-            }
-
-            if (render3D is helengine.vulkan.VulkanRenderer3D) {
-                return ShaderCompileTarget.Vulkan;
+            if (render3D is IShaderCompileTargetProvider targetProvider) {
+                return targetProvider.ShaderCompileTarget;
             }
 
             throw new InvalidOperationException("Unsupported renderer for shader runtime target resolution.");

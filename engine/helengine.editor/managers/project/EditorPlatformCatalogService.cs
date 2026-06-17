@@ -76,6 +76,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Registers shader backends contributed by dynamically loaded platform builders into the supplied registry.
+        /// </summary>
+        /// <param name="shaderBackendRegistry">Registry that should receive contributed shader backends.</param>
+        public void RegisterShaderBackends(ShaderBackendRegistry shaderBackendRegistry) {
+            if (shaderBackendRegistry == null) {
+                throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            }
+
+            IReadOnlyList<EditorLoadedPlatformBuilder> loadedBuilders = LoadBuilders();
+            for (int index = 0; index < loadedBuilders.Count; index++) {
+                loadedBuilders[index].RegisterShaderBackends(shaderBackendRegistry);
+            }
+        }
+
+        /// <summary>
         /// Loads each builder assembly once and caches the results.
         /// </summary>
         void EnsureLoaded() {

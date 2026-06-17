@@ -2,6 +2,7 @@ using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Reporting;
 using helengine.baseplatform.Requests;
+using helengine.directx11;
 using helengine.platforms;
 
 namespace helengine.editor {
@@ -40,6 +41,37 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
+            using DirectX11Renderer3D renderer3D = new DirectX11Renderer3D();
+            using EditorCore core = new EditorCore(null);
+            CoreInitializationOptions initializationOptions = new CoreInitializationOptions {
+                ContentRootPath = Path.Combine(bootstrap.ProjectRootPath, "assets")
+            };
+            PlatformInfo platformInfo = new PlatformInfo("editor", bootstrap.RequiredEngineVersion);
+            core.Initialize(renderer3D, renderer3D.Render2D, null, platformInfo, initializationOptions);
+            core.SetDefaultFontAssetForEditor(DefaultFontAsset);
+            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
+            EditorProjectPaths.Initialize(bootstrap.ProjectRootPath);
+            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+            ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
+            ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
+            ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(
+                new[] { targetOptions },
+                ShaderBindingPolicies.Default,
+                true,
+                false,
+                false,
+                Array.Empty<ShaderDefine>());
+            ShaderModuleManager shaderModuleManager = new ShaderModuleManager(new ShaderModuleManagerOptions(
+                Path.Combine(bootstrap.ProjectRootPath, "assets"),
+                Path.Combine(bootstrap.ProjectRootPath, "cache", "shader-cache"),
+                shaderPackageBuildOptions,
+                runtimeTarget,
+                shaderBackendRegistry,
+                250));
+            EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget, core.ContentManager);
+            shaderModuleManager.Start();
+
             EditorBuildExecutionResult scriptLoadResult = BuildAndLoadProjectScripts(
                 bootstrap,
                 out EditorGameScriptAssemblyHost assemblyHost,
@@ -146,6 +178,22 @@ namespace helengine.editor {
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Creates the shader backend registry required by the headless editor build runner.
+        /// </summary>
+        /// <param name="platformCatalogService">Dynamic platform catalog that can contribute additional shader backends from loaded platform builders.</param>
+        /// <returns>Registry populated with the desktop shader backends supported by the build runner.</returns>
+        static ShaderBackendRegistry CreateShaderBackendRegistry(EditorPlatformCatalogService platformCatalogService) {
+            if (platformCatalogService == null) {
+                throw new ArgumentNullException(nameof(platformCatalogService));
+            }
+
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            platformCatalogService.RegisterShaderBackends(shaderBackendRegistry);
+            return shaderBackendRegistry;
         }
     }
 }
