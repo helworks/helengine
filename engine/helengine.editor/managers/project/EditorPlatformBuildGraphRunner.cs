@@ -28,9 +28,9 @@ namespace helengine.editor {
         readonly EditorPlatformAssetBuilderLoader BuilderLoader;
         readonly EditorGeneratedCoreRegenerationService GeneratedCoreRegenerationService;
         readonly EditorGeneratedBootScenePreparationService GeneratedBootScenePreparationService;
-        readonly EditorPhysics3DCodegenFeatureSymbolService Physics3DCodegenFeatureSymbolService;
         readonly EditorPlatformBuildGraphWorkspaceFactory WorkspaceFactory;
         readonly EditorPlatformAssetCookService AssetCookService;
+        readonly EditorPhysics3DCodegenFeatureSymbolService Physics3DCodegenFeatureSymbolService;
         readonly EditorCodeModuleManifestService CodeModuleManifestService;
         readonly EditorPlatformCodeCookService CodeCookService;
         readonly EditorPlatformLayoutPlanService LayoutPlanService;
@@ -98,7 +98,6 @@ namespace helengine.editor {
             BuilderLoader = builderLoader ?? throw new ArgumentNullException(nameof(builderLoader));
             GeneratedCoreRegenerationService = generatedCoreRegenerationService ?? throw new ArgumentNullException(nameof(generatedCoreRegenerationService));
             GeneratedBootScenePreparationService = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
-            Physics3DCodegenFeatureSymbolService = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
             WorkspaceFactory = workspaceFactory ?? new EditorPlatformBuildGraphWorkspaceFactory();
             AssetCookService = new EditorPlatformAssetCookService(
                 ProjectRootPath,
@@ -108,6 +107,7 @@ namespace helengine.editor {
                 Importers,
                 DefaultFontAsset,
                 scriptTypeResolver);
+            Physics3DCodegenFeatureSymbolService = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
             CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
             CodeCookService = new EditorPlatformCodeCookService(ProjectRootPath);
             LayoutPlanService = new EditorPlatformLayoutPlanService();
@@ -318,10 +318,14 @@ namespace helengine.editor {
             PlatformCodegenProfileDefinition selectedCodegenProfile,
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace) {
-            PhysicsSceneFeatureFlags3D physics3DSceneFeatureFlags = Physics3DCodegenFeatureSymbolService.ResolveFeatureFlags(queueItem.SelectedSceneIds ?? []);
-            IReadOnlyList<string> physics3DCodegenSymbols = physics3DSceneFeatureFlags == PhysicsSceneFeatureFlags3D.None
+            IReadOnlyList<string> platformCodegenSymbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(builderDefinition);
+            PhysicsSceneFeatureFlags3D physics3DFeatureFlags = Physics3DCodegenFeatureSymbolService.ResolveFeatureFlags(queueItem.SelectedSceneIds ?? []);
+            IReadOnlyList<string> physics3DCodegenSymbols = physics3DFeatureFlags == PhysicsSceneFeatureFlags3D.None
                 ? []
-                : PhysicsSceneFeatureSymbolCatalog3D.BuildSymbols(physics3DSceneFeatureFlags);
+                : PhysicsSceneFeatureSymbolCatalog3D.BuildSymbols(physics3DFeatureFlags);
+            IReadOnlyList<string> additionalPreprocessorSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
+                platformCodegenSymbols,
+                physics3DCodegenSymbols);
             GeneratedCoreRegenerationService.Regenerate(
                 builderDefinition,
                 selectedCodegenProfile,
@@ -329,7 +333,7 @@ namespace helengine.editor {
                 workspace.GeneratedCoreRootPath,
                 PlatformDescriptor.CodegenToolPath,
                 PlatformDescriptor.GeneratedCoreProjectPaths,
-                physics3DCodegenSymbols,
+                additionalPreprocessorSymbols,
                 CancellationToken.None);
         }
 

@@ -3,6 +3,7 @@ using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
 using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Requests;
+using helengine.directx11;
 using helengine.editor.tests.testing;
 using helengine.platforms;
 using System.Reflection;
@@ -13,6 +14,15 @@ namespace helengine.editor.tests.managers.project;
 /// Verifies the platform build executor delegates execution to the shared build-graph runner.
 /// </summary>
 public class EditorPlatformBuildGraphRunnerTests {
+    /// <summary>
+    /// Configures the shared built-in shader backend registry used by build-path tests that package generated standard materials.
+    /// </summary>
+    public EditorPlatformBuildGraphRunnerTests() {
+        ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+        shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+        EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+    }
+
     [Fact]
     public void Execute_DelegatesToInjectedBuildGraphRunner() {
         FakeEditorPlatformBuildGraphRunner runner = new();
@@ -634,47 +644,60 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
-    /// Verifies source-scene 3D physics feature symbols are forwarded into generated-core regeneration.
+    /// Verifies source-scene 3D physics usage forwards the physics scene-feature stripping symbol into generated-core regeneration.
     /// </summary>
     [Fact]
-    public void RunRegenerateCore_ForwardsPhysicsSceneFeatureSymbolsFromSelectedScenes() {
+    public void RunRegenerateCore_ForwardsPhysicsSceneFeatureSymbolsFromSelectedSourceScenes() {
         string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(rootPath, "assets", "Scenes"));
 
         try {
-            SceneAsset sceneAsset = new SceneAsset {
-                Id = "Scenes/PhysicsScene.helen",
-                RootEntities = new[] {
-                    new SceneEntityAsset {
-                        Id = 1u,
-                        Name = "Ground",
-                        LocalPosition = float3.Zero,
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            CreateRigidBodyRecord(BodyKind3D.Static, false),
-                            CreateBoxColliderRecord(new float3(8f, 1f, 8f), false)
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    },
-                    new SceneEntityAsset {
-                        Id = 2u,
-                        Name = "Box",
-                        LocalPosition = new float3(0f, 2f, 0f),
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            CreateRigidBodyRecord(BodyKind3D.Dynamic, true),
-                            CreateBoxColliderRecord(new float3(1f, 1f, 1f), false)
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    }
-                }
-            };
-            using (FileStream sceneStream = File.Create(Path.Combine(rootPath, "assets", "Scenes", "PhysicsScene.helen"))) {
-                AssetSerializer.Serialize(sceneStream, sceneAsset);
+            string scenePath = Path.Combine(rootPath, "assets", "Scenes", "PhysicsScene.helen");
+            using (FileStream stream = new(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(
+                    stream,
+                    new SceneAsset {
+                        Id = "Scenes/PhysicsScene.helen",
+                        RootEntities = [
+                            new SceneEntityAsset {
+                                Id = 1u,
+                                Name = "Ground",
+                                LocalPosition = float3.Zero,
+                                LocalScale = float3.One,
+                                LocalOrientation = float4.Identity,
+                                Components = [
+                                    CreateRigidBodyRecord(BodyKind3D.Static, false),
+                                    CreateBoxColliderRecord(new float3(8f, 1f, 8f), false)
+                                ],
+                                Children = Array.Empty<SceneEntityAsset>()
+                            },
+                            new SceneEntityAsset {
+                                Id = 2u,
+                                Name = "DynamicBox",
+                                LocalPosition = new float3(0f, 2f, 0f),
+                                LocalScale = float3.One,
+                                LocalOrientation = float4.Identity,
+                                Components = [
+                                    CreateRigidBodyRecord(BodyKind3D.Dynamic, true),
+                                    CreateBoxColliderRecord(new float3(1f, 1f, 1f), false)
+                                ],
+                                Children = Array.Empty<SceneEntityAsset>()
+                            },
+                            new SceneEntityAsset {
+                                Id = 3u,
+                                Name = "Trigger",
+                                LocalPosition = new float3(0f, 1f, 2f),
+                                LocalScale = float3.One,
+                                LocalOrientation = float4.Identity,
+                                Components = [
+                                    CreateRigidBodyRecord(BodyKind3D.Static, false),
+                                    CreateBoxColliderRecord(new float3(2f, 2f, 2f), true)
+                                ],
+                                Children = Array.Empty<SceneEntityAsset>()
+                            }
+                        ]
+                    });
             }
-
             RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
             EditorPlatformBuildGraphRunner runner = new(
                 rootPath,
@@ -716,7 +739,6 @@ public class EditorPlatformBuildGraphRunnerTests {
 
             Assert.NotNull(regenerationService.AdditionalPreprocessorSymbols);
             Assert.Contains(PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol, regenerationService.AdditionalPreprocessorSymbols);
-            Assert.Contains(PhysicsSceneFeatureSymbolCatalog3D.BoxBoxContactSymbol, regenerationService.AdditionalPreprocessorSymbols);
         } finally {
             if (Directory.Exists(rootPath)) {
                 Directory.Delete(rootPath, true);
@@ -725,32 +747,15 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
-    /// Verifies selected scenes without physics records do not request physics generated-core support.
+    /// Verifies selected source scenes without 3D physics components do not request any physics generated-core support.
     /// </summary>
     [Fact]
-    public void RunRegenerateCore_WhenScenesDoNotUsePhysics_DoesNotForwardPhysicsSceneFeatureSymbols() {
+    public void RunRegenerateCore_WhenSelectedSourceScenesDoNotUsePhysics_DoesNotForwardPhysicsSceneFeatureSymbols() {
         string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(rootPath, "assets", "Scenes"));
 
         try {
-            SceneAsset sceneAsset = new SceneAsset {
-                Id = "Scenes/VisualScene.helen",
-                RootEntities = new[] {
-                    new SceneEntityAsset {
-                        Id = 1u,
-                        Name = "Camera",
-                        LocalPosition = float3.Zero,
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = Array.Empty<SceneComponentAssetRecord>(),
-                        Children = Array.Empty<SceneEntityAsset>()
-                    }
-                }
-            };
-            using (FileStream sceneStream = File.Create(Path.Combine(rootPath, "assets", "Scenes", "VisualScene.helen"))) {
-                AssetSerializer.Serialize(sceneStream, sceneAsset);
-            }
-
+            WriteSceneAssetForBuildGraphRunnerTest(rootPath, "Scenes/VisualScene.helen");
             RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
             EditorPlatformBuildGraphRunner runner = new(
                 rootPath,
@@ -792,6 +797,91 @@ public class EditorPlatformBuildGraphRunnerTests {
 
             Assert.NotNull(regenerationService.AdditionalPreprocessorSymbols);
             Assert.DoesNotContain(PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol, regenerationService.AdditionalPreprocessorSymbols);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies generated-core regeneration forwards platform-owned runtime asset resolution symbols from the platform runtime-generation contract.
+    /// </summary>
+    [Fact]
+    public void RunRegenerateCore_WhenPlatformUsesCookedPlatformOwnedRuntime_ForwardsPlatformRuntimeSymbols() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(rootPath, "assets", "Scenes"));
+
+        try {
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/VisualScene.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Camera",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+            using (FileStream sceneStream = File.Create(Path.Combine(rootPath, "assets", "Scenes", "VisualScene.helen"))) {
+                AssetSerializer.Serialize(sceneStream, sceneAsset);
+            }
+
+            RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "wii",
+                    "Wii",
+                    "builder.dll",
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                regenerationService);
+
+            MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "RunRegenerateCore",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(runRegenerateCoreMethod);
+
+            runRegenerateCoreMethod.Invoke(
+                runner,
+                [
+                    CreatePlatformDefinition(
+                        "wii",
+                        "Wii",
+                        new RuntimeGenerationContract(
+                            RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                            true,
+                            PackagedPathPolicy.RootedOrContentRelative)),
+                    CreateCodegenProfile(),
+                    new EditorBuildQueueItemDocument {
+                        QueueItemId = "queue-item",
+                        PlatformId = "wii",
+                        OutputDirectoryPath = Path.Combine(rootPath, "output"),
+                        SelectedSceneIds = ["VisualScene"],
+                        SelectedCodegenOptionValues = new Dictionary<string, string>()
+                    },
+                    new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
+                ]);
+
+            Assert.NotNull(regenerationService.AdditionalPreprocessorSymbols);
+            Assert.Contains(EditorPlatformPreprocessorSymbolService.RuntimeMaterialResolutionCookedPlatformOwnedSymbol, regenerationService.AdditionalPreprocessorSymbols);
+            Assert.Contains(EditorPlatformPreprocessorSymbolService.RuntimeTextureResolutionCookedPlatformOwnedSymbol, regenerationService.AdditionalPreprocessorSymbols);
+            Assert.Contains(EditorPlatformPreprocessorSymbolService.RuntimeModelResolutionCookedPlatformOwnedSymbol, regenerationService.AdditionalPreprocessorSymbols);
+            Assert.Contains(EditorPlatformPreprocessorSymbolService.RuntimeAllowRootedPackagedPathsSymbol, regenerationService.AdditionalPreprocessorSymbols);
+            Assert.Contains(EditorPlatformPreprocessorSymbolService.RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol, regenerationService.AdditionalPreprocessorSymbols);
         } finally {
             if (Directory.Exists(rootPath)) {
                 Directory.Delete(rootPath, true);
@@ -991,7 +1081,10 @@ public class EditorPlatformBuildGraphRunnerTests {
     /// <param name="platformId">Stable platform identifier.</param>
     /// <param name="platformName">Display platform name.</param>
     /// <returns>Platform definition used by the focused build-graph tests.</returns>
-    static PlatformDefinition CreatePlatformDefinition(string platformId, string platformName) {
+    static PlatformDefinition CreatePlatformDefinition(
+        string platformId,
+        string platformName,
+        RuntimeGenerationContract runtimeGenerationContract = null) {
         return new PlatformDefinition(
             platformId,
             platformName,
@@ -1002,7 +1095,8 @@ public class EditorPlatformBuildGraphRunnerTests {
             Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
-            Array.Empty<PlatformMediaProfileDefinition>());
+            Array.Empty<PlatformMediaProfileDefinition>(),
+            runtimeGenerationContract: runtimeGenerationContract);
     }
 
     /// <summary>
@@ -1326,7 +1420,7 @@ public class EditorPlatformBuildGraphRunnerTests {
     /// </summary>
     /// <param name="projectRootPath">Temporary project root path that owns the authored asset tree.</param>
     /// <param name="sceneRelativePath">Project-relative authored scene path to write.</param>
-    static void WriteSceneAssetForBuildGraphRunnerTest(string projectRootPath, string sceneRelativePath) {
+    static void WriteSceneAssetForBuildGraphRunnerTest(string projectRootPath, string sceneRelativePath, params SceneComponentAssetRecord[] components) {
         if (string.IsNullOrWhiteSpace(projectRootPath)) {
             throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
         }
@@ -1349,7 +1443,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                     LocalPosition = float3.Zero,
                     LocalScale = float3.One,
                     LocalOrientation = float4.Identity,
-                    Components = Array.Empty<SceneComponentAssetRecord>(),
+                    Components = components ?? Array.Empty<SceneComponentAssetRecord>(),
                     Children = Array.Empty<SceneEntityAsset>()
                 }
             ]

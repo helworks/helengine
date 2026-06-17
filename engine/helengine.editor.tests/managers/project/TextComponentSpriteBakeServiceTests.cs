@@ -1,3 +1,5 @@
+using helengine.directx11;
+using helengine.vulkan;
 using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests {
@@ -17,6 +19,10 @@ namespace helengine.editor.tests {
             string workspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-text-sprite-bake-tests", Guid.NewGuid().ToString("N"));
             ProjectRootPath = workspaceRootPath;
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
 
             Core core = new Core();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));

@@ -1,3 +1,4 @@
+using helengine.directx11;
 using Xunit;
 using helengine.editor.tests.testing;
 
@@ -284,6 +285,9 @@ namespace helengine.editor.tests {
             string buildRootPath = Path.Combine(TempRootPath, "build");
             Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
             Directory.CreateDirectory(buildRootPath);
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
 
             SceneAsset authoredScene = new SceneAsset {
                 Id = sceneId,
