@@ -138,11 +138,6 @@ namespace helengine {
         public TextAlignment Alignment { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether scene packaging should bake this authored text into a sprite-backed runtime component.
-        /// </summary>
-        public bool ConvertTextToSprite { get; set; }
-
-        /// <summary>
         /// Gets or sets the layer mask used to filter cameras.
         /// </summary>
         public byte LayerMask { get; set; }
@@ -216,7 +211,6 @@ namespace helengine {
             WrapText = false;
             FontScaleValue = 1f;
             Alignment = TextAlignment.Left;
-            ConvertTextToSprite = false;
         }
 
         /// <summary>

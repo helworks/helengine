@@ -26,10 +26,6 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         readonly Queue<int> QueuedDrawCallCountsValue;
         /// <summary>
-        /// Shader target exposed by this test renderer when shader-backed runtime materials resolve cooked packages.
-        /// </summary>
-        readonly ShaderCompileTarget ShaderCompileTargetValue;
-        /// <summary>
         /// Most recent draw-call count published by the test renderer.
         /// </summary>
         int LastDrawCallCountValue;
@@ -42,14 +38,12 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Initializes a new test render manager.
         /// </summary>
-        /// <param name="shaderCompileTarget">Shader target exposed to shared shader-runtime loading helpers.</param>
-        public TestRenderManager3D(ShaderCompileTarget shaderCompileTarget = ShaderCompileTarget.Vulkan) {
+        public TestRenderManager3D() {
             BuiltModelAssetsValue = new List<ModelAsset>();
             BuiltMaterialAssetsValue = new List<ShaderMaterialAsset>();
             ReleasedModelsValue = new List<RuntimeModel>();
             ReleasedMaterialsValue = new List<RuntimeMaterial>();
             QueuedDrawCallCountsValue = new Queue<int>();
-            ShaderCompileTargetValue = shaderCompileTarget;
         }
 
         /// <summary>
@@ -75,7 +69,7 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Gets the shader compile target exposed by the test renderer.
         /// </summary>
-        public ShaderCompileTarget ShaderCompileTarget => ShaderCompileTargetValue;
+        public ShaderCompileTarget ShaderCompileTarget => ShaderCompileTarget.Vulkan;
 
         /// <summary>
         /// Gets the capability profile published by the test renderer.
