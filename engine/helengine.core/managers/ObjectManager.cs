@@ -143,6 +143,10 @@ public class ObjectManager {
     /// </summary>
     /// <param name="light">Directional light to register.</param>
     public void RegisterDirectionalLight(DirectionalLightComponent light) {
+        if (ContainsReference(DirectionalLights, light)) {
+            return;
+        }
+
         DirectionalLights.Add(light);
     }
 
@@ -159,6 +163,10 @@ public class ObjectManager {
     /// </summary>
     /// <param name="light">Ambient light to register.</param>
     public void RegisterAmbientLight(AmbientLightComponent light) {
+        if (ContainsReference(AmbientLights, light)) {
+            return;
+        }
+
         AmbientLights.Add(light);
     }
 
@@ -175,6 +183,10 @@ public class ObjectManager {
     /// </summary>
     /// <param name="light">Point light to register.</param>
     public void RegisterPointLight(PointLightComponent light) {
+        if (ContainsReference(PointLights, light)) {
+            return;
+        }
+
         PointLights.Add(light);
     }
 
@@ -191,6 +203,10 @@ public class ObjectManager {
     /// </summary>
     /// <param name="light">Spot light to register.</param>
     public void RegisterSpotLight(SpotLightComponent light) {
+        if (ContainsReference(SpotLights, light)) {
+            return;
+        }
+
         SpotLights.Add(light);
     }
 
@@ -235,6 +251,10 @@ public class ObjectManager {
     /// </summary>
     /// <param name="entity">Interactable to register.</param>
     public virtual void RegisterInteractable(IInteractable2D entity) {
+        if (ContainsReference(Interactables, entity)) {
+            return;
+        }
+
         Interactables.Add(entity);
     }
 
@@ -243,7 +263,7 @@ public class ObjectManager {
     /// </summary>
     /// <param name="entity">Interactable to remove.</param>
     public virtual void RemoveInteractable(IInteractable2D entity) {
-        Interactables.Remove(entity);
+        RemoveByReference(Interactables, entity);
     }
 
     /// <summary>
@@ -251,6 +271,10 @@ public class ObjectManager {
     /// </summary>
     /// <param name="entity">Entity to register.</param>
     public virtual void RegisterEntity(Entity entity) {
+        if (ContainsReference(Entities, entity)) {
+            return;
+        }
+
         Entities.Add(entity);
     }
 
@@ -259,7 +283,7 @@ public class ObjectManager {
     /// </summary>
     /// <param name="entity">Entity to remove.</param>
     public virtual void RemoveEntity(Entity entity) {
-        Entities.Remove(entity);
+        RemoveByReference(Entities, entity);
     }
 
     /// <summary>
@@ -302,6 +326,10 @@ public class ObjectManager {
     /// </summary>
     /// <param name="drawable">Drawable to register.</param>
     public void RegisterForRender2D(IDrawable2D drawable) {
+        if (ContainsReference(Drawables2D, drawable)) {
+            return;
+        }
+
         Drawables2D.Add(drawable);
 
         for (int i = 0; i < Cameras.Count; i++) {
@@ -334,6 +362,10 @@ public class ObjectManager {
     /// </summary>
     /// <param name="drawable">Drawable to register.</param>
     public void RegisterForRender3D(IDrawable3D drawable) {
+        if (ContainsReference(Drawables3D, drawable)) {
+            return;
+        }
+
         Drawables3D.Add(drawable);
 
         for (int i = 0; i < Cameras.Count; i++) {
@@ -426,6 +458,10 @@ public class ObjectManager {
     /// </summary>
     /// <param name="camera">Camera to register.</param>
     public void RegisterCamera(ICamera camera) {
+        if (ContainsReference(Cameras, camera)) {
+            return;
+        }
+
         InsertCameraByDrawOrder(camera);
 
         IRenderQueue3D list3D = camera.RenderQueue3D;
@@ -454,7 +490,7 @@ public class ObjectManager {
             return;
         }
 
-        Cameras.Remove(camera);
+        RemoveByReference(Cameras, camera);
         camera.RenderQueue3D.Clear();
         camera.RenderQueue2D.Clear();
     }
@@ -610,21 +646,41 @@ public class ObjectManager {
     }
 
     /// <summary>
-    /// Removes the first matching item from a list using reference equality.
+    /// Determines whether a list already contains the given reference instance.
     /// </summary>
     /// <typeparam name="T">Reference type stored in the list.</typeparam>
     /// <param name="list">List to search.</param>
-    /// <param name="item">Item to remove.</param>
-    /// <returns>True when an item was removed.</returns>
-    static bool RemoveByReference<T>(List<T> list, T item) where T : class {
-        for (int i = 0; i < list.Count; i++) {
-            if (ReferenceEquals(list[i], item)) {
-                list.RemoveAt(i);
+    /// <param name="item">Item reference to locate.</param>
+    /// <returns>True when the exact instance is already registered; otherwise false.</returns>
+    static bool ContainsReference<T>(List<T> list, T item) where T : class {
+        for (int index = 0; index < list.Count; index++) {
+            if (ReferenceEquals(list[index], item)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Removes every matching item from a list using reference equality so duplicated registrations cannot survive one removal request.
+    /// </summary>
+    /// <typeparam name="T">Reference type stored in the list.</typeparam>
+    /// <param name="list">List to search.</param>
+    /// <param name="item">Item to remove.</param>
+    /// <returns>True when at least one item was removed.</returns>
+    static bool RemoveByReference<T>(List<T> list, T item) where T : class {
+        bool removed = false;
+        for (int index = list.Count - 1; index >= 0; index--) {
+            if (!ReferenceEquals(list[index], item)) {
+                continue;
+            }
+
+            list.RemoveAt(index);
+            removed = true;
+        }
+
+        return removed;
     }
 
     /// <summary>

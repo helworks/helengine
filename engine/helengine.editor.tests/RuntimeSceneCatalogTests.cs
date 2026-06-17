@@ -58,4 +58,16 @@ public sealed class RuntimeSceneCatalogTests {
             "cube_test",
             "cooked/Scenes/cube_test.hasset"));
     }
+
+    /// <summary>
+    /// Ensures rooted runtime scene paths remain valid catalog entries because some platform contracts resolve cooked scene references to final physical runtime paths before boot.
+    /// </summary>
+    [Fact]
+    public void Constructor_whenCookedRelativePathIsAlreadyRootedRuntimePath_preservesPhysicalPath() {
+        RuntimeSceneCatalogEntry entry = new RuntimeSceneCatalogEntry(
+            "Scenes/TestPlayableScene.helen",
+            @"cdrom0:\COOKED\SCENES\DE30A7E1.HAS;1");
+
+        Assert.Equal(@"cdrom0:\COOKED\SCENES\DE30A7E1.HAS;1", entry.CookedRelativePath);
+    }
 }

@@ -478,6 +478,7 @@ namespace helengine {
             if (SceneManager != null) {
                 SceneManager.CommitPendingOperationsAtFrameBoundary();
             }
+
             LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
             LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
             FPSComponent.RecordRenderFrame();
@@ -570,6 +571,7 @@ namespace helengine {
             }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeFpsRecordUpdateFramePhaseId);
             FPSComponent.RecordUpdateFrame();
+            DebugComponent.RecordUpdateFrame();
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterFpsRecordUpdateFramePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterFpsRecordUpdateFrame");

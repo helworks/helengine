@@ -25,7 +25,11 @@ namespace helengine {
             RegisterProcessorIfMissing(
                 contentManager,
                 RuntimeContentProcessorIds.MaterialAsset,
+#if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
+                new AssetContentProcessor<PlatformMaterialAsset>(),
+#else
                 new AssetContentProcessor<MaterialAsset>(),
+#endif
                 new[] { MaterialAssetExtension });
             RegisterProcessorIfMissing(
                 contentManager,

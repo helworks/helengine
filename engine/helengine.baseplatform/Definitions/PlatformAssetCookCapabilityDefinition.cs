@@ -19,7 +19,35 @@ public sealed class PlatformAssetCookCapabilityDefinition {
         PlatformAssetCookOwnershipKind ownershipKind,
         string settingsContractId,
         string defaultSerializedPlatformSettings = "",
-        PlatformTextureFormatCapabilityDefinition textureFormatCapabilities = null) {
+        PlatformTextureFormatCapabilityDefinition textureFormatCapabilities = null)
+        : this(
+            sourceAssetKind,
+            targetArtifactKind,
+            ownershipKind,
+            settingsContractId,
+            defaultSerializedPlatformSettings,
+            textureFormatCapabilities,
+            string.Empty) {
+    }
+
+    /// <summary>
+    /// Initializes one platform asset-cook capability with an explicit platform-owned output file extension.
+    /// </summary>
+    /// <param name="sourceAssetKind">Generic source asset kind the capability accepts.</param>
+    /// <param name="targetArtifactKind">Runtime artifact kind the capability produces.</param>
+    /// <param name="ownershipKind">Which side of the build graph owns the final cook for this asset kind.</param>
+    /// <param name="settingsContractId">Stable settings-contract identifier the editor resolves for the builder.</param>
+    /// <param name="defaultSerializedPlatformSettings">Optional serialized default settings payload used when the source asset has no explicit platform override.</param>
+    /// <param name="textureFormatCapabilities">Optional texture format capability metadata used to constrain generic texture settings for this cook capability.</param>
+    /// <param name="outputFileExtension">Optional platform-owned output file extension used when the editor derives cooked artifact paths for this capability.</param>
+    public PlatformAssetCookCapabilityDefinition(
+        string sourceAssetKind,
+        string targetArtifactKind,
+        PlatformAssetCookOwnershipKind ownershipKind,
+        string settingsContractId,
+        string defaultSerializedPlatformSettings,
+        PlatformTextureFormatCapabilityDefinition textureFormatCapabilities,
+        string outputFileExtension) {
         if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
             throw new ArgumentException("Source asset kind is required.", nameof(sourceAssetKind));
         } else if (string.IsNullOrWhiteSpace(targetArtifactKind)) {
@@ -28,6 +56,8 @@ public sealed class PlatformAssetCookCapabilityDefinition {
             throw new ArgumentException("Settings contract id is required.", nameof(settingsContractId));
         } else if (defaultSerializedPlatformSettings == null) {
             throw new ArgumentNullException(nameof(defaultSerializedPlatformSettings), "Default serialized platform settings are required.");
+        } else if (outputFileExtension == null) {
+            throw new ArgumentNullException(nameof(outputFileExtension), "Output file extension is required.");
         }
 
         SourceAssetKind = sourceAssetKind;
@@ -36,6 +66,7 @@ public sealed class PlatformAssetCookCapabilityDefinition {
         SettingsContractId = settingsContractId;
         DefaultSerializedPlatformSettings = defaultSerializedPlatformSettings;
         TextureFormatCapabilities = textureFormatCapabilities;
+        OutputFileExtension = outputFileExtension;
     }
 
     /// <summary>
@@ -67,4 +98,9 @@ public sealed class PlatformAssetCookCapabilityDefinition {
     /// Gets the optional generic texture format capability metadata used to constrain texture settings for this cook capability.
     /// </summary>
     public PlatformTextureFormatCapabilityDefinition TextureFormatCapabilities { get; }
+
+    /// <summary>
+    /// Gets the optional platform-owned output file extension used when deriving cooked artifact paths for this capability.
+    /// </summary>
+    public string OutputFileExtension { get; }
 }

@@ -36,28 +36,36 @@ namespace helengine {
         /// <param name="index">Zero-based index.</param>
         public IDrawable2D this[int index] { get { return Items[index]; } }
 
-        /// <summary>
-        /// Adds a drawable while keeping the list ordered by render order.
-        /// </summary>
-        /// <param name="drawable">Drawable to add.</param>
-        public void Add(IDrawable2D drawable) {
-            int insertIndex = FindInsertIndex(drawable != null ? drawable.RenderOrder2D : (byte)0);
-            Items.Insert(insertIndex, drawable);
+    /// <summary>
+    /// Adds a drawable while keeping the list ordered by render order.
+    /// </summary>
+    /// <param name="drawable">Drawable to add.</param>
+    public void Add(IDrawable2D drawable) {
+        if (ContainsReference(drawable)) {
+            return;
         }
 
+        int insertIndex = FindInsertIndex(drawable != null ? drawable.RenderOrder2D : (byte)0);
+        Items.Insert(insertIndex, drawable);
+    }
+
         /// <summary>
-        /// Removes the first occurrence of a drawable by reference.
+        /// Removes every occurrence of a drawable by reference so duplicate queue entries cannot survive one unregister request.
         /// </summary>
         /// <param name="drawable">Drawable to remove.</param>
         /// <returns>True if the drawable was removed.</returns>
         public bool Remove(IDrawable2D drawable) {
-            int index = FindIndexByReference(drawable);
-            if (index < 0) {
-                return false;
+            bool removed = false;
+            for (int index = Items.Count - 1; index >= 0; index--) {
+                if (!ReferenceEquals(Items[index], drawable)) {
+                    continue;
+                }
+
+                Items.RemoveAt(index);
+                removed = true;
             }
 
-            Items.RemoveAt(index);
-            return true;
+            return removed;
         }
 
         /// <summary>
@@ -119,31 +127,32 @@ namespace helengine {
         /// </summary>
         /// <param name="renderOrder">Render order to insert.</param>
         /// <returns>Insertion index.</returns>
-        int FindInsertIndex(byte renderOrder) {
-            for (int i = 0; i < Items.Count; i++) {
-                IDrawable2D current = Items[i];
-                byte currentOrder = current != null ? current.RenderOrder2D : (byte)0;
-                if (renderOrder < currentOrder) {
+    int FindInsertIndex(byte renderOrder) {
+        for (int i = 0; i < Items.Count; i++) {
+            IDrawable2D current = Items[i];
+            byte currentOrder = current != null ? current.RenderOrder2D : (byte)0;
+            if (renderOrder < currentOrder) {
                     return i;
                 }
             }
 
-            return Items.Count;
-        }
+        return Items.Count;
+    }
 
-        /// <summary>
-        /// Finds the index of a drawable using reference equality.
-        /// </summary>
-        /// <param name="drawable">Drawable to locate.</param>
-        /// <returns>Index or -1 when not found.</returns>
-        int FindIndexByReference(IDrawable2D drawable) {
-            for (int i = 0; i < Items.Count; i++) {
-                if (ReferenceEquals(Items[i], drawable)) {
-                    return i;
-                }
+    /// <summary>
+    /// Determines whether the queue already contains the provided drawable reference.
+    /// </summary>
+    /// <param name="drawable">Drawable to locate.</param>
+    /// <returns>True when the exact drawable instance is already queued; otherwise false.</returns>
+    bool ContainsReference(IDrawable2D drawable) {
+        for (int index = 0; index < Items.Count; index++) {
+            if (ReferenceEquals(Items[index], drawable)) {
+                return true;
             }
-
-            return -1;
         }
+
+        return false;
+    }
+
     }
 }

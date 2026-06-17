@@ -1,12 +1,22 @@
 namespace helengine {
     /// <summary>
-    /// Renders a fixed five-line runtime diagnostics overlay using the shared 2D text pipeline.
+    /// Renders a fixed runtime diagnostics overlay using the shared 2D text pipeline.
     /// </summary>
     public class DebugComponent : UpdateComponent {
         /// <summary>
         /// Byte count represented by one megabyte in the overlay formatter.
         /// </summary>
         const double BytesPerMegabyte = 1024d * 1024d;
+
+        /// <summary>
+        /// Stable row id used for the first platform performance diagnostics row.
+        /// </summary>
+        const string PerformanceOverlayPrimaryLineId = "performance-overlay-primary";
+
+        /// <summary>
+        /// Stable row id used for the second platform performance diagnostics row.
+        /// </summary>
+        const string PerformanceOverlaySecondaryLineId = "performance-overlay-secondary";
 
         /// <summary>
         /// Tracks every active debug component so later runtime metrics can broadcast shared render-frame ticks.
@@ -39,6 +49,11 @@ namespace helengine {
         Entity OverlayHost;
 
         /// <summary>
+        /// Child entity that hosts the update-FPS text row.
+        /// </summary>
+        Entity UpdateFpsRowHost;
+
+        /// <summary>
         /// Child entity that hosts the render-FPS text row.
         /// </summary>
         Entity RenderFpsRowHost;
@@ -67,6 +82,11 @@ namespace helengine {
         /// Child entities that host runtime-registered extra debug rows.
         /// </summary>
         readonly List<Entity> AdditionalLineRowHosts;
+
+        /// <summary>
+        /// Text component that displays update FPS.
+        /// </summary>
+        TextComponent UpdateFpsTextComponent;
 
         /// <summary>
         /// Text component that displays render FPS.
@@ -102,6 +122,11 @@ namespace helengine {
         /// Stores the elapsed-seconds marker for the current sampling window.
         /// </summary>
         double LastSampleElapsedSeconds;
+
+        /// <summary>
+        /// Stores the update-frame count captured during the current sampling window.
+        /// </summary>
+        int UpdateFrameCount;
 
         /// <summary>
         /// Stores the render-frame count captured during the current sampling window.
@@ -218,6 +243,11 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the last formatted update-FPS row.
+        /// </summary>
+        public string UpdateFpsText { get; private set; }
+
+        /// <summary>
         /// Gets the last formatted render-FPS row.
         /// </summary>
         public string RenderFpsText { get; private set; }
@@ -288,6 +318,18 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Records one update tick for every active debug overlay.
+        /// </summary>
+        public static void RecordUpdateFrame() {
+            for (int i = ActiveComponents.Count - 1; i >= 0; i--) {
+                DebugComponent component = ActiveComponents[i];
+                if (component.Initialized && component.Parent != null && component.Parent.IsHierarchyEnabled) {
+                    component.UpdateFrameCount++;
+                }
+            }
+        }
+
+        /// <summary>
         /// Records one render tick for every active debug overlay.
         /// </summary>
         public static void RecordRenderFrame() {
@@ -311,7 +353,12 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(text));
             }
 
-            if (!AdditionalLinesById.ContainsKey(id)) {
+            string existingText;
+            if (AdditionalLinesById.TryGetValue(id, out existingText)) {
+                if (existingText == text) {
+                    return;
+                }
+            } else {
                 AdditionalLineIds.Add(id);
             }
 
@@ -427,6 +474,9 @@ namespace helengine {
             OverlayHost.InitComponents();
             Parent.AddChild(OverlayHost);
 
+            UpdateFpsRowHost = CreateRowHost();
+            UpdateFpsTextComponent = CreateRowTextComponent(UpdateFpsRowHost);
+
             RenderFpsRowHost = CreateRowHost();
             RenderFpsTextComponent = CreateRowTextComponent(RenderFpsRowHost);
 
@@ -496,11 +546,13 @@ namespace helengine {
         void ReleaseOverlayReferences() {
             ActiveComponents.Remove(this);
             OverlayHost = null;
+            UpdateFpsRowHost = null;
             RenderFpsRowHost = null;
             ResidentMemoryRowHost = null;
             CommittedMemoryRowHost = null;
             Drawables2DRowHost = null;
             Drawables3DRowHost = null;
+            UpdateFpsTextComponent = null;
             RenderFpsTextComponent = null;
             ResidentMemoryTextComponent = null;
             CommittedMemoryTextComponent = null;
@@ -520,6 +572,10 @@ namespace helengine {
                 return;
             }
 
+            if (UpdateFpsTextComponent != null) {
+                UpdateFpsTextComponent.Font = Font;
+                UpdateFpsTextComponent.FontScale = FontScale;
+            }
             if (RenderFpsTextComponent != null) {
                 RenderFpsTextComponent.Font = Font;
                 RenderFpsTextComponent.FontScale = FontScale;
@@ -545,20 +601,23 @@ namespace helengine {
                 AdditionalLineTextComponents[index].FontScale = FontScale;
             }
 
+            if (RenderFpsRowHost != null) {
+                RenderFpsRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale, 0.1f);
+            }
             if (ResidentMemoryRowHost != null) {
-                ResidentMemoryRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale, 0.1f);
+                ResidentMemoryRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 2f, 0.2f);
             }
             if (CommittedMemoryRowHost != null) {
-                CommittedMemoryRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 2f, 0.2f);
+                CommittedMemoryRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 3f, 0.3f);
             }
             if (Drawables2DRowHost != null) {
-                Drawables2DRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 3f, 0.3f);
+                Drawables2DRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 4f, 0.4f);
             }
             if (Drawables3DRowHost != null) {
-                Drawables3DRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 4f, 0.4f);
+                Drawables3DRowHost.LocalPosition = new float3(0f, Font.LineHeight * FontScale * 5f, 0.5f);
             }
             for (int index = 0; index < AdditionalLineRowHosts.Count; index++) {
-                float rowIndex = 5f + index;
+                float rowIndex = 6f + index;
                 AdditionalLineRowHosts[index].LocalPosition = new float3(0f, Font.LineHeight * FontScale * rowIndex, 0.5f + (0.1f * index));
             }
         }
@@ -588,6 +647,9 @@ namespace helengine {
                 return;
             }
 
+            if (UpdateFpsTextComponent != null) {
+                UpdateFpsTextComponent.RenderOrder2D = RenderOrder2D;
+            }
             if (RenderFpsTextComponent != null) {
                 RenderFpsTextComponent.RenderOrder2D = RenderOrder2D;
             }
@@ -612,9 +674,11 @@ namespace helengine {
         /// Resets the current sampling window and restores the placeholder row text.
         /// </summary>
         void ResetSamplingWindow() {
+            UpdateFrameCount = 0;
             RenderFrameCount = 0;
             Core core = Core.Instance;
             LastSampleElapsedSeconds = core == null ? 0d : core.TotalElapsedSeconds;
+            UpdateFpsText = "Update FPS: -- (-- ms)";
             RenderFpsText = "Render FPS: -- (-- ms)";
             ResidentMemoryText = "Memory Res: --";
             CommittedMemoryText = "Memory Com: --";
@@ -633,6 +697,9 @@ namespace helengine {
                 return;
             }
 
+            if (UpdateFpsTextComponent != null) {
+                UpdateFpsTextComponent.Text = UpdateFpsText;
+            }
             if (RenderFpsTextComponent != null) {
                 RenderFpsTextComponent.Text = RenderFpsText;
             }
@@ -692,15 +759,20 @@ namespace helengine {
             }
 
             double safeElapsedSeconds = elapsedSeconds <= 0d ? 1d : elapsedSeconds;
+            double updateFps = UpdateFrameCount / safeElapsedSeconds;
+            double updateMilliseconds = UpdateFrameCount <= 0 ? double.NaN : safeElapsedSeconds * 1000d / UpdateFrameCount;
             double renderFps = RenderFrameCount / safeElapsedSeconds;
 
+            UpdateFpsText = FormatUpdateFpsText(updateFps, updateMilliseconds);
             RenderFpsText = FormatRenderFpsText(renderFps, core.LastRenderManager3DDrawMilliseconds);
             ResidentMemoryText = ResolveResidentMemoryText(memoryCounters);
             CommittedMemoryText = ResolveCommittedMemoryText(memoryCounters);
             Drawables2DText = "Drawables 2D: " + core.ObjectManager.Drawables2D.Count;
             Drawables3DText = "Drawables 3D: " + core.ObjectManager.Drawables3D.Count + " DrawCalls: " + core.LastRenderManager3DDrawCallCount;
+            UpdatePerformanceOverlayLines(core);
             ApplyVisibleText();
 
+            UpdateFrameCount = 0;
             RenderFrameCount = 0;
             LastSampleElapsedSeconds = core.TotalElapsedSeconds;
         }
@@ -730,6 +802,16 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Formats the update FPS row with the measured core update cadence and average update duration.
+        /// </summary>
+        /// <param name="updateFps">Measured update FPS value for the active sampling window.</param>
+        /// <param name="updateMilliseconds">Average update duration in milliseconds for the active sampling window.</param>
+        /// <returns>Formatted update row containing FPS and average update milliseconds.</returns>
+        string FormatUpdateFpsText(double updateFps, double updateMilliseconds) {
+            return "Update FPS: " + FormatOneDecimal(updateFps) + " (" + FormatOneDecimal(updateMilliseconds) + " ms)";
+        }
+
+        /// <summary>
         /// Formats the render FPS row with the measured render-manager draw duration so vsync-limited frame pacing can be compared against draw cost.
         /// </summary>
         /// <param name="renderFps">Measured render FPS value for the active sampling window.</param>
@@ -737,6 +819,94 @@ namespace helengine {
         /// <returns>Formatted render row containing FPS and draw milliseconds.</returns>
         string FormatRenderFpsText(double renderFps, double drawMilliseconds) {
             return "Render FPS: " + FormatOneDecimal(renderFps) + " (" + FormatOneDecimal(drawMilliseconds) + " ms)";
+        }
+
+        /// <summary>
+        /// Publishes or clears compact platform performance rows beneath the standard diagnostics rows.
+        /// </summary>
+        /// <param name="core">Active core instance that may expose platform renderer timing buckets.</param>
+        void UpdatePerformanceOverlayLines(Core core) {
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+
+            if (!core.UsesPerformanceOverlayMetrics) {
+                ClearAdditionalLine(PerformanceOverlayPrimaryLineId);
+                ClearAdditionalLine(PerformanceOverlaySecondaryLineId);
+                return;
+            }
+
+            SetAdditionalLine(PerformanceOverlayPrimaryLineId, FormatPerformanceOverlayPrimaryLine(core));
+            SetAdditionalLine(PerformanceOverlaySecondaryLineId, FormatPerformanceOverlaySecondaryLine(core));
+        }
+
+        /// <summary>
+        /// Formats the first platform performance row with software 2D timing buckets.
+        /// </summary>
+        /// <param name="core">Active core instance containing platform renderer timing buckets.</param>
+        /// <returns>Compact timing row that fits the Nintendo DS bottom-screen diagnostics area.</returns>
+        string FormatPerformanceOverlayPrimaryLine(Core core) {
+            if (UsesNintendoDsPerformanceOverlayLabels(core)) {
+                return "P1 Tx" + FormatOneDecimal(core.PerformanceOverlayTriangleSetupMilliseconds)
+                    + " S" + FormatRoundedMetric(core.PerformanceOverlayTrianglePrepMilliseconds)
+                    + " UT" + core.PerformanceOverlaySubmittedTriangleCount
+                    + " US" + core.PerformanceOverlayDispatchCount;
+            }
+
+            return "P1 Txt" + FormatOneDecimal(core.PerformanceOverlayTriangleSetupMilliseconds)
+                + " H" + FormatRoundedMetric(core.PerformanceOverlayTrianglePrepMilliseconds)
+                + " M" + core.PerformanceOverlaySubmittedTriangleCount
+                + " F" + core.PerformanceOverlayDispatchCount
+                + " G" + FormatRoundedMetric(core.PerformanceOverlayTriangleEmitMilliseconds);
+        }
+
+        /// <summary>
+        /// Formats one counter that is carried through a legacy double timing slot.
+        /// </summary>
+        /// <param name="value">Counter value stored in the performance metric payload.</param>
+        /// <returns>Whole-number counter text for compact on-device diagnostics.</returns>
+        static string FormatRoundedMetric(double value) {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value > int.MaxValue || value < int.MinValue) {
+                return "--";
+            }
+
+            return ((int)Math.Round(value, MidpointRounding.AwayFromZero)).ToString();
+        }
+
+        /// <summary>
+        /// Formats the second platform performance row with hardware 3D geometry, flush, and presentation timings.
+        /// </summary>
+        /// <param name="core">Active core instance containing platform renderer timing buckets.</param>
+        /// <returns>Compact timing row that fits the Nintendo DS bottom-screen diagnostics area.</returns>
+        string FormatPerformanceOverlaySecondaryLine(Core core) {
+            if (UsesNintendoDsPerformanceOverlayLabels(core)) {
+                return "P2 3D" + FormatOneDecimal(core.PerformanceOverlayPacketEncodeMilliseconds)
+                    + " F" + FormatOneDecimal(core.PerformanceOverlaySubmitMilliseconds)
+                    + " P" + FormatOneDecimal(core.PerformanceOverlayWaitMilliseconds)
+                    + " UR" + FormatRoundedMetric(core.PerformanceOverlayTriangleEmitMilliseconds);
+            }
+
+            return "P2 Geo" + FormatOneDecimal(core.PerformanceOverlayPacketEncodeMilliseconds)
+                + " Fl" + FormatOneDecimal(core.PerformanceOverlaySubmitMilliseconds)
+                + " Pr" + FormatOneDecimal(core.PerformanceOverlayWaitMilliseconds);
+        }
+
+        /// <summary>
+        /// Determines whether the active runtime should expose the compact Nintendo DS-specific overlay labels.
+        /// </summary>
+        /// <param name="core">Active core instance that may carry Nintendo DS platform metadata.</param>
+        /// <returns>True when the current runtime platform is Nintendo DS.</returns>
+        static bool UsesNintendoDsPerformanceOverlayLabels(Core core) {
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+
+            PlatformInfo platformInfo = core.PlatformInfo;
+            if (platformInfo == null) {
+                return false;
+            }
+
+            return string.Equals(platformInfo.Name, "DS", StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -800,13 +970,7 @@ namespace helengine {
                 return false;
             }
 
-            return IsBaseOverlayHierarchyLive()
-                && IsLiveRow(RenderFpsRowHost, OverlayHost, RenderFpsTextComponent)
-                && IsLiveRow(ResidentMemoryRowHost, OverlayHost, ResidentMemoryTextComponent)
-                && IsLiveRow(CommittedMemoryRowHost, OverlayHost, CommittedMemoryTextComponent)
-                && IsLiveRow(Drawables2DRowHost, OverlayHost, Drawables2DTextComponent)
-                && IsLiveRow(Drawables3DRowHost, OverlayHost, Drawables3DTextComponent)
-                && AreAdditionalLineRowsLive();
+            return IsBaseOverlayHierarchyLive() && AreAdditionalLineRowsLive();
         }
 
         /// <summary>
@@ -821,6 +985,7 @@ namespace helengine {
             return OverlayHost != null
                 && !OverlayHost.IsDisposed
                 && OverlayHost.ParentUnsafe == Parent
+                && IsLiveRow(UpdateFpsRowHost, OverlayHost, UpdateFpsTextComponent)
                 && IsLiveRow(RenderFpsRowHost, OverlayHost, RenderFpsTextComponent)
                 && IsLiveRow(ResidentMemoryRowHost, OverlayHost, ResidentMemoryTextComponent)
                 && IsLiveRow(CommittedMemoryRowHost, OverlayHost, CommittedMemoryTextComponent)

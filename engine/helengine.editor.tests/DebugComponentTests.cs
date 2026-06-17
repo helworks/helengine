@@ -42,7 +42,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the debug overlay builds one five-row text hierarchy using the assigned font.
+        /// Ensures the debug overlay builds one six-row text hierarchy using the assigned font.
         /// </summary>
         [Fact]
         public void ComponentAdded_WhenFontIsAssigned_BuildsOverlayTextWithAssignedFont() {
@@ -58,8 +58,8 @@ namespace helengine.editor.tests {
             entity.AddComponent(debug);
 
             Entity overlayHost = Assert.Single(entity.Children);
-            Assert.Equal(5, overlayHost.Children.Count);
-            Assert.Equal(5, Core.Instance.ObjectManager.Drawables2D.Count);
+            Assert.Equal(6, overlayHost.Children.Count);
+            Assert.Equal(6, Core.Instance.ObjectManager.Drawables2D.Count);
 
             for (int index = 0; index < overlayHost.Children.Count; index++) {
                 TextComponent textComponent = Assert.Single(overlayHost.Children[index].Components.OfType<TextComponent>());
@@ -85,7 +85,7 @@ namespace helengine.editor.tests {
             entity.AddComponent(debug);
 
             Entity overlayHost = Assert.Single(entity.Children);
-            Assert.Equal(5, overlayHost.Children.Count);
+            Assert.Equal(6, overlayHost.Children.Count);
 
             for (int index = 0; index < overlayHost.Children.Count; index++) {
                 TextComponent textComponent = Assert.Single(overlayHost.Children[index].Components.OfType<TextComponent>());
@@ -94,6 +94,29 @@ namespace helengine.editor.tests {
 
             Assert.Equal(font.LineHeight * 2f, overlayHost.Children[1].LocalPosition.Y);
             Assert.Equal(font.LineHeight * 4f, overlayHost.Children[2].LocalPosition.Y);
+        }
+
+        /// <summary>
+        /// Ensures the debug overlay reports update FPS and sampled update duration separately from render FPS.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenRefreshIntervalElapses_IncludesUpdateFps() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(debug);
+
+            Core.Instance.Update(0.05d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.05d);
+
+            Assert.Equal("Update FPS: 20.0 (50.0 ms)", debug.UpdateFpsText);
         }
 
         /// <summary>
@@ -145,6 +168,63 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures platform renderer timing buckets are exposed as compact extra diagnostics rows.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenPerformanceOverlayMetricsArePublished_DrawsPerformanceRows() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(debug);
+            CoreInstance.SetPerformanceOverlayMetrics(true, 1.2d, 3.4d, 5.6d, 7.8d, 9.1d, 11.2d, 5, 6);
+
+            Core.Instance.Update(0.05d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.05d);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            Assert.Equal("P1 Txt1.2 H3 M5 F6 G6", Assert.Single(overlayHost.Children[6].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("P2 Geo7.8 Fl9.1 Pr11.2", Assert.Single(overlayHost.Children[7].Components.OfType<TextComponent>()).Text);
+        }
+
+        /// <summary>
+        /// Ensures the Nintendo DS runtime exposes compact DS-specific labels for the performance rows.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenDsPerformanceOverlayMetricsArePublished_DrawsDsPerformanceRows() {
+            TestClockDrivenCore dsCore = new TestClockDrivenCore(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath
+            });
+            dsCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("DS", "2.0"));
+
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            DebugComponent debug = new DebugComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(debug);
+            dsCore.SetPerformanceOverlayMetrics(true, 1.2d, 3.4d, 5.6d, 7.8d, 9.1d, 11.2d, 5, 6);
+
+            Core.Instance.Update(0.05d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.05d);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            Assert.Equal("P1 Tx1.2 S3 UT5 US6", Assert.Single(overlayHost.Children[6].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("P2 3D7.8 F9.1 P11.2 UR6", Assert.Single(overlayHost.Children[7].Components.OfType<TextComponent>()).Text);
+        }
+
+        /// <summary>
         /// Ensures registered extra debug rows are rendered by every debug overlay and can be updated while the overlay is live.
         /// </summary>
         [Fact]
@@ -164,16 +244,16 @@ namespace helengine.editor.tests {
             entity.AddComponent(debug);
 
             Entity overlayHost = Assert.Single(entity.Children);
-            Assert.Equal(7, overlayHost.Children.Count);
-            Assert.Equal("D3A 2D0.4 S0.2 Q0.1", Assert.Single(overlayHost.Children[5].Components.OfType<TextComponent>()).Text);
-            Assert.Equal("D3B G7.8 F2.1 P0.6", Assert.Single(overlayHost.Children[6].Components.OfType<TextComponent>()).Text);
+            Assert.Equal(8, overlayHost.Children.Count);
+            Assert.Equal("D3A 2D0.4 S0.2 Q0.1", Assert.Single(overlayHost.Children[6].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("D3B G7.8 F2.1 P0.6", Assert.Single(overlayHost.Children[7].Components.OfType<TextComponent>()).Text);
 
             DebugComponent.SetAdditionalLine("ds3d-c", "D3C Tri1 Cam1");
             DebugComponent.SetAdditionalLine("ds3d-a", "D3A 2D27.2 S0.2 Q0.0");
 
-            Assert.Equal(8, overlayHost.Children.Count);
-            Assert.Equal("D3A 2D27.2 S0.2 Q0.0", Assert.Single(overlayHost.Children[5].Components.OfType<TextComponent>()).Text);
-            Assert.Equal("D3C Tri1 Cam1", Assert.Single(overlayHost.Children[7].Components.OfType<TextComponent>()).Text);
+            Assert.Equal(9, overlayHost.Children.Count);
+            Assert.Equal("D3A 2D27.2 S0.2 Q0.0", Assert.Single(overlayHost.Children[6].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("D3C Tri1 Cam1", Assert.Single(overlayHost.Children[8].Components.OfType<TextComponent>()).Text);
         }
 
         /// <summary>
