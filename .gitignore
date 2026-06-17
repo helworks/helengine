@@ -13,3 +13,5 @@ render-validation-output/
 .tmp*
 rtk/
 .worktrees/
+artifacts/
+user_settings/

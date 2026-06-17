@@ -12,6 +12,7 @@
 - Follow MVC: keep logic in separate classes (controllers/services/managers) and keep UI classes focused only on presentation and input wiring.
 - Avoid half-measures that patch broken state; ensure systems are correctly initialized or fix the underlying cause instead of bolting on runtime fixes (e.g., do not add auto-attach helpers like `EnsureCameraControls`).
 - Do not mask failures with "best-effort" patches (for example, catching formatter errors and returning the original output) unless explicitly requested; preserve existing failure behavior and fix the root cause.
+- Never ever rewrite generated code. If generated output is wrong, fix the C# code generation step so it emits correct code instead of patching generated files later with regexes, string replacements, or post-processing rewrites.
 - Avoid `Mathf`; use `double` math and convert back to `float` where needed (modern processors handle `double` faster in this context).
 - Do not create local helper functions; if a helper is needed, add it to the appropriate Utils class or to a related type (for example, quaternion math should live on the quaternion type).
 - Avoid repeated `as` casts; prefer engine events or other patterns to avoid per-call conversions.
