@@ -182,6 +182,11 @@ namespace helengine.editor {
         const string SpriteTextureReferenceFieldName = "TextureReference";
 
         /// <summary>
+        /// Stable tagged field name used by authored sprite payloads that still persist the runtime property name directly.
+        /// </summary>
+        const string SpriteTextureFieldName = "Texture";
+
+        /// <summary>
         /// Stable tagged field name used for sprite source-rectangle persistence.
         /// </summary>
         const string SpriteSourceRectFieldName = "SourceRect";
@@ -302,9 +307,19 @@ namespace helengine.editor {
         const string EditorFontAssetId = "ui-font";
 
         /// <summary>
+        /// Stable asset id used for the generated Nintendo DS debug font.
+        /// </summary>
+        const string NintendoDsDebugFontAssetId = "ds-debug-font";
+
+        /// <summary>
         /// Relative packaged font path used by the editor's built-in font asset.
         /// </summary>
         const string EditorFontRelativePath = "cooked/fonts/default.hefont";
+
+        /// <summary>
+        /// Relative packaged font path used by the generated Nintendo DS debug font asset.
+        /// </summary>
+        const string NintendoDsDebugFontRelativePath = "cooked/fonts/ds-debug.hefont";
 
         /// <summary>
         /// Runtime scene layer used by the current Windows player loader for materialized entities.
@@ -1464,24 +1479,7 @@ namespace helengine.editor {
                 out bool selectionEnabled,
                 out float fontScale,
                 out TextAlignment alignment,
-                out bool convertTextToSprite);
-
-            if (convertTextToSprite) {
-                return RewriteTextComponentAsSpriteRecord(
-                    record,
-                    buildRootPath,
-                    fontReference,
-                    text,
-                    wrapText,
-                    size,
-                    color,
-                    sourceRect,
-                    rotation,
-                    renderOrder2D,
-                    layerMask,
-                    fontScale,
-                    alignment);
-            }
+                out _);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -1724,7 +1722,8 @@ namespace helengine.editor {
             }
 
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            if (!reader.TryGetFieldReader(SpriteTextureReferenceFieldName, out EngineBinaryReader textureReferenceReader)) {
+            if (!reader.TryGetFieldReader(SpriteTextureReferenceFieldName, out EngineBinaryReader textureReferenceReader) &&
+                !reader.TryGetFieldReader(SpriteTextureFieldName, out textureReferenceReader)) {
                 throw new InvalidOperationException("SpriteComponent requires a texture reference before packaging.");
             }
 
@@ -2260,11 +2259,14 @@ namespace helengine.editor {
                 if (!string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal)) {
                     throw new InvalidOperationException($"Unsupported generated font provider '{reference.ProviderId}'.");
                 }
-                if (!string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
-                    throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
+                if (string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
+                    return CreateFontFileReference(EditorFontRelativePath);
+                }
+                if (string.Equals(reference.AssetId, NintendoDsDebugFontAssetId, StringComparison.Ordinal)) {
+                    return CreateFontFileReference(NintendoDsDebugFontRelativePath);
                 }
 
-                return CreateFontFileReference(EditorFontRelativePath);
+                    throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
             }
 
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {

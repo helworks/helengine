@@ -698,6 +698,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaged scenes accept the generated Nintendo DS debug-font reference and rewrite it into the packaged debug-font asset path.
+        /// </summary>
+        [Fact]
+        public void PackageBuild_WhenSceneContainsDebugComponentWithNintendoDsGeneratedFont_RewritesRuntimePayloadAndFontReference() {
+            string sceneId = "Scenes/DebugScene.helen";
+
+            WriteSceneAsset(sceneId, "helengine.DebugComponent", WriteDebugComponentPayload(CreateNintendoDsDebugFontReference()), new[] { CreateNintendoDsDebugFontReference() });
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord componentRecord = packagedScene.RootEntities[0].Components[0];
+            Assert.Equal("helengine.DebugComponent", componentRecord.ComponentTypeId);
+            Assert.Contains(packagedScene.AssetReferences, reference => string.Equals(reference.RelativePath, "cooked/fonts/ds-debug.hefont", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Ensures packaged scenes rewrite text component font references into file-backed assets.
         /// </summary>
         [Fact]
@@ -748,10 +775,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures flagged text components are rewritten into sprite components in the packaged runtime scene.
+        /// Ensures flagged text components remain runtime text components in the packaged runtime scene.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsFlaggedTextComponent_WritesSpriteComponentIntoPackagedScene() {
+        public void Package_WhenSceneContainsFlaggedTextComponent_WritesTextComponentIntoPackagedScene() {
             string sceneId = "Scenes/BakedTextScene.helen";
             WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(CreateEditorFontReference(), true), new[] { CreateEditorFontReference() });
 
@@ -768,14 +795,14 @@ namespace helengine.editor.tests {
                 packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
-            Assert.Equal("helengine.SpriteComponent", packagedScene.RootEntities[0].Components[0].ComponentTypeId);
+            Assert.Equal("helengine.TextComponent", packagedScene.RootEntities[0].Components[0].ComponentTypeId);
         }
 
         /// <summary>
-        /// Ensures flagged text components produce one packaged generated texture referenced by the rewritten sprite payload.
+        /// Ensures flagged text components keep the packaged font reference and do not produce one packaged generated texture.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsFlaggedTextComponent_WritesPackagedTextureReferencedByTheSpritePayload() {
+        public void Package_WhenSceneContainsFlaggedTextComponent_KeepsPackagedFontReferenceWithoutWritingGeneratedTexture() {
             string sceneId = "Scenes/BakedTextScene.helen";
             WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(CreateEditorFontReference(), true), new[] { CreateEditorFontReference() });
 
@@ -792,13 +819,14 @@ namespace helengine.editor.tests {
                 packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
-            SceneComponentAssetRecord spriteRecord = packagedScene.RootEntities[0].Components[0];
-            using MemoryStream payloadStream = new MemoryStream(spriteRecord.Payload ?? Array.Empty<byte>(), false);
+            SceneComponentAssetRecord textRecord = packagedScene.RootEntities[0].Components[0];
+            using MemoryStream payloadStream = new MemoryStream(textRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(1, reader.ReadByte());
-            SceneAssetReference textureReference = ReadOptionalReference(reader);
-            Assert.NotNull(textureReference);
-            Assert.True(File.Exists(Path.Combine(BuildRootPath, textureReference.RelativePath.Replace('/', Path.DirectorySeparatorChar))));
+            Assert.Equal(2, reader.ReadByte());
+            SceneAssetReference fontReference = ReadOptionalReference(reader);
+            Assert.NotNull(fontReference);
+            Assert.Equal("cooked/fonts/default.hefont", fontReference.RelativePath);
+            Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "generated", "text-sprites")));
         }
 
         /// <summary>
@@ -2822,6 +2850,19 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates the generated scene reference used for the Nintendo DS debug font asset.
+        /// </summary>
+        /// <returns>Generated Nintendo DS debug-font scene reference.</returns>
+        static SceneAssetReference CreateNintendoDsDebugFontReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "generated/editor/fonts/ds-debug.hefont",
+                ProviderId = "editor",
+                AssetId = "ds-debug-font"
+            };
+        }
+
+        /// <summary>
         /// Creates the generated scene reference used for the engine's built-in standard material.
         /// </summary>
         /// <returns>Generated engine standard-material scene reference.</returns>
@@ -3557,7 +3598,7 @@ namespace helengine.editor.tests {
         /// Writes one serialized debug component payload.
         /// </summary>
         /// <returns>Serialized debug component payload.</returns>
-        byte[] WriteDebugComponentPayload() {
+        byte[] WriteDebugComponentPayload(SceneAssetReference fontReference = null) {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             DebugComponent debugComponent = new DebugComponent {
                 Font = CreatePackagedFontAsset(),
@@ -3566,7 +3607,7 @@ namespace helengine.editor.tests {
                 RenderOrder2D = 250
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
-            saveState.SetAssetReference("Font", CreateEditorFontReference());
+            saveState.SetAssetReference("Font", fontReference ?? CreateEditorFontReference());
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(debugComponent, 0, saveState);
             return record.Payload;

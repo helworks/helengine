@@ -1,5 +1,6 @@
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
+using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests {
     /// <summary>
@@ -38,6 +39,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures flagged text falls back to the normal runtime text payload when build-time sprite conversion is disabled.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenTextComponentIsFlagged_KeepsTextComponentPayloadWithoutCallingBakeService() {
+            StubTextComponentSpriteBakeService bakeService = new StubTextComponentSpriteBakeService();
+            SceneComponentPackagingTransformService service = CreateService(bakeService);
+            SceneComponentAssetRecord record = CreateTextRecord(true);
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            Assert.Equal("helengine.TextComponent", transformedRecord.ComponentTypeId);
+            Assert.False(bakeService.WasCalled);
+        }
+
+        /// <summary>
         /// Ensures unflagged text remains a runtime text component during packaging.
         /// </summary>
         [Fact]
@@ -53,10 +71,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures flagged text is rewritten into a sprite payload and routed through the bake service.
+        /// Ensures flagged text remains a runtime text payload and does not call the bake service.
         /// </summary>
         [Fact]
-        public void TryTransform_WhenTextComponentIsFlagged_RewritesToSpritePayloadAndCallsBakeService() {
+        public void TryTransform_WhenTextComponentIsFlagged_KeepsTextComponentPayloadAndDoesNotCallBakeService() {
             StubTextComponentSpriteBakeService bakeService = new StubTextComponentSpriteBakeService();
             SceneComponentPackagingTransformService service = CreateService(bakeService);
             SceneComponentAssetRecord record = CreateTextRecord(true);
@@ -65,35 +83,31 @@ namespace helengine.editor.tests {
 
             Assert.True(transformed);
             Assert.NotNull(transformedRecord);
-            Assert.Equal("helengine.SpriteComponent", transformedRecord.ComponentTypeId);
-            Assert.True(bakeService.WasCalled);
-            Assert.NotNull(bakeService.LastRequest);
-            Assert.Equal("Hello world", bakeService.LastRequest.Text);
-            Assert.Equal(new int2(128, 32), bakeService.LastRequest.Size);
-            Assert.Equal(TextAlignment.Center, bakeService.LastRequest.Alignment);
+            Assert.Equal("helengine.TextComponent", transformedRecord.ComponentTypeId);
+            Assert.False(bakeService.WasCalled);
         }
 
         /// <summary>
-        /// Ensures flagged text writes one generated texture asset into packaged build output when the editor owns texture cooking.
+        /// Ensures flagged text no longer writes one generated texture asset into packaged build output.
         /// </summary>
         [Fact]
-        public void TryTransform_WhenTextComponentIsFlagged_WritesGeneratedTextureAssetToCookedOutput() {
+        public void TryTransform_WhenTextComponentIsFlagged_DoesNotWriteGeneratedTextureAssetToCookedOutput() {
             SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
             SceneComponentAssetRecord record = CreateTextRecord(true);
 
             bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
 
             Assert.True(transformed);
-            SceneAssetReference textureReference = ReadSpriteTextureReference(transformedRecord);
-            string generatedTexturePath = Path.Combine(BuildRootPath, textureReference.RelativePath.Replace('/', Path.DirectorySeparatorChar));
-            Assert.True(File.Exists(generatedTexturePath));
+            Assert.NotNull(transformedRecord);
+            string generatedTextureDirectoryPath = Path.Combine(BuildRootPath, "cooked", "generated", "text-sprites");
+            Assert.False(Directory.Exists(generatedTextureDirectoryPath));
         }
 
         /// <summary>
-        /// Ensures flagged text enqueues one builder-owned texture cook work item when the selected platform owns texture cooking.
+        /// Ensures flagged text no longer enqueues one builder-owned texture cook work item when the selected platform owns texture cooking.
         /// </summary>
         [Fact]
-        public void TryTransform_WhenBuilderOwnedTextureCookIsEnabled_EnqueuesGeneratedTextureCookWorkItem() {
+        public void TryTransform_WhenBuilderOwnedTextureCookIsEnabled_DoesNotEnqueueGeneratedTextureCookWorkItem() {
             List<PlatformCookWorkItem> workItems = new List<PlatformCookWorkItem>();
             SceneComponentPackagingTransformService service = CreateBuilderOwnedTextureService(workItems, new StubTextComponentSpriteBakeService());
 
@@ -101,10 +115,43 @@ namespace helengine.editor.tests {
 
             Assert.True(transformed);
             Assert.NotNull(transformedRecord);
-            PlatformCookWorkItem workItem = Assert.Single(workItems);
-            Assert.Equal("texture", workItem.SourceAssetKind);
-            Assert.Contains("cooked/generated/text-sprites/", workItem.OutputRelativePath);
-            Assert.True(File.Exists(workItem.SourceAssetPath));
+            Assert.Empty(workItems);
+        }
+
+        /// <summary>
+        /// Ensures authored sprite components that persist their texture field through the automatic editor payload contract still package successfully.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenSpriteComponentUsesAuthoredTextureField_RewritesSpritePayload() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateSpriteRecord();
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            Assert.Equal("helengine.SpriteComponent", transformedRecord.ComponentTypeId);
+            SceneAssetReference textureReference = ReadSpriteTextureReference(transformedRecord);
+            Assert.NotNull(textureReference);
+            Assert.StartsWith("cooked/imported/", textureReference.RelativePath, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures DS-authored generated debug-font references rewrite into the packaged DS debug-font path.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenDebugComponentUsesNintendoDsGeneratedFont_RewritesFontReference() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateDebugRecord(CreateNintendoDsDebugFontReference());
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            Assert.Equal("helengine.DebugComponent", transformedRecord.ComponentTypeId);
+            SceneAssetReference fontReference = ReadDebugFontReference(transformedRecord);
+            Assert.NotNull(fontReference);
+            Assert.Equal("cooked/fonts/ds-debug.hefont", fontReference.RelativePath);
         }
 
         /// <summary>
@@ -115,6 +162,7 @@ namespace helengine.editor.tests {
         SceneComponentPackagingTransformService CreateService(ITextComponentSpriteBakeService bakeService) {
             ContentManager contentManager = new ContentManager(ProjectRootPath);
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
             return new SceneComponentPackagingTransformService(
@@ -147,6 +195,7 @@ namespace helengine.editor.tests {
 
             ContentManager contentManager = new ContentManager(ProjectRootPath);
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
             return new SceneComponentPackagingTransformService(
@@ -195,6 +244,45 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one automatic reflected sprite-component record for packaging verification.
+        /// </summary>
+        /// <returns>Serialized sprite-component record.</returns>
+        SceneComponentAssetRecord CreateSpriteRecord() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            WriteTextureSourceFile();
+            SpriteComponent spriteComponent = new SpriteComponent {
+                Texture = new TestRuntimeTexture(),
+                Size = new int2(128, 32),
+                Color = new byte4(255, 255, 255, 255),
+                SourceRect = new float4(0f, 0f, 1f, 1f),
+                Rotation = 0.25f,
+                RenderOrder2D = 19,
+                LayerMask = 7
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(SpriteComponent.Texture), new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Images/Menu/helengine-logo.png",
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            });
+
+            return descriptor.SerializeComponent(spriteComponent, 0, saveState);
+        }
+
+        /// <summary>
+        /// Writes one minimal PNG texture source file expected by the authored sprite packaging path.
+        /// </summary>
+        void WriteTextureSourceFile() {
+            string relativePath = Path.Combine("assets", "Images", "Menu");
+            string directoryPath = Path.Combine(ProjectRootPath, relativePath);
+            Directory.CreateDirectory(directoryPath);
+            string fullPath = Path.Combine(directoryPath, "helengine-logo.png");
+            byte[] pngBytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=");
+            File.WriteAllBytes(fullPath, pngBytes);
+        }
+
+        /// <summary>
         /// Creates one generated editor-font reference matching authored text scene payloads.
         /// </summary>
         /// <returns>Generated editor-font reference.</returns>
@@ -204,6 +292,19 @@ namespace helengine.editor.tests {
                 RelativePath = "generated/editor/fonts/ui.hefont",
                 ProviderId = "editor",
                 AssetId = "ui-font"
+            };
+        }
+
+        /// <summary>
+        /// Creates one generated Nintendo DS debug-font reference matching authored DS text scene payloads.
+        /// </summary>
+        /// <returns>Generated Nintendo DS debug-font reference.</returns>
+        static SceneAssetReference CreateNintendoDsDebugFontReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "generated/editor/fonts/ds-debug.hefont",
+                ProviderId = "editor",
+                AssetId = "ds-debug-font"
             };
         }
 
@@ -231,11 +332,43 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one automatic reflected debug-component record for font-reference packaging verification.
+        /// </summary>
+        /// <param name="fontReference">Generated font reference the authored debug component should carry.</param>
+        /// <returns>Serialized debug-component record.</returns>
+        SceneComponentAssetRecord CreateDebugRecord(SceneAssetReference fontReference) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            DebugComponent debugComponent = new DebugComponent {
+                Font = CreatePackagedFontAsset(),
+                RefreshIntervalSeconds = 0.5f,
+                Padding = new int2(2, 3),
+                RenderOrder2D = 17
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(DebugComponent.Font), fontReference);
+
+            return descriptor.SerializeComponent(debugComponent, 0, saveState);
+        }
+
+        /// <summary>
         /// Reads the packaged sprite texture reference from one strict runtime sprite payload.
         /// </summary>
         /// <param name="record">Transformed sprite component record to inspect.</param>
         /// <returns>Packaged texture reference stored in the sprite payload.</returns>
         static SceneAssetReference ReadSpriteTextureReference(SceneComponentAssetRecord record) {
+            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(1, reader.ReadByte());
+            SceneAssetReference reference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
+            return Assert.IsType<SceneAssetReference>(reference);
+        }
+
+        /// <summary>
+        /// Reads the packaged debug-component font reference from one strict runtime payload.
+        /// </summary>
+        /// <param name="record">Transformed debug-component record to inspect.</param>
+        /// <returns>Packaged font reference stored in the debug payload.</returns>
+        static SceneAssetReference ReadDebugFontReference(SceneComponentAssetRecord record) {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(1, reader.ReadByte());
@@ -312,3 +445,5 @@ namespace helengine.editor.tests {
         }
     }
 }
+
+
