@@ -15,3 +15,5 @@ rtk/
 .worktrees/
 artifacts/
 user_settings/
+out/
+scratch/
