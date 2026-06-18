@@ -42,11 +42,6 @@ namespace helengine.editor {
         const byte SpriteComponentPayloadVersion = 1;
 
         /// <summary>
-        /// Generated cooked relative directory used for build-time text sprite outputs.
-        /// </summary>
-        const string GeneratedTextSpriteCookedRelativeDirectory = "cooked/generated/text-sprites";
-
-        /// <summary>
         /// Stable serialized component id for mesh components.
         /// </summary>
         const string MeshComponentTypeId = "helengine.MeshComponent";
@@ -140,11 +135,6 @@ namespace helengine.editor {
         /// Stable serialized component id for text components.
         /// </summary>
         const string TextComponentTypeId = "helengine.TextComponent";
-
-        /// <summary>
-        /// Stable tagged field name used for text build-time sprite-conversion persistence.
-        /// </summary>
-        const string TextConvertTextToSpriteFieldName = "ConvertTextToSprite";
 
         /// <summary>
         /// Stable serialized component id for debug overlay components.
@@ -528,11 +518,6 @@ namespace helengine.editor {
         readonly AssetFileHasher FileHasher;
 
         /// <summary>
-        /// Optional bake service used to convert authored text into generated sprite textures during packaging.
-        /// </summary>
-        readonly ITextComponentSpriteBakeService TextComponentSpriteBakeService;
-
-        /// <summary>
         /// Initializes one shared scene-component transform service.
         /// </summary>
         /// <param name="assetsRootPath">Absolute source assets root path.</param>
@@ -548,7 +533,6 @@ namespace helengine.editor {
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         /// <param name="platformCookWorkItemSink">Optional callback that records builder-owned platform cook work items discovered while packaging.</param>
         /// <param name="platformDefinition">Optional platform definition that publishes builder-owned asset cook capabilities.</param>
-        /// <param name="textComponentSpriteBakeService">Optional bake service used to convert authored text components into sprite-backed runtime payloads.</param>
         public SceneComponentPackagingTransformService(
             string assetsRootPath,
             ContentManager projectContentManager,
@@ -562,8 +546,7 @@ namespace helengine.editor {
             string selectedGraphicsProfileId = "",
             IScriptTypeResolver scriptTypeResolver = null,
             Action<PlatformCookWorkItem> platformCookWorkItemSink = null,
-            PlatformDefinition platformDefinition = null,
-            ITextComponentSpriteBakeService textComponentSpriteBakeService = null) {
+            PlatformDefinition platformDefinition = null) {
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
                 : Path.GetFullPath(assetsRootPath);
@@ -584,7 +567,6 @@ namespace helengine.editor {
             PlatformCookWorkItemSink = platformCookWorkItemSink;
             PlatformDefinition = platformDefinition;
             FileHasher = new AssetFileHasher();
-            TextComponentSpriteBakeService = textComponentSpriteBakeService;
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
             SceneMapComponentDescriptor = new SceneMapComponentPersistenceDescriptor();
@@ -1478,8 +1460,7 @@ namespace helengine.editor {
                 out byte layerMask,
                 out bool selectionEnabled,
                 out float fontScale,
-                out TextAlignment alignment,
-                out _);
+                out TextAlignment alignment);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -1499,86 +1480,6 @@ namespace helengine.editor {
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = TextComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Rewrites one authored text component into a sprite-backed runtime payload using the configured bake service.
-        /// </summary>
-        /// <param name="record">Serialized text component record being packaged.</param>
-        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        /// <param name="fontReference">Authored font reference resolved from the serialized text component.</param>
-        /// <param name="text">Authored text string that should be baked.</param>
-        /// <param name="wrapText">Authored wrap-text mode.</param>
-        /// <param name="size">Authored text layout size that must be preserved by the baked sprite.</param>
-        /// <param name="color">Authored text color.</param>
-        /// <param name="sourceRect">Authored source rectangle that should carry into the replacement sprite.</param>
-        /// <param name="rotation">Authored rotation that should carry into the replacement sprite.</param>
-        /// <param name="renderOrder2D">Authored 2D render order that should carry into the replacement sprite.</param>
-        /// <param name="layerMask">Authored layer mask that should carry into the replacement sprite.</param>
-        /// <param name="fontScale">Authored font scale used during the bake.</param>
-        /// <param name="alignment">Authored horizontal alignment used during the bake.</param>
-        /// <returns>Sprite component record that replaces the authored text component at runtime.</returns>
-        SceneComponentAssetRecord RewriteTextComponentAsSpriteRecord(
-            SceneComponentAssetRecord record,
-            string buildRootPath,
-            SceneAssetReference fontReference,
-            string text,
-            bool wrapText,
-            int2 size,
-            byte4 color,
-            float4 sourceRect,
-            float rotation,
-            byte renderOrder2D,
-            byte layerMask,
-            float fontScale,
-            TextAlignment alignment) {
-            if (TextComponentSpriteBakeService == null) {
-                throw new InvalidOperationException("Text-to-sprite packaging requires a configured bake service.");
-            }
-
-            TextComponentSpriteBakeRequest request = new TextComponentSpriteBakeRequest(
-                record.ComponentIndex,
-                TargetPlatformId,
-                fontReference,
-                text,
-                size,
-                color,
-                wrapText,
-                fontScale,
-                alignment,
-                rotation,
-                renderOrder2D,
-                layerMask);
-            TextComponentSpriteBakeResult bakeResult = TextComponentSpriteBakeService.Bake(request);
-            string generatedTextureFileName = string.Concat(bakeResult.StableKey, ".hasset");
-            string sourceRelativePath = NormalizeRelativePath(Path.Combine("generated", "text-sprites", generatedTextureFileName));
-            string cookedRelativePath = NormalizeRelativePath(Path.Combine(GeneratedTextSpriteCookedRelativeDirectory, generatedTextureFileName));
-            string sourceFullPath = Path.Combine(buildRootPath, sourceRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            if (SupportsBuilderOwnedPlatformCookKind("texture")) {
-                WriteAsset(sourceFullPath, bakeResult.TextureAsset);
-                RememberGeneratedTextureCookWorkItem(sourceFullPath, cookedRelativePath, bakeResult);
-            } else {
-                WriteAsset(Path.Combine(buildRootPath, cookedRelativePath.Replace('/', Path.DirectorySeparatorChar)), bakeResult.TextureAsset);
-            }
-
-            SceneAssetReference textureReference = CreateFileSystemReference(cookedRelativePath);
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(SpriteComponentPayloadVersion);
-            WriteOptionalReference(writer, textureReference);
-            WriteFloat4(writer, sourceRect);
-            writer.WriteInt2(size);
-            FontAssetScenePersistenceSupport.WriteByte4(writer, color);
-            writer.WriteSingle(rotation);
-            writer.WriteByte(renderOrder2D);
-            writer.WriteByte(layerMask);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = SpriteComponentTypeId,
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
@@ -2005,7 +1906,6 @@ namespace helengine.editor {
         /// <param name="selectionEnabled">Persisted selection flag.</param>
         /// <param name="fontScale">Persisted font scale.</param>
         /// <param name="alignment">Persisted horizontal alignment.</param>
-        /// <param name="convertTextToSprite">Persisted build-time sprite-conversion flag.</param>
         void ReadTaggedTextComponentRecord(
             SceneComponentAssetRecord record,
             out SceneAssetReference fontReference,
@@ -2019,8 +1919,7 @@ namespace helengine.editor {
             out byte layerMask,
             out bool selectionEnabled,
             out float fontScale,
-            out TextAlignment alignment,
-            out bool convertTextToSprite) {
+            out TextAlignment alignment) {
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             fontReference = null;
             text = string.Empty;
@@ -2034,9 +1933,8 @@ namespace helengine.editor {
             selectionEnabled = false;
             fontScale = 1f;
             alignment = TextAlignment.Left;
-            convertTextToSprite = false;
 
-            if (TryReadAutomaticTextComponentRecord(record, out fontReference, out text, out wrapText, out size, out color, out sourceRect, out rotation, out renderOrder2D, out layerMask, out selectionEnabled, out fontScale, out alignment, out convertTextToSprite)) {
+            if (TryReadAutomaticTextComponentRecord(record, out fontReference, out text, out wrapText, out size, out color, out sourceRect, out rotation, out renderOrder2D, out layerMask, out selectionEnabled, out fontScale, out alignment)) {
                 return;
             }
 
@@ -2100,11 +1998,6 @@ namespace helengine.editor {
                     alignment = (TextAlignment)alignmentReader.ReadInt32();
                 }
             }
-            if (reader.TryGetFieldReader(TextConvertTextToSpriteFieldName, out EngineBinaryReader convertTextToSpriteReader)) {
-                using (convertTextToSpriteReader) {
-                    convertTextToSprite = convertTextToSpriteReader.ReadByte() != 0;
-                }
-            }
 
             if (fontReference == null) {
                 throw new InvalidOperationException("Text component payload did not provide a font reference before packaging.");
@@ -2127,7 +2020,6 @@ namespace helengine.editor {
         /// <param name="selectionEnabled">Persisted selection flag when decoding succeeds.</param>
         /// <param name="fontScale">Persisted font scale when decoding succeeds.</param>
         /// <param name="alignment">Persisted horizontal alignment when decoding succeeds.</param>
-        /// <param name="convertTextToSprite">Persisted build-time sprite-conversion flag when decoding succeeds.</param>
         /// <returns>True when the payload matched the automatic reflected editor format; otherwise false.</returns>
         bool TryReadAutomaticTextComponentRecord(
             SceneComponentAssetRecord record,
@@ -2142,8 +2034,7 @@ namespace helengine.editor {
             out byte layerMask,
             out bool selectionEnabled,
             out float fontScale,
-            out TextAlignment alignment,
-            out bool convertTextToSprite) {
+            out TextAlignment alignment) {
             fontReference = null;
             text = string.Empty;
             wrapText = false;
@@ -2156,7 +2047,6 @@ namespace helengine.editor {
             selectionEnabled = false;
             fontScale = 1f;
             alignment = TextAlignment.Left;
-            convertTextToSprite = false;
 
             try {
                 EntitySaveComponent saveComponent = new EntitySaveComponent();
@@ -2177,7 +2067,6 @@ namespace helengine.editor {
                 selectionEnabled = textComponent.SelectionEnabled;
                 fontScale = textComponent.FontScale;
                 alignment = textComponent.Alignment;
-                convertTextToSprite = textComponent.ConvertTextToSprite;
                 return true;
             } catch (InvalidOperationException) {
                 return false;
@@ -2725,39 +2614,6 @@ namespace helengine.editor {
                 NormalizeSourceRelativePath(sourceRelativePath),
                 cookedRelativePath,
                 settings,
-                FileHasher);
-            if (workItem != null) {
-                PlatformCookWorkItemSink(workItem);
-            }
-        }
-
-        /// <summary>
-        /// Records one builder-owned cook work item for a generated text-sprite texture written during scene packaging.
-        /// </summary>
-        /// <param name="sourceAssetPath">Absolute generated texture source path written under the build root.</param>
-        /// <param name="cookedRelativePath">Runtime-relative cooked output path that the builder should produce.</param>
-        /// <param name="bakeResult">Generated text-sprite bake result containing the source asset id and texture settings.</param>
-        void RememberGeneratedTextureCookWorkItem(
-            string sourceAssetPath,
-            string cookedRelativePath,
-            TextComponentSpriteBakeResult bakeResult) {
-            if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedPlatformCookKind("texture")) {
-                return;
-            } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
-                throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
-            } else if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
-                throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
-            } else if (bakeResult == null) {
-                throw new ArgumentNullException(nameof(bakeResult));
-            }
-
-            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedTextureWorkItem(
-                PlatformDefinition,
-                TargetPlatformId,
-                sourceAssetPath,
-                cookedRelativePath,
-                bakeResult.TextureAsset?.Id,
-                bakeResult.ProcessorSettings,
                 FileHasher);
             if (workItem != null) {
                 PlatformCookWorkItemSink(workItem);

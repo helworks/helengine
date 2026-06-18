@@ -202,17 +202,16 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures automatic reflected persistence preserves the authored build-time sprite conversion flag on engine-owned text components.
+        /// Ensures automatic reflected persistence no longer materializes the removed build-time sprite conversion field on engine-owned text components.
         /// </summary>
         [Fact]
-        public void SerializeAndDeserialize_WhenTextComponentUsesBuildTimeSpriteConversion_RoundTripsThroughAutomaticPersistence() {
+        public void SerializeAndDeserialize_WhenTextComponentUsesAutomaticPersistence_DoesNotDependOnRemovedConvertTextToSpriteField() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneAssetReference fontReference = BuildFontReference("Fonts/Demo.hefont", "fonts", "demo");
             TextComponent component = new TextComponent {
                 Font = CreateFont("Demo"),
                 Text = "Bake me",
-                Size = new int2(128, 32),
-                ConvertTextToSprite = true
+                Size = new int2(128, 32)
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(nameof(TextComponent.Font), fontReference);
@@ -227,7 +226,7 @@ namespace helengine.editor.tests.serialization.scene {
             TextComponent restored = Assert.IsType<TextComponent>(descriptor.DeserializeComponent(record, loadedSaveComponent, resolver));
 
             Assert.Same(loadedFont, restored.Font);
-            Assert.True(restored.ConvertTextToSprite);
+            Assert.Equal("Bake me", restored.Text);
         }
 
         /// <summary>

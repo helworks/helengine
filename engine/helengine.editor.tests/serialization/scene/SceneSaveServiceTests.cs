@@ -510,13 +510,13 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures built-in text components persist the authored build-time sprite conversion flag through the reflected tagged payload.
+        /// Ensures built-in text components no longer persist the removed build-time sprite conversion field.
         /// </summary>
         [Fact]
-        public void Save_WhenSceneContainsTextComponent_WritesTaggedPayloadUsingConvertTextToSpriteMember() {
+        public void Save_WhenSceneContainsTextComponent_DoesNotWriteRemovedConvertTextToSpriteMember() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
-            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextConvertTextToSprite.helen");
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextWithoutConvertTextToSprite.helen");
             SceneAssetReference fontReference = new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.Generated,
                 RelativePath = "Fonts/Body",
@@ -528,8 +528,7 @@ namespace helengine.editor.tests.serialization.scene {
             TextComponent textComponent = new TextComponent {
                 Font = CreateFont("Body"),
                 Text = "Tagged",
-                Size = new int2(96, 24),
-                ConvertTextToSprite = true
+                Size = new int2(96, 24)
             };
             root.AddComponent(textComponent);
             GetSaveComponent(root).SetAssetReference(textComponent, nameof(TextComponent.Font), fontReference);
@@ -545,10 +544,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneComponentAssetRecord textRecord = Assert.Single(rootAsset.Components);
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(textRecord.Payload ?? Array.Empty<byte>());
 
-            Assert.True(reader.TryGetFieldReader(nameof(TextComponent.ConvertTextToSprite), out EngineBinaryReader convertTextToSpriteReader));
-            using (convertTextToSpriteReader) {
-                Assert.Equal((byte)1, convertTextToSpriteReader.ReadByte());
-            }
+            Assert.False(reader.TryGetFieldReader("ConvertTextToSprite", out _));
         }
 
         /// <summary>
