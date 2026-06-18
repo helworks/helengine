@@ -776,6 +776,61 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures flagged text components remain runtime text components in the packaged runtime scene.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsFlaggedTextComponent_WritesTextComponentIntoPackagedScene() {
+            string sceneId = "Scenes/BakedTextScene.helen";
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(CreateEditorFontReference(), true), new[] { CreateEditorFontReference() });
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont,
+                new StubTextComponentSpriteBakeService());
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Equal("helengine.TextComponent", packagedScene.RootEntities[0].Components[0].ComponentTypeId);
+        }
+
+        /// <summary>
+        /// Ensures flagged text components keep the packaged font reference and do not produce one packaged generated texture.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsFlaggedTextComponent_KeepsPackagedFontReferenceWithoutWritingGeneratedTexture() {
+            string sceneId = "Scenes/BakedTextScene.helen";
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(CreateEditorFontReference(), true), new[] { CreateEditorFontReference() });
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont,
+                new StubTextComponentSpriteBakeService());
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord textRecord = packagedScene.RootEntities[0].Components[0];
+            using MemoryStream payloadStream = new MemoryStream(textRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(2, reader.ReadByte());
+            SceneAssetReference fontReference = ReadOptionalReference(reader);
+            Assert.NotNull(fontReference);
+            Assert.Equal("cooked/fonts/default.hefont", fontReference.RelativePath);
+            Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "generated", "text-sprites")));
+        }
+
+        /// <summary>
         /// Ensures PS2-targeted scene packaging emits rooted runtime font paths directly inside both packaged scene references and the automatic text payload.
         /// </summary>
         [Fact]
@@ -3574,6 +3629,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Provides one deterministic generated text-sprite bake result for end-to-end packager tests.
+        /// </summary>
+        sealed class StubTextComponentSpriteBakeService : ITextComponentSpriteBakeService {
+            /// <summary>
+            /// Bakes the supplied text request into one deterministic generated texture result.
+            /// </summary>
+            /// <param name="request">Authored text request being packaged.</param>
+            /// <returns>Generated texture asset and processor settings for packager verification.</returns>
+            public TextComponentSpriteBakeResult Bake(TextComponentSpriteBakeRequest request) {
+                return new TextComponentSpriteBakeResult(
+                    new TextureAsset {
+                        Id = "generated:text-sprite",
+                        Width = 96,
+                        Height = 24,
+                        ColorFormat = TextureAssetColorFormat.Rgba32,
+                        AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                        Colors = new byte[96 * 24 * 4]
+                    },
+                    new TextureAssetProcessorSettings {
+                        ColorFormat = TextureAssetColorFormat.Rgba32,
+                        AlphaPrecision = TextureAssetAlphaPrecision.A8
+                    },
+                    "packager-text-sprite");
+            }
+        }
+
+        /// <summary>
         /// Writes one serialized FPS component payload.
         /// </summary>
         /// <returns>Serialized FPS component payload.</returns>
@@ -3675,6 +3757,38 @@ namespace helengine.editor.tests {
                 RenderOrder2D = 19,
                 LayerMask = 7,
                 SelectionEnabled = true
+            };
+            System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
+            Assert.NotNull(alignmentProperty);
+            alignmentProperty.SetValue(textComponent, Enum.Parse(alignmentProperty.PropertyType, "Center"));
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Font", fontReference);
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(textComponent, 0, saveState);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized text component payload using the supplied font reference and build-time sprite-conversion flag.
+        /// </summary>
+        /// <param name="fontReference">Font reference to persist for the text component.</param>
+        /// <param name="convertTextToSprite">True when the authored text should be baked into a sprite during packaging.</param>
+        /// <returns>Serialized text component payload.</returns>
+        byte[] WriteTextComponentPayload(SceneAssetReference fontReference, bool convertTextToSprite) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TextComponent textComponent = new TextComponent {
+                Font = CreatePackagedFontAsset(),
+                Text = "Hello world",
+                WrapText = true,
+                Size = new int2(320, 64),
+                Color = new byte4(12, 34, 56, 78),
+                SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
+                Rotation = 0.25f,
+                FontScale = 2f,
+                RenderOrder2D = 19,
+                LayerMask = 7,
+                SelectionEnabled = true,
+                ConvertTextToSprite = convertTextToSprite
             };
             System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
             Assert.NotNull(alignmentProperty);

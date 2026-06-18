@@ -2,9 +2,9 @@ using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
 using helengine.editor.tests.testing;
 
-namespace helengine.editor.tests.managers.project {
+namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies focused scene-component packaging rewrites after build-time text-sprite removal.
+    /// Verifies focused text-component packaging rewrites in the shared scene-component transform service.
     /// </summary>
     public sealed class SceneComponentPackagingTransformServiceTests : IDisposable {
         /// <summary>
@@ -39,12 +39,29 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
-        /// Ensures text components still package as runtime text payloads.
+        /// Ensures flagged text falls back to the normal runtime text payload when build-time sprite conversion is disabled.
         /// </summary>
         [Fact]
-        public void TryTransform_WhenTextComponentIsPackaged_KeepsTextComponentPayload() {
-            SceneComponentPackagingTransformService service = CreateService();
-            SceneComponentAssetRecord record = CreateTextRecord();
+        public void TryTransform_WhenTextComponentIsFlagged_KeepsTextComponentPayloadWithoutCallingBakeService() {
+            StubTextComponentSpriteBakeService bakeService = new StubTextComponentSpriteBakeService();
+            SceneComponentPackagingTransformService service = CreateService(bakeService);
+            SceneComponentAssetRecord record = CreateTextRecord(true);
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            Assert.Equal("helengine.TextComponent", transformedRecord.ComponentTypeId);
+            Assert.False(bakeService.WasCalled);
+        }
+
+        /// <summary>
+        /// Ensures unflagged text remains a runtime text component during packaging.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenTextComponentIsNotFlagged_KeepsTextComponentPayload() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateTextRecord(false);
 
             bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
 
@@ -54,14 +71,47 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
-        /// Ensures text packaging no longer writes generated texture outputs even when the builder owns texture cooking.
+        /// Ensures flagged text remains a runtime text payload and does not call the bake service.
         /// </summary>
         [Fact]
-        public void TryTransform_WhenBuilderOwnedTextureCookIsEnabled_DoesNotEnqueueGeneratedTextureCookWorkItemForText() {
-            List<PlatformCookWorkItem> workItems = new List<PlatformCookWorkItem>();
-            SceneComponentPackagingTransformService service = CreateBuilderOwnedTextureService(workItems);
+        public void TryTransform_WhenTextComponentIsFlagged_KeepsTextComponentPayloadAndDoesNotCallBakeService() {
+            StubTextComponentSpriteBakeService bakeService = new StubTextComponentSpriteBakeService();
+            SceneComponentPackagingTransformService service = CreateService(bakeService);
+            SceneComponentAssetRecord record = CreateTextRecord(true);
 
-            bool transformed = service.TryTransform(CreateTextRecord(), BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            Assert.Equal("helengine.TextComponent", transformedRecord.ComponentTypeId);
+            Assert.False(bakeService.WasCalled);
+        }
+
+        /// <summary>
+        /// Ensures flagged text no longer writes one generated texture asset into packaged build output.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenTextComponentIsFlagged_DoesNotWriteGeneratedTextureAssetToCookedOutput() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateTextRecord(true);
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            string generatedTextureDirectoryPath = Path.Combine(BuildRootPath, "cooked", "generated", "text-sprites");
+            Assert.False(Directory.Exists(generatedTextureDirectoryPath));
+        }
+
+        /// <summary>
+        /// Ensures flagged text no longer enqueues one builder-owned texture cook work item when the selected platform owns texture cooking.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenBuilderOwnedTextureCookIsEnabled_DoesNotEnqueueGeneratedTextureCookWorkItem() {
+            List<PlatformCookWorkItem> workItems = new List<PlatformCookWorkItem>();
+            SceneComponentPackagingTransformService service = CreateBuilderOwnedTextureService(workItems, new StubTextComponentSpriteBakeService());
+
+            bool transformed = service.TryTransform(CreateTextRecord(true), BuildRootPath, out SceneComponentAssetRecord transformedRecord);
 
             Assert.True(transformed);
             Assert.NotNull(transformedRecord);
@@ -73,7 +123,7 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void TryTransform_WhenSpriteComponentUsesAuthoredTextureField_RewritesSpritePayload() {
-            SceneComponentPackagingTransformService service = CreateService();
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
             SceneComponentAssetRecord record = CreateSpriteRecord();
 
             bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
@@ -91,7 +141,7 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void TryTransform_WhenDebugComponentUsesNintendoDsGeneratedFont_RewritesFontReference() {
-            SceneComponentPackagingTransformService service = CreateService();
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
             SceneComponentAssetRecord record = CreateDebugRecord(CreateNintendoDsDebugFontReference());
 
             bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
@@ -105,10 +155,11 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
-        /// Creates one transform service wired to real project dependencies.
+        /// Creates one transform service wired to real project dependencies and one injected bake-service seam.
         /// </summary>
+        /// <param name="bakeService">Bake service that should receive flagged text requests.</param>
         /// <returns>Configured transform service.</returns>
-        SceneComponentPackagingTransformService CreateService() {
+        SceneComponentPackagingTransformService CreateService(ITextComponentSpriteBakeService bakeService) {
             ContentManager contentManager = new ContentManager(ProjectRootPath);
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
@@ -121,15 +172,23 @@ namespace helengine.editor.tests.managers.project {
                 fileSystemModelResolver,
                 new List<string>(),
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                "windows");
+                "windows",
+                null,
+                string.Empty,
+                string.Empty,
+                null,
+                null,
+                null,
+                bakeService);
         }
 
         /// <summary>
         /// Creates one transform service whose target platform publishes builder-owned texture cooking.
         /// </summary>
         /// <param name="workItems">Collected builder-owned work items emitted during packaging.</param>
-        /// <returns>Configured transform service that records builder-owned texture cook work items.</returns>
-        SceneComponentPackagingTransformService CreateBuilderOwnedTextureService(List<PlatformCookWorkItem> workItems) {
+        /// <param name="bakeService">Bake service that should receive flagged text requests.</param>
+        /// <returns>Configured transform service that records generated texture cook work items.</returns>
+        SceneComponentPackagingTransformService CreateBuilderOwnedTextureService(List<PlatformCookWorkItem> workItems, ITextComponentSpriteBakeService bakeService) {
             if (workItems == null) {
                 throw new ArgumentNullException(nameof(workItems));
             }
@@ -152,14 +211,16 @@ namespace helengine.editor.tests.managers.project {
                 string.Empty,
                 null,
                 workItems.Add,
-                CreateBuilderOwnedTexturePlatformDefinition());
+                CreateBuilderOwnedTexturePlatformDefinition(),
+                bakeService);
         }
 
         /// <summary>
         /// Creates one automatic reflected text-component record for packaging verification.
         /// </summary>
+        /// <param name="convertTextToSprite">True when the authored text should request build-time sprite conversion.</param>
         /// <returns>Serialized text-component record.</returns>
-        SceneComponentAssetRecord CreateTextRecord() {
+        SceneComponentAssetRecord CreateTextRecord(bool convertTextToSprite) {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             TextComponent textComponent = new TextComponent {
                 Font = CreatePackagedFontAsset(),
@@ -173,6 +234,7 @@ namespace helengine.editor.tests.managers.project {
                 RenderOrder2D = 19,
                 LayerMask = 7,
                 SelectionEnabled = true,
+                ConvertTextToSprite = convertTextToSprite,
                 Alignment = TextAlignment.Center
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
@@ -341,5 +403,47 @@ namespace helengine.editor.tests.managers.project {
                         "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A4\",\"indexingMethod\":\"QuantizedIndexed\"}")
                 });
         }
+
+        /// <summary>
+        /// Provides a controllable text-sprite bake result for transform-service tests.
+        /// </summary>
+        sealed class StubTextComponentSpriteBakeService : ITextComponentSpriteBakeService {
+            /// <summary>
+            /// Gets whether the bake service has been invoked.
+            /// </summary>
+            public bool WasCalled { get; private set; }
+
+            /// <summary>
+            /// Gets the last bake request received by the stub.
+            /// </summary>
+            public TextComponentSpriteBakeRequest LastRequest { get; private set; }
+
+            /// <summary>
+            /// Returns one deterministic generated texture bake result for the supplied request.
+            /// </summary>
+            /// <param name="request">Bake request issued by the transform service.</param>
+            /// <returns>Generated bake result.</returns>
+            public TextComponentSpriteBakeResult Bake(TextComponentSpriteBakeRequest request) {
+                WasCalled = true;
+                LastRequest = request;
+
+                return new TextComponentSpriteBakeResult(
+                    new TextureAsset {
+                        Id = "generated:text-sprite",
+                        Width = 128,
+                        Height = 32,
+                        ColorFormat = TextureAssetColorFormat.Rgba32,
+                        AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                        Colors = new byte[128 * 32 * 4]
+                    },
+                    new TextureAssetProcessorSettings {
+                        ColorFormat = TextureAssetColorFormat.Rgba32,
+                        AlphaPrecision = TextureAssetAlphaPrecision.A8
+                    },
+                    "text-scene-0");
+            }
+        }
     }
 }
+
+
