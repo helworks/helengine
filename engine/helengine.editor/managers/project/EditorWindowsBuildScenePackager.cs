@@ -328,21 +328,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Initializes one scene packager for the supplied project root, importer registrations, default font asset, and optional text-sprite bake service.
-        /// </summary>
-        /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
-        /// <param name="textComponentSpriteBakeService">Optional bake service used to convert flagged text into sprite-backed runtime payloads.</param>
-        public EditorPlatformBuildScenePackager(
-            string projectRootPath,
-            IReadOnlyList<IAssetImporterRegistration> importers,
-            FontAsset defaultFontAsset,
-            ITextComponentSpriteBakeService textComponentSpriteBakeService)
-            : this(projectRootPath, importers, null, null, defaultFontAsset, null, string.Empty, string.Empty, null, textComponentSpriteBakeService) {
-        }
-
-        /// <summary>
         /// Initializes one scene packager for the supplied project root, importer registrations, and target platform id.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
@@ -479,7 +464,6 @@ namespace helengine.editor {
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
         /// <param name="selectedGraphicsProfileId">Selected graphics profile id for the current packaging operation.</param>
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
-        /// <param name="textComponentSpriteBakeService">Optional bake service used to convert flagged text into sprite-backed runtime payloads.</param>
         EditorPlatformBuildScenePackager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
@@ -489,8 +473,7 @@ namespace helengine.editor {
             IPlatformAssetBuilder materialBuilder,
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
-            IScriptTypeResolver scriptTypeResolver,
-            ITextComponentSpriteBakeService textComponentSpriteBakeService = null) {
+            IScriptTypeResolver scriptTypeResolver) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -530,18 +513,6 @@ namespace helengine.editor {
             PlatformDefinition = platformDefinition;
             FileHasher = new AssetFileHasher();
             ComponentSupportRulesByTypeId = BuildEffectiveSupportRuleLookup(platformDefinition?.ComponentSupportRules);
-            ITextComponentSpriteBakeService effectiveTextComponentSpriteBakeService = textComponentSpriteBakeService;
-            if (effectiveTextComponentSpriteBakeService == null &&
-                DefaultFontAsset != null &&
-                Core.Instance?.RenderManager3D != null) {
-                effectiveTextComponentSpriteBakeService = new TextComponentSpriteBakeService(
-                    Core.Instance.RenderManager3D,
-                    new DirectX11RenderTargetTextureAssetReader(),
-                    AssetsRootPath,
-                    ProjectContentManager,
-                    AssetImportManager,
-                    DefaultFontAsset);
-            }
             TransformService = new SceneComponentPackagingTransformService(
                 AssetsRootPath,
                 ProjectContentManager,
@@ -555,8 +526,7 @@ namespace helengine.editor {
                 SelectedGraphicsProfileId,
                 scriptTypeResolver,
                 workItem => RememberPlatformCookWorkItem(workItem),
-                platformDefinition,
-                effectiveTextComponentSpriteBakeService);
+                platformDefinition);
         }
 
         /// <summary>
