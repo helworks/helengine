@@ -7,6 +7,7 @@ using helengine.baseplatform.Paths;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Reporting;
 using helengine.baseplatform.Results;
+using helengine.directx11;
 using helengine.editor.tests.serialization.scene;
 using helengine.editor.tests.testing;
 using helengine.platforms;
@@ -866,6 +867,48 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures PS2-targeted packaging rewrites generated model references to the runtime `.phm` artifact path instead of the source `.hasset` path.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPs2PlatformPackagesGeneratedCube_ModelReferenceUsesRootedRuntimeModelPath() {
+            string sceneId = "Scenes/GeneratedPrimitiveScene.helen";
+
+            WriteSceneAsset(
+                sceneId,
+                CreateGeneratedCubeReference(),
+                CreateGeneratedStandardMaterialReference());
+
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            PlatformDefinition platformDefinition = CreatePs2RootedPathPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                defaultFont);
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string expectedModelRuntimePath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+                platformDefinition.PlatformId,
+                platformDefinition.RuntimeGenerationContract,
+                "cooked/engine/models/cube.phm");
+            using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(2, reader.ReadByte());
+            SceneAssetReference packagedModelReference = ReadOptionalReference(reader);
+
+            Assert.NotNull(packagedModelReference);
+            Assert.Equal(expectedModelRuntimePath, packagedModelReference.RelativePath);
+        }
+
+        /// <summary>
         /// Ensures file-backed material references in packaged mesh payloads are rewritten to the cooked player-material location.
         /// </summary>
         [Fact]
@@ -1176,6 +1219,43 @@ namespace helengine.editor.tests {
                 platformDefinition.PlatformId,
                 platformDefinition.RuntimeGenerationContract,
                 "cooked/fonts/demodisctitle.ps2tex");
+            Assert.Equal(expectedAtlasRuntimePath, cookedFontAsset.CookedAtlasTextureRelativePath);
+            Assert.Null(cookedFontAsset.SourceTextureAsset);
+        }
+
+        /// <summary>
+        /// Ensures the generated editor default font follows the same PS2 builder-owned atlas externalization path as authored fonts instead of embedding raw atlas bytes into `default.hefont`.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPs2PlatformUsesBuilderOwnedFontAtlasTexture_ExternalizesGeneratedDefaultFontAtlas() {
+            string sceneId = "Scenes/TextScene.helen";
+            const string defaultSerializedTextureSettings = "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\",\"indexingMethod\":\"QuantizedIndexed\"}";
+
+            WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(), new[] { CreateEditorFontReference() });
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+
+            PlatformDefinition platformDefinition = CreatePs2BuilderOwnedFontAtlasTexturePlatformDefinition(defaultSerializedTextureSettings);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                CreatePackagedFontAsset());
+
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+
+            PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
+            Assert.Equal("font-atlas-texture", workItem.SourceAssetKind);
+            Assert.Equal("cooked/fonts/default.ps2tex", workItem.OutputRelativePath);
+
+            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "fonts", "default.hefont");
+            using FileStream fontStream = File.OpenRead(cookedFontPath);
+            FontAsset cookedFontAsset = helengine.files.FontAssetBinarySerializer.Deserialize(fontStream);
+            string expectedAtlasRuntimePath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+                platformDefinition.PlatformId,
+                platformDefinition.RuntimeGenerationContract,
+                "cooked/fonts/default.ps2tex");
             Assert.Equal(expectedAtlasRuntimePath, cookedFontAsset.CookedAtlasTextureRelativePath);
             Assert.Null(cookedFontAsset.SourceTextureAsset);
         }

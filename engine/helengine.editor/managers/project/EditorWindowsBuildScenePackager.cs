@@ -96,6 +96,16 @@ namespace helengine.editor {
         const string EditorFontRelativePath = "cooked/fonts/default.hefont";
 
         /// <summary>
+        /// Generated source-texture path written under the build root so builder-owned PS2 font-atlas cooking can externalize the editor default font atlas.
+        /// </summary>
+        const string EditorFontGeneratedAtlasSourceRelativePath = "generated/editor/fonts/default-font-atlas.hasset";
+
+        /// <summary>
+        /// Packaged relative path used for the editor default font atlas when the selected platform externalizes font atlases through builder-owned cooking.
+        /// </summary>
+        const string EditorFontAtlasTextureRelativePath = "cooked/fonts/default.ps2tex";
+
+        /// <summary>
         /// Packaged relative path used for the generated Nintendo DS debug font asset.
         /// </summary>
         const string NintendoDsDebugFontRelativePath = "cooked/fonts/ds-debug.hefont";
@@ -842,8 +852,7 @@ namespace helengine.editor {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 if (string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal) &&
                     string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
-                    WriteFontAsset(Path.Combine(buildRootPath, EditorFontRelativePath), DefaultFontAsset);
-                    return CreateFileSystemReference(EditorFontRelativePath);
+                    return RewriteGeneratedEditorFontReference(buildRootPath);
                 }
                 if (string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal) &&
                     string.Equals(reference.AssetId, NintendoDsDebugFontAssetId, StringComparison.Ordinal)) {
@@ -1289,8 +1298,7 @@ namespace helengine.editor {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 if (string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal) &&
                     string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
-                    WriteFontAsset(Path.Combine(buildRootPath, EditorFontRelativePath), DefaultFontAsset);
-                    return CreateFileSystemReference(EditorFontRelativePath);
+                    return RewriteGeneratedEditorFontReference(buildRootPath);
                 }
 
                 throw new InvalidOperationException($"Unsupported generated font provider '{reference.ProviderId}:{reference.AssetId}'.");
@@ -1374,19 +1382,28 @@ namespace helengine.editor {
             if (string.Equals(reference.AssetId, CubeGeneratedAssetId, StringComparison.Ordinal)) {
                 string relativePath = "cooked/engine/models/cube.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateCubeMesh(float3.Zero, float3.One));
-                return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
+                return CreateGeneratedPackagedReference(
+                    BuildRuntimeModelReferenceRelativePath(relativePath),
+                    reference.ProviderId,
+                    reference.AssetId);
             }
 
             if (string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal)) {
                 string relativePath = "cooked/engine/models/plane.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One));
-                return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
+                return CreateGeneratedPackagedReference(
+                    BuildRuntimeModelReferenceRelativePath(relativePath),
+                    reference.ProviderId,
+                    reference.AssetId);
             }
 
             if (string.Equals(reference.AssetId, SphereGeneratedAssetId, StringComparison.Ordinal)) {
                 string relativePath = "cooked/engine/models/sphere.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateSphereMesh(float3.Zero, float3.One));
-                return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
+                return CreateGeneratedPackagedReference(
+                    BuildRuntimeModelReferenceRelativePath(relativePath),
+                    reference.ProviderId,
+                    reference.AssetId);
             }
 
             throw new InvalidOperationException($"Unsupported generated model asset id '{reference.AssetId}'.");
@@ -1424,6 +1441,36 @@ namespace helengine.editor {
             FontAsset fontAsset = LoadImportedFontAssetForPackaging(reference, sourcePath);
             WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
             return CreateFileSystemReference(cookedRelativePath);
+        }
+
+        /// <summary>
+        /// Rewrites the generated editor default font into either one embedded packaged font or one packaged font plus external cooked atlas, depending on the selected platform capabilities.
+        /// </summary>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged file-backed font reference for the generated editor default font.</returns>
+        SceneAssetReference RewriteGeneratedEditorFontReference(string buildRootPath) {
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            } else if (DefaultFontAsset == null) {
+                throw new InvalidOperationException("The generated editor font cannot be packaged because no default font asset was supplied by the editor host.");
+            }
+
+            if (!SupportsBuilderOwnedPlatformCookKind("font-atlas-texture")) {
+                WriteFontAsset(Path.Combine(buildRootPath, EditorFontRelativePath), DefaultFontAsset);
+                return CreateFileSystemReference(EditorFontRelativePath);
+            }
+
+            if (DefaultFontAsset.SourceTextureAsset == null) {
+                throw new InvalidOperationException("The generated editor font cannot externalize its atlas because the default font asset does not carry one source texture asset.");
+            }
+
+            string generatedAtlasSourceFullPath = Path.Combine(buildRootPath, EditorFontGeneratedAtlasSourceRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            WriteAsset(generatedAtlasSourceFullPath, DefaultFontAsset.SourceTextureAsset);
+            RememberGeneratedFontAtlasCookWorkItem(generatedAtlasSourceFullPath, EditorFontAtlasTextureRelativePath, DefaultFontAsset.SourceTextureAsset);
+
+            FontAsset packagedFontAsset = PrepareFontAssetForExternalCookedAtlas(DefaultFontAsset, EditorFontAtlasTextureRelativePath);
+            WriteFontAsset(Path.Combine(buildRootPath, EditorFontRelativePath), packagedFontAsset);
+            return CreateFileSystemReference(EditorFontRelativePath);
         }
 
         /// <summary>
@@ -1502,7 +1549,7 @@ namespace helengine.editor {
             ModelAsset modelAsset = FileSystemModelResolver.ResolveModelAsset(sourcePath);
             string relativePath = BuildImportedModelRelativePath(reference.RelativePath);
             WriteAsset(Path.Combine(buildRootPath, relativePath), modelAsset);
-            return CreateFileSystemReference(relativePath);
+            return CreateFileSystemReference(BuildRuntimeModelReferenceRelativePath(relativePath));
         }
 
         /// <summary>
@@ -1775,6 +1822,33 @@ namespace helengine.editor {
                 NormalizeSourceRelativePath(sourceRelativePath),
                 cookedAtlasTextureRelativePath,
                 settings,
+                FileHasher);
+            RememberPlatformCookWorkItem(workItem);
+        }
+
+        /// <summary>
+        /// Records one builder-owned generated font-atlas cook work item for the editor default font atlas written under the build root.
+        /// </summary>
+        /// <param name="sourceAssetPath">Absolute generated texture source path written under the build root.</param>
+        /// <param name="cookedAtlasTextureRelativePath">Runtime-relative cooked atlas texture path that the builder should produce.</param>
+        /// <param name="textureAsset">Generated source texture asset whose stable id should be forwarded into work-item metadata.</param>
+        void RememberGeneratedFontAtlasCookWorkItem(string sourceAssetPath, string cookedAtlasTextureRelativePath, TextureAsset textureAsset) {
+            if (!SupportsBuilderOwnedPlatformCookKind("font-atlas-texture")) {
+                return;
+            } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+                throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+            } else if (string.IsNullOrWhiteSpace(cookedAtlasTextureRelativePath)) {
+                throw new ArgumentException("Cooked atlas texture relative path must be provided.", nameof(cookedAtlasTextureRelativePath));
+            } else if (textureAsset == null) {
+                throw new ArgumentNullException(nameof(textureAsset));
+            }
+
+            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedFontAtlasTextureWorkItem(
+                PlatformDefinition,
+                TargetPlatformId,
+                sourceAssetPath,
+                cookedAtlasTextureRelativePath,
+                string.IsNullOrWhiteSpace(textureAsset.Id) ? EditorFontAssetId : textureAsset.Id,
                 FileHasher);
             RememberPlatformCookWorkItem(workItem);
         }
@@ -2277,6 +2351,20 @@ namespace helengine.editor {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hasset");
             return NormalizeRelativePath(Path.Combine("cooked", "imported", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Resolves one packaged model asset path into the runtime artifact path consumed by the active platform.
+        /// </summary>
+        /// <param name="relativePath">Packaged model asset path written into the build root.</param>
+        /// <returns>Runtime model asset path that should be serialized into scene references.</returns>
+        string BuildRuntimeModelReferenceRelativePath(string relativePath) {
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            if (!string.Equals(TargetPlatformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
+                return normalizedRelativePath;
+            }
+
+            return NormalizeRelativePath(Path.ChangeExtension(normalizedRelativePath, ".phm"));
         }
 
         /// <summary>

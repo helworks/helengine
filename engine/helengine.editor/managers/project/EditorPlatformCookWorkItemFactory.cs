@@ -123,32 +123,54 @@ internal static class EditorPlatformCookWorkItemFactory {
             return null;
         }
 
-        string fullSourcePath = Path.GetFullPath(sourceAssetPath);
-        if (!File.Exists(fullSourcePath)) {
-            throw new InvalidOperationException($"Builder-owned generated texture source '{fullSourcePath}' was not found.");
+        return CreateGeneratedWorkItem(
+            capability,
+            targetPlatformId,
+            sourceAssetPath,
+            "texture",
+            outputRelativePath,
+            sourceAssetId,
+            processorSettings,
+            fileHasher);
+    }
+
+    /// <summary>
+    /// Creates one builder-owned generated font-atlas cook work item when the selected platform publishes that capability.
+    /// </summary>
+    /// <param name="platformDefinition">Platform definition that may publish builder-owned font-atlas cooking.</param>
+    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+    /// <param name="sourceAssetPath">Absolute generated font-atlas texture source path that the builder should cook from.</param>
+    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+    /// <param name="sourceAssetId">Stable identifier of the generated font-atlas texture asset.</param>
+    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+    /// <returns>Resolved work item when the platform owns font-atlas cooking; otherwise null.</returns>
+    public static PlatformCookWorkItem CreateGeneratedFontAtlasTextureWorkItem(
+        PlatformDefinition platformDefinition,
+        string targetPlatformId,
+        string sourceAssetPath,
+        string outputRelativePath,
+        string sourceAssetId,
+        AssetFileHasher fileHasher) {
+        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+        } else if (fileHasher == null) {
+            throw new ArgumentNullException(nameof(fileHasher));
         }
 
-        string normalizedOutputRelativePath = outputRelativePath.Replace('\\', '/');
-        string serializedSettings = SerializeTextureSettings(processorSettings);
-        string settingsHash = ComputeStringHash(fileHasher, serializedSettings);
-        string sourceHash = fileHasher.ComputeHash(fullSourcePath);
-        string workItemId = string.Concat(targetPlatformId, ":texture:", normalizedOutputRelativePath);
+        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "font-atlas-texture");
+        if (capability == null) {
+            return null;
+        }
 
-        return new PlatformCookWorkItem(
-            workItemId,
-            fullSourcePath,
-            "texture",
+        return CreateGeneratedWorkItem(
+            capability,
             targetPlatformId,
-            capability.TargetArtifactKind,
-            normalizedOutputRelativePath,
-            string.Concat(capability.TargetArtifactKind, ":", normalizedOutputRelativePath),
-            sourceHash,
-            settingsHash,
-            serializedSettings,
-            [
-                new PlatformCookWorkItemMetadata("source-asset-id", string.IsNullOrWhiteSpace(sourceAssetId) ? normalizedOutputRelativePath : sourceAssetId),
-                new PlatformCookWorkItemMetadata("settings-contract-id", capability.SettingsContractId)
-            ]);
+            sourceAssetPath,
+            "font-atlas-texture",
+            outputRelativePath,
+            sourceAssetId,
+            ResolveDefaultTextureProcessorSettings(capability),
+            fileHasher);
     }
 
     static PlatformCookWorkItem CreateWorkItem(
@@ -203,6 +225,59 @@ internal static class EditorPlatformCookWorkItemFactory {
             serializedSettings,
             [
                 new PlatformCookWorkItemMetadata("source-asset-id", sourceAssetId ?? normalizedSourceRelativePath),
+                new PlatformCookWorkItemMetadata("settings-contract-id", capability.SettingsContractId)
+            ]);
+    }
+
+    static PlatformCookWorkItem CreateGeneratedWorkItem(
+        PlatformAssetCookCapabilityDefinition capability,
+        string targetPlatformId,
+        string sourceAssetPath,
+        string sourceAssetKind,
+        string outputRelativePath,
+        string sourceAssetId,
+        TextureAssetProcessorSettings processorSettings,
+        AssetFileHasher fileHasher) {
+        if (capability == null) {
+            throw new ArgumentNullException(nameof(capability));
+        } else if (string.IsNullOrWhiteSpace(targetPlatformId)) {
+            throw new ArgumentException("Target platform id must be provided.", nameof(targetPlatformId));
+        } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+        } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
+            throw new ArgumentException("Source asset kind must be provided.", nameof(sourceAssetKind));
+        } else if (string.IsNullOrWhiteSpace(outputRelativePath)) {
+            throw new ArgumentException("Output relative path must be provided.", nameof(outputRelativePath));
+        } else if (processorSettings == null) {
+            throw new ArgumentNullException(nameof(processorSettings));
+        } else if (fileHasher == null) {
+            throw new ArgumentNullException(nameof(fileHasher));
+        }
+
+        string fullSourcePath = Path.GetFullPath(sourceAssetPath);
+        if (!File.Exists(fullSourcePath)) {
+            throw new InvalidOperationException($"Builder-owned generated texture source '{fullSourcePath}' was not found.");
+        }
+
+        string normalizedOutputRelativePath = outputRelativePath.Replace('\\', '/');
+        string serializedSettings = SerializeTextureSettings(processorSettings);
+        string settingsHash = ComputeStringHash(fileHasher, serializedSettings);
+        string sourceHash = fileHasher.ComputeHash(fullSourcePath);
+        string workItemId = string.Concat(targetPlatformId, ":", sourceAssetKind, ":", normalizedOutputRelativePath);
+
+        return new PlatformCookWorkItem(
+            workItemId,
+            fullSourcePath,
+            sourceAssetKind,
+            targetPlatformId,
+            capability.TargetArtifactKind,
+            normalizedOutputRelativePath,
+            string.Concat(capability.TargetArtifactKind, ":", normalizedOutputRelativePath),
+            sourceHash,
+            settingsHash,
+            serializedSettings,
+            [
+                new PlatformCookWorkItemMetadata("source-asset-id", string.IsNullOrWhiteSpace(sourceAssetId) ? normalizedOutputRelativePath : sourceAssetId),
                 new PlatformCookWorkItemMetadata("settings-contract-id", capability.SettingsContractId)
             ]);
     }
