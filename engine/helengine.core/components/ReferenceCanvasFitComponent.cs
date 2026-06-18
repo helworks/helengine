@@ -95,6 +95,11 @@ namespace helengine {
         public AnchorSpace AnchorSpace => CurrentAnchorSpaceValue;
 
         /// <summary>
+        /// Gets the offset required to translate fitted-subtree local space back into the full live viewport space.
+        /// </summary>
+        public float2 ViewportAnchorOrigin => new float2(-CurrentCanvasOriginValue.X, -CurrentCanvasOriginValue.Y);
+
+        /// <summary>
         /// Captures the authored subtree and applies the first fit scale when the component is attached.
         /// </summary>
         /// <param name="entity">Entity that owns the fit component.</param>

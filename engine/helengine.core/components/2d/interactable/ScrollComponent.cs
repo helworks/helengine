@@ -62,7 +62,7 @@ namespace helengine {
         /// Gets or sets the viewport size used for pointer hit testing.
         /// </summary>
         public int2 Size {
-            get { return SizeValue; }
+            get { return ResolveViewportSize(); }
             set {
                 if (value.X < 0 || value.Y < 0) {
                     throw new ArgumentOutOfRangeException(nameof(value), "Scroll viewport size must not be negative.");
@@ -321,7 +321,8 @@ namespace helengine {
 
             Entity clipOriginEntity = ClipOriginEntityValue ?? Parent;
             float3 origin = clipOriginEntity.Position;
-            return new float4(origin.X, origin.Y, SizeValue.X, SizeValue.Y);
+            int2 viewportSize = ResolveViewportSize();
+            return new float4(origin.X, origin.Y, viewportSize.X, viewportSize.Y);
         }
 
         /// <summary>
@@ -356,7 +357,24 @@ namespace helengine {
                 return 1;
             }
 
-            return Math.Max(1, (SizeValue.Y + extent - 1) / extent);
+            int2 viewportSize = ResolveViewportSize();
+            return Math.Max(1, (viewportSize.Y + extent - 1) / extent);
+        }
+
+        /// <summary>
+        /// Resolves the active viewport size, inheriting the immediate parent clip-rect size when one exists.
+        /// </summary>
+        /// <returns>Viewport size used for clipping, hit testing, and automatic visible-count calculations.</returns>
+        int2 ResolveViewportSize() {
+            if (Parent != null && Parent.Parent != null && Parent.Parent.Components != null) {
+                for (int componentIndex = 0; componentIndex < Parent.Parent.Components.Count; componentIndex++) {
+                    if (Parent.Parent.Components[componentIndex] is ClipRectComponent clipRectComponent) {
+                        return clipRectComponent.Size;
+                    }
+                }
+            }
+
+            return SizeValue;
         }
     }
 }

@@ -522,6 +522,102 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures camera-viewport layout space answers to the full live viewport even when the viewport subtree is currently fitted to a narrower reference canvas.
+        /// </summary>
+        [Fact]
+        public void LayoutComponent_WhenViewportUsesReferenceCanvasScaling_CameraViewportLayoutUsesFullViewportBounds() {
+            TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            viewportEntity.AddComponent(viewport);
+
+            Entity contentEntity = new Entity {
+                LocalPosition = new float3(516f, 28f, 0f)
+            };
+            contentEntity.InitComponents();
+            contentEntity.InitChildren();
+            TextComponent text = new TextComponent {
+                Size = new int2(80, 20)
+            };
+            contentEntity.AddComponent(text);
+            LayoutComponent layout = new LayoutComponent {
+                LayoutSpace = LayoutComponent.CameraViewportLayoutSpace
+            };
+            contentEntity.AddComponent(layout);
+            viewportEntity.AddChild(contentEntity);
+
+            Core.Instance.Update();
+            layout.SetAnchorDistances(right: 44f, top: 28f);
+            layout.RefreshAnchoring();
+
+            Assert.Equal(new float3(0f, 60f, 0f), viewportEntity.LocalPosition);
+            Assert.Equal(new float3(556f, -32f, 0f), contentEntity.LocalPosition);
+            Assert.Equal(new float3(556f, 28f, 0f), contentEntity.Position);
+            Assert.Equal(new int2(640, 360), viewport.AnchorSpace.Size);
+            Assert.Equal(new int2(640, 480), viewport.ViewportAnchorSpace.Size);
+        }
+
+        /// <summary>
+        /// Ensures camera-viewport layout space answers to the full live viewport when a sibling reference-canvas fit component offsets the authored subtree root inside a taller viewport.
+        /// </summary>
+        [Fact]
+        public void LayoutComponent_WhenViewportHasSiblingReferenceCanvasFit_CameraViewportLayoutUsesFullViewportBounds() {
+            TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+
+            Entity viewportEntity = new Entity();
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode
+            };
+            viewportEntity.AddComponent(viewport);
+            viewportEntity.AddComponent(new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            });
+
+            Entity generatedRootEntity = new Entity();
+            generatedRootEntity.InitComponents();
+            generatedRootEntity.InitChildren();
+            viewportEntity.AddChild(generatedRootEntity);
+
+            Entity contentEntity = new Entity {
+                LocalPosition = new float3(516f, 28f, 0f)
+            };
+            contentEntity.InitComponents();
+            contentEntity.InitChildren();
+            TextComponent text = new TextComponent {
+                Size = new int2(80, 20)
+            };
+            contentEntity.AddComponent(text);
+            LayoutComponent layout = new LayoutComponent {
+                LayoutSpace = LayoutComponent.CameraViewportLayoutSpace
+            };
+            contentEntity.AddComponent(layout);
+            generatedRootEntity.AddChild(contentEntity);
+
+            Core.Instance.Update();
+            layout.SetAnchorDistances(right: 44f, top: 28f);
+            layout.RefreshAnchoring();
+
+            Assert.Equal(new float3(0f, 60f, 0f), viewportEntity.LocalPosition);
+            Assert.Equal(new float3(0f, 0f, 0f), generatedRootEntity.LocalPosition);
+            Assert.Equal(new float3(556f, -32f, 0f), contentEntity.LocalPosition);
+            Assert.Equal(new float3(556f, 28f, 0f), contentEntity.Position);
+            Assert.Equal(new int2(640, 480), viewport.ViewportAnchorSpace.Size);
+        }
+
+        /// <summary>
         /// Ensures ordinary 2D scene entities without one viewport-owner subtree receive world-space preview proxies.
         /// </summary>
         [Fact]

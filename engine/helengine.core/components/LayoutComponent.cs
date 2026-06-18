@@ -426,10 +426,10 @@ namespace helengine {
                 return ResolveImmediateParentLayoutProvider();
             }
             if (LayoutSpaceValue == ReferenceCanvasLayoutSpace) {
-                return ResolveAncestorComponentProvider(typeof(ReferenceCanvasFitComponent));
+                return ResolveAncestorReferenceCanvasProvider();
             }
             if (LayoutSpaceValue == CameraViewportLayoutSpace) {
-                return ResolveAncestorComponentProvider(typeof(ViewportComponent));
+                return ResolveAncestorViewportProvider();
             }
 
             return ResolveInheritedBoundsProvider();
@@ -448,6 +448,10 @@ namespace helengine {
                 int2 parentSize = ResolveImmediateParentAnchorSize();
                 ParentAnchorSpaceValue.Update(parentSize, new float2(0f, 0f));
                 return ParentAnchorSpaceValue;
+            }
+
+            if (LayoutSpaceValue == CameraViewportLayoutSpace && anchorBoundsProvider is ViewportComponent viewportComponent) {
+                return viewportComponent.ViewportAnchorSpace;
             }
 
             if (anchorBoundsProvider != null) {
@@ -485,21 +489,36 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves the first matching provider component from the current ancestor chain.
+        /// Resolves the nearest reference-canvas layout provider from the current ancestor chain.
         /// </summary>
-        /// <param name="providerType">Provider type that should be found.</param>
-        /// <returns>Resolved provider when found; otherwise null.</returns>
-        IAnchorBoundsProvider ResolveAncestorComponentProvider(Type providerType) {
-            if (providerType == null) {
-                throw new ArgumentNullException(nameof(providerType));
-            }
-
+        /// <returns>Resolved reference-canvas provider when found; otherwise null.</returns>
+        IAnchorBoundsProvider ResolveAncestorReferenceCanvasProvider() {
             Entity current = Parent != null ? Parent.Parent : null;
             while (current != null) {
                 if (current.Components != null) {
                     for (int componentIndex = 0; componentIndex < current.Components.Count; componentIndex++) {
-                        Component component = current.Components[componentIndex];
-                        if (providerType.IsInstanceOfType(component) && component is IAnchorBoundsProvider provider) {
+                        if (current.Components[componentIndex] is ReferenceCanvasFitComponent provider) {
+                            return provider;
+                        }
+                    }
+                }
+
+                current = current.Parent;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the nearest viewport layout provider from the current ancestor chain.
+        /// </summary>
+        /// <returns>Resolved viewport provider when found; otherwise null.</returns>
+        IAnchorBoundsProvider ResolveAncestorViewportProvider() {
+            Entity current = Parent != null ? Parent.Parent : null;
+            while (current != null) {
+                if (current.Components != null) {
+                    for (int componentIndex = 0; componentIndex < current.Components.Count; componentIndex++) {
+                        if (current.Components[componentIndex] is ViewportComponent provider) {
                             return provider;
                         }
                     }

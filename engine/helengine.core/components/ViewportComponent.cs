@@ -94,6 +94,11 @@ namespace helengine {
         AnchorSpace CurrentAnchorSpaceValue;
 
         /// <summary>
+        /// Tracks the current full-viewport anchor space exposed to descendants that explicitly answer to the camera viewport rect.
+        /// </summary>
+        AnchorSpace CurrentViewportAnchorSpaceValue;
+
+        /// <summary>
         /// Tracks the current origin applied to the scaled subtree root.
         /// </summary>
         float2 CurrentCanvasOriginValue;
@@ -113,6 +118,7 @@ namespace helengine {
             ReferenceHeightValue = SceneCanvasProfile.DefaultHeight;
             LayoutSnapshotsValue = new List<ViewportLayoutSnapshot>();
             CurrentAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
+            CurrentViewportAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
             CurrentCanvasOriginValue = new float2(0f, 0f);
         }
 
@@ -226,6 +232,17 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the resolved full viewport anchor space in local pixels regardless of any reference-canvas fitting applied to the subtree.
+        /// </summary>
+        public AnchorSpace ViewportAnchorSpace {
+            get {
+                RefreshSubscriptions();
+                CurrentViewportAnchorSpaceValue.Update(ResolveAnchorBounds(), ResolveViewportAnchorOrigin());
+                return CurrentViewportAnchorSpaceValue;
+            }
+        }
+
+        /// <summary>
         /// Gets the resolved viewport rectangle in pixel-space coordinates.
         /// </summary>
         public float4 ResolvedViewportBounds {
@@ -279,9 +296,11 @@ namespace helengine {
             DetachFromWindowResize();
             ReleaseLayoutSnapshots();
             NativeOwnership.Delete(CurrentAnchorSpaceValue);
+            NativeOwnership.Delete(CurrentViewportAnchorSpaceValue);
             ActiveCameraComponentValue = null;
             ExplicitBoundCameraComponentValue = null;
             CurrentAnchorSpaceValue = null;
+            CurrentViewportAnchorSpaceValue = null;
             base.Dispose();
         }
 
@@ -682,6 +701,28 @@ namespace helengine {
         bool DidCanvasOriginChange(float2 currentCanvasOrigin, float2 resolvedCanvasOrigin) {
             return currentCanvasOrigin.X != resolvedCanvasOrigin.X ||
                    currentCanvasOrigin.Y != resolvedCanvasOrigin.Y;
+        }
+
+        /// <summary>
+        /// Resolves the origin shift required for descendants that answer to the full viewport instead of one fitted reference-canvas subtree.
+        /// </summary>
+        /// <returns>Viewport-space origin correction expressed in local pixels.</returns>
+        float2 ResolveViewportAnchorOrigin() {
+            if (ScalingModeValue == ReferenceCanvasScalingMode) {
+                return new float2(-CurrentCanvasOriginValue.X, -CurrentCanvasOriginValue.Y);
+            }
+
+            if (Parent == null || Parent.Components == null) {
+                return new float2(0f, 0f);
+            }
+
+            for (int componentIndex = 0; componentIndex < Parent.Components.Count; componentIndex++) {
+                if (Parent.Components[componentIndex] is ReferenceCanvasFitComponent referenceCanvasFitComponent) {
+                    return referenceCanvasFitComponent.ViewportAnchorOrigin;
+                }
+            }
+
+            return new float2(0f, 0f);
         }
 
         /// <summary>
