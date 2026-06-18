@@ -97,11 +97,15 @@ namespace helengine.editor {
             EditorPlatformBuildScenePackagerResult packagerResult = packager.Package(orderedScenePaths, effectiveExecutionRootPath);
             PlatformCookWorkItem[] platformCookWorkItems = [.. packagerResult.PlatformCookWorkItems];
 
+            Console.WriteLine("[helengine-editor] build scene entries begin");
             PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedScenePaths, effectiveCookRootPath);
+            Console.WriteLine("[helengine-editor] build scene entries completed");
+            Console.WriteLine("[helengine-editor] build cooked artifacts begin");
             PlatformBuildArtifact[] cookedArtifacts = BuildCookedArtifacts(
                 effectiveCookRootPath,
                 targetIds,
                 platformCookWorkItems);
+            Console.WriteLine("[helengine-editor] build cooked artifacts completed");
 
             PlatformBuildManifest manifest = new PlatformBuildManifest(
                 2,

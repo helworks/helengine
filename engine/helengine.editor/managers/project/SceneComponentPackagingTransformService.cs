@@ -2470,19 +2470,28 @@ namespace helengine.editor {
             if (string.Equals(reference.AssetId, CubeGeneratedAssetId, StringComparison.Ordinal)) {
                 string relativePath = "cooked/engine/models/cube.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateCubeMesh(float3.Zero, float3.One));
-                return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
+                return CreateGeneratedPackagedReference(
+                    BuildRuntimeModelReferenceRelativePath(relativePath),
+                    reference.ProviderId,
+                    reference.AssetId);
             }
 
             if (string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal)) {
                 string relativePath = "cooked/engine/models/plane.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One));
-                return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
+                return CreateGeneratedPackagedReference(
+                    BuildRuntimeModelReferenceRelativePath(relativePath),
+                    reference.ProviderId,
+                    reference.AssetId);
             }
 
             if (string.Equals(reference.AssetId, SphereGeneratedAssetId, StringComparison.Ordinal)) {
                 string relativePath = "cooked/engine/models/sphere.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateSphereMesh(float3.Zero, float3.One));
-                return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
+                return CreateGeneratedPackagedReference(
+                    BuildRuntimeModelReferenceRelativePath(relativePath),
+                    reference.ProviderId,
+                    reference.AssetId);
             }
 
             throw new InvalidOperationException($"Unsupported generated model asset id '{reference.AssetId}'.");
@@ -2493,7 +2502,7 @@ namespace helengine.editor {
             ModelAsset modelAsset = FileSystemModelResolver.ResolveModelAsset(sourcePath);
             string relativePath = BuildImportedModelRelativePath(reference.RelativePath);
             WriteAsset(Path.Combine(buildRootPath, relativePath), modelAsset);
-            return CreateFileSystemReference(relativePath);
+            return CreateFileSystemReference(BuildRuntimeModelReferenceRelativePath(relativePath));
         }
 
         SceneAssetReference RewriteGeneratedMaterialReference(SceneAssetReference reference, string buildRootPath) {
@@ -3348,6 +3357,20 @@ namespace helengine.editor {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hasset");
             return NormalizeRelativePath(Path.Combine("cooked", "imported", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Resolves one packaged model asset path into the runtime artifact path consumed by the selected platform.
+        /// </summary>
+        /// <param name="relativePath">Packaged model asset path written into the build root.</param>
+        /// <returns>Runtime model asset path that should be serialized into scene references.</returns>
+        string BuildRuntimeModelReferenceRelativePath(string relativePath) {
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            if (!string.Equals(TargetPlatformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
+                return normalizedRelativePath;
+            }
+
+            return NormalizeRelativePath(Path.ChangeExtension(normalizedRelativePath, ".phm"));
         }
 
         /// <summary>

@@ -143,9 +143,12 @@ namespace helengine.editor {
             Directory.CreateDirectory(workspace.LayoutRootPath);
             Directory.CreateDirectory(workspace.BuilderWorkingRootPath);
             Directory.CreateDirectory(workspace.LogsRootPath);
+            WritePhaseMarker(workspace, "workspace-ready");
 
             GeneratedBootScenePreparationService.EnsurePrepared(queueItem.PlatformId, queueItem.SelectedSceneIds ?? []);
+            WritePhaseMarker(workspace, "boot-scene-prepared");
             RunRegenerateCore(builder.Definition, selectedCodegenProfile, queueItem, workspace);
+            WritePhaseMarker(workspace, "generated-core-ready");
             PlatformBuildManifest cookedManifest = RunCookAssets(
                 builder,
                 builder.Definition,
@@ -153,15 +156,21 @@ namespace helengine.editor {
                 selectedGraphicsProfileId,
                 queueItem,
                 workspace);
+            WritePhaseMarker(workspace, "assets-cooked");
             PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
+            WritePhaseMarker(workspace, "code-compiled");
             CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(cookedManifest, codeModules, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.ExecutionRootPath);
             EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.ExecutionRootPath);
             EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(workspace.GeneratedCoreRootPath);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
+            WritePhaseMarker(workspace, "generated-core-finalized");
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
+            WritePhaseMarker(workspace, "variants-resolved");
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
+            WritePhaseMarker(workspace, "media-laid-out");
             WriteRuntimeNativeManifestSources(cookedManifest, workspace.GeneratedCoreRootPath);
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
+            WritePhaseMarker(workspace, "containers-written");
 
             EditorBuildExecutionResult packageResult = RunPackagePlatform(
                 builder,
@@ -174,7 +183,26 @@ namespace helengine.editor {
                 selectedCodegenProfileId,
                 selectedMediaProfileId,
                 selectedStorageProfileId);
+            WritePhaseMarker(workspace, "platform-packaged");
             return FinalizeBuildExecution(selectionModel, queueItem, packageResult);
+        }
+
+        /// <summary>
+        /// Appends one durable phase marker to the active build workspace so headless build failures can be localized after process termination.
+        /// </summary>
+        /// <param name="workspace">Workspace that owns the phase log.</param>
+        /// <param name="phaseName">Human-readable phase marker name.</param>
+        static void WritePhaseMarker(EditorPlatformBuildGraphWorkspace workspace, string phaseName) {
+            if (workspace == null) {
+                throw new ArgumentNullException(nameof(workspace));
+            }
+            if (string.IsNullOrWhiteSpace(phaseName)) {
+                throw new ArgumentException("Phase name must be provided.", nameof(phaseName));
+            }
+
+            string phaseLogPath = Path.Combine(workspace.LogsRootPath, "build-phases.log");
+            string line = DateTime.UtcNow.ToString("O") + " " + phaseName + Environment.NewLine;
+            File.AppendAllText(phaseLogPath, line);
         }
 
         /// <summary>
