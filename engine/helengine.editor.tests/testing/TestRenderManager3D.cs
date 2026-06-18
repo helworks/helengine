@@ -35,9 +35,22 @@ namespace helengine.editor.tests.testing {
         int LastDrawCallCountValue;
 
         /// <summary>
+        /// Optional runtime texture that this test renderer should release through the active 2D renderer during the next deferred 3D flush.
+        /// </summary>
+        RuntimeTexture TextureToReleaseDuringFlushValue;
+
+        /// <summary>
         /// Gets how many times production code requested one deferred 3D release flush.
         /// </summary>
         public int FlushReleasedAssetsCallCount { get; private set; }
+
+        /// <summary>
+        /// Gets or sets one optional runtime texture that should be released through the active 2D renderer during the next deferred 3D flush.
+        /// </summary>
+        public RuntimeTexture TextureToReleaseDuringFlush {
+            get { return TextureToReleaseDuringFlushValue; }
+            set { TextureToReleaseDuringFlushValue = value; }
+        }
 
         /// <summary>
         /// Initializes a new test render manager.
@@ -227,6 +240,14 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         public override void FlushReleasedAssets() {
             FlushReleasedAssetsCallCount++;
+            if (TextureToReleaseDuringFlushValue != null) {
+                if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+                    throw new InvalidOperationException("A 2D render manager must exist before flushing deferred texture releases.");
+                }
+
+                Core.Instance.RenderManager2D.ReleaseTexture(TextureToReleaseDuringFlushValue);
+                TextureToReleaseDuringFlushValue = null;
+            }
         }
     }
 }

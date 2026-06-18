@@ -1005,6 +1005,7 @@ namespace helengine {
             }
 
             Core.Instance.RenderManager3D.FlushReleasedAssets();
+            Core.Instance.RenderManager2D.FlushReleasedTextures();
         }
 
         /// <summary>

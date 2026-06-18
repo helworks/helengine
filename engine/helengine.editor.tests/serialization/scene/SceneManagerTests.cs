@@ -389,6 +389,40 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures single-mode scene transitions flush 2D texture releases that are queued while deferred 3D asset releases are being processed.
+        /// </summary>
+        [Fact]
+        public void LoadScene_when3DFlushQueues2DTextureRelease_flushesReleasedTexturesAgainBeforeReloadCompletes() {
+            WriteSceneAsset("cooked/scenes/bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/testplayablescene.hasset", 1u);
+            TestRenderManager3D renderManager3D = new TestRenderManager3D();
+            TestRenderManager2D renderManager2D = new TestRenderManager2D();
+            Core core = CreateCore(
+                renderManager3D,
+                renderManager2D,
+                CreateSceneCatalog(
+                    new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                    new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+
+            TestRuntimeTexture deferredTexture = new TestRuntimeTexture {
+                Width = 64,
+                Height = 64
+            };
+            renderManager3D.TextureToReleaseDuringFlush = deferredTexture;
+            int flushReleasedTexturesCallCountBeforeReload = renderManager2D.FlushReleasedTexturesCallCount;
+
+            core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+
+            Assert.Same(deferredTexture, Assert.Single(renderManager2D.ReleasedTextures));
+            Assert.Equal(flushReleasedTexturesCallCountBeforeReload + 2, renderManager2D.FlushReleasedTexturesCallCount);
+            Assert.Null(renderManager3D.TextureToReleaseDuringFlush);
+        }
+
+        /// <summary>
         /// Ensures single-mode scene transitions tear down startup roots that were loaded directly before the runtime scene manager began tracking scenes.
         /// </summary>
         [Fact]
