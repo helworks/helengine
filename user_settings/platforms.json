@@ -74,6 +74,15 @@
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
                           "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe",
                           "pluginManifestPath":  "../../helengine-switch/platform-plugin.json"
+                      },
+                      {
+                          "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+                          "platformId":  "wiiu",
+                          "displayName":  "Nintendo Wii U",
+                          "builderAssemblyPath":  "../../helengine-wiiu/builder/bin/Debug/net9.0-windows/helengine.wiiu.builder.dll",
+                          "playerSourceRootPath":  "../../helengine-wiiu",
+                          "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
                       }
                   ]
 }
