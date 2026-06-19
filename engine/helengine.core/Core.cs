@@ -475,14 +475,23 @@ namespace helengine {
         /// Executes the engine draw cycle.
         /// </summary>
         public virtual void Draw() {
-            if (SceneManager != null) {
-                SceneManager.CommitPendingOperationsAtFrameBoundary();
+            if (InitializationOptions.CommitPendingSceneOperationsDuringDraw) {
+                CompleteFrameBoundary();
             }
 
             LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
             LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
             FPSComponent.RecordRenderFrame();
             DebugComponent.RecordRenderFrame();
+        }
+
+        /// <summary>
+        /// Commits queued scene operations after the active host reaches one frame-boundary safe point for resource release.
+        /// </summary>
+        public virtual void CompleteFrameBoundary() {
+            if (SceneManager != null) {
+                SceneManager.CommitPendingOperationsAtFrameBoundary();
+            }
         }
 
         /// <summary>

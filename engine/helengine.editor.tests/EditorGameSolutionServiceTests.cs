@@ -9,12 +9,14 @@ namespace helengine.editor.tests {
         /// Temporary project root used by the current test instance.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly string ExpectedGeneratedOutputRootPath;
 
         /// <summary>
         /// Initializes one isolated temporary project root for solution-generation tests.
         /// </summary>
         public EditorGameSolutionServiceTests() {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-game-solution-tests", Guid.NewGuid().ToString("N"));
+            ExpectedGeneratedOutputRootPath = Path.Combine(Path.GetDirectoryName(TempProjectRootPath) ?? TempProjectRootPath, "output", Path.GetFileName(TempProjectRootPath));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scripts"));
             File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"), "public sealed class Player { }");
         }
@@ -25,6 +27,9 @@ namespace helengine.editor.tests {
         public void Dispose() {
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
+            }
+            if (Directory.Exists(ExpectedGeneratedOutputRootPath)) {
+                Directory.Delete(ExpectedGeneratedOutputRootPath, true);
             }
         }
 
@@ -56,15 +61,15 @@ namespace helengine.editor.tests {
             Assert.Contains("<ImplicitUsings>enable</ImplicitUsings>", projectFileContents);
             Assert.Contains("<AssemblyName>gameplay</AssemblyName>", projectFileContents);
             Assert.Contains("<RootNamespace>gameplay</RootNamespace>", projectFileContents);
-            Assert.Contains("<BaseIntermediateOutputPath>" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "obj", "gameplay") + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>", projectFileContents);
-            Assert.Contains("<BaseOutputPath>" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "bin", "gameplay") + Path.DirectorySeparatorChar) + "</BaseOutputPath>", projectFileContents);
+            Assert.Contains("<BaseIntermediateOutputPath>" + EscapeXml(Path.Combine(ExpectedGeneratedOutputRootPath, "generated_code", "obj", "gameplay") + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>", projectFileContents);
+            Assert.Contains("<BaseOutputPath>" + EscapeXml(Path.Combine(ExpectedGeneratedOutputRootPath, "generated_code", "bin", "gameplay") + Path.DirectorySeparatorChar) + "</BaseOutputPath>", projectFileContents);
             Assert.Contains("helengine.core", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("<Compile Include=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "assets", "**", "*.cs")) + "\" />", projectFileContents);
             Assert.Contains("<Compile Include=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "GlobalUsings.g.cs")) + "\" />", projectFileContents);
             Assert.Contains("gameplay", solutionFileContents);
             Assert.Contains("user_settings/generated_code/projects/gameplay/gameplay.csproj", solutionFileContents);
-            Assert.Equal(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "bin", "gameplay", "Debug", "net9.0"), service.GeneratedOutputDirectoryPath);
-            Assert.Equal(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "bin", "gameplay", "Debug", "net9.0", "gameplay.dll"), service.GeneratedOutputAssemblyPath);
+            Assert.Equal(Path.Combine(ExpectedGeneratedOutputRootPath, "generated_code", "bin", "gameplay", "Debug", "net9.0"), service.GeneratedOutputDirectoryPath);
+            Assert.Equal(Path.Combine(ExpectedGeneratedOutputRootPath, "generated_code", "bin", "gameplay", "Debug", "net9.0", "gameplay.dll"), service.GeneratedOutputAssemblyPath);
             Assert.Equal("global using helengine;" + Environment.NewLine, File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "GlobalUsings.g.cs")));
         }
 

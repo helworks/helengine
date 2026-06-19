@@ -580,7 +580,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies generated unity translation regeneration excludes only the separately linked runtime manifest sources.
+    /// Verifies generated unity translation regeneration excludes compile-validation harness sources and the separately linked runtime manifest sources.
     /// </summary>
     [Fact]
     public void Write_generated_core_translation_unit_excludes_only_runtime_manifest_sources() {
@@ -589,6 +589,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "RendererBackendCapabilityProfile.cpp"), "// keep");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "ExternalPlatformMaterialAsset.cpp"), "// keep");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "generated_unity.cpp"), "#include \"Foo.cpp\"");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_startup_manifest.cpp"), "// exclude");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_scene_catalog_manifest.cpp"), "// exclude");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_code_module_manifest.cpp"), "// exclude");
@@ -600,6 +601,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("#include \"Foo.cpp\"", unitySource);
         Assert.Contains("#include \"RendererBackendCapabilityProfile.cpp\"", unitySource);
         Assert.Contains("#include \"ExternalPlatformMaterialAsset.cpp\"", unitySource);
+        Assert.DoesNotContain("generated_unity.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_scene_catalog_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", unitySource, StringComparison.Ordinal);

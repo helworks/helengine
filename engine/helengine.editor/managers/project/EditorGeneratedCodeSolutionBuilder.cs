@@ -34,14 +34,15 @@ namespace helengine.editor {
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            string generatedOutputRootPath = ResolveGeneratedOutputRootPath(fullProjectRootPath);
             List<EditorGeneratedCodeModuleProject> moduleProjects = [];
             for (int index = 0; index < manifestDocument.Modules.Length; index++) {
                 EditorCodeModuleManifestEntry module = manifestDocument.Modules[index];
                 string projectDirectoryPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "projects", module.ModuleId);
                 string projectFilePath = Path.Combine(projectDirectoryPath, module.ModuleId + ".csproj");
                 string generatedGlobalUsingsFilePath = Path.Combine(projectDirectoryPath, "GlobalUsings.g.cs");
-                string baseIntermediateOutputPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "obj", module.ModuleId);
-                string baseOutputPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "bin", module.ModuleId);
+                string baseIntermediateOutputPath = Path.Combine(generatedOutputRootPath, "generated_code", "obj", module.ModuleId);
+                string baseOutputPath = Path.Combine(generatedOutputRootPath, "generated_code", "bin", module.ModuleId);
                 string targetFramework = module.ModuleKind == EditorCodeModuleKind.Editor
                     ? EditorTargetFrameworkValue
                     : RuntimeTargetFrameworkValue;
@@ -63,6 +64,27 @@ namespace helengine.editor {
             }
 
             return new EditorGeneratedCodeSolution(moduleProjects);
+        }
+
+        /// <summary>
+        /// Resolves the shared sibling output root used for generated script project binaries and intermediate artifacts.
+        /// </summary>
+        /// <param name="fullProjectRootPath">Absolute authored project root path.</param>
+        /// <returns>Absolute output root path for the authored project.</returns>
+        static string ResolveGeneratedOutputRootPath(string fullProjectRootPath) {
+            if (string.IsNullOrWhiteSpace(fullProjectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(fullProjectRootPath));
+            }
+
+            string projectFolderName = new DirectoryInfo(fullProjectRootPath).Name;
+            DirectoryInfo? parentDirectory = Directory.GetParent(fullProjectRootPath);
+            if (string.IsNullOrWhiteSpace(projectFolderName) ||
+                parentDirectory == null ||
+                string.IsNullOrWhiteSpace(parentDirectory.FullName)) {
+                return Path.Combine(fullProjectRootPath, "output");
+            }
+
+            return Path.Combine(parentDirectory.FullName, "output", projectFolderName);
         }
 
         /// <summary>

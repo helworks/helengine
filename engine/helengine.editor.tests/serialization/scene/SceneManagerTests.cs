@@ -522,6 +522,35 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures hosts can defer scene-operation commits until one explicit frame-boundary safe point after draw.
+        /// </summary>
+        [Fact]
+        public void CompleteFrameBoundary_whenDrawTimeCommitIsDisabled_commitsPendingSceneOperationsAtExplicitSafePoint() {
+            WriteSceneAsset(
+                "cooked/scenes/bootstrap.hasset",
+                1u,
+                CreateCameraComponentRecord(0));
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath,
+                SceneCatalog = CreateSceneCatalog(new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")),
+                CommitPendingSceneOperationsDuringDraw = false
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+
+            core.Draw();
+
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+            Assert.Empty(core.ObjectManager.Cameras);
+
+            core.CompleteFrameBoundary();
+
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+            Assert.Single(core.ObjectManager.Cameras);
+        }
+
+        /// <summary>
         /// Ensures unload notifications expose the tracked root entities and remove scene bookkeeping.
         /// </summary>
         [Fact]

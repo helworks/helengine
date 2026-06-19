@@ -1282,7 +1282,8 @@ namespace helengine.editor {
             string[] discoveredFiles = Directory.GetFiles(generatedCoreRootPath, "*.cpp", SearchOption.AllDirectories);
             for (int index = 0; index < discoveredFiles.Length; index++) {
                 string sourceFilePath = discoveredFiles[index];
-                if (string.Equals(Path.GetFileName(sourceFilePath), "helengine_core_amalgamated.cpp", StringComparison.OrdinalIgnoreCase)
+                if (string.Equals(Path.GetFileName(sourceFilePath), "generated_unity.cpp", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(Path.GetFileName(sourceFilePath), "helengine_core_amalgamated.cpp", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(Path.GetFileName(sourceFilePath), "helengine_core_unity.cpp", StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }

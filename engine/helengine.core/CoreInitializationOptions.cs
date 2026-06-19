@@ -69,6 +69,12 @@ namespace helengine {
         public StandardPlatformInputConfiguration StandardPlatformInputConfiguration { get; set; } = StandardPlatformInputConfiguration.Empty;
 
         /// <summary>
+        /// Gets or sets whether <see cref="Core.Draw"/> should commit queued scene operations automatically at the end of the draw call.
+        /// Hosts that need a later safe point, such as a post-present boundary, should disable this and call <see cref="Core.CompleteFrameBoundary"/> explicitly.
+        /// </summary>
+        public bool CommitPendingSceneOperationsDuringDraw { get; set; } = true;
+
+        /// <summary>
         /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {
