@@ -19,16 +19,6 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures the explicit sprite deserializer releases the transient texture scene reference after resolving the runtime texture.
-        /// </summary>
-        [Fact]
-        public void Deserialize_whenExplicitRuntimeSpriteDeserializerResolvesTransientSceneAssetReference_releasesTheTransientReferenceThroughNativeOwnership() {
-            AssertDeserializerContains(
-                "RuntimeSpriteComponentDeserializer.cs",
-                "NativeOwnership.Delete(textureReference);");
-        }
-
-        /// <summary>
         /// Ensures one runtime component deserializer source file contains the required native-ownership cleanup contract.
         /// </summary>
         /// <param name="fileName">Deserializer source file name relative to the runtime scene folder.</param>

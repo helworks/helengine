@@ -1192,16 +1192,7 @@ namespace helengine.editor {
 
             return componentType == typeof(MeshComponent)
                 || componentType == typeof(CameraComponent)
-                || componentType == typeof(SceneMapComponent)
-                || componentType == typeof(FPSComponent)
-                || componentType == typeof(DebugComponent)
-                || componentType == typeof(TextComponent)
-                || componentType == typeof(SpriteComponent)
-                || componentType == typeof(RoundedRectComponent)
-                || componentType == typeof(DirectionalLightComponent)
-                || componentType == typeof(AmbientLightComponent)
-                || componentType == typeof(PointLightComponent)
-                || componentType == typeof(SpotLightComponent);
+                || componentType == typeof(SceneMapComponent);
         }
 
         /// <summary>
