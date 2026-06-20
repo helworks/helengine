@@ -72,6 +72,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures bake requests reject the removed generated Nintendo DS debug-font reference.
+        /// </summary>
+        [Fact]
+        public void Bake_WhenRequestedWithRemovedNintendoDsGeneratedFont_ThrowsUnsupportedGeneratedFontAssetId() {
+            TextComponentSpriteBakeService service = CreateService(new FakeRenderTargetTextureAssetReader(CreateTextureAsset(96, 24)));
+            TextComponentSpriteBakeRequest request = new TextComponentSpriteBakeRequest(
+                0,
+                "ds",
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.Generated,
+                    RelativePath = "generated/editor/fonts/ds-debug.hefont",
+                    ProviderId = "editor",
+                    AssetId = "ds-debug-font"
+                },
+                "BACK",
+                new int2(96, 24),
+                new byte4(255, 255, 255, 255),
+                false,
+                1f,
+                TextAlignment.Center,
+                0f,
+                12,
+                1);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.Bake(request));
+            Assert.Contains("Unsupported generated font asset id", exception.Message);
+        }
+
+        /// <summary>
         /// Creates one real bake service backed by test render managers and one fake render-target reader.
         /// </summary>
         /// <param name="reader">Render-target reader that should receive the captured preview target.</param>

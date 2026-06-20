@@ -109,6 +109,23 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the editor scene resolver rejects the removed generated Nintendo DS debug-font reference.
+        /// </summary>
+        [Fact]
+        public void ResolveFont_WhenReferenceUsesRemovedNintendoDsGeneratedFont_ThrowsUnsupportedGeneratedFontAssetId() {
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(new ContentManager(TempProjectRootPath), TempProjectRootPath);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => resolver.ResolveFont(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "generated/editor/fonts/ds-debug.hefont",
+                ProviderId = "editor",
+                AssetId = "ds-debug-font"
+            }));
+
+            Assert.Contains("Unsupported generated font asset id", exception.Message);
+        }
+
+        /// <summary>
         /// Ensures cached filesystem-backed source fonts rebuild their runtime atlas texture before the editor renderer consumes them.
         /// </summary>
         [Fact]

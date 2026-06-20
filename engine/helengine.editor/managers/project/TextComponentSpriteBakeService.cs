@@ -18,11 +18,6 @@ namespace helengine.editor {
         const string EditorFontAssetId = "ui-font";
 
         /// <summary>
-        /// Stable asset id used for the generated Nintendo DS debug font.
-        /// </summary>
-        const string NintendoDsDebugFontAssetId = "ds-debug-font";
-
-        /// <summary>
         /// Renderer used to allocate and draw the offscreen capture scene.
         /// </summary>
         readonly RenderManager3D RenderManager3D;
@@ -136,10 +131,6 @@ namespace helengine.editor {
                 if (string.Equals(fontReference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
                     return DefaultEditorFontAsset;
                 }
-                if (string.Equals(fontReference.AssetId, NintendoDsDebugFontAssetId, StringComparison.Ordinal)) {
-                    return ResolveGeneratedNintendoDsDebugFont();
-                }
-
                 if (!string.Equals(fontReference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
                     throw new InvalidOperationException($"Unsupported generated font asset id '{fontReference.AssetId}'.");
                 }
@@ -157,29 +148,6 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported font reference source kind '{fontReference.SourceKind}'.");
-        }
-
-        /// <summary>
-        /// Resolves the generated Nintendo DS debug font asset through the editor app's factory surface.
-        /// </summary>
-        /// <returns>Generated Nintendo DS debug font asset.</returns>
-        static FontAsset ResolveGeneratedNintendoDsDebugFont() {
-            Type factoryType = Type.GetType(
-                "helengine.editor.app.NintendoDsDebugFontFactory, helengine.editor.app",
-                throwOnError: false,
-                ignoreCase: false)
-                ?? throw new InvalidOperationException("Nintendo DS debug font factory type 'helengine.editor.app.NintendoDsDebugFontFactory' was not found.");
-            MethodInfo factoryMethod = factoryType.GetMethod(
-                "CreateBottomOverlayFont",
-                BindingFlags.Public | BindingFlags.Static,
-                null,
-                Type.EmptyTypes,
-                null)
-                ?? throw new InvalidOperationException("Nintendo DS debug font factory method 'CreateBottomOverlayFont' was not found.");
-            object result = factoryMethod.Invoke(null, null)
-                ?? throw new InvalidOperationException("Nintendo DS debug font factory returned null.");
-            return result as FontAsset
-                ?? throw new InvalidOperationException("Nintendo DS debug font factory returned an unexpected asset type.");
         }
 
         /// <summary>
