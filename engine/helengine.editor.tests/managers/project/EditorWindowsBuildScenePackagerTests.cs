@@ -38,6 +38,10 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "cache", "shader-cache"));
             Directory.CreateDirectory(BuildRootPath);
+
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         }
 
         /// <summary>
@@ -749,7 +753,8 @@ namespace helengine.editor.tests {
                 packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
-            Assert.Equal("helengine.TextComponent", packagedScene.RootEntities[0].Components[0].ComponentTypeId);
+            SceneComponentAssetRecord packagedTextRecord = packagedScene.RootEntities[0].Components[0];
+            AssertUsesAutomaticRuntimePayload(packagedTextRecord, typeof(TextComponent));
             Assert.Single(packagedScene.AssetReferences);
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, packagedScene.AssetReferences[0].SourceKind);
             Assert.Equal("cooked/fonts/default.hefont", packagedScene.AssetReferences[0].RelativePath);
@@ -860,12 +865,8 @@ namespace helengine.editor.tests {
             Assert.Equal(expectedFontRuntimePath, Assert.Single(packagedScene.AssetReferences).RelativePath);
 
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
-            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(2, reader.ReadByte());
-            SceneAssetReference packagedFontReference = ReadOptionalReference(reader);
-            Assert.NotNull(packagedFontReference);
-            Assert.Equal(expectedFontRuntimePath, packagedFontReference.RelativePath);
+            AssertUsesAutomaticRuntimePayload(packagedRecord, typeof(TextComponent));
+            AssertAutomaticRuntimeAssetReference(packagedRecord, "Font", expectedFontRuntimePath);
         }
 
         /// <summary>
@@ -1926,6 +1927,7 @@ namespace helengine.editor.tests {
             SceneComponentAssetRecord packagedAmbientLightRecord = Assert.Single(packagedScene.RootEntities[1].Components);
             SceneComponentAssetRecord packagedPointLightRecord = Assert.Single(packagedScene.RootEntities[2].Components);
             SceneComponentAssetRecord packagedSpotLightRecord = Assert.Single(packagedScene.RootEntities[3].Components);
+            SceneComponentAssetRecord packagedRoundedRectRecord = Assert.Single(packagedScene.RootEntities[4].Components);
 
             Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(DirectionalLightComponent)), packagedDirectionalLightRecord.ComponentTypeId);
             Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(AmbientLightComponent)), packagedAmbientLightRecord.ComponentTypeId);
@@ -1935,6 +1937,7 @@ namespace helengine.editor.tests {
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, packagedAmbientLightRecord.Payload[0]);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, packagedPointLightRecord.Payload[0]);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, packagedSpotLightRecord.Payload[0]);
+            AssertUsesAutomaticRuntimePayload(packagedRoundedRectRecord, typeof(RoundedRectComponent));
 
             InitializeRuntimeCore(BuildRootPath);
             ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
@@ -1966,6 +1969,54 @@ namespace helengine.editor.tests {
             Assert.Equal(14f, roundedRectComponent.Radius);
             Assert.Equal(new byte4(4, 8, 12, 255), roundedRectComponent.FillColor);
             Assert.Equal(new byte4(80, 120, 160, 255), roundedRectComponent.BorderColor);
+        }
+
+        /// <summary>
+        /// Ensures packaged scenes rewrite sprite component texture references through the shared automatic runtime payload format.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsSpriteComponent_LeavesPackagedSpriteLoadable() {
+            string sceneId = "Scenes/SpriteScene.helen";
+            string textureRelativePath = "Textures/UiSprite.png";
+            WriteSourceTextureAsset(textureRelativePath);
+            SceneAssetReference textureReference = CreateFileTextureReference(textureRelativePath);
+            WriteSceneAsset(sceneId, "helengine.SpriteComponent", WriteSpriteComponentPayload(textureReference), new[] { textureReference });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                [
+                    new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])
+                ]);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord packagedSpriteRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+            AssertUsesAutomaticRuntimePayload(packagedSpriteRecord, typeof(SpriteComponent));
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+            SpriteComponent loadedSpriteComponent = Assert.IsType<SpriteComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is SpriteComponent));
+
+            Assert.NotNull(loadedSpriteComponent.Texture);
+            Assert.Equal(new float4(0f, 0f, 1f, 1f), loadedSpriteComponent.SourceRect);
+            Assert.Equal(new int2(32, 14), loadedSpriteComponent.Size);
+            Assert.Equal(new byte4(249, 243, 255, 255), loadedSpriteComponent.Color);
+            Assert.Equal(34, loadedSpriteComponent.RenderOrder2D);
+            Assert.Equal(1, loadedSpriteComponent.LayerMask);
+            Assert.Equal(15f, loadedSpriteComponent.Rotation);
         }
 
         /// <summary>
@@ -3063,6 +3114,20 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates the file-backed texture reference used by packaged sprite scenes.
+        /// </summary>
+        /// <param name="relativePath">Project-relative texture asset path.</param>
+        /// <returns>File-backed scene reference.</returns>
+        static SceneAssetReference CreateFileTextureReference(string relativePath) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = relativePath,
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+        }
+
+        /// <summary>
         /// Writes one serialized scene asset containing a single empty root entity.
         /// </summary>
         /// <param name="sceneId">Scene asset id to write.</param>
@@ -3817,6 +3882,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one serialized sprite component payload using the supplied texture asset reference.
+        /// </summary>
+        /// <param name="textureReference">Texture reference to persist for the sprite component.</param>
+        /// <returns>Serialized sprite component payload.</returns>
+        byte[] WriteSpriteComponentPayload(SceneAssetReference textureReference) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SpriteComponent spriteComponent = new SpriteComponent {
+                SourceRect = new float4(0f, 0f, 1f, 1f),
+                Size = new int2(32, 14),
+                Color = new byte4(249, 243, 255, 255),
+                RenderOrder2D = 34,
+                LayerMask = 1,
+                Rotation = 15f
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Texture", textureReference);
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(spriteComponent, 0, saveState);
+            return record.Payload;
+        }
+
+        /// <summary>
         /// Writes one serialized rigid-body component payload used by scene-packager tests.
         /// </summary>
         /// <param name="bodyKind">Rigid-body participation mode to encode.</param>
@@ -4042,6 +4129,52 @@ namespace helengine.editor.tests {
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(roundedRectComponent, 0, null);
             return record.Payload;
+        }
+
+        /// <summary>
+        /// Asserts one packaged component record uses the shared automatic runtime payload contract for the supplied component type.
+        /// </summary>
+        /// <param name="packagedRecord">Packaged component record under inspection.</param>
+        /// <param name="componentType">Component type expected to back the automatic runtime payload.</param>
+        void AssertUsesAutomaticRuntimePayload(SceneComponentAssetRecord packagedRecord, Type componentType) {
+            if (packagedRecord == null) {
+                throw new ArgumentNullException(nameof(packagedRecord));
+            } else if (componentType == null) {
+                throw new ArgumentNullException(nameof(componentType));
+            }
+
+            Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(componentType), packagedRecord.ComponentTypeId);
+
+            ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            ScriptComponentReflectionSchema schema = schemaBuilder.Build(componentType);
+            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(schema.Members.Count, reader.ReadInt32());
+        }
+
+        /// <summary>
+        /// Asserts one automatic runtime payload preserves the expected asset reference for the supplied member name.
+        /// </summary>
+        /// <param name="packagedRecord">Packaged component record whose automatic runtime payload should be inspected.</param>
+        /// <param name="referenceName">Stable reflected member name that owns the asset reference.</param>
+        /// <param name="expectedRelativePath">Expected packaged runtime relative path stored for the asset reference.</param>
+        void AssertAutomaticRuntimeAssetReference(SceneComponentAssetRecord packagedRecord, string referenceName, string expectedRelativePath) {
+            if (packagedRecord == null) {
+                throw new ArgumentNullException(nameof(packagedRecord));
+            } else if (string.IsNullOrWhiteSpace(referenceName)) {
+                throw new ArgumentException("Reference name must be provided.", nameof(referenceName));
+            } else if (string.IsNullOrWhiteSpace(expectedRelativePath)) {
+                throw new ArgumentException("Expected relative path must be provided.", nameof(expectedRelativePath));
+            }
+
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            Component component = descriptor.DeserializeComponent(packagedRecord, saveComponent, null);
+
+            Assert.True(saveComponent.TryGetComponentState(component, out EntityComponentSaveState saveState));
+            Assert.True(saveState.TryGetAssetReference(referenceName, out SceneAssetReference reference));
+            Assert.Equal(expectedRelativePath, reference.RelativePath);
         }
 
         /// <summary>

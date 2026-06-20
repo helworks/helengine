@@ -752,6 +752,69 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime scene loading materializes text components through the shared automatic runtime payload path.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsAutomaticTextComponent_LoadsTheTextThroughTheDefaultRuntimeRegistry() {
+            WriteFontAsset("fonts/default.hefont", CreateFont());
+
+            TextComponent textComponent = new TextComponent {
+                Text = "Hello automatic text",
+                WrapText = true,
+                Size = new int2(320, 64),
+                Color = new byte4(12, 34, 56, 78),
+                SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
+                Rotation = 0.25f,
+                RenderOrder2D = 19,
+                LayerMask = 7,
+                FontScale = 2f,
+                Alignment = TextAlignment.Center,
+                SelectionEnabled = true
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Font", CreateFileFontReference("fonts/default.hefont"));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "TextRoot",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TextComponent)),
+                                ComponentIndex = 0,
+                                Payload = WriteAutomaticRuntimeComponentPayload(textComponent, saveState)
+                            }
+                        }
+                    }
+                }
+            };
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            TextComponent loadedTextComponent = Assert.IsType<TextComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is TextComponent));
+
+            Assert.NotNull(loadedTextComponent.Font);
+            Assert.Equal("Hello automatic text", loadedTextComponent.Text);
+            Assert.True(loadedTextComponent.WrapText);
+            Assert.Equal(new int2(320, 64), loadedTextComponent.Size);
+            Assert.Equal(new byte4(12, 34, 56, 78), loadedTextComponent.Color);
+            Assert.Equal(new float4(0.1f, 0.2f, 0.3f, 0.4f), loadedTextComponent.SourceRect);
+            Assert.Equal(0.25f, loadedTextComponent.Rotation);
+            Assert.Equal(19, loadedTextComponent.RenderOrder2D);
+            Assert.Equal(7, loadedTextComponent.LayerMask);
+            Assert.Equal(2f, loadedTextComponent.FontScale);
+            Assert.Equal(TextAlignment.Center, loadedTextComponent.Alignment);
+            Assert.True(loadedTextComponent.SelectionEnabled);
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading materializes eligible scripted components through the ordinal automatic fallback path.
         /// </summary>
         [Fact]
@@ -1002,6 +1065,24 @@ namespace helengine.editor.tests.serialization.scene {
                 }
             });
 
+            SpriteComponent serializedSpriteComponent = new SpriteComponent {
+                SourceRect = new float4(0f, 0f, 1f, 1f),
+                Size = new int2(32, 14),
+                Color = new byte4(249, 243, 255, 255),
+                RenderOrder2D = 34,
+                LayerMask = 1,
+                Rotation = 15f
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(
+                "Texture",
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                    RelativePath = "cooked/imported/runtime-scene-load-sprite.hetex",
+                    ProviderId = string.Empty,
+                    AssetId = string.Empty
+                });
+
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -1009,14 +1090,9 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "SpriteRoot",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.SpriteComponent",
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SpriteComponent)),
                                 ComponentIndex = 0,
-                                Payload = WriteSpriteComponentPayload(new SceneAssetReference {
-                                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                                    RelativePath = "cooked/imported/runtime-scene-load-sprite.hetex",
-                                    ProviderId = string.Empty,
-                                    AssetId = string.Empty
-                                })
+                                Payload = WriteAutomaticRuntimeComponentPayload(serializedSpriteComponent, saveState)
                             }
                         }
                     }
@@ -1030,15 +1106,71 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
-            SpriteComponent spriteComponent = Assert.IsType<SpriteComponent>(Assert.Single(loadedRoots[0].Components));
+            SpriteComponent loadedSpriteComponent = Assert.IsType<SpriteComponent>(Assert.Single(loadedRoots[0].Components));
 
-            Assert.NotNull(spriteComponent.Texture);
-            Assert.Equal(new float4(0f, 0f, 1f, 1f), spriteComponent.SourceRect);
-            Assert.Equal(new int2(32, 14), spriteComponent.Size);
-            Assert.Equal(new byte4(249, 243, 255, 255), spriteComponent.Color);
-            Assert.Equal(34, spriteComponent.RenderOrder2D);
-            Assert.Equal(1, spriteComponent.LayerMask);
-            Assert.Equal(15f, spriteComponent.Rotation);
+            Assert.NotNull(loadedSpriteComponent.Texture);
+            Assert.Equal(new float4(0f, 0f, 1f, 1f), loadedSpriteComponent.SourceRect);
+            Assert.Equal(new int2(32, 14), loadedSpriteComponent.Size);
+            Assert.Equal(new byte4(249, 243, 255, 255), loadedSpriteComponent.Color);
+            Assert.Equal(34, loadedSpriteComponent.RenderOrder2D);
+            Assert.Equal(1, loadedSpriteComponent.LayerMask);
+            Assert.Equal(15f, loadedSpriteComponent.Rotation);
+        }
+
+        /// <summary>
+        /// Ensures packaged runtime scene loading materializes rounded-rectangle components through the shared automatic runtime payload path.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsAutomaticRoundedRectComponent_LoadsTheRoundedRectThroughTheDefaultRuntimeRegistry() {
+            RoundedRectComponent roundedRectComponent = new RoundedRectComponent {
+                RenderOrder2D = 8,
+                LayerMask = 3,
+                Corners = RoundedRectCorners.All,
+                Rotation = 0.45f,
+                Color = new byte4(1, 2, 3, 4),
+                SourceRect = new float4(0.2f, 0.3f, 0.4f, 0.5f),
+                Size = new int2(280, 120),
+                Radius = 14f,
+                BorderThickness = 3f,
+                FillColor = new byte4(4, 8, 12, 255),
+                BorderColor = new byte4(80, 120, 160, 255)
+            };
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "RoundedRectRoot",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(RoundedRectComponent)),
+                                ComponentIndex = 0,
+                                Payload = WriteAutomaticRuntimeComponentPayload(roundedRectComponent, null)
+                            }
+                        }
+                    }
+                }
+            };
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            RoundedRectComponent loadedRoundedRectComponent = Assert.IsType<RoundedRectComponent>(Assert.Single(loadedRoots[0].Components));
+
+            Assert.Equal(8, loadedRoundedRectComponent.RenderOrder2D);
+            Assert.Equal(3, loadedRoundedRectComponent.LayerMask);
+            Assert.Equal(RoundedRectCorners.All, loadedRoundedRectComponent.Corners);
+            Assert.Equal(0.45f, loadedRoundedRectComponent.Rotation);
+            Assert.Equal(new byte4(1, 2, 3, 4), loadedRoundedRectComponent.Color);
+            Assert.Equal(new float4(0.2f, 0.3f, 0.4f, 0.5f), loadedRoundedRectComponent.SourceRect);
+            Assert.Equal(new int2(280, 120), loadedRoundedRectComponent.Size);
+            Assert.Equal(14f, loadedRoundedRectComponent.Radius);
+            Assert.Equal(3f, loadedRoundedRectComponent.BorderThickness);
+            Assert.Equal(new byte4(4, 8, 12, 255), loadedRoundedRectComponent.FillColor);
+            Assert.Equal(new byte4(80, 120, 160, 255), loadedRoundedRectComponent.BorderColor);
         }
 
         /// <summary>
