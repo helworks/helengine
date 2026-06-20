@@ -137,21 +137,15 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures DS-authored generated debug-font references rewrite into the packaged DS debug-font path.
+        /// Ensures DS-authored generated debug-font references are rejected after the shared engine path drops the platform-specific font hook.
         /// </summary>
         [Fact]
-        public void TryTransform_WhenDebugComponentUsesNintendoDsGeneratedFont_RewritesFontReference() {
+        public void TryTransform_WhenDebugComponentUsesRemovedNintendoDsGeneratedFont_ThrowsUnsupportedGeneratedReference() {
             SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
             SceneComponentAssetRecord record = CreateDebugRecord(CreateNintendoDsDebugFontReference());
 
-            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
-
-            Assert.True(transformed);
-            Assert.NotNull(transformedRecord);
-            Assert.Equal("helengine.DebugComponent", transformedRecord.ComponentTypeId);
-            SceneAssetReference fontReference = ReadDebugFontReference(transformedRecord);
-            Assert.NotNull(fontReference);
-            Assert.Equal("cooked/fonts/ds-debug.hefont", fontReference.RelativePath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.TryTransform(record, BuildRootPath, out _));
+            Assert.Contains("Unsupported generated", exception.Message);
         }
 
         /// <summary>

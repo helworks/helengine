@@ -703,10 +703,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures packaged scenes accept the generated Nintendo DS debug-font reference and rewrite it into the packaged debug-font asset path.
+        /// Ensures packaged scenes reject the removed generated Nintendo DS debug-font reference.
         /// </summary>
         [Fact]
-        public void PackageBuild_WhenSceneContainsDebugComponentWithNintendoDsGeneratedFont_RewritesRuntimePayloadAndFontReference() {
+        public void PackageBuild_WhenSceneContainsRemovedNintendoDsGeneratedFont_ThrowsUnsupportedGeneratedReference() {
             string sceneId = "Scenes/DebugScene.helen";
 
             WriteSceneAsset(sceneId, "helengine.DebugComponent", WriteDebugComponentPayload(CreateNintendoDsDebugFontReference()), new[] { CreateNintendoDsDebugFontReference() });
@@ -716,18 +716,9 @@ namespace helengine.editor.tests {
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
                 defaultFont);
-            packager.Package(new[] { sceneId }, BuildRootPath);
 
-            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-            }
-
-            SceneComponentAssetRecord componentRecord = packagedScene.RootEntities[0].Components[0];
-            AssertUsesAutomaticRuntimePayload(componentRecord, typeof(DebugComponent));
-            AssertAutomaticRuntimeAssetReference(componentRecord, "Font", "cooked/fonts/ds-debug.hefont");
-            Assert.Contains(packagedScene.AssetReferences, reference => string.Equals(reference.RelativePath, "cooked/fonts/ds-debug.hefont", StringComparison.Ordinal));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported generated", exception.Message);
         }
 
         /// <summary>
