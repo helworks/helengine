@@ -27,21 +27,20 @@ public class PlatformPackagedAssetPathResolverTests {
     }
 
     /// <summary>
-    /// Ensures PS2-rooted platforms emit deterministic disc runtime paths instead of logical cooked-relative paths.
+    /// Ensures rooted packaged-path policies are rejected by the shared resolver instead of dispatching to platform-specific logic.
     /// </summary>
     [Fact]
-    public void ResolveRuntimeReferencePath_WhenPs2PlatformUsesRootedPolicy_ReturnsPs2RuntimePath() {
+    public void ResolveRuntimeReferencePath_WhenPlatformUsesRootedPolicy_ThrowsInvalidOperationException() {
         RuntimeGenerationContract contract = new RuntimeGenerationContract(
             RuntimeMaterialResolutionMode.CookedPlatformOwned,
             true,
             PackagedPathPolicy.RootedOrContentRelative);
 
-        string resolvedPath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
             "ps2",
             contract,
-            "cooked/fonts/default.hefont");
-
-        Assert.Equal("cdrom0:\\COOKED\\FONTS\\DEFAULT.HEF;1", resolvedPath);
+            "cooked/fonts/default.hefont"));
+        Assert.Contains("rooted packaged paths are not supported", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

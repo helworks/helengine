@@ -154,10 +154,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies PS2 builds exclude desktop-only input symbols and include the PS2 runtime symbol.
+    /// Verifies rooted cooked-platform builds emit only generic capability symbols and exclude platform identity symbols.
     /// </summary>
     [Fact]
-    public void Resolve_portable_input_preprocessor_symbols_returns_ps2_runtime_symbol_without_desktop_input_symbols() {
+    public void Resolve_portable_input_preprocessor_symbols_returns_generic_capability_symbols_without_platform_identity_symbols() {
         PlatformDefinition definition = CreatePlatformDefinition(
             "ps2",
             new RuntimeGenerationContract(
@@ -169,7 +169,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         Assert.Collection(
             symbols,
-            symbol => Assert.Equal("PS2_PLATFORM", symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeMaterialResolutionCookedPlatformOwnedSymbol, symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeTextureResolutionCookedPlatformOwnedSymbol, symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeModelResolutionCookedPlatformOwnedSymbol, symbol),

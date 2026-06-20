@@ -27,11 +27,7 @@ public static class PlatformPackagedAssetPathResolver {
             return canonicalPackagedAssetPath;
         }
         if (runtimeGenerationContract.PackagedPathPolicy == PackagedPathPolicy.RootedOrContentRelative) {
-            if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
-                return Ps2DiscPathResolver.ResolveRuntimePath(canonicalPackagedAssetPath);
-            }
-
-            throw new InvalidOperationException($"Platform '{platformId}' requires rooted packaged paths, but no rooted runtime path resolver is registered.");
+            throw new InvalidOperationException($"Shared packaged path resolution does not support rooted packaged paths for platform '{platformId}'.");
         }
 
         throw new InvalidOperationException($"Unsupported packaged path policy '{runtimeGenerationContract.PackagedPathPolicy}'.");

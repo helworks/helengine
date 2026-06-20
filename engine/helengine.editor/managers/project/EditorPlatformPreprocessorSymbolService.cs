@@ -48,18 +48,6 @@ namespace helengine.editor {
                 ];
             }
 
-            if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
-                return [
-                    "PS2_PLATFORM"
-                ];
-            }
-
-            if (string.Equals(platformId, "gamecube", StringComparison.OrdinalIgnoreCase)) {
-                return [
-                    "GAMECUBE_PLATFORM"
-                ];
-            }
-
             return Array.Empty<string>();
         }
 
