@@ -4,21 +4,6 @@ namespace helengine {
     /// </summary>
     public static class BepuRuntimeComponentRegistration {
         /// <summary>
-        /// Stores the Nintendo DS platform name used to select the reduced BEPU solve schedule.
-        /// </summary>
-        const string NintendoDsPlatformName = "DS";
-
-        /// <summary>
-        /// Stores the reduced velocity-iteration count used by the Nintendo DS runtime.
-        /// </summary>
-        const int NintendoDsSolveVelocityIterationCount = 2;
-
-        /// <summary>
-        /// Stores the reduced substep count used by the Nintendo DS runtime.
-        /// </summary>
-        const int NintendoDsSolveSubstepCount = 1;
-
-        /// <summary>
         /// Last default world attached through this registration hook; used by scene-load callbacks emitted by the active core.
         /// </summary>
         static BepuPhysicsWorld3D RuntimeWorld;
@@ -52,16 +37,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Creates one BEPU-backed physics world for attachment to a runtime core, selecting a reduced solve schedule for Nintendo DS.
+        /// Creates one BEPU-backed physics world for attachment to a runtime core.
         /// </summary>
-        /// <param name="core">Initialized core that owns the runtime platform metadata.</param>
+        /// <param name="core">Initialized core that owns the runtime physics attachment.</param>
         /// <returns>Constructed BEPU-backed physics world.</returns>
         public static BepuPhysicsWorld3D CreateRuntimeWorld(Core core) {
             ValidateCore(core);
-            if (UsesNintendoDsSolveSchedule(core)) {
-                return BepuPhysicsWorld3D.CreateWithSolveSchedule(NintendoDsSolveVelocityIterationCount, NintendoDsSolveSubstepCount);
-            }
-
             return BepuPhysicsWorld3D.CreateDefault();
         }
 
@@ -108,20 +89,6 @@ namespace helengine {
             if (world == null) {
                 throw new ArgumentNullException(nameof(world));
             }
-        }
-
-        /// <summary>
-        /// Determines whether the active runtime should use the reduced Nintendo DS BEPU solve schedule.
-        /// </summary>
-        /// <param name="core">Core instance providing runtime platform metadata.</param>
-        /// <returns><c>true</c> when the runtime platform is Nintendo DS.</returns>
-        static bool UsesNintendoDsSolveSchedule(Core core) {
-            ValidateCore(core);
-            if (core.PlatformInfo == null) {
-                return false;
-            }
-
-            return string.Equals(core.PlatformInfo.Name, NintendoDsPlatformName, StringComparison.Ordinal);
         }
 
         /// <summary>

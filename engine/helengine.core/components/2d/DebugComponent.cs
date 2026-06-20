@@ -844,15 +844,8 @@ namespace helengine {
         /// Formats the first platform performance row with software 2D timing buckets.
         /// </summary>
         /// <param name="core">Active core instance containing platform renderer timing buckets.</param>
-        /// <returns>Compact timing row that fits the Nintendo DS bottom-screen diagnostics area.</returns>
+        /// <returns>Compact timing row that fits the shared runtime diagnostics overlay.</returns>
         string FormatPerformanceOverlayPrimaryLine(Core core) {
-            if (UsesNintendoDsPerformanceOverlayLabels(core)) {
-                return "P1 Tx" + FormatOneDecimal(core.PerformanceOverlayTriangleSetupMilliseconds)
-                    + " S" + FormatRoundedMetric(core.PerformanceOverlayTrianglePrepMilliseconds)
-                    + " UT" + core.PerformanceOverlaySubmittedTriangleCount
-                    + " US" + core.PerformanceOverlayDispatchCount;
-            }
-
             return "P1 Txt" + FormatOneDecimal(core.PerformanceOverlayTriangleSetupMilliseconds)
                 + " H" + FormatRoundedMetric(core.PerformanceOverlayTrianglePrepMilliseconds)
                 + " M" + core.PerformanceOverlaySubmittedTriangleCount
@@ -877,36 +870,11 @@ namespace helengine {
         /// Formats the second platform performance row with hardware 3D geometry, flush, and presentation timings.
         /// </summary>
         /// <param name="core">Active core instance containing platform renderer timing buckets.</param>
-        /// <returns>Compact timing row that fits the Nintendo DS bottom-screen diagnostics area.</returns>
+        /// <returns>Compact timing row that fits the shared runtime diagnostics overlay.</returns>
         string FormatPerformanceOverlaySecondaryLine(Core core) {
-            if (UsesNintendoDsPerformanceOverlayLabels(core)) {
-                return "P2 3D" + FormatOneDecimal(core.PerformanceOverlayPacketEncodeMilliseconds)
-                    + " F" + FormatOneDecimal(core.PerformanceOverlaySubmitMilliseconds)
-                    + " P" + FormatOneDecimal(core.PerformanceOverlayWaitMilliseconds)
-                    + " UR" + FormatRoundedMetric(core.PerformanceOverlayTriangleEmitMilliseconds);
-            }
-
             return "P2 Geo" + FormatOneDecimal(core.PerformanceOverlayPacketEncodeMilliseconds)
                 + " Fl" + FormatOneDecimal(core.PerformanceOverlaySubmitMilliseconds)
                 + " Pr" + FormatOneDecimal(core.PerformanceOverlayWaitMilliseconds);
-        }
-
-        /// <summary>
-        /// Determines whether the active runtime should expose the compact Nintendo DS-specific overlay labels.
-        /// </summary>
-        /// <param name="core">Active core instance that may carry Nintendo DS platform metadata.</param>
-        /// <returns>True when the current runtime platform is Nintendo DS.</returns>
-        static bool UsesNintendoDsPerformanceOverlayLabels(Core core) {
-            if (core == null) {
-                throw new ArgumentNullException(nameof(core));
-            }
-
-            PlatformInfo platformInfo = core.PlatformInfo;
-            if (platformInfo == null) {
-                return false;
-            }
-
-            return string.Equals(platformInfo.Name, "DS", StringComparison.Ordinal);
         }
 
         /// <summary>

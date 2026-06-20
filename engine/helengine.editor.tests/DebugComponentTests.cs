@@ -194,10 +194,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the Nintendo DS runtime exposes compact DS-specific labels for the performance rows.
+        /// Ensures platform metadata no longer changes the shared debug overlay label format.
         /// </summary>
         [Fact]
-        public void CoreUpdateAndDraw_WhenDsPerformanceOverlayMetricsArePublished_DrawsDsPerformanceRows() {
+        public void CoreUpdateAndDraw_WhenDsPerformanceOverlayMetricsArePublished_DrawsGenericPerformanceRows() {
             TestClockDrivenCore dsCore = new TestClockDrivenCore(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
@@ -220,8 +220,8 @@ namespace helengine.editor.tests {
             Core.Instance.Update(0.05d);
 
             Entity overlayHost = Assert.Single(entity.Children);
-            Assert.Equal("P1 Tx1.2 S3 UT5 US6", Assert.Single(overlayHost.Children[6].Components.OfType<TextComponent>()).Text);
-            Assert.Equal("P2 3D7.8 F9.1 P11.2 UR6", Assert.Single(overlayHost.Children[7].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("P1 Txt1.2 H3 M5 F6 G6", Assert.Single(overlayHost.Children[6].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("P2 Geo7.8 Fl9.1 Pr11.2", Assert.Single(overlayHost.Children[7].Components.OfType<TextComponent>()).Text);
         }
 
         /// <summary>

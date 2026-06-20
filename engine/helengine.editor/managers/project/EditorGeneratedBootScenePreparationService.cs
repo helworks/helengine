@@ -4,15 +4,6 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorGeneratedBootScenePreparationService {
         /// <summary>
-        /// Stable Nintendo DS platform id used by scene-companion routing.
-        /// </summary>
-        const string NintendoDsPlatformId = "ds";
-        /// <summary>
-        /// Stable Nintendo 3DS platform id used by the DS companion-scene routing contract.
-        /// </summary>
-        const string Nintendo3DsPlatformId = "3ds";
-
-        /// <summary>
         /// Absolute project root path that owns the assets directory.
         /// </summary>
         readonly string ProjectRootPath;
@@ -79,87 +70,12 @@ namespace helengine.editor {
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
-            if (!UsesNintendoDsCompanionSceneMappings(platformId)) {
-                return null;
-            }
             if (!ContainsSceneId(sceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId)) {
                 return null;
             }
 
-            Dictionary<string, string> mappings = new Dictionary<string, string>(StringComparer.Ordinal);
-            AddNintendoDsCompanionSceneMappings(sceneIds, mappings);
-            return mappings;
-        }
-
-        /// <summary>
-        /// Resolves whether one platform should route generated boot-scene startup through the Nintendo DS companion-scene mapping contract.
-        /// </summary>
-        /// <param name="platformId">Target platform identifier to inspect.</param>
-        /// <returns>True when the platform should use Nintendo DS companion-scene mappings; otherwise false.</returns>
-        static bool UsesNintendoDsCompanionSceneMappings(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
-
-            return string.Equals(platformId, NintendoDsPlatformId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(platformId, Nintendo3DsPlatformId, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Adds Nintendo DS companion-scene mappings for selected scene ids that follow the generated companion naming contract.
-        /// </summary>
-        /// <param name="sceneIds">Stable scene ids selected for the build.</param>
-        /// <param name="mappings">Scene remapping table receiving the derived companion mappings.</param>
-        static void AddNintendoDsCompanionSceneMappings(IReadOnlyList<string> sceneIds, Dictionary<string, string> mappings) {
-            if (sceneIds == null) {
-                throw new ArgumentNullException(nameof(sceneIds));
-            }
-            if (mappings == null) {
-                throw new ArgumentNullException(nameof(mappings));
-            }
-
-            for (int index = 0; index < sceneIds.Count; index++) {
-                string selectedSceneId = sceneIds[index];
-                if (!TryResolveNintendoDsCompanionSourceSceneId(selectedSceneId, out string sourceSceneId)) {
-                    continue;
-                }
-                if (mappings.ContainsKey(sourceSceneId)) {
-                    continue;
-                }
-
-                mappings.Add(sourceSceneId, selectedSceneId);
-            }
-        }
-
-        /// <summary>
-        /// Resolves the default source scene id that corresponds to one Nintendo DS companion-scene id.
-        /// </summary>
-        /// <param name="companionSceneId">Nintendo DS companion-scene id to inspect.</param>
-        /// <param name="sourceSceneId">Resolved default source scene id when the companion id matches the naming contract.</param>
-        /// <returns>True when a default source scene id was resolved; otherwise false.</returns>
-        static bool TryResolveNintendoDsCompanionSourceSceneId(string companionSceneId, out string sourceSceneId) {
-            if (string.IsNullOrWhiteSpace(companionSceneId)) {
-                sourceSceneId = string.Empty;
-                return false;
-            }
-
-            const string SnakeCaseDsIdSuffix = "_ds";
-            const string PascalCaseDsIdSuffix = "Ds";
-            if (companionSceneId.Contains('/') || companionSceneId.Contains('\\')) {
-                sourceSceneId = string.Empty;
-                return false;
-            }
-            if (companionSceneId.EndsWith(SnakeCaseDsIdSuffix, StringComparison.Ordinal)) {
-                sourceSceneId = companionSceneId.Substring(0, companionSceneId.Length - SnakeCaseDsIdSuffix.Length);
-                return !string.IsNullOrWhiteSpace(sourceSceneId);
-            }
-            if (companionSceneId.EndsWith(PascalCaseDsIdSuffix, StringComparison.Ordinal)) {
-                sourceSceneId = companionSceneId.Substring(0, companionSceneId.Length - PascalCaseDsIdSuffix.Length);
-                return !string.IsNullOrWhiteSpace(sourceSceneId);
-            }
-
-            sourceSceneId = string.Empty;
-            return false;
+            _ = platformId;
+            return new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
         /// <summary>

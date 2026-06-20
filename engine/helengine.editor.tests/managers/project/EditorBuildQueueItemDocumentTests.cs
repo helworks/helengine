@@ -145,10 +145,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures Nintendo DS queued builds insert the generated boot scene and include authored DS companion scenes beside the generic source scenes.
+        /// Ensures shared build-queue creation no longer injects platform-specific companion scenes.
         /// </summary>
         [Fact]
-        public void Create_WhenNintendoDsBuildIncludesGeneratedCompanionScenes_ExpandsSelectedSceneIds() {
+        public void Create_WhenNintendoDsBuildIncludesGeneratedCompanionScenes_PreservesAuthoredSelectionOrder() {
             WriteScene("Scenes/DemoDiscMainMenu.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
             WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
@@ -169,17 +169,16 @@ namespace helengine.editor.tests {
                 [
                     PlatformMenuSceneResolver.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.DesktopMainMenuSceneId,
-                    "cube_test_ds",
                     "cube_test"
                 ],
                 queueItem.SelectedSceneIds);
         }
 
         /// <summary>
-        /// Ensures Nintendo DS direct-scene builds place the authored DS companion scene first so startup lands on the DS-specific layout.
+        /// Ensures direct-scene builds no longer prioritize platform-specific companion scenes.
         /// </summary>
         [Fact]
-        public void Create_WhenNintendoDsBuildTargetsDirectScene_PrioritizesCompanionSceneForStartup() {
+        public void Create_WhenNintendoDsBuildTargetsDirectScene_PreservesAuthoredSceneSelection() {
             WriteScene("Scenes/rendering/cube_test.helen");
             WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
 
@@ -196,7 +195,6 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
-                    "cube_test_ds",
                     "cube_test"
                 ],
                 queueItem.SelectedSceneIds);

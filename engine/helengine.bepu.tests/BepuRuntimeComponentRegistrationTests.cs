@@ -19,10 +19,10 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
-        /// Ensures the Nintendo DS runtime registration path attaches a BEPU world configured with the reduced solve schedule required by constrained hardware.
+        /// Ensures shared runtime registration ignores platform identity and keeps the default solve schedule.
         /// </summary>
         [Fact]
-        public void Register_WhenPlatformIsNintendoDs_AttachesReducedSolveScheduleWorld() {
+        public void Register_WhenPlatformIsNintendoDs_AttachesDefaultSolveScheduleWorld() {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
@@ -31,7 +31,7 @@ namespace helengine.bepu.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
-            Assert.Equal(2, world.SolveVelocityIterationCount);
+            Assert.Equal(4, world.SolveVelocityIterationCount);
             Assert.Equal(1, world.SolveSubstepCount);
         }
 

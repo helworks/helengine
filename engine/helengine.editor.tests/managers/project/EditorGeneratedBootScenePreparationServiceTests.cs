@@ -1,7 +1,7 @@
 namespace helengine.editor.tests.managers.project;
 
 /// <summary>
-/// Verifies generated boot-scene preparation writes the scene-map helper used to route Nintendo DS builds to authored companion scenes.
+/// Verifies generated boot-scene preparation no longer injects platform-specific scene remapping.
 /// </summary>
 public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposable {
     /// <summary>
@@ -27,10 +27,10 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
     }
 
     /// <summary>
-    /// Ensures Nintendo DS build preparation rewrites the generated boot scene with scene-map entries for authored DS companion scenes.
+    /// Ensures generated boot-scene preparation writes an empty shared scene-map when the generated boot scene is selected.
     /// </summary>
     [Fact]
-    public void EnsurePrepared_WhenNintendoDsBuildIncludesCompanionScenes_WritesSceneMapMappings() {
+    public void EnsurePrepared_WhenBuildIncludesGeneratedBootScene_WritesEmptySceneMapMappings() {
         EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
 
         service.EnsurePrepared(
@@ -53,15 +53,14 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
         Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
-        Assert.False(sceneMapComponent.Mappings.ContainsKey(PlatformMenuSceneResolver.DesktopMainMenuSceneId));
+        Assert.Empty(sceneMapComponent.Mappings);
     }
 
     /// <summary>
-    /// Ensures Nintendo DS build preparation can derive logical scene-id mappings from a DS-only selected scene set.
+    /// Ensures generated boot-scene preparation ignores platform-specific scene-id naming conventions.
     /// </summary>
     [Fact]
-    public void EnsurePrepared_WhenNintendoDsBuildIncludesOnlyDsScenes_WritesSceneMapMappings() {
+    public void EnsurePrepared_WhenBuildIncludesOnlyPlatformSpecificSceneNames_WritesEmptySceneMapMappings() {
         EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
 
         service.EnsurePrepared(
@@ -81,15 +80,14 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
         Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
-        Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
+        Assert.Empty(sceneMapComponent.Mappings);
     }
 
     /// <summary>
-    /// Ensures Nintendo 3DS build preparation writes the same DS companion-scene mappings when the build selects the DS scene set.
+    /// Ensures platform id no longer changes generated boot-scene mappings.
     /// </summary>
     [Fact]
-    public void EnsurePrepared_WhenNintendo3DsBuildIncludesOnlyDsScenes_WritesSceneMapMappings() {
+    public void EnsurePrepared_WhenNintendo3DsBuildIncludesOnlyDsScenes_WritesEmptySceneMapMappings() {
         EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
 
         service.EnsurePrepared(
@@ -109,8 +107,7 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
         Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
-        Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
+        Assert.Empty(sceneMapComponent.Mappings);
     }
 
     /// <summary>
