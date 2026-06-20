@@ -154,7 +154,7 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ActiveProjectPlatform", "android");
             SetPrivateField(session, "RequiredEngineVersion", "1.0.0-custom");
             SetPrivateField(session, "SceneModelRefreshService", new EditorSceneModelRefreshService(new EditorFileSystemModelResolver(manager)));
-            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath), new WindowsLauncherInstallRootLocator()));
+            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath)));
 
             return session;
         }

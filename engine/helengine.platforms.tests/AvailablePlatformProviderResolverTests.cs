@@ -67,8 +67,7 @@ public sealed class AvailablePlatformProviderResolverTests : IDisposable {
         Directory.CreateDirectory(Path.Combine(engineUserSettingsRootPath, "platforms", "windows"));
 
         AvailablePlatformProviderResolver resolver = new AvailablePlatformProviderResolver(
-            new PlatformDiscoveryOptions(engineUserSettingsRootPath),
-            new TestLauncherInstallRootLocator(string.Empty, string.Empty));
+            new PlatformDiscoveryOptions(engineUserSettingsRootPath));
 
         IReadOnlyList<AvailablePlatformDescriptor> platforms = resolver.LoadPlatforms("1.0.0");
 
@@ -87,10 +86,10 @@ public sealed class AvailablePlatformProviderResolverTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures one configured launcher catalog upgrades a missing development entry when the payload is installed there.
+    /// Ensures the resolver keeps development-manifest installation state instead of consulting external host-specific catalogs.
     /// </summary>
     [Fact]
-    public void LoadPlatforms_WhenLauncherPayloadExists_UpgradesMissingDevelopmentEntry() {
+    public void LoadPlatforms_WhenDevelopmentManifestEntryIsMissing_KeepsTheEntryUninstalled() {
         string engineUserSettingsRootPath = CreateManifestRoot(
             "engine-user-settings",
             """
@@ -107,37 +106,15 @@ public sealed class AvailablePlatformProviderResolverTests : IDisposable {
             }
             """);
 
-        string launcherToolchainRootPath = CreateManifestRoot(
-            "launcher-toolchains",
-            """
-            {
-              "platforms": [
-                {
-                  "engineVersion": "1.0.0",
-                  "platformId": "windows",
-                  "displayName": "Windows DirectX",
-                  "builderAssemblyPath": "builders/windows/helengine.windows.builder.dll",
-                  "playerSourceRootPath": "players/windows"
-                }
-              ]
-            }
-            """);
-
-        Directory.CreateDirectory(Path.Combine(launcherToolchainRootPath, "builders", "windows"));
-        File.WriteAllText(Path.Combine(launcherToolchainRootPath, "builders", "windows", "helengine.windows.builder.dll"), string.Empty);
-        Directory.CreateDirectory(Path.Combine(launcherToolchainRootPath, "players", "windows"));
-
         AvailablePlatformProviderResolver resolver = new AvailablePlatformProviderResolver(
-            new PlatformDiscoveryOptions(engineUserSettingsRootPath),
-            new TestLauncherInstallRootLocator(string.Empty, launcherToolchainRootPath));
+            new PlatformDiscoveryOptions(engineUserSettingsRootPath));
 
         IReadOnlyList<AvailablePlatformDescriptor> platforms = resolver.LoadPlatforms("1.0.0");
 
         Assert.Single(platforms);
         Assert.Equal("windows", platforms[0].Id);
-        Assert.True(platforms[0].IsInstalled);
-        Assert.Equal(Path.GetFullPath(Path.Combine(launcherToolchainRootPath, "players/windows")), platforms[0].PlayerSourceRootPath);
-        Assert.Equal(Path.GetFullPath(Path.Combine(launcherToolchainRootPath, "builders/windows/helengine.windows.builder.dll")), platforms[0].BuilderAssemblyPath);
+        Assert.False(platforms[0].IsInstalled);
+        Assert.Equal(Path.GetFullPath(Path.Combine(engineUserSettingsRootPath, "platforms/windows")), platforms[0].PlayerSourceRootPath);
     }
 
     /// <summary>
@@ -162,8 +139,7 @@ public sealed class AvailablePlatformProviderResolverTests : IDisposable {
             """);
 
         AvailablePlatformProviderResolver resolver = new AvailablePlatformProviderResolver(
-            new PlatformDiscoveryOptions(engineUserSettingsRootPath),
-            new TestLauncherInstallRootLocator(string.Empty, string.Empty));
+            new PlatformDiscoveryOptions(engineUserSettingsRootPath));
 
         IReadOnlyList<AvailablePlatformDescriptor> platforms = resolver.LoadPlatforms("1.0.0");
 
@@ -205,8 +181,7 @@ public sealed class AvailablePlatformProviderResolverTests : IDisposable {
         """);
 
         AvailablePlatformProviderResolver resolver = new AvailablePlatformProviderResolver(
-            new PlatformDiscoveryOptions(engineUserSettingsRootPath),
-            new TestLauncherInstallRootLocator(string.Empty, string.Empty));
+            new PlatformDiscoveryOptions(engineUserSettingsRootPath));
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => resolver.LoadPlatforms("1.0.0"));
         Assert.Contains("runtime payload CLR types", exception.Message, StringComparison.Ordinal);

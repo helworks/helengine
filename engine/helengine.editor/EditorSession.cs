@@ -4475,8 +4475,7 @@ namespace helengine.editor {
             EditorSourceBuildWorkspaceLocator workspaceLocator = new EditorSourceBuildWorkspaceLocator();
             string sharedEngineUserSettingsRootPath = workspaceLocator.ResolveSharedEngineUserSettingsRootPath();
             PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(sharedEngineUserSettingsRootPath);
-            WindowsLauncherInstallRootLocator launcherInstallRootLocator = new WindowsLauncherInstallRootLocator();
-            return new AvailablePlatformProviderResolver(options, launcherInstallRootLocator);
+            return new AvailablePlatformProviderResolver(options);
         }
 
         /// <summary>

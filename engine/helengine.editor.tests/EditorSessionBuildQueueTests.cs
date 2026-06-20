@@ -572,6 +572,12 @@ namespace helengine.editor.tests {
         EditorSession CreateSession(EditorBuildConfigService buildConfigService, EditorBuildQueueService buildQueueService, string activePlatform) {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
+            if (string.Equals(activePlatform, "windows", StringComparison.OrdinalIgnoreCase)) {
+                ConfigureAvailablePlatforms("windows");
+            } else {
+                ConfigureAvailablePlatforms("windows", activePlatform);
+            }
+
             SetPrivateField(session, "projectPath", TempProjectRootPath);
             SetPrivateField(session, "ProjectSupportedPlatforms", new List<string> {
                 "windows"
@@ -589,7 +595,7 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "buildQueueService", buildQueueService);
             SetPrivateField(session, "sceneCatalogService", new EditorProjectSceneCatalogService(TempProjectRootPath));
             SetPrivateField(session, "RequiredEngineVersion", "1.0.0-custom");
-            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath), new WindowsLauncherInstallRootLocator()));
+            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath)));
 
             return session;
         }

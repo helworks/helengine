@@ -192,7 +192,7 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "titleBar", new EditorTitleBar(CreateFont(), 1280, 720, "helengine - project.heproj [WINDOWS]"));
             SetPrivateField(session, "platformsDialog", new PlatformsDialog(CreateFont()));
             SetPrivateField(session, "projectPlatformsService", new EditorProjectPlatformsService(TempProjectRootPath));
-            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath), new WindowsLauncherInstallRootLocator()));
+            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath)));
 
             return session;
         }

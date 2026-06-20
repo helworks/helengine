@@ -97,21 +97,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the sibling `helengine-windows` source repository used by local Windows source builds.
-        /// </summary>
-        /// <returns>Absolute `helengine-windows` source root path.</returns>
-        public string ResolveHelEngineWindowsRootPath() {
-            string helEngineRootPath = ResolveSharedHelEngineRootPath();
-            string parentDirectoryPath = ResolveWorkspaceParentDirectoryPath(helEngineRootPath);
-            string helEngineWindowsRootPath = Path.Combine(parentDirectoryPath, "helworks", "helengine-windows");
-            if (!Directory.Exists(helEngineWindowsRootPath)) {
-                throw new InvalidOperationException($"Expected source-build helengine-windows repo was not found at '{helEngineWindowsRootPath}'.");
-            }
-
-            return Path.GetFullPath(helEngineWindowsRootPath);
-        }
-
-        /// <summary>
         /// Resolves the parent workspace directory that owns the sibling source repositories.
         /// </summary>
         /// <param name="helEngineRootPath">Absolute HelEngine source root path.</param>

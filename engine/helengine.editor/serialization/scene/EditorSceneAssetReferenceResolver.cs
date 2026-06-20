@@ -368,8 +368,7 @@ namespace helengine.editor {
 
             IReadOnlyList<string> supportedPlatforms = new EditorProjectPlatformsService(ProjectRootPath).Load().SupportedPlatforms;
             AvailablePlatformProviderResolver availablePlatformResolver = new AvailablePlatformProviderResolver(
-                new PlatformDiscoveryOptions(ProjectRootPath),
-                new WindowsLauncherInstallRootLocator());
+                new PlatformDiscoveryOptions(ProjectRootPath));
             EditorPlatformCatalogService platformCatalogService = new EditorPlatformCatalogService(
                 availablePlatformResolver.LoadPlatforms(LoadRequiredEngineVersion()));
             MaterialSettingsService.LoadOrCreate(
