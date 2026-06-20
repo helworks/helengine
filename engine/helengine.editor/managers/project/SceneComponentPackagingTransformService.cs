@@ -660,26 +660,6 @@ namespace helengine.editor {
                 return true;
             }
 
-            if (string.Equals(record.ComponentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteDirectionalLightComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteAmbientLightComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, PointLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewritePointLightComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteSpotLightComponentRecord(record);
-                return true;
-            }
-
             if (UsesLegacyBuiltInPhysicsPayload(record) &&
                 TryRewriteBuiltInPhysicsComponentRecord(record, buildRootPath, out transformedRecord)) {
                 return true;
@@ -1597,29 +1577,6 @@ namespace helengine.editor {
             };
         }
         /// <summary>
-        /// Rewrites one serialized directional-light payload into the strict runtime light payload shape.
-        /// </summary>
-        /// <param name="record">Serialized directional light component record to rewrite.</param>
-        /// <returns>Rewritten directional light component record.</returns>
-        SceneComponentAssetRecord RewriteDirectionalLightComponentRecord(SceneComponentAssetRecord record) {
-            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
-            if (component is not DirectionalLightComponent lightComponent) {
-                throw new InvalidOperationException($"Expected directional light descriptor to materialize '{DirectionalLightComponentTypeId}'.");
-            }
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteDirectionalLight(writer, lightComponent);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = DirectionalLightComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
-        }
-
-        /// <summary>
         /// Rewrites one serialized sprite payload into the strict runtime sprite payload shape.
         /// </summary>
         /// <param name="record">Serialized sprite component record to rewrite.</param>
@@ -1732,75 +1689,6 @@ namespace helengine.editor {
                     layerMask = layerMaskReader.ReadByte();
                 }
             }
-        }
-
-        /// <summary>
-        /// Rewrites one serialized ambient-light payload into the strict runtime light payload shape.
-        /// </summary>
-        /// <param name="record">Serialized ambient light component record to rewrite.</param>
-        /// <returns>Rewritten ambient light component record.</returns>
-        SceneComponentAssetRecord RewriteAmbientLightComponentRecord(SceneComponentAssetRecord record) {
-            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
-            if (component is not AmbientLightComponent lightComponent) {
-                throw new InvalidOperationException($"Expected ambient light descriptor to materialize '{AmbientLightComponentTypeId}'.");
-            }
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteAmbientLight(writer, lightComponent);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = AmbientLightComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Rewrites one serialized point-light payload into the strict runtime light payload shape.
-        /// </summary>
-        /// <param name="record">Serialized point light component record to rewrite.</param>
-        /// <returns>Rewritten point light component record.</returns>
-        SceneComponentAssetRecord RewritePointLightComponentRecord(SceneComponentAssetRecord record) {
-            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
-            if (component is not PointLightComponent lightComponent) {
-                throw new InvalidOperationException($"Expected point light descriptor to materialize '{PointLightComponentTypeId}'.");
-            }
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WritePointLight(writer, lightComponent);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = PointLightComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Rewrites one serialized spot-light payload into the strict runtime light payload shape.
-        /// </summary>
-        /// <param name="record">Serialized spot light component record to rewrite.</param>
-        /// <returns>Rewritten spot light component record.</returns>
-        SceneComponentAssetRecord RewriteSpotLightComponentRecord(SceneComponentAssetRecord record) {
-            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
-            if (component is not SpotLightComponent lightComponent) {
-                throw new InvalidOperationException($"Expected spot light descriptor to materialize '{SpotLightComponentTypeId}'.");
-            }
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteSpotLight(writer, lightComponent);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = SpotLightComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
         }
 
         /// <summary>

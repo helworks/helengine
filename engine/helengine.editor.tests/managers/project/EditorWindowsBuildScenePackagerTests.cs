@@ -1906,7 +1906,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures packaged lights and rounded rectangles are rewritten into strict runtime payloads that still load correctly.
+        /// Ensures packaged lights flow through the shared automatic runtime payload path while rounded rectangles remain loadable.
         /// </summary>
         [Fact]
         public void Package_WhenSceneContainsLightsAndRoundedRect_LeavesPackagedComponentsLoadable() {
@@ -1921,6 +1921,20 @@ namespace helengine.editor.tests {
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
                 packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
+
+            SceneComponentAssetRecord packagedDirectionalLightRecord = Assert.Single(packagedScene.RootEntities[0].Components);
+            SceneComponentAssetRecord packagedAmbientLightRecord = Assert.Single(packagedScene.RootEntities[1].Components);
+            SceneComponentAssetRecord packagedPointLightRecord = Assert.Single(packagedScene.RootEntities[2].Components);
+            SceneComponentAssetRecord packagedSpotLightRecord = Assert.Single(packagedScene.RootEntities[3].Components);
+
+            Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(DirectionalLightComponent)), packagedDirectionalLightRecord.ComponentTypeId);
+            Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(AmbientLightComponent)), packagedAmbientLightRecord.ComponentTypeId);
+            Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(PointLightComponent)), packagedPointLightRecord.ComponentTypeId);
+            Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SpotLightComponent)), packagedSpotLightRecord.ComponentTypeId);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, packagedDirectionalLightRecord.Payload[0]);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, packagedAmbientLightRecord.Payload[0]);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, packagedPointLightRecord.Payload[0]);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, packagedSpotLightRecord.Payload[0]);
 
             InitializeRuntimeCore(BuildRootPath);
             ContentManager runtimeContentManager = new ContentManager(BuildRootPath);

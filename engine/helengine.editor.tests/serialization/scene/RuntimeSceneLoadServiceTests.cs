@@ -801,7 +801,7 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures packaged runtime scene loading materializes the authored light component families through the default runtime registry.
+        /// Ensures packaged runtime scene loading materializes the authored light component families through the shared automatic runtime path.
         /// </summary>
         [Fact]
         public void Load_WhenSceneContainsLightComponents_MaterializesAllSupportedLightFamilies() {
@@ -817,9 +817,16 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "DirectionalLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.DirectionalLightComponent",
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(DirectionalLightComponent)),
                                 ComponentIndex = 0,
-                                Payload = WriteDirectionalLightComponentPayload()
+                                Payload = WriteAutomaticRuntimeComponentPayload(new DirectionalLightComponent {
+                                    Color = new float4(0.3f, 0.4f, 0.5f, 1f),
+                                    Intensity = 3.0f,
+                                    ShadowsEnabled = true,
+                                    ShadowMapMode = ShadowMapMode.Forced,
+                                    ShadowStrength = 0.7f,
+                                    ShadowDistance = 64f
+                                }, null)
                             }
                         }
                     },
@@ -828,9 +835,15 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "AmbientLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.AmbientLightComponent",
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(AmbientLightComponent)),
                                 ComponentIndex = 0,
-                                Payload = WriteAmbientLightComponentPayload()
+                                Payload = WriteAutomaticRuntimeComponentPayload(new AmbientLightComponent {
+                                    Color = new float4(0.2f, 0.25f, 0.3f, 1f),
+                                    Intensity = 1.5f,
+                                    ShadowsEnabled = false,
+                                    ShadowMapMode = ShadowMapMode.Disabled,
+                                    ShadowStrength = 0.2f
+                                }, null)
                             }
                         }
                     },
@@ -839,9 +852,16 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "PointLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.PointLightComponent",
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(PointLightComponent)),
                                 ComponentIndex = 0,
-                                Payload = WritePointLightComponentPayload()
+                                Payload = WriteAutomaticRuntimeComponentPayload(new PointLightComponent {
+                                    Color = new float4(1f, 0.8f, 0.6f, 1f),
+                                    Intensity = 4.0f,
+                                    ShadowsEnabled = true,
+                                    ShadowMapMode = ShadowMapMode.Auto,
+                                    ShadowStrength = 0.85f,
+                                    Range = 18f
+                                }, null)
                             }
                         }
                     },
@@ -850,9 +870,18 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "SpotLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.SpotLightComponent",
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SpotLightComponent)),
                                 ComponentIndex = 0,
-                                Payload = WriteSpotLightComponentPayload()
+                                Payload = WriteAutomaticRuntimeComponentPayload(new SpotLightComponent {
+                                    Color = new float4(0.8f, 0.9f, 1f, 1f),
+                                    Intensity = 2.5f,
+                                    ShadowsEnabled = false,
+                                    ShadowMapMode = ShadowMapMode.Disabled,
+                                    ShadowStrength = 0.45f,
+                                    Range = 24f,
+                                    InnerConeAngleDegrees = 20f,
+                                    OuterConeAngleDegrees = 36f
+                                }, null)
                             }
                         }
                     }
@@ -898,17 +927,17 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures older packaged light payload version 1 is rejected during runtime scene loading.
+        /// Ensures unsupported automatic runtime light payload versions are rejected during runtime scene loading.
         /// </summary>
         [Fact]
-        public void Load_WhenSceneContainsLegacyLightComponentPayloadVersion1_ThrowsUnsupportedPayloadVersion() {
+        public void Load_WhenSceneContainsUnsupportedAutomaticLightPayloadVersion_ThrowsUnsupportedPayloadVersion() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 Core.Instance.ContentManager,
                 TempRootPath,
                 ShaderCompileTarget.DirectX11);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-            byte[] olderVersionPayload = WriteSpotLightComponentPayload();
-            olderVersionPayload[0] = 1;
+            byte[] unsupportedVersionPayload = WriteAutomaticRuntimeComponentPayload(new SpotLightComponent(), null);
+            unsupportedVersionPayload[0] = 99;
 
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
@@ -917,9 +946,9 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "SpotLight",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.SpotLightComponent",
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SpotLightComponent)),
                                 ComponentIndex = 0,
-                                Payload = olderVersionPayload
+                                Payload = unsupportedVersionPayload
                             }
                         }
                     }
@@ -927,7 +956,7 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loadService.Load(sceneAsset));
-            Assert.Contains("Unsupported spot light payload version", exception.Message);
+            Assert.Contains("Unsupported automatic scripted component payload version", exception.Message);
         }
 
         /// <summary>
@@ -1387,83 +1416,6 @@ namespace helengine.editor.tests.serialization.scene {
             } finally {
                 ComponentExecutionContext.ExitEditor();
             }
-        }
-
-        /// <summary>
-        /// Writes one serialized directional light component payload.
-        /// </summary>
-        /// <returns>Serialized directional light component payload.</returns>
-        byte[] WriteDirectionalLightComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteDirectionalLight(writer, new DirectionalLightComponent {
-                Color = new float4(0.3f, 0.4f, 0.5f, 1f),
-                Intensity = 3.0f,
-                ShadowsEnabled = true,
-                ShadowMapMode = ShadowMapMode.Forced,
-                ShadowStrength = 0.7f,
-                ShadowDistance = 64f
-            });
-            return stream.ToArray();
-        }
-
-        /// <summary>
-        /// Writes one serialized ambient light component payload.
-        /// </summary>
-        /// <returns>Serialized ambient light component payload.</returns>
-        byte[] WriteAmbientLightComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteAmbientLight(writer, new AmbientLightComponent {
-                Color = new float4(0.2f, 0.25f, 0.3f, 1f),
-                Intensity = 1.5f,
-                ShadowsEnabled = false,
-                ShadowMapMode = ShadowMapMode.Disabled,
-                ShadowStrength = 0.2f
-            });
-            return stream.ToArray();
-        }
-
-        /// <summary>
-        /// Writes one serialized point light component payload.
-        /// </summary>
-        /// <returns>Serialized point light component payload.</returns>
-        byte[] WritePointLightComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WritePointLight(writer, new PointLightComponent {
-                Color = new float4(1f, 0.8f, 0.6f, 1f),
-                Intensity = 4.0f,
-                ShadowsEnabled = true,
-                ShadowMapMode = ShadowMapMode.Auto,
-                ShadowStrength = 0.85f,
-                Range = 18f
-            });
-            return stream.ToArray();
-        }
-
-        /// <summary>
-        /// Writes one serialized spot light component payload.
-        /// </summary>
-        /// <returns>Serialized spot light component payload.</returns>
-        byte[] WriteSpotLightComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteSpotLight(writer, new SpotLightComponent {
-                Color = new float4(0.8f, 0.9f, 1f, 1f),
-                Intensity = 2.5f,
-                ShadowsEnabled = false,
-                ShadowMapMode = ShadowMapMode.Disabled,
-                ShadowStrength = 0.45f,
-                Range = 24f,
-                InnerConeAngleDegrees = 20f,
-                OuterConeAngleDegrees = 36f
-            });
-            return stream.ToArray();
         }
 
         /// <summary>
