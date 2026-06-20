@@ -167,19 +167,9 @@ namespace helengine.editor {
         const string EditorFontAssetId = "ui-font";
 
         /// <summary>
-        /// Stable asset id used for the generated Nintendo DS debug font.
-        /// </summary>
-        const string NintendoDsDebugFontAssetId = "ds-debug-font";
-
-        /// <summary>
         /// Relative packaged font path used by the editor's built-in font asset.
         /// </summary>
         const string EditorFontRelativePath = "cooked/fonts/default.hefont";
-
-        /// <summary>
-        /// Relative packaged font path used by the generated Nintendo DS debug font asset.
-        /// </summary>
-        const string NintendoDsDebugFontRelativePath = "cooked/fonts/ds-debug.hefont";
 
         /// <summary>
         /// Runtime scene layer used by the current Windows player loader for materialized entities.
@@ -1249,11 +1239,7 @@ namespace helengine.editor {
                 if (string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
                     return CreateFontFileReference(EditorFontRelativePath);
                 }
-                if (string.Equals(reference.AssetId, NintendoDsDebugFontAssetId, StringComparison.Ordinal)) {
-                    return CreateFontFileReference(NintendoDsDebugFontRelativePath);
-                }
-
-                    throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
+                throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
             }
 
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {

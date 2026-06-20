@@ -81,11 +81,6 @@ namespace helengine.editor {
         const string EditorFontAssetId = "ui-font";
 
         /// <summary>
-        /// Stable asset id used for the generated Nintendo DS debug font.
-        /// </summary>
-        const string NintendoDsDebugFontAssetId = "ds-debug-font";
-
-        /// <summary>
         /// Packaged relative path used for the editor's built-in font asset.
         /// </summary>
         const string EditorFontRelativePath = "cooked/fonts/default.hefont";
@@ -99,11 +94,6 @@ namespace helengine.editor {
         /// Packaged relative path used for the editor default font atlas when the selected platform externalizes font atlases through builder-owned cooking.
         /// </summary>
         const string EditorFontAtlasTextureRelativePath = "cooked/fonts/default.ps2tex";
-
-        /// <summary>
-        /// Packaged relative path used for the generated Nintendo DS debug font asset.
-        /// </summary>
-        const string NintendoDsDebugFontRelativePath = "cooked/fonts/ds-debug.hefont";
 
         /// <summary>
         /// Stable generated model asset id for the built-in cube primitive.
@@ -849,11 +839,6 @@ namespace helengine.editor {
                     string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
                     return RewriteGeneratedEditorFontReference(buildRootPath);
                 }
-                if (string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal) &&
-                    string.Equals(reference.AssetId, NintendoDsDebugFontAssetId, StringComparison.Ordinal)) {
-                    return RewriteGeneratedNintendoDsDebugFontReference(buildRootPath);
-                }
-
                 if (string.Equals(reference.ProviderId, EngineGeneratedProviderId, StringComparison.Ordinal) &&
                     string.Equals(reference.AssetId, StandardGeneratedMaterialAssetId, StringComparison.Ordinal)) {
                     EnsureGeneratedStandardMaterialAssets(buildRootPath);
@@ -871,43 +856,6 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported scene asset reference source kind '{reference.SourceKind}'.");
-        }
-
-        /// <summary>
-        /// Rewrites the generated Nintendo DS debug font into the packaged runtime font path consumed by DS scene assets.
-        /// </summary>
-        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        /// <returns>Packaged file-backed font reference.</returns>
-        SceneAssetReference RewriteGeneratedNintendoDsDebugFontReference(string buildRootPath) {
-            if (string.IsNullOrWhiteSpace(buildRootPath)) {
-                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
-            }
-
-            FontAsset debugFontAsset = ResolveGeneratedNintendoDsDebugFont();
-            WriteFontAsset(Path.Combine(buildRootPath, NintendoDsDebugFontRelativePath), debugFontAsset);
-            return CreateFileSystemReference(NintendoDsDebugFontRelativePath);
-        }
-
-        /// <summary>
-        /// Resolves the generated Nintendo DS debug font through the editor-host font factory.
-        /// </summary>
-        /// <returns>Generated Nintendo DS debug font asset.</returns>
-        static FontAsset ResolveGeneratedNintendoDsDebugFont() {
-            System.Reflection.Assembly appAssembly = System.Reflection.Assembly.Load("helengine.editor.app");
-            Type debugFontFactoryType = appAssembly.GetType("helengine.editor.app.NintendoDsDebugFontFactory", throwOnError: true);
-            System.Reflection.MethodInfo createFontMethod = debugFontFactoryType.GetMethod(
-                "CreateBottomOverlayFont",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-            if (createFontMethod == null) {
-                throw new InvalidOperationException("NintendoDsDebugFontFactory.CreateBottomOverlayFont was not found.");
-            }
-
-            object result = createFontMethod.Invoke(null, Array.Empty<object>());
-            if (result is not FontAsset fontAsset) {
-                throw new InvalidOperationException("Nintendo DS debug font factory did not return a FontAsset.");
-            }
-
-            return fontAsset;
         }
 
         /// <summary>
