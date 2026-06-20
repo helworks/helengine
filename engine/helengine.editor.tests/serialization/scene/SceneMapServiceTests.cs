@@ -501,26 +501,23 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Creates one packaged runtime scene-map component record encoded in the cooked runtime payload shape used by player builds.
+        /// Creates one packaged runtime scene-map component record encoded in the shared automatic runtime payload shape used by player builds.
         /// </summary>
         /// <param name="initialSceneId">Logical startup scene id that should be resolved through the singleton map.</param>
         /// <param name="mappings">Scene-id mapping entries authored on the persistent helper scene.</param>
         /// <returns>Packaged runtime scene-map component record.</returns>
         SceneComponentAssetRecord CreateRuntimeSceneMapComponentRecord(string initialSceneId, params KeyValuePair<string, string>[] mappings) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(SceneMapComponent.CurrentVersion);
-            writer.WriteString(initialSceneId);
-            writer.WriteInt32(mappings.Length);
+            SceneMapComponent component = new SceneMapComponent {
+                InitialSceneId = initialSceneId
+            };
             for (int index = 0; index < mappings.Length; index++) {
-                writer.WriteString(mappings[index].Key);
-                writer.WriteString(mappings[index].Value);
+                component.Mappings.Add(mappings[index].Key, mappings[index].Value);
             }
 
             return new SceneComponentAssetRecord {
-                ComponentTypeId = SceneMapComponent.SerializedComponentTypeId,
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SceneMapComponent)),
                 ComponentIndex = 0,
-                Payload = stream.ToArray()
+                Payload = WriteAutomaticRuntimeComponentPayload(component, null)
             };
         }
 

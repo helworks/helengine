@@ -496,6 +496,69 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime scene loading restores automatic scripted components that persist one supported string dictionary.
+        /// </summary>
+        [Fact]
+        public void Load_WhenAutomaticComponentContainsStringDictionary_RestoresDictionaryEntries() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestDictionaryScriptComponent)),
+                                ComponentIndex = 0,
+                                Payload = WriteAutomaticStringDictionaryComponentPayload("MainMenu", "MainMenuScene", "OptionsMenu", "OptionsMenuScene")
+                            }
+                        }
+                    }
+                }
+            };
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            TestDictionaryScriptComponent component = Assert.IsType<TestDictionaryScriptComponent>(Assert.Single(loadedRoot.Components, entry => entry is TestDictionaryScriptComponent));
+
+            Assert.Equal("MainMenuScene", component.Labels["MainMenu"]);
+            Assert.Equal("OptionsMenuScene", component.Labels["OptionsMenu"]);
+        }
+
+        /// <summary>
+        /// Ensures automatic runtime dictionary payloads reject duplicate keys instead of silently overwriting one authored value.
+        /// </summary>
+        [Fact]
+        public void Load_WhenAutomaticComponentDictionaryPayloadContainsDuplicateKeys_ThrowsInvalidOperationException() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestDictionaryScriptComponent)),
+                                ComponentIndex = 0,
+                                Payload = WriteAutomaticStringDictionaryComponentPayload("MainMenu", "MainMenuScene", "MainMenu", "DuplicateScene")
+                            }
+                        }
+                    }
+                }
+            };
+
+            Assert.Throws<InvalidOperationException>(() => loadService.Load(sceneAsset));
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading resolves text components that were authored against source font files and cooked into packaged `.hefont` outputs.
         /// </summary>
         [Fact]
@@ -1258,6 +1321,27 @@ namespace helengine.editor.tests.serialization.scene {
             writer.WriteByte((byte)DepthPrepassMode.Always);
             writer.WriteSingle(128f);
             writer.WriteByte((byte)PostProcessTier.High);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one automatic scripted runtime payload for the dictionary-backed test component.
+        /// </summary>
+        /// <param name="firstKey">First dictionary key to encode.</param>
+        /// <param name="firstValue">First dictionary value to encode.</param>
+        /// <param name="secondKey">Second dictionary key to encode.</param>
+        /// <param name="secondValue">Second dictionary value to encode.</param>
+        /// <returns>Serialized automatic runtime payload for the dictionary-backed test component.</returns>
+        byte[] WriteAutomaticStringDictionaryComponentPayload(string firstKey, string firstValue, string secondKey, string secondValue) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+            writer.WriteInt32(1);
+            writer.WriteInt32(2);
+            writer.WriteString(firstKey);
+            writer.WriteString(firstValue);
+            writer.WriteString(secondKey);
+            writer.WriteString(secondValue);
             return stream.ToArray();
         }
 

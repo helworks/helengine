@@ -381,7 +381,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies automatic runtime deserializer generation excludes only the built-in component types that still intentionally keep bespoke runtime deserializers.
+    /// Verifies automatic runtime deserializer generation excludes every built-in component type that still intentionally keeps a hand-authored runtime deserializer.
     /// </summary>
     [Fact]
     public void Emit_generated_automatic_runtime_component_deserializers_excludes_components_with_explicit_runtime_deserializers() {
@@ -393,28 +393,48 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
         Assert.DoesNotContain("GeneratedRuntimeMeshComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.DoesNotContain("GeneratedRuntimeCameraComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("GeneratedRuntimeSceneMapComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.Contains("GeneratedRuntimeFPSComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.Contains("GeneratedRuntimeDebugComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.Contains("GeneratedRuntimeTextComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.Contains("GeneratedRuntimeSpriteComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.Contains("GeneratedRuntimeRoundedRectComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.Contains("GeneratedRuntimeDirectionalLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.Contains("GeneratedRuntimeAmbientLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.Contains("GeneratedRuntimePointLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.Contains("GeneratedRuntimeSpotLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.Contains("GeneratedRuntimeSceneMapComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeFPSComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeDebugComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeTextComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeSpriteComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeRoundedRectComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeDirectionalLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeAmbientLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimePointLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeSpotLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeMeshComponentDeserializer.cpp")));
         Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeCameraComponentDeserializer.cpp")));
-        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSceneMapComponentDeserializer.cpp")));
-        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeFPSComponentDeserializer.cpp")));
-        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDebugComponentDeserializer.cpp")));
-        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeTextComponentDeserializer.cpp")));
-        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSpriteComponentDeserializer.cpp")));
-        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeRoundedRectComponentDeserializer.cpp")));
-        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDirectionalLightComponentDeserializer.cpp")));
-        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeAmbientLightComponentDeserializer.cpp")));
-        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimePointLightComponentDeserializer.cpp")));
-        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSpotLightComponentDeserializer.cpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSceneMapComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeFPSComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDebugComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeTextComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSpriteComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeRoundedRectComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDirectionalLightComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeAmbientLightComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimePointLightComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSpotLightComponentDeserializer.cpp")));
+    }
+
+    /// <summary>
+    /// Verifies generated automatic runtime deserializers can emit native dictionary decode logic for supported reflected component members.
+    /// </summary>
+    [Fact]
+    public void Emit_generated_automatic_runtime_component_deserializers_whenComponentContainsSupportedDictionary_emitsDictionaryDecodeLogic() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-dictionaries");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        EditorGeneratedCoreRegenerationService.EmitGeneratedAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            [typeof(TestDictionaryScriptComponent)]);
+
+        string sourcePath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeTestDictionaryScriptComponentDeserializer.cpp");
+        Assert.True(File.Exists(sourcePath));
+
+        string source = File.ReadAllText(sourcePath);
+        Assert.Contains("ReadInt32()", source, StringComparison.Ordinal);
+        Assert.Contains("Add(", source, StringComparison.Ordinal);
     }
 
     /// <summary>

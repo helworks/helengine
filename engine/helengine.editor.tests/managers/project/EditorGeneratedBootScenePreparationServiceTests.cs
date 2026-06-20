@@ -51,8 +51,7 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
         Assert.Equal("GeneratedBootSceneRoot", rootEntity.Name);
 
-        SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
-        SceneMapComponent sceneMapComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(rootEntity.Components[0], null, null));
+        SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
         Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
         Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
         Assert.False(sceneMapComponent.Mappings.ContainsKey(PlatformMenuSceneResolver.DesktopMainMenuSceneId));
@@ -80,8 +79,7 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
         SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
 
-        SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
-        SceneMapComponent sceneMapComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(rootEntity.Components[0], null, null));
+        SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
         Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
         Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
         Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
@@ -109,10 +107,19 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
         SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
 
-        SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
-        SceneMapComponent sceneMapComponent = Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(rootEntity.Components[0], null, null));
+        SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
         Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
         Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
         Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
+    }
+
+    /// <summary>
+    /// Deserializes one generated boot-scene scene-map record through the shared automatic component descriptor.
+    /// </summary>
+    /// <param name="record">Serialized generated boot-scene component record.</param>
+    /// <returns>Deserialized scene-map component.</returns>
+    static SceneMapComponent DeserializeSceneMapComponent(SceneComponentAssetRecord record) {
+        AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+        return Assert.IsType<SceneMapComponent>(descriptor.DeserializeComponent(record, null, null));
     }
 }

@@ -1190,9 +1190,15 @@ namespace helengine.editor {
                 return false;
             }
 
-            return componentType == typeof(MeshComponent)
-                || componentType == typeof(CameraComponent)
-                || componentType == typeof(SceneMapComponent);
+            IReadOnlyList<string> builtInComponentTypeIds = RuntimeComponentRegistry.GetBuiltInComponentTypeIds();
+            for (int index = 0; index < builtInComponentTypeIds.Count; index++) {
+                Type explicitRuntimeComponentType = PersistedComponentTypeResolver.TryResolve(builtInComponentTypeIds[index]);
+                if (explicitRuntimeComponentType == componentType) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

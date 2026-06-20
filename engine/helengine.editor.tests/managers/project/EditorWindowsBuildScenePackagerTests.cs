@@ -148,7 +148,7 @@ namespace helengine.editor.tests {
                 InitialSceneId = "MainMenuScene"
             };
             sceneMapComponent.Mappings.Add("MainMenuScene", "AlternateMainMenuScene");
-            SceneMapComponentPersistenceDescriptor descriptor = new SceneMapComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             WriteSceneAsset(sceneId, new SceneAsset {
                 Id = sceneId,
                 RootEntities = new[] {
@@ -177,9 +177,11 @@ namespace helengine.editor.tests {
 
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
             SceneComponentAssetRecord packagedRecord = Assert.Single(packagedRoot.Components);
-            Assert.Equal(SceneMapComponent.SerializedComponentTypeId, packagedRecord.ComponentTypeId);
+            Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SceneMapComponent)), packagedRecord.ComponentTypeId);
 
-            RuntimeSceneMapComponentDeserializer deserializer = new RuntimeSceneMapComponentDeserializer();
+            AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SceneMapComponent)),
+                typeof(SceneMapComponent));
             SceneMapComponent packagedComponent = Assert.IsType<SceneMapComponent>(deserializer.Deserialize(packagedRecord, null));
             Assert.Equal("MainMenuScene", packagedComponent.InitialSceneId);
             Assert.Equal("AlternateMainMenuScene", packagedComponent.Mappings["MainMenuScene"]);

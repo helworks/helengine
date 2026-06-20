@@ -173,6 +173,7 @@ namespace helengine.editor {
             builder.AppendLine($"#include \"{className}.hpp\"");
             builder.AppendLine("#include \"runtime/native_exceptions.hpp\"");
             builder.AppendLine("#include \"runtime/native_string.hpp\"");
+            builder.AppendLine("#include \"runtime/native_dictionary.hpp\"");
             builder.AppendLine("#include \"system/io/memory-stream.hpp\"");
             builder.AppendLine("#include \"EngineBinaryReader.hpp\"");
             builder.AppendLine("#include \"EngineBinaryEndianness.hpp\"");
@@ -329,6 +330,9 @@ namespace helengine.editor {
             if (valueType.IsEnum) {
                 return $"({BuildManagedTypeName(valueType)}){BuildManagedReadExpression(Enum.GetUnderlyingType(valueType), readerVariableName)}";
             }
+            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out Type dictionaryKeyType, out Type dictionaryValueType)) {
+                return BuildManagedDictionaryReadExpression(valueType, dictionaryKeyType, dictionaryValueType, readerVariableName);
+            }
             if (valueType.IsArray && valueType.GetArrayRank() == 1) {
                 Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
                 return $"{readerVariableName}.ReadArray(innerReader => {BuildManagedReadExpression(elementType, "innerReader")})";
@@ -454,6 +458,20 @@ namespace helengine.editor {
                 expression = $"static_cast<{BuildNativeValueTypeName(valueType)}>({underlyingExpression})";
                 return true;
             }
+            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out Type dictionaryKeyType, out Type dictionaryValueType)) {
+                if (!ScenePersistenceDictionaryTypeSupport.IsSupportedDictionaryKeyType(dictionaryKeyType)) {
+                    return false;
+                }
+                if (!TryBuildNativeReadExpression(dictionaryKeyType, BuildNativeReaderVariableName(), nativeNestedHelperNames, out _)) {
+                    return false;
+                }
+                if (!TryBuildNativeReadExpression(dictionaryValueType, BuildNativeReaderVariableName(), nativeNestedHelperNames, out _)) {
+                    return false;
+                }
+
+                expression = BuildNativeInlineDictionaryExpression(valueType, dictionaryKeyType, dictionaryValueType, readerVariableName, nativeNestedHelperNames);
+                return true;
+            }
             if (valueType.IsArray && valueType.GetArrayRank() == 1) {
                 Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
                 if (!TryBuildNativeArrayReadExpression(elementType, readerVariableName, nativeNestedHelperNames, out expression)) {
@@ -513,6 +531,71 @@ namespace helengine.editor {
                 + "Array<" + elementValueTypeName + "> *values = new Array<" + elementValueTypeName + ">(length); "
                 + "for (int32_t index = 0; index < length; index++) { (*values)[index] = " + elementReadExpression + "; } "
                 + "return values; "
+                + "})()";
+        }
+
+        /// <summary>
+        /// Builds one managed dictionary reader expression for the supplied reflected dictionary member type.
+        /// </summary>
+        /// <param name="dictionaryType">Reflected dictionary member type being restored.</param>
+        /// <param name="dictionaryKeyType">Supported reflected dictionary key type.</param>
+        /// <param name="dictionaryValueType">Reflected dictionary value type.</param>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <returns>Generated managed dictionary reader expression.</returns>
+        string BuildManagedDictionaryReadExpression(Type dictionaryType, Type dictionaryKeyType, Type dictionaryValueType, string readerVariableName) {
+            string dictionaryTypeName = BuildManagedTypeName(dictionaryType);
+            string dictionaryKeyTypeName = BuildManagedTypeName(dictionaryKeyType);
+            string dictionaryValueTypeName = BuildManagedTypeName(dictionaryValueType);
+            string keyReadExpression = BuildManagedReadExpression(dictionaryKeyType, readerVariableName);
+            string valueReadExpression = BuildManagedReadExpression(dictionaryValueType, readerVariableName);
+            return "(() => { "
+                + "int entryCount = " + readerVariableName + ".ReadInt32(); "
+                + "if (entryCount == -1) { return (" + dictionaryTypeName + ")null; } "
+                + "if (entryCount < -1) { throw new InvalidOperationException(\"Dictionary entry count cannot be negative.\"); } "
+                + dictionaryTypeName + " dictionary = new " + dictionaryTypeName + "(); "
+                + "for (int index = 0; index < entryCount; index++) { "
+                + dictionaryKeyTypeName + " key = " + keyReadExpression + "; "
+                + "if (dictionary.ContainsKey(key)) { throw new InvalidOperationException(\"Dictionary payload contains duplicate keys.\"); } "
+                + dictionaryValueTypeName + " value = " + valueReadExpression + "; "
+                + "dictionary.Add(key, value); "
+                + "} "
+                + "return dictionary; "
+                + "})()";
+        }
+
+        /// <summary>
+        /// Builds one inline native dictionary reader expression for reflected dictionary member types.
+        /// </summary>
+        /// <param name="dictionaryType">Reflected dictionary member type being restored.</param>
+        /// <param name="dictionaryKeyType">Supported reflected dictionary key type.</param>
+        /// <param name="dictionaryValueType">Reflected dictionary value type.</param>
+        /// <param name="readerVariableName">Reader variable name to reference inside the emitted expression.</param>
+        /// <param name="nativeNestedHelperNames">Known helper method names for nested authored object types.</param>
+        /// <returns>Generated native dictionary reader expression.</returns>
+        string BuildNativeInlineDictionaryExpression(
+            Type dictionaryType,
+            Type dictionaryKeyType,
+            Type dictionaryValueType,
+            string readerVariableName,
+            IReadOnlyDictionary<Type, string> nativeNestedHelperNames) {
+            string dictionaryValueTypeName = BuildNativeValueTypeName(dictionaryType);
+            string dictionaryInstanceTypeName = BuildNativeDictionaryInstanceTypeName(dictionaryKeyType, dictionaryValueType);
+            string dictionaryKeyTypeName = BuildNativeValueTypeName(dictionaryKeyType);
+            string dictionaryElementValueTypeName = BuildNativeValueTypeName(dictionaryValueType);
+            string keyReadExpression = BuildNativeReadExpression(dictionaryKeyType, BuildNativeReaderVariableName(), nativeNestedHelperNames);
+            string valueReadExpression = BuildNativeReadExpression(dictionaryValueType, BuildNativeReaderVariableName(), nativeNestedHelperNames);
+            return "([&]() { "
+                + "const int32_t entryCount = " + readerVariableName + "->ReadInt32(); "
+                + "if (entryCount == -1) { return static_cast<" + dictionaryValueTypeName + ">(nullptr); } "
+                + "if (entryCount < -1) { throw new InvalidOperationException(\"Dictionary entry count cannot be negative.\"); } "
+                + dictionaryValueTypeName + " dictionary = new " + dictionaryInstanceTypeName + "(); "
+                + "for (int32_t index = 0; index < entryCount; index++) { "
+                + dictionaryKeyTypeName + " key = " + keyReadExpression + "; "
+                + "if (dictionary->ContainsKey(key)) { throw new InvalidOperationException(\"Dictionary payload contains duplicate keys.\"); } "
+                + dictionaryElementValueTypeName + " value = " + valueReadExpression + "; "
+                + "dictionary->Add(key, value); "
+                + "} "
+                + "return dictionary; "
                 + "})()";
         }
 
@@ -672,6 +755,10 @@ namespace helengine.editor {
             if (valueType == null) {
                 return;
             }
+            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out _, out Type dictionaryValueType)) {
+                CollectNativeNestedHelperTypesForValue(dictionaryValueType, helperNames);
+                return;
+            }
             if (valueType.IsArray && valueType.GetArrayRank() == 1) {
                 CollectNativeNestedHelperTypesForValue(valueType.GetElementType(), helperNames);
                 return;
@@ -708,6 +795,11 @@ namespace helengine.editor {
         /// <param name="includeTypes">Accumulated generated native include types.</param>
         void CollectNativeIncludeTypesForValue(Type valueType, ISet<Type> includeTypes) {
             if (valueType == null) {
+                return;
+            }
+            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out Type dictionaryKeyType, out Type dictionaryValueType)) {
+                CollectNativeIncludeTypesForValue(dictionaryKeyType, includeTypes);
+                CollectNativeIncludeTypesForValue(dictionaryValueType, includeTypes);
                 return;
             }
             if (valueType.IsArray && valueType.GetArrayRank() == 1) {
@@ -844,6 +936,9 @@ namespace helengine.editor {
             if (valueType == typeof(SceneEntityReference)) {
                 return "::SceneEntityReference*";
             }
+            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out Type dictionaryKeyType, out Type dictionaryValueType)) {
+                return $"{BuildNativeDictionaryInstanceTypeName(dictionaryKeyType, dictionaryValueType)}*";
+            }
             if (valueType.IsArray && valueType.GetArrayRank() == 1) {
                 Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
                 return $"Array<{BuildNativeValueTypeName(elementType)}>*";
@@ -859,12 +954,42 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds the native dictionary instance type name used by generated deserializer expressions.
+        /// </summary>
+        /// <param name="dictionaryKeyType">Supported reflected dictionary key type.</param>
+        /// <param name="dictionaryValueType">Reflected dictionary value type.</param>
+        /// <returns>Generated native dictionary instance type name.</returns>
+        static string BuildNativeDictionaryInstanceTypeName(Type dictionaryKeyType, Type dictionaryValueType) {
+            return $"Dictionary<{BuildNativeValueTypeName(dictionaryKeyType)}, {BuildNativeValueTypeName(dictionaryValueType)}>";
+        }
+
+        /// <summary>
         /// Builds the managed type name used by generated ordinal runtime deserializer source.
         /// </summary>
         /// <param name="valueType">Managed reflected member type whose managed type name should be returned.</param>
         /// <returns>Generated managed type name.</returns>
         static string BuildManagedTypeName(Type valueType) {
-            return valueType.FullName?.Replace('+', '.') ?? valueType.Name;
+            if (valueType == null) {
+                throw new ArgumentNullException(nameof(valueType));
+            }
+            if (valueType.IsArray && valueType.GetArrayRank() == 1) {
+                Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
+                return $"{BuildManagedTypeName(elementType)}[]";
+            }
+            if (valueType.IsGenericType) {
+                Type genericDefinition = valueType.GetGenericTypeDefinition();
+                string genericTypeName = genericDefinition.FullName?.Replace('+', '.') ?? genericDefinition.Name;
+                int arityDelimiterIndex = genericTypeName.IndexOf('`');
+                if (arityDelimiterIndex >= 0) {
+                    genericTypeName = genericTypeName[..arityDelimiterIndex];
+                }
+
+                string genericArguments = string.Join(", ", valueType.GetGenericArguments().Select(BuildManagedTypeName));
+                return $"global::{genericTypeName}<{genericArguments}>";
+            }
+
+            string fullName = valueType.FullName?.Replace('+', '.') ?? valueType.Name;
+            return $"global::{fullName}";
         }
 
         /// <summary>
@@ -877,6 +1002,9 @@ namespace helengine.editor {
                 return false;
             }
             if (valueType == typeof(string) || !valueType.IsClass || valueType.IsAbstract) {
+                return false;
+            }
+            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out _, out _)) {
                 return false;
             }
             if (typeof(Component).IsAssignableFrom(valueType) || typeof(Entity).IsAssignableFrom(valueType)) {

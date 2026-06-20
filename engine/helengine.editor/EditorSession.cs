@@ -4275,7 +4275,6 @@ namespace helengine.editor {
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new SceneMapComponentPersistenceDescriptor());
             return persistenceRegistry;
         }
 

@@ -120,11 +120,13 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(payload));
             }
 
+            bool matchedTaggedField = false;
             try {
                 EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
                 for (int index = 0; index < schema.Members.Count; index++) {
                     ScriptComponentReflectionMember member = schema.Members[index];
                     if (TryGetTaggedFieldReader(reader, member, out EngineBinaryReader fieldReader)) {
+                        matchedTaggedField = true;
                         using (fieldReader) {
                             member.SetValue(component, ReadSupportedMemberValue(fieldReader, member, component, saveComponent, referenceResolver));
                         }
@@ -133,6 +135,10 @@ namespace helengine.editor {
 
                 return true;
             } catch (Exception ex) when (ex is EndOfStreamException || ex is InvalidOperationException) {
+                if (matchedTaggedField) {
+                    throw;
+                }
+
                 return false;
             }
         }
@@ -399,6 +405,10 @@ namespace helengine.editor {
                 WriteEnumValue(writer, valueType, value);
                 return;
             }
+            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out Type dictionaryKeyType, out Type dictionaryValueType)) {
+                WriteDictionaryValue(writer, valueType, dictionaryKeyType, dictionaryValueType, value);
+                return;
+            }
             if (TryWriteArrayValue(writer, valueType, value)) {
                 return;
             }
@@ -429,6 +439,9 @@ namespace helengine.editor {
             }
             if (valueType.IsEnum) {
                 return ReadEnumValue(reader, valueType);
+            }
+            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out Type dictionaryKeyType, out Type dictionaryValueType)) {
+                return ReadDictionaryValue(reader, valueType, dictionaryKeyType, dictionaryValueType);
             }
             if (TryReadArrayValue(reader, valueType, out object arrayValue)) {
                 return arrayValue;
@@ -724,6 +737,108 @@ namespace helengine.editor {
             Type underlyingType = Enum.GetUnderlyingType(enumType);
             object underlyingValue = ReadSupportedValue(reader, underlyingType);
             return Enum.ToObject(enumType, underlyingValue);
+        }
+
+        /// <summary>
+        /// Writes one dictionary value whose key type belongs to the supported deterministic subset and whose values are already handled by reflected persistence.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the dictionary payload.</param>
+        /// <param name="dictionaryType">Declared reflected dictionary type being serialized.</param>
+        /// <param name="dictionaryKeyType">Declared dictionary key type.</param>
+        /// <param name="dictionaryValueType">Declared dictionary value type.</param>
+        /// <param name="value">Current dictionary value.</param>
+        static void WriteDictionaryValue(EngineBinaryWriter writer, Type dictionaryType, Type dictionaryKeyType, Type dictionaryValueType, object value) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            } else if (dictionaryType == null) {
+                throw new ArgumentNullException(nameof(dictionaryType));
+            } else if (dictionaryKeyType == null) {
+                throw new ArgumentNullException(nameof(dictionaryKeyType));
+            } else if (dictionaryValueType == null) {
+                throw new ArgumentNullException(nameof(dictionaryValueType));
+            }
+            if (!ScenePersistenceDictionaryTypeSupport.IsSupportedDictionaryKeyType(dictionaryKeyType)) {
+                throw new InvalidOperationException($"Automatic script-component persistence does not support dictionary key type '{dictionaryKeyType.FullName}'.");
+            }
+            if (value == null) {
+                writer.WriteInt32(-1);
+                return;
+            }
+
+            System.Collections.IDictionary dictionary = value as System.Collections.IDictionary;
+            if (dictionary == null) {
+                throw new InvalidOperationException($"Automatic script-component persistence expected one dictionary instance for '{dictionaryType.FullName}'.");
+            }
+
+            List<System.Collections.DictionaryEntry> entries = new List<System.Collections.DictionaryEntry>(dictionary.Count);
+            foreach (System.Collections.DictionaryEntry entry in dictionary) {
+                if (entry.Key == null) {
+                    throw new InvalidOperationException($"Automatic script-component persistence does not support null dictionary keys for '{dictionaryType.FullName}'.");
+                }
+
+                entries.Add(entry);
+            }
+
+            entries.Sort((left, right) => ScenePersistenceDictionaryTypeSupport.CompareKeys(left.Key, right.Key, dictionaryKeyType));
+
+            writer.WriteInt32(entries.Count);
+            for (int index = 0; index < entries.Count; index++) {
+                System.Collections.DictionaryEntry entry = entries[index];
+                WriteSupportedValue(writer, dictionaryKeyType, entry.Key);
+                WriteSupportedValue(writer, dictionaryValueType, entry.Value);
+            }
+        }
+
+        /// <summary>
+        /// Reads one dictionary value whose key type belongs to the supported deterministic subset and whose values are already handled by reflected persistence.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the dictionary payload.</param>
+        /// <param name="dictionaryType">Declared reflected dictionary type expected by the payload.</param>
+        /// <param name="dictionaryKeyType">Declared dictionary key type.</param>
+        /// <param name="dictionaryValueType">Declared dictionary value type.</param>
+        /// <returns>Decoded dictionary instance or null when the payload omitted the dictionary.</returns>
+        static object ReadDictionaryValue(EngineBinaryReader reader, Type dictionaryType, Type dictionaryKeyType, Type dictionaryValueType) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            } else if (dictionaryType == null) {
+                throw new ArgumentNullException(nameof(dictionaryType));
+            } else if (dictionaryKeyType == null) {
+                throw new ArgumentNullException(nameof(dictionaryKeyType));
+            } else if (dictionaryValueType == null) {
+                throw new ArgumentNullException(nameof(dictionaryValueType));
+            }
+            if (!ScenePersistenceDictionaryTypeSupport.IsSupportedDictionaryKeyType(dictionaryKeyType)) {
+                throw new InvalidOperationException($"Automatic script-component persistence does not support dictionary key type '{dictionaryKeyType.FullName}'.");
+            }
+
+            int count = reader.ReadInt32();
+            if (count == -1) {
+                return null;
+            }
+            if (count < -1) {
+                throw new InvalidOperationException("Dictionary entry count cannot be negative.");
+            }
+
+            object instance = Activator.CreateInstance(dictionaryType) ?? throw new InvalidOperationException($"Dictionary type '{dictionaryType.FullName}' could not be instantiated.");
+            System.Collections.IDictionary dictionary = instance as System.Collections.IDictionary;
+            if (dictionary == null) {
+                throw new InvalidOperationException($"Automatic script-component persistence expected one dictionary instance for '{dictionaryType.FullName}'.");
+            }
+
+            for (int index = 0; index < count; index++) {
+                object key = ReadSupportedValue(reader, dictionaryKeyType);
+                object dictionaryValue = ReadSupportedValue(reader, dictionaryValueType);
+                if (key == null) {
+                    throw new InvalidOperationException($"Automatic script-component persistence does not support null dictionary keys for '{dictionaryType.FullName}'.");
+                }
+                if (dictionary.Contains(key)) {
+                    throw new InvalidOperationException($"Automatic script-component persistence does not support duplicate dictionary keys for '{dictionaryType.FullName}'.");
+                }
+
+                dictionary.Add(key, dictionaryValue);
+            }
+
+            return instance;
         }
 
         /// <summary>

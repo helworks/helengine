@@ -21,9 +21,40 @@ namespace helengine {
         /// <returns>Registry populated with the built-in runtime component deserializers.</returns>
         public static RuntimeComponentRegistry CreateDefault() {
             RuntimeComponentRegistry registry = new RuntimeComponentRegistry();
+            RegisterBuiltInComponentDeserializers(registry);
+            RegisterGeneratedRuntimeComponentDeserializers(registry);
+            return registry;
+        }
+
+        /// <summary>
+        /// Returns the serialized component type identifiers claimed by the built-in hand-authored runtime deserializers.
+        /// </summary>
+        /// <returns>Stable serialized component type ids registered before generated deserializers are added.</returns>
+        public static IReadOnlyList<string> GetBuiltInComponentTypeIds() {
+            RuntimeComponentRegistry registry = new RuntimeComponentRegistry();
+            RegisterBuiltInComponentDeserializers(registry);
+            return registry.DeserializersByTypeId.Keys.ToArray();
+        }
+
+        /// <summary>
+        /// Registers any generated cooked-scene runtime component deserializers that are supplied by native build generation.
+        /// </summary>
+        /// <param name="registry">Registry that should receive generated runtime deserializers.</param>
+        [NativeFreeFunction("RegisterGeneratedRuntimeComponentDeserializers", "GeneratedRuntimeComponentDeserializerRegistration.hpp")]
+        static void RegisterGeneratedRuntimeComponentDeserializers(RuntimeComponentRegistry registry) {
+        }
+
+        /// <summary>
+        /// Registers the built-in hand-authored runtime deserializers that player builds must own explicitly.
+        /// </summary>
+        /// <param name="registry">Registry receiving the built-in runtime deserializer set.</param>
+        static void RegisterBuiltInComponentDeserializers(RuntimeComponentRegistry registry) {
+            if (registry == null) {
+                throw new ArgumentNullException(nameof(registry));
+            }
+
             registry.Register(new RuntimeMeshComponentDeserializer());
             registry.Register(new RuntimeCameraComponentDeserializer());
-            registry.Register(new RuntimeSceneMapComponentDeserializer());
             registry.Register(new RuntimeFPSComponentDeserializer());
             registry.Register(new RuntimeDebugComponentDeserializer());
             registry.Register(new RuntimeTextComponentDeserializer());
@@ -33,16 +64,6 @@ namespace helengine {
             registry.Register(new RuntimeAmbientLightComponentDeserializer());
             registry.Register(new RuntimePointLightComponentDeserializer());
             registry.Register(new RuntimeSpotLightComponentDeserializer());
-            RegisterGeneratedRuntimeComponentDeserializers(registry);
-            return registry;
-        }
-
-        /// <summary>
-        /// Registers any generated cooked-scene runtime component deserializers that are supplied by native build generation.
-        /// </summary>
-        /// <param name="registry">Registry that should receive generated runtime deserializers.</param>
-        [NativeFreeFunction("RegisterGeneratedRuntimeComponentDeserializers", "GeneratedRuntimeComponentDeserializerRegistration.hpp")]
-        static void RegisterGeneratedRuntimeComponentDeserializers(RuntimeComponentRegistry registry) {
         }
 
         /// <summary>

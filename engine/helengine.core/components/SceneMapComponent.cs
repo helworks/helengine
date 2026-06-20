@@ -4,16 +4,6 @@ namespace helengine {
     /// </summary>
     public sealed class SceneMapComponent : UpdateComponent {
         /// <summary>
-        /// Current cooked payload version used by runtime scene persistence.
-        /// </summary>
-        public const byte CurrentVersion = 2;
-
-        /// <summary>
-        /// Stable serialized component type id used by scene persistence.
-        /// </summary>
-        public const string SerializedComponentTypeId = "helengine.SceneMapComponent";
-
-        /// <summary>
         /// Tracks the active scene-map singleton when one is loaded.
         /// </summary>
         public static SceneMapComponent Instance { get; private set; }
@@ -24,10 +14,15 @@ namespace helengine {
         static bool StartupSceneWasRequested;
 
         /// <summary>
+        /// Authored mapping entries keyed by logical source scene id.
+        /// </summary>
+        Dictionary<string, string> MappingsValue;
+
+        /// <summary>
         /// Initializes one empty scene-map component.
         /// </summary>
         public SceneMapComponent() {
-            Mappings = new Dictionary<string, string>(StringComparer.Ordinal);
+            MappingsValue = new Dictionary<string, string>(StringComparer.Ordinal);
             InitialSceneId = string.Empty;
         }
 
@@ -39,11 +34,14 @@ namespace helengine {
         public string InitialSceneId { get; set; }
 
         /// <summary>
-        /// Gets the authored mapping entries keyed by logical source scene id.
+        /// Gets or sets the authored mapping entries keyed by logical source scene id.
         /// </summary>
         [EditorPropertyDisplayName("Scene Mappings")]
         [EditorPropertyOrder(0)]
-        public Dictionary<string, string> Mappings { get; }
+        public Dictionary<string, string> Mappings {
+            get => MappingsValue;
+            set => MappingsValue = value ?? throw new ArgumentNullException(nameof(value));
+        }
 
         /// <summary>
         /// Resolves one logical scene id through the active singleton mapping table when present.

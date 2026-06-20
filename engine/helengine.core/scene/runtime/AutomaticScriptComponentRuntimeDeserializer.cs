@@ -242,6 +242,9 @@ namespace helengine {
             if (valueType.IsEnum) {
                 return ReadEnumValue(reader, valueType, referenceResolver);
             }
+            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out Type dictionaryKeyType, out Type dictionaryValueType)) {
+                return ReadDictionaryValue(reader, valueType, dictionaryKeyType, dictionaryValueType, referenceResolver);
+            }
             if (TryReadArrayValue(reader, valueType, referenceResolver, out object arrayValue)) {
                 return arrayValue;
             }
@@ -361,6 +364,64 @@ namespace helengine {
             Type underlyingType = Enum.GetUnderlyingType(enumType);
             object underlyingValue = ReadSupportedValue(reader, underlyingType, referenceResolver);
             return Enum.ToObject(enumType, underlyingValue);
+        }
+
+        /// <summary>
+        /// Reads one dictionary value whose key type belongs to the supported deterministic subset and whose values are already handled by automatic scripted runtime deserialization.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the dictionary payload.</param>
+        /// <param name="dictionaryType">Declared reflected dictionary type expected by the payload.</param>
+        /// <param name="dictionaryKeyType">Declared dictionary key type.</param>
+        /// <param name="dictionaryValueType">Declared dictionary value type.</param>
+        /// <param name="referenceResolver">Resolver used to restore any asset-backed values contained in the dictionary.</param>
+        /// <returns>Decoded dictionary instance or null when the payload omitted the dictionary.</returns>
+        static object ReadDictionaryValue(
+            EngineBinaryReader reader,
+            Type dictionaryType,
+            Type dictionaryKeyType,
+            Type dictionaryValueType,
+            RuntimeSceneAssetReferenceResolver referenceResolver) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            } else if (dictionaryType == null) {
+                throw new ArgumentNullException(nameof(dictionaryType));
+            } else if (dictionaryKeyType == null) {
+                throw new ArgumentNullException(nameof(dictionaryKeyType));
+            } else if (dictionaryValueType == null) {
+                throw new ArgumentNullException(nameof(dictionaryValueType));
+            }
+            if (!ScenePersistenceDictionaryTypeSupport.IsSupportedDictionaryKeyType(dictionaryKeyType)) {
+                throw new InvalidOperationException($"Automatic scripted runtime deserialization does not support dictionary key type '{dictionaryKeyType.FullName}'.");
+            }
+
+            int count = reader.ReadInt32();
+            if (count == -1) {
+                return null;
+            }
+            if (count < -1) {
+                throw new InvalidOperationException("Dictionary entry count cannot be negative.");
+            }
+
+            object instance = Activator.CreateInstance(dictionaryType) ?? throw new InvalidOperationException($"Dictionary type '{dictionaryType.FullName}' could not be instantiated.");
+            System.Collections.IDictionary dictionary = instance as System.Collections.IDictionary;
+            if (dictionary == null) {
+                throw new InvalidOperationException($"Automatic scripted runtime deserialization expected one dictionary instance for '{dictionaryType.FullName}'.");
+            }
+
+            for (int index = 0; index < count; index++) {
+                object key = ReadSupportedValue(reader, dictionaryKeyType, referenceResolver);
+                object dictionaryValue = ReadSupportedValue(reader, dictionaryValueType, referenceResolver);
+                if (key == null) {
+                    throw new InvalidOperationException($"Automatic scripted runtime deserialization does not support null dictionary keys for '{dictionaryType.FullName}'.");
+                }
+                if (dictionary.Contains(key)) {
+                    throw new InvalidOperationException($"Automatic scripted runtime deserialization does not support duplicate dictionary keys for '{dictionaryType.FullName}'.");
+                }
+
+                dictionary.Add(key, dictionaryValue);
+            }
+
+            return instance;
         }
 
         /// <summary>

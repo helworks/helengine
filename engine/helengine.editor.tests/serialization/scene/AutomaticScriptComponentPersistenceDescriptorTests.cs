@@ -146,6 +146,74 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures reflected automatic persistence can round-trip string-keyed dictionaries and writes a deterministic payload regardless of insertion order.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenScriptComponentContainsStringDictionary_RoundTripsDictionaryEntriesInDeterministicKeyOrder() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestDictionaryScriptComponent firstComponent = new TestDictionaryScriptComponent();
+            firstComponent.Labels.Add("OptionsMenu", "OptionsMenuScene");
+            firstComponent.Labels.Add("MainMenu", "MainMenuScene");
+            TestDictionaryScriptComponent secondComponent = new TestDictionaryScriptComponent();
+            secondComponent.Labels.Add("MainMenu", "MainMenuScene");
+            secondComponent.Labels.Add("OptionsMenu", "OptionsMenuScene");
+
+            SceneComponentAssetRecord firstRecord = descriptor.SerializeComponent(firstComponent, 0, new EntityComponentSaveState());
+            SceneComponentAssetRecord secondRecord = descriptor.SerializeComponent(secondComponent, 0, new EntityComponentSaveState());
+            TestDictionaryScriptComponent loaded = Assert.IsType<TestDictionaryScriptComponent>(descriptor.DeserializeComponent(firstRecord, null, null));
+
+            Assert.Equal(firstRecord.Payload, secondRecord.Payload);
+            Assert.Equal("MainMenuScene", loaded.Labels["MainMenu"]);
+            Assert.Equal("OptionsMenuScene", loaded.Labels["OptionsMenu"]);
+        }
+
+        /// <summary>
+        /// Ensures reflected automatic persistence can round-trip dictionaries with supported integer and enum key types.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenScriptComponentContainsEnumAndIntegerKeyDictionaries_RoundTripsSupportedKeys() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestDictionaryKeyScriptComponent component = new TestDictionaryKeyScriptComponent();
+            component.IntegerLabels.Add(7, "Seven");
+            component.ModeLabels.Add(TestDictionaryMode.Secondary, "SecondaryScene");
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            TestDictionaryKeyScriptComponent loaded = Assert.IsType<TestDictionaryKeyScriptComponent>(descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal("Seven", loaded.IntegerLabels[7]);
+            Assert.Equal("SecondaryScene", loaded.ModeLabels[TestDictionaryMode.Secondary]);
+        }
+
+        /// <summary>
+        /// Ensures unsupported dictionary key types fail clearly instead of silently producing one unstable payload contract.
+        /// </summary>
+        [Fact]
+        public void SerializeComponent_WhenScriptComponentContainsUnsupportedDictionaryKey_ThrowsInvalidOperationException() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestUnsupportedDictionaryKeyScriptComponent component = new TestUnsupportedDictionaryKeyScriptComponent();
+            component.InvalidKeys.Add(new float2(1f, 2f), "Bad");
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => descriptor.SerializeComponent(component, 0, new EntityComponentSaveState()));
+
+            Assert.Contains("dictionary", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures dictionary payloads reject duplicate keys instead of overwriting one authored entry silently.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenDictionaryPayloadContainsDuplicateKeys_ThrowsInvalidOperationException() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestDictionaryScriptComponent)),
+                ComponentIndex = 0,
+                Payload = BuildDuplicateDictionaryPayload()
+            };
+
+            Assert.Throws<InvalidOperationException>(() => descriptor.DeserializeComponent(record, null, null));
+        }
+
+        /// <summary>
         /// Ensures engine-owned text components now use the same automatic reflected persistence path and retain authored text layout state and font references.
         /// </summary>
         [Fact]
@@ -391,6 +459,23 @@ namespace helengine.editor.tests.serialization.scene {
             });
             writer.WriteField(nameof(TextComponent.Size), fieldWriter => {
                 fieldWriter.WriteInt2(new int2(128, 32));
+            });
+
+            return writer.BuildPayload();
+        }
+
+        /// <summary>
+        /// Builds one tagged editor payload for the duplicate-key dictionary regression case.
+        /// </summary>
+        /// <returns>Tagged payload containing two dictionary entries with the same key.</returns>
+        static byte[] BuildDuplicateDictionaryPayload() {
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField(nameof(TestDictionaryScriptComponent.Labels), fieldWriter => {
+                fieldWriter.WriteInt32(2);
+                fieldWriter.WriteString("MainMenu");
+                fieldWriter.WriteString("MainMenuScene");
+                fieldWriter.WriteString("MainMenu");
+                fieldWriter.WriteString("DuplicateScene");
             });
 
             return writer.BuildPayload();

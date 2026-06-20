@@ -222,11 +222,6 @@ namespace helengine.editor {
         const string RoundedRectComponentTypeId = "helengine.RoundedRectComponent";
 
         /// <summary>
-        /// Stable serialized component id for scene-map helper components.
-        /// </summary>
-        const string SceneMapComponentTypeId = "helengine.SceneMapComponent";
-
-        /// <summary>
         /// Stable serialized component id for directional light components.
         /// </summary>
         const string DirectionalLightComponentTypeId = "helengine.DirectionalLightComponent";
@@ -511,10 +506,6 @@ namespace helengine.editor {
         /// </summary>
         readonly CameraComponentPersistenceDescriptor CameraComponentDescriptor;
         /// <summary>
-        /// Scene-map descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
-        /// </summary>
-        readonly SceneMapComponentPersistenceDescriptor SceneMapComponentDescriptor;
-        /// <summary>
         /// Callback that records builder-owned platform cook work items discovered while rewriting scene content.
         /// </summary>
         readonly Action<PlatformCookWorkItem> PlatformCookWorkItemSink;
@@ -587,11 +578,9 @@ namespace helengine.editor {
             TextComponentSpriteBakeService = textComponentSpriteBakeService;
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
-            SceneMapComponentDescriptor = new SceneMapComponentPersistenceDescriptor();
             PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
             PersistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             PersistenceRegistry.Register(CameraComponentDescriptor);
-            PersistenceRegistry.Register(SceneMapComponentDescriptor);
         }
 
         /// <summary>
@@ -614,8 +603,7 @@ namespace helengine.editor {
                 || string.Equals(componentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, PointLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, SceneMapComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                || string.Equals(componentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
 
@@ -689,11 +677,6 @@ namespace helengine.editor {
 
             if (string.Equals(record.ComponentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteSpotLightComponentRecord(record);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, SceneMapComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteSceneMapComponentRecord(record);
                 return true;
             }
 
@@ -1613,32 +1596,6 @@ namespace helengine.editor {
                 Payload = writeStream.ToArray()
             };
         }
-
-        /// <summary>
-        /// Rewrites one serialized scene-map helper payload into the strict runtime payload shape.
-        /// </summary>
-        /// <param name="record">Serialized scene-map component record to rewrite.</param>
-        /// <returns>Rewritten scene-map component record.</returns>
-        SceneComponentAssetRecord RewriteSceneMapComponentRecord(SceneComponentAssetRecord record) {
-            SceneMapComponent component = AssertSceneMapComponent(record);
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(SceneMapComponent.CurrentVersion);
-            writer.WriteString(component.InitialSceneId ?? string.Empty);
-            writer.WriteInt32(component.Mappings.Count);
-            foreach (KeyValuePair<string, string> mapping in component.Mappings.OrderBy(pair => pair.Key, StringComparer.Ordinal)) {
-                writer.WriteString(mapping.Key);
-                writer.WriteString(mapping.Value);
-            }
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = SceneMapComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
-        }
-
         /// <summary>
         /// Rewrites one serialized directional-light payload into the strict runtime light payload shape.
         /// </summary>
@@ -2229,21 +2186,6 @@ namespace helengine.editor {
 
             return reference;
         }
-
-        /// <summary>
-        /// Deserializes one tagged scene-map payload into its live component shape before packaged rewriting.
-        /// </summary>
-        /// <param name="record">Scene component record to interpret.</param>
-        /// <returns>Deserialized scene-map helper component.</returns>
-        SceneMapComponent AssertSceneMapComponent(SceneComponentAssetRecord record) {
-            Component component = SceneMapComponentDescriptor.DeserializeComponent(record, null, null);
-            if (component is not SceneMapComponent sceneMapComponent) {
-                throw new InvalidOperationException("Scene-map component payload did not materialize correctly before packaging.");
-            }
-
-            return sceneMapComponent;
-        }
-
         /// <summary>
         /// Rewrites one authored font reference into the packaged font reference consumed by strict runtime component payloads.
         /// </summary>

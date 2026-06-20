@@ -4,15 +4,15 @@ namespace helengine.editor {
     /// </summary>
     public sealed class GeneratedBootSceneAssetFactory {
         /// <summary>
-        /// Descriptor used to serialize the scene-map helper component.
+        /// Automatic descriptor used to serialize the generated scene-map helper component.
         /// </summary>
-        readonly SceneMapComponentPersistenceDescriptor SceneMapDescriptor;
+        readonly AutomaticScriptComponentPersistenceDescriptor AutomaticDescriptor;
 
         /// <summary>
         /// Initializes the generated boot-scene factory.
         /// </summary>
         public GeneratedBootSceneAssetFactory() {
-            SceneMapDescriptor = new SceneMapComponentPersistenceDescriptor();
+            AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
         }
 
         /// <summary>
@@ -54,7 +54,7 @@ namespace helengine.editor {
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
                         Components = [
-                            SceneMapDescriptor.SerializeComponent(sceneMapComponent, 0, null)
+                            AutomaticDescriptor.SerializeComponent(sceneMapComponent, 0, null)
                         ],
                         Children = Array.Empty<SceneEntityAsset>()
                     }
