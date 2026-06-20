@@ -55,8 +55,6 @@ namespace helengine {
 
             registry.Register(new RuntimeMeshComponentDeserializer());
             registry.Register(new RuntimeCameraComponentDeserializer());
-            registry.Register(new RuntimeFPSComponentDeserializer());
-            registry.Register(new RuntimeDebugComponentDeserializer());
         }
 
         /// <summary>

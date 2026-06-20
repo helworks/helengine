@@ -647,7 +647,9 @@ namespace helengine.editor.tests {
                 packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
-            Assert.Equal("helengine.FPSComponent", packagedScene.RootEntities[0].Components[0].ComponentTypeId);
+            SceneComponentAssetRecord packagedRecord = packagedScene.RootEntities[0].Components[0];
+            AssertUsesAutomaticRuntimePayload(packagedRecord, typeof(FPSComponent));
+            AssertAutomaticRuntimeAssetReference(packagedRecord, "Font", "cooked/fonts/default.hefont");
             Assert.Single(packagedScene.AssetReferences);
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, packagedScene.AssetReferences[0].SourceKind);
             Assert.Equal("cooked/fonts/default.hefont", packagedScene.AssetReferences[0].RelativePath);
@@ -696,12 +698,8 @@ namespace helengine.editor.tests {
             }
 
             SceneComponentAssetRecord componentRecord = packagedScene.RootEntities[0].Components[0];
-            Assert.Equal("helengine.DebugComponent", componentRecord.ComponentTypeId);
-
-            using MemoryStream payloadStream = new MemoryStream(componentRecord.Payload, false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(1, reader.ReadByte());
-            Assert.NotNull(ReadOptionalReference(reader));
+            AssertUsesAutomaticRuntimePayload(componentRecord, typeof(DebugComponent));
+            AssertAutomaticRuntimeAssetReference(componentRecord, "Font", "cooked/fonts/default.hefont");
         }
 
         /// <summary>
@@ -727,7 +725,8 @@ namespace helengine.editor.tests {
             }
 
             SceneComponentAssetRecord componentRecord = packagedScene.RootEntities[0].Components[0];
-            Assert.Equal("helengine.DebugComponent", componentRecord.ComponentTypeId);
+            AssertUsesAutomaticRuntimePayload(componentRecord, typeof(DebugComponent));
+            AssertAutomaticRuntimeAssetReference(componentRecord, "Font", "cooked/fonts/ds-debug.hefont");
             Assert.Contains(packagedScene.AssetReferences, reference => string.Equals(reference.RelativePath, "cooked/fonts/ds-debug.hefont", StringComparison.Ordinal));
         }
 

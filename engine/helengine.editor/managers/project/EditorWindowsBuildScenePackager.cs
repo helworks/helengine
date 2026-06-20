@@ -21,11 +21,6 @@ namespace helengine.editor {
         const byte CameraComponentPayloadVersion = 3;
 
         /// <summary>
-        /// Current payload version for serialized FPS component scene records.
-        /// </summary>
-        const byte FPSComponentPayloadVersion = 2;
-
-        /// <summary>
         /// Stable serialized component id for mesh components.
         /// </summary>
         const string MeshComponentTypeId = "helengine.MeshComponent";
@@ -1248,70 +1243,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one serialized FPS component record into its packaged runtime form.
-        /// </summary>
-        /// <param name="record">Serialized FPS component record to rewrite.</param>
-        /// <returns>Rewritten FPS component record.</returns>
-        SceneComponentAssetRecord RewriteFPSComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != FPSComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
-            }
-
-            SceneAssetReference fontReference = ReadOptionalReference(reader);
-            SceneAssetReference rewrittenFontReference = RewriteFontReference(fontReference, buildRootPath);
-            double refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
-            int2 padding = reader.ReadInt2();
-            byte renderOrder2D = reader.ReadByte();
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(FPSComponentPayloadVersion);
-            WriteOptionalReference(writer, rewrittenFontReference);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(refreshIntervalSeconds));
-            writer.WriteInt2(padding);
-            writer.WriteByte(renderOrder2D);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = FPSComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Converts one font reference to its packaged runtime form.
-        /// </summary>
-        /// <param name="reference">Font reference to rewrite.</param>
-        /// <returns>Packaged runtime font reference.</returns>
-        SceneAssetReference RewriteFontReference(SceneAssetReference reference, string buildRootPath) {
-            if (reference == null) {
-                throw new InvalidOperationException("FPSComponent requires a font reference before packaging.");
-            }
-
-            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
-                if (string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal) &&
-                    string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
-                    return RewriteGeneratedEditorFontReference(buildRootPath);
-                }
-
-                throw new InvalidOperationException($"Unsupported generated font provider '{reference.ProviderId}:{reference.AssetId}'.");
-            }
-
-            if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                return RewriteFileSystemFontReference(reference, buildRootPath);
-            }
-
-            throw new InvalidOperationException($"Unsupported font reference source kind '{reference.SourceKind}'.");
-        }
-
-        /// <summary>
         /// Builds the stable generated reference used for the editor's built-in font asset.
         /// </summary>
         /// <returns>Generated editor-font scene reference.</returns>
@@ -2397,49 +2328,6 @@ namespace helengine.editor {
         string BuildCookedMaterialRelativePath(string relativePath) {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             return NormalizeRelativePath(Path.Combine("cooked", normalizedRelativePath));
-        }
-
-        /// <summary>
-        /// Reads one optional scene asset reference from the current payload position.
-        /// </summary>
-        /// <param name="reader">Reader positioned at the optional-reference payload.</param>
-        /// <returns>Decoded scene asset reference when present; otherwise null.</returns>
-        SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            if (reader.ReadByte() == 0) {
-                return null;
-            }
-
-            return new SceneAssetReference {
-                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
-                RelativePath = reader.ReadString(),
-                ProviderId = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
-        }
-
-        /// <summary>
-        /// Writes one optional scene asset reference to the current payload position.
-        /// </summary>
-        /// <param name="writer">Writer receiving the optional-reference payload.</param>
-        /// <param name="reference">Optional scene asset reference to encode.</param>
-        void WriteOptionalReference(EngineBinaryWriter writer, SceneAssetReference reference) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            }
-
-            writer.WriteByte(reference == null ? (byte)0 : (byte)1);
-            if (reference == null) {
-                return;
-            }
-
-            writer.WriteInt32((int)reference.SourceKind);
-            writer.WriteString(reference.RelativePath);
-            writer.WriteString(reference.ProviderId);
-            writer.WriteString(reference.AssetId);
         }
 
         /// <summary>
