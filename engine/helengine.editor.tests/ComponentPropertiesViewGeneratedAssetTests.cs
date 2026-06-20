@@ -192,10 +192,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures file-backed material picks prefer the Windows preview platform when the active platform cannot supply one shader-backed runtime material.
+        /// Ensures file-backed material picks fall back to the first preview-capable platform when the active platform cannot supply one shader-backed runtime material.
         /// </summary>
         [Fact]
-        public void HandleMaterialPicked_WhenActivePlatformLacksPreviewShader_PrefersWindowsPreviewPlatform() {
+        public void HandleMaterialPicked_WhenActivePlatformLacksPreviewShader_UsesFirstPreviewCapablePlatform() {
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             string materialFullPath = WriteMaterialSettingsDocument(materialRelativePath, CreatePreviewAndFixedPipelineMaterialSettings("#336699"));
             new EditorProjectPlatformsService(TempRootPath).Save(new EditorProjectPlatformsDocument {

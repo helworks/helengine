@@ -9,7 +9,6 @@ namespace helengine.editor {
         /// <summary>
         /// Preferred preview platform used when file-backed materials need one shader-backed editor runtime path.
         /// </summary>
-        const string PreferredEditorPreviewPlatformId = "windows";
         const string StandardShaderAssetId = "ForwardStandardShader";
         const string StandardVertexProgramName = "ForwardStandardShader.vs";
         const string StandardPixelProgramName = "ForwardStandardShader.ps";
@@ -300,7 +299,7 @@ namespace helengine.editor {
         /// <returns>Runtime material built from the serialized material asset.</returns>
         RuntimeMaterial ResolveFileSystemMaterial(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference);
-            string platformId = ResolveActiveProjectPlatformId();
+            string platformId = ResolveMaterialPreviewPlatformId(fullPath);
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new InvalidOperationException("At least one supported project platform must exist before file-backed materials can be resolved.");
             }
@@ -518,28 +517,74 @@ namespace helengine.editor {
         }
 
         /// <summary>
-         /// Resolves the preview platform that should drive file-backed material settings during editor scene loading.
-         /// </summary>
-        /// <returns>Preferred preview platform identifier, or the active/first supported platform when Windows preview is unavailable.</returns>
-        string ResolveActiveProjectPlatformId() {
+        /// Resolves the preview platform that should drive file-backed material settings during editor scene loading.
+        /// </summary>
+        /// <param name="materialPath">Absolute path to the authored material asset.</param>
+        /// <returns>Preview-capable platform identifier, or the active/first supported platform when no shader-backed preview path exists.</returns>
+        string ResolveMaterialPreviewPlatformId(string materialPath) {
+            if (string.IsNullOrWhiteSpace(materialPath)) {
+                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
+            }
+
             EditorProjectPlatformsDocument platformsDocument = new EditorProjectPlatformsService(ProjectRootPath).Load();
             IReadOnlyList<string> supportedPlatforms = platformsDocument.SupportedPlatforms;
             if (supportedPlatforms.Count == 0) {
                 return string.Empty;
             }
 
-            for (int index = 0; index < supportedPlatforms.Count; index++) {
-                if (string.Equals(supportedPlatforms[index], PreferredEditorPreviewPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                    return supportedPlatforms[index];
-                }
-            }
-
             string activePlatformId = new EditorProjectLocalSettingsService(ProjectRootPath, supportedPlatforms).LoadActivePlatform();
+            string previewPlatformId = TryResolvePreviewCapablePlatformId(materialPath, supportedPlatforms, activePlatformId);
+            if (!string.IsNullOrWhiteSpace(previewPlatformId)) {
+                return previewPlatformId;
+            }
             if (!string.IsNullOrWhiteSpace(activePlatformId)) {
                 return activePlatformId;
             }
 
             return supportedPlatforms[0] ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Attempts to resolve one platform whose effective material payload already exposes a shader-backed preview path.
+        /// </summary>
+        /// <param name="materialPath">Absolute path to the authored material asset.</param>
+        /// <param name="supportedPlatforms">Ordered supported project platforms.</param>
+        /// <param name="activePlatformId">Active project platform, when one is selected.</param>
+        /// <returns>Preview-capable platform identifier, or an empty string when no shader-backed preview path exists.</returns>
+        string TryResolvePreviewCapablePlatformId(string materialPath, IReadOnlyList<string> supportedPlatforms, string activePlatformId) {
+            if (!string.IsNullOrWhiteSpace(activePlatformId) && HasShaderBackedPreviewMaterial(materialPath, activePlatformId)) {
+                return activePlatformId;
+            }
+
+            for (int index = 0; index < supportedPlatforms.Count; index++) {
+                string platformId = supportedPlatforms[index];
+                if (string.IsNullOrWhiteSpace(platformId) || string.Equals(platformId, activePlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (HasShaderBackedPreviewMaterial(materialPath, platformId)) {
+                    return platformId;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Resolves whether one platform's effective material payload already exposes a shader-backed preview path.
+        /// </summary>
+        /// <param name="materialPath">Absolute path to the authored material asset.</param>
+        /// <param name="platformId">Platform identifier to inspect.</param>
+        /// <returns>True when the effective platform payload exposes a shader asset id.</returns>
+        bool HasShaderBackedPreviewMaterial(string materialPath, string platformId) {
+            if (string.IsNullOrWhiteSpace(materialPath)) {
+                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            ShaderMaterialAsset materialAsset = LoadPreviewMaterialAsset(materialPath, platformId);
+            return !string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId);
         }
 
         /// <summary>

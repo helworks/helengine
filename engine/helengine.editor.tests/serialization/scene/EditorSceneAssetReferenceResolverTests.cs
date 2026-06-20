@@ -264,10 +264,10 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures scene loading prefers the Windows preview material path when the project's active platform cannot supply one shader-backed runtime material.
+        /// Ensures scene loading falls back to the first preview-capable material path when the active platform cannot supply one shader-backed runtime material.
         /// </summary>
         [Fact]
-        public void ResolveMaterial_WhenActivePlatformLacksPreviewShader_PrefersWindowsPreviewPlatform() {
+        public void ResolveMaterial_WhenActivePlatformLacksPreviewShader_UsesFirstPreviewCapablePlatform() {
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             WriteMaterialSettingsDocument(materialRelativePath, CreatePreviewAndFixedPipelineMaterialSettings("#336699"));
             new EditorProjectPlatformsService(TempProjectRootPath).Save(new EditorProjectPlatformsDocument {
