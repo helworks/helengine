@@ -690,6 +690,58 @@ namespace helengine.editor {
 
             AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
             EnsureImportSettingsValid(settings);
+            string platformId = ResolveTextureProcessorPlatformId(settings);
+            FontAsset asset = BuildImportedFontAsset(sourcePath, settings, platformId, settings.Importer.AssetId);
+
+            string outputPath = GetFontAssetPath(settings.Importer.AssetId);
+            EnsureDirectoryForFile(outputPath);
+            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                FontAssetBinarySerializer.Serialize(stream, asset);
+            }
+
+            SaveImportSettings(sourcePath, settings);
+            return asset;
+        }
+
+        /// <summary>
+        /// Builds one font asset for an explicit platform texture-settings context without writing the canonical font cache file.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the font source file.</param>
+        /// <param name="platformId">Target platform identifier whose texture settings should be applied.</param>
+        /// <returns>Imported <see cref="FontAsset"/> instance for the requested platform.</returns>
+        public FontAsset BuildFontAssetForPlatform(string sourcePath, string platformId) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            if (!File.Exists(sourcePath)) {
+                throw new FileNotFoundException("Font source file was not found.", sourcePath);
+            }
+
+            AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
+            EnsureImportSettingsValid(settings);
+            string fontAssetId = BuildFontAssetId(settings, settings.Importer.SourceChecksum, platformId);
+            return BuildImportedFontAsset(sourcePath, settings, platformId, fontAssetId);
+        }
+
+        /// <summary>
+        /// Imports one font asset and applies the requested platform texture settings before any caller-specific cache write occurs.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the font source file.</param>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <param name="platformId">Target platform identifier whose texture settings should drive atlas processing.</param>
+        /// <param name="fontAssetId">Processed font asset identifier whose atlas suffix should be published on the source texture.</param>
+        /// <returns>Imported <see cref="FontAsset"/> instance with the requested platform texture settings applied.</returns>
+        FontAsset BuildImportedFontAsset(string sourcePath, AssetImportSettings settings, string platformId, string fontAssetId) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(fontAssetId)) {
+                throw new ArgumentException("Font asset id must be provided.", nameof(fontAssetId));
+            }
 
             EnsureFontImporterExists(settings.Importer.ImporterId);
             FontAsset asset = AssetContentManager.Load<FontAsset>(sourcePath, settings.Importer.ImporterId);
@@ -702,22 +754,15 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Font importers must provide one source atlas texture.");
             }
 
-            TextureAssetProcessorSettings textureProcessorSettings = GetCurrentPlatformTextureProcessorSettings(settings);
+            TextureAssetProcessorSettings textureProcessorSettings = GetTextureProcessorSettings(settings, platformId);
             if (textureProcessorSettings.UsesGenericColorFormat()) {
                 TextureAsset processedSourceTextureAsset = TextureAssetProcessor.Apply(asset.SourceTextureAsset, textureProcessorSettings);
                 asset.ApplyProcessedSourceTextureAsset(processedSourceTextureAsset);
             }
-            string fontAtlasAssetId = settings.Importer.AssetId + "#atlas";
+
+            string fontAtlasAssetId = fontAssetId + "#atlas";
             asset.SourceTextureAsset.Id = fontAtlasAssetId;
             asset.SourceTextureAsset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(fontAtlasAssetId);
-
-            string outputPath = GetFontAssetPath(settings.Importer.AssetId);
-            EnsureDirectoryForFile(outputPath);
-            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                FontAssetBinarySerializer.Serialize(stream, asset);
-            }
-
-            SaveImportSettings(sourcePath, settings);
             return asset;
         }
 
@@ -2546,18 +2591,7 @@ namespace helengine.editor {
 
                 if (IsFontImporterRegistered(settings.Importer.ImporterId)) {
                     string texturePlatformId = ResolveTextureProcessorPlatformId(settings);
-                    TextureAssetProcessorSettings textureProcessorSettings = GetCurrentPlatformTextureProcessorSettings(settings);
-                    string fontIdentity = string.Concat(
-                        "font", "\n",
-                        sourceChecksum, "\n",
-                        settings.Importer.ImporterId ?? string.Empty, "\n",
-                        texturePlatformId, "\n",
-                        textureProcessorSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
-                        textureProcessorSettings.ColorFormatId ?? string.Empty, "\n",
-                        ((int)textureProcessorSettings.AlphaPrecision).ToString(System.Globalization.CultureInfo.InvariantCulture));
-                    byte[] fontIdentityBytes = System.Text.Encoding.UTF8.GetBytes(fontIdentity);
-                    byte[] fontHashBytes = System.Security.Cryptography.SHA256.HashData(fontIdentityBytes);
-                    return Convert.ToHexString(fontHashBytes).ToLowerInvariant();
+                    return BuildFontAssetId(settings, sourceChecksum, texturePlatformId);
                 }
 
                 if (ShouldUseTextureImporterQualifiedAssetId(sourcePath, settings)) {
@@ -2625,6 +2659,62 @@ namespace helengine.editor {
             byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
             return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Builds the processed font asset identifier for the current import settings and explicit platform texture-settings context.
+        /// </summary>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <param name="sourceChecksum">Checksum of the source file contents.</param>
+        /// <param name="platformId">Platform texture-settings key that should drive identity generation.</param>
+        /// <returns>Processed asset identifier for the supplied font-processing context.</returns>
+        string BuildFontAssetId(AssetImportSettings settings, string sourceChecksum, string platformId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(sourceChecksum)) {
+                throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
+            }
+
+            TextureAssetProcessorSettings textureProcessorSettings = GetTextureProcessorSettings(settings, platformId);
+            string fontIdentity = string.Concat(
+                "font", "\n",
+                sourceChecksum, "\n",
+                settings.Importer.ImporterId ?? string.Empty, "\n",
+                platformId, "\n",
+                textureProcessorSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
+                textureProcessorSettings.ColorFormatId ?? string.Empty, "\n",
+                ((int)textureProcessorSettings.AlphaPrecision).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            byte[] fontIdentityBytes = System.Text.Encoding.UTF8.GetBytes(fontIdentity);
+            byte[] fontHashBytes = System.Security.Cryptography.SHA256.HashData(fontIdentityBytes);
+            return Convert.ToHexString(fontHashBytes).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Resolves the texture processor settings for one explicit platform id, returning defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <param name="platformId">Platform texture-settings key that should drive the returned processor settings.</param>
+        /// <returns>Texture processor settings for the requested platform context.</returns>
+        TextureAssetProcessorSettings GetTextureProcessorSettings(AssetImportSettings settings, string platformId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string normalizedPlatformId = platformId ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalizedPlatformId)) {
+                return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            AssetPlatformProcessorSettings platformSettings;
+            if (!settings.Processor.Platforms.TryGetValue(normalizedPlatformId, out platformSettings) || platformSettings == null || platformSettings.Texture == null) {
+                return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            return platformSettings.Texture;
         }
 
         /// <summary>

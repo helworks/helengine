@@ -272,10 +272,6 @@ namespace helengine.editor {
         /// </summary>
         const string ImageTextureCapabilitySourceAssetKind = "texture";
         /// <summary>
-        /// Texture capability source asset kind used for font atlas texture entries.
-        /// </summary>
-        const string FontTextureCapabilitySourceAssetKind = "font-atlas-texture";
-        /// <summary>
         /// Cached height of the view in pixels.
         /// </summary>
         int LayoutHeightValue;
@@ -1175,7 +1171,7 @@ namespace helengine.editor {
             if (CurrentEntryKind == AssetEntryKind.Image) {
                 return ImageTextureCapabilitySourceAssetKind;
             } else if (CurrentEntryKind == AssetEntryKind.Font) {
-                return FontTextureCapabilitySourceAssetKind;
+                return ImageTextureCapabilitySourceAssetKind;
             }
 
             return string.Empty;

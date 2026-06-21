@@ -561,6 +561,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures font import processing can be resolved for one explicit target platform without overwriting the single canonical cached font path.
+        /// </summary>
+        [Fact]
+        public void BuildFontAssetForPlatform_WhenExplicitPlatformResizesAtlas_UsesRequestedPlatformSettings() {
+            string sourcePath = WriteSourceFont("demo-body-explicit-platform.ttf");
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterFontImporter(new FontImporterRegistration("test-font", new ConfigurableFontImporter(256, 128, new byte[256 * 128 * 4]), new[] { ".ttf" }));
+
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Rgba32,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                },
+                Model = new ModelAssetProcessorSettings(),
+                Material = new MaterialAssetProcessorSettings()
+            };
+            manager.SaveImportSettings(sourcePath, settings);
+
+            FontAsset asset = manager.BuildFontAssetForPlatform(sourcePath, "gamecube");
+
+            Assert.NotNull(asset);
+            Assert.NotNull(asset.SourceTextureAsset);
+            Assert.Equal((ushort)128, asset.SourceTextureAsset.Width);
+            Assert.Equal((ushort)64, asset.SourceTextureAsset.Height);
+            Assert.Equal(128, asset.AtlasWidth);
+            Assert.Equal(64, asset.AtlasHeight);
+
+            string canonicalCachedFontPath = Path.Combine(CacheRootPath, manager.LoadOrCreateImportSettings(sourcePath).Importer.AssetId);
+            Assert.False(File.Exists(canonicalCachedFontPath));
+        }
+
+        /// <summary>
         /// Ensures font metrics follow the processed atlas size when per-platform texture settings resize the imported atlas.
         /// </summary>
         [Fact]

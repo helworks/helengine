@@ -300,7 +300,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures font atlas texture settings use the font-atlas texture capability instead of the generic image texture capability.
+        /// Ensures font atlas texture settings use the generic platform texture capability metadata.
         /// </summary>
         [Fact]
         public void Show_WhenFontTextureCapabilityMetadataExists_ConstrainsFontTextureFormatOptions() {
@@ -328,8 +328,8 @@ namespace helengine.editor.tests {
             List<string> colorItems = GetPrivateField<List<string>>(colorComboBox, "items");
             List<string> alphaItems = GetPrivateField<List<string>>(alphaComboBox, "items");
 
-            Assert.Equal([TextureAssetColorFormat.Indexed8.ToString()], colorItems);
-            Assert.Equal([TextureAssetAlphaPrecision.A8.ToString()], alphaItems);
+            Assert.Equal([TextureAssetColorFormat.Rgba4444.ToString(), TextureAssetColorFormat.Indexed8.ToString()], colorItems);
+            Assert.Equal([TextureAssetAlphaPrecision.A4.ToString(), TextureAssetAlphaPrecision.A8.ToString()], alphaItems);
         }
 
         /// <summary>
@@ -536,7 +536,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Creates one platform-definition map that publishes different capability-constrained texture formats for images and font atlases.
+        /// Creates one platform-definition map that publishes generic texture capability metadata shared by image and font atlas settings.
         /// </summary>
         /// <returns>Platform definitions keyed by platform id.</returns>
         IReadOnlyDictionary<string, PlatformDefinition> CreatePlatformDefinitionsById() {
@@ -565,17 +565,6 @@ namespace helengine.editor.tests {
                                     new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Rgba4444.ToString(), TextureAssetAlphaPrecision.A4),
                                     new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8.ToString(), TextureAssetAlphaPrecision.A8)
                                 ])),
-                        new PlatformAssetCookCapabilityDefinition(
-                            "font-atlas-texture",
-                            "runtime-texture",
-                            PlatformAssetCookOwnershipKind.BuilderOwned,
-                            "external-platform-font-atlas-texture",
-                            textureFormatCapabilities: new PlatformTextureFormatCapabilityDefinition(
-                                [TextureAssetColorFormat.Indexed8.ToString()],
-                                [TextureAssetAlphaPrecision.A8],
-                                [
-                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8.ToString(), TextureAssetAlphaPrecision.A8)
-                                ]))
                     ])
             };
         }

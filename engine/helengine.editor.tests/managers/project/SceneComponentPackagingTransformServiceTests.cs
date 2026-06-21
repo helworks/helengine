@@ -119,6 +119,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures builder-owned font-atlas texture capabilities externalize imported font atlases through the shared generic texture path.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenPlatformOwnsFontAtlasTextureCooking_ExternalizesImportedFontAtlasUsingGenericTexturePath() {
+            string fontRelativePath = "Fonts/DemoDiscTitle.ttf";
+            List<PlatformCookWorkItem> workItems = new List<PlatformCookWorkItem>();
+            SceneComponentPackagingTransformService service = CreateBuilderOwnedFontAtlasService(workItems, new StubTextComponentSpriteBakeService());
+            WriteSourceFont(fontRelativePath);
+            SceneComponentAssetRecord record = CreateDebugRecord(CreateFileFontReference(fontRelativePath));
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            PlatformCookWorkItem workItem = Assert.Single(workItems);
+            Assert.Equal("texture", workItem.SourceAssetKind);
+            Assert.Equal(".hetex", Path.GetExtension(workItem.SourceAssetPath));
+            Assert.Contains(Path.Combine(ProjectRootPath, "cache", "generated", "platform-fonts"), workItem.SourceAssetPath, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("cooked/fonts/demodisctitle.hetex", workItem.OutputRelativePath);
+
+            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "fonts", "demodisctitle.hefont");
+            using FileStream fontStream = File.OpenRead(cookedFontPath);
+            FontAsset cookedFontAsset = helengine.files.FontAssetBinarySerializer.Deserialize(fontStream);
+            Assert.Equal("cooked/fonts/demodisctitle.hetex", cookedFontAsset.CookedAtlasTextureRelativePath);
+            Assert.Null(cookedFontAsset.SourceTextureAsset);
+        }
+
+        /// <summary>
         /// Ensures authored sprite components that persist their texture field through the automatic editor payload contract still package successfully.
         /// </summary>
         [Fact]
@@ -210,6 +238,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one transform service whose target platform publishes builder-owned font-atlas texture cooking.
+        /// </summary>
+        /// <param name="workItems">Collected builder-owned work items emitted during packaging.</param>
+        /// <param name="bakeService">Bake service that should receive flagged text requests.</param>
+        /// <returns>Configured transform service that records generated font-atlas cook work items.</returns>
+        SceneComponentPackagingTransformService CreateBuilderOwnedFontAtlasService(List<PlatformCookWorkItem> workItems, ITextComponentSpriteBakeService bakeService) {
+            if (workItems == null) {
+                throw new ArgumentNullException(nameof(workItems));
+            }
+
+            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
+            assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
+
+            return new SceneComponentPackagingTransformService(
+                Path.Combine(ProjectRootPath, "assets"),
+                contentManager,
+                assetImportManager,
+                fileSystemModelResolver,
+                new List<string>(),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                "external-platform",
+                null,
+                string.Empty,
+                string.Empty,
+                null,
+                workItems.Add,
+                CreateBuilderOwnedFontAtlasPlatformDefinition(),
+                bakeService);
+        }
+
+        /// <summary>
         /// Creates one automatic reflected text-component record for packaging verification.
         /// </summary>
         /// <param name="convertTextToSprite">True when the authored text should request build-time sprite conversion.</param>
@@ -277,6 +339,16 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one minimal source font file expected by the authored font packaging path.
+        /// </summary>
+        /// <param name="relativePath">Project-relative source font path.</param>
+        void WriteSourceFont(string relativePath) {
+            string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            File.WriteAllBytes(fullPath, [0x00]);
+        }
+
+        /// <summary>
         /// Creates one generated editor-font reference matching authored text scene payloads.
         /// </summary>
         /// <returns>Generated editor-font reference.</returns>
@@ -286,6 +358,20 @@ namespace helengine.editor.tests {
                 RelativePath = "generated/editor/fonts/ui.hefont",
                 ProviderId = "editor",
                 AssetId = "ui-font"
+            };
+        }
+
+        /// <summary>
+        /// Creates one file-backed font reference for authored runtime payloads.
+        /// </summary>
+        /// <param name="relativePath">Project-relative font path.</param>
+        /// <returns>File-backed font reference.</returns>
+        static SceneAssetReference CreateFileFontReference(string relativePath) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = relativePath,
+                ProviderId = string.Empty,
+                AssetId = string.Empty
             };
         }
 
@@ -395,6 +481,34 @@ namespace helengine.editor.tests {
                         PlatformAssetCookOwnershipKind.BuilderOwned,
                         "texture.settings",
                         "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A4\",\"indexingMethod\":\"QuantizedIndexed\"}")
+                });
+        }
+
+        /// <summary>
+        /// Creates one minimal platform definition whose texture cook is owned by the builder and reused for font atlas outputs.
+        /// </summary>
+        /// <returns>Minimal platform definition with one builder-owned texture cook capability.</returns>
+        static PlatformDefinition CreateBuilderOwnedFontAtlasPlatformDefinition() {
+            return new PlatformDefinition(
+                "external-platform",
+                "External Platform",
+                Array.Empty<PlatformBuildProfileDefinition>(),
+                Array.Empty<PlatformGraphicsProfileDefinition>(),
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                RuntimeGenerationContract.CreateDefault(),
+                PlatformHostDebugCapability.CreateDefault(),
+                new[] {
+                    new PlatformAssetCookCapabilityDefinition(
+                        "texture",
+                        "runtime-texture",
+                        PlatformAssetCookOwnershipKind.BuilderOwned,
+                        "texture.settings",
+                        "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\",\"indexingMethod\":\"QuantizedIndexed\"}")
                 });
         }
 
