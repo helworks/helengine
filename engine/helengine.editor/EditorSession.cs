@@ -4272,10 +4272,7 @@ namespace helengine.editor {
         /// <param name="scriptTypeResolver">Resolver backed by the currently loaded project script assemblies.</param>
         /// <returns>Configured persistence registry.</returns>
         static ComponentPersistenceRegistry CreateComponentPersistenceRegistry(IScriptTypeResolver scriptTypeResolver) {
-            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
-            persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
-            return persistenceRegistry;
+            return new ComponentPersistenceRegistry(scriptTypeResolver);
         }
 
         /// <summary>

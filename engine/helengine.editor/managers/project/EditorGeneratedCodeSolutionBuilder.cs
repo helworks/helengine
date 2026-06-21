@@ -12,9 +12,9 @@ namespace helengine.editor {
         const string RuntimeTargetFrameworkValue = "net9.0";
 
         /// <summary>
-        /// Target framework used by generated editor-only script projects that bind against Windows-hosted editor assemblies.
+        /// Target framework used by generated editor-only script projects that bind against the shared editor assemblies.
         /// </summary>
-        const string EditorTargetFrameworkValue = "net9.0-windows";
+        const string EditorTargetFrameworkValue = "net9.0";
 
         /// <summary>
         /// Builds the generated code solution description for the supplied authored modules.

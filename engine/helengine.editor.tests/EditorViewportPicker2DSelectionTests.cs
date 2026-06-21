@@ -142,7 +142,7 @@ namespace helengine.editor.tests {
             overlappingMeshEntity.InitChildren();
             overlappingMeshEntity.AddComponent(new MeshComponent {
                 Model = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.PlaneAssetId),
-                Material = helengine.editor.EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial()
+                Materials = new RuntimeMaterial[] { helengine.editor.EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial() }
             });
 
             Entity selectedEntity = EditorViewportDirect2DPresentationService.ResolveSelectableEntityAtPointer(

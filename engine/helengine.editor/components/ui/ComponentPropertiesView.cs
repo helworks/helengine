@@ -1120,6 +1120,11 @@ namespace helengine.editor {
             if (row.Property == null) {
                 return null;
             }
+            if (row.Kind == ComponentPropertyRowKind.Material
+                && row.Property.PropertyType == typeof(RuntimeMaterial[])
+                && string.Equals(row.Property.Name, nameof(MeshComponent.Materials), StringComparison.Ordinal)) {
+                return AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(row.Property.Name, 0);
+            }
             if (string.IsNullOrWhiteSpace(row.NestedMemberName)) {
                 return row.Property.Name;
             }
@@ -1306,8 +1311,10 @@ namespace helengine.editor {
                 return null;
             }
 
-            if (TryGetSuppressedCameraPropertyValue(row, out object suppressedValue)) {
-                return suppressedValue;
+            if (row.Kind == ComponentPropertyRowKind.Material
+                && row.Property.PropertyType == typeof(RuntimeMaterial[])
+                && row.Property.GetValue(row.TargetComponent) is RuntimeMaterial[] runtimeMaterials) {
+                return runtimeMaterials.Length == 0 ? null : runtimeMaterials[0];
             }
 
             return row.Property.GetValue(row.TargetComponent);
@@ -1999,19 +2006,14 @@ namespace helengine.editor {
                 && string.Equals(row.CustomEditorTypeId, CameraClearSettingsPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
                 CameraClearSettings settings = ReadCameraClearSettings(row);
                 settings = WriteCameraClearSettingsNestedValue(row, settings, value);
-                if (!TrySetSuppressedCameraPropertyValue(row, settings)) {
-                    row.Property.SetValue(row.TargetComponent, settings);
-                }
-                PersistPlatformOverrideIfNeeded(row);
-                return;
-            }
-
-            if (TrySetSuppressedCameraPropertyValue(row, value)) {
+                row.Property.SetValue(row.TargetComponent, settings);
+                RefreshSuppressedCameraRuntimeState(row);
                 PersistPlatformOverrideIfNeeded(row);
                 return;
             }
 
             row.Property.SetValue(row.TargetComponent, value);
+            RefreshSuppressedCameraRuntimeState(row);
             PersistPlatformOverrideIfNeeded(row);
         }
 
@@ -2042,38 +2044,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to resolve one authored suppressed-camera property value for a row.
-        /// </summary>
-        /// <param name="row">Row being read.</param>
-        /// <param name="value">Authored property value when suppression metadata owns the property.</param>
-        /// <returns>True when the row resolves through suppression metadata; otherwise false.</returns>
-        bool TryGetSuppressedCameraPropertyValue(ComponentPropertyRow row, out object value) {
-            if (row == null) {
-                throw new ArgumentNullException(nameof(row));
-            }
-            if (row.TargetComponent is CameraComponent cameraComponent) {
-                return EditorSceneCameraSuppressionService.TryGetAuthoredPropertyValue(cameraComponent, row.Property.Name, out value);
-            }
-
-            value = null;
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to write one authored suppressed-camera property value for a row.
+        /// Reapplies editor suppression after a live camera property changes through the inspector.
         /// </summary>
         /// <param name="row">Row being updated.</param>
-        /// <param name="value">Authored property value to store.</param>
-        /// <returns>True when the row writes through suppression metadata; otherwise false.</returns>
-        bool TrySetSuppressedCameraPropertyValue(ComponentPropertyRow row, object value) {
+        void RefreshSuppressedCameraRuntimeState(ComponentPropertyRow row) {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
             }
             if (row.TargetComponent is CameraComponent cameraComponent) {
-                return EditorSceneCameraSuppressionService.TrySetAuthoredPropertyValue(cameraComponent, row.Property.Name, value);
+                EditorSceneCameraSuppressionService.RefreshSuppressedRuntimeState(cameraComponent);
             }
-
-            return false;
         }
 
         /// <summary>
@@ -2184,7 +2164,12 @@ namespace helengine.editor {
             try {
                 EnsureEditableComponentForRow(row);
                 RuntimeMaterial material = LoadMaterial(entry);
-                row.Property.SetValue(row.TargetComponent, material);
+                if (row.Property.PropertyType == typeof(RuntimeMaterial[])
+                    && string.Equals(row.Property.Name, nameof(MeshComponent.Materials), StringComparison.Ordinal)) {
+                    row.Property.SetValue(row.TargetComponent, new RuntimeMaterial[] { material });
+                } else {
+                    row.Property.SetValue(row.TargetComponent, material);
+                }
                 if (entry != null && material != null) {
                     MaterialLabels[material] = entry.Name ?? string.Empty;
                 }
@@ -3565,12 +3550,17 @@ namespace helengine.editor {
             }
 
             SceneAssetReference assetReference = AssetReferenceFactory.CreateFromEntry(entry);
+            string propertyPath = BuildRowPropertyPath(row);
+            if (string.IsNullOrWhiteSpace(propertyPath)) {
+                return;
+            }
+
             if (row.CommonComponent == null) {
                 PlatformEditingService.StoreAddedComponentAssetReference(
                     row.TargetComponent,
                     row.SaveComponent,
                     row.EditingPlatformId ?? ComponentPlatformEditingService.CommonPlatformId,
-                    row.Property.Name,
+                    propertyPath,
                     assetReference);
                 return;
             }
@@ -3580,7 +3570,7 @@ namespace helengine.editor {
                 row.TargetComponent,
                 row.SaveComponent,
                 row.EditingPlatformId ?? ComponentPlatformEditingService.CommonPlatformId,
-                row.Property.Name,
+                propertyPath,
                 assetReference);
         }
 

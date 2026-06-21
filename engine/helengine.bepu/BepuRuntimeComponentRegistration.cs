@@ -9,31 +9,14 @@ namespace helengine {
         static BepuPhysicsWorld3D RuntimeWorld;
 
         /// <summary>
-        /// Registers the packaged-scene component deserializers on one initialized core instance and attaches the BEPU-backed runtime.
+        /// Attaches the BEPU-backed runtime and scene-load binding on one initialized core instance.
         /// </summary>
         /// <param name="core">Initialized core that owns the runtime scene loader.</param>
         public static void Register(Core core) {
             ValidateCore(core);
-            RegisterRuntimeComponentDeserializers(core);
             BepuPhysicsWorld3D world = CreateRuntimeWorld(core);
             AttachRuntimeWorld(core, world);
             RegisterSceneBinding(core);
-        }
-
-        /// <summary>
-        /// Registers every packaged-scene component deserializer required by the BEPU-backed runtime.
-        /// </summary>
-        /// <param name="core">Initialized core that owns the runtime component registry.</param>
-        public static void RegisterRuntimeComponentDeserializers(Core core) {
-            ValidateCore(core);
-
-            core.RegisterRuntimeComponentDeserializer(new RuntimeRigidBody3DComponentDeserializer());
-            core.RegisterRuntimeComponentDeserializer(new RuntimeBoxCollider3DComponentDeserializer());
-            core.RegisterRuntimeComponentDeserializer(new RuntimeSphereCollider3DComponentDeserializer());
-            core.RegisterRuntimeComponentDeserializer(new RuntimeCapsuleCollider3DComponentDeserializer());
-            core.RegisterRuntimeComponentDeserializer(new RuntimeStaticMeshCollider3DComponentDeserializer());
-            core.RegisterRuntimeComponentDeserializer(new RuntimeKinematicMotion3DComponentDeserializer());
-            core.RegisterRuntimeComponentDeserializer(new RuntimeCharacterController3DComponentDeserializer());
         }
 
         /// <summary>

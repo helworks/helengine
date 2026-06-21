@@ -25,8 +25,8 @@ namespace helengine.editor.tests.managers.scene {
             Assert.True(planeEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCanvasPlane, planeEntity.LayerMask);
             Assert.NotNull(meshComponent.Model);
-            Assert.NotNull(meshComponent.Material);
-            ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(meshComponent.Material);
+            Assert.NotNull(Assert.Single(meshComponent.Materials));
+            ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(meshComponent.Materials));
             Assert.Same(renderTarget, material.ResolveTexture());
             Assert.Equal(new float2(0f, 1f), builtModelAsset.TexCoords[0]);
             Assert.Equal(new float2(0f, 0f), builtModelAsset.TexCoords[3]);

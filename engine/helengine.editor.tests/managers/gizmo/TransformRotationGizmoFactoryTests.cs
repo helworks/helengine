@@ -90,7 +90,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             MeshComponent meshComponent = FindMeshComponent(previewEntity);
             Assert.NotNull(meshComponent);
-            Assert.Same(expectedMaterial, meshComponent.Material);
+            Assert.Same(expectedMaterial, Assert.Single(meshComponent.Materials));
             Assert.Null(meshComponent.Model);
         }
 
@@ -144,7 +144,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             MeshComponent meshComponent = FindMeshComponent(ringEntity);
             Assert.NotNull(meshComponent);
-            Assert.Same(expectedMaterial, meshComponent.Material);
+            Assert.Same(expectedMaterial, Assert.Single(meshComponent.Materials));
             Assert.NotNull(meshComponent.Model);
         }
 

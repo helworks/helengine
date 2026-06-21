@@ -76,7 +76,7 @@ namespace helengine.editor.tests.rendering {
         public void SceneCatalog_WhenLoadingDepthPrepass_CameraUsesAlwaysDepthPrepass() {
             SceneAsset sceneAsset = LoadSceneAsset("depth-prepass.helen");
             SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
-            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
 
             CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
 
@@ -104,7 +104,7 @@ namespace helengine.editor.tests.rendering {
         public void SceneCatalog_WhenLoadingPointShadow_IncludesCameraPointLightAndMultipleMeshes() {
             SceneAsset sceneAsset = LoadSceneAsset("point-shadow.helen");
             SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
-            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
 
             Assert.NotNull(cameraRecord);
@@ -122,7 +122,7 @@ namespace helengine.editor.tests.rendering {
         public void SceneCatalog_WhenLoadingPointShadowLab_IncludesCameraPointLightAndEnclosedDebugRoom() {
             SceneAsset sceneAsset = LoadSceneAsset("point-shadow-lab.helen");
             SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
-            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
 
             Assert.NotNull(cameraRecord);
@@ -140,7 +140,7 @@ namespace helengine.editor.tests.rendering {
         public void SceneCatalog_WhenLoadingSpotShadowLab_IncludesCameraSpotLightAndEnclosedDebugRoom() {
             SceneAsset sceneAsset = LoadSceneAsset("spot-shadow-lab.helen");
             SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
-            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
             int meshComponentCount = CountComponents(sceneAsset.RootEntities, "helengine.MeshComponent");
 
@@ -160,7 +160,7 @@ namespace helengine.editor.tests.rendering {
             SceneAsset sceneAsset = LoadSceneAsset("directional-shadow-lab.helen");
             SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
             SceneComponentAssetRecord directionalLightRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.DirectionalLightComponent");
-            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             AutomaticScriptComponentPersistenceDescriptor lightDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
             DirectionalLightComponent directionalLightComponent = (DirectionalLightComponent)lightDescriptor.DeserializeComponent(directionalLightRecord, null, null);
@@ -183,7 +183,7 @@ namespace helengine.editor.tests.rendering {
             SceneAsset sceneAsset = LoadSceneAsset("directional-shadow-plaza.helen");
             SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
             SceneComponentAssetRecord directionalLightRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.DirectionalLightComponent");
-            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
 
             Assert.NotNull(cameraRecord);

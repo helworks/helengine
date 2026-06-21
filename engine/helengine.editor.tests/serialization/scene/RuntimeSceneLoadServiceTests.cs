@@ -380,15 +380,22 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures packaged runtime scene loading materializes mesh components through the registry.
+        /// Ensures packaged runtime scene loading materializes mesh components through the automatic reflected runtime path.
         /// </summary>
         [Fact]
-        public void Load_WhenSceneContainsMeshComponent_MaterializesTheComponent() {
+        public void Load_WhenSceneContainsGenericMeshPayload_MaterializesTheComponent() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 Core.Instance.ContentManager,
                 TempRootPath,
                 ShaderCompileTarget.DirectX11);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            MeshComponent meshComponentToSerialize = new MeshComponent {
+                RenderOrder3D = 4
+            };
+            SetMeshMaterials(meshComponentToSerialize, new RuntimeMaterial[] {
+                null,
+                null
+            });
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -396,9 +403,9 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.MeshComponent",
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(MeshComponent)),
                                 ComponentIndex = 0,
-                                Payload = WriteMeshComponentPayload()
+                                Payload = WriteAutomaticRuntimeComponentPayload(meshComponentToSerialize, new EntityComponentSaveState())
                             }
                         }
                     }
@@ -408,22 +415,32 @@ namespace helengine.editor.tests.serialization.scene {
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
             Entity loadedRoot = Assert.Single(loadedRoots);
             MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(loadedRoot.Components, component => component is MeshComponent));
+            RuntimeMaterial[] restoredMaterials = GetMeshMaterials(meshComponent);
 
-            Assert.Equal((byte)9, meshComponent.RenderOrder3D);
+            Assert.Equal((byte)4, meshComponent.RenderOrder3D);
             Assert.Null(meshComponent.Model);
-            Assert.Null(meshComponent.Material);
+            Assert.Equal(2, restoredMaterials.Length);
+            Assert.Null(restoredMaterials[0]);
+            Assert.Null(restoredMaterials[1]);
         }
 
         /// <summary>
-        /// Ensures packaged runtime scene loading materializes mesh components that carry multiple material slots in payload version 2.
+        /// Ensures packaged runtime scene loading preserves multiple null mesh material slots through the generic reflected runtime payload path.
         /// </summary>
         [Fact]
-        public void Load_WhenSceneContainsVersion2MeshComponentWithMultipleMaterialSlots_MaterializesEverySlot() {
+        public void Load_WhenSceneContainsGenericMeshPayloadWithMultipleMaterialSlots_MaterializesEverySlot() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 Core.Instance.ContentManager,
                 TempRootPath,
                 ShaderCompileTarget.DirectX11);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            MeshComponent meshComponentToSerialize = new MeshComponent {
+                RenderOrder3D = 21
+            };
+            SetMeshMaterials(meshComponentToSerialize, new RuntimeMaterial[] {
+                null,
+                null
+            });
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -431,9 +448,9 @@ namespace helengine.editor.tests.serialization.scene {
                         Name = "Root",
                         Components = new[] {
                             new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.MeshComponent",
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(MeshComponent)),
                                 ComponentIndex = 0,
-                                Payload = WriteMeshComponentPayloadVersion2WithEmptyMaterialSlots()
+                                Payload = WriteAutomaticRuntimeComponentPayload(meshComponentToSerialize, new EntityComponentSaveState())
                             }
                         }
                     }
@@ -443,13 +460,13 @@ namespace helengine.editor.tests.serialization.scene {
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
             Entity loadedRoot = Assert.Single(loadedRoots);
             MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(loadedRoot.Components, component => component is MeshComponent));
+            RuntimeMaterial[] restoredMaterials = GetMeshMaterials(meshComponent);
 
             Assert.Equal((byte)21, meshComponent.RenderOrder3D);
             Assert.Null(meshComponent.Model);
-            Assert.Null(meshComponent.Material);
-            Assert.Equal(2, meshComponent.Materials.Length);
-            Assert.Null(meshComponent.Materials[0]);
-            Assert.Null(meshComponent.Materials[1]);
+            Assert.Equal(2, restoredMaterials.Length);
+            Assert.Null(restoredMaterials[0]);
+            Assert.Null(restoredMaterials[1]);
         }
 
         /// <summary>
@@ -1258,6 +1275,35 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Assigns runtime materials through the public writable mesh property expected by generic reflected persistence.
+        /// </summary>
+        /// <param name="meshComponent">Mesh component receiving the runtime material array.</param>
+        /// <param name="materials">Runtime materials to assign.</param>
+        void SetMeshMaterials(MeshComponent meshComponent, RuntimeMaterial[] materials) {
+            if (meshComponent == null) {
+                throw new ArgumentNullException(nameof(meshComponent));
+            }
+
+            System.Reflection.PropertyInfo materialsProperty = typeof(MeshComponent).GetProperty(nameof(MeshComponent.Materials)) ?? throw new InvalidOperationException("MeshComponent must expose a public Materials property.");
+            Assert.True(materialsProperty.CanWrite, "MeshComponent.Materials must be writable for generic reflected persistence.");
+            materialsProperty.SetValue(meshComponent, materials);
+        }
+
+        /// <summary>
+        /// Reads runtime materials through the public mesh property expected by generic reflected persistence.
+        /// </summary>
+        /// <param name="meshComponent">Mesh component whose runtime materials should be read.</param>
+        /// <returns>Runtime materials currently assigned to the mesh component.</returns>
+        RuntimeMaterial[] GetMeshMaterials(MeshComponent meshComponent) {
+            if (meshComponent == null) {
+                throw new ArgumentNullException(nameof(meshComponent));
+            }
+
+            System.Reflection.PropertyInfo materialsProperty = typeof(MeshComponent).GetProperty(nameof(MeshComponent.Materials)) ?? throw new InvalidOperationException("MeshComponent must expose a public Materials property.");
+            return Assert.IsType<RuntimeMaterial[]>(materialsProperty.GetValue(meshComponent));
+        }
+
+        /// <summary>
         /// Flattens the serialized component hierarchy for one scene entity array.
         /// </summary>
         /// <param name="entities">Serialized scene entities whose components should be enumerated.</param>
@@ -1394,64 +1440,25 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Writes one serialized mesh component payload with no external asset references.
-        /// </summary>
-        /// <returns>Serialized mesh component payload.</returns>
-        byte[] WriteMeshComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(MeshComponentScenePayloadSerializer.CurrentVersion);
-            writer.WriteByte(0);
-            writer.WriteInt32(0);
-            writer.WriteByte(9);
-            return stream.ToArray();
-        }
-
-        /// <summary>
-        /// Writes one version-2 serialized mesh component payload with two empty material slots.
-        /// </summary>
-        /// <returns>Serialized mesh component payload.</returns>
-        byte[] WriteMeshComponentPayloadVersion2WithEmptyMaterialSlots() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            writer.WriteByte(0);
-            writer.WriteInt32(2);
-            writer.WriteByte(0);
-            writer.WriteByte(0);
-            writer.WriteByte(21);
-            return stream.ToArray();
-        }
-
-        /// <summary>
         /// Writes one serialized camera component payload.
         /// </summary>
         /// <returns>Serialized camera component payload.</returns>
         byte[] WriteCameraComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(3);
-            writer.WriteByte(17);
-            writer.WriteUInt16(EditorLayerMasks.SceneObjects);
-            writer.WriteSingle(12f);
-            writer.WriteSingle(24f);
-            writer.WriteSingle(640f);
-            writer.WriteSingle(360f);
-            writer.WriteSingle(0.42f);
-            writer.WriteSingle(128f);
-            writer.WriteByte(1);
-            writer.WriteSingle(0.25f);
-            writer.WriteSingle(0.5f);
-            writer.WriteSingle(0.75f);
-            writer.WriteSingle(1f);
-            writer.WriteByte(1);
-            writer.WriteSingle(0.42f);
-            writer.WriteByte(1);
-            writer.WriteByte(9);
-            writer.WriteByte((byte)DepthPrepassMode.Always);
-            writer.WriteSingle(128f);
-            writer.WriteByte((byte)PostProcessTier.High);
-            return stream.ToArray();
+            return WriteAutomaticRuntimeComponentPayload(
+                new CameraComponent {
+                    CameraDrawOrder = 17,
+                    LayerMask = EditorLayerMasks.SceneObjects,
+                    Viewport = new float4(12f, 24f, 640f, 360f),
+                    NearPlaneDistance = 0.42f,
+                    FarPlaneDistance = 128f,
+                    ClearSettings = new CameraClearSettings(true, new float4(0.25f, 0.5f, 0.75f, 1f), true, 0.42f, true, 9),
+                    RenderSettings = new CameraRenderSettings {
+                        DepthPrepassMode = DepthPrepassMode.Always,
+                        ShadowDistance = 128f,
+                        PostProcessTier = PostProcessTier.High
+                    }
+                },
+                null);
         }
 
         /// <summary>

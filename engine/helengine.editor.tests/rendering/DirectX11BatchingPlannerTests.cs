@@ -44,7 +44,7 @@ namespace helengine.editor.tests.rendering {
             /// </summary>
             public TestDrawable3D() {
                 Model = new TestRuntimeModel();
-                Material = new TestRuntimeMaterial();
+                Materials = new[] { new TestRuntimeMaterial() };
             }
 
             /// <summary>
@@ -63,14 +63,9 @@ namespace helengine.editor.tests.rendering {
             public RuntimeModel Model { get; }
 
             /// <summary>
-            /// Gets or sets the runtime material used to render this drawable.
+            /// Gets or sets the runtime materials bound to each submesh slot.
             /// </summary>
-            public RuntimeMaterial Material { get; set; }
-
-            /// <summary>
-            /// Gets the runtime materials bound to each submesh slot.
-            /// </summary>
-            public RuntimeMaterial[] Materials => Material == null ? Array.Empty<RuntimeMaterial>() : new[] { Material };
+            public RuntimeMaterial[] Materials { get; set; }
         }
     }
 }

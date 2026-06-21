@@ -9,7 +9,8 @@ namespace helengine {
         /// <param name="drawable">Visible drawable associated with the shadow submission.</param>
         public RenderFrameShadowCasterSubmission(IDrawable3D drawable) {
             Drawable = drawable ?? throw new ArgumentNullException(nameof(drawable));
-            Material = drawable.Material;
+            RuntimeMaterial[] materials = drawable.Materials;
+            Material = materials != null && materials.Length > 0 ? materials[0] : null;
         }
 
         /// <summary>

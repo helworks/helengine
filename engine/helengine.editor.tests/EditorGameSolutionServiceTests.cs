@@ -160,7 +160,7 @@ namespace helengine.editor.tests {
         /// Ensures editor modules generate dedicated projects that reference the editor assembly surface.
         /// </summary>
         [Fact]
-        public void GenerateSolutionFiles_WhenEditorModuleExists_WritesEditorProjectWithEditorReference() {
+        public void GenerateSolutionFiles_WhenEditorModuleExists_WritesEditorProjectWithGenericTargetFrameworkAndEditorReference() {
             File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools"));
@@ -192,7 +192,7 @@ namespace helengine.editor.tests {
             string projectFilePath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools", "menu.tools.csproj");
             string projectFileContents = File.ReadAllText(projectFilePath);
             string globalUsingsContents = File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools", "GlobalUsings.g.cs"));
-            Assert.Contains("<TargetFramework>net9.0-windows</TargetFramework>", projectFileContents, StringComparison.Ordinal);
+            Assert.Contains("<TargetFramework>net9.0</TargetFramework>", projectFileContents, StringComparison.Ordinal);
             Assert.Contains("helengine.core", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("helengine.editor", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("..\\gameplay\\gameplay.csproj", projectFileContents, StringComparison.OrdinalIgnoreCase);

@@ -37,7 +37,7 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Single(renderManager3D.BuiltModelAssets);
             Assert.Single(renderManager3D.BuiltMaterialAssets);
             Assert.NotNull(meshComponent.Model);
-            Assert.NotNull(meshComponent.Material);
+            Assert.NotNull(Assert.Single(meshComponent.Materials));
         }
 
         /// <summary>

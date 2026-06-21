@@ -57,9 +57,9 @@ namespace helengine.editor.tests.managers.gizmo {
                 Assert.True(gizmoRoot.Children[childIndex].Enabled);
             }
 
-            Assert.Same(highlightMaterial, FindMeshComponent(gizmoRoot.Children[0].Children[0]).Material);
-            Assert.Same(normalMaterial, FindMeshComponent(gizmoRoot.Children[1].Children[0]).Material);
-            Assert.Same(normalMaterial, FindMeshComponent(gizmoRoot.Children[3]).Material);
+            Assert.Same(highlightMaterial, Assert.Single(FindMeshComponent(gizmoRoot.Children[0].Children[0]).Materials));
+            Assert.Same(normalMaterial, Assert.Single(FindMeshComponent(gizmoRoot.Children[1].Children[0]).Materials));
+            Assert.Same(normalMaterial, Assert.Single(FindMeshComponent(gizmoRoot.Children[3]).Materials));
         }
 
         /// <summary>
@@ -213,7 +213,7 @@ namespace helengine.editor.tests.managers.gizmo {
             shaftEntity.Scale = float3.Zero;
             MeshComponent shaftMesh = new MeshComponent();
             shaftMesh.Model = new TestRuntimeModel();
-            shaftMesh.Material = material;
+            shaftMesh.Materials = new RuntimeMaterial[] { material };
             shaftEntity.AddComponent(shaftMesh);
             axisEntity.AddChild(shaftEntity);
 
@@ -226,7 +226,7 @@ namespace helengine.editor.tests.managers.gizmo {
             tipEntity.Position = new float3(0f, TransformScaleGizmoFactory.ShaftLength, 0f);
             MeshComponent tipMesh = new MeshComponent();
             tipMesh.Model = new TestRuntimeModel();
-            tipMesh.Material = material;
+            tipMesh.Materials = new RuntimeMaterial[] { material };
             tipEntity.AddComponent(tipMesh);
             axisEntity.AddChild(tipEntity);
             return axisEntity;
@@ -251,7 +251,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             MeshComponent planeMesh = new MeshComponent();
             planeMesh.Model = new TestRuntimeModel();
-            planeMesh.Material = material;
+            planeMesh.Materials = new RuntimeMaterial[] { material };
             planeEntity.AddComponent(planeMesh);
             return planeEntity;
         }

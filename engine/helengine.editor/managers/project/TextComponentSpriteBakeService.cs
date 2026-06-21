@@ -171,20 +171,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves default processor settings for the generated texture based on the target platform.
+        /// Resolves the shared default processor settings for the generated texture.
         /// </summary>
         /// <param name="targetPlatformId">Target platform requesting the bake.</param>
         /// <returns>Processor settings that the generic texture cook pipeline should apply.</returns>
         static TextureAssetProcessorSettings ResolveProcessorSettings(string targetPlatformId) {
-            if (string.Equals(targetPlatformId, "ds", StringComparison.OrdinalIgnoreCase)) {
-                return new TextureAssetProcessorSettings {
-                    MaxResolution = 0,
-                    ColorFormatId = TextureAssetColorFormat.Indexed8.ToString(),
-                    AlphaPrecision = TextureAssetAlphaPrecision.A4,
-                    IndexingMethodId = TextureAssetIndexingMethod.QuantizedIndexed.ToString()
-                };
-            }
-
+            _ = targetPlatformId;
             return new TextureAssetProcessorSettings {
                 MaxResolution = 0,
                 ColorFormatId = TextureAssetColorFormat.Rgba32.ToString(),

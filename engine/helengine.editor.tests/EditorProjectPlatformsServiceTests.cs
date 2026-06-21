@@ -50,29 +50,32 @@ public sealed class EditorProjectPlatformsServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures the service seeds one minimal windows-only file when the project settings file is missing.
+    /// Ensures the service seeds one generic empty document when the project settings file is missing.
     /// </summary>
     [Fact]
-    public void Load_WhenPlatformsFileIsMissing_CreatesDefaultWindowsDocument() {
+    public void Load_WhenPlatformsFileIsMissing_CreatesDefaultEmptyDocument() {
         EditorProjectPlatformsService service = CreateService();
 
         EditorProjectPlatformsDocument document = service.Load();
 
-        Assert.Equal(new[] { "windows" }, document.SupportedPlatforms);
+        Assert.Empty(document.SupportedPlatforms);
         Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "settings", "platforms.json")));
     }
 
     /// <summary>
-    /// Ensures the service rejects empty supported-platform lists because Platforms must not save zero platforms.
+    /// Ensures the service persists empty supported-platform lists without injecting a preferred platform.
     /// </summary>
     [Fact]
-    public void Save_WhenSupportedPlatformsIsEmpty_Throws() {
+    public void Save_WhenSupportedPlatformsIsEmpty_PersistsEmptyDocument() {
         EditorProjectPlatformsService service = CreateService();
         EditorProjectPlatformsDocument document = new EditorProjectPlatformsDocument {
             SupportedPlatforms = []
         };
 
-        Assert.Throws<InvalidOperationException>(() => service.Save(document));
+        service.Save(document);
+
+        EditorProjectPlatformsDocument reloaded = service.Load();
+        Assert.Empty(reloaded.SupportedPlatforms);
     }
 
     /// <summary>

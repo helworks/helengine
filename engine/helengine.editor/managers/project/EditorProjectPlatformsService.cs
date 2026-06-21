@@ -40,7 +40,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads the project platform settings document, creating a default windows-only document when the file is missing or invalid.
+        /// Loads the project platform settings document, creating a default empty document when the file is missing or invalid.
         /// </summary>
         /// <returns>Validated project platform settings document for the current project.</returns>
         public EditorProjectPlatformsDocument Load() {
@@ -52,12 +52,6 @@ namespace helengine.editor {
             }
 
             Normalize(document);
-            if (document.SupportedPlatforms.Count == 0) {
-                document = CreateDefaultDocument();
-                Save(document);
-                return document;
-            }
-
             return document;
         }
 
@@ -71,10 +65,6 @@ namespace helengine.editor {
             }
 
             Normalize(document);
-            if (document.SupportedPlatforms.Count == 0) {
-                throw new InvalidOperationException("At least one supported platform is required.");
-            }
-
             string settingsDirectoryPath = Path.GetDirectoryName(PlatformsFilePath);
             Directory.CreateDirectory(settingsDirectoryPath);
 
@@ -107,10 +97,10 @@ namespace helengine.editor {
         /// <summary>
         /// Creates one default project platform settings document for a newly initialized project.
         /// </summary>
-        /// <returns>Default windows-only project platform settings document.</returns>
+        /// <returns>Default project platform settings document with no preferred platform.</returns>
         EditorProjectPlatformsDocument CreateDefaultDocument() {
             return new EditorProjectPlatformsDocument {
-                SupportedPlatforms = ["windows"]
+                SupportedPlatforms = []
             };
         }
 

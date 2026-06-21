@@ -764,18 +764,18 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="materialReference">Packaged material reference used by the mesh component.</param>
         /// <returns>Serialized mesh component record.</returns>
         SceneComponentAssetRecord CreateMeshComponentRecord(SceneAssetReference modelReference, SceneAssetReference materialReference) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            MeshComponentScenePayloadSerializer.Write(
-                writer,
-                modelReference,
-                new[] { materialReference },
-                9);
-
+            MeshComponent meshComponent = new MeshComponent {
+                Model = new TestRuntimeModel(),
+                Materials = new[] { new TestRuntimeMaterial() },
+                RenderOrder3D = 9
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(MeshComponent.Model), modelReference);
+            saveState.SetAssetReference("Materials[0]", materialReference);
             return new SceneComponentAssetRecord {
-                ComponentTypeId = "helengine.MeshComponent",
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(MeshComponent)),
                 ComponentIndex = 0,
-                Payload = stream.ToArray()
+                Payload = WriteAutomaticRuntimeComponentPayload(meshComponent, saveState)
             };
         }
 

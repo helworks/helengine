@@ -1,6 +1,9 @@
+using helengine.directx11;
+using System.Reflection;
 using helengine.editor;
 using helengine.editor.tests.testing;
 using helengine.ui;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
@@ -27,6 +30,10 @@ namespace helengine.editor.tests.serialization.scene {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         }
 
         /// <summary>
@@ -55,6 +62,40 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.False(root.Enabled);
             Assert.Equal(SceneCanvasProfile.DefaultWidth, loaded.SceneSettings.CanvasProfile.Width);
             Assert.Equal(SceneCanvasProfile.DefaultHeight, loaded.SceneSettings.CanvasProfile.Height);
+        }
+
+        /// <summary>
+        /// Ensures a generic reflected camera payload loads into a live camera that still holds the authored values directly.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsGenericCameraPayload_RestoresAuthoredValuesOnLiveCamera() {
+            string scenePath = WriteSceneAsset("GenericCamera.helen", CreateAutomaticTaggedCameraRecord(
+                7,
+                0x3456,
+                new float4(0.2f, 0.3f, 0.4f, 0.5f),
+                0.25f,
+                125f,
+                new CameraClearSettings(true, new float4(0.1f, 0.2f, 0.3f, 0.4f), true, 0.9f, true, 6),
+                new CameraRenderSettings {
+                    DepthPrepassMode = DepthPrepassMode.Always,
+                    ShadowDistance = 222f,
+                    PostProcessTier = PostProcessTier.Low
+                }));
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), new TestSceneAssetReferenceResolver());
+
+            LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
+
+            EditorEntity root = Assert.Single(loaded.RootEntities);
+            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(root.Components, component => component is CameraComponent));
+            Assert.Equal((byte)7, loadedCamera.CameraDrawOrder);
+            Assert.Equal((ushort)0x3456, loadedCamera.LayerMask);
+            Assert.Equal(new float4(0.2f, 0.3f, 0.4f, 0.5f), loadedCamera.Viewport);
+            Assert.Equal(0.25f, loadedCamera.NearPlaneDistance);
+            Assert.Equal(125f, loadedCamera.FarPlaneDistance);
+            Assert.Equal(new CameraClearSettings(true, new float4(0.1f, 0.2f, 0.3f, 0.4f), true, 0.9f, true, 6), loadedCamera.ClearSettings);
+            Assert.Equal(DepthPrepassMode.Always, loadedCamera.RenderSettings.DepthPrepassMode);
+            Assert.Equal(222f, loadedCamera.RenderSettings.ShadowDistance);
+            Assert.Equal(PostProcessTier.Low, loadedCamera.RenderSettings.PostProcessTier);
         }
 
         /// <summary>
@@ -152,7 +193,6 @@ namespace helengine.editor.tests.serialization.scene {
         /// <returns>Configured component persistence registry.</returns>
         ComponentPersistenceRegistry CreatePersistenceRegistry() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new MeshComponentPersistenceDescriptor());
             return registry;
         }
 
@@ -181,12 +221,12 @@ namespace helengine.editor.tests.serialization.scene {
             EditorEntity root = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create(entityName));
             MeshComponent meshComponent = new MeshComponent {
                 Model = new TestRuntimeModel(),
-                Material = new TestRuntimeMaterial()
+                Materials = new RuntimeMaterial[] { new TestRuntimeMaterial() }
             };
             root.AddComponent(meshComponent);
             EntitySaveComponent saveComponent = GetSaveComponent(root);
             saveComponent.SetAssetReference(meshComponent, "Model", modelReference);
-            saveComponent.SetAssetReference(meshComponent, "Material", materialReference);
+            saveComponent.SetAssetReference(meshComponent, "Materials[0]", materialReference);
 
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, CreatePersistenceRegistry());
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", fileName);
@@ -194,6 +234,96 @@ namespace helengine.editor.tests.serialization.scene {
             root.Enabled = false;
             Core.Instance.ObjectManager.RemoveEntity(root);
             return scenePath;
+        }
+
+        /// <summary>
+        /// Writes one scene file containing a single root entity with the supplied component records.
+        /// </summary>
+        /// <param name="fileName">Scene file name to write beneath the temporary project root.</param>
+        /// <param name="componentRecords">Serialized component records attached to the root entity.</param>
+        /// <returns>Absolute path to the written scene file.</returns>
+        string WriteSceneAsset(string fileName, params SceneComponentAssetRecord[] componentRecords) {
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", fileName);
+            using FileStream stream = File.Create(scenePath);
+            AssetSerializer.Serialize(
+                stream,
+                new SceneAsset {
+                    Id = fileName,
+                    SceneSettings = new SceneSettingsAsset(),
+                    RootEntities = [
+                        new SceneEntityAsset {
+                            Id = 1u,
+                            Name = "Camera",
+                            LocalPosition = float3.Zero,
+                            LocalScale = float3.One,
+                            LocalOrientation = float4.Identity,
+                            Components = componentRecords ?? Array.Empty<SceneComponentAssetRecord>(),
+                            Children = Array.Empty<SceneEntityAsset>()
+                        }
+                    ]
+                });
+            return scenePath;
+        }
+
+        /// <summary>
+        /// Creates one generic reflected tagged camera component payload record.
+        /// </summary>
+        /// <param name="cameraDrawOrder">Authored camera draw order.</param>
+        /// <param name="layerMask">Authored camera layer mask.</param>
+        /// <param name="viewport">Authored camera viewport.</param>
+        /// <param name="nearPlaneDistance">Authored near clip-plane distance.</param>
+        /// <param name="farPlaneDistance">Authored far clip-plane distance.</param>
+        /// <param name="clearSettings">Authored clear settings.</param>
+        /// <param name="renderSettings">Authored render settings.</param>
+        /// <returns>Serialized camera component record encoded through the generic tagged payload shape.</returns>
+        static SceneComponentAssetRecord CreateAutomaticTaggedCameraRecord(
+            byte cameraDrawOrder,
+            ushort layerMask,
+            float4 viewport,
+            float nearPlaneDistance,
+            float farPlaneDistance,
+            CameraClearSettings clearSettings,
+            CameraRenderSettings renderSettings) {
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            WriteAutomaticTaggedField(writer, nameof(CameraComponent.CameraDrawOrder), typeof(byte), cameraDrawOrder);
+            WriteAutomaticTaggedField(writer, nameof(CameraComponent.LayerMask), typeof(ushort), layerMask);
+            WriteAutomaticTaggedField(writer, nameof(CameraComponent.Viewport), typeof(float4), viewport);
+            WriteAutomaticTaggedField(writer, nameof(CameraComponent.NearPlaneDistance), typeof(float), nearPlaneDistance);
+            WriteAutomaticTaggedField(writer, nameof(CameraComponent.FarPlaneDistance), typeof(float), farPlaneDistance);
+            WriteAutomaticTaggedField(writer, nameof(CameraComponent.ClearSettings), typeof(CameraClearSettings), clearSettings);
+            WriteAutomaticTaggedField(writer, nameof(CameraComponent.RenderSettings), typeof(CameraRenderSettings), renderSettings);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(CameraComponent)),
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
+        }
+
+        /// <summary>
+        /// Writes one generic reflected tagged field using the automatic component binary encoding rules.
+        /// </summary>
+        /// <param name="writer">Tagged field writer receiving the field.</param>
+        /// <param name="fieldName">Stable reflected member name.</param>
+        /// <param name="valueType">Runtime member type encoded by the field.</param>
+        /// <param name="value">Authored member value to encode.</param>
+        static void WriteAutomaticTaggedField(EditorTaggedSceneComponentFieldWriter writer, string fieldName, Type valueType, object value) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            }
+            if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+            if (valueType == null) {
+                throw new ArgumentNullException(nameof(valueType));
+            }
+
+            MethodInfo writeMethod = typeof(AutomaticScriptComponentPersistenceDescriptor).GetMethod(
+                "WriteSupportedValue",
+                BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+            Assert.NotNull(writeMethod);
+
+            writer.WriteField(fieldName, fieldWriter => writeMethod.Invoke(null, new object[] { fieldWriter, valueType, value }));
         }
 
         /// <summary>

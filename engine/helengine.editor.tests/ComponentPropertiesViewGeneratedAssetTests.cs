@@ -138,11 +138,11 @@ namespace helengine.editor.tests {
                 AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", EngineGeneratedMaterialCache.StandardAssetId)
             });
 
-            Assert.Same(runtimeMaterial, meshComponent.Material);
+            Assert.Same(runtimeMaterial, Assert.Single(meshComponent.Materials));
             Assert.Equal("Standard", materialRow.ValueText.Text);
             EntitySaveComponent saveComponent = GetSaveComponent(entity);
             Assert.True(saveComponent.TryGetComponentState(meshComponent, out EntityComponentSaveState saveState));
-            Assert.True(saveState.TryGetAssetReference("Material", out SceneAssetReference reference));
+            Assert.True(saveState.TryGetAssetReference("Materials[0]", out SceneAssetReference reference));
             Assert.Equal(SceneAssetReferenceSourceKind.Generated, reference.SourceKind);
             Assert.Equal("engine", reference.ProviderId);
             Assert.Equal(EngineGeneratedMaterialCache.StandardAssetId, reference.AssetId);
@@ -183,9 +183,9 @@ namespace helengine.editor.tests {
             });
 
             MeshComponent addedMesh = Assert.IsType<MeshComponent>(addedComponentState.Component);
-            Assert.Same(runtimeMaterial, addedMesh.Material);
+            Assert.Same(runtimeMaterial, Assert.Single(addedMesh.Materials));
             Assert.Equal("Standard", materialRow.ValueText.Text);
-            Assert.True(addedComponentState.SaveState.TryGetAssetReference("Material", out SceneAssetReference reference));
+            Assert.True(addedComponentState.SaveState.TryGetAssetReference("Materials[0]", out SceneAssetReference reference));
             Assert.Equal(SceneAssetReferenceSourceKind.Generated, reference.SourceKind);
             Assert.Equal("engine", reference.ProviderId);
             Assert.Equal(EngineGeneratedMaterialCache.StandardAssetId, reference.AssetId);
@@ -223,12 +223,12 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
             ShaderMaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
 
-            Assert.NotNull(meshComponent.Material);
+            Assert.NotNull(Assert.Single(meshComponent.Materials));
             Assert.Equal("Cube00", materialRow.ValueText.Text);
             Assert.Equal("ForwardStandardShader", builtMaterialAsset.ShaderAssetId);
             EntitySaveComponent saveComponent = GetSaveComponent(entity);
             Assert.True(saveComponent.TryGetComponentState(meshComponent, out EntityComponentSaveState saveState));
-            Assert.True(saveState.TryGetAssetReference("Material", out SceneAssetReference reference));
+            Assert.True(saveState.TryGetAssetReference("Materials[0]", out SceneAssetReference reference));
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, reference.SourceKind);
             Assert.Equal(materialRelativePath, reference.RelativePath);
         }

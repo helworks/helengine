@@ -25,6 +25,20 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Returns whether the supplied reflected member type is a supported one-dimensional array whose elements are persisted through scene asset references.
+        /// </summary>
+        /// <param name="valueType">Reflected member type to inspect.</param>
+        /// <returns>True when the member type is a supported one-dimensional asset-reference array; otherwise false.</returns>
+        public static bool IsSupportedAssetReferenceArrayType(Type valueType) {
+            if (valueType == null || !valueType.IsArray || valueType.GetArrayRank() != 1) {
+                return false;
+            }
+
+            Type elementType = valueType.GetElementType();
+            return IsSupportedAssetReferenceType(elementType);
+        }
+
+        /// <summary>
         /// Builds the stable save-state key used for one reflected asset-backed member.
         /// </summary>
         /// <param name="memberName">Reflected member name.</param>
@@ -35,6 +49,23 @@ namespace helengine {
             }
 
             return memberName;
+        }
+
+        /// <summary>
+        /// Builds one stable indexed save-state key used for an asset-backed array member element.
+        /// </summary>
+        /// <param name="memberName">Reflected array member name.</param>
+        /// <param name="index">Zero-based array index.</param>
+        /// <returns>Stable save-state key for the indexed array element.</returns>
+        public static string BuildIndexedReferenceName(string memberName, int index) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Member name must be provided.", nameof(memberName));
+            }
+            if (index < 0) {
+                throw new ArgumentOutOfRangeException(nameof(index), "Indexed asset-reference keys require a non-negative array index.");
+            }
+
+            return string.Concat(memberName, "[", index.ToString(), "]");
         }
 
         /// <summary>

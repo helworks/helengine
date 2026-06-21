@@ -48,7 +48,7 @@ namespace helengine {
             gizmoEntity.LayerMask = helengine.editor.EditorLayerMasks.SceneObjects;
             Model = helengine.editor.EditorViewportBorderGizmoMeshResources.GetRuntimeModel();
             BorderMaterialValue = helengine.editor.EditorViewportBorderGizmoMaterialFactory.Create(Core.Instance.RenderManager3D);
-            Material = BorderMaterialValue;
+            Materials = new[] { BorderMaterialValue };
             base.ComponentAdded(entity);
             SynchronizeFromSource();
         }
@@ -66,7 +66,7 @@ namespace helengine {
             }
 
             BorderMaterialValue = null;
-            Material = null;
+            Materials = Array.Empty<RuntimeMaterial>();
             Model = null;
         }
 

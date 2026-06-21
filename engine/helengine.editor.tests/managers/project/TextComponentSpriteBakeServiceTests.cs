@@ -57,17 +57,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures DS-targeted bake requests use DS-friendly default processor settings for the generated texture.
+        /// Ensures bake requests use the shared generic processor settings instead of platform-specific texture defaults.
         /// </summary>
         [Fact]
-        public void Bake_WhenRequested_UsesDSFriendlyDefaultProcessorSettings() {
+        public void Bake_WhenRequested_UsesSharedGenericDefaultProcessorSettings() {
+            TextComponentSpriteBakeService service = CreateService(new FakeRenderTargetTextureAssetReader(CreateTextureAsset(96, 24)));
+
+            TextComponentSpriteBakeResult result = service.Bake(CreateRequest("custom-handheld", new int2(96, 24)));
+
+            Assert.Equal(TextureAssetColorFormat.Rgba32.ToString(), result.ProcessorSettings.ColorFormatId);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, result.ProcessorSettings.AlphaPrecision);
+            Assert.Equal(string.Empty, result.ProcessorSettings.IndexingMethodId);
+            Assert.False(string.IsNullOrWhiteSpace(result.StableKey));
+        }
+
+        /// <summary>
+        /// Ensures DS-targeted bake requests also use the shared generic processor settings after the DS-specific branch is removed.
+        /// </summary>
+        [Fact]
+        public void Bake_WhenRequestedForNintendoDs_UsesSharedGenericDefaultProcessorSettings() {
             TextComponentSpriteBakeService service = CreateService(new FakeRenderTargetTextureAssetReader(CreateTextureAsset(96, 24)));
 
             TextComponentSpriteBakeResult result = service.Bake(CreateRequest("ds", new int2(96, 24)));
 
-            Assert.Equal(TextureAssetColorFormat.Indexed8.ToString(), result.ProcessorSettings.ColorFormatId);
-            Assert.Equal(TextureAssetAlphaPrecision.A4, result.ProcessorSettings.AlphaPrecision);
-            Assert.Equal(TextureAssetIndexingMethod.QuantizedIndexed.ToString(), result.ProcessorSettings.IndexingMethodId);
+            Assert.Equal(TextureAssetColorFormat.Rgba32.ToString(), result.ProcessorSettings.ColorFormatId);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, result.ProcessorSettings.AlphaPrecision);
+            Assert.Equal(string.Empty, result.ProcessorSettings.IndexingMethodId);
             Assert.False(string.IsNullOrWhiteSpace(result.StableKey));
         }
 

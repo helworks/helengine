@@ -38,7 +38,7 @@ namespace helengine.editor {
             };
             var meshComponent = new MeshComponent {
                 Model = planeModel,
-                Material = planeMaterial
+                Materials = new[] { planeMaterial }
             };
             planeEntity.AddComponent(meshComponent);
             return planeEntity;

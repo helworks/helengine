@@ -11,11 +11,6 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorPlatformBuildScenePackager {
         /// <summary>
-        /// Current payload version for serialized mesh component scene records.
-        /// </summary>
-        const byte MeshComponentPayloadVersion = MeshComponentScenePayloadSerializer.CurrentVersion;
-
-        /// <summary>
         /// Current payload version for serialized camera component scene records.
         /// </summary>
         const byte CameraComponentPayloadVersion = 3;
@@ -59,6 +54,11 @@ namespace helengine.editor {
         /// Stable serialized component id for 3D character-controller components.
         /// </summary>
         const string CharacterController3DComponentTypeId = "helengine.CharacterController3DComponent";
+
+        /// <summary>
+        /// Default target platform id used by legacy Windows-packager overloads that do not supply explicit platform metadata.
+        /// </summary>
+        const string DefaultTargetPlatformId = "windows";
 
         /// <summary>
         /// Runtime scene layer used by the current Windows player loader for materialized entities.
@@ -497,7 +497,7 @@ namespace helengine.editor {
                 effectiveTargetPlatformId = platformDefinition.PlatformId;
             }
             if (string.IsNullOrWhiteSpace(effectiveTargetPlatformId)) {
-                effectiveTargetPlatformId = string.Empty;
+                effectiveTargetPlatformId = DefaultTargetPlatformId;
             }
             TargetPlatformId = effectiveTargetPlatformId;
             MaterialAssetSettingsService = new MaterialAssetSettingsService();
@@ -1112,51 +1112,6 @@ namespace helengine.editor {
         /// <returns>Formatted diagnostic message.</returns>
         static string BuildUnsupportedTransformMessage(string componentTypeId) {
             return $"No shared packaging transform is available for component '{componentTypeId}'.";
-        }
-
-        /// <summary>
-        /// Rewrites one serialized mesh component record into its packaged runtime form.
-        /// </summary>
-        /// <param name="record">Serialized mesh component record to rewrite.</param>
-        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        /// <returns>Rewritten mesh component record.</returns>
-        SceneComponentAssetRecord RewriteMeshComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            MeshComponentScenePayloadSerializer.Read(reader, out SceneAssetReference modelReference, out SceneAssetReference[] materialReferences, out byte renderOrder3D);
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            MeshComponentScenePayloadSerializer.Write(
-                writer,
-                RewriteModelReference(modelReference, buildRootPath),
-                RewriteMaterialReferences(materialReferences, buildRootPath),
-                renderOrder3D);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = record.ComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Rewrites one ordered material-reference array into packaged file-backed material references.
-        /// </summary>
-        /// <param name="materialReferences">Authored material references ordered by submesh slot.</param>
-        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        /// <returns>Packaged material references ordered by submesh slot.</returns>
-        SceneAssetReference[] RewriteMaterialReferences(SceneAssetReference[] materialReferences, string buildRootPath) {
-            if (materialReferences == null) {
-                throw new ArgumentNullException(nameof(materialReferences));
-            }
-
-            SceneAssetReference[] rewrittenReferences = new SceneAssetReference[materialReferences.Length];
-            for (int materialIndex = 0; materialIndex < materialReferences.Length; materialIndex++) {
-                rewrittenReferences[materialIndex] = RewriteMaterialReference(materialReferences[materialIndex], buildRootPath);
-            }
-
-            return rewrittenReferences;
         }
 
         /// <summary>

@@ -50,7 +50,7 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void Initialize_whenRuntimeSceneCatalogIsProvided_createsSceneManager() {
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")));
 
             Assert.NotNull(core.SceneManager);
             Assert.NotNull(core.RuntimeDiagnosticsService);
@@ -94,7 +94,7 @@ namespace helengine.editor.tests.serialization.scene {
                 AvailablePhysicalBytes = 789u
             };
             Core core = CreateCore(
-                CreateSceneCatalog(new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")),
+                CreateSceneCatalog(new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")),
                 new FakeRuntimeDiagnosticsProvider(snapshot));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
@@ -150,7 +150,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void LoadScene_whenModeIsSingle_tracksSceneAndRaisesLifecycleEvents() {
             WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")));
             List<string> raisedEvents = new List<string>();
             string loadedSceneId = string.Empty;
             string loadedCookedPath = string.Empty;
@@ -172,11 +172,11 @@ namespace helengine.editor.tests.serialization.scene {
 
             LoadedSceneRecord loadedScene = Assert.Single(core.SceneManager.LoadedScenes);
             Assert.Equal("Scenes/Bootstrap.helen", loadedScene.SceneId);
-            Assert.Equal("cooked/scenes/Bootstrap.hasset", loadedScene.CookedRelativePath);
+            Assert.Equal("cooked/scenes/bootstrap.hasset", loadedScene.CookedRelativePath);
             Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
             Assert.Equal(new[] { "loading:Scenes/Bootstrap.helen", "loaded:Scenes/Bootstrap.helen" }, raisedEvents);
             Assert.Equal("Scenes/Bootstrap.helen", loadedSceneId);
-            Assert.Equal("cooked/scenes/Bootstrap.hasset", loadedCookedPath);
+            Assert.Equal("cooked/scenes/bootstrap.hasset", loadedCookedPath);
             Assert.Single(loadedRootEntities);
         }
 
@@ -188,8 +188,8 @@ namespace helengine.editor.tests.serialization.scene {
             WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
             WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 1u);
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             Assert.Empty(core.SceneManager.LoadedScenes);
@@ -210,7 +210,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void LoadScene_whenModeIsSingle_defersActivationUntilAfterDrawCompletes() {
             WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
 
@@ -228,11 +228,11 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void LoadScene_whenModeIsAdditive_defersActivationUntilAfterDrawCompletes() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/bootstrap.hasset", 1u);
             WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             CommitFrame(core);
@@ -263,8 +263,8 @@ namespace helengine.editor.tests.serialization.scene {
                 1u,
                 CreateCameraComponentRecord(1));
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             CommitFrame(core);
@@ -306,8 +306,8 @@ namespace helengine.editor.tests.serialization.scene {
             Core core = CreateCore(
                 renderManager2D,
                 CreateSceneCatalog(
-                    new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                    new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                    new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                    new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             CommitFrame(core);
@@ -337,7 +337,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.NotNull(previousSourceTexture);
             Assert.Null(previousSourceTexture.Colors);
             Assert.Null(previousSourceTexture.PaletteColors);
-            Assert.Equal(flushReleasedTexturesCallCountBeforeReload + 1, renderManager2D.FlushReleasedTexturesCallCount);
+            Assert.Equal(flushReleasedTexturesCallCountBeforeReload + 2, renderManager2D.FlushReleasedTexturesCallCount);
         }
 
         /// <summary>
@@ -356,8 +356,8 @@ namespace helengine.editor.tests.serialization.scene {
             WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
             TestRenderManager3D renderManager3D = new TestRenderManager3D();
             Core core = CreateCore(renderManager3D, new TestRenderManager2D(), CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             CommitFrame(core);
@@ -436,9 +436,9 @@ namespace helengine.editor.tests.serialization.scene {
                 1u,
                 CreateCameraComponentRecord(1));
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
-            SceneAsset startupSceneAsset = core.ContentManager.Load<SceneAsset>("cooked/scenes/Bootstrap.hasset", RuntimeContentProcessorIds.SceneAsset);
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
+            SceneAsset startupSceneAsset = core.ContentManager.Load<SceneAsset>("cooked/scenes/bootstrap.hasset", RuntimeContentProcessorIds.SceneAsset);
 
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> startupRoots = sceneLoadService.Load(startupSceneAsset);
@@ -472,8 +472,8 @@ namespace helengine.editor.tests.serialization.scene {
             WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
             WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 1u);
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             CommitFrame(core);
@@ -557,7 +557,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void UnloadScene_whenSceneIsTracked_raisesUnloadEventsWithRootEntitiesAndRemovesTheRecord() {
             WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")));
             List<string> raisedEvents = new List<string>();
             IReadOnlyList<Entity> unloadingRootEntities = Array.Empty<Entity>();
 
@@ -590,8 +590,8 @@ namespace helengine.editor.tests.serialization.scene {
             WriteSceneAsset("cooked/scenes/Persistent.hasset", 1u, true);
             WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/Persistent.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/persistent.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
             CommitFrame(core);
@@ -612,7 +612,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void UnloadScene_WhenSceneIsMarkedDontUnload_StillUnloadsWhenExplicitlyRequested() {
             WriteSceneAsset("cooked/scenes/Persistent.hasset", 1u, true);
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/Persistent.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/persistent.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
             CommitFrame(core);
@@ -631,7 +631,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void LoadScene_WhenPersistentSceneIsAlreadyLoadedAndLoadModeIsSingle_ThrowsAlreadyLoaded() {
             WriteSceneAsset("cooked/scenes/Persistent.hasset", 1u, true);
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/Persistent.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/persistent.hasset")));
 
             core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
             CommitFrame(core);
@@ -756,43 +756,21 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="drawOrder">Camera draw order to encode in the payload.</param>
         /// <returns>Serialized camera component record.</returns>
         SceneComponentAssetRecord CreateCameraComponentRecord(byte drawOrder) {
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = "helengine.CameraComponent",
-                ComponentIndex = 0,
-                Payload = WriteCameraComponentPayload(drawOrder)
+            CameraComponent cameraComponent = new CameraComponent {
+                CameraDrawOrder = drawOrder,
+                LayerMask = EditorLayerMasks.SceneObjects,
+                Viewport = new float4(0f, 0f, 1f, 1f),
+                NearPlaneDistance = 0.1f,
+                FarPlaneDistance = 1000f,
+                ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 1f), true, 1f, true, 0),
+                RenderSettings = new CameraRenderSettings {
+                    DepthPrepassMode = DepthPrepassMode.Disabled,
+                    ShadowDistance = 40f,
+                    PostProcessTier = PostProcessTier.Disabled
+                }
             };
-        }
 
-        /// <summary>
-        /// Writes one serialized packaged camera payload.
-        /// </summary>
-        /// <param name="drawOrder">Camera draw order to encode in the payload.</param>
-        /// <returns>Serialized packaged camera payload.</returns>
-        byte[] WriteCameraComponentPayload(byte drawOrder) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(3);
-            writer.WriteByte(drawOrder);
-            writer.WriteUInt16(EditorLayerMasks.SceneObjects);
-            writer.WriteSingle(0f);
-            writer.WriteSingle(0f);
-            writer.WriteSingle(1f);
-            writer.WriteSingle(1f);
-            writer.WriteSingle(0.1f);
-            writer.WriteSingle(1000f);
-            writer.WriteByte(1);
-            writer.WriteSingle(0f);
-            writer.WriteSingle(0f);
-            writer.WriteSingle(0f);
-            writer.WriteSingle(1f);
-            writer.WriteByte(1);
-            writer.WriteSingle(1f);
-            writer.WriteByte(1);
-            writer.WriteByte(0);
-            writer.WriteByte((byte)DepthPrepassMode.Disabled);
-            writer.WriteSingle(40f);
-            writer.WriteByte((byte)PostProcessTier.Disabled);
-            return stream.ToArray();
+            return CreateRuntimeAutomaticComponentRecord(cameraComponent, 0, null);
         }
 
         /// <summary>
@@ -906,19 +884,15 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="materialRelativePath">Content-relative packaged material path used by the mesh component.</param>
         /// <returns>Serialized mesh component record.</returns>
         SceneComponentAssetRecord CreateMeshComponentRecord(string modelRelativePath, string materialRelativePath) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            MeshComponentScenePayloadSerializer.Write(
-                writer,
-                CreateFileReference(modelRelativePath),
-                new[] { CreateFileReference(materialRelativePath) },
-                9);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = "helengine.MeshComponent",
-                ComponentIndex = 0,
-                Payload = stream.ToArray()
+            MeshComponent meshComponent = new MeshComponent {
+                Model = new TestRuntimeModel(),
+                Materials = new[] { new TestRuntimeMaterial() },
+                RenderOrder3D = 9
             };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(MeshComponent.Model), CreateFileReference(modelRelativePath));
+            saveState.SetAssetReference("Materials[0]", CreateFileReference(materialRelativePath));
+            return CreateRuntimeAutomaticComponentRecord(meshComponent, 0, saveState);
         }
 
         /// <summary>

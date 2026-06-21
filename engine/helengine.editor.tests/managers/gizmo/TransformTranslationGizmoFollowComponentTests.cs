@@ -186,8 +186,8 @@ namespace helengine.editor.tests.managers.gizmo {
             MeshComponent axisMesh = FindMeshComponent((Entity)axisHandle.Children[0]);
             MeshComponent planeMesh = FindMeshComponent(planeHandle);
 
-            Assert.Same(axisNormalMaterial, axisMesh.Material);
-            Assert.Same(planeHighlightMaterial, planeMesh.Material);
+            Assert.Same(axisNormalMaterial, Assert.Single(axisMesh.Materials));
+            Assert.Same(planeHighlightMaterial, Assert.Single(planeMesh.Materials));
         }
 
         /// <summary>
@@ -340,7 +340,7 @@ namespace helengine.editor.tests.managers.gizmo {
             };
             MeshComponent shaftMesh = new MeshComponent();
             shaftMesh.Model = new TestRuntimeModel();
-            shaftMesh.Material = material;
+            shaftMesh.Materials = new RuntimeMaterial[] { material };
             shaftEntity.AddComponent(shaftMesh);
             axisEntity.AddChild(shaftEntity);
 
@@ -354,7 +354,7 @@ namespace helengine.editor.tests.managers.gizmo {
             };
             MeshComponent tipMesh = new MeshComponent();
             tipMesh.Model = new TestRuntimeModel();
-            tipMesh.Material = material;
+            tipMesh.Materials = new RuntimeMaterial[] { material };
             tipEntity.AddComponent(tipMesh);
             axisEntity.AddChild(tipEntity);
 
@@ -381,7 +381,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             MeshComponent planeMesh = new MeshComponent();
             planeMesh.Model = new TestRuntimeModel();
-            planeMesh.Material = material;
+            planeMesh.Materials = new RuntimeMaterial[] { material };
             planeEntity.AddComponent(planeMesh);
             return planeEntity;
         }
@@ -400,7 +400,7 @@ namespace helengine.editor.tests.managers.gizmo {
             };
             MeshComponent previewMesh = new MeshComponent();
             previewMesh.Model = new TestRuntimeModel();
-            previewMesh.Material = material;
+            previewMesh.Materials = new RuntimeMaterial[] { material };
             previewEntity.AddComponent(previewMesh);
             return previewEntity;
         }

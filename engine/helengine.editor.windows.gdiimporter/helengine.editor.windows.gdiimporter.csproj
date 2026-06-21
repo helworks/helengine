@@ -1,13 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
+    <Using Include="System.Drawing" />
+    <Compile Include="..\helengine.editor.windows\content\font\GdiFontImporter.cs" Link="content\font\GdiFontImporter.cs" />
+    <Compile Include="..\helengine.editor.windows\content\font\GDIFontProcessor.cs" Link="content\font\GDIFontProcessor.cs" />
+    <Compile Include="..\helengine.editor.windows\content\font\TempFontChar.cs" Link="content\font\TempFontChar.cs" />
+    <Compile Include="..\helengine.editor.windows\content\font\TempFontItem.cs" Link="content\font\TempFontItem.cs" />
     <Compile Include="..\helengine.editor.windows\content\textures\GDITextureImporter.cs" Link="content\textures\GDITextureImporter.cs" />
+    <Compile Include="..\helengine.editor.windows\utils\LockBitmap.cs" Link="utils\LockBitmap.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -188,7 +188,7 @@ namespace helengine.editor {
 
             MeshComponent ringMesh = new MeshComponent();
             ringMesh.Model = ringModel;
-            ringMesh.Material = material;
+            ringMesh.Materials = new[] { material };
             ringEntity.AddComponent(ringMesh);
 
             gizmoRoot.AddChild(ringEntity);
@@ -211,7 +211,7 @@ namespace helengine.editor {
                 Enabled = false
             };
             var previewMesh = new MeshComponent {
-                Material = previewMaterial,
+                Materials = new[] { previewMaterial },
                 RenderOrder3D = SnapPreviewRenderOrder3D
             };
             previewEntity.AddComponent(previewMesh);

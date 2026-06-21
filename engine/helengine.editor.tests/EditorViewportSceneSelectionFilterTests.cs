@@ -78,7 +78,7 @@ namespace helengine.editor.tests {
             };
             var meshComponent = new MeshComponent {
                 Model = new TestRuntimeModel(),
-                Material = new TestRuntimeMaterial()
+                Materials = new RuntimeMaterial[] { new TestRuntimeMaterial() }
             };
             entity.AddComponent(meshComponent);
             return meshComponent;
@@ -101,7 +101,7 @@ namespace helengine.editor.tests {
             };
             var meshComponent = new MeshComponent {
                 Model = new TestRuntimeModel(),
-                Material = new TestRuntimeMaterial()
+                Materials = new RuntimeMaterial[] { new TestRuntimeMaterial() }
             };
 
             parentEntity.AddChild(childEntity);

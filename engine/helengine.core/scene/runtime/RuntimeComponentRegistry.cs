@@ -52,9 +52,6 @@ namespace helengine {
             if (registry == null) {
                 throw new ArgumentNullException(nameof(registry));
             }
-
-            registry.Register(new RuntimeMeshComponentDeserializer());
-            registry.Register(new RuntimeCameraComponentDeserializer());
         }
 
         /// <summary>

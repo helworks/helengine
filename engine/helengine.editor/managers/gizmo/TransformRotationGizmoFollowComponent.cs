@@ -173,8 +173,8 @@ namespace helengine.editor {
             }
 
             MeshComponent meshComponent = FindMeshComponent(ringEntity);
-            if (meshComponent != null && !ReferenceEquals(meshComponent.Material, material)) {
-                meshComponent.Material = material;
+            if (meshComponent != null && (meshComponent.Materials.Length == 0 || !ReferenceEquals(meshComponent.Materials[0], material))) {
+                meshComponent.Materials = new[] { material };
             }
         }
 

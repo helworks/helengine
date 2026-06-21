@@ -11,7 +11,7 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Shared runtime material returned for every resolved material reference.
         /// </summary>
-        readonly RuntimeMaterial Material;
+        readonly RuntimeMaterial ResolvedMaterial;
 
         /// <summary>
         /// Shared font asset returned for every resolved font reference.
@@ -28,7 +28,7 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         public AnySceneAssetReferenceResolver() {
             Model = new TestRuntimeModel();
-            Material = new TestRuntimeMaterial();
+            ResolvedMaterial = new TestRuntimeMaterial();
             Font = new FontAsset(new FontInfo("Test", 16, 4f), null, new Dictionary<char, FontChar>(), 16f, 1, 1);
             Texture = new ManagedRuntimeTexture {
                 Width = 1,
@@ -59,7 +59,7 @@ namespace helengine.editor.tests.testing {
                 throw new ArgumentNullException(nameof(reference));
             }
 
-            return Material;
+            return ResolvedMaterial;
         }
 
         /// <summary>

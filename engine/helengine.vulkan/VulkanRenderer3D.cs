@@ -538,7 +538,7 @@ namespace helengine.vulkan {
 
             RuntimeMaterial[] materials = drawable.Materials;
             if (materials == null || materials.Length == 0) {
-                return drawable.Material;
+                return null;
             }
             if (submeshIndex < materials.Length) {
                 return materials[submeshIndex];

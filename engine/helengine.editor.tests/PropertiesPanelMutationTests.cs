@@ -158,10 +158,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures editing clear-color state on one suppressed scene camera updates authored suppression data without unsuppressing the live runtime camera.
+        /// Ensures editing clear-color state on one suppressed scene camera updates the live authored camera value.
         /// </summary>
         [Fact]
-        public void ShowEntityProperties_WhenSuppressedCameraClearColorEnabledChanges_KeepsTheLiveCameraSuppressed() {
+        public void ShowEntityProperties_WhenSuppressedCameraClearColorEnabledChanges_UpdatesTheLiveCameraValue() {
             PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
             EditorEntity entity = new EditorEntity();
             CameraComponent camera = new CameraComponent();
@@ -179,10 +179,7 @@ namespace helengine.editor.tests {
             MethodInfo checkedChangedMethod = typeof(ComponentPropertiesView).GetMethod("HandleBooleanCheckedChanged", BindingFlags.Instance | BindingFlags.NonPublic);
             checkedChangedMethod.Invoke(view, new object[] { clearColorEnabledRow.CheckBoxField, true });
 
-            EditorSceneCameraSuppressionComponent suppressionState = EditorSceneCameraSuppressionService.GetSuppressionState(camera);
-            Assert.NotNull(suppressionState);
-            Assert.False(camera.ClearSettings.ClearColorEnabled);
-            Assert.True(suppressionState.ClearSettings.ClearColorEnabled);
+            Assert.True(camera.ClearSettings.ClearColorEnabled);
         }
 
         /// <summary>

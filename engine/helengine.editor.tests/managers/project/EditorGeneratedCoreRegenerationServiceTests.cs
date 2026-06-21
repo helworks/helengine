@@ -135,19 +135,16 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies Windows builds keep keyboard and mouse enabled for portable input conversion.
+    /// Verifies shared portable-input symbol resolution returns only generic capability symbols for Windows builds.
     /// </summary>
     [Fact]
-    public void Resolve_portable_input_preprocessor_symbols_returns_keyboard_and_mouse_for_windows() {
+    public void Resolve_portable_input_preprocessor_symbols_returns_generic_capability_symbols_for_windows() {
         PlatformDefinition definition = CreatePlatformDefinition("windows", runtimeGenerationContract: null);
 
         IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(definition);
 
         Assert.Collection(
             symbols,
-            symbol => Assert.Equal("HELENGINE_INPUT_KEYBOARD", symbol),
-            symbol => Assert.Equal("HELENGINE_INPUT_MOUSE", symbol),
-            symbol => Assert.Equal("DESKTOP_PLATFORM", symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol, symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
@@ -380,7 +377,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies automatic runtime deserializer generation excludes every built-in component type that still intentionally keeps a hand-authored runtime deserializer.
+    /// Verifies automatic runtime deserializer generation excludes only built-in component types that still intentionally keep a hand-authored runtime deserializer.
     /// </summary>
     [Fact]
     public void Emit_generated_automatic_runtime_component_deserializers_excludes_components_with_explicit_runtime_deserializers() {
@@ -390,8 +387,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         EditorGeneratedCoreRegenerationService.EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
 
         string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
-        Assert.DoesNotContain("GeneratedRuntimeMeshComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("GeneratedRuntimeCameraComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.Contains("GeneratedRuntimeMeshComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.Contains("GeneratedRuntimeCameraComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.Contains("GeneratedRuntimeSceneMapComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.Contains("GeneratedRuntimeFPSComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.Contains("GeneratedRuntimeDebugComponentDeserializer", registrationSource, StringComparison.Ordinal);
@@ -402,8 +399,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("GeneratedRuntimeAmbientLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.Contains("GeneratedRuntimePointLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
         Assert.Contains("GeneratedRuntimeSpotLightComponentDeserializer", registrationSource, StringComparison.Ordinal);
-        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeMeshComponentDeserializer.cpp")));
-        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeCameraComponentDeserializer.cpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeMeshComponentDeserializer.cpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeCameraComponentDeserializer.cpp")));
         Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSceneMapComponentDeserializer.cpp")));
         Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeFPSComponentDeserializer.cpp")));
         Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDebugComponentDeserializer.cpp")));
@@ -414,6 +411,22 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeAmbientLightComponentDeserializer.cpp")));
         Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimePointLightComponentDeserializer.cpp")));
         Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeSpotLightComponentDeserializer.cpp")));
+    }
+
+    /// <summary>
+    /// Verifies automatic runtime deserializer generation can emit camera support once camera persistence routes through the generic generated path.
+    /// </summary>
+    [Fact]
+    public void Emit_generated_automatic_runtime_component_deserializers_includes_camera_when_camera_is_generic() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-camera-generic");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        EditorGeneratedCoreRegenerationService.EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
+
+        string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
+        Assert.Contains("GeneratedRuntimeCameraComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeCameraComponentDeserializer.cpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeCameraComponentDeserializer.hpp")));
     }
 
     /// <summary>

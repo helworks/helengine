@@ -14,7 +14,8 @@ namespace helengine {
 
             Drawable = drawable;
             BatchingMetadata = new RenderFrameBatchingMetadata(false, false, false);
-            Material = drawable.Material;
+            RuntimeMaterial[] materials = drawable.Materials;
+            Material = materials != null && materials.Length > 0 ? materials[0] : null;
         }
 
         /// <summary>
@@ -26,7 +27,8 @@ namespace helengine {
         public RenderFrameDrawableSubmission(IDrawable3D drawable, bool isTransparent, RenderFrameBatchingMetadata batchingMetadata) {
             Drawable = drawable ?? throw new ArgumentNullException(nameof(drawable));
             BatchingMetadata = batchingMetadata ?? throw new ArgumentNullException(nameof(batchingMetadata));
-            Material = drawable.Material;
+            RuntimeMaterial[] materials = drawable.Materials;
+            Material = materials != null && materials.Length > 0 ? materials[0] : null;
             IsTransparent = isTransparent;
         }
 

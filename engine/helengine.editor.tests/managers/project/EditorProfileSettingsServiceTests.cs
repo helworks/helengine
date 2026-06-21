@@ -128,33 +128,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures one missing DS platform file seeds standard platform action mappings.
+        /// Ensures one missing platform file seeds the generic standard platform action mappings.
         /// </summary>
         [Fact]
-        public void Load_WhenDsPlatformFileIsMissing_SeedsStandardPlatformActions() {
+        public void Load_WhenPlatformFileIsMissing_SeedsGenericStandardPlatformActions() {
             EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
 
-            EditorProfileSettingsDocument document = service.Load(new List<string> { "ds" });
+            EditorProfileSettingsDocument document = service.Load(new List<string> { "custom-handheld" });
 
             EditorPlatformProfileSettingsDocument platform = Assert.Single(document.Platforms);
-            Assert.Equal("ds", platform.PlatformId);
+            Assert.Equal("custom-handheld", platform.PlatformId);
             Assert.NotNull(platform.Input);
             Assert.NotNull(platform.Input.StandardActions);
             Assert.NotNull(platform.Input.StandardActions.Accept);
             Assert.NotNull(platform.Input.StandardActions.Return);
+            Assert.Equal(0, platform.Input.StandardActions.Accept.ControlIndex);
+            Assert.Equal(1, platform.Input.StandardActions.Return.ControlIndex);
         }
 
         /// <summary>
-        /// Ensures one missing GameCube platform file seeds standard platform action mappings.
+        /// Ensures one missing PS2 platform file also seeds the generic standard platform action mappings.
         /// </summary>
         [Fact]
-        public void Load_WhenGameCubePlatformFileIsMissing_SeedsStandardPlatformActions() {
+        public void Load_WhenPs2PlatformFileIsMissing_SeedsGenericStandardPlatformActions() {
             EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
 
-            EditorProfileSettingsDocument document = service.Load(new List<string> { "gamecube" });
+            EditorProfileSettingsDocument document = service.Load(new List<string> { "ps2" });
 
             EditorPlatformProfileSettingsDocument platform = Assert.Single(document.Platforms);
-            Assert.Equal("gamecube", platform.PlatformId);
+            Assert.Equal("ps2", platform.PlatformId);
             Assert.NotNull(platform.Input);
             Assert.NotNull(platform.Input.StandardActions);
             Assert.NotNull(platform.Input.StandardActions.Accept);

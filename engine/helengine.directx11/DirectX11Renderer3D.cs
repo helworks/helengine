@@ -1726,7 +1726,7 @@ namespace helengine.directx11 {
             Visit(new RenderFrameDrawableSubmission(
                 drawable,
                 0,
-                drawable.Material,
+                drawable.Materials.Length == 0 ? null : drawable.Materials[0],
                 false,
                 new RenderFrameBatchingMetadata(false, false, false)));
         }

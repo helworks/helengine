@@ -161,7 +161,7 @@ namespace helengine.editor {
                 Model = runtimeModel
             };
             if (previewMaterials.Length == 0) {
-                previewMeshComponent.Material = CreateNeutralPreviewMaterial();
+                previewMeshComponent.Materials = new[] { CreateNeutralPreviewMaterial() };
             } else {
                 previewMeshComponent.SetMaterials(previewMaterials);
             }

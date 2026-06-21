@@ -2,8 +2,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using helengine.directx11;
 using helengine.editor.tests.testing;
 using helengine.ui;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -26,6 +28,10 @@ namespace helengine.editor.tests {
             EnsureEditorCoreHost();
             EditorSelectionService.Reset();
             EditorSceneMutationService.Reset();
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();
@@ -74,7 +80,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal("Cube", selectedEntity.Name);
             Assert.NotNull(meshComponent.Model);
-            Assert.NotNull(meshComponent.Material);
+            Assert.NotNull(Assert.Single(meshComponent.Materials));
             Assert.Equal(1, GetHierarchyNodeCount(session));
         }
 
@@ -94,9 +100,8 @@ namespace helengine.editor.tests {
             EditorCameraVisualComponent visualComponent = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(visualEntity.Components, component => component is EditorCameraVisualComponent));
 
             Assert.Equal("Camera", selectedEntity.Name);
-            Assert.Equal((ushort)0, cameraComponent.LayerMask);
-            Assert.False(cameraComponent.ClearSettings.ClearColorEnabled);
-            Assert.Equal(EditorLayerMasks.SceneObjects, suppressionComponent.LayerMask);
+            Assert.Equal(EditorLayerMasks.SceneObjects, cameraComponent.LayerMask);
+            Assert.True(cameraComponent.ClearSettings.ClearColorEnabled);
             Assert.True(visualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);

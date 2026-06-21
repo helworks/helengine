@@ -2,7 +2,7 @@ using helengine.baseplatform.Definitions;
 
 namespace helengine.editor {
     /// <summary>
-    /// Resolves shared platform-specific preprocessor symbols used by gameplay and generated-core codegen.
+    /// Resolves shared preprocessor symbols used by gameplay and generated-core codegen.
     /// </summary>
     internal static class EditorPlatformPreprocessorSymbolService {
         /// <summary>
@@ -31,23 +31,16 @@ namespace helengine.editor {
         public const string RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol = "HELENGINE_RUNTIME_SUPPORTS_RENDER_MANAGER_2D_TEXTURE_RELEASE_FLUSH";
 
         /// <summary>
-        /// Resolves the platform-specific symbols that should be defined while compiling authored gameplay code.
+        /// Resolves the shared gameplay symbols that should be defined while compiling authored gameplay code.
         /// </summary>
         /// <param name="platformId">Stable platform identifier for the active build.</param>
-        /// <returns>Ordered platform-specific symbols.</returns>
+        /// <returns>Ordered shared gameplay symbols.</returns>
         public static IReadOnlyList<string> ResolveGameplaySymbols(string platformId) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            if (string.Equals(platformId, "windows", StringComparison.OrdinalIgnoreCase)) {
-                return [
-                    "HELENGINE_INPUT_KEYBOARD",
-                    "HELENGINE_INPUT_MOUSE",
-                    "DESKTOP_PLATFORM"
-                ];
-            }
-
+            _ = platformId;
             return Array.Empty<string>();
         }
 

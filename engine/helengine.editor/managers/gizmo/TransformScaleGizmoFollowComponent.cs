@@ -188,8 +188,8 @@ namespace helengine.editor {
             }
 
             MeshComponent selfMesh = FindMeshComponent(handleEntity);
-            if (selfMesh != null && !ReferenceEquals(selfMesh.Material, material)) {
-                selfMesh.Material = material;
+            if (selfMesh != null && (selfMesh.Materials.Length == 0 || !ReferenceEquals(selfMesh.Materials[0], material))) {
+                selfMesh.Materials = new[] { material };
             }
 
             for (int childIndex = 0; childIndex < handleEntity.Children.Count; childIndex++) {
@@ -202,8 +202,8 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (!ReferenceEquals(mesh.Material, material)) {
-                    mesh.Material = material;
+                if (mesh.Materials.Length == 0 || !ReferenceEquals(mesh.Materials[0], material)) {
+                    mesh.Materials = new[] { material };
                 }
             }
         }

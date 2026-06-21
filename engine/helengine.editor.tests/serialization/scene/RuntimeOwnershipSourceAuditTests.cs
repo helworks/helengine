@@ -124,7 +124,6 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void Dispose_whenDrawableComponentsAreRemoved_unregistersRenderEntriesAndOwnedArrays() {
             string meshComponentSource = ReadSource("helengine.core", "components", "3d", "MeshComponent.cs");
-            string runtimeMeshComponentDeserializerSource = ReadSource("helengine.core", "scene", "runtime", "RuntimeMeshComponentDeserializer.cs");
             string textComponentSource = ReadSource("helengine.core", "components", "2d", "TextComponent.cs");
             string spriteComponentSource = ReadSource("helengine.core", "components", "2d", "SpriteComponent.cs");
             string roundedRectComponentSource = ReadSource("helengine.core", "components", "2d", "RoundedRectComponent.cs");
@@ -133,9 +132,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender3D(this);", meshComponentSource);
             Assert.Contains("public override void Dispose()", meshComponentSource);
             Assert.Contains("NativeOwnership.Release(ref MaterialsBySlot);", meshComponentSource);
-            Assert.Contains("RuntimeMaterial[] runtimeMaterials = null;", runtimeMeshComponentDeserializerSource);
-            Assert.Contains("runtimeMaterials = ResolveMaterials(materialReferences, referenceResolver);", runtimeMeshComponentDeserializerSource);
-            Assert.Contains("NativeOwnership.Release(ref runtimeMaterials);", runtimeMeshComponentDeserializerSource);
 
             Assert.Contains("public override void ComponentRemoved(Entity entity)", textComponentSource);
             Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender2D(this);", textComponentSource);

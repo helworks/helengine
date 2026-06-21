@@ -272,7 +272,7 @@ namespace helengine.editor.tests {
             Assert.Equal(orbitTarget, createdEntity.Position);
             MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(createdEntity.Components, component => component is MeshComponent));
             Assert.NotNull(meshComponent.Model);
-            Assert.NotNull(meshComponent.Material);
+            Assert.NotNull(Assert.Single(meshComponent.Materials));
         }
 
         /// <summary>

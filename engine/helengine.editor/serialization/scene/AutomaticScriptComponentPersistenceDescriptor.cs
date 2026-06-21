@@ -262,6 +262,10 @@ namespace helengine.editor {
                 WriteAssetReferenceBackedMemberValue(writer, member, component, saveState);
                 return;
             }
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
+                WriteAssetReferenceBackedArrayMemberValue(writer, member, component, saveState);
+                return;
+            }
 
             WriteSupportedValue(writer, member.ValueType, member.GetValue(component));
         }
@@ -291,6 +295,9 @@ namespace helengine.editor {
 
             if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
                 return ReadAssetReferenceBackedMemberValue(reader, member, component, saveComponent, referenceResolver);
+            }
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
+                return ReadAssetReferenceBackedArrayMemberValue(reader, member, component, saveComponent, referenceResolver);
             }
 
             return ReadSupportedValue(reader, member.ValueType);
@@ -528,6 +535,102 @@ namespace helengine.editor {
             }
 
             return ResolveEditorAssetReference(member.ValueType, referenceResolver, reference);
+        }
+
+        /// <summary>
+        /// Writes one supported asset-backed array member using the stable scene asset references stored in the component save-state.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the encoded reference-array payload.</param>
+        /// <param name="member">Reflected asset-backed array member being serialized.</param>
+        /// <param name="component">Live component instance that owns the member.</param>
+        /// <param name="saveState">Editor-time save metadata associated with the component.</param>
+        static void WriteAssetReferenceBackedArrayMemberValue(
+            EngineBinaryWriter writer,
+            ScriptComponentReflectionMember member,
+            Component component,
+            EntityComponentSaveState saveState) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            } else if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (!AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
+                throw new InvalidOperationException($"Automatic script-component persistence does not support asset-backed array member type '{member.ValueType.FullName}'.");
+            }
+
+            Array runtimeValues = member.GetValue(component) as Array;
+            if (runtimeValues == null) {
+                SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(writer, null);
+                return;
+            }
+
+            var references = new SceneAssetReference[runtimeValues.Length];
+            for (int index = 0; index < runtimeValues.Length; index++) {
+                object runtimeValue = runtimeValues.GetValue(index);
+                string referenceName = AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(member.Name, index);
+                SceneAssetReference reference = null;
+                if (saveState != null && saveState.TryGetAssetReference(referenceName, out SceneAssetReference savedReference)) {
+                    reference = savedReference;
+                }
+
+                if (runtimeValue != null && reference == null) {
+                    throw new InvalidOperationException(
+                        $"Component '{component.GetType().FullName}' requires scene asset reference '{referenceName}' before member '{member.Name}' can be serialized.");
+                }
+
+                references[index] = reference;
+            }
+
+            SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(writer, references);
+        }
+
+        /// <summary>
+        /// Reads one supported asset-backed array member from the serialized reference-array payload and resolves it back into runtime assets when possible.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the encoded reference-array payload.</param>
+        /// <param name="member">Reflected asset-backed array member being restored.</param>
+        /// <param name="component">Live component instance that owns the member.</param>
+        /// <param name="saveComponent">Hidden entity save component that should receive restored metadata.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime asset references.</param>
+        /// <returns>Resolved runtime asset array or null when the payload omitted the reference array.</returns>
+        static object ReadAssetReferenceBackedArrayMemberValue(
+            EngineBinaryReader reader,
+            ScriptComponentReflectionMember member,
+            Component component,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            } else if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (!AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
+                throw new InvalidOperationException($"Automatic script-component persistence does not support asset-backed array member type '{member.ValueType.FullName}'.");
+            }
+
+            SceneAssetReference[] references = SceneComponentBinaryFieldEncoding.ReadOptionalReferenceArray(reader);
+            if (references == null) {
+                return null;
+            }
+
+            Type elementType = member.ValueType.GetElementType() ?? throw new InvalidOperationException($"Asset-backed array member '{member.Name}' must expose one element type.");
+            Array resolvedValues = Array.CreateInstance(elementType, references.Length);
+            for (int index = 0; index < references.Length; index++) {
+                SceneAssetReference reference = references[index];
+                if (saveComponent != null && reference != null) {
+                    string referenceName = AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(member.Name, index);
+                    saveComponent.SetAssetReference(component, referenceName, reference);
+                }
+                if (reference == null || referenceResolver == null) {
+                    continue;
+                }
+
+                resolvedValues.SetValue(ResolveEditorAssetReference(elementType, referenceResolver, reference), index);
+            }
+
+            return resolvedValues;
         }
 
         /// <summary>
@@ -901,7 +1004,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns whether the supplied type can be serialized as one nested authored object by recursively traversing writable public members.
+        /// Returns whether the supplied type can be serialized as one nested authored object or struct by recursively traversing writable public members.
         /// </summary>
         /// <param name="valueType">Runtime value type to inspect.</param>
         /// <returns>True when the type can be serialized as one nested authored object.</returns>
@@ -909,18 +1012,24 @@ namespace helengine.editor {
             if (valueType == null) {
                 return false;
             }
-            if (valueType == typeof(string) || !valueType.IsClass || valueType.IsAbstract) {
+            if (valueType == typeof(string) || valueType.IsAbstract) {
+                return false;
+            }
+            if (!valueType.IsClass && !valueType.IsValueType) {
                 return false;
             }
             if (typeof(Component).IsAssignableFrom(valueType) || typeof(Entity).IsAssignableFrom(valueType)) {
                 return false;
+            }
+            if (valueType.IsValueType) {
+                return true;
             }
 
             return valueType.GetConstructor(Type.EmptyTypes) != null;
         }
 
         /// <summary>
-        /// Writes one nested authored object by recursively serializing its writable public members in deterministic ordinal order.
+        /// Writes one nested authored object or struct by recursively serializing its writable public members in deterministic ordinal order.
         /// </summary>
         /// <param name="writer">Destination writer receiving the nested object payload.</param>
         /// <param name="valueType">Runtime object type being serialized.</param>
@@ -939,13 +1048,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Reads one nested authored object by recursively deserializing its writable public members in deterministic ordinal order.
+        /// Reads one nested authored object or struct by recursively deserializing its writable public members in deterministic ordinal order.
         /// </summary>
         /// <param name="reader">Source reader positioned at the nested object payload.</param>
         /// <param name="valueType">Runtime object type expected for the payload.</param>
         /// <returns>Decoded nested object instance or null when the payload omitted the object.</returns>
         static object ReadNestedObjectValue(EngineBinaryReader reader, Type valueType) {
             if (reader.ReadByte() == 0) {
+                if (valueType != null && valueType.IsValueType) {
+                    return Activator.CreateInstance(valueType);
+                }
+
                 return null;
             }
 

@@ -734,7 +734,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Recursively discovers nested authored object types that require helper methods in generated native deserializers.
+        /// Recursively discovers nested authored object or struct types that require helper methods in generated native deserializers.
         /// </summary>
         /// <param name="rootType">Root reflected type whose member graph should be inspected.</param>
         /// <param name="helperNames">Accumulated helper method names keyed by nested authored object type.</param>
@@ -747,7 +747,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Recursively discovers helper-backed nested authored object types inside one reflected member value type.
+        /// Recursively discovers helper-backed nested authored object or struct types inside one reflected member value type.
         /// </summary>
         /// <param name="valueType">Reflected member value type to inspect.</param>
         /// <param name="helperNames">Accumulated helper method names keyed by nested authored object type.</param>
@@ -823,7 +823,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds one generated native helper-method source block that materializes one nested authored object type.
+        /// Builds one generated native helper-method source block that materializes one nested authored object or struct type.
         /// </summary>
         /// <param name="className">Generated native deserializer class name that owns the helper method.</param>
         /// <param name="valueType">Nested authored object type materialized by the helper method.</param>
@@ -834,6 +834,13 @@ namespace helengine.editor {
             Dictionary<Type, string> nativeNestedHelperNames = new Dictionary<Type, string>();
             CollectNativeNestedHelperTypes(valueType, nativeNestedHelperNames);
             nativeNestedHelperNames[valueType] = helperName;
+            string valueAccessOperator = valueType.IsValueType ? "." : "->";
+            string valueConstructionExpression = valueType.IsValueType
+                ? $"{BuildNativeValueTypeName(valueType)} value {{}};"
+                : $"{BuildNativeValueTypeName(valueType)} value = new ::{valueType.Name}();";
+            string omittedValueExpression = valueType.IsValueType
+                ? $"{BuildNativeValueTypeName(valueType)}()"
+                : "nullptr";
 
             StringBuilder builder = new StringBuilder();
             builder.AppendLine($"{BuildNativeValueTypeName(valueType)} {className}::{helperName}(::EngineBinaryReader* reader)");
@@ -844,17 +851,17 @@ namespace helengine.editor {
             builder.AppendLine("    }");
             builder.AppendLine("    if (reader->ReadByte() == 0)");
             builder.AppendLine("    {");
-            builder.AppendLine("return nullptr;");
+            builder.AppendLine($"return {omittedValueExpression};");
             builder.AppendLine("    }");
-            builder.AppendLine($"    {BuildNativeValueTypeName(valueType)} value = new ::{valueType.Name}();");
+            builder.AppendLine($"    {valueConstructionExpression}");
             for (int index = 0; index < members.Count; index++) {
                 MemberInfo member = members[index];
                 string assignmentTarget = BuildNativeMemberAssignmentTarget(member);
                 string expression = BuildNativeReadExpression(GetSerializableMemberType(member), "reader", nativeNestedHelperNames);
                 if (member is PropertyInfo) {
-                    builder.AppendLine($"    value->{assignmentTarget}({expression});");
+                    builder.AppendLine($"    value{valueAccessOperator}{assignmentTarget}({expression});");
                 } else {
-                    builder.AppendLine($"    value->{assignmentTarget} = {expression};");
+                    builder.AppendLine($"    value{valueAccessOperator}{assignmentTarget} = {expression};");
                 }
             }
             builder.AppendLine("    return value;");
@@ -947,7 +954,9 @@ namespace helengine.editor {
                 return $"::{valueType.Name}";
             }
             if (IsSupportedNestedObjectType(valueType)) {
-                return $"::{valueType.Name}*";
+                return valueType.IsValueType
+                    ? $"::{valueType.Name}"
+                    : $"::{valueType.Name}*";
             }
 
             throw new InvalidOperationException($"Native scripted component deserializer generation does not support member type '{valueType.FullName}'.");
@@ -993,15 +1002,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns whether the supplied type can be deserialized as one nested authored object by recursively traversing writable public members.
+        /// Returns whether the supplied type can be deserialized as one nested authored object or struct by recursively traversing writable public members.
         /// </summary>
         /// <param name="valueType">Runtime value type to inspect.</param>
-        /// <returns>True when the type can be deserialized as one nested authored object.</returns>
+        /// <returns>True when the type can be deserialized as one nested authored object or struct.</returns>
         static bool IsSupportedNestedObjectType(Type valueType) {
             if (valueType == null) {
                 return false;
             }
-            if (valueType == typeof(string) || !valueType.IsClass || valueType.IsAbstract) {
+            if (valueType == typeof(string) || valueType.IsAbstract) {
+                return false;
+            }
+            if (!valueType.IsClass && !valueType.IsValueType) {
                 return false;
             }
             if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out _, out _)) {
@@ -1009,6 +1021,9 @@ namespace helengine.editor {
             }
             if (typeof(Component).IsAssignableFrom(valueType) || typeof(Entity).IsAssignableFrom(valueType)) {
                 return false;
+            }
+            if (valueType.IsValueType) {
+                return true;
             }
 
             return valueType.GetConstructor(Type.EmptyTypes) != null;

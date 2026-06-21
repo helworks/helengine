@@ -286,7 +286,7 @@ namespace helengine.editor {
             shaftEntity.Scale = float3.Zero;
             MeshComponent shaftMesh = new MeshComponent();
             shaftMesh.Model = shaftModel;
-            shaftMesh.Material = material;
+            shaftMesh.Materials = new[] { material };
             shaftEntity.AddComponent(shaftMesh);
             axisEntity.AddChild(shaftEntity);
 
@@ -299,7 +299,7 @@ namespace helengine.editor {
             tipEntity.Position = tipOffset;
             MeshComponent tipMesh = new MeshComponent();
             tipMesh.Model = tipModel;
-            tipMesh.Material = material;
+            tipMesh.Materials = new[] { material };
             tipEntity.AddComponent(tipMesh);
             axisEntity.AddChild(tipEntity);
         }
@@ -344,7 +344,7 @@ namespace helengine.editor {
 
             MeshComponent planeMesh = new MeshComponent();
             planeMesh.Model = planeModel;
-            planeMesh.Material = material;
+            planeMesh.Materials = new[] { material };
             planeEntity.AddComponent(planeMesh);
 
             gizmoRoot.AddChild(planeEntity);
@@ -373,7 +373,7 @@ namespace helengine.editor {
             };
             var previewMesh = new MeshComponent {
                 Model = previewModel,
-                Material = previewMaterial,
+                Materials = new[] { previewMaterial },
                 RenderOrder3D = SnapPreviewRenderOrder3D
             };
             previewEntity.AddComponent(previewMesh);

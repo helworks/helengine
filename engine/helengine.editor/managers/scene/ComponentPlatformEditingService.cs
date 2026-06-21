@@ -537,10 +537,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Initialized persistence registry.</returns>
         ComponentPersistenceRegistry CreatePersistenceRegistry() {
-            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
-            persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
-            return persistenceRegistry;
+            return new ComponentPersistenceRegistry();
         }
 
         /// <summary>
@@ -673,7 +670,7 @@ namespace helengine.editor {
 
             IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(commonComponent);
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
-                ComponentTypeId = descriptor.ComponentTypeId,
+                ComponentTypeId = ResolvePersistedComponentTypeId(commonComponent, descriptor),
                 ComponentIndex = 0,
                 Payload = overrideState.Payload ?? Array.Empty<byte>()
             };
@@ -684,6 +681,26 @@ namespace helengine.editor {
             } catch {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Resolves the persisted component type id that should be used when rebuilding one detached override payload.
+        /// </summary>
+        /// <param name="component">Concrete component whose persisted type id should be emitted.</param>
+        /// <param name="descriptor">Resolved persistence descriptor that owns the component shape.</param>
+        /// <returns>Stable persisted component type id for the component payload.</returns>
+        string ResolvePersistedComponentTypeId(Component component, IComponentPersistenceDescriptor descriptor) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (descriptor == null) {
+                throw new ArgumentNullException(nameof(descriptor));
+            }
+
+            if (descriptor is AutomaticScriptComponentPersistenceDescriptor) {
+                return AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(component.GetType());
+            }
+
+            return descriptor.ComponentTypeId;
         }
 
         /// <summary>

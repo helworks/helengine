@@ -43,7 +43,7 @@ namespace helengine.editor {
             };
             var meshComponent = new MeshComponent {
                 Model = gridModel,
-                Material = gridMaterial,
+                Materials = new[] { gridMaterial },
                 RenderOrder3D = GridRenderOrder3D
             };
             gridEntity.AddComponent(meshComponent);

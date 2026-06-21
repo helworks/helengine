@@ -12,35 +12,21 @@ namespace helengine {
         public RuntimeModel Model { get; set; }
 
         /// <summary>
-        /// Gets or sets the primary runtime material bound to slot zero.
+        /// Gets or sets the runtime materials bound to each submesh slot.
         /// </summary>
-        public RuntimeMaterial Material {
-            get {
-                return MaterialsBySlot.Length == 0 ? null : MaterialsBySlot[0];
-            }
+        public RuntimeMaterial[] Materials {
+            get { return MaterialsBySlot; }
             set {
-                if (MaterialsBySlot.Length == 0) {
-                    RuntimeMaterial[] previousMaterials = MaterialsBySlot;
-                    MaterialsBySlot = value == null
-                        ? new RuntimeMaterial[0]
-                        : new[] { value };
-                    NativeOwnership.Release(ref previousMaterials);
-                    return;
+                if (value == null) {
+                    throw new ArgumentNullException(nameof(value));
                 }
 
-                RuntimeMaterial[] previousMaterialsForUpdate = MaterialsBySlot;
-                RuntimeMaterial[] updatedMaterials = new RuntimeMaterial[MaterialsBySlot.Length];
-                Array.Copy(MaterialsBySlot, updatedMaterials, MaterialsBySlot.Length);
-                updatedMaterials[0] = value;
-                MaterialsBySlot = updatedMaterials;
-                NativeOwnership.Release(ref previousMaterialsForUpdate);
+                RuntimeMaterial[] previousMaterials = MaterialsBySlot;
+                MaterialsBySlot = new RuntimeMaterial[value.Length];
+                Array.Copy(value, MaterialsBySlot, value.Length);
+                NativeOwnership.Release(ref previousMaterials);
             }
         }
-
-        /// <summary>
-        /// Gets the runtime materials bound to each submesh slot.
-        /// </summary>
-        public RuntimeMaterial[] Materials => MaterialsBySlot;
 
         /// <summary>
         /// Gets or sets the render order for this mesh.
@@ -72,14 +58,7 @@ namespace helengine {
         /// </summary>
         /// <param name="runtimeMaterials">Ordered runtime materials by submesh slot.</param>
         public void SetMaterials(RuntimeMaterial[] runtimeMaterials) {
-            if (runtimeMaterials == null) {
-                throw new ArgumentNullException(nameof(runtimeMaterials));
-            }
-
-            RuntimeMaterial[] previousMaterials = MaterialsBySlot;
-            MaterialsBySlot = new RuntimeMaterial[runtimeMaterials.Length];
-            Array.Copy(runtimeMaterials, MaterialsBySlot, runtimeMaterials.Length);
-            NativeOwnership.Release(ref previousMaterials);
+            Materials = runtimeMaterials;
         }
 
         /// <summary>

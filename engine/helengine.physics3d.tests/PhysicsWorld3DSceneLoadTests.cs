@@ -54,43 +54,7 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Ensures legacy serialized box-collider payloads still load through the runtime scene loader and simulate correctly.
-        /// </summary>
-        [Fact]
-        public void LoadSceneAsset_WithLegacyBoxColliderVersion1_LoadsAndSimulatesDynamicGroundContact() {
-            Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
-            });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
-
-            SceneAsset sceneAsset = new SceneAsset {
-                Id = "scenes/physics/test_scene_runtime_load_legacy_box.helen",
-                RootEntities = new[] {
-                    CreateBodyEntity("ground", new float3(0f, -0.5f, 0f), BodyKind3D.Static, false, new float3(8f, 1f, 8f), 1),
-                    CreateBodyEntity("dynamic", new float3(0f, 2f, 0f), BodyKind3D.Dynamic, true, new float3(1f, 1f, 1f), 1)
-                },
-                AssetReferences = Array.Empty<SceneAssetReference>()
-            };
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
-            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
-            PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
-            world.BindScene(rootEntities);
-
-            for (int index = 0; index < 60; index++) {
-                world.Step(1.0 / 60.0);
-            }
-
-            Entity dynamicEntity = rootEntities[1];
-            RigidBody3DComponent rigidBody = FindRigidBody(dynamicEntity);
-
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
-            Assert.NotNull(rigidBody);
-            Assert.InRange(rigidBody.LinearVelocity.Y, -0.0001f, 0.0001f);
-        }
-
-        /// <summary>
-        /// Ensures a serialized rigid body and sphere collider can be loaded through the runtime scene loader and simulated by the physics world.
+        /// Ensures a generic automatic rigid body and sphere collider can be loaded through the runtime scene loader and simulated by the physics world.
         /// </summary>
         [Fact]
         public void LoadSceneAsset_WithSpherePhysicsComponents_LoadsAndSimulatesDynamicGroundContact() {
@@ -812,7 +776,7 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Creates one serialized rigid body component record.
+        /// Creates one serialized rigid body component record using the automatic runtime member order.
         /// </summary>
         /// <param name="bodyKind">Rigid body kind to serialize.</param>
         /// <param name="useGravity">True when gravity should be enabled.</param>
@@ -821,11 +785,13 @@ namespace helengine.physics3d.tests {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteByte((byte)bodyKind);
-            writer.WriteByte(useGravity ? (byte)1 : (byte)0);
-            writer.WriteSingle(1f);
-            writer.WriteSingle(1f);
+            writer.WriteInt32(6);
             writer.WriteFloat3(float3.Zero);
+            writer.WriteInt32((int)bodyKind);
+            writer.WriteDouble(1d);
+            writer.WriteFloat3(float3.Zero);
+            writer.WriteDouble(1d);
+            writer.WriteByte(useGravity ? (byte)1 : (byte)0);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.RigidBody3DComponent",
@@ -860,7 +826,7 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Creates one serialized box collider component record.
+        /// Creates one serialized box collider component record using the automatic runtime member order.
         /// </summary>
         /// <param name="boxSize">Full collider size.</param>
         /// <returns>Serialized scene component record.</returns>
@@ -869,21 +835,27 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Creates one serialized box collider component record with a specific payload version.
+        /// Creates one serialized box collider component record using the automatic runtime member order.
         /// </summary>
         /// <param name="boxSize">Full collider size.</param>
-        /// <param name="version">Box-collider payload format version to encode.</param>
+        /// <param name="version">Expected compatibility marker for the current helper shape.</param>
         /// <returns>Serialized scene component record.</returns>
         static SceneComponentAssetRecord CreateBoxColliderRecord(float3 boxSize, byte version) {
+            if (version != 2) {
+                throw new InvalidOperationException("Legacy box-collider runtime payload versions are no longer supported by the physics scene-load tests.");
+            }
+
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(version);
+            writer.WriteByte(1);
+            writer.WriteInt32(7);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteDouble(0.4d);
+            writer.WriteByte(0);
+            writer.WriteDouble(0d);
             writer.WriteFloat3(boxSize);
-            if (version >= 2) {
-                writer.WriteUInt16(1);
-                writer.WriteUInt16(ushort.MaxValue);
-                writer.WriteByte(0);
-            }
+            writer.WriteDouble(0.6d);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.BoxCollider3DComponent",
@@ -893,21 +865,12 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Creates one serialized sphere collider component record.
+        /// Creates one serialized sphere collider component record using the automatic runtime member order.
         /// </summary>
         /// <param name="radius">Sphere collider radius.</param>
         /// <returns>Serialized scene component record.</returns>
         static SceneComponentAssetRecord CreateSphereColliderRecord(float radius) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteSingle(radius);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = "helengine.SphereCollider3DComponent",
-                ComponentIndex = 1,
-                Payload = stream.ToArray()
-            };
+            return CreateAutomaticSphereColliderRecord(radius);
         }
 
         /// <summary>
@@ -936,7 +899,7 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Creates one serialized capsule collider component record.
+        /// Creates one serialized capsule collider component record using the automatic runtime member order.
         /// </summary>
         /// <param name="radius">Capsule collider radius.</param>
         /// <param name="height">Capsule collider full height.</param>
@@ -945,8 +908,15 @@ namespace helengine.physics3d.tests {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteSingle(radius);
+            writer.WriteInt32(8);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteDouble(0.4d);
             writer.WriteSingle(height);
+            writer.WriteByte(0);
+            writer.WriteSingle(radius);
+            writer.WriteDouble(0d);
+            writer.WriteDouble(0.6d);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.CapsuleCollider3DComponent",
@@ -956,7 +926,7 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Creates one serialized static-mesh collider component record.
+        /// Creates one serialized static-mesh collider component record using the automatic runtime member order.
         /// </summary>
         /// <param name="collisionData">Cooked static-mesh collision data.</param>
         /// <returns>Serialized scene component record.</returns>
@@ -968,15 +938,22 @@ namespace helengine.physics3d.tests {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteInt32(collisionData.Vertices.Length);
-            for (int index = 0; index < collisionData.Vertices.Length; index++) {
-                writer.WriteFloat3(collisionData.Vertices[index]);
-            }
-
+            writer.WriteInt32(7);
+            writer.WriteByte(1);
             writer.WriteInt32(collisionData.Indices.Length);
             for (int index = 0; index < collisionData.Indices.Length; index++) {
                 writer.WriteInt32(collisionData.Indices[index]);
             }
+            writer.WriteInt32(collisionData.Vertices.Length);
+            for (int index = 0; index < collisionData.Vertices.Length; index++) {
+                writer.WriteFloat3(collisionData.Vertices[index]);
+            }
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteDouble(0.4d);
+            writer.WriteByte(0);
+            writer.WriteDouble(0d);
+            writer.WriteDouble(0.6d);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.StaticMeshCollider3DComponent",
@@ -986,7 +963,7 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Creates one serialized kinematic-motion component record.
+        /// Creates one serialized kinematic-motion component record using the automatic runtime member order.
         /// </summary>
         /// <param name="startLocalPosition">Motion path start position.</param>
         /// <param name="endLocalPosition">Motion path end position.</param>
@@ -1001,10 +978,11 @@ namespace helengine.physics3d.tests {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteFloat3(startLocalPosition);
+            writer.WriteInt32(4);
             writer.WriteFloat3(endLocalPosition);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(travelDurationSeconds));
             writer.WriteByte(pingPong ? (byte)1 : (byte)0);
+            writer.WriteFloat3(startLocalPosition);
+            writer.WriteDouble(travelDurationSeconds);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.KinematicMotion3DComponent",
@@ -1014,7 +992,7 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Creates one serialized character-controller component record.
+        /// Creates one serialized character-controller component record using the automatic runtime member order.
         /// </summary>
         /// <param name="desiredMoveDirection">Desired move direction used by the controller.</param>
         /// <param name="moveSpeed">Horizontal move speed in world units per second.</param>
@@ -1031,11 +1009,13 @@ namespace helengine.physics3d.tests {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
+            writer.WriteInt32(6);
             writer.WriteFloat3(desiredMoveDirection);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(moveSpeed));
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(gravityScale));
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(stepHeight));
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(groundSnapDistance));
+            writer.WriteDouble(gravityScale);
+            writer.WriteDouble(groundSnapDistance);
+            writer.WriteDouble(45d);
+            writer.WriteDouble(moveSpeed);
+            writer.WriteDouble(stepHeight);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.CharacterController3DComponent",

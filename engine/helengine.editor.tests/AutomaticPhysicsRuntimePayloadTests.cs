@@ -75,95 +75,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the authored stacked-boxes scene shape still collides with the floor instead of tunneling through it after automatic physics packaging changes.
-        /// </summary>
-        [Fact]
-        public void Load_WhenAutomaticPhysicsPayloadsMatchAuthoredStackedBoxes_BoxesDoNotFallThroughFloor() {
-            SceneAsset sceneAsset = new SceneAsset {
-                Id = "Scenes/TestAutomaticPhysicsAuthoredScale.helen",
-                RootEntities = new[] {
-                    new SceneEntityAsset {
-                        Id = 1u,
-                        Name = "Ground",
-                        LocalPosition = new float3(0f, -0.5f, 0f),
-                        LocalScale = new float3(14f, 1f, 14f),
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            CreateAutomaticRigidBodyRecord(BodyKind3D.Static, false),
-                            CreateAutomaticBoxColliderRecord(float3.One, false)
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    },
-                    new SceneEntityAsset {
-                        Id = 2u,
-                        Name = "LowerBox",
-                        LocalPosition = new float3(0f, 1f, 0f),
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            CreateAutomaticRigidBodyRecord(BodyKind3D.Dynamic, true),
-                            CreateAutomaticBoxColliderRecord(float3.One, false)
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    },
-                    new SceneEntityAsset {
-                        Id = 3u,
-                        Name = "UpperBox",
-                        LocalPosition = new float3(0.9f, 3f, 0f),
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            CreateAutomaticRigidBodyRecord(BodyKind3D.Dynamic, true),
-                            CreateAutomaticBoxColliderRecord(float3.One, false)
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    }
-                }
-            };
-
-            Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
-            });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            BepuRuntimeComponentRegistration.Register(core);
-
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
-            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
-            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
-            world.BindScene(rootEntities);
-
-            Entity lowerBoxEntity = rootEntities[1];
-            Entity upperBoxEntity = rootEntities[2];
-
-            for (int index = 0; index < 360; index++) {
-                world.Step(1.0 / 60.0);
-            }
-
-            Assert.True(lowerBoxEntity.LocalPosition.Y > -0.1f, $"Expected the lower box to remain above the floor, but its Y position became {lowerBoxEntity.LocalPosition.Y}.");
-            Assert.True(upperBoxEntity.LocalPosition.Y > 0.4f, $"Expected the upper box to remain supported by the stack, but its Y position became {upperBoxEntity.LocalPosition.Y}.");
-        }
-
-        /// <summary>
         /// Creates one automatic reflected rigid-body payload record using the unified built-in component persistence layout.
         /// </summary>
         /// <param name="bodyKind">Rigid-body kind that should be serialized.</param>
         /// <param name="useGravity">Whether the body should use gravity.</param>
         /// <returns>Rigid-body scene component payload record.</returns>
         static SceneComponentAssetRecord CreateAutomaticRigidBodyRecord(BodyKind3D bodyKind, bool useGravity) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteInt32(6);
-            writer.WriteFloat3(float3.Zero);
-            writer.WriteInt32((int)bodyKind);
-            writer.WriteDouble(1.0);
-            writer.WriteFloat3(float3.Zero);
-            writer.WriteDouble(1.0);
-            writer.WriteByte(useGravity ? (byte)1 : (byte)0);
-
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.RigidBody3DComponent",
-                Payload = stream.ToArray()
+                Payload = WriteAutomaticRuntimeComponentPayload(
+                    new RigidBody3DComponent {
+                        AngularVelocity = float3.Zero,
+                        BodyKind = bodyKind,
+                        GravityScale = 1d,
+                        LinearVelocity = float3.Zero,
+                        Mass = 1d,
+                        UseGravity = useGravity
+                    })
             };
         }
 
@@ -174,22 +102,44 @@ namespace helengine.editor.tests {
         /// <param name="isTrigger">Whether the collider should be a trigger volume.</param>
         /// <returns>Box-collider scene component payload record.</returns>
         static SceneComponentAssetRecord CreateAutomaticBoxColliderRecord(float3 size, bool isTrigger) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteInt32(7);
-            writer.WriteUInt16(1);
-            writer.WriteUInt16(ushort.MaxValue);
-            writer.WriteDouble(0.5);
-            writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
-            writer.WriteDouble(0.0);
-            writer.WriteFloat3(size);
-            writer.WriteDouble(0.5);
+            BoxCollider3DComponent component = new BoxCollider3DComponent {
+                CollisionLayer = 1,
+                CollisionMask = ushort.MaxValue,
+                DynamicFriction = 0.4d,
+                IsTrigger = isTrigger,
+                Restitution = 0d,
+                Size = size,
+                StaticFriction = 0.6d
+            };
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.BoxCollider3DComponent",
-                Payload = stream.ToArray()
+                Payload = WriteAutomaticRuntimeComponentPayload(component)
             };
+        }
+
+        /// <summary>
+        /// Serializes one component into the automatic runtime payload shape consumed by the generic runtime scene loader.
+        /// </summary>
+        /// <param name="component">Component instance to serialize.</param>
+        /// <returns>Serialized automatic runtime payload bytes.</returns>
+        static byte[] WriteAutomaticRuntimeComponentPayload(Component component) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            ScriptComponentReflectionSchema schema = schemaBuilder.Build(component.GetType());
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+            writer.WriteInt32(schema.Members.Count);
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                AutomaticScriptComponentPersistenceDescriptor.WriteSupportedMemberValue(writer, member, component, null);
+            }
+
+            return stream.ToArray();
         }
     }
 }

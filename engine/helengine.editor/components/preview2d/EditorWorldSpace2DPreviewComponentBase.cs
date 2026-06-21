@@ -36,7 +36,7 @@ namespace helengine {
             previewEntity.LayerMask = helengine.editor.EditorLayerMasks.SceneObjects;
             Model = ResolvePreviewModel();
             PreviewMaterialValue = CreatePreviewMaterial(Core.Instance.RenderManager3D);
-            Material = PreviewMaterialValue;
+            Materials = new[] { PreviewMaterialValue };
             base.ComponentAdded(entity);
             SynchronizeFromSource();
         }
@@ -54,7 +54,7 @@ namespace helengine {
             }
 
             PreviewMaterialValue = null;
-            Material = null;
+            Materials = Array.Empty<RuntimeMaterial>();
             Model = null;
         }
 

@@ -1,7 +1,9 @@
 using System.Reflection;
+using helengine.directx11;
 using helengine.editor;
 using helengine.editor.tests.testing;
 using helengine.ui;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
@@ -28,6 +30,10 @@ namespace helengine.editor.tests.serialization.scene {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         }
 
         /// <summary>
@@ -62,12 +68,12 @@ namespace helengine.editor.tests.serialization.scene {
             EditorEntity root = CreateUserEntity("Root", new float3(1f, 2f, 3f), new float3(2f, 2f, 2f), new float4(0f, 0.70710677f, 0f, 0.70710677f));
             MeshComponent rootMesh = new MeshComponent {
                 Model = new TestRuntimeModel(),
-                Material = new TestRuntimeMaterial(),
+                Materials = new RuntimeMaterial[] { new TestRuntimeMaterial() },
                 RenderOrder3D = 5
             };
             root.AddComponent(rootMesh);
             GetSaveComponent(root).SetAssetReference(rootMesh, "Model", modelReference);
-            GetSaveComponent(root).SetAssetReference(rootMesh, "Material", materialReference);
+            GetSaveComponent(root).SetAssetReference(rootMesh, "Materials[0]", materialReference);
 
             EditorEntity child = CreateUserEntity("Child", new float3(5f, 6f, 7f), float3.One, float4.Identity);
             root.AddChild(child);
@@ -76,7 +82,6 @@ namespace helengine.editor.tests.serialization.scene {
             internalEntity.InternalEntity = true;
 
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new MeshComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "RoundTrip.helen");
 
@@ -123,7 +128,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             MeshComponent loadedMesh = FindMeshComponent(loadedRoot);
             Assert.Same(loadedModel, loadedMesh.Model);
-            Assert.Same(loadedMaterial, loadedMesh.Material);
+            Assert.Same(loadedMaterial, Assert.Single(loadedMesh.Materials));
             Assert.Equal((byte)5, loadedMesh.RenderOrder3D);
             Assert.True(GetSaveComponent(loadedRoot).TryGetComponentState(loadedMesh, out EntityComponentSaveState loadedSaveState));
             Assert.True(loadedSaveState.TryGetAssetReference("Model", out SceneAssetReference loadedModelReference));
@@ -172,16 +177,17 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void SaveAndLoad_WhenMeshUsesGeneratedAssetsWithoutStoredReferences_InfersReferencesDuringSave() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new MeshComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "GeneratedMeshInference.helen");
 
             EditorEntity root = CreateUserEntity("GeneratedCube", float3.Zero, float3.One, float4.Identity);
             MeshComponent meshComponent = new MeshComponent {
                 Model = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId),
-                Material = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId),
                 RenderOrder3D = 9
             };
+            SetMeshMaterials(meshComponent, new RuntimeMaterial[] {
+                EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId)
+            });
             root.AddComponent(meshComponent);
 
             saveService.Save(scenePath);
@@ -221,12 +227,14 @@ namespace helengine.editor.tests.serialization.scene {
             SceneLoadService loadService = new SceneLoadService(registry, resolver);
             EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
             MeshComponent loadedMesh = FindMeshComponent(loadedRoot);
+            RuntimeMaterial[] restoredMaterials = GetMeshMaterials(loadedMesh);
 
             Assert.Same(generatedModel, loadedMesh.Model);
-            Assert.Same(generatedMaterial, loadedMesh.Material);
+            Assert.Single(restoredMaterials);
+            Assert.Same(generatedMaterial, restoredMaterials[0]);
             Assert.True(GetSaveComponent(loadedRoot).TryGetComponentState(loadedMesh, out EntityComponentSaveState loadedSaveState));
             Assert.True(loadedSaveState.TryGetAssetReference("Model", out SceneAssetReference loadedModelReference));
-            Assert.True(loadedSaveState.TryGetAssetReference("Material", out SceneAssetReference loadedMaterialReference));
+            Assert.True(loadedSaveState.TryGetAssetReference("Materials[0]", out SceneAssetReference loadedMaterialReference));
             Assert.Equal(EngineGeneratedAssetProvider.CubeRelativePath, loadedModelReference.RelativePath);
             Assert.Equal(EngineGeneratedAssetProvider.StandardMaterialRelativePath, loadedMaterialReference.RelativePath);
         }
@@ -250,7 +258,6 @@ namespace helengine.editor.tests.serialization.scene {
             }
 
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new MeshComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FileSystemModelInference.helen");
 
@@ -259,7 +266,7 @@ namespace helengine.editor.tests.serialization.scene {
             runtimeModel.SetId(importSettings.Importer.AssetId);
             MeshComponent meshComponent = new MeshComponent {
                 Model = runtimeModel,
-                Material = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId),
+                Materials = new RuntimeMaterial[] { EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) },
                 RenderOrder3D = 3
             };
             root.AddComponent(meshComponent);
@@ -650,7 +657,6 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void SaveAndLoad_WhenCameraFarPlaneUsesSparseWindowsOverride_RoundTripsTheOverridePathAndRebuildsFromCommon() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new CameraComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "SparseComponentOverride.helen");
             EditorEntity entity = CreateUserEntity("PlatformCamera", float3.Zero, float3.One, float4.Identity);
@@ -698,7 +704,6 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void SaveAndLoad_WhenWindowsAddsPlatformOnlyCamera_RoundTripsTheAddedComponentWithoutAddingItToCommon() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new CameraComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "PlatformAddedCamera.helen");
             EditorEntity entity = CreateUserEntity("PlatformEntity", float3.Zero, float3.One, float4.Identity);
@@ -802,7 +807,6 @@ namespace helengine.editor.tests.serialization.scene {
             EditorSceneCreationService creationService = new EditorSceneCreationService();
             EditorEntity cameraEntity = creationService.CreateCamera();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new CameraComponentPersistenceDescriptor());
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CameraRoundTrip.helen");
 
@@ -825,14 +829,79 @@ namespace helengine.editor.tests.serialization.scene {
             EditorEntity loadedVisualEntity = Assert.IsType<EditorEntity>(Assert.Single(loadedCameraEntity.Children));
             EditorCameraVisualComponent loadedVisual = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(loadedVisualEntity.Components, component => component is EditorCameraVisualComponent));
 
-            Assert.Equal((ushort)0, loadedCamera.LayerMask);
-            Assert.False(loadedCamera.ClearSettings.ClearColorEnabled);
-            Assert.Equal(EditorLayerMasks.SceneObjects, suppressionComponent.LayerMask);
-            Assert.True(suppressionComponent.ClearSettings.ClearColorEnabled);
+            Assert.Equal(EditorLayerMasks.SceneObjects, loadedCamera.LayerMask);
+            Assert.True(loadedCamera.ClearSettings.ClearColorEnabled);
+            Assert.NotNull(suppressionComponent);
             Assert.True(loadedVisualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, loadedVisualEntity.LayerMask);
             Assert.NotNull(loadedVisual.Model);
-            Assert.NotNull(loadedVisual.Material);
+            Assert.NotNull(Assert.Single(loadedVisual.Materials));
+        }
+
+        /// <summary>
+        /// Ensures a suppressed scene camera can round-trip through the generic persistence path while keeping authored values on the live camera component.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenSuppressedCameraUsesGenericPersistence_RoundTripsAuthoredLiveValues() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "GenericCameraRoundTrip.helen");
+            EditorEntity entity = CreateUserEntity("GenericCamera", float3.Zero, float3.One, float4.Identity);
+            CameraComponent camera = new CameraComponent {
+                CameraDrawOrder = 9,
+                LayerMask = 0x1234,
+                Viewport = new float4(0.1f, 0.2f, 0.7f, 0.6f),
+                NearPlaneDistance = 0.5f,
+                FarPlaneDistance = 250f,
+                ClearSettings = new CameraClearSettings(true, new float4(0.25f, 0.5f, 0.75f, 1f), true, 0.75f, true, 3),
+                RenderSettings = new CameraRenderSettings {
+                    DepthPrepassMode = DepthPrepassMode.Always,
+                    ShadowDistance = 321f,
+                    PostProcessTier = PostProcessTier.Low
+                }
+            };
+            entity.AddComponent(camera);
+            Assert.True(EditorSceneCameraSuppressionService.AttachAndSuppress(entity));
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
+            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedEntity.Components, component => component is CameraComponent));
+
+            Assert.Equal((byte)9, loadedCamera.CameraDrawOrder);
+            Assert.Equal((ushort)0x1234, loadedCamera.LayerMask);
+            Assert.Equal(new float4(0.1f, 0.2f, 0.7f, 0.6f), loadedCamera.Viewport);
+            Assert.Equal(0.5f, loadedCamera.NearPlaneDistance);
+            Assert.Equal(250f, loadedCamera.FarPlaneDistance);
+            Assert.Equal(new CameraClearSettings(true, new float4(0.25f, 0.5f, 0.75f, 1f), true, 0.75f, true, 3), loadedCamera.ClearSettings);
+            Assert.Equal(DepthPrepassMode.Always, loadedCamera.RenderSettings.DepthPrepassMode);
+            Assert.Equal(321f, loadedCamera.RenderSettings.ShadowDistance);
+            Assert.Equal(PostProcessTier.Low, loadedCamera.RenderSettings.PostProcessTier);
+        }
+
+        /// <summary>
+        /// Ensures generic camera persistence ignores runtime render targets instead of treating them as scene-authored data.
+        /// </summary>
+        [Fact]
+        public void Save_WhenCameraUsesGenericPersistence_IgnoresRuntimeRenderTarget() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CameraRenderTargetIgnored.helen");
+            EditorEntity entity = CreateUserEntity("RenderTargetCamera", float3.Zero, float3.One, float4.Identity);
+            CameraComponent camera = new CameraComponent {
+                RenderTarget = new TestRenderTarget()
+            };
+            entity.AddComponent(camera);
+
+            saveService.Save(scenePath);
+
+            Assert.True(File.Exists(scenePath));
         }
 
         /// <summary>
@@ -871,7 +940,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.True(loadedVisualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, loadedVisualEntity.LayerMask);
             Assert.NotNull(loadedVisual.Model);
-            Assert.NotNull(loadedVisual.Material);
+            Assert.NotNull(Assert.Single(loadedVisual.Materials));
         }
 
         /// <summary>
@@ -910,7 +979,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.True(loadedVisualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, loadedVisualEntity.LayerMask);
             Assert.NotNull(loadedVisual.Model);
-            Assert.NotNull(loadedVisual.Material);
+            Assert.NotNull(Assert.Single(loadedVisual.Materials));
         }
 
         /// <summary>
@@ -951,7 +1020,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.True(loadedVisualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, loadedVisualEntity.LayerMask);
             Assert.NotNull(loadedVisual.Model);
-            Assert.NotNull(loadedVisual.Material);
+            Assert.NotNull(Assert.Single(loadedVisual.Materials));
         }
 
         /// <summary>
@@ -1106,6 +1175,35 @@ namespace helengine.editor.tests.serialization.scene {
         /// <returns>Attached mesh component.</returns>
         MeshComponent FindMeshComponent(EditorEntity entity) {
             return Assert.IsType<MeshComponent>(Assert.Single(entity.Components, component => component is MeshComponent));
+        }
+
+        /// <summary>
+        /// Assigns runtime materials through the public writable mesh property expected by generic reflected persistence.
+        /// </summary>
+        /// <param name="meshComponent">Mesh component receiving the runtime material array.</param>
+        /// <param name="materials">Runtime materials to assign.</param>
+        void SetMeshMaterials(MeshComponent meshComponent, RuntimeMaterial[] materials) {
+            if (meshComponent == null) {
+                throw new ArgumentNullException(nameof(meshComponent));
+            }
+
+            PropertyInfo materialsProperty = typeof(MeshComponent).GetProperty(nameof(MeshComponent.Materials)) ?? throw new InvalidOperationException("MeshComponent must expose a public Materials property.");
+            Assert.True(materialsProperty.CanWrite, "MeshComponent.Materials must be writable for generic reflected persistence.");
+            materialsProperty.SetValue(meshComponent, materials);
+        }
+
+        /// <summary>
+        /// Reads runtime materials through the public mesh property expected by generic reflected persistence.
+        /// </summary>
+        /// <param name="meshComponent">Mesh component whose runtime materials should be read.</param>
+        /// <returns>Runtime materials currently assigned to the mesh component.</returns>
+        RuntimeMaterial[] GetMeshMaterials(MeshComponent meshComponent) {
+            if (meshComponent == null) {
+                throw new ArgumentNullException(nameof(meshComponent));
+            }
+
+            PropertyInfo materialsProperty = typeof(MeshComponent).GetProperty(nameof(MeshComponent.Materials)) ?? throw new InvalidOperationException("MeshComponent must expose a public Materials property.");
+            return Assert.IsType<RuntimeMaterial[]>(materialsProperty.GetValue(meshComponent));
         }
 
         /// <summary>

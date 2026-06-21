@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Stable save-state slot name used for mesh material references.
         /// </summary>
-        const string MeshMaterialReferenceName = "Material";
+        const string MeshMaterialReferenceName = "Materials";
 
         /// <summary>
         /// Absolute path to the project root.
@@ -418,9 +418,7 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(slotIndex), "Material slot index must be non-negative.");
             }
 
-            return slotIndex == 0
-                ? MeshMaterialReferenceName
-                : string.Concat(MeshMaterialReferenceName, "[", slotIndex.ToString(), "]");
+            return AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(MeshMaterialReferenceName, slotIndex);
         }
 
         /// <summary>

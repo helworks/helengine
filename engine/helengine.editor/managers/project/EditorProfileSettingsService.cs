@@ -230,17 +230,8 @@ namespace helengine.editor {
             platform.Codegen.SelectedCodegenProfileId ??= string.Empty;
             platform.Codegen.SelectedOptionValues ??= [];
             platform.Input.StandardActions ??= new EditorStandardPlatformActionSettingsDocument();
-
-            if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
-                platform.Input.StandardActions.Accept ??= CreateGamepadButtonControl((int)InputGamepadButton.South);
-                platform.Input.StandardActions.Return ??= CreateGamepadButtonControl((int)InputGamepadButton.East);
-            } else if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
-                platform.Input.StandardActions.Accept ??= CreateGamepadButtonControl((int)InputGamepadButton.South);
-                platform.Input.StandardActions.Return ??= CreateGamepadButtonControl((int)InputGamepadButton.North);
-            } else if (string.Equals(platformId, "gamecube", StringComparison.OrdinalIgnoreCase)) {
-                platform.Input.StandardActions.Accept ??= CreateGamepadButtonControl((int)InputGamepadButton.South);
-                platform.Input.StandardActions.Return ??= CreateGamepadButtonControl((int)InputGamepadButton.East);
-            }
+            platform.Input.StandardActions.Accept ??= CreateGamepadButtonControl((int)InputGamepadButton.South);
+            platform.Input.StandardActions.Return ??= CreateGamepadButtonControl((int)InputGamepadButton.East);
         }
 
         /// <summary>

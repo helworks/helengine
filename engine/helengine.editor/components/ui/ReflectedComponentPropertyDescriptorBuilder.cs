@@ -111,6 +111,11 @@ namespace helengine.editor {
                 rowKind = isEditable ? ComponentPropertyRowKind.Material : ComponentPropertyRowKind.ReadOnly;
                 return true;
             }
+            if (propertyType == typeof(RuntimeMaterial[])
+                && string.Equals(property.Name, nameof(MeshComponent.Materials), StringComparison.Ordinal)) {
+                rowKind = isEditable ? ComponentPropertyRowKind.Material : ComponentPropertyRowKind.ReadOnly;
+                return true;
+            }
             if (propertyType == typeof(FontAsset)) {
                 rowKind = isEditable ? ComponentPropertyRowKind.Font : ComponentPropertyRowKind.ReadOnly;
                 return true;

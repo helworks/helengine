@@ -105,8 +105,8 @@ namespace helengine.editor.tests.managers.gizmo {
 
             MeshComponent shaftMesh = FindMeshComponent(axisEntity.Children[0]);
             MeshComponent tipMesh = FindMeshComponent(axisEntity.Children[1]);
-            Assert.Same(expectedMaterial, shaftMesh.Material);
-            Assert.Same(expectedMaterial, tipMesh.Material);
+            Assert.Same(expectedMaterial, Assert.Single(shaftMesh.Materials));
+            Assert.Same(expectedMaterial, Assert.Single(tipMesh.Materials));
             AssertVectorClose(expectedTipPosition, axisEntity.Children[1].Position);
         }
 
@@ -127,7 +127,7 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal(TransformGizmoHandleConstraintType.Plane, handleComponent.ConstraintType);
 
             MeshComponent planeMesh = FindMeshComponent(planeEntity);
-            Assert.Same(expectedMaterial, planeMesh.Material);
+            Assert.Same(expectedMaterial, Assert.Single(planeMesh.Materials));
         }
 
         /// <summary>

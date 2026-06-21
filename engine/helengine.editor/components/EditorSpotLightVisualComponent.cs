@@ -9,7 +9,7 @@ namespace helengine {
         /// <param name="entity">Spot-light visual entity that owns the editor-only mesh.</param>
         public override void ComponentAdded(Entity entity) {
             Model = EditorSpotLightVisualResources.GetRuntimeModel();
-            Material = helengine.editor.EditorVisualMaterialFactory.CreateOverlayStandardMaterial();
+            Materials = new[] { helengine.editor.EditorVisualMaterialFactory.CreateOverlayStandardMaterial() };
             base.ComponentAdded(entity);
         }
     }

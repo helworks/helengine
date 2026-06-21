@@ -145,10 +145,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures shared build-queue creation no longer injects platform-specific companion scenes.
+        /// Ensures DS-targeted shared build-queue creation preserves the authored scene order even when the selected scene set includes the desktop menu.
         /// </summary>
         [Fact]
-        public void Create_WhenNintendoDsBuildIncludesGeneratedCompanionScenes_PreservesAuthoredSelectionOrder() {
+        public void Create_WhenNintendoDsSelectionIncludesDesktopMenu_PreservesAuthoredSelectionOrder() {
             WriteScene("Scenes/DemoDiscMainMenu.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
             WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
@@ -167,7 +167,6 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
-                    PlatformMenuSceneResolver.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.DesktopMainMenuSceneId,
                     "cube_test"
                 ],
@@ -175,16 +174,16 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures direct-scene builds no longer prioritize platform-specific companion scenes.
+        /// Ensures direct-scene builds preserve the authored scene selection for shared platform implementations.
         /// </summary>
         [Fact]
-        public void Create_WhenNintendoDsBuildTargetsDirectScene_PreservesAuthoredSceneSelection() {
+        public void Create_WhenCustomPlatformBuildTargetsDirectScene_PreservesAuthoredSceneSelection() {
             WriteScene("Scenes/rendering/cube_test.helen");
             WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
-                PlatformId = "ds",
+                PlatformId = "custom-handheld",
                 SelectedSceneIds = [
                     "cube_test"
                 ]

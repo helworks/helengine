@@ -123,6 +123,7 @@ namespace helengine {
         /// Gets or sets the render target that receives this camera's output; null renders to the main back buffer.
         /// </summary>
         [EditorPropertyHidden]
+        [ScenePersistenceIgnore]
         public RenderTarget RenderTarget { get; set; }
 
         /// <summary>

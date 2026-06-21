@@ -261,7 +261,7 @@ namespace helengine.editor.tests.rendering {
                 material.SetRenderState(new MaterialRenderState {
                     BlendMode = blendMode
                 });
-                Material = material;
+                Materials = new[] { material };
             }
 
             /// <summary>
@@ -280,14 +280,9 @@ namespace helengine.editor.tests.rendering {
             public RuntimeModel Model { get; }
 
             /// <summary>
-            /// Gets or sets the runtime material.
+            /// Gets or sets the runtime materials bound to each submesh slot.
             /// </summary>
-            public RuntimeMaterial Material { get; set; }
-
-            /// <summary>
-            /// Gets the runtime materials bound to each submesh slot.
-            /// </summary>
-            public RuntimeMaterial[] Materials => Material == null ? Array.Empty<RuntimeMaterial>() : new[] { Material };
+            public RuntimeMaterial[] Materials { get; set; }
         }
     }
 }

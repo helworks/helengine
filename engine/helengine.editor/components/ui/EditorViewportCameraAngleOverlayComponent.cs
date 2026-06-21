@@ -436,7 +436,7 @@ namespace helengine.editor {
                 Enabled = false
             };
             var axisLabelMesh = new MeshComponent {
-                Material = axisLabelMaterial
+                Materials = new[] { axisLabelMaterial }
             };
             axisLabelEntity.AddComponent(axisLabelMesh);
             axisLabelMesh.RenderOrder3D = AxisLabelRenderOrder3D;

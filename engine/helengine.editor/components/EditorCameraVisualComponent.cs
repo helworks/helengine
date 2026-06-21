@@ -9,7 +9,7 @@ namespace helengine {
         /// <param name="entity">Camera entity that owns the editor-only visual.</param>
         public override void ComponentAdded(Entity entity) {
             Model = EditorCameraVisualResources.GetRuntimeModel();
-            Material = helengine.editor.EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+            Materials = new[] { helengine.editor.EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial() };
             base.ComponentAdded(entity);
         }
     }

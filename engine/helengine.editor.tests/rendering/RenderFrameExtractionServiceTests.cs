@@ -100,7 +100,7 @@ namespace helengine.editor.tests.rendering {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
             TestDrawable3D drawable = new TestDrawable3D(MaterialBlendMode.Opaque);
-            drawable.Material = null;
+            drawable.Materials = Array.Empty<RuntimeMaterial>();
             RenderFrameExtractionService extractionService = new RenderFrameExtractionService();
 
             RenderFrameExtractionResult result = extractionService.Extract(
@@ -210,7 +210,6 @@ namespace helengine.editor.tests.rendering {
                         }
                     });
                 Materials = new[] { material };
-                Material = material;
             }
 
             /// <summary>
@@ -232,7 +231,6 @@ namespace helengine.editor.tests.rendering {
 
                 Model = CreateModelWithSubmeshes(submeshes);
                 Materials = materials;
-                Material = materials.Length == 0 ? null : materials[0];
             }
 
             /// <summary>
@@ -251,14 +249,9 @@ namespace helengine.editor.tests.rendering {
             public RuntimeModel Model { get; }
 
             /// <summary>
-            /// Gets or sets the runtime material.
+            /// Gets or sets the runtime materials bound to each submesh slot.
             /// </summary>
-            public RuntimeMaterial Material { get; set; }
-
-            /// <summary>
-            /// Gets the runtime materials bound to each submesh slot.
-            /// </summary>
-            public RuntimeMaterial[] Materials { get; }
+            public RuntimeMaterial[] Materials { get; set; }
 
             /// <summary>
             /// Creates one runtime material with the requested blend mode.

@@ -339,8 +339,8 @@ namespace helengine.editor {
             }
 
             MeshComponent selfMesh = FindMeshComponent(axisEntity);
-            if (selfMesh != null && !ReferenceEquals(selfMesh.Material, material)) {
-                selfMesh.Material = material;
+            if (selfMesh != null && (selfMesh.Materials.Length == 0 || !ReferenceEquals(selfMesh.Materials[0], material))) {
+                selfMesh.Materials = new[] { material };
             }
 
             for (int childIndex = 0; childIndex < axisEntity.Children.Count; childIndex++) {
@@ -353,8 +353,8 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (!ReferenceEquals(mesh.Material, material)) {
-                    mesh.Material = material;
+                if (mesh.Materials.Length == 0 || !ReferenceEquals(mesh.Materials[0], material)) {
+                    mesh.Materials = new[] { material };
                 }
             }
         }
@@ -641,7 +641,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(hoveredHandle));
             }
 
-            if (SnapPreviewMesh.Material == null) {
+            if (SnapPreviewMesh.Materials.Length == 0) {
                 throw new InvalidOperationException("Translation snap-preview mesh must include a material.");
             }
 
@@ -650,12 +650,12 @@ namespace helengine.editor {
             }
 
             if (handleComponent.ConstraintType == TransformGizmoHandleConstraintType.Axis) {
-                TransformGizmoGridPreviewParameters.ApplySingleAxisFocus(SnapPreviewMesh.Material);
+                TransformGizmoGridPreviewParameters.ApplySingleAxisFocus(SnapPreviewMesh.Materials[0]);
                 return;
             }
 
             if (handleComponent.ConstraintType == TransformGizmoHandleConstraintType.Plane) {
-                TransformGizmoGridPreviewParameters.ApplyFullGrid(SnapPreviewMesh.Material);
+                TransformGizmoGridPreviewParameters.ApplyFullGrid(SnapPreviewMesh.Materials[0]);
                 return;
             }
 

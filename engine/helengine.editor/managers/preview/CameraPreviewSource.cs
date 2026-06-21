@@ -16,10 +16,6 @@ namespace helengine.editor {
         /// </summary>
         readonly CameraComponent sourceCameraComponent;
         /// <summary>
-        /// Authored suppression state captured from the selected camera, when present.
-        /// </summary>
-        readonly EditorSceneCameraSuppressionComponent suppressionState;
-        /// <summary>
         /// Scene-owned canvas profile used to size preview render targets for authored 2D scenes.
         /// </summary>
         readonly EditorSceneCanvasProfileState sceneCanvasProfileState;
@@ -66,7 +62,6 @@ namespace helengine.editor {
             this.sourceEntity = sourceEntity;
             this.sourceCameraComponent = sourceCameraComponent;
             this.sceneCanvasProfileState = sceneCanvasProfileState;
-            suppressionState = EditorSceneCameraSuppressionService.GetSuppressionState(sourceCameraComponent);
 
             previewEntity = new EditorEntity();
             previewEntity.InternalEntity = true;
@@ -90,7 +85,6 @@ namespace helengine.editor {
             this.sourceEntity = sourceEntity ?? throw new ArgumentNullException(nameof(sourceEntity));
             this.sourceCameraComponent = sourceCameraComponent ?? throw new ArgumentNullException(nameof(sourceCameraComponent));
             sceneCanvasProfileState = null;
-            suppressionState = EditorSceneCameraSuppressionService.GetSuppressionState(sourceCameraComponent);
 
             previewEntity = new EditorEntity();
             previewEntity.InternalEntity = true;
@@ -175,26 +169,10 @@ namespace helengine.editor {
         /// Mirrors the selected camera state into the preview camera.
         /// </summary>
         void ApplyMirroredState() {
-            byte cameraDrawOrder;
-            ushort sourceLayerMask;
-            CameraClearSettings clearSettings;
-            CameraRenderSettings renderSettings;
-            if (suppressionState != null) {
-                cameraDrawOrder = suppressionState.CameraDrawOrder;
-                sourceLayerMask = suppressionState.LayerMask;
-                clearSettings = suppressionState.ClearSettings;
-                renderSettings = suppressionState.RenderSettings;
-            } else {
-                cameraDrawOrder = sourceCameraComponent.CameraDrawOrder;
-                sourceLayerMask = sourceCameraComponent.LayerMask;
-                clearSettings = sourceCameraComponent.ClearSettings;
-                renderSettings = sourceCameraComponent.RenderSettings;
-            }
-
-            previewCameraComponent.CameraDrawOrder = cameraDrawOrder;
-            previewCameraComponent.LayerMask = ResolvePreviewLayerMask(sourceLayerMask);
-            previewCameraComponent.ClearSettings = clearSettings;
-            previewCameraComponent.RenderSettings = new CameraRenderSettings(renderSettings);
+            previewCameraComponent.CameraDrawOrder = sourceCameraComponent.CameraDrawOrder;
+            previewCameraComponent.LayerMask = ResolvePreviewLayerMask(sourceCameraComponent.LayerMask);
+            previewCameraComponent.ClearSettings = sourceCameraComponent.ClearSettings;
+            previewCameraComponent.RenderSettings = new CameraRenderSettings(sourceCameraComponent.RenderSettings);
             previewCameraComponent.Viewport = BuildPreviewViewport();
         }
 
@@ -242,10 +220,10 @@ namespace helengine.editor {
                     Math.Max(1, sceneCanvasProfileState.CanvasWidth),
                     Math.Max(1, sceneCanvasProfileState.CanvasHeight));
             }
-            if (suppressionState != null) {
+            if (EditorSceneCameraSuppressionService.GetSuppressionState(sourceCameraComponent) != null) {
                 return new int2(
-                    Math.Max(1, (int)Math.Round(suppressionState.Viewport.Z)),
-                    Math.Max(1, (int)Math.Round(suppressionState.Viewport.W)));
+                    Math.Max(1, (int)Math.Round(sourceCameraComponent.Viewport.Z)),
+                    Math.Max(1, (int)Math.Round(sourceCameraComponent.Viewport.W)));
             }
 
             return new int2(Math.Max(1, contentSize.X), Math.Max(1, contentSize.Y));

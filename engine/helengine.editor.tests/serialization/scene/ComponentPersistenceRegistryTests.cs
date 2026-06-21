@@ -13,12 +13,12 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void Register_WhenDescriptorIsAdded_ResolvesItByComponentTypeAndTypeId() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            MeshComponentPersistenceDescriptor descriptor = new MeshComponentPersistenceDescriptor();
-            MeshComponent meshComponent = new MeshComponent();
+            TestExplicitPersistenceDescriptor descriptor = new TestExplicitPersistenceDescriptor();
+            TestExplicitPersistenceComponent component = new TestExplicitPersistenceComponent();
 
             registry.Register(descriptor);
 
-            Assert.Same(descriptor, registry.GetDescriptor(meshComponent));
+            Assert.Same(descriptor, registry.GetDescriptor(component));
             Assert.Same(descriptor, registry.GetDescriptor(descriptor.ComponentTypeId));
         }
 
@@ -99,6 +99,37 @@ namespace helengine.editor.tests.serialization.scene {
             IComponentPersistenceDescriptor descriptor = registry.GetDescriptor("project.rendering.SampleOrbitComponent, gameplay");
 
             Assert.IsType<AutomaticScriptComponentPersistenceDescriptor>(descriptor);
+        }
+
+        /// <summary>
+        /// Minimal component used to verify explicit persistence-descriptor registration without depending on engine-owned special cases.
+        /// </summary>
+        sealed class TestExplicitPersistenceComponent : Component {
+        }
+
+        /// <summary>
+        /// Minimal explicit descriptor used to verify registry registration and lookup behavior.
+        /// </summary>
+        sealed class TestExplicitPersistenceDescriptor : IComponentPersistenceDescriptor {
+            /// <inheritdoc />
+            public Type ComponentType => typeof(TestExplicitPersistenceComponent);
+
+            /// <inheritdoc />
+            public string ComponentTypeId => "tests.TestExplicitPersistenceComponent";
+
+            /// <inheritdoc />
+            public SceneComponentAssetRecord SerializeComponent(Component component, int componentIndex, EntityComponentSaveState saveState) {
+                return new SceneComponentAssetRecord {
+                    ComponentTypeId = ComponentTypeId,
+                    ComponentIndex = componentIndex,
+                    Payload = Array.Empty<byte>()
+                };
+            }
+
+            /// <inheritdoc />
+            public Component DeserializeComponent(SceneComponentAssetRecord record, EntitySaveComponent saveComponent, ISceneAssetReferenceResolver referenceResolver) {
+                return new TestExplicitPersistenceComponent();
+            }
         }
     }
 }

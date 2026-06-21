@@ -427,7 +427,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies platform-specific startup scene overrides to the ordered scene list.
+        /// Applies any shared startup-scene ordering rules to the ordered scene list.
         /// </summary>
         /// <param name="platformId">Platform identifier selected for the queued build.</param>
         /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
@@ -435,54 +435,7 @@ namespace helengine.editor {
             if (orderedSceneIds == null) {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
-            if (!string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
-                return;
-            }
-            if (!RequiresGeneratedBootScene(orderedSceneIds)) {
-                return;
-            }
-
-            EnsureStartupSceneFirst(orderedSceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId);
-        }
-
-        /// <summary>
-        /// Resolves whether the selected scene set needs generated boot-scene routing for demo-disc menu startup.
-        /// </summary>
-        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
-        /// <returns>True when the scene set includes the desktop menu or already selected the generated boot scene.</returns>
-        static bool RequiresGeneratedBootScene(IReadOnlyList<string> orderedSceneIds) {
-            if (orderedSceneIds == null) {
-                throw new ArgumentNullException(nameof(orderedSceneIds));
-            }
-
-            return IndexOf(orderedSceneIds, PlatformMenuSceneResolver.DesktopMainMenuSceneId) >= 0
-                || IndexOf(orderedSceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId) >= 0;
-        }
-
-        /// <summary>
-        /// Ensures one startup scene always cooks and stages first.
-        /// </summary>
-        /// <param name="orderedSceneIds">Ordered scene ids that will be cooked and packaged.</param>
-        /// <param name="startupSceneId">Stable startup scene identifier that must be staged first.</param>
-        static void EnsureStartupSceneFirst(List<string> orderedSceneIds, string startupSceneId) {
-            if (orderedSceneIds == null) {
-                throw new ArgumentNullException(nameof(orderedSceneIds));
-            }
-            if (string.IsNullOrWhiteSpace(startupSceneId)) {
-                throw new ArgumentException("Startup scene id must be provided.", nameof(startupSceneId));
-            }
-
-            int startupSceneIndex = IndexOf(orderedSceneIds, startupSceneId);
-            if (startupSceneIndex < 0) {
-                orderedSceneIds.Insert(0, startupSceneId);
-                return;
-            }
-            if (startupSceneIndex == 0) {
-                return;
-            }
-
-            orderedSceneIds.RemoveAt(startupSceneIndex);
-            orderedSceneIds.Insert(0, startupSceneId);
+            _ = platformId;
         }
 
         /// <summary>

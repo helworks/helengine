@@ -235,6 +235,9 @@ namespace helengine {
                 SceneAssetReference reference = ReadOptionalReference(reader);
                 return AutomaticComponentAssetReferenceSupport.ResolveRuntimeAssetReference(valueType, reference, referenceResolver);
             }
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(valueType)) {
+                return ReadAssetReferenceArrayValue(reader, valueType, referenceResolver);
+            }
 
             if (TryReadLeafValue(reader, valueType, out object leafValue)) {
                 return leafValue;
@@ -253,6 +256,46 @@ namespace helengine {
             }
 
             throw new InvalidOperationException($"Automatic scripted runtime deserialization does not support member type '{valueType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Reads one supported packaged asset-reference array and resolves each element back into the runtime assets required by the array element type.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the encoded reference-array payload.</param>
+        /// <param name="valueType">Runtime array type expected for the payload.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild packaged assets.</param>
+        /// <returns>Resolved runtime asset array or null when the payload omitted the reference array.</returns>
+        static object ReadAssetReferenceArrayValue(EngineBinaryReader reader, Type valueType, RuntimeSceneAssetReferenceResolver referenceResolver) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+            if (valueType == null) {
+                throw new ArgumentNullException(nameof(valueType));
+            }
+            if (!AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(valueType)) {
+                throw new InvalidOperationException($"Automatic scripted runtime deserialization does not support asset-backed array type '{valueType.FullName}'.");
+            }
+
+            int length = reader.ReadInt32();
+            if (length == -1) {
+                return null;
+            }
+            if (length < -1) {
+                throw new InvalidOperationException("Asset-reference array length cannot be negative.");
+            }
+
+            Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Asset-reference array type '{valueType.FullName}' must expose one element type.");
+            Array resolvedValues = Array.CreateInstance(elementType, length);
+            for (int index = 0; index < length; index++) {
+                SceneAssetReference reference = ReadOptionalReference(reader);
+                if (reference == null) {
+                    continue;
+                }
+
+                resolvedValues.SetValue(AutomaticComponentAssetReferenceSupport.ResolveRuntimeAssetReference(elementType, reference, referenceResolver), index);
+            }
+
+            return resolvedValues;
         }
 
         /// <summary>
@@ -457,7 +500,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Returns whether the supplied type can be deserialized as one nested authored object by recursively traversing writable public members.
+        /// Returns whether the supplied type can be deserialized as one nested authored object or struct by recursively traversing writable public members.
         /// </summary>
         /// <param name="valueType">Runtime value type to inspect.</param>
         /// <returns>True when the type can be deserialized as one nested authored object.</returns>
@@ -465,24 +508,34 @@ namespace helengine {
             if (valueType == null) {
                 return false;
             }
-            if (valueType == typeof(string) || !valueType.IsClass || valueType.IsAbstract) {
+            if (valueType == typeof(string) || valueType.IsAbstract) {
+                return false;
+            }
+            if (!valueType.IsClass && !valueType.IsValueType) {
                 return false;
             }
             if (typeof(Component).IsAssignableFrom(valueType) || typeof(Entity).IsAssignableFrom(valueType)) {
                 return false;
+            }
+            if (valueType.IsValueType) {
+                return true;
             }
 
             return valueType.GetConstructor(Type.EmptyTypes) != null;
         }
 
         /// <summary>
-        /// Reads one nested authored object by recursively deserializing its writable public members in deterministic ordinal order.
+        /// Reads one nested authored object or struct by recursively deserializing its writable public members in deterministic ordinal order.
         /// </summary>
         /// <param name="reader">Reader positioned at the nested object payload.</param>
         /// <param name="valueType">Runtime object type expected for the payload.</param>
         /// <returns>Decoded nested object instance or null when the payload omitted the object.</returns>
         static object ReadNestedObjectValue(EngineBinaryReader reader, Type valueType, RuntimeSceneAssetReferenceResolver referenceResolver) {
             if (reader.ReadByte() == 0) {
+                if (valueType != null && valueType.IsValueType) {
+                    return Activator.CreateInstance(valueType);
+                }
+
                 return null;
             }
 

@@ -64,7 +64,7 @@ namespace helengine.editor.tests {
 
             var mesh = new MeshComponent {
                 Model = new TestRuntimeModel(),
-                Material = new TestRuntimeMaterial()
+                Materials = new RuntimeMaterial[] { new TestRuntimeMaterial() }
             };
             entity.AddComponent(mesh);
 

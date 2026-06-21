@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Stable save-state slot name used by mesh persistence for material references.
         /// </summary>
-        const string MeshMaterialReferenceName = "Material";
+        const string MeshMaterialReferenceName = "Materials";
 
         /// <summary>
         /// Initializes one editor scene creation service.
@@ -116,9 +116,9 @@ namespace helengine.editor {
             try {
                 EntitySaveComponent saveComponent = FindSaveComponent(entity);
                 MeshComponent meshComponent = new MeshComponent {
-                    Model = model
+                    Model = model,
+                    Materials = materials
                 };
-                meshComponent.SetMaterials(materials);
                 entity.AddComponent(meshComponent);
                 saveComponent.SetAssetReference(meshComponent, MeshModelReferenceName, modelReference);
                 for (int materialIndex = 0; materialIndex < materialReferences.Length; materialIndex++) {
@@ -227,7 +227,7 @@ namespace helengine.editor {
             try {
                 MeshComponent meshComponent = new MeshComponent {
                     Model = runtimeModel,
-                    Material = runtimeMaterial
+                    Materials = new[] { runtimeMaterial }
                 };
                 entity.AddComponent(meshComponent);
                 return entity;
@@ -274,9 +274,7 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(slotIndex), "Material slot index must be non-negative.");
             }
 
-            return slotIndex == 0
-                ? MeshMaterialReferenceName
-                : string.Concat(MeshMaterialReferenceName, "[", slotIndex.ToString(), "]");
+            return AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(MeshMaterialReferenceName, slotIndex);
         }
 
         /// <summary>

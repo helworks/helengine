@@ -1,6 +1,8 @@
 using System.Reflection;
+using helengine.directx11;
 using helengine.editor.tests.testing;
 using helengine.ui;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests.managers.scene {
@@ -27,6 +29,10 @@ namespace helengine.editor.tests.managers.scene {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();
@@ -111,9 +117,9 @@ namespace helengine.editor.tests.managers.scene {
 
             Assert.Equal(expectedName, entity.Name);
             Assert.NotNull(meshComponent.Model);
-            Assert.NotNull(meshComponent.Material);
+            Assert.NotNull(Assert.Single(meshComponent.Materials));
             Assert.Same(EngineGeneratedModelCache.GetRuntimeModel(modelAssetId), meshComponent.Model);
-            Assert.Same(EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId), meshComponent.Material);
+            Assert.Same(EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId), Assert.Single(meshComponent.Materials));
             Assert.False(saveComponent.TryGetComponentState(meshComponent, out _));
         }
 
@@ -142,12 +148,12 @@ namespace helengine.editor.tests.managers.scene {
             EntitySaveComponent saveComponent = Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
             Assert.True(saveComponent.TryGetComponentState(meshComponent, out EntityComponentSaveState saveState));
             Assert.True(saveState.TryGetAssetReference("Model", out SceneAssetReference savedModelReference));
-            Assert.True(saveState.TryGetAssetReference("Material", out SceneAssetReference savedMaterialReference));
+            Assert.True(saveState.TryGetAssetReference("Materials[0]", out SceneAssetReference savedMaterialReference));
 
             Assert.Equal("Cube", entity.Name);
             Assert.Same(runtimeModel, meshComponent.Model);
             Assert.Single(meshComponent.Materials);
-            Assert.Same(runtimeMaterial, meshComponent.Material);
+            Assert.Same(runtimeMaterial, Assert.Single(meshComponent.Materials));
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, savedModelReference.SourceKind);
             Assert.Equal("Models/Cube.obj", savedModelReference.RelativePath);
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, savedMaterialReference.SourceKind);
@@ -170,17 +176,31 @@ namespace helengine.editor.tests.managers.scene {
 
             Assert.Equal("Camera", entity.Name);
             Assert.Equal(EditorLayerMasks.SceneObjects, entity.LayerMask);
-            Assert.Equal((ushort)0, cameraComponent.LayerMask);
+            Assert.Equal(EditorLayerMasks.SceneObjects, cameraComponent.LayerMask);
             Assert.Equal(float4.Identity, entity.LocalOrientation);
-            Assert.False(cameraComponent.ClearSettings.ClearColorEnabled);
-            Assert.False(cameraComponent.ClearSettings.ClearDepthEnabled);
-            Assert.Equal(EditorLayerMasks.SceneObjects, suppressionComponent.LayerMask);
-            Assert.True(suppressionComponent.ClearSettings.ClearColorEnabled);
-            Assert.True(suppressionComponent.ClearSettings.ClearDepthEnabled);
+            Assert.True(cameraComponent.ClearSettings.ClearColorEnabled);
+            Assert.True(cameraComponent.ClearSettings.ClearDepthEnabled);
             Assert.True(visualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
-            Assert.NotNull(visualComponent.Material);
+            Assert.NotNull(Assert.Single(visualComponent.Materials));
+        }
+
+        /// <summary>
+        /// Ensures a created scene camera keeps its authored values on the live camera component even while editor suppression metadata is attached.
+        /// </summary>
+        [Fact]
+        public void CreateCamera_KeepsAuthoredValuesOnLiveCameraComponent() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+
+            EditorEntity entity = service.CreateCamera();
+
+            CameraComponent cameraComponent = Assert.IsType<CameraComponent>(Assert.Single(entity.Components, component => component is CameraComponent));
+            Assert.IsType<EditorSceneCameraSuppressionComponent>(Assert.Single(entity.Components, component => component is EditorSceneCameraSuppressionComponent));
+
+            Assert.Equal(EditorLayerMasks.SceneObjects, cameraComponent.LayerMask);
+            Assert.True(cameraComponent.ClearSettings.ClearColorEnabled);
+            Assert.True(cameraComponent.ClearSettings.ClearDepthEnabled);
         }
 
         /// <summary>
@@ -286,7 +306,7 @@ namespace helengine.editor.tests.managers.scene {
             Assert.True(visualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
-            Assert.NotNull(visualComponent.Material);
+            Assert.NotNull(Assert.Single(visualComponent.Materials));
         }
 
         /// <summary>
@@ -309,7 +329,7 @@ namespace helengine.editor.tests.managers.scene {
             Assert.True(visualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
-            Assert.NotNull(visualComponent.Material);
+            Assert.NotNull(Assert.Single(visualComponent.Materials));
         }
 
         /// <summary>
@@ -357,7 +377,7 @@ namespace helengine.editor.tests.managers.scene {
             Assert.True(visualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
-            Assert.NotNull(visualComponent.Material);
+            Assert.NotNull(Assert.Single(visualComponent.Materials));
         }
 
         /// <summary>
@@ -450,7 +470,6 @@ namespace helengine.editor.tests.managers.scene {
         [Fact]
         public void CreateCube_WhenSaved_WritesHelenFileWithoutAdditionalPickerMetadata() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new MeshComponentPersistenceDescriptor());
             EditorSceneCreationService service = new EditorSceneCreationService();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CreatedFromAdd.helen");
@@ -467,7 +486,6 @@ namespace helengine.editor.tests.managers.scene {
         [Fact]
         public void CreateCamera_WhenSaved_WritesHelenFileWithoutPersistingHiddenEditorVisual() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new CameraComponentPersistenceDescriptor());
             EditorSceneCreationService service = new EditorSceneCreationService();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CreatedCamera.helen");
@@ -485,8 +503,9 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Single(asset.RootEntities[0].Components);
             Assert.Equal("helengine.CameraComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
 
-            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
-            CameraComponent deserializedCamera = Assert.IsType<CameraComponent>(descriptor.DeserializeComponent(asset.RootEntities[0].Components[0], null, new TestSceneAssetReferenceResolver()));
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
+            CameraComponent deserializedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedEntity.Components, component => component is CameraComponent));
             Assert.Equal(EditorLayerMasks.SceneObjects, deserializedCamera.LayerMask);
             Assert.True(deserializedCamera.ClearSettings.ClearColorEnabled);
         }

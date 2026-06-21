@@ -124,7 +124,9 @@ namespace helengine.editor {
             EnsureRenderTargetMatchesSettings();
             PlaneEntityValue = EditorViewportCanvasPlaneFactory.Create(Render3D, PreviewRenderTargetValue);
             PlaneMeshComponent = AssertPlaneMeshComponent(PlaneEntityValue);
-            PlaneMaterial = PlaneMeshComponent.Material ?? throw new InvalidOperationException("Canvas plane material must exist after plane creation.");
+            PlaneMaterial = PlaneMeshComponent.Materials.Length == 0
+                ? throw new InvalidOperationException("Canvas plane material must exist after plane creation.")
+                : PlaneMeshComponent.Materials[0];
             SynchronizePlaneTransform();
             SynchronizeRenderQueues();
             IsInitialized = true;

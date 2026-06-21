@@ -286,7 +286,7 @@ namespace helengine.render.validation {
 
             ShaderAsset shaderAsset = RenderShaderFactory.BuildShaderAsset(backend);
             MaterialAsset materialAsset = RenderShaderFactory.BuildMaterialAsset();
-            mesh.Material = renderer3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            mesh.Materials = new[] { renderer3D.BuildMaterialFromRaw(materialAsset, shaderAsset) };
 
             CreateOverlaySprites(renderer2D);
             return camera;

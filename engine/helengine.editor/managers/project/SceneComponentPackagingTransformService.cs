@@ -12,79 +12,14 @@ namespace helengine.editor {
     /// </summary>
     public sealed class SceneComponentPackagingTransformService {
         /// <summary>
-        /// Current payload version for serialized mesh component scene records.
-        /// </summary>
-        const byte MeshComponentPayloadVersion = MeshComponentScenePayloadSerializer.CurrentVersion;
-
-        /// <summary>
-        /// Current payload version for serialized camera component scene records.
-        /// </summary>
-        const byte CameraComponentPayloadVersion = 3;
-
-        /// <summary>
         /// Stable serialized component id for mesh components.
         /// </summary>
         const string MeshComponentTypeId = "helengine.MeshComponent";
 
         /// <summary>
-        /// Stable tagged field name used for mesh model-reference persistence.
-        /// </summary>
-        const string MeshModelReferenceFieldName = "ModelReference";
-
-        /// <summary>
-        /// Stable tagged field name used for mesh material-reference persistence.
-        /// </summary>
-        const string MeshMaterialReferenceFieldName = "MaterialReference";
-
-        /// <summary>
-        /// Stable tagged field name used for mesh material-reference array persistence.
-        /// </summary>
-        const string MeshMaterialReferencesFieldName = "MaterialReferences";
-
-        /// <summary>
-        /// Stable tagged field name used for mesh render-order persistence.
-        /// </summary>
-        const string MeshRenderOrder3DFieldName = "RenderOrder3D";
-
-        /// <summary>
         /// Stable serialized component id for camera components.
         /// </summary>
         const string CameraComponentTypeId = "helengine.CameraComponent";
-
-        /// <summary>
-        /// Stable tagged field name used for camera draw-order persistence.
-        /// </summary>
-        const string CameraDrawOrderFieldName = "CameraDrawOrder";
-
-        /// <summary>
-        /// Stable tagged field name used for camera layer-mask persistence.
-        /// </summary>
-        const string CameraLayerMaskFieldName = "LayerMask";
-
-        /// <summary>
-        /// Stable tagged field name used for camera viewport persistence.
-        /// </summary>
-        const string CameraViewportFieldName = "Viewport";
-
-        /// <summary>
-        /// Stable tagged field name used for camera near clip-plane persistence.
-        /// </summary>
-        const string CameraNearPlaneDistanceFieldName = "NearPlaneDistance";
-
-        /// <summary>
-        /// Stable tagged field name used for camera far clip-plane persistence.
-        /// </summary>
-        const string CameraFarPlaneDistanceFieldName = "FarPlaneDistance";
-
-        /// <summary>
-        /// Stable tagged field name used for camera clear-settings persistence.
-        /// </summary>
-        const string CameraClearSettingsFieldName = "ClearSettings";
-
-        /// <summary>
-        /// Stable tagged field name used for camera render-settings persistence.
-        /// </summary>
-        const string CameraRenderSettingsFieldName = "RenderSettings";
 
         /// <summary>
         /// Stable serialized component id for directional light components.
@@ -105,56 +40,6 @@ namespace helengine.editor {
         /// Stable serialized component id for spot light components.
         /// </summary>
         const string SpotLightComponentTypeId = "helengine.SpotLightComponent";
-
-        /// <summary>
-        /// Stable serialized component id for 3D rigid-body components.
-        /// </summary>
-        const string RigidBody3DComponentTypeId = "helengine.RigidBody3DComponent";
-
-        /// <summary>
-        /// Stable serialized component id for 3D box-collider components.
-        /// </summary>
-        const string BoxCollider3DComponentTypeId = "helengine.BoxCollider3DComponent";
-
-        /// <summary>
-        /// Stable serialized component id for 3D kinematic-motion components.
-        /// </summary>
-        const string KinematicMotion3DComponentTypeId = "helengine.KinematicMotion3DComponent";
-
-        /// <summary>
-        /// Stable serialized component id for 3D character-controller components.
-        /// </summary>
-        const string CharacterController3DComponentTypeId = "helengine.CharacterController3DComponent";
-
-        /// <summary>
-        /// Serialized byte length of the legacy rigid-body payload that predates packaged angular velocity.
-        /// </summary>
-        const int LegacyRigidBodyPayloadLength = 23;
-
-        /// <summary>
-        /// Serialized byte length of the current strict rigid-body payload.
-        /// </summary>
-        const int CurrentRigidBodyPayloadLength = 35;
-
-        /// <summary>
-        /// Serialized byte length of the legacy box-collider payload that only stores size.
-        /// </summary>
-        const int LegacyBoxColliderPayloadLength = 13;
-
-        /// <summary>
-        /// Serialized byte length of the current strict box-collider payload.
-        /// </summary>
-        const int CurrentBoxColliderPayloadLength = 18;
-
-        /// <summary>
-        /// Serialized byte length of the strict kinematic-motion payload.
-        /// </summary>
-        const int KinematicMotionPayloadLength = 34;
-
-        /// <summary>
-        /// Serialized byte length of the strict character-controller payload.
-        /// </summary>
-        const int CharacterControllerPayloadLength = 45;
 
         /// <summary>
         /// Generated provider id reserved for the editor's built-in font asset.
@@ -361,10 +246,6 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPersistenceRegistry PersistenceRegistry;
         /// <summary>
-        /// Camera descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
-        /// </summary>
-        readonly CameraComponentPersistenceDescriptor CameraComponentDescriptor;
-        /// <summary>
         /// Callback that records builder-owned platform cook work items discovered while rewriting scene content.
         /// </summary>
         readonly Action<PlatformCookWorkItem> PlatformCookWorkItemSink;
@@ -444,10 +325,7 @@ namespace helengine.editor {
             FileHasher = new AssetFileHasher();
             TextComponentSpriteBakeService = textComponentSpriteBakeService;
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
-            CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
             PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
-            PersistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
-            PersistenceRegistry.Register(CameraComponentDescriptor);
         }
 
         /// <summary>
@@ -460,9 +338,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            if (string.Equals(componentTypeId, MeshComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, CameraComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
+            if (string.Equals(componentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, PointLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
@@ -487,125 +363,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
             }
 
-            if (string.Equals(record.ComponentTypeId, MeshComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteMeshComponentRecord(record, buildRootPath);
-                return true;
-            }
-
-            if (string.Equals(record.ComponentTypeId, CameraComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteCameraComponentRecord(record);
-                return true;
-            }
-
-            if (UsesLegacyBuiltInPhysicsPayload(record) &&
-                TryRewriteBuiltInPhysicsComponentRecord(record, buildRootPath, out transformedRecord)) {
-                return true;
-            }
-
             if (TryRewriteAutomaticComponentRecord(record, buildRootPath, out transformedRecord)) {
                 return true;
             }
 
-            if (TryRewriteBuiltInPhysicsComponentRecord(record, buildRootPath, out transformedRecord)) {
-                return true;
-            }
-
             transformedRecord = null;
-            return false;
-        }
-
-        /// <summary>
-        /// Rewrites one built-in physics component record into the shared automatic runtime payload shape expected by default packaged-scene loading.
-        /// </summary>
-        /// <param name="record">Serialized physics component record to rewrite.</param>
-        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        /// <param name="transformedRecord">Rewritten automatic runtime component record when the component type is supported.</param>
-        /// <returns>True when the component record was rewritten as a built-in physics payload; otherwise false.</returns>
-        bool TryRewriteBuiltInPhysicsComponentRecord(
-            SceneComponentAssetRecord record,
-            string buildRootPath,
-            out SceneComponentAssetRecord transformedRecord) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-            if (string.IsNullOrWhiteSpace(buildRootPath)) {
-                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
-            }
-
-            if (!string.Equals(record.ComponentTypeId, RigidBody3DComponentTypeId, StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(record.ComponentTypeId, BoxCollider3DComponentTypeId, StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(record.ComponentTypeId, KinematicMotion3DComponentTypeId, StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(record.ComponentTypeId, CharacterController3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = null;
-                return false;
-            }
-
-            Component component = DeserializeBuiltInPhysicsComponentForPackaging(record);
-            transformedRecord = BuildAutomaticRuntimeComponentRecord(
-                record.ComponentTypeId,
-                record.ComponentIndex,
-                component,
-                null,
-                buildRootPath);
-            return true;
-        }
-
-        /// <summary>
-        /// Deserializes one built-in physics component record through the matching runtime deserializer so legacy strict payloads can be normalized during packaging.
-        /// </summary>
-        /// <param name="record">Serialized physics component record to materialize.</param>
-        /// <returns>Live physics component instance reconstructed from the serialized payload.</returns>
-        Component DeserializeBuiltInPhysicsComponentForPackaging(SceneComponentAssetRecord record) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-
-            if (string.Equals(record.ComponentTypeId, RigidBody3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                return new RuntimeRigidBody3DComponentDeserializer().Deserialize(record, null);
-            }
-            if (string.Equals(record.ComponentTypeId, BoxCollider3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                return new RuntimeBoxCollider3DComponentDeserializer().Deserialize(record, null);
-            }
-            if (string.Equals(record.ComponentTypeId, KinematicMotion3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                return new RuntimeKinematicMotion3DComponentDeserializer().Deserialize(record, null);
-            }
-            if (string.Equals(record.ComponentTypeId, CharacterController3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                return new RuntimeCharacterController3DComponentDeserializer().Deserialize(record, null);
-            }
-
-            throw new InvalidOperationException($"Built-in physics packaging does not support component type '{record.ComponentTypeId}'.");
-        }
-
-        /// <summary>
-        /// Returns whether one built-in physics component payload uses a legacy strict binary layout that must bypass the generic automatic reflected path.
-        /// </summary>
-        /// <param name="record">Serialized component record to inspect.</param>
-        /// <returns>True when the payload uses a strict built-in physics layout; otherwise false.</returns>
-        bool UsesLegacyBuiltInPhysicsPayload(SceneComponentAssetRecord record) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-
-            byte[] payload = record.Payload ?? Array.Empty<byte>();
-            if (payload.Length == 0) {
-                return false;
-            }
-
-            if (string.Equals(record.ComponentTypeId, RigidBody3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                return (payload[0] == 1 && payload.Length == LegacyRigidBodyPayloadLength)
-                    || (payload[0] == 2 && payload.Length == CurrentRigidBodyPayloadLength);
-            }
-            if (string.Equals(record.ComponentTypeId, BoxCollider3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                return (payload[0] == 1 && payload.Length == LegacyBoxColliderPayloadLength)
-                    || (payload[0] == 2 && payload.Length == CurrentBoxColliderPayloadLength);
-            }
-            if (string.Equals(record.ComponentTypeId, KinematicMotion3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                return payload[0] == 1 && payload.Length == KinematicMotionPayloadLength;
-            }
-            if (string.Equals(record.ComponentTypeId, CharacterController3DComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                return payload[0] == 1 && payload.Length == CharacterControllerPayloadLength;
-            }
-
             return false;
         }
 
@@ -654,36 +416,15 @@ namespace helengine.editor {
                 return false;
             }
 
-            try {
-                EntitySaveComponent saveComponent = new EntitySaveComponent();
-                Component component = DeserializeAutomaticComponentForPackaging(record, descriptor, saveComponent);
-                transformedRecord = BuildAutomaticRuntimeComponentRecord(
-                    record.ComponentTypeId,
-                    record.ComponentIndex,
-                    component,
-                    ResolveAutomaticComponentSaveState(saveComponent, component),
-                    buildRootPath);
-                return true;
-            } catch (InvalidOperationException) when (CanPreserveCurrentRuntimePayload(record.ComponentTypeId)) {
-                transformedRecord = null;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Returns whether the supplied component type already uses a runtime-safe binary payload shape that packaging should preserve when automatic reflected deserialization does not apply.
-        /// </summary>
-        /// <param name="componentTypeId">Serialized component type id to inspect.</param>
-        /// <returns>True when packaging should keep the existing runtime payload bytes unchanged.</returns>
-        bool CanPreserveCurrentRuntimePayload(string componentTypeId) {
-            if (string.IsNullOrWhiteSpace(componentTypeId)) {
-                return false;
-            }
-
-            return string.Equals(componentTypeId, RigidBody3DComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, BoxCollider3DComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, KinematicMotion3DComponentTypeId, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(componentTypeId, CharacterController3DComponentTypeId, StringComparison.OrdinalIgnoreCase);
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            Component component = DeserializeAutomaticComponentForPackaging(record, descriptor, saveComponent);
+            transformedRecord = BuildAutomaticRuntimeComponentRecord(
+                record.ComponentTypeId,
+                record.ComponentIndex,
+                component,
+                ResolveAutomaticComponentSaveState(saveComponent, component),
+                buildRootPath);
+            return true;
         }
 
         /// <summary>
@@ -777,16 +518,33 @@ namespace helengine.editor {
 
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                if (!AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
-                    continue;
-                }
-                if (!saveState.TryGetAssetReference(member.Name, out SceneAssetReference sourceReference)) {
+                if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                    if (!saveState.TryGetAssetReference(member.Name, out SceneAssetReference sourceReference)) {
+                        continue;
+                    }
+
+                    rewrittenSaveState.SetAssetReference(
+                        member.Name,
+                        RewriteAutomaticComponentReference(member.ValueType, sourceReference, buildRootPath));
                     continue;
                 }
 
-                rewrittenSaveState.SetAssetReference(
-                    member.Name,
-                    RewriteAutomaticComponentReference(member.ValueType, sourceReference, buildRootPath));
+                if (!AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
+                    continue;
+                }
+
+                Type elementType = member.ValueType.GetElementType()
+                    ?? throw new InvalidOperationException($"Automatic component asset-reference array '{member.Name}' must expose an element type.");
+                string referenceNamePrefix = string.Concat(member.Name, "[");
+                foreach (KeyValuePair<string, SceneAssetReference> namedReference in saveState.EnumerateNamedAssetReferences()) {
+                    if (!namedReference.Key.StartsWith(referenceNamePrefix, StringComparison.Ordinal)) {
+                        continue;
+                    }
+
+                    rewrittenSaveState.SetAssetReference(
+                        namedReference.Key,
+                        RewriteAutomaticComponentReference(elementType, namedReference.Value, buildRootPath));
+                }
             }
 
             return rewrittenSaveState;
@@ -845,363 +603,6 @@ namespace helengine.editor {
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// Rewrites one serialized mesh payload into the strict runtime mesh payload shape.
-        /// </summary>
-        /// <param name="record">Serialized mesh component record to rewrite.</param>
-        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        /// <returns>Rewritten mesh component record.</returns>
-        SceneComponentAssetRecord RewriteMeshComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
-            ReadMeshComponentRecord(
-                record,
-                out SceneAssetReference modelReference,
-                out SceneAssetReference[] materialReferences,
-                out byte renderOrder3D);
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            MeshComponentScenePayloadSerializer.Write(
-                writer,
-                RewriteModelReference(modelReference, buildRootPath),
-                RewriteMaterialReferences(materialReferences, buildRootPath),
-                renderOrder3D);
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = record.ComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Rewrites one serialized camera payload into the strict runtime camera payload shape.
-        /// </summary>
-        /// <param name="record">Serialized camera component record to rewrite.</param>
-        /// <returns>Rewritten camera component record.</returns>
-        SceneComponentAssetRecord RewriteCameraComponentRecord(SceneComponentAssetRecord record) {
-            ReadCameraComponentRecord(
-                record,
-                out byte cameraDrawOrder,
-                out ushort layerMask,
-                out float4 viewport,
-                out float nearPlaneDistance,
-                out float farPlaneDistance,
-                out CameraClearSettings clearSettings,
-                out CameraRenderSettings renderSettings);
-
-            using MemoryStream writeStream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(CameraComponentPayloadVersion);
-            writer.WriteByte(cameraDrawOrder);
-            writer.WriteUInt16(NormalizePackagedCameraLayerMask(layerMask));
-            WriteFloat4(writer, viewport);
-            writer.WriteSingle(nearPlaneDistance);
-            writer.WriteSingle(farPlaneDistance);
-            WriteClearSettings(writer, clearSettings);
-            WriteRenderSettings(writer, renderSettings ?? new CameraRenderSettings());
-
-            return new SceneComponentAssetRecord {
-                ComponentTypeId = record.ComponentTypeId,
-                ComponentIndex = record.ComponentIndex,
-                Payload = writeStream.ToArray()
-            };
-        }
-
-        /// <summary>
-        /// Reads one serialized mesh payload from the current tagged editor format.
-        /// </summary>
-        /// <param name="record">Scene component record to interpret.</param>
-        /// <param name="modelReference">Persisted model reference.</param>
-        /// <param name="materialReference">Persisted material reference.</param>
-        /// <param name="renderOrder3D">Persisted render order.</param>
-        void ReadMeshComponentRecord(
-            SceneComponentAssetRecord record,
-            out SceneAssetReference modelReference,
-            out SceneAssetReference[] materialReferences,
-            out byte renderOrder3D) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-
-            byte[] payload = record.Payload ?? Array.Empty<byte>();
-            if (IsLegacyVersionedMeshPayload(payload)) {
-                throw new InvalidOperationException($"Unsupported mesh component payload version '{ReadPayloadVersion(payload)}'.");
-            }
-
-            ReadTaggedMeshComponentRecord(
-                record,
-                out modelReference,
-                out materialReferences,
-                out renderOrder3D);
-        }
-
-        /// <summary>
-        /// Reads one serialized camera payload from the current tagged editor format.
-        /// </summary>
-        /// <param name="record">Scene component record to interpret.</param>
-        /// <param name="cameraDrawOrder">Persisted camera draw order.</param>
-        /// <param name="layerMask">Persisted camera layer mask.</param>
-        /// <param name="viewport">Persisted camera viewport.</param>
-        /// <param name="clearSettings">Persisted camera clear settings.</param>
-        /// <param name="renderSettings">Persisted camera render settings.</param>
-        void ReadCameraComponentRecord(
-            SceneComponentAssetRecord record,
-            out byte cameraDrawOrder,
-            out ushort layerMask,
-            out float4 viewport,
-            out float nearPlaneDistance,
-            out float farPlaneDistance,
-            out CameraClearSettings clearSettings,
-            out CameraRenderSettings renderSettings) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-
-            byte[] payload = record.Payload ?? Array.Empty<byte>();
-            if (IsLegacyVersionedCameraPayload(payload)) {
-                throw new InvalidOperationException($"Unsupported camera component payload version '{ReadPayloadVersion(payload)}'.");
-            }
-
-            ReadTaggedCameraComponentRecord(
-                record,
-                out cameraDrawOrder,
-                out layerMask,
-                out viewport,
-                out nearPlaneDistance,
-                out farPlaneDistance,
-                out clearSettings,
-                out renderSettings);
-        }
-
-        /// <summary>
-        /// Returns whether one camera payload uses the legacy versioned binary layout instead of the tagged editor field format.
-        /// </summary>
-        /// <param name="payload">Serialized camera payload bytes to inspect.</param>
-        /// <returns>True when the payload should be interpreted as the legacy camera binary format.</returns>
-        bool IsLegacyVersionedCameraPayload(byte[] payload) {
-            if (payload == null || payload.Length == 0) {
-                return false;
-            }
-
-            byte version = payload[0];
-            if (version != 1 && version != 2 && version != CameraComponentPayloadVersion) {
-                return false;
-            }
-
-            if (version != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
-                return true;
-            }
-
-            if (payload.Length < 5) {
-                return true;
-            }
-
-            int fieldCount = BitConverter.ToInt32(payload, 1);
-            if (fieldCount < 0) {
-                return true;
-            }
-
-            return fieldCount > payload.Length;
-        }
-
-        /// <summary>
-        /// Returns whether one mesh payload uses an older versioned binary layout instead of the tagged editor field format.
-        /// </summary>
-        /// <param name="payload">Serialized mesh payload bytes to inspect.</param>
-        /// <returns>True when the payload should be rejected as an older binary format.</returns>
-        bool IsLegacyVersionedMeshPayload(byte[] payload) {
-            if (payload == null || payload.Length == 0) {
-                return false;
-            }
-
-            byte version = payload[0];
-            if (version != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
-                return true;
-            }
-
-            if (payload.Length < 5) {
-                return true;
-            }
-
-            int fieldCount = BitConverter.ToInt32(payload, 1);
-            if (fieldCount < 0) {
-                return true;
-            }
-
-            return fieldCount > payload.Length;
-        }
-
-        /// <summary>
-        /// Returns whether one payload uses the strict ordinal automatic runtime-component layout with the expected reflected member count.
-        /// </summary>
-        /// <param name="payload">Serialized payload bytes to inspect.</param>
-        /// <param name="expectedMemberCount">Expected reflected member count for the automatic runtime component.</param>
-        /// <returns>True when the payload matches the ordinal automatic runtime-component layout; otherwise false.</returns>
-        bool IsAutomaticRuntimePayloadWithExpectedMemberCount(byte[] payload, int expectedMemberCount) {
-            if (payload == null || payload.Length < 5) {
-                return false;
-            }
-
-            int memberCount = BitConverter.ToInt32(payload, 1);
-            return memberCount == expectedMemberCount;
-        }
-
-        /// <summary>
-        /// Reads the leading payload version byte when one is available.
-        /// </summary>
-        /// <param name="payload">Serialized payload bytes to inspect.</param>
-        /// <returns>Leading payload version byte or zero when the payload is empty.</returns>
-        static byte ReadPayloadVersion(byte[] payload) {
-            if (payload == null || payload.Length == 0) {
-                return 0;
-            }
-
-            return payload[0];
-        }
-
-        /// <summary>
-        /// Reads one tagged camera payload into the runtime values needed for packaged rewriting without constructing a live camera component.
-        /// </summary>
-        /// <param name="record">Scene component record to interpret.</param>
-        /// <param name="cameraDrawOrder">Persisted camera draw order.</param>
-        /// <param name="layerMask">Persisted camera layer mask.</param>
-        /// <param name="viewport">Persisted camera viewport.</param>
-        /// <param name="clearSettings">Persisted camera clear settings.</param>
-        /// <param name="renderSettings">Persisted camera render settings.</param>
-        void ReadTaggedCameraComponentRecord(
-            SceneComponentAssetRecord record,
-            out byte cameraDrawOrder,
-            out ushort layerMask,
-            out float4 viewport,
-            out float nearPlaneDistance,
-            out float farPlaneDistance,
-            out CameraClearSettings clearSettings,
-            out CameraRenderSettings renderSettings) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-            if (!string.Equals(record.ComponentTypeId, CameraComponentTypeId, StringComparison.Ordinal)) {
-                throw new InvalidOperationException($"Expected camera record but received '{record.ComponentTypeId}'.");
-            }
-
-            cameraDrawOrder = 0;
-            layerMask = 0b11111111;
-            viewport = new float4(0f, 0f, 1f, 1f);
-            nearPlaneDistance = 0.1f;
-            farPlaneDistance = 100f;
-            clearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
-            renderSettings = new CameraRenderSettings();
-
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-
-            if (reader.TryGetFieldReader(CameraDrawOrderFieldName, out EngineBinaryReader cameraDrawOrderReader)) {
-                using (cameraDrawOrderReader) {
-                    cameraDrawOrder = cameraDrawOrderReader.ReadByte();
-                }
-            }
-
-            if (reader.TryGetFieldReader(CameraLayerMaskFieldName, out EngineBinaryReader layerMaskReader)) {
-                using (layerMaskReader) {
-                    layerMask = layerMaskReader.ReadUInt16();
-                }
-            }
-
-            if (reader.TryGetFieldReader(CameraViewportFieldName, out EngineBinaryReader viewportReader)) {
-                using (viewportReader) {
-                    viewport = viewportReader.ReadFloat4();
-                }
-            }
-
-            if (reader.TryGetFieldReader(CameraNearPlaneDistanceFieldName, out EngineBinaryReader nearPlaneDistanceReader)) {
-                using (nearPlaneDistanceReader) {
-                    nearPlaneDistance = nearPlaneDistanceReader.ReadSingle();
-                }
-            }
-
-            if (reader.TryGetFieldReader(CameraFarPlaneDistanceFieldName, out EngineBinaryReader farPlaneDistanceReader)) {
-                using (farPlaneDistanceReader) {
-                    farPlaneDistance = farPlaneDistanceReader.ReadSingle();
-                }
-            }
-
-            if (reader.TryGetFieldReader(CameraClearSettingsFieldName, out EngineBinaryReader clearSettingsReader)) {
-                using (clearSettingsReader) {
-                    clearSettings = SceneComponentBinaryFieldEncoding.ReadCameraClearSettings(clearSettingsReader);
-                }
-            }
-
-            if (reader.TryGetFieldReader(CameraRenderSettingsFieldName, out EngineBinaryReader renderSettingsReader)) {
-                using (renderSettingsReader) {
-                    renderSettings = SceneComponentBinaryFieldEncoding.ReadCameraRenderSettings(renderSettingsReader);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Reads one tagged mesh payload into the authored asset references and render order needed for packaged rewriting.
-        /// </summary>
-        /// <param name="record">Scene component record to interpret.</param>
-        /// <param name="modelReference">Persisted model reference.</param>
-        /// <param name="materialReferences">Persisted material references ordered by submesh slot.</param>
-        /// <param name="renderOrder3D">Persisted render order.</param>
-        void ReadTaggedMeshComponentRecord(
-            SceneComponentAssetRecord record,
-            out SceneAssetReference modelReference,
-            out SceneAssetReference[] materialReferences,
-            out byte renderOrder3D) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-            if (!string.Equals(record.ComponentTypeId, MeshComponentTypeId, StringComparison.Ordinal)) {
-                throw new InvalidOperationException($"Expected mesh record but received '{record.ComponentTypeId}'.");
-            }
-
-            modelReference = null;
-            materialReferences = Array.Empty<SceneAssetReference>();
-            renderOrder3D = 0;
-
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-
-            if (reader.TryGetFieldReader(MeshModelReferenceFieldName, out EngineBinaryReader modelReferenceReader)) {
-                using (modelReferenceReader) {
-                    modelReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(modelReferenceReader);
-                }
-            }
-
-            if (!reader.TryGetFieldReader(MeshMaterialReferencesFieldName, out EngineBinaryReader materialReferencesReader)) {
-                throw new InvalidOperationException("Mesh component payload must include MaterialReferences.");
-            }
-
-            using (materialReferencesReader) {
-                materialReferences = SceneComponentBinaryFieldEncoding.ReadOptionalReferenceArray(materialReferencesReader);
-            }
-
-            if (reader.TryGetFieldReader(MeshRenderOrder3DFieldName, out EngineBinaryReader renderOrder3DReader)) {
-                using (renderOrder3DReader) {
-                    renderOrder3D = renderOrder3DReader.ReadByte();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Rewrites one ordered material-reference array into packaged file-backed material references.
-        /// </summary>
-        /// <param name="materialReferences">Authored material references ordered by submesh slot.</param>
-        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        /// <returns>Packaged material references ordered by submesh slot.</returns>
-        SceneAssetReference[] RewriteMaterialReferences(SceneAssetReference[] materialReferences, string buildRootPath) {
-            if (materialReferences == null) {
-                throw new ArgumentNullException(nameof(materialReferences));
-            }
-
-            SceneAssetReference[] rewrittenReferences = new SceneAssetReference[materialReferences.Length];
-            for (int materialIndex = 0; materialIndex < materialReferences.Length; materialIndex++) {
-                rewrittenReferences[materialIndex] = RewriteMaterialReference(materialReferences[materialIndex], buildRootPath);
-            }
-
-            return rewrittenReferences;
         }
 
         /// <summary>
@@ -2424,10 +1825,6 @@ namespace helengine.editor {
             writer.WriteByte((byte)settings.PostProcessTier);
         }
 
-        ushort NormalizePackagedCameraLayerMask(ushort layerMask) {
-            return RuntimeSceneLayerMask;
-        }
-
         void WriteAsset(string fullPath, Asset asset) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Output path must be provided.", nameof(fullPath));
@@ -2566,31 +1963,6 @@ namespace helengine.editor {
             return path + Path.DirectorySeparatorChar;
         }
 
-        /// <summary>
-        /// Creates one serialized mesh component payload that references one project-relative material path.
-        /// </summary>
-        /// <param name="materialRelativePath">Project-relative material path to encode.</param>
-        /// <returns>Serialized mesh component payload.</returns>
-        byte[] WriteMeshComponentPayload(string materialRelativePath) {
-            if (string.IsNullOrWhiteSpace(materialRelativePath)) {
-                throw new ArgumentException("Material relative path must be provided.", nameof(materialRelativePath));
-            }
-
-            MeshComponentPersistenceDescriptor descriptor = new MeshComponentPersistenceDescriptor();
-            MeshComponent meshComponent = new MeshComponent {
-                Material = new RuntimeMaterial()
-            };
-            EntityComponentSaveState saveState = new EntityComponentSaveState();
-            saveState.SetAssetReference("Material", new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = materialRelativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            });
-
-            SceneComponentAssetRecord record = descriptor.SerializeComponent(meshComponent, 0, saveState);
-            return record.Payload;
-        }
     }
 }
 

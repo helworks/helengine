@@ -65,9 +65,9 @@ namespace helengine.editor.tests.managers.gizmo {
                 Assert.True(gizmoRoot.Children[childIndex].Enabled);
             }
 
-            Assert.Same(normalMaterial, FindMeshComponent(gizmoRoot.Children[0]).Material);
-            Assert.Same(highlightMaterial, FindMeshComponent(gizmoRoot.Children[1]).Material);
-            Assert.Same(normalMaterial, FindMeshComponent(gizmoRoot.Children[2]).Material);
+            Assert.Same(normalMaterial, Assert.Single(FindMeshComponent(gizmoRoot.Children[0]).Materials));
+            Assert.Same(highlightMaterial, Assert.Single(FindMeshComponent(gizmoRoot.Children[1]).Materials));
+            Assert.Same(normalMaterial, Assert.Single(FindMeshComponent(gizmoRoot.Children[2]).Materials));
             Assert.False(previewEntity.Enabled);
         }
 
@@ -297,7 +297,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             MeshComponent meshComponent = new MeshComponent();
             meshComponent.Model = new TestRuntimeModel();
-            meshComponent.Material = material;
+            meshComponent.Materials = new RuntimeMaterial[] { material };
             ringEntity.AddComponent(meshComponent);
             return ringEntity;
         }
@@ -315,7 +315,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 Enabled = false
             };
             MeshComponent previewMesh = new MeshComponent();
-            previewMesh.Material = material;
+            previewMesh.Materials = new RuntimeMaterial[] { material };
             previewEntity.AddComponent(previewMesh);
             return previewEntity;
         }
