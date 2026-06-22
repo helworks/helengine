@@ -38,9 +38,12 @@ public sealed class CityMenuSourceTests {
 
         Assert.Contains("const float DesktopInstructionLabelFontScale = 1.73f;", source, StringComparison.Ordinal);
         Assert.Contains("const float DesktopInstructionTextLeft = 126f;", source, StringComparison.Ordinal);
-        Assert.Contains("const float DesktopInstructionTextTopAdjustment = 6f;", source, StringComparison.Ordinal);
+        Assert.Contains("const float DesktopInstructionRotateTextTopAdjustment = -9f;", source, StringComparison.Ordinal);
+        Assert.Contains("const float DesktopInstructionToggleTextTopAdjustment = -10f;", source, StringComparison.Ordinal);
         Assert.Contains("const int DesktopInstructionTextWidth = 300;", source, StringComparison.Ordinal);
         Assert.Contains("const int DesktopInstructionTextHeight = 28;", source, StringComparison.Ordinal);
+        Assert.Contains("\"Rotate Camera\", DesktopInstructionFirstRowTop, DesktopInstructionRotateTextTopAdjustment", source, StringComparison.Ordinal);
+        Assert.Contains("\"Toggle Light\", DesktopInstructionSecondRowTop, DesktopInstructionToggleTextTopAdjustment", source, StringComparison.Ordinal);
         Assert.Contains("const float NintendoDsInstructionFontScale = 1.6f;", source, StringComparison.Ordinal);
     }
 
