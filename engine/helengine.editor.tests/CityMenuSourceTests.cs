@@ -29,6 +29,22 @@ public sealed class CityMenuSourceTests {
     }
 
     /// <summary>
+    /// Ensures the desktop instruction overlay uses reduced desktop label sizing without changing Nintendo DS instruction sizing.
+    /// </summary>
+    [Fact]
+    public void City_demo_scene_instruction_overlay_source_uses_smaller_desktop_only_labels() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\DemoSceneInstructionOverlayFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("const float DesktopInstructionLabelFontScale = 1.73f;", source, StringComparison.Ordinal);
+        Assert.Contains("const float DesktopInstructionTextLeft = 126f;", source, StringComparison.Ordinal);
+        Assert.Contains("const float DesktopInstructionTextTopAdjustment = 6f;", source, StringComparison.Ordinal);
+        Assert.Contains("const int DesktopInstructionTextWidth = 300;", source, StringComparison.Ordinal);
+        Assert.Contains("const int DesktopInstructionTextHeight = 28;", source, StringComparison.Ordinal);
+        Assert.Contains("const float NintendoDsInstructionFontScale = 1.6f;", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Counts exact substring occurrences inside the supplied source text so source-shape regressions can be asserted directly.
     /// </summary>
     /// <param name="source">Full source text under test.</param>
