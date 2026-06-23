@@ -126,6 +126,33 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures visible rotation rings restore non-zero local scales so authored zero-scale setup does not collapse the rendered gizmo meshes.
+        /// </summary>
+        [Fact]
+        public void Update_WhenRotateToolIsActive_RestoresVisibleHandleLocalScales() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
+
+            TestRenderManager3D render3D = new TestRenderManager3D();
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, render3D, gizmoRoot, normalMaterial, new TestRuntimeMaterial(), previewEntity));
+
+            EditorSelectionService.SetSelectedEntity(new EditorEntity());
+
+            UpdateFollowComponent(gizmoRoot);
+
+            for (int childIndex = 0; childIndex < 3; childIndex++) {
+                Assert.True(gizmoRoot.Children[childIndex].Enabled);
+                Assert.True(gizmoRoot.Children[childIndex].LocalScale.X > 0f);
+                Assert.True(gizmoRoot.Children[childIndex].LocalScale.Y > 0f);
+                Assert.True(gizmoRoot.Children[childIndex].LocalScale.Z > 0f);
+            }
+        }
+
+        /// <summary>
         /// Ensures drag-time updates keep the existing gizmo scale even when camera distance changes.
         /// </summary>
         [Fact]

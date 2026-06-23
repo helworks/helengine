@@ -110,6 +110,48 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures visible scale handles restore non-zero local scales so authored zero-scale setup does not collapse the rendered gizmo meshes.
+        /// </summary>
+        [Fact]
+        public void Update_WhenScaleToolIsActive_RestoresVisibleHandleLocalScales() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
+            gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
+
+            EditorSelectionService.SetSelectedEntity(new EditorEntity());
+
+            UpdateFollowComponent(gizmoRoot);
+
+            for (int childIndex = 0; childIndex < gizmoRoot.Children.Count; childIndex++) {
+                if (gizmoRoot.Children[childIndex] is not EditorEntity handleEntity || !handleEntity.Enabled) {
+                    continue;
+                }
+
+                Assert.True(handleEntity.LocalScale.X > 0f);
+                Assert.True(handleEntity.LocalScale.Y > 0f);
+                Assert.True(handleEntity.LocalScale.Z > 0f);
+
+                if (handleEntity.Children == null) {
+                    continue;
+                }
+
+                for (int meshChildIndex = 0; meshChildIndex < handleEntity.Children.Count; meshChildIndex++) {
+                    if (handleEntity.Children[meshChildIndex] is not Entity meshChildEntity || !meshChildEntity.Enabled) {
+                        continue;
+                    }
+
+                    Assert.True(meshChildEntity.LocalScale.X > 0f);
+                    Assert.True(meshChildEntity.LocalScale.Y > 0f);
+                    Assert.True(meshChildEntity.LocalScale.Z > 0f);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures drag-time updates keep the existing gizmo scale even when camera distance changes.
         /// </summary>
         [Fact]

@@ -96,6 +96,7 @@ namespace helengine.editor {
             GizmoRoot.Orientation = float4.Identity;
             GizmoRoot.Position = selectedPosition;
             SetHandleVisualState(true);
+            RestoreVisibleHandleLocalScales();
 
             Entity cameraEntity = SceneCamera.Parent;
             if (cameraEntity == null) {
@@ -153,6 +154,30 @@ namespace helengine.editor {
                     }
 
                     childEntity.Enabled = enabled;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Restores non-zero local scales for visible handles so authored zero-scale setup does not collapse their meshes at draw time.
+        /// </summary>
+        void RestoreVisibleHandleLocalScales() {
+            for (int handleIndex = 0; handleIndex < GizmoRoot.Children.Count; handleIndex++) {
+                if (GizmoRoot.Children[handleIndex] is not Entity handleEntity || !handleEntity.Enabled) {
+                    continue;
+                }
+
+                handleEntity.LocalScale = float3.One;
+                if (handleEntity.Children == null) {
+                    continue;
+                }
+
+                for (int childIndex = 0; childIndex < handleEntity.Children.Count; childIndex++) {
+                    if (handleEntity.Children[childIndex] is not Entity childEntity || !childEntity.Enabled) {
+                        continue;
+                    }
+
+                    childEntity.LocalScale = float3.One;
                 }
             }
         }

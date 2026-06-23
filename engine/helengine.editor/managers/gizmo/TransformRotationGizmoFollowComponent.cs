@@ -105,6 +105,7 @@ namespace helengine.editor {
             GizmoRoot.Position = helengine.editor.EditorViewportDirect2DPresentationService.ResolvePresentedWorldAnchorPosition(selectedEntity);
             GizmoRoot.Orientation = float4.Identity;
             SetHandleVisualState(true);
+            RestoreVisibleHandleLocalScales();
 
             if (!EditorGizmoDragService.IsDragging(SceneCamera)) {
                 double scaleValue = ComputeScaleForTargetPixels(GizmoRoot.Position, cameraEntity.Position);
@@ -139,6 +140,19 @@ namespace helengine.editor {
 
             if (!enabled) {
                 SetSnapPreviewVisible(false);
+            }
+        }
+
+        /// <summary>
+        /// Restores non-zero local scales for visible rings so authored zero-scale setup does not collapse their meshes at draw time.
+        /// </summary>
+        void RestoreVisibleHandleLocalScales() {
+            for (int ringIndex = 0; ringIndex < GizmoRoot.Children.Count; ringIndex++) {
+                if (GizmoRoot.Children[ringIndex] is not Entity ringEntity || !ringEntity.Enabled || !IsHandleEntity(ringEntity)) {
+                    continue;
+                }
+
+                ringEntity.LocalScale = float3.One;
             }
         }
 
@@ -300,7 +314,7 @@ namespace helengine.editor {
 
             SnapPreviewEntity.Position = float3.Zero;
             SnapPreviewEntity.Orientation = previewOrientation;
-            SnapPreviewEntity.Scale = float3.Zero;
+            SnapPreviewEntity.LocalScale = float3.One;
             SetSnapPreviewVisible(true);
         }
 

@@ -27,7 +27,9 @@ namespace helengine.editor {
                 previewOrientation = float4.Identity;
                 return false;
             } else {
-                previewOrientation = handleEntity.Orientation * PlaneAlignmentOffset;
+                float4 planeAlignmentOffset = PlaneAlignmentOffset;
+                float4 ringOrientation = handleEntity.Orientation;
+                float4.Concatenate(ref planeAlignmentOffset, ref ringOrientation, out previewOrientation);
                 return true;
             }
         }
