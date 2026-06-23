@@ -240,6 +240,74 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures one loaded mesh component that came from the legacy `MaterialReferences` payload field still republishes its file-backed material dependency when the scene is saved again.
+        /// </summary>
+        [Fact]
+        public void Save_WhenLoadedSceneUsesLegacyMeshMaterialReferencesField_PreservesMaterialDependency() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            SceneAssetReference modelReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = EngineGeneratedAssetProvider.CubeRelativePath,
+                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
+                AssetId = EngineGeneratedModelCache.CubeAssetId
+            };
+            SceneAssetReference materialReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Materials/physics/PhysicsDemoBlue.hasset",
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+            resolver.RegisterModel(modelReference, EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId));
+            resolver.RegisterMaterial(materialReference, new TestRuntimeMaterial());
+
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("ModelReference", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, modelReference));
+            writer.WriteField("MaterialReferences", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(fieldWriter, new[] { materialReference }));
+            writer.WriteField("RenderOrder3D", fieldWriter => fieldWriter.WriteByte(2));
+
+            SceneAsset loadedSourceAsset = new SceneAsset {
+                Id = "Scenes/LegacyMeshMaterialField.helen",
+                AssetReferences = new[] { modelReference, materialReference },
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "LegacyMeshRoot",
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.MeshComponent",
+                                ComponentIndex = 0,
+                                Payload = writer.BuildPayload()
+                            }
+                        }
+                    }
+                }
+            };
+
+            SceneLoadService loadService = new SceneLoadService(registry, resolver);
+            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(loadedSourceAsset);
+            EditorEntity loadedRoot = Assert.Single(loadedRoots);
+            MeshComponent loadedMesh = FindMeshComponent(loadedRoot);
+            Assert.True(GetSaveComponent(loadedRoot).TryGetComponentState(loadedMesh, out EntityComponentSaveState loadedSaveState));
+            Assert.True(loadedSaveState.TryGetAssetReference("Materials[0]", out SceneAssetReference restoredMaterialReference));
+            Assert.Equal("Materials/physics/PhysicsDemoBlue.hasset", restoredMaterialReference.RelativePath);
+
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "LegacyMeshMaterialField.helen");
+            saveService.Save(scenePath);
+
+            SceneAsset savedAsset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                savedAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Contains(savedAsset.AssetReferences, reference =>
+                reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem &&
+                string.Equals(reference.RelativePath, "Materials/physics/PhysicsDemoBlue.hasset", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Ensures scene save can infer one file-backed model reference from the live runtime model id without requiring user-authored save metadata.
         /// </summary>
         [Fact]
@@ -883,6 +951,33 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(DepthPrepassMode.Always, loadedCamera.RenderSettings.DepthPrepassMode);
             Assert.Equal(321f, loadedCamera.RenderSettings.ShadowDistance);
             Assert.Equal(PostProcessTier.Low, loadedCamera.RenderSettings.PostProcessTier);
+        }
+
+        /// <summary>
+        /// Ensures scene-object entity layer masks round-trip through the serialized scene entity payload instead of falling back to the runtime default mask.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenEntityUsesSceneObjectLayerMask_RoundTripsEntityLayerMask() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "EntityLayerMaskRoundTrip.helen");
+            EditorEntity entity = CreateUserEntity("LayeredEntity", float3.Zero, float3.One, float4.Identity);
+            entity.LayerMask = EditorLayerMasks.SceneObjects;
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset rootAsset = Assert.Single(asset.RootEntities);
+            Assert.Equal(EditorLayerMasks.SceneObjects, rootAsset.LayerMask);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
+
+            Assert.Equal(EditorLayerMasks.SceneObjects, loadedEntity.LayerMask);
         }
 
         /// <summary>

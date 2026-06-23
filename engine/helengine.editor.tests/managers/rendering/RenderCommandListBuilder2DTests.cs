@@ -33,11 +33,15 @@ namespace helengine.editor.tests.managers.rendering {
         }
 
         /// <summary>
-        /// Ensures a sprite becomes one textured-quad command with preserved texture, bounds, source rectangle, and tint.
+        /// Ensures a sprite becomes one textured-quad command with preserved texture, transform-flattened bounds, source rectangle, tint, and rotation.
         /// </summary>
         [Fact]
         public void Build_WhenQueueContainsSprite_EmitsOneTexturedQuad() {
             Entity entity = CreateEntity(new float3(15f, 25f, 0f), true);
+            entity.LocalScale = new float3(2f, 3f, 1f);
+            float4 orientation;
+            float4.CreateFromYawPitchRoll(0f, 0f, 0.5f, out orientation);
+            entity.LocalOrientation = orientation;
             SpriteComponent sprite = new SpriteComponent {
                 Texture = new TestRuntimeTexture {
                     Width = 64,
@@ -60,9 +64,10 @@ namespace helengine.editor.tests.managers.rendering {
 
             int payloadIndex = commandList.GetTexturedQuadPayloadIndex(0);
             Assert.Same(sprite.Texture, commandList.GetTexturedQuadTexture(payloadIndex));
-            Assert.Equal(new float4(15f, 25f, 70f, 35f), commandList.GetTexturedQuadBounds(payloadIndex));
+            Assert.Equal(new float4(15f, 25f, 140f, 105f), commandList.GetTexturedQuadBounds(payloadIndex));
             Assert.Equal(sprite.SourceRect, commandList.GetTexturedQuadSourceRect(payloadIndex));
             Assert.Equal(sprite.Color, commandList.GetTexturedQuadColor(payloadIndex));
+            Assert.Equal(0.5f, commandList.GetTexturedQuadRotation(payloadIndex), 3);
         }
 
         /// <summary>

@@ -21,12 +21,12 @@ namespace helengine.editor {
         /// <summary>
         /// Stable tagged field name used for mesh model-reference persistence.
         /// </summary>
-        const string MeshModelReferenceFieldName = "ModelReference";
+        const string MeshModelReferenceFieldName = "Model";
 
         /// <summary>
         /// Stable tagged field name used for mesh material-reference array persistence.
         /// </summary>
-        const string MeshMaterialReferencesFieldName = "MaterialReferences";
+        const string MeshMaterialReferencesFieldName = "Materials";
 
         /// <summary>
         /// Stable tagged field name used for mesh render-order persistence.

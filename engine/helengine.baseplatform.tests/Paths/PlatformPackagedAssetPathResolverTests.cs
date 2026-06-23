@@ -27,20 +27,21 @@ public class PlatformPackagedAssetPathResolverTests {
     }
 
     /// <summary>
-    /// Ensures rooted packaged-path policies are rejected by the shared resolver instead of dispatching to platform-specific logic.
+    /// Ensures rooted packaged-path policies emit one rooted canonical runtime path for platforms that allow absolute packaged references.
     /// </summary>
     [Fact]
-    public void ResolveRuntimeReferencePath_WhenPlatformUsesRootedPolicy_ThrowsInvalidOperationException() {
+    public void ResolveRuntimeReferencePath_WhenPlatformUsesRootedPolicy_ReturnsRootedCanonicalPath() {
         RuntimeGenerationContract contract = new RuntimeGenerationContract(
             RuntimeMaterialResolutionMode.CookedPlatformOwned,
             true,
             PackagedPathPolicy.RootedOrContentRelative);
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
+        string resolvedPath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
             "ps2",
             contract,
-            "cooked/fonts/default.hefont"));
-        Assert.Contains("rooted packaged paths are not supported", exception.Message, StringComparison.Ordinal);
+            "cooked/fonts/default.hefont");
+
+        Assert.Equal("/cooked/fonts/default.hefont", resolvedPath);
     }
 
     /// <summary>

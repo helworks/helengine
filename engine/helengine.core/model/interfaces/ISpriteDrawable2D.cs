@@ -9,11 +9,6 @@ namespace helengine {
         RuntimeTexture Texture { get; set; }
 
         /// <summary>
-        /// Gets or sets the rotation applied to the sprite.
-        /// </summary>
-        float Rotation { get; set; }
-
-        /// <summary>
         /// Gets or sets the sprite color.
         /// </summary>
         byte4 Color { get; set; }

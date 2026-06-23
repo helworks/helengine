@@ -242,6 +242,11 @@ namespace helengine.directx11 {
             }
 
             float3 pos = drawable.Parent.Position;
+            float3 scale = drawable.Parent.Scale;
+            float width = size.X * scale.X;
+            float height = size.Y * scale.Y;
+            float3 rotatedRight = float4.RotateVector(float3.UnitX, drawable.Parent.Orientation);
+            float rotation = (float)Math.Atan2(rotatedRight.Y, rotatedRight.X);
             byte4 color = drawable.Color;
 
             float4x4 transposedWorld;
@@ -253,7 +258,8 @@ namespace helengine.directx11 {
             var shaderData = new SpriteShaderData {
                 worldViewProj = transposedWorld,
                 sourceRect = drawable.SourceRect,
-                destRect = new float4(pos.X, pos.Y, size.X, size.Y),
+                destRect = new float4(pos.X, pos.Y, width, height),
+                spriteTransform = new float4(rotation, 0f, 0f, 0f),
                 color = new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f)
             };
             context.UpdateSubresource(ref shaderData, spriteConstantBuffer);

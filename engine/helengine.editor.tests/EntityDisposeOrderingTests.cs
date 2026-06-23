@@ -86,6 +86,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures parent component disposal is deferred until child component-removal callbacks finish so child teardown can still detach from parent-owned resources safely.
+        /// </summary>
+        [Fact]
+        public void Dispose_WhenParentHasChild_ParentComponentDisposeRunsAfterChildComponentRemoval() {
+            List<string> events = new List<string>();
+            Entity parent = CreateInitializedEntity();
+            Entity child = CreateInitializedEntity();
+
+            parent.AddComponent(new DisposalTimingProbeComponent("parent", events));
+            child.AddComponent(new DisposalTimingProbeComponent("child", events));
+            parent.AddChild(child);
+
+            parent.Dispose();
+
+            int parentRemovedIndex = events.IndexOf("parent:removed");
+            int childRemovedIndex = events.IndexOf("child:removed");
+            int parentDisposedIndex = events.IndexOf("parent:disposed");
+
+            Assert.True(parentRemovedIndex >= 0);
+            Assert.True(childRemovedIndex >= 0);
+            Assert.True(parentDisposedIndex >= 0);
+            Assert.True(parentRemovedIndex < childRemovedIndex);
+            Assert.True(childRemovedIndex < parentDisposedIndex);
+        }
+
+        /// <summary>
         /// Creates one initialized entity ready for component lifecycle participation.
         /// </summary>
         /// <returns>Initialized entity with child and component collections.</returns>
@@ -173,6 +199,48 @@ namespace helengine.editor.tests {
             public override void ComponentRemoved(Entity entity) {
                 Events.Add(Name + ":removed");
                 base.ComponentRemoved(entity);
+            }
+        }
+
+        /// <summary>
+        /// Records when one component is removed and when its disposal method executes.
+        /// </summary>
+        sealed class DisposalTimingProbeComponent : Component {
+            /// <summary>
+            /// Human-readable probe name.
+            /// </summary>
+            readonly string Name;
+
+            /// <summary>
+            /// Shared event sink that records lifecycle callbacks.
+            /// </summary>
+            readonly List<string> Events;
+
+            /// <summary>
+            /// Initializes the probe with one log sink.
+            /// </summary>
+            /// <param name="name">Probe name written into the shared log.</param>
+            /// <param name="events">Shared event list.</param>
+            public DisposalTimingProbeComponent(string name, List<string> events) {
+                Name = string.IsNullOrWhiteSpace(name) ? throw new ArgumentException("Probe name must be provided.", nameof(name)) : name;
+                Events = events ?? throw new ArgumentNullException(nameof(events));
+            }
+
+            /// <summary>
+            /// Records one removal callback.
+            /// </summary>
+            /// <param name="entity">Owning entity being disposed.</param>
+            public override void ComponentRemoved(Entity entity) {
+                Events.Add(Name + ":removed");
+                base.ComponentRemoved(entity);
+            }
+
+            /// <summary>
+            /// Records one disposal callback.
+            /// </summary>
+            public override void Dispose() {
+                Events.Add(Name + ":disposed");
+                base.Dispose();
             }
         }
     }

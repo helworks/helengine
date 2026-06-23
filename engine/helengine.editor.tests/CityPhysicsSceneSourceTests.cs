@@ -29,4 +29,85 @@ public sealed class CityPhysicsSceneSourceTests {
         Assert.Contains("CreatePhysicsBoxMeshEntity(\"single_falling_cube.ground\", \"Ground\", new float3(0f, -0.5f, 0f), new float3(14f, 1f, 14f), float4.Identity, StaticBodyKindCode, false", source, StringComparison.Ordinal);
         Assert.Contains("CreatePhysicsBoxMeshEntity(\"single_falling_cube.box01\", \"FallingCube\", new float3(0f, 5f, 0f), new float3(1f, 1f, 1f), float4.Identity, DynamicBodyKindCode, true", source, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Ensures the authored city dynamic sphere stack uses one shared tiled texture across distinct colored standard materials so sphere rotation reads clearly.
+    /// </summary>
+    [Fact]
+    public void City_dynamic_sphere_stack_source_uses_shared_tiled_standard_materials() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("const string PhysicsDemoSphereTileTextureRelativePath = \"Images/physics/PhysicsDemoSphereTile.bmp\";", source, StringComparison.Ordinal);
+        Assert.Contains("WriteSphereTileTextureAssets(projectRootPath);", source, StringComparison.Ordinal);
+        Assert.Contains("WriteTexturedMaterialAsset(projectRootPath, PhysicsDemoSphereStackBlueMaterialRelativePath, \"PhysicsDemoSphereStackBlue\"", source, StringComparison.Ordinal);
+        Assert.Contains("WriteTexturedMaterialAsset(projectRootPath, PhysicsDemoSphereStackPurpleMaterialRelativePath, \"PhysicsDemoSphereStackPurple\"", source, StringComparison.Ordinal);
+        Assert.Contains("windowsSettings.SetFieldValue(TextureAssetIdFieldId, PhysicsDemoSphereTileTextureAssetId);", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("const string PhysicsDemoShaderRelativePath", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures playable physics showcase scene reload uses an editor-configured asset content manager instead of the runtime core manager so textured file-backed materials can resolve imported textures.
+    /// </summary>
+    [Fact]
+    public void City_playable_physics_showcase_scene_reload_uses_editor_asset_content_manager() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("ContentManager assetContentManager = new ContentManager(Path.Combine(projectRootPath, \"assets\"));", source, StringComparison.Ordinal);
+        Assert.Contains("EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(assetContentManager);", source, StringComparison.Ordinal);
+        Assert.Contains("EditorSceneAssetReferenceResolver referenceResolver = new EditorSceneAssetReferenceResolver(assetContentManager, projectRootPath);", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new EditorSceneAssetReferenceResolver(Core.Instance.ContentManager, projectRootPath);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the playable physics showcase UI attaches the shared light-indicator overlay beneath the same UI root that owns the light toggle.
+    /// </summary>
+    [Fact]
+    public void City_playable_physics_showcase_ui_source_normalizes_editor_font_reference_and_attaches_shared_light_indicator_overlay() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("Font = ResolveRequiredEditorFont(),", source, StringComparison.Ordinal);
+        Assert.Contains("entity.AddComponent(new city.rendering.DemoDiscLightToggleComponent());", source, StringComparison.Ordinal);
+        Assert.Contains("ApplyEditorFontReference(entity, fpsComponent);", source, StringComparison.Ordinal);
+        Assert.Contains("NormalizeGeneratedEditorFontReference(component, saveState);", source, StringComparison.Ordinal);
+        Assert.Contains("DemoDiscLightIndicatorOverlayFactory lightIndicatorOverlayFactory = new DemoDiscLightIndicatorOverlayFactory();", source, StringComparison.Ordinal);
+        Assert.Contains("lightIndicatorOverlayFactory.AttachToSceneUi(entity, ResolveRequiredEditorFont());", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the packaged playable physics showcase scene serializes the generated UI root so the light toggle keeps its authored indicator subtree.
+    /// </summary>
+    [Fact]
+    public void City_playable_physics_showcase_scene_asset_source_serializes_generated_ui_root() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("EditorEntity physicsShowcaseUiEntity = CreateLivePhysicsShowcaseUiEntity();", source, StringComparison.Ordinal);
+        Assert.Contains("rootEntities.Add(SerializeGeneratedEditorEntity(physicsShowcaseUiEntity, assetReferences, assetReferenceKeys));", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the manually serialized physics showcase entities keep the shared scene-object layer mask so the runtime camera can see their 3D drawables.
+    /// </summary>
+    [Fact]
+    public void City_playable_physics_showcase_source_serializes_scene_object_layer_masks() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("LayerMask = EditorLayerMasks.SceneObjects,", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the city physics scene source emits mesh payload field names that match the current reflected mesh persistence contract.
+    /// </summary>
+    [Fact]
+    public void City_playable_physics_showcase_source_uses_current_mesh_reference_field_names() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("const string MeshModelReferenceFieldName = \"Model\";", source, StringComparison.Ordinal);
+        Assert.Contains("const string MeshMaterialReferencesFieldName = \"Materials\";", source, StringComparison.Ordinal);
+    }
 }

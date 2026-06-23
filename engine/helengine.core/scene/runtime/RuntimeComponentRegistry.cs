@@ -33,7 +33,12 @@ namespace helengine {
         public static IReadOnlyList<string> GetBuiltInComponentTypeIds() {
             RuntimeComponentRegistry registry = new RuntimeComponentRegistry();
             RegisterBuiltInComponentDeserializers(registry);
-            return registry.DeserializersByTypeId.Keys.ToArray();
+            List<string> builtInComponentTypeIds = new List<string>(registry.DeserializersByTypeId.Count);
+            foreach (string componentTypeId in registry.DeserializersByTypeId.Keys) {
+                builtInComponentTypeIds.Add(componentTypeId);
+            }
+
+            return builtInComponentTypeIds;
         }
 
         /// <summary>

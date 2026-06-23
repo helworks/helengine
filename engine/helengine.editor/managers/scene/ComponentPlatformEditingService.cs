@@ -1038,6 +1038,15 @@ namespace helengine.editor {
             public RuntimeTexture ResolveTexture(SceneAssetReference reference) {
                 throw new InvalidOperationException("Detached platform override editing does not support texture asset reconstruction through the scene resolver.");
             }
+
+            /// <summary>
+            /// Rejects unexpected animation-clip resolution for detached override materialization.
+            /// </summary>
+            /// <param name="reference">Reference that was unexpectedly requested.</param>
+            /// <returns>This method never returns.</returns>
+            public AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference) {
+                throw new InvalidOperationException("Detached platform override editing does not support animation clip reconstruction through the scene resolver.");
+            }
         }
     }
 }

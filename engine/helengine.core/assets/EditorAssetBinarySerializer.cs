@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 17;
+        public const byte CurrentVersion = 18;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -51,7 +51,7 @@ namespace helengine {
         /// <summary>
         /// Version marker written into scene entity payloads that include stable ids and the static flag.
         /// </summary>
-        const byte SceneEntityPayloadVersion = 4;
+        const byte SceneEntityPayloadVersion = 5;
 
         /// <summary>
         /// Deserializes an asset from the supplied stream using the editor asset format.
@@ -515,7 +515,7 @@ namespace helengine {
             }
 
             byte payloadVersion = reader.ReadByte();
-            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != SceneEntityPayloadVersion) {
+            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != 4 && payloadVersion != SceneEntityPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
@@ -527,6 +527,7 @@ namespace helengine {
             }
             string name = reader.ReadString();
             bool isStatic = payloadVersion >= 4 && reader.ReadByte() != 0;
+            ushort layerMask = payloadVersion >= 5 ? reader.ReadUInt16() : (ushort)0b00000001;
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
             float4 localOrientation = reader.ReadFloat4();
@@ -542,6 +543,7 @@ namespace helengine {
                 Id = id,
                 Name = name,
                 IsStatic = isStatic,
+                LayerMask = layerMask,
                 LocalPosition = localPosition,
                 LocalScale = localScale,
                 LocalOrientation = localOrientation,

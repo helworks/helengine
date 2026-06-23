@@ -95,6 +95,53 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures legacy mesh payloads that still use the removed `MaterialReferences` field name restore material-slot save metadata before the scene is re-saved.
+        /// </summary>
+        [Fact]
+        public void Deserialize_WhenMeshUsesLegacyMaterialReferencesField_RestoresMaterialSlotSaveState() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            SceneAssetReference modelReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "Engine/Models/Cube.hasset",
+                ProviderId = "engine",
+                AssetId = "engine:model:cube"
+            };
+            SceneAssetReference materialReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Materials/physics/PhysicsDemoBlue.hasset",
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+            TestRuntimeModel restoredModel = new TestRuntimeModel();
+            TestRuntimeMaterial restoredMaterial = new TestRuntimeMaterial();
+            resolver.RegisterModel(modelReference, restoredModel);
+            resolver.RegisterMaterial(materialReference, restoredMaterial);
+
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("ModelReference", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, modelReference));
+            writer.WriteField("MaterialReferences", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(fieldWriter, new[] { materialReference }));
+            writer.WriteField("RenderOrder3D", fieldWriter => fieldWriter.WriteByte(4));
+
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.MeshComponent",
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
+
+            MeshComponent restored = Assert.IsType<MeshComponent>(descriptor.DeserializeComponent(record, saveComponent, resolver));
+            RuntimeMaterial[] restoredMaterials = GetMeshMaterials(restored);
+
+            Assert.Same(restoredModel, restored.Model);
+            Assert.Single(restoredMaterials);
+            Assert.Same(restoredMaterial, restoredMaterials[0]);
+            Assert.True(saveComponent.TryGetComponentState(restored, out EntityComponentSaveState restoredSaveState));
+            Assert.True(restoredSaveState.TryGetAssetReference("Materials[0]", out SceneAssetReference restoredMaterialReference));
+            Assert.Equal("Materials/physics/PhysicsDemoBlue.hasset", restoredMaterialReference.RelativePath);
+        }
+
+        /// <summary>
         /// Assigns runtime materials through the public writable mesh property expected by generic reflected persistence.
         /// </summary>
         /// <param name="meshComponent">Mesh component receiving the runtime material array.</param>

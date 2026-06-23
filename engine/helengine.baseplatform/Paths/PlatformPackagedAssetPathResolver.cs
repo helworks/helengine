@@ -27,7 +27,7 @@ public static class PlatformPackagedAssetPathResolver {
             return canonicalPackagedAssetPath;
         }
         if (runtimeGenerationContract.PackagedPathPolicy == PackagedPathPolicy.RootedOrContentRelative) {
-            throw new InvalidOperationException($"Shared packaged path resolution does not support rooted packaged paths for platform '{platformId}'.");
+            return string.Concat('/', canonicalPackagedAssetPath);
         }
 
         throw new InvalidOperationException($"Unsupported packaged path policy '{runtimeGenerationContract.PackagedPathPolicy}'.");

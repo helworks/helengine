@@ -74,6 +74,7 @@ namespace helengine.editor {
                     "--output", moduleRootPath,
                     "--platform", platformId,
                     "--set", $"runtime-specialization={runtimeSpecializationId}",
+                    "--set", "include-project-defined-preprocessor-symbols=true",
                     "--language", languageToken,
                     "--endianness", endiannessToken
                 ];
@@ -84,7 +85,9 @@ namespace helengine.editor {
 
                 if (selectedOptionValues != null) {
                     foreach (KeyValuePair<string, string> selectedOption in selectedOptionValues.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
-                        if (string.IsNullOrWhiteSpace(selectedOption.Key) || string.IsNullOrWhiteSpace(selectedOption.Value)) {
+                        if (string.IsNullOrWhiteSpace(selectedOption.Key)
+                            || string.IsNullOrWhiteSpace(selectedOption.Value)
+                            || string.Equals(selectedOption.Key, "include-project-defined-preprocessor-symbols", StringComparison.OrdinalIgnoreCase)) {
                             continue;
                         }
 

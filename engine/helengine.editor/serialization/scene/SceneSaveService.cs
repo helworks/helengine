@@ -210,6 +210,7 @@ namespace helengine.editor {
                 Id = entityId,
                 Name = entity.Name,
                 IsStatic = entity.Static,
+                LayerMask = entity.LayerMask,
                 LocalPosition = ResolveSerializedLocalPosition(entity, saveComponent),
                 LocalScale = ResolveSerializedLocalScale(entity, saveComponent),
                 LocalOrientation = ResolveSerializedLocalOrientation(entity, saveComponent),

@@ -3,11 +3,14 @@ namespace helengine {
     /// Plays one animation clip at a time against the owning entity's local transform channels.
     /// </summary>
     public class AnimationPlayerComponent : UpdateComponent {
+        AnimationClipAsset clip;
         AnimationClipAsset currentClip;
         float currentTime;
         bool isPlaying;
         bool isPaused;
         bool loop;
+        bool playAutomatically;
+        bool shouldLoop;
         float frameDeltaTime;
         float3 baseLocalPosition;
         float3 baseLocalScale;
@@ -18,6 +21,30 @@ namespace helengine {
         /// </summary>
         public AnimationPlayerComponent() {
             frameDeltaTime = 1f / 60f;
+        }
+
+        /// <summary>
+        /// Gets or sets the authored clip that can be started automatically when the component joins an entity hierarchy.
+        /// </summary>
+        public AnimationClipAsset Clip {
+            get { return clip; }
+            set { clip = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the authored clip should begin automatically during component lifecycle initialization.
+        /// </summary>
+        public bool PlayAutomatically {
+            get { return playAutomatically; }
+            set { playAutomatically = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether automatic playback of the authored clip should loop.
+        /// </summary>
+        public bool ShouldLoop {
+            get { return shouldLoop; }
+            set { shouldLoop = value; }
         }
 
         /// <summary>
@@ -54,6 +81,24 @@ namespace helengine {
         public float FrameDeltaTime {
             get { return frameDeltaTime; }
             set { frameDeltaTime = value; }
+        }
+
+        /// <summary>
+        /// Starts automatic playback as soon as the component is attached when the player was configured with an authored clip.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
+        public override void ComponentAdded(Entity entity) {
+            base.ComponentAdded(entity);
+            TryPlayConfiguredClip();
+        }
+
+        /// <summary>
+        /// Replays the authored clip after entity-hierarchy initialization so playback captures the final initialized base transform.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
+        public override void ComponentInitialized(Entity entity) {
+            base.ComponentInitialized(entity);
+            TryPlayConfiguredClip();
         }
 
         /// <summary>
@@ -136,6 +181,32 @@ namespace helengine {
 
             currentTime = ResolvePlaybackTime(time);
             ApplyCurrentPose();
+        }
+
+        /// <summary>
+        /// Recomputes the captured playback base from the entity's current local transform while preserving the currently sampled pose.
+        /// </summary>
+        public void RebaseCurrentPoseToLocalTransform() {
+            if (Parent == null || currentClip == null) {
+                return;
+            }
+
+            if (currentClip.PositionTracks.Length == 0) {
+                float3 rebasedPosition = Parent.LocalPosition;
+                if (currentClip.PositionOffsetTracks.Length == 1) {
+                    rebasedPosition -= AnimationClipEvaluator.EvaluatePositionTrack(currentClip.PositionOffsetTracks[0], currentTime);
+                }
+
+                baseLocalPosition = rebasedPosition;
+            }
+
+            if (currentClip.ScaleTracks.Length == 0) {
+                baseLocalScale = Parent.LocalScale;
+            }
+
+            if (currentClip.RotationTracks.Length == 0) {
+                baseLocalOrientation = Parent.LocalOrientation;
+            }
         }
 
         /// <summary>
@@ -222,6 +293,19 @@ namespace helengine {
             Parent.LocalPosition = resolvedPosition;
             Parent.LocalScale = resolvedScale;
             Parent.LocalOrientation = resolvedOrientation;
+        }
+
+        /// <summary>
+        /// Starts authored automatic playback when the component was configured to do so.
+        /// </summary>
+        void TryPlayConfiguredClip() {
+            if (!playAutomatically) {
+                return;
+            } else if (clip == null) {
+                throw new InvalidOperationException("AnimationPlayerComponent requires one authored Clip asset before automatic playback can begin.");
+            }
+
+            Play(clip, shouldLoop);
         }
 
         /// <summary>

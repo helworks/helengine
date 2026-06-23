@@ -147,6 +147,31 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures rooted packaged-path platforms write rooted runtime font-atlas references while preserving the shared builder-owned texture path.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenPlatformOwnsFontAtlasTextureCookingAndAllowsRootedPackagedPaths_WritesRootedAtlasRuntimePath() {
+            string fontRelativePath = "Fonts/DemoDiscTitle.ttf";
+            List<PlatformCookWorkItem> workItems = new List<PlatformCookWorkItem>();
+            SceneComponentPackagingTransformService service = CreateRootedBuilderOwnedFontAtlasService(workItems, new StubTextComponentSpriteBakeService());
+            WriteSourceFont(fontRelativePath);
+            SceneComponentAssetRecord record = CreateDebugRecord(CreateFileFontReference(fontRelativePath));
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            PlatformCookWorkItem workItem = Assert.Single(workItems);
+            Assert.Equal("cooked/fonts/demodisctitle.hetex", workItem.OutputRelativePath);
+
+            string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "fonts", "demodisctitle.hefont");
+            using FileStream fontStream = File.OpenRead(cookedFontPath);
+            FontAsset cookedFontAsset = helengine.files.FontAssetBinarySerializer.Deserialize(fontStream);
+            Assert.Equal("/cooked/fonts/demodisctitle.hetex", cookedFontAsset.CookedAtlasTextureRelativePath);
+            Assert.Null(cookedFontAsset.SourceTextureAsset);
+        }
+
+        /// <summary>
         /// Ensures authored sprite components that persist their texture field through the automatic editor payload contract still package successfully.
         /// </summary>
         [Fact]
@@ -184,6 +209,7 @@ namespace helengine.editor.tests {
         SceneComponentPackagingTransformService CreateService(ITextComponentSpriteBakeService bakeService) {
             ContentManager contentManager = new ContentManager(ProjectRootPath);
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
+            assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
@@ -217,6 +243,7 @@ namespace helengine.editor.tests {
 
             ContentManager contentManager = new ContentManager(ProjectRootPath);
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
+            assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
@@ -272,6 +299,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one transform service whose target platform publishes builder-owned font-atlas cooking and rooted packaged runtime paths.
+        /// </summary>
+        /// <param name="workItems">Collected builder-owned work items emitted during packaging.</param>
+        /// <param name="bakeService">Bake service that should receive flagged text requests.</param>
+        /// <returns>Configured transform service that records rooted font-atlas cook work items.</returns>
+        SceneComponentPackagingTransformService CreateRootedBuilderOwnedFontAtlasService(List<PlatformCookWorkItem> workItems, ITextComponentSpriteBakeService bakeService) {
+            if (workItems == null) {
+                throw new ArgumentNullException(nameof(workItems));
+            }
+
+            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
+            assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
+
+            return new SceneComponentPackagingTransformService(
+                Path.Combine(ProjectRootPath, "assets"),
+                contentManager,
+                assetImportManager,
+                fileSystemModelResolver,
+                new List<string>(),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                "ps2",
+                null,
+                string.Empty,
+                string.Empty,
+                null,
+                workItems.Add,
+                CreateRootedBuilderOwnedFontAtlasPlatformDefinition(),
+                bakeService);
+        }
+
+        /// <summary>
         /// Creates one automatic reflected text-component record for packaging verification.
         /// </summary>
         /// <param name="convertTextToSprite">True when the authored text should request build-time sprite conversion.</param>
@@ -311,7 +372,6 @@ namespace helengine.editor.tests {
                 Size = new int2(128, 32),
                 Color = new byte4(255, 255, 255, 255),
                 SourceRect = new float4(0f, 0f, 1f, 1f),
-                Rotation = 0.25f,
                 RenderOrder2D = 19,
                 LayerMask = 7
             };
@@ -501,6 +561,37 @@ namespace helengine.editor.tests {
                 Array.Empty<PlatformStorageProfileDefinition>(),
                 Array.Empty<PlatformMediaProfileDefinition>(),
                 RuntimeGenerationContract.CreateDefault(),
+                PlatformHostDebugCapability.CreateDefault(),
+                new[] {
+                    new PlatformAssetCookCapabilityDefinition(
+                        "texture",
+                        "runtime-texture",
+                        PlatformAssetCookOwnershipKind.BuilderOwned,
+                        "texture.settings",
+                        "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\",\"indexingMethod\":\"QuantizedIndexed\"}")
+                });
+        }
+
+        /// <summary>
+        /// Creates one minimal platform definition whose builder-owned font-atlas texture outputs resolve through rooted packaged runtime paths.
+        /// </summary>
+        /// <returns>Minimal platform definition with rooted packaged runtime-path support.</returns>
+        static PlatformDefinition CreateRootedBuilderOwnedFontAtlasPlatformDefinition() {
+            return new PlatformDefinition(
+                "ps2",
+                "PlayStation 2",
+                Array.Empty<PlatformBuildProfileDefinition>(),
+                Array.Empty<PlatformGraphicsProfileDefinition>(),
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                new RuntimeGenerationContract(
+                    RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                    true,
+                    PackagedPathPolicy.RootedOrContentRelative),
                 PlatformHostDebugCapability.CreateDefault(),
                 new[] {
                     new PlatformAssetCookCapabilityDefinition(

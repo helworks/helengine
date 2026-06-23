@@ -520,17 +520,15 @@ namespace helengine {
             }
 
             isDisposing = true;
+            List<Component> detachedComponents = null;
             if (components != null) {
+                detachedComponents = new List<Component>(components.Count);
                 while (components.Count > 0) {
                     int componentIndex = components.Count - 1;
                     ReportDisposalStage("BeforeComponentRemove", componentIndex);
                     Component component = components[components.Count - 1];
                     RemoveComponent(component);
-                    ReportDisposalStage("BeforeComponentDispose", componentIndex);
-                    component.Dispose();
-                    ReportDisposalStage("AfterComponentDispose", componentIndex);
-                    NativeOwnership.Delete(component);
-                    ReportDisposalStage("AfterComponentDelete", componentIndex);
+                    detachedComponents.Add(component);
                 }
 
                 List<Component> disposedComponents = components;
@@ -553,6 +551,17 @@ namespace helengine {
                 ReportDisposalStage("BeforeChildrenListDelete", -1);
                 children = null;
                 NativeOwnership.Delete(disposedChildren);
+            }
+
+            if (detachedComponents != null) {
+                for (int i = 0; i < detachedComponents.Count; i++) {
+                    Component component = detachedComponents[i];
+                    ReportDisposalStage("BeforeComponentDispose", i);
+                    component.Dispose();
+                    ReportDisposalStage("AfterComponentDispose", i);
+                    NativeOwnership.Delete(component);
+                    ReportDisposalStage("AfterComponentDelete", i);
+                }
             }
 
             if (Parent != null) {

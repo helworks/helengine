@@ -660,6 +660,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
 
+            entityAsset.LayerMask = NormalizePackagedEntityLayerMask(entityAsset.LayerMask);
             ApplyTargetPlatformTransformOverride(entityAsset);
             ApplyTargetPlatformComponentOverrides(entityAsset);
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
@@ -1692,7 +1693,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedTextureWorkItem(
+            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedFontAtlasTextureWorkItem(
                 PlatformDefinition,
                 TargetPlatformId,
                 sourceAssetPath,
@@ -1718,7 +1719,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Cooked atlas texture relative path must be provided.", nameof(cookedAtlasTextureRelativePath));
             }
 
-            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedTextureWorkItem(
+            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedFontAtlasTextureWorkItem(
                 PlatformDefinition,
                 TargetPlatformId,
                 sourceAssetPath,
@@ -2381,6 +2382,19 @@ namespace helengine.editor {
         /// <returns>Runtime layer mask used by packaged Windows players.</returns>
         ushort NormalizePackagedCameraLayerMask(ushort layerMask) {
             return RuntimeSceneLayerMask;
+        }
+
+        /// <summary>
+        /// Normalizes one packaged scene-entity layer mask into the runtime scene layer used by packaged Windows players.
+        /// </summary>
+        /// <param name="layerMask">Serialized authored entity layer mask.</param>
+        /// <returns>Runtime layer mask used by packaged Windows players.</returns>
+        ushort NormalizePackagedEntityLayerMask(ushort layerMask) {
+            if (layerMask == EditorLayerMasks.SceneObjects) {
+                return RuntimeSceneLayerMask;
+            }
+
+            return layerMask;
         }
 
         /// <summary>

@@ -40,8 +40,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            _ = platformId;
-            return Array.Empty<string>();
+            if (string.Equals(platformId, "windows", StringComparison.OrdinalIgnoreCase)) {
+                return ["DESKTOP_PLATFORM"];
+            }
+
+            return [];
         }
 
         /// <summary>
@@ -54,7 +57,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(platformDefinition));
             }
 
-            List<string> symbols = [.. ResolveGameplaySymbols(platformDefinition.PlatformId)];
+            List<string> symbols = [];
             RuntimeGenerationContract runtimeGenerationContract = platformDefinition.RuntimeGenerationContract
                 ?? throw new InvalidOperationException($"Platform '{platformDefinition.PlatformId}' must expose a runtime-generation contract.");
             if (runtimeGenerationContract.MaterialResolutionMode == RuntimeMaterialResolutionMode.CookedPlatformOwned) {

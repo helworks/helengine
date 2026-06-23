@@ -137,6 +137,7 @@ namespace helengine {
             RecordTraceState("LoadEntityBegin", rootEntityIndex, entityDepth, string.Empty);
             Entity entity = new Entity {
                 Static = entityAsset.IsStatic,
+                LayerMask = entityAsset.LayerMask,
                 LocalPosition = entityAsset.LocalPosition,
                 LocalScale = entityAsset.LocalScale,
                 LocalOrientation = entityAsset.LocalOrientation

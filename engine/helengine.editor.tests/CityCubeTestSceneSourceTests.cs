@@ -39,6 +39,19 @@ public sealed class CityCubeTestSceneSourceTests {
     }
 
     /// <summary>
+    /// Ensures the packaged cube-test scene does not include the editor-only video preview sprite in its runtime root list.
+    /// </summary>
+    [Fact]
+    public void City_cube_test_scene_source_excludes_editor_video_preview_from_runtime_roots() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\CubeTestSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.DoesNotContain("CreateVideoSpriteEntity(),", source, StringComparison.Ordinal);
+        Assert.Contains("CreateDirectionalLightEntity()", source, StringComparison.Ordinal);
+        Assert.Contains("CreateCubeEntity(cubeModel, solidColorMaterial)", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Ensures the authored cube-test material stays on the lit forward standard shader so the light-toggle overlay has a visible effect.
     /// </summary>
     [Fact]

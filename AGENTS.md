@@ -19,6 +19,8 @@
 - Do not create default values when a valid value is required; throw exceptions instead of silently constructing defaults (example: do not replace null `CoreInitializationOptions` with a new instance).
 - Nullable reference types are disabled; do not use nullable annotations or nullable patterns in code.
 - Use a well-formatted `if / else if` chain for mutually exclusive null checks.
+- Do not take screenshots of Helena's screen or any windows unless she specifically states that screenshots are allowed for the task.
+- Ask before any major implementations.
 - Run the smallest validation necessary for the scope of the change.
 ## Command Output
 Protect context usage. **Any command with unknown or potentially large output must be byte-capped.**

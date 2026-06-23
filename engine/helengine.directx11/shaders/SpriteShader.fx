@@ -16,6 +16,7 @@ cbuffer TransformBuffer : register(b0)
     matrix world;
     float4 sourceRect; // (x, y, width, height) in normalized texture coordinates
     float4 destRect;
+    float4 spriteTransform;
     
     // ps
     float4 color;
@@ -29,11 +30,15 @@ PS_INPUT VS(VS_INPUT input)
     PS_INPUT output;
     
     float4 dest = destRect;
-    dest.x += dest.z / 2.0;
-    dest.y += dest.w / 2.0;
-    dest.y *= -1;
-    
-    float2 destPos = dest.xy + (input.pos.xy * dest.zw);
+    float2 center = float2(dest.x + (dest.z * 0.5), -(dest.y + (dest.w * 0.5)));
+    float2 localOffset = input.pos.xy * dest.zw;
+    float rotation = spriteTransform.x;
+    float rotationSin = sin(rotation);
+    float rotationCos = cos(rotation);
+    float2 rotatedOffset = float2(
+        (localOffset.x * rotationCos) - (localOffset.y * rotationSin),
+        (localOffset.x * rotationSin) + (localOffset.y * rotationCos));
+    float2 destPos = center + rotatedOffset;
     
     output.pos = mul(float4(destPos, input.pos.z, 1.0), world);
     

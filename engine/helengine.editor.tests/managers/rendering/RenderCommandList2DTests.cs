@@ -18,7 +18,8 @@ namespace helengine.editor.tests.managers.rendering {
                 texturedQuadTexture,
                 new float4(10f, 20f, 30f, 40f),
                 new float4(0.1f, 0.2f, 0.3f, 0.4f),
-                new byte4(1, 2, 3, 4));
+                new byte4(1, 2, 3, 4),
+                0.25f);
             list.AddGlyphQuad(
                 glyphTexture,
                 new float4(11f, 21f, 31f, 41f),
@@ -42,6 +43,7 @@ namespace helengine.editor.tests.managers.rendering {
             Assert.Equal(new float4(10f, 20f, 30f, 40f), list.GetTexturedQuadBounds(texturedQuadPayloadIndex));
             Assert.Equal(new float4(0.1f, 0.2f, 0.3f, 0.4f), list.GetTexturedQuadSourceRect(texturedQuadPayloadIndex));
             Assert.Equal(new byte4(1, 2, 3, 4), list.GetTexturedQuadColor(texturedQuadPayloadIndex));
+            Assert.Equal(0.25f, list.GetTexturedQuadRotation(texturedQuadPayloadIndex));
 
             int glyphPayloadIndex = list.GetGlyphQuadPayloadIndex(1);
             Assert.Same(glyphTexture, list.GetGlyphQuadTexture(glyphPayloadIndex));
@@ -82,7 +84,8 @@ namespace helengine.editor.tests.managers.rendering {
                 texturedQuadTexture,
                 new float4(20f, 30f, 40f, 50f),
                 new float4(0.2f, 0.3f, 0.4f, 0.5f),
-                new byte4(15, 16, 17, 18));
+                new byte4(15, 16, 17, 18),
+                0.5f);
 
             Assert.Equal(1, list.Count);
             Assert.Equal(RenderCommand2DType.TexturedQuad, list.GetCommandType(0));
@@ -92,6 +95,7 @@ namespace helengine.editor.tests.managers.rendering {
             Assert.Equal(new float4(20f, 30f, 40f, 50f), list.GetTexturedQuadBounds(texturedQuadPayloadIndex));
             Assert.Equal(new float4(0.2f, 0.3f, 0.4f, 0.5f), list.GetTexturedQuadSourceRect(texturedQuadPayloadIndex));
             Assert.Equal(new byte4(15, 16, 17, 18), list.GetTexturedQuadColor(texturedQuadPayloadIndex));
+            Assert.Equal(0.5f, list.GetTexturedQuadRotation(texturedQuadPayloadIndex));
         }
 
         /// <summary>

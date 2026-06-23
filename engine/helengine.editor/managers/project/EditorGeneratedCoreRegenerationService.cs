@@ -70,6 +70,7 @@ namespace helengine.editor {
             string helEngineRootPath = WorkspaceLocator.ResolveHelEngineRootPath();
             string fullCodegenToolPath = Path.GetFullPath(codegenToolPath);
             string generatedCoreOutputRoot = Path.GetFullPath(generatedCoreRootPath);
+            string regenerationLogPath = ResolveGeneratedCoreRegenerationLogPath(generatedCoreOutputRoot);
             string helengineCoreProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.core", "helengine.core.csproj");
             string helengineShaderProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.shader", "helengine.shader.csproj");
             string helengineInputProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.input", "helengine.input.csproj");
@@ -104,11 +105,13 @@ namespace helengine.editor {
                 Directory.Delete(generatedCoreOutputRoot, true);
             }
             Directory.CreateDirectory(generatedCoreOutputRoot);
+            AppendRegenerationLog(regenerationLogPath, $"regeneration-start platform={platformDefinition.PlatformId} codegen={fullCodegenToolPath}");
             try {
                 IReadOnlyList<string> portableInputPreprocessorSymbols = ResolvePortableInputPreprocessorSymbols(platformDefinition);
                 IReadOnlyList<string> combinedPreprocessorSymbols = CombineAdditionalPreprocessorSymbols(
                     portableInputPreprocessorSymbols,
                     additionalPreprocessorSymbols);
+                AppendRegenerationLog(regenerationLogPath, $"project-start path={helengineCoreProjectPath}");
                 RegenerateProject(
                     fullCodegenToolPath,
                     helengineCoreProjectPath,
@@ -117,8 +120,12 @@ namespace helengine.editor {
                     codegenProfile,
                     selectedCodegenOptionValues,
                     combinedPreprocessorSymbols,
+                    false,
                     logBuilder,
+                    regenerationLogPath,
                     cancellationToken);
+                AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineCoreProjectPath}");
+                AppendRegenerationLog(regenerationLogPath, $"project-start path={helengineShaderProjectPath}");
                 RegenerateProject(
                     fullCodegenToolPath,
                     helengineShaderProjectPath,
@@ -127,8 +134,12 @@ namespace helengine.editor {
                     codegenProfile,
                     selectedCodegenOptionValues,
                     combinedPreprocessorSymbols,
+                    false,
                     logBuilder,
+                    regenerationLogPath,
                     cancellationToken);
+                AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineShaderProjectPath}");
+                AppendRegenerationLog(regenerationLogPath, $"project-start path={helengineInputProjectPath}");
                 RegenerateProject(
                     fullCodegenToolPath,
                     helengineInputProjectPath,
@@ -137,13 +148,21 @@ namespace helengine.editor {
                     codegenProfile,
                     selectedCodegenOptionValues,
                     combinedPreprocessorSymbols,
+                    false,
                     logBuilder,
+                    regenerationLogPath,
                     cancellationToken);
+                AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineInputProjectPath}");
+                AppendRegenerationLog(regenerationLogPath, "merge-start shader");
                 MergeGeneratedSourceTree(shaderOutputRoot, generatedCoreOutputRoot);
                 MergeGeneratedConversionReport(shaderOutputRoot, generatedCoreOutputRoot);
+                AppendRegenerationLog(regenerationLogPath, "merge-complete shader");
+                AppendRegenerationLog(regenerationLogPath, "merge-start portable-input");
                 MergeGeneratedSourceTree(portableInputOutputRoot, generatedCoreOutputRoot);
                 MergeGeneratedConversionReport(portableInputOutputRoot, generatedCoreOutputRoot);
+                AppendRegenerationLog(regenerationLogPath, "merge-complete portable-input");
                 if (shouldRegeneratePhysics3DProject) {
+                    AppendRegenerationLog(regenerationLogPath, $"project-start path={helenginePhysics3DProjectPath}");
                     RegenerateProject(
                         fullCodegenToolPath,
                         helenginePhysics3DProjectPath,
@@ -152,11 +171,17 @@ namespace helengine.editor {
                         codegenProfile,
                         selectedCodegenOptionValues,
                         combinedPreprocessorSymbols,
+                        false,
                         logBuilder,
+                        regenerationLogPath,
                         cancellationToken);
+                    AppendRegenerationLog(regenerationLogPath, $"project-complete path={helenginePhysics3DProjectPath}");
+                    AppendRegenerationLog(regenerationLogPath, "merge-start physics3d");
                     MergeGeneratedSourceTree(physics3DOutputRoot, generatedCoreOutputRoot);
                     MergeGeneratedConversionReport(physics3DOutputRoot, generatedCoreOutputRoot);
+                    AppendRegenerationLog(regenerationLogPath, "merge-complete physics3d");
                 }
+                AppendRegenerationLog(regenerationLogPath, "external-projects-start");
                 RegenerateAdditionalGeneratedCoreProjects(
                     generatedCoreProjectPaths,
                     fullCodegenToolPath,
@@ -167,12 +192,35 @@ namespace helengine.editor {
                     selectedCodegenOptionValues,
                     combinedPreprocessorSymbols,
                     logBuilder,
+                    regenerationLogPath,
                     cancellationToken);
+                AppendRegenerationLog(regenerationLogPath, "external-projects-complete");
+                AppendRegenerationLog(regenerationLogPath, "runtime-support-merge-start");
                 MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
+                AppendRegenerationLog(regenerationLogPath, "runtime-support-merge-complete");
+                AppendRegenerationLog(regenerationLogPath, "deserializer-support-start");
                 EnsureGeneratedRuntimeComponentDeserializerSupport(generatedCoreOutputRoot, platformDefinition.PlatformId);
+                AppendRegenerationLog(regenerationLogPath, "deserializer-support-complete");
+                AppendRegenerationLog(regenerationLogPath, "unity-translation-unit-start");
                 WriteGeneratedCoreTranslationUnit(generatedCoreOutputRoot);
+                AppendRegenerationLog(regenerationLogPath, "unity-translation-unit-complete");
+            } catch (Exception ex) {
+                AppendRegenerationLog(regenerationLogPath, $"regeneration-failed {ex}");
+                if (logBuilder.Length > 0) {
+                    AppendRegenerationLog(regenerationLogPath, "process-output-start");
+                    File.AppendAllText(regenerationLogPath, logBuilder.ToString());
+                    AppendRegenerationLog(regenerationLogPath, "process-output-end");
+                }
+                throw;
             } finally {
-                DeleteDirectoryIfPresent(tempRoot);
+                AppendRegenerationLog(regenerationLogPath, $"cleanup-start path={tempRoot}");
+                try {
+                    DeleteDirectoryIfPresent(tempRoot);
+                    AppendRegenerationLog(regenerationLogPath, $"cleanup-complete path={tempRoot}");
+                } catch (Exception cleanupException) {
+                    AppendRegenerationLog(regenerationLogPath, $"cleanup-failed {cleanupException}");
+                    throw;
+                }
             }
         }
 
@@ -186,7 +234,9 @@ namespace helengine.editor {
         /// <param name="codegenProfile">Selected codegen profile metadata.</param>
         /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor.</param>
         /// <param name="additionalPreprocessorSymbols">Feature symbols injected for portable-input compilation.</param>
+        /// <param name="includeProjectDefinedPreprocessorSymbols">Whether project-defined preprocessor symbols should be included for the converted project.</param>
         /// <param name="logBuilder">Shared log buffer that records process output for the combined regeneration run.</param>
+        /// <param name="regenerationLogPath">Persistent diagnostic log file that should receive the launched codegen command.</param>
         /// <param name="cancellationToken">Cancellation token that can stop regeneration cooperatively.</param>
         static void RegenerateProject(
             string fileName,
@@ -196,7 +246,9 @@ namespace helengine.editor {
             PlatformCodegenProfileDefinition codegenProfile,
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             IReadOnlyList<string> additionalPreprocessorSymbols,
+            bool includeProjectDefinedPreprocessorSymbols,
             StringBuilder logBuilder,
+            string regenerationLogPath,
             CancellationToken cancellationToken) {
             if (string.IsNullOrWhiteSpace(fileName)) {
                 throw new ArgumentException("Codegen executable path must be provided.", nameof(fileName));
@@ -222,6 +274,9 @@ namespace helengine.editor {
             if (logBuilder == null) {
                 throw new ArgumentNullException(nameof(logBuilder));
             }
+            if (string.IsNullOrWhiteSpace(regenerationLogPath)) {
+                throw new ArgumentException("Regeneration log path must be provided.", nameof(regenerationLogPath));
+            }
 
             List<string> arguments = BuildArguments(
                 projectPath,
@@ -229,8 +284,12 @@ namespace helengine.editor {
                 platformDefinition,
                 codegenProfile,
                 selectedCodegenOptionValues,
-                additionalPreprocessorSymbols);
+                additionalPreprocessorSymbols,
+                includeProjectDefinedPreprocessorSymbols);
 
+            string commandLine = $"{fileName} {string.Join(" ", arguments.Select(QuoteArgument))}";
+            AppendRegenerationLog(regenerationLogPath, $"process-command {commandLine}");
+            logBuilder.AppendLine($"COMMAND: {commandLine}");
             RunProcess(fileName, arguments, Path.GetDirectoryName(fileName) ?? Directory.GetCurrentDirectory(), logBuilder, cancellationToken);
         }
 
@@ -246,6 +305,7 @@ namespace helengine.editor {
         /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor.</param>
         /// <param name="additionalPreprocessorSymbols">Feature symbols injected for conversion.</param>
         /// <param name="logBuilder">Shared log buffer that records process output for the combined regeneration run.</param>
+        /// <param name="regenerationLogPath">Persistent diagnostic log file that should receive the launched codegen commands.</param>
         /// <param name="cancellationToken">Cancellation token that can stop regeneration cooperatively.</param>
         static void RegenerateAdditionalGeneratedCoreProjects(
             IReadOnlyList<string> generatedCoreProjectPaths,
@@ -257,6 +317,7 @@ namespace helengine.editor {
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             IReadOnlyList<string> additionalPreprocessorSymbols,
             StringBuilder logBuilder,
+            string regenerationLogPath,
             CancellationToken cancellationToken) {
             if (generatedCoreProjectPaths == null) {
                 throw new ArgumentNullException(nameof(generatedCoreProjectPaths));
@@ -283,7 +344,9 @@ namespace helengine.editor {
                     codegenProfile,
                     selectedCodegenOptionValues,
                     additionalPreprocessorSymbols,
+                    true,
                     logBuilder,
+                    regenerationLogPath,
                     cancellationToken);
                 MergeExternalGeneratedProjectSourceTree(projectPath, projectOutputRoot, generatedCoreOutputRoot);
                 MergeGeneratedConversionReport(projectOutputRoot, generatedCoreOutputRoot);
@@ -299,6 +362,7 @@ namespace helengine.editor {
         /// <param name="codegenProfile">Selected codegen profile metadata.</param>
         /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor.</param>
         /// <param name="additionalPreprocessorSymbols">Feature symbols injected for portable-input compilation.</param>
+        /// <param name="includeProjectDefinedPreprocessorSymbols">Whether project-defined preprocessor symbols should be included for the converted project.</param>
         /// <returns>Ordered codegen process arguments.</returns>
         internal static List<string> BuildArguments(
             string projectPath,
@@ -306,7 +370,8 @@ namespace helengine.editor {
             PlatformDefinition platformDefinition,
             PlatformCodegenProfileDefinition codegenProfile,
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
-            IReadOnlyList<string> additionalPreprocessorSymbols) {
+            IReadOnlyList<string> additionalPreprocessorSymbols,
+            bool includeProjectDefinedPreprocessorSymbols) {
             if (string.IsNullOrWhiteSpace(projectPath)) {
                 throw new ArgumentException("Project path must be provided.", nameof(projectPath));
             }
@@ -341,16 +406,20 @@ namespace helengine.editor {
                 "--endianness",
                 codegenProfile.Endianness == PlatformSerializationEndianness.LittleEndian ? "little" : "big",
                 "--set",
-                "include-project-defined-preprocessor-symbols=false"
+                $"include-project-defined-preprocessor-symbols={(includeProjectDefinedPreprocessorSymbols ? "true" : "false")}"
             ];
 
-            if (selectedCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.PresetId, out string presetId)
+            IReadOnlyDictionary<string, string> effectiveCodegenOptionValues = ResolveEffectiveCodegenOptionValues(
+                codegenProfile,
+                selectedCodegenOptionValues);
+
+            if (effectiveCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.PresetId, out string presetId)
                 && !string.IsNullOrWhiteSpace(presetId)) {
                 arguments.Add("--preset");
                 arguments.Add(presetId);
             }
 
-            foreach (KeyValuePair<string, string> selectedOption in selectedCodegenOptionValues.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
+            foreach (KeyValuePair<string, string> selectedOption in effectiveCodegenOptionValues.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
                 if (string.IsNullOrWhiteSpace(selectedOption.Key)
                     || string.Equals(selectedOption.Key, "additional-preprocessor-symbols", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(selectedOption.Key, PlatformCodegenSettingIds.PresetId, StringComparison.OrdinalIgnoreCase)) {
@@ -370,6 +439,43 @@ namespace helengine.editor {
             }
 
             return arguments;
+        }
+
+        /// <summary>
+        /// Resolves the effective codegen option values by overlaying editor-selected overrides onto the active profile defaults.
+        /// </summary>
+        /// <param name="codegenProfile">Active codegen profile whose defaults should be forwarded to codegen.</param>
+        /// <param name="selectedCodegenOptionValues">Editor-selected codegen option overrides.</param>
+        /// <returns>One dictionary containing profile defaults plus explicit overrides.</returns>
+        static IReadOnlyDictionary<string, string> ResolveEffectiveCodegenOptionValues(
+            PlatformCodegenProfileDefinition codegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
+            if (codegenProfile == null) {
+                throw new ArgumentNullException(nameof(codegenProfile));
+            }
+            if (selectedCodegenOptionValues == null) {
+                throw new ArgumentNullException(nameof(selectedCodegenOptionValues));
+            }
+
+            Dictionary<string, string> effectiveValues = new(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < codegenProfile.Settings.Length; index++) {
+                PlatformSettingDefinition setting = codegenProfile.Settings[index];
+                if (setting == null || string.IsNullOrWhiteSpace(setting.SettingId) || string.IsNullOrWhiteSpace(setting.DefaultValue)) {
+                    continue;
+                }
+
+                effectiveValues[setting.SettingId] = setting.DefaultValue;
+            }
+
+            foreach (KeyValuePair<string, string> selectedOption in selectedCodegenOptionValues) {
+                if (string.IsNullOrWhiteSpace(selectedOption.Key) || string.IsNullOrWhiteSpace(selectedOption.Value)) {
+                    continue;
+                }
+
+                effectiveValues[selectedOption.Key] = selectedOption.Value;
+            }
+
+            return effectiveValues;
         }
 
         /// <summary>
@@ -472,6 +578,7 @@ namespace helengine.editor {
         /// <param name="cancellationToken">Cancellation token that can stop the process wait loop.</param>
         static void RunProcess(string fileName, IReadOnlyList<string> arguments, string workingDirectory, StringBuilder logBuilder, CancellationToken cancellationToken) {
             string displayArguments = string.Join(" ", arguments.Select(QuoteArgument));
+            object logSync = new();
             ProcessStartInfo startInfo = new ProcessStartInfo {
                 FileName = fileName,
                 WorkingDirectory = workingDirectory,
@@ -487,12 +594,16 @@ namespace helengine.editor {
             using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Failed to start '{fileName}'.");
             process.OutputDataReceived += (_, eventArgs) => {
                 if (!string.IsNullOrEmpty(eventArgs.Data)) {
-                    logBuilder.AppendLine(eventArgs.Data);
+                    lock (logSync) {
+                        logBuilder.AppendLine(eventArgs.Data);
+                    }
                 }
             };
             process.ErrorDataReceived += (_, eventArgs) => {
                 if (!string.IsNullOrEmpty(eventArgs.Data)) {
-                    logBuilder.AppendLine(eventArgs.Data);
+                    lock (logSync) {
+                        logBuilder.AppendLine(eventArgs.Data);
+                    }
                 }
             };
             process.BeginOutputReadLine();
@@ -518,6 +629,40 @@ namespace helengine.editor {
             if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path)) {
                 Directory.Delete(path, true);
             }
+        }
+
+        /// <summary>
+        /// Resolves the diagnostic regeneration log path that sits alongside one build workspace.
+        /// </summary>
+        /// <param name="generatedCoreOutputRoot">Absolute generated core output root.</param>
+        /// <returns>Absolute log file path.</returns>
+        static string ResolveGeneratedCoreRegenerationLogPath(string generatedCoreOutputRoot) {
+            if (string.IsNullOrWhiteSpace(generatedCoreOutputRoot)) {
+                throw new ArgumentException("Generated core output root must be provided.", nameof(generatedCoreOutputRoot));
+            }
+
+            string executionRootPath = Path.GetDirectoryName(generatedCoreOutputRoot)
+                ?? throw new InvalidOperationException($"Could not resolve the execution root for generated-core path '{generatedCoreOutputRoot}'.");
+            string logsRootPath = Path.Combine(executionRootPath, "logs");
+            Directory.CreateDirectory(logsRootPath);
+            return Path.Combine(logsRootPath, "generated-core-regeneration.log");
+        }
+
+        /// <summary>
+        /// Appends one timestamped diagnostic line to the generated-core regeneration log.
+        /// </summary>
+        /// <param name="logPath">Absolute regeneration log path.</param>
+        /// <param name="message">Diagnostic message to append.</param>
+        static void AppendRegenerationLog(string logPath, string message) {
+            if (string.IsNullOrWhiteSpace(logPath)) {
+                throw new ArgumentException("Log path must be provided.", nameof(logPath));
+            }
+            if (string.IsNullOrWhiteSpace(message)) {
+                throw new ArgumentException("Log message must be provided.", nameof(message));
+            }
+
+            string timestampedMessage = $"{DateTime.UtcNow:O} {message}{Environment.NewLine}";
+            File.AppendAllText(logPath, timestampedMessage);
         }
 
         /// <summary>
@@ -1020,7 +1165,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Discovers the assembly-qualified automatic scripted component runtime types referenced by cooked scene payloads.
+        /// Discovers the automatic runtime component types referenced by cooked scene payloads when those types still require generated native deserializers.
         /// </summary>
         /// <param name="cookedSceneAssetPaths">Cooked scene asset paths whose serialized component records should be inspected.</param>
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
@@ -1090,7 +1235,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Recursively collects the assembly-qualified automatic scripted component types referenced by one entity tree.
+        /// Recursively collects the persisted component types referenced by one entity tree when those types still require generated native runtime deserializers.
         /// </summary>
         /// <param name="entities">Entity tree whose serialized component records should be inspected.</param>
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
@@ -1115,15 +1260,19 @@ namespace helengine.editor {
                 SceneComponentAssetRecord[] components = entity.Components ?? Array.Empty<SceneComponentAssetRecord>();
                 for (int componentIndex = 0; componentIndex < components.Length; componentIndex++) {
                     SceneComponentAssetRecord componentRecord = components[componentIndex];
-                    if (componentRecord == null || string.IsNullOrWhiteSpace(componentRecord.ComponentTypeId) || !componentRecord.ComponentTypeId.Contains(',')) {
+                    if (componentRecord == null || string.IsNullOrWhiteSpace(componentRecord.ComponentTypeId)) {
                         continue;
                     }
                     Type componentType = ResolveAutomaticRuntimeComponentType(componentRecord.ComponentTypeId, scriptTypeResolver);
+                    if (componentType == null) {
+                        continue;
+                    }
                     if (!typeof(Component).IsAssignableFrom(componentType)) {
                         throw new InvalidOperationException($"Scene-referenced scripted component type '{componentRecord.ComponentTypeId}' does not derive from Component.");
                     }
-
-                    componentTypes.Add(componentType);
+                    if (IsEligibleAutomaticRuntimeComponentType(componentType)) {
+                        componentTypes.Add(componentType);
+                    }
                 }
 
                 CollectAutomaticRuntimeComponentTypes(entity.Children ?? Array.Empty<SceneEntityAsset>(), scriptTypeResolver, componentTypes);
@@ -1131,19 +1280,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves one assembly-qualified automatic scripted component type id back to the loaded runtime type.
+        /// Resolves one persisted automatic runtime component type id back to the loaded runtime type.
         /// </summary>
-        /// <param name="componentTypeId">Assembly-qualified scripted component type id.</param>
+        /// <param name="componentTypeId">Persisted component type id.</param>
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
-        /// <returns>Resolved scripted component runtime type.</returns>
+        /// <returns>Resolved scripted component runtime type, or null when one stable engine identifier does not participate in generated runtime deserializer discovery.</returns>
         static Type ResolveAutomaticRuntimeComponentType(string componentTypeId, IScriptTypeResolver scriptTypeResolver) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }
 
-            Type componentType = Type.GetType(componentTypeId, false);
+            Type componentType = PersistedComponentTypeResolver.TryResolve(componentTypeId);
             if (componentType == null && scriptTypeResolver != null) {
                 componentType = scriptTypeResolver.Resolve(componentTypeId);
+            }
+            if (componentType == null && !componentTypeId.Contains(',', StringComparison.Ordinal)) {
+                return null;
             }
             if (componentType == null) {
                 throw new InvalidOperationException($"Scene-referenced scripted component type '{componentTypeId}' could not be resolved for native runtime deserializer generation.");

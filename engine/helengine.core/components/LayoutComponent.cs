@@ -281,6 +281,7 @@ namespace helengine {
 
             ApplyResolvedSize(new int2(targetWidth, targetHeight));
             Parent.LocalPosition = localPosition;
+            RebaseSiblingAnimationPlayers();
             PublishOwnAnchorBoundsIfNeeded();
         }
 
@@ -352,6 +353,21 @@ namespace helengine {
         /// <param name="newHeight">Updated host height.</param>
         void HandleWindowResized(IntPtr handle, int newWidth, int newHeight) {
             RefreshAnchoring();
+        }
+
+        /// <summary>
+        /// Rebases sibling animation-player components after anchoring rewrites the entity transform so looping transform clips stay attached to the new layout result.
+        /// </summary>
+        void RebaseSiblingAnimationPlayers() {
+            if (Parent == null || Parent.Components == null) {
+                return;
+            }
+
+            for (int componentIndex = 0; componentIndex < Parent.Components.Count; componentIndex++) {
+                if (Parent.Components[componentIndex] is AnimationPlayerComponent animationPlayerComponent) {
+                    animationPlayerComponent.RebaseCurrentPoseToLocalTransform();
+                }
+            }
         }
 
         /// <summary>

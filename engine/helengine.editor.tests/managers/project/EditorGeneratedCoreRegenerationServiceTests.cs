@@ -203,7 +203,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             platformDefinition,
             codegenProfile,
             values,
-            []);
+            [],
+            false);
 
         Assert.Contains("--preset", arguments);
         Assert.Contains("ps2-lite", arguments);
@@ -211,17 +212,18 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies generated-core regeneration disables project-defined preprocessor symbols so platform-specific symbols come only from the selected build target.
+    /// Verifies engine-owned generated-core regeneration disables project-defined preprocessor symbols so platform-specific symbols come only from the selected build target.
     /// </summary>
     [Fact]
-    public void Build_arguments_disables_project_defined_preprocessor_symbols() {
+    public void Build_arguments_disables_project_defined_preprocessor_symbols_for_engine_projects() {
         IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
             @"C:\tmp\fixture.csproj",
             @"C:\tmp\generated",
             CreatePlatformDefinition("ps2", runtimeGenerationContract: null),
             CreateDefaultCodegenProfile(),
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            []);
+            [],
+            false);
 
         Assert.Contains("--set", arguments);
         Assert.Contains("include-project-defined-preprocessor-symbols=false", arguments);
@@ -229,6 +231,66 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains(
             arguments,
             argument => argument.EndsWith("helengine-feature-catalog.json", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Verifies external generated-core project regeneration enables project-defined preprocessor symbols so gameplay modules can compile their platform-specific branches.
+    /// </summary>
+    [Fact]
+    public void Build_arguments_enables_project_defined_preprocessor_symbols_for_external_projects() {
+        IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
+            @"C:\tmp\external\gameplay.csproj",
+            @"C:\tmp\generated",
+            CreatePlatformDefinition("windows", runtimeGenerationContract: null),
+            CreateDefaultCodegenProfile(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            [],
+            true);
+
+        Assert.Contains("--set", arguments);
+        Assert.Contains("include-project-defined-preprocessor-symbols=true", arguments);
+    }
+
+    /// <summary>
+    /// Verifies codegen argument building forwards default codegen-profile settings when the editor did not persist an explicit override.
+    /// </summary>
+    [Fact]
+    public void Build_arguments_includes_default_codegen_profile_settings_when_no_override_is_selected() {
+        PlatformCodegenProfileDefinition codegenProfile = new(
+            "default",
+            "Default",
+            "Default codegen profile",
+            PlatformCodegenLanguage.Cpp,
+            PlatformSerializationEndianness.LittleEndian,
+            [
+                new PlatformSettingDefinition(
+                    "native-file-system-header",
+                    "Native File System Header",
+                    PlatformSettingKind.Text,
+                    "\"platform/ps2/Ps2DiscFileSystem.hpp\"",
+                    true,
+                    []),
+                new PlatformSettingDefinition(
+                    "native-file-system-type",
+                    "Native File System Type",
+                    PlatformSettingKind.Text,
+                    "helengine::ps2::Ps2DiscFileSystem",
+                    true,
+                    [])
+            ]);
+
+        IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
+            @"C:\tmp\fixture.csproj",
+            @"C:\tmp\generated",
+            CreatePlatformDefinition("ps2", runtimeGenerationContract: null),
+            codegenProfile,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            [],
+            false);
+
+        Assert.Contains("--set", arguments);
+        Assert.Contains("native-file-system-header=\"platform/ps2/Ps2DiscFileSystem.hpp\"", arguments);
+        Assert.Contains("native-file-system-type=helengine::ps2::Ps2DiscFileSystem", arguments);
     }
 
     /// <summary>
@@ -249,7 +311,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             [
                 "HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES",
                 PhysicsSceneFeatureSymbolCatalog3D.BoxBoxContactSymbol
-            ]);
+            ],
+            false);
 
         Assert.Contains("--set", arguments);
         Assert.Contains(
@@ -345,6 +408,134 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         } finally {
             DeleteDirectoryIfPresent(platformScratchRootPath);
         }
+    }
+
+    /// <summary>
+    /// Verifies external generated-core project regeneration keeps engine projects isolated while allowing project-defined symbols for external gameplay projects.
+    /// </summary>
+    [Fact]
+    public void Regenerate_with_external_generated_core_project_enables_project_defined_preprocessor_symbols_only_for_external_project() {
+        string platformId = "external-project-symbols-" + Guid.NewGuid().ToString("N");
+        string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-external-project-output");
+        string codegenRootPath = Path.Combine(RootPath, "fake-codegen-external-project");
+        string argumentsLogPath = Path.Combine(RootPath, "fake-codegen-arguments.log");
+        string fakeCodegenPath = CreateFakeCodegenTool(codegenRootPath, argumentsLogPath);
+        string externalProjectPath = Path.Combine(RootPath, "external", "gameplay.csproj");
+        string helengineCoreProjectPath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "helengine.core.csproj");
+        Directory.CreateDirectory(
+            Path.GetDirectoryName(externalProjectPath)
+            ?? throw new InvalidOperationException("Unable to resolve the external generated-core project directory."));
+        File.WriteAllText(externalProjectPath, "<Project />");
+        EditorGeneratedCoreRegenerationService service = new();
+
+        service.Regenerate(
+            CreatePlatformDefinition(platformId, runtimeGenerationContract: null),
+            CreateDefaultCodegenProfile(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            generatedCoreRootPath,
+            fakeCodegenPath,
+            [externalProjectPath],
+            [],
+            CancellationToken.None);
+
+        string[] loggedInvocations = File.ReadAllLines(argumentsLogPath);
+        Assert.Contains(
+            loggedInvocations,
+            invocation => invocation.Contains($"PROJECT={externalProjectPath}|", StringComparison.OrdinalIgnoreCase)
+                && invocation.Contains("include-project-defined-preprocessor-symbols=true", StringComparison.Ordinal));
+        Assert.Contains(
+            loggedInvocations,
+            invocation => invocation.Contains($"PROJECT={helengineCoreProjectPath}|", StringComparison.OrdinalIgnoreCase)
+                && invocation.Contains("include-project-defined-preprocessor-symbols=false", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Verifies the runtime component registry source no longer relies on LINQ key projection that lowers to unsupported generated-core helpers.
+    /// </summary>
+    [Fact]
+    public void Runtime_component_registry_source_contains_no_linq_key_projection_for_built_in_component_ids() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "scene",
+            "runtime",
+            "RuntimeComponentRegistry.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.DoesNotContain(".Keys.ToArray()", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies shared dictionary runtime-reflection support is gated out of generated-core player builds where runtime script reflection is disabled.
+    /// </summary>
+    [Fact]
+    public void Scene_persistence_dictionary_type_support_source_is_gated_out_when_runtime_script_reflection_is_disabled() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "scene",
+            "runtime",
+            "ScenePersistenceDictionaryTypeSupport.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies automatic asset-reference array reflection helpers are gated out of generated-core player builds where runtime script reflection is disabled.
+    /// </summary>
+    [Fact]
+    public void Automatic_component_asset_reference_support_source_gates_array_reflection_helpers_when_runtime_script_reflection_is_disabled() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "scene",
+            "runtime",
+            "AutomaticComponentAssetReferenceSupport.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", source, StringComparison.Ordinal);
+        Assert.Contains("IsSupportedAssetReferenceArrayType", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies the task-scheduling worker source uses a distinct type name so generated native code cannot collide with ThreadDispatcher worker support.
+    /// </summary>
+    [Fact]
+    public void Task_scheduling_worker_source_uses_distinct_type_name_to_avoid_generated_native_name_collisions() {
+        string taskStackSourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "vendor",
+            "bepuphysics2",
+            "BepuUtilities",
+            "TaskScheduling",
+            "TaskStack.cs");
+        string taskSchedulingWorkerSourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "vendor",
+            "bepuphysics2",
+            "BepuUtilities",
+            "TaskScheduling",
+            "TaskStackWorker.cs");
+
+        string taskStackSource = File.ReadAllText(taskStackSourcePath);
+        string taskSchedulingWorkerSource = File.ReadAllText(taskSchedulingWorkerSourcePath);
+
+        Assert.Contains("Buffer<TaskStackWorker>", taskStackSource, StringComparison.Ordinal);
+        Assert.Contains("new TaskStackWorker", taskStackSource, StringComparison.Ordinal);
+        Assert.Contains("struct TaskStackWorker", taskSchedulingWorkerSource, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -528,6 +719,28 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies cooked scenes that serialize stable engine-owned component ids still emit generated runtime deserializers when those components do not provide an explicit runtime loader.
+    /// </summary>
+    [Fact]
+    public void Emit_cooked_scene_automatic_runtime_component_deserializers_includes_engine_owned_stable_component_type_ids() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-engine-components");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string scenePath = CreateCookedScene(
+            "engine-components-scene.hasset",
+            "helengine.RigidBody3DComponent");
+
+        EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            [scenePath],
+            null);
+
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeRigidBody3DComponentDeserializer.hpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeRigidBody3DComponentDeserializer.cpp")));
+        string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
+        Assert.Contains("GeneratedRuntimeRigidBody3DComponentDeserializer", registrationSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies cooked scenes that serialize scripted component ids infer the owning runtime module assembly names.
     /// </summary>
     [Fact]
@@ -680,6 +893,16 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     /// <param name="codegenRootPath">Directory that should contain the fake codegen tool and bundled runtime support root.</param>
     /// <returns>Absolute path to the fake codegen command file.</returns>
     static string CreateFakeCodegenTool(string codegenRootPath) {
+        return CreateFakeCodegenTool(codegenRootPath, string.Empty);
+    }
+
+    /// <summary>
+    /// Creates one fake codegen tool that emits the minimal generated output required by regeneration tests and optionally logs each invocation.
+    /// </summary>
+    /// <param name="codegenRootPath">Directory that should contain the fake codegen tool and bundled runtime support root.</param>
+    /// <param name="argumentsLogPath">Optional log file path that receives one line per invocation.</param>
+    /// <returns>Absolute path to the fake codegen command file.</returns>
+    static string CreateFakeCodegenTool(string codegenRootPath, string argumentsLogPath) {
         Directory.CreateDirectory(codegenRootPath);
         Directory.CreateDirectory(Path.Combine(codegenRootPath, ".net.cpp"));
 
@@ -689,16 +912,24 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             "@echo off\r\n"
             + "setlocal EnableDelayedExpansion\r\n"
             + "set OUTPUT=\r\n"
+            + "set PROJECT=\r\n"
             + ":parse\r\n"
             + "if \"%~1\"==\"\" goto done\r\n"
             + "if /I \"%~1\"==\"--output\" (\r\n"
             + "  set OUTPUT=%~2\r\n"
             + "  shift\r\n"
             + ")\r\n"
+            + "if /I \"%~1\"==\"--project\" (\r\n"
+            + "  set PROJECT=%~2\r\n"
+            + "  shift\r\n"
+            + ")\r\n"
             + "shift\r\n"
             + "goto parse\r\n"
             + ":done\r\n"
             + "if \"%OUTPUT%\"==\"\" exit /b 2\r\n"
+            + (string.IsNullOrWhiteSpace(argumentsLogPath)
+                ? string.Empty
+                : $">> \"{argumentsLogPath}\" echo PROJECT=%PROJECT%^|ARGS=%*\r\n")
             + "if not exist \"%OUTPUT%\" mkdir \"%OUTPUT%\"\r\n"
             + "> \"%OUTPUT%\\GeneratedMarker.cpp\" echo // generated\r\n"
             + "> \"%OUTPUT%\\cpp-conversion-report.json\" (\r\n"

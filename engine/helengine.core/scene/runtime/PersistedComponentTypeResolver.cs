@@ -11,6 +11,7 @@ namespace helengine {
         /// </summary>
         static readonly string[] CandidateAssemblyNames = [
             "helengine.core",
+            "helengine.physics",
             "helengine.physics3d"
         ];
 

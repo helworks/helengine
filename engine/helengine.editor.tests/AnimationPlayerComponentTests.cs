@@ -166,6 +166,73 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures one configured player can begin its authored clip automatically without a custom startup component.
+        /// </summary>
+        [Fact]
+        public void ComponentAdded_WhenAutomaticPlaybackIsConfigured_StartsAssignedClip() {
+            InitializeCore();
+            Entity entity = new Entity();
+            entity.InitComponents();
+            AnimationClipAsset clip = new AnimationClipAsset {
+                Id = "Animations/AutoPlay.hanim",
+                Duration = 1f,
+                PositionOffsetTracks = [
+                    new PositionOffsetKeyframeTrackAsset {
+                        Keyframes = [
+                            new PositionKeyframeAsset(0f, float3.Zero, AnimationInterpolationMode.Step),
+                            new PositionKeyframeAsset(1f, new float3(2f, 0f, 0f), AnimationInterpolationMode.Linear)
+                        ]
+                    }
+                ]
+            };
+            AnimationPlayerComponent component = new AnimationPlayerComponent {
+                Clip = clip,
+                PlayAutomatically = true,
+                ShouldLoop = true
+            };
+
+            entity.AddComponent(component);
+
+            Assert.True(component.IsPlaying);
+            Assert.Same(clip, component.CurrentClip);
+            Assert.Equal(0f, component.CurrentTime);
+            Assert.Equal(float3.Zero, entity.LocalPosition);
+        }
+
+        /// <summary>
+        /// Ensures playback can be rebased onto an externally rewritten entity position while preserving the currently sampled offset pose.
+        /// </summary>
+        [Fact]
+        public void RebaseCurrentPoseToLocalTransform_WhenOffsetTrackIsPlaying_PreservesExternallyAssignedPosition() {
+            InitializeCore();
+            Entity entity = new Entity();
+            entity.InitComponents();
+            AnimationPlayerComponent component = new AnimationPlayerComponent();
+            entity.AddComponent(component);
+            AnimationClipAsset clip = new AnimationClipAsset {
+                Id = "Animations/Rebase.hanim",
+                Duration = 1f,
+                PositionOffsetTracks = [
+                    new PositionOffsetKeyframeTrackAsset {
+                        Keyframes = [
+                            new PositionKeyframeAsset(0f, float3.Zero, AnimationInterpolationMode.Step),
+                            new PositionKeyframeAsset(1f, new float3(2f, 0f, 0f), AnimationInterpolationMode.Linear)
+                        ]
+                    }
+                ]
+            };
+
+            component.Play(clip, true);
+            component.Advance(0.5f);
+            entity.LocalPosition = new float3(20f, 0f, 0f);
+
+            component.RebaseCurrentPoseToLocalTransform();
+            component.Advance(0f);
+
+            Assert.Equal(new float3(20f, 0f, 0f), entity.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures the first runtime slice rejects multiple transform tracks on the same channel because target bindings do not exist yet.
         /// </summary>
         [Fact]

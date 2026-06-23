@@ -39,6 +39,11 @@ namespace helengine {
         readonly List<byte4> QuadColors;
 
         /// <summary>
+        /// Clockwise rotation angles, in radians, used by textured-quad commands.
+        /// </summary>
+        readonly List<float> QuadRotations;
+
+        /// <summary>
         /// Runtime textures used by glyph-quad commands.
         /// </summary>
         readonly List<RuntimeTexture> GlyphTextures;
@@ -104,6 +109,7 @@ namespace helengine {
             QuadBounds = new List<float4>(initialCapacity);
             QuadSourceRects = new List<float4>(initialCapacity);
             QuadColors = new List<byte4>(initialCapacity);
+            QuadRotations = new List<float>(initialCapacity);
             GlyphTextures = new List<RuntimeTexture>(initialCapacity);
             GlyphBounds = new List<float4>(initialCapacity);
             GlyphSourceRects = new List<float4>(initialCapacity);
@@ -134,6 +140,7 @@ namespace helengine {
             QuadBounds.Clear();
             QuadSourceRects.Clear();
             QuadColors.Clear();
+            QuadRotations.Clear();
             GlyphTextures.Clear();
             GlyphBounds.Clear();
             GlyphSourceRects.Clear();
@@ -172,7 +179,8 @@ namespace helengine {
         /// <param name="bounds">Resolved destination bounds in pixels.</param>
         /// <param name="sourceRect">Resolved texture source rectangle.</param>
         /// <param name="color">Resolved tint color.</param>
-        public void AddTexturedQuad(RuntimeTexture texture, float4 bounds, float4 sourceRect, byte4 color) {
+        /// <param name="rotationRadians">Clockwise rotation angle, in radians, around the quad center.</param>
+        public void AddTexturedQuad(RuntimeTexture texture, float4 bounds, float4 sourceRect, byte4 color, float rotationRadians) {
             if (texture == null) {
                 throw new ArgumentNullException(nameof(texture));
             }
@@ -182,6 +190,7 @@ namespace helengine {
             QuadBounds.Add(bounds);
             QuadSourceRects.Add(sourceRect);
             QuadColors.Add(color);
+            QuadRotations.Add(rotationRadians);
             CommandTypes.Add(RenderCommand2DType.TexturedQuad);
             PayloadIndices.Add(payloadIndex);
         }
@@ -322,6 +331,15 @@ namespace helengine {
         /// <returns>Stored tint color.</returns>
         public byte4 GetTexturedQuadColor(int payloadIndex) {
             return QuadColors[payloadIndex];
+        }
+
+        /// <summary>
+        /// Gets the clockwise rotation angle, in radians, stored for one textured-quad payload.
+        /// </summary>
+        /// <param name="payloadIndex">Zero-based textured-quad payload index.</param>
+        /// <returns>Stored clockwise rotation angle around the quad center.</returns>
+        public float GetTexturedQuadRotation(int payloadIndex) {
+            return QuadRotations[payloadIndex];
         }
 
         /// <summary>

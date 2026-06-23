@@ -125,6 +125,7 @@ namespace helengine.editor.tests {
                     new SceneEntityAsset {
                         Id = 1u,
                         Name = "Root",
+                        LayerMask = 0x2222,
                         LocalPosition = new float3(1f, 2f, 3f),
                         LocalScale = new float3(2f, 2f, 2f),
                         LocalOrientation = new float4(0f, 0.70710677f, 0f, 0.70710677f),
@@ -139,6 +140,7 @@ namespace helengine.editor.tests {
                             new SceneEntityAsset {
                                 Id = 2u,
                                 Name = "Child",
+                                LayerMask = 0x4444,
                                 LocalPosition = new float3(5f, 6f, 7f),
                                 LocalScale = float3.One,
                                 LocalOrientation = float4.Identity,
@@ -164,11 +166,13 @@ namespace helengine.editor.tests {
             Assert.Equal(1080, deserialized.SceneSettings.CanvasProfile.Height);
             Assert.Single(deserialized.RootEntities);
             Assert.Equal(1u, deserialized.RootEntities[0].Id);
+            Assert.Equal((ushort)0x2222, deserialized.RootEntities[0].LayerMask);
             Assert.Equal(new float3(1f, 2f, 3f), deserialized.RootEntities[0].LocalPosition);
             Assert.Equal(new float3(2f, 2f, 2f), deserialized.RootEntities[0].LocalScale);
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, deserialized.RootEntities[0].Components[0].Payload);
             Assert.Equal(2u, deserialized.RootEntities[0].Children[0].Id);
             Assert.Equal("Child", deserialized.RootEntities[0].Children[0].Name);
+            Assert.Equal((ushort)0x4444, deserialized.RootEntities[0].Children[0].LayerMask);
         }
 
         /// <summary>

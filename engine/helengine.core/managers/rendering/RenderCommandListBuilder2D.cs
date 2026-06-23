@@ -260,14 +260,18 @@ namespace helengine {
             }
 
             int2 size = sprite.Size;
-            float width = size.X > 0 ? size.X : sprite.Texture.Width;
-            float height = size.Y > 0 ? size.Y : sprite.Texture.Height;
+            float3 scale = sprite.Parent.Scale;
+            float width = (size.X > 0 ? size.X : sprite.Texture.Width) * scale.X;
+            float height = (size.Y > 0 ? size.Y : sprite.Texture.Height) * scale.Y;
             float3 position = sprite.Parent.Position;
+            float3 rotatedRight = float4.RotateVector(float3.UnitX, sprite.Parent.Orientation);
+            float rotationRadians = (float)Math.Atan2(rotatedRight.Y, rotatedRight.X);
             CommandListValue.AddTexturedQuad(
                 sprite.Texture,
                 new float4(position.X, position.Y, width, height),
                 sprite.SourceRect,
-                sprite.Color);
+                sprite.Color,
+                rotationRadians);
         }
 
         /// <summary>

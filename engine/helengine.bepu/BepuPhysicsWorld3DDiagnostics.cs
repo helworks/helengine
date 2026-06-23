@@ -35,7 +35,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets a value indicating whether stack-box differential diagnostics are allowed for the current process.
         /// </summary>
-        static bool DiagnosticsAllowed { get; set; } = true;
+        static bool DiagnosticsAllowed { get; set; }
 
         /// <summary>
         /// Gets or sets the zero-based synchronization frame index written to the log.
@@ -87,7 +87,7 @@ namespace helengine {
             CurrentSimulationFrameIndex = -1;
             PendingIntegrateVelocitySnapshotText = string.Empty;
             PendingManagedDifferentialTraceText = string.Empty;
-            PendingDisableReasonSnapshotText = DescribeTraceDisableReason(handles);
+            PendingDisableReasonSnapshotText = DiagnosticsAllowed ? DescribeTraceDisableReason(handles) : string.Empty;
             IsEnabled = DiagnosticsAllowed && string.IsNullOrEmpty(PendingDisableReasonSnapshotText);
             BepuPhysics.BepuNativeConversionDiagnostics.Reset(IsEnabled);
         }
@@ -155,6 +155,9 @@ namespace helengine {
             }
             if (simulation == null) {
                 throw new ArgumentNullException(nameof(simulation));
+            }
+            if (!DiagnosticsAllowed) {
+                return string.Empty;
             }
 
             if (!IsEnabled) {

@@ -15,6 +15,7 @@ public sealed class CityGroundCubeProbeSceneSourceTests {
         Assert.Contains("public const string SceneId = RenderingSceneGenerator.GroundCubeProbeSceneId;", source, StringComparison.Ordinal);
         Assert.Contains("entity.LocalPosition = new float3(0f, -0.5f, 0f);", source, StringComparison.Ordinal);
         Assert.Contains("entity.LocalScale = new float3(15f, 1f, 15f);", source, StringComparison.Ordinal);
+        Assert.Contains("entity.LayerMask = EditorLayerMasks.SceneObjects;", source, StringComparison.Ordinal);
         Assert.Contains("BodyKind = BodyKind3D.Static", source, StringComparison.Ordinal);
         Assert.Contains("entity.AddComponent(CreateBoxColliderComponent(new float3(15f, 1f, 15f)));", source, StringComparison.Ordinal);
         Assert.Contains("entity.LocalPosition = new float3(0f, 10f, 0f);", source, StringComparison.Ordinal);

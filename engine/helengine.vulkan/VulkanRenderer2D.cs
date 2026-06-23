@@ -358,7 +358,10 @@ namespace helengine.vulkan {
             }
 
             float3 position = sprite.Parent.Position;
-            DrawQuad(texture, position.X, position.Y, size.X, size.Y, sprite.SourceRect, sprite.Color);
+            float3 scale = sprite.Parent.Scale;
+            float3 rotatedRight = float4.RotateVector(float3.UnitX, sprite.Parent.Orientation);
+            float rotation = (float)Math.Atan2(rotatedRight.Y, rotatedRight.X);
+            DrawQuad(texture, position.X, position.Y, size.X * scale.X, size.Y * scale.Y, sprite.SourceRect, sprite.Color, rotation);
         }
 
         /// <summary>
@@ -423,7 +426,7 @@ namespace helengine.vulkan {
                 double drawX = lineOriginX + offsetX;
                 double drawY = baseY + snappedLineOffsetY + (info.OffsetY * fontScale);
 
-                DrawQuad(texture, drawX, drawY, pixelW, pixelH, info.SourceRect, color);
+                DrawQuad(texture, drawX, drawY, pixelW, pixelH, info.SourceRect, color, 0f);
 
                 double advance = info.AdvanceWidth > 0
                     ? info.AdvanceWidth * fontScale
@@ -504,7 +507,7 @@ namespace helengine.vulkan {
             double borderThickness = Math.Max(shape.BorderThickness, 0.0f);
 
             if (borderThickness > 0.0) {
-                DrawQuad(whiteTexture, position.X, position.Y, size.X, size.Y, new float4(0, 0, 1, 1), shape.BorderColor);
+                DrawQuad(whiteTexture, position.X, position.Y, size.X, size.Y, new float4(0, 0, 1, 1), shape.BorderColor, 0f);
             }
 
             double innerX = position.X + borderThickness;
@@ -513,7 +516,7 @@ namespace helengine.vulkan {
             double innerH = size.Y - (borderThickness * 2.0);
 
             if (innerW > 0.0 && innerH > 0.0) {
-                DrawQuad(whiteTexture, innerX, innerY, innerW, innerH, new float4(0, 0, 1, 1), shape.FillColor);
+                DrawQuad(whiteTexture, innerX, innerY, innerW, innerH, new float4(0, 0, 1, 1), shape.FillColor, 0f);
             }
         }
 
@@ -1360,7 +1363,8 @@ namespace helengine.vulkan {
         /// <param name="height">Height in pixels.</param>
         /// <param name="uvRect">Source UV rectangle.</param>
         /// <param name="color">Vertex color modulation.</param>
-        unsafe void DrawQuad(VulkanTextureResource texture, double x, double y, double width, double height, float4 uvRect, byte4 color) {
+        /// <param name="rotation">Rotation, in radians, applied around the quad center.</param>
+        unsafe void DrawQuad(VulkanTextureResource texture, double x, double y, double width, double height, float4 uvRect, byte4 color, float rotation) {
             if (currentViewportWidth <= 0.0 || currentViewportHeight <= 0.0) {
                 return;
             }
@@ -1369,15 +1373,35 @@ namespace helengine.vulkan {
                 throw new InvalidOperationException("Exceeded the Vulkan 2D per-frame quad capacity.");
             }
 
-            double left = x;
-            double top = y;
-            double right = x + width;
-            double bottom = y + height;
+            double halfWidth = width * 0.5;
+            double halfHeight = height * 0.5;
+            double centerX = x + halfWidth;
+            double centerY = y + halfHeight;
+            double rotationSin = Math.Sin(rotation);
+            double rotationCos = Math.Cos(rotation);
 
-            float ndcLeft = (float)ComputeNdcX(left);
-            float ndcRight = (float)ComputeNdcX(right);
-            float ndcTop = (float)ComputeNdcY(top);
-            float ndcBottom = (float)ComputeNdcY(bottom);
+            double left = -halfWidth;
+            double right = halfWidth;
+            double top = -halfHeight;
+            double bottom = halfHeight;
+
+            double topLeftX = centerX + ((left * rotationCos) - (top * rotationSin));
+            double topLeftY = centerY + ((left * rotationSin) + (top * rotationCos));
+            double topRightX = centerX + ((right * rotationCos) - (top * rotationSin));
+            double topRightY = centerY + ((right * rotationSin) + (top * rotationCos));
+            double bottomRightX = centerX + ((right * rotationCos) - (bottom * rotationSin));
+            double bottomRightY = centerY + ((right * rotationSin) + (bottom * rotationCos));
+            double bottomLeftX = centerX + ((left * rotationCos) - (bottom * rotationSin));
+            double bottomLeftY = centerY + ((left * rotationSin) + (bottom * rotationCos));
+
+            float ndcTopLeftX = (float)ComputeNdcX(topLeftX);
+            float ndcTopLeftY = (float)ComputeNdcY(topLeftY);
+            float ndcTopRightX = (float)ComputeNdcX(topRightX);
+            float ndcTopRightY = (float)ComputeNdcY(topRightY);
+            float ndcBottomRightX = (float)ComputeNdcX(bottomRightX);
+            float ndcBottomRightY = (float)ComputeNdcY(bottomRightY);
+            float ndcBottomLeftX = (float)ComputeNdcX(bottomLeftX);
+            float ndcBottomLeftY = (float)ComputeNdcY(bottomLeftY);
 
             float u0 = uvRect.X;
             float v0 = uvRect.Y;
@@ -1391,10 +1415,10 @@ namespace helengine.vulkan {
                 (float)(color.W / 255.0));
 
             var vertices = new VulkanSpriteVertex[QuadVertexCount];
-            vertices[0] = new VulkanSpriteVertex(new float2(ndcLeft, ndcTop), new float2(u0, v0), colorVector);
-            vertices[1] = new VulkanSpriteVertex(new float2(ndcRight, ndcTop), new float2(u1, v0), colorVector);
-            vertices[2] = new VulkanSpriteVertex(new float2(ndcRight, ndcBottom), new float2(u1, v1), colorVector);
-            vertices[3] = new VulkanSpriteVertex(new float2(ndcLeft, ndcBottom), new float2(u0, v1), colorVector);
+            vertices[0] = new VulkanSpriteVertex(new float2(ndcTopLeftX, ndcTopLeftY), new float2(u0, v0), colorVector);
+            vertices[1] = new VulkanSpriteVertex(new float2(ndcTopRightX, ndcTopRightY), new float2(u1, v0), colorVector);
+            vertices[2] = new VulkanSpriteVertex(new float2(ndcBottomRightX, ndcBottomRightY), new float2(u1, v1), colorVector);
+            vertices[3] = new VulkanSpriteVertex(new float2(ndcBottomLeftX, ndcBottomLeftY), new float2(u0, v1), colorVector);
 
             int quadIndex = recordedQuadCount;
             ulong vertexByteOffset = (ulong)(quadIndex * QuadVertexCount * VulkanSpriteVertex.SizeInBytes);

@@ -29,11 +29,6 @@ namespace helengine {
         public RuntimeTexture Texture { get; set; }
 
         /// <summary>
-        /// Gets or sets the rotation applied to the sprite.
-        /// </summary>
-        public float Rotation { get; set; }
-
-        /// <summary>
         /// Gets or sets the layer mask used to filter cameras.
         /// </summary>
         public byte LayerMask { get; set; }
@@ -44,7 +39,7 @@ namespace helengine {
         public float4 SourceRect { get; set; }
 
         /// <summary>
-        /// Gets or sets the destination size of the sprite.
+        /// Gets or sets the authored destination size of the sprite before entity-transform scale is applied.
         /// </summary>
         public int2 Size { get; set; }
 

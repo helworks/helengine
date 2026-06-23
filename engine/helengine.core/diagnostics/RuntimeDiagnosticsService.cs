@@ -124,6 +124,10 @@ namespace helengine {
                 AppendMetric(snapshot, "object_manager_cameras_count", (ulong)RuntimeObjectManager.Cameras.Count);
                 AppendMetric(snapshot, "object_manager_cameras_capacity", (ulong)RuntimeObjectManager.CameraCapacity);
                 AppendMetric(snapshot, "object_manager_cameras_estimated_bytes", EstimateReferenceListBytes(RuntimeObjectManager.CameraCapacity));
+                AppendMetric(snapshot, "object_manager_directional_lights_count", (ulong)RuntimeObjectManager.DirectionalLights.Count);
+                AppendMetric(snapshot, "object_manager_ambient_lights_count", (ulong)RuntimeObjectManager.AmbientLights.Count);
+                AppendMetric(snapshot, "object_manager_point_lights_count", (ulong)RuntimeObjectManager.PointLights.Count);
+                AppendMetric(snapshot, "object_manager_spot_lights_count", (ulong)RuntimeObjectManager.SpotLights.Count);
                 AppendMetric(snapshot, "object_manager_interactables_count", (ulong)RuntimeObjectManager.Interactables.Count);
                 AppendMetric(snapshot, "object_manager_interactables_capacity", (ulong)RuntimeObjectManager.InteractableCapacity);
                 AppendMetric(snapshot, "object_manager_interactables_estimated_bytes", EstimateReferenceListBytes(RuntimeObjectManager.InteractableCapacity));

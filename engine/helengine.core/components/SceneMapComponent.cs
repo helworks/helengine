@@ -40,7 +40,13 @@ namespace helengine {
         [EditorPropertyOrder(0)]
         public Dictionary<string, string> Mappings {
             get => MappingsValue;
-            set => MappingsValue = value ?? throw new ArgumentNullException(nameof(value));
+            set {
+                if (value == null) {
+                    throw new ArgumentNullException(nameof(value));
+                }
+
+                MappingsValue = value;
+            }
         }
 
         /// <summary>

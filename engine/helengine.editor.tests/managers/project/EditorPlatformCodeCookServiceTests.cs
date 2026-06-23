@@ -138,7 +138,7 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
     }
 
     [Fact]
-    public void Compile_code_modules_does_not_pass_shared_gameplay_identity_symbols_to_codegen() {
+    public void Compile_code_modules_passes_desktop_gameplay_symbol_to_windows_authored_runtime_modules() {
         RecordingCodegenToolRunner toolRunner = new();
         EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
         EditorCodeModuleManifestDocument manifestDocument = new([
@@ -162,12 +162,44 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
             OutputRootPath);
 
         Assert.Single(toolRunner.Invocations);
-        Assert.DoesNotContain(
+        Assert.Contains(
             toolRunner.Invocations[0].Arguments,
-            argument => argument.Contains("additional-preprocessor-symbols=", StringComparison.Ordinal));
+            argument => string.Equals(argument, "additional-preprocessor-symbols=DESKTOP_PLATFORM", StringComparison.Ordinal));
         Assert.DoesNotContain(
             toolRunner.Invocations[0].Arguments,
             argument => argument.Contains("HELENGINE_EDITOR", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Compile_code_modules_enables_project_defined_preprocessor_symbols_for_authored_runtime_modules() {
+        RecordingCodegenToolRunner toolRunner = new();
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+            []),
+            ["gameplay"],
+            new Dictionary<string, string> {
+                ["include-project-defined-preprocessor-symbols"] = "false",
+                ["write-conversion-report"] = "true"
+            },
+            OutputRootPath);
+
+        Assert.Single(toolRunner.Invocations);
+        Assert.Contains("include-project-defined-preprocessor-symbols=true", toolRunner.Invocations[0].Arguments);
+        Assert.DoesNotContain("include-project-defined-preprocessor-symbols=false", toolRunner.Invocations[0].Arguments);
     }
 
     [Fact]

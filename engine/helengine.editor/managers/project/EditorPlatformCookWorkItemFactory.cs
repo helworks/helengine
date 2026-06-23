@@ -94,6 +94,46 @@ internal static class EditorPlatformCookWorkItemFactory {
     }
 
     /// <summary>
+    /// Creates one builder-owned generated font-atlas cook work item when the selected platform publishes that capability and the generated source should use the platform default font-atlas settings contract.
+    /// </summary>
+    /// <param name="platformDefinition">Platform definition that may publish builder-owned font-atlas cooking.</param>
+    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+    /// <param name="sourceAssetPath">Absolute generated font-atlas source path that the builder should cook from.</param>
+    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+    /// <param name="sourceAssetId">Stable identifier of the generated font-atlas asset.</param>
+    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+    /// <returns>Resolved work item when the platform owns font-atlas cooking; otherwise null.</returns>
+    public static PlatformCookWorkItem CreateGeneratedFontAtlasTextureWorkItem(
+        PlatformDefinition platformDefinition,
+        string targetPlatformId,
+        string sourceAssetPath,
+        string outputRelativePath,
+        string sourceAssetId,
+        AssetFileHasher fileHasher) {
+        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+        } else if (fileHasher == null) {
+            throw new ArgumentNullException(nameof(fileHasher));
+        }
+
+        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "font-atlas-texture")
+            ?? ResolveBuilderOwnedCapability(platformDefinition, "texture");
+        if (capability == null) {
+            return null;
+        }
+
+        return CreateGeneratedWorkItem(
+            capability,
+            targetPlatformId,
+            sourceAssetPath,
+            capability.SourceAssetKind,
+            outputRelativePath,
+            sourceAssetId,
+            ResolveDefaultTextureProcessorSettings(capability),
+            fileHasher);
+    }
+
+    /// <summary>
     /// Creates one builder-owned generated-texture cook work item when the selected platform publishes that capability and the generated source should use the platform default texture settings contract.
     /// </summary>
     /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
@@ -170,6 +210,51 @@ internal static class EditorPlatformCookWorkItemFactory {
             targetPlatformId,
             sourceAssetPath,
             "texture",
+            outputRelativePath,
+            sourceAssetId,
+            processorSettings,
+            fileHasher);
+    }
+
+    /// <summary>
+    /// Creates one builder-owned generated font-atlas cook work item when the selected platform publishes that capability and the generated source reuses generic asset import settings.
+    /// </summary>
+    /// <param name="platformDefinition">Platform definition that may publish builder-owned font-atlas cooking.</param>
+    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+    /// <param name="sourceAssetPath">Absolute generated font-atlas source path that the builder should cook from.</param>
+    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+    /// <param name="sourceAssetId">Stable identifier of the generated font-atlas asset.</param>
+    /// <param name="settings">Resolved import settings whose texture processor data should drive the generated font-atlas cook contract.</param>
+    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+    /// <returns>Resolved work item when the platform owns font-atlas cooking; otherwise null.</returns>
+    public static PlatformCookWorkItem CreateGeneratedFontAtlasTextureWorkItem(
+        PlatformDefinition platformDefinition,
+        string targetPlatformId,
+        string sourceAssetPath,
+        string outputRelativePath,
+        string sourceAssetId,
+        AssetImportSettings settings,
+        AssetFileHasher fileHasher) {
+        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+        } else if (settings == null) {
+            throw new ArgumentNullException(nameof(settings));
+        } else if (fileHasher == null) {
+            throw new ArgumentNullException(nameof(fileHasher));
+        }
+
+        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "font-atlas-texture")
+            ?? ResolveBuilderOwnedCapability(platformDefinition, "texture");
+        if (capability == null) {
+            return null;
+        }
+
+        TextureAssetProcessorSettings processorSettings = ResolveTextureProcessorSettings(targetPlatformId, settings.Processor?.Platforms, capability);
+        return CreateGeneratedWorkItem(
+            capability,
+            targetPlatformId,
+            sourceAssetPath,
+            capability.SourceAssetKind,
             outputRelativePath,
             sourceAssetId,
             processorSettings,

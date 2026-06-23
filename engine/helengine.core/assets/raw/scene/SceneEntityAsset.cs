@@ -43,6 +43,11 @@ namespace helengine {
         public bool IsStatic { get; set; }
 
         /// <summary>
+        /// Gets or sets the entity layer mask that controls camera, light, and input filtering after the scene loads.
+        /// </summary>
+        public ushort LayerMask { get; set; }
+
+        /// <summary>
         /// Gets or sets the local position relative to the serialized parent.
         /// </summary>
         public float3 LocalPosition { get; set; }
