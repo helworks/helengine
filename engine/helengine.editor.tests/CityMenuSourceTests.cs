@@ -29,21 +29,28 @@ public sealed class CityMenuSourceTests {
     }
 
     /// <summary>
-    /// Ensures the desktop instruction overlay uses reduced desktop label sizing without changing Nintendo DS instruction sizing.
+    /// Ensures the desktop instruction overlay uses shorter labels and a tighter desktop-only panel without changing Nintendo DS instruction sizing.
     /// </summary>
     [Fact]
-    public void City_demo_scene_instruction_overlay_source_uses_smaller_desktop_only_labels() {
+    public void City_demo_scene_instruction_overlay_source_uses_tighter_desktop_only_instruction_panel() {
         string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\DemoSceneInstructionOverlayFactory.cs";
         string source = File.ReadAllText(sourcePath);
 
+        Assert.Contains("const int DesktopInstructionPanelWidth = 300;", source, StringComparison.Ordinal);
+        Assert.Contains("const int DesktopInstructionPanelHeight = 150;", source, StringComparison.Ordinal);
+        Assert.Contains("const float DesktopInstructionIconLeft = 24f;", source, StringComparison.Ordinal);
+        Assert.Contains("const float DesktopInstructionTextLeft = 112f;", source, StringComparison.Ordinal);
         Assert.Contains("const float DesktopInstructionLabelFontScale = 1.73f;", source, StringComparison.Ordinal);
-        Assert.Contains("const float DesktopInstructionTextLeft = 126f;", source, StringComparison.Ordinal);
         Assert.Contains("const float DesktopInstructionRotateTextTopAdjustment = -9f;", source, StringComparison.Ordinal);
         Assert.Contains("const float DesktopInstructionToggleTextTopAdjustment = -10f;", source, StringComparison.Ordinal);
-        Assert.Contains("const int DesktopInstructionTextWidth = 300;", source, StringComparison.Ordinal);
+        Assert.Contains("const int DesktopInstructionTextWidth = 140;", source, StringComparison.Ordinal);
         Assert.Contains("const int DesktopInstructionTextHeight = 28;", source, StringComparison.Ordinal);
-        Assert.Contains("\"Rotate Camera\", DesktopInstructionFirstRowTop, DesktopInstructionRotateTextTopAdjustment", source, StringComparison.Ordinal);
-        Assert.Contains("\"Toggle Light\", DesktopInstructionSecondRowTop, DesktopInstructionToggleTextTopAdjustment", source, StringComparison.Ordinal);
+        Assert.Contains("static readonly int2 DesktopInstructionDpadIconSize = new int2(48, 48);", source, StringComparison.Ordinal);
+        Assert.Contains("static readonly int2 DesktopInstructionXbox360ShoulderIconSize = new int2(78, 45);", source, StringComparison.Ordinal);
+        Assert.Contains("static readonly int2 DesktopInstructionPs2ShoulderIconSize = new int2(65, 48);", source, StringComparison.Ordinal);
+        Assert.Contains("static readonly int2 DesktopInstructionSwitchShoulderIconSize = new int2(89, 41);", source, StringComparison.Ordinal);
+        Assert.Contains("\"Rotate\", DesktopInstructionFirstRowTop, DesktopInstructionRotateTextTopAdjustment", source, StringComparison.Ordinal);
+        Assert.Contains("\"Light\", DesktopInstructionSecondRowTop, DesktopInstructionToggleTextTopAdjustment", source, StringComparison.Ordinal);
         Assert.Contains("const float NintendoDsInstructionFontScale = 1.6f;", source, StringComparison.Ordinal);
     }
 
