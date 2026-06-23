@@ -258,6 +258,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one persisted animation-clip reference into an animation clip asset instance.
+        /// </summary>
+        /// <param name="reference">Persisted asset reference to resolve.</param>
+        /// <returns>Animation clip asset loaded for the editor session.</returns>
+        public AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                throw new InvalidOperationException($"Unsupported animation clip reference source kind '{reference.SourceKind}'.");
+            }
+
+            string fullPath = ResolveFileSystemAssetPath(reference);
+            return AssetContentManager.Load<AnimationClipAsset>(fullPath, EditorContentProcessorIds.AnimationClipAsset);
+        }
+
+        /// <summary>
         /// Resolves one generated model reference through the generated-asset registry.
         /// </summary>
         /// <param name="reference">Generated model reference to resolve.</param>

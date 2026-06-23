@@ -30,5 +30,12 @@ namespace helengine.editor {
         /// <param name="reference">Stable scene asset reference to resolve.</param>
         /// <returns>Runtime texture resolved from the reference.</returns>
         RuntimeTexture ResolveTexture(SceneAssetReference reference);
+
+        /// <summary>
+        /// Resolves one stable scene asset reference into an animation clip asset.
+        /// </summary>
+        /// <param name="reference">Stable scene asset reference to resolve.</param>
+        /// <returns>Animation clip asset resolved from the reference.</returns>
+        AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference);
     }
 }

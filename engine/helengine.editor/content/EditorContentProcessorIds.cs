@@ -28,6 +28,10 @@ namespace helengine.editor {
         /// </summary>
         public const string SceneAsset = "editor.scene-asset";
         /// <summary>
+        /// Processor id used for serialized animation clip assets.
+        /// </summary>
+        public const string AnimationClipAsset = "editor.animation-clip-asset";
+        /// <summary>
         /// Processor id used for serialized asset import settings sidecars.
         /// </summary>
         public const string AssetImportSettings = "editor.asset-import-settings";

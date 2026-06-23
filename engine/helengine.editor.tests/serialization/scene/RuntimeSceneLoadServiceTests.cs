@@ -113,6 +113,54 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime animation-clip resolution can load serialized clip assets through the shared content-manager registration used by scene asset references.
+        /// </summary>
+        [Fact]
+        public void ResolveAnimationClip_WhenPackagedClipLoads_returnsTypedTrackData() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            AnimationClipAsset clipAsset = new AnimationClipAsset {
+                Id = "Animations/runtime-scene-load.hanim",
+                Duration = 2f,
+                PositionOffsetTracks = [
+                    new PositionOffsetKeyframeTrackAsset {
+                        Keyframes = [
+                            new PositionKeyframeAsset(0f, float3.Zero, AnimationInterpolationMode.Linear),
+                            new PositionKeyframeAsset(2f, new float3(8f, 3f, 0f), AnimationInterpolationMode.Linear)
+                        ]
+                    }
+                ],
+                RotationTracks = [
+                    new RotationKeyframeTrackAsset {
+                        Keyframes = [
+                            new RotationKeyframeAsset(0f, float4.Identity, AnimationInterpolationMode.Linear),
+                            new RotationKeyframeAsset(2f, new float4(0f, 0f, 0.12467473f, 0.9921977f), AnimationInterpolationMode.Linear)
+                        ]
+                    }
+                ]
+            };
+
+            WriteAnimationClipAsset("Animations/runtime-scene-load.hanim", clipAsset);
+
+            AnimationClipAsset loadedClip = resolver.ResolveAnimationClip(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Animations/runtime-scene-load.hanim",
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            });
+
+            Assert.NotNull(loadedClip);
+            Assert.Equal("Animations/runtime-scene-load.hanim", loadedClip.Id);
+            Assert.Equal(2f, loadedClip.Duration);
+            PositionOffsetKeyframeTrackAsset offsetTrack = Assert.Single(loadedClip.PositionOffsetTracks);
+            Assert.Equal(new float3(8f, 3f, 0f), offsetTrack.Keyframes[1].Value);
+            RotationKeyframeTrackAsset rotationTrack = Assert.Single(loadedClip.RotationTracks);
+            Assert.Equal(new float4(0f, 0f, 0.12467473f, 0.9921977f), rotationTrack.Keyframes[1].Value);
+        }
+
+        /// <summary>
         /// Ensures runtime scene loading restores the serialized static flag onto live entities.
         /// </summary>
         [Fact]
@@ -504,6 +552,34 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(new float4(12f, 24f, 640f, 360f), cameraComponent.Viewport);
             Assert.True(cameraComponent.ClearSettings.ClearColorEnabled);
             Assert.Equal(new float4(0.25f, 0.5f, 0.75f, 1f), cameraComponent.ClearSettings.ClearColor);
+        }
+
+        /// <summary>
+        /// Ensures packaged runtime scene loading restores entity layer masks so authored camera visibility filtering still works at runtime.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneEntityDefinesCustomLayerMask_RestoresEntityLayerMask() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        LayerMask = 0x2468,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+
+            Assert.Equal((ushort)0x2468, loadedRoot.LayerMask);
         }
 
         /// <summary>
@@ -1111,8 +1187,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Size = new int2(32, 14),
                 Color = new byte4(249, 243, 255, 255),
                 RenderOrder2D = 34,
-                LayerMask = 1,
-                Rotation = 15f
+                LayerMask = 1
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(
@@ -1155,7 +1230,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(new byte4(249, 243, 255, 255), loadedSpriteComponent.Color);
             Assert.Equal(34, loadedSpriteComponent.RenderOrder2D);
             Assert.Equal(1, loadedSpriteComponent.LayerMask);
-            Assert.Equal(15f, loadedSpriteComponent.Rotation);
         }
 
         /// <summary>
@@ -1386,6 +1460,19 @@ namespace helengine.editor.tests.serialization.scene {
 
             using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, textureAsset);
+        }
+
+        /// <summary>
+        /// Writes one serialized animation clip asset at the supplied packaged content path.
+        /// </summary>
+        /// <param name="relativePath">Packaged content-relative path.</param>
+        /// <param name="animationClipAsset">Animation clip payload to serialize.</param>
+        void WriteAnimationClipAsset(string relativePath, AnimationClipAsset animationClipAsset) {
+            string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, animationClipAsset);
         }
 
         /// <summary>

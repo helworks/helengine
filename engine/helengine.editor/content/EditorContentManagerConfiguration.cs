@@ -40,6 +40,10 @@ namespace helengine.editor {
                 EditorContentProcessorIds.SceneAsset,
                 new AssetContentProcessor<SceneAsset>(),
                 new[] { SceneAsset.FileExtension });
+            RegisterProcessorIfMissing(
+                contentManager,
+                EditorContentProcessorIds.AnimationClipAsset,
+                new AssetContentProcessor<AnimationClipAsset>());
         }
 
         /// <summary>

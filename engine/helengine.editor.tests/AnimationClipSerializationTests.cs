@@ -85,7 +85,7 @@ namespace helengine.editor.tests {
         /// <returns>Animation clip asset with stable typed track payloads.</returns>
         AnimationClipAsset CreateAnimationClipAsset() {
             return new AnimationClipAsset {
-                Id = "Animations/Test.animation",
+                Id = "Animations/Test.hanim",
                 Duration = 1f,
                 PositionTracks = [
                     new PositionKeyframeTrackAsset {

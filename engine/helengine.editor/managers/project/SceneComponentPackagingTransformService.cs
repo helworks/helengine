@@ -418,6 +418,7 @@ namespace helengine.editor {
 
             EntitySaveComponent saveComponent = new EntitySaveComponent();
             Component component = DeserializeAutomaticComponentForPackaging(record, descriptor, saveComponent);
+            NormalizeAutomaticComponentForRuntimePackaging(component);
             transformedRecord = BuildAutomaticRuntimeComponentRecord(
                 record.ComponentTypeId,
                 record.ComponentIndex,
@@ -425,6 +426,21 @@ namespace helengine.editor {
                 ResolveAutomaticComponentSaveState(saveComponent, component),
                 buildRootPath);
             return true;
+        }
+
+        /// <summary>
+        /// Normalizes one automatic reflected component instance into the runtime layer space expected by packaged Windows players before it is serialized into the strict runtime payload.
+        /// </summary>
+        /// <param name="component">Live component instance under packaging.</param>
+        void NormalizeAutomaticComponentForRuntimePackaging(Component component) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            if (component is CameraComponent cameraComponent
+                && cameraComponent.LayerMask == EditorLayerMasks.SceneObjects) {
+                cameraComponent.LayerMask = RuntimeSceneLayerMask;
+            }
         }
 
         /// <summary>
@@ -580,6 +596,9 @@ namespace helengine.editor {
             if (valueType == typeof(RuntimeMaterial)) {
                 return RewriteMaterialReference(reference, buildRootPath);
             }
+            if (valueType == typeof(AnimationClipAsset)) {
+                return RewriteAnimationClipReference(reference, buildRootPath);
+            }
 
             throw new InvalidOperationException($"Automatic component reference rewriting does not support asset type '{valueType.FullName}'.");
         }
@@ -677,6 +696,26 @@ namespace helengine.editor {
             }
 
             return RewriteFileSystemTextureReference(reference, buildRootPath);
+        }
+
+        /// <summary>
+        /// Rewrites one authored animation-clip reference into the packaged file-backed reference consumed by runtime scripted component deserializers.
+        /// </summary>
+        /// <param name="reference">Serialized animation-clip reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged file-backed animation-clip reference.</returns>
+        SceneAssetReference RewriteAnimationClipReference(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null) {
+                throw new InvalidOperationException("AnimationClipAsset-backed component members require a clip reference before packaging.");
+            }
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                throw new InvalidOperationException($"Unsupported animation clip reference source kind '{reference.SourceKind}'.");
+            }
+
+            string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            string cookedRelativePath = BuildCookedAnimationClipRelativePath(reference.RelativePath);
+            CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+            return CreateFileSystemReference(cookedRelativePath);
         }
 
         /// <summary>
@@ -1203,7 +1242,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedTextureWorkItem(
+            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedFontAtlasTextureWorkItem(
                 PlatformDefinition,
                 TargetPlatformId,
                 sourceAssetPath,
@@ -1231,7 +1270,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
             }
 
-            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedTextureWorkItem(
+            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedFontAtlasTextureWorkItem(
                 PlatformDefinition,
                 TargetPlatformId,
                 sourceAssetPath,
@@ -1681,6 +1720,16 @@ namespace helengine.editor {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hefont");
             return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Builds one cooked relative path for an authored animation clip so the final build graph stages the clip beside other runtime assets.
+        /// </summary>
+        /// <param name="relativePath">Original project-relative animation clip path.</param>
+        /// <returns>Cooked packaged animation-clip relative path.</returns>
+        string BuildCookedAnimationClipRelativePath(string relativePath) {
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            return NormalizeRelativePath(Path.Combine("cooked", normalizedRelativePath));
         }
 
         /// <summary>

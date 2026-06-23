@@ -26,6 +26,11 @@ namespace helengine.editor.tests.testing {
         readonly Dictionary<string, RuntimeTexture> TexturesByReferenceKey;
 
         /// <summary>
+        /// Animation clips keyed by their stable scene asset reference.
+        /// </summary>
+        readonly Dictionary<string, AnimationClipAsset> AnimationClipsByReferenceKey;
+
+        /// <summary>
         /// Initializes empty runtime lookup tables.
         /// </summary>
         public TestSceneAssetReferenceResolver() {
@@ -33,6 +38,7 @@ namespace helengine.editor.tests.testing {
             MaterialsByReferenceKey = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
             FontsByReferenceKey = new Dictionary<string, FontAsset>(StringComparer.Ordinal);
             TexturesByReferenceKey = new Dictionary<string, RuntimeTexture>(StringComparer.Ordinal);
+            AnimationClipsByReferenceKey = new Dictionary<string, AnimationClipAsset>(StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -97,6 +103,22 @@ namespace helengine.editor.tests.testing {
             }
 
             TexturesByReferenceKey[BuildReferenceKey(reference)] = runtimeTexture;
+        }
+
+        /// <summary>
+        /// Registers one animation clip for a stable scene asset reference.
+        /// </summary>
+        /// <param name="reference">Stable reference to register.</param>
+        /// <param name="animationClip">Animation clip resolved for the reference.</param>
+        public void RegisterAnimationClip(SceneAssetReference reference, AnimationClipAsset animationClip) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (animationClip == null) {
+                throw new ArgumentNullException(nameof(animationClip));
+            }
+
+            AnimationClipsByReferenceKey[BuildReferenceKey(reference)] = animationClip;
         }
 
         /// <summary>
@@ -169,6 +191,24 @@ namespace helengine.editor.tests.testing {
             }
 
             return runtimeTexture;
+        }
+
+        /// <summary>
+        /// Resolves one animation clip from the registered lookup table.
+        /// </summary>
+        /// <param name="reference">Stable reference to resolve.</param>
+        /// <returns>Registered animation clip.</returns>
+        public AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            string key = BuildReferenceKey(reference);
+            if (!AnimationClipsByReferenceKey.TryGetValue(key, out AnimationClipAsset animationClip)) {
+                throw new InvalidOperationException($"Animation clip was not registered for '{key}'.");
+            }
+
+            return animationClip;
         }
 
         /// <summary>

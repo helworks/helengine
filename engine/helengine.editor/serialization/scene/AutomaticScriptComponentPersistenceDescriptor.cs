@@ -195,6 +195,9 @@ namespace helengine.editor {
             if (member.ValueType == typeof(RuntimeMaterial) && string.Equals(member.Name, "Material", StringComparison.Ordinal)) {
                 return "MaterialReference";
             }
+            if (member.ValueType == typeof(RuntimeMaterial[]) && string.Equals(member.Name, "Materials", StringComparison.Ordinal)) {
+                return "MaterialReferences";
+            }
 
             return string.Empty;
         }
@@ -660,6 +663,9 @@ namespace helengine.editor {
             }
             if (valueType == typeof(RuntimeMaterial)) {
                 return referenceResolver.ResolveMaterial(reference);
+            }
+            if (valueType == typeof(AnimationClipAsset)) {
+                return referenceResolver.ResolveAnimationClip(reference);
             }
 
             throw new InvalidOperationException($"Automatic script-component persistence does not support asset-backed member type '{valueType.FullName}'.");

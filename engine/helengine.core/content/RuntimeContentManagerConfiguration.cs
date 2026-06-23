@@ -50,6 +50,10 @@ namespace helengine {
                 new[] { SceneAsset.FileExtension });
             RegisterProcessorIfMissing(
                 contentManager,
+                RuntimeContentProcessorIds.AnimationClipAsset,
+                new AssetContentProcessor<AnimationClipAsset>());
+            RegisterProcessorIfMissing(
+                contentManager,
                 RuntimeContentProcessorIds.FontAsset,
                 new BinaryContentProcessor<FontAsset>(FontAssetBinarySerializer.Deserialize),
                 new[] { FontAssetExtension });

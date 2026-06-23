@@ -18,7 +18,7 @@ namespace helengine.editor.tests {
             AnimationPlayerComponent component = new AnimationPlayerComponent();
             entity.AddComponent(component);
             AnimationClipAsset clip = new AnimationClipAsset {
-                Id = "Animations/Shake.animation",
+                Id = "Animations/Shake.hanim",
                 Duration = 1f,
                 PositionOffsetTracks = [
                     new PositionOffsetKeyframeTrackAsset {
@@ -47,7 +47,7 @@ namespace helengine.editor.tests {
             AnimationPlayerComponent component = new AnimationPlayerComponent();
             entity.AddComponent(component);
             AnimationClipAsset clip = new AnimationClipAsset {
-                Id = "Animations/Loop.animation",
+                Id = "Animations/Loop.hanim",
                 Duration = 1f,
                 PositionTracks = [
                     new PositionKeyframeTrackAsset {
@@ -79,7 +79,7 @@ namespace helengine.editor.tests {
             AnimationPlayerComponent component = new AnimationPlayerComponent();
             entity.AddComponent(component);
             AnimationClipAsset clip = new AnimationClipAsset {
-                Id = "Animations/Move.animation",
+                Id = "Animations/Move.hanim",
                 Duration = 1f,
                 PositionTracks = [
                     new PositionKeyframeTrackAsset {
@@ -102,6 +102,70 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scale tracks write the resolved local scale onto the owning entity during playback.
+        /// </summary>
+        [Fact]
+        public void Advance_WhenScaleTrackIsPlaying_UpdatesEntityLocalScale() {
+            InitializeCore();
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.LocalScale = new float3(1f, 1f, 1f);
+            AnimationPlayerComponent component = new AnimationPlayerComponent();
+            entity.AddComponent(component);
+            AnimationClipAsset clip = new AnimationClipAsset {
+                Id = "Animations/Scale.hanim",
+                Duration = 1f,
+                ScaleTracks = [
+                    new ScaleKeyframeTrackAsset {
+                        Keyframes = [
+                            new PositionKeyframeAsset(0f, new float3(1f, 1f, 1f), AnimationInterpolationMode.Step),
+                            new PositionKeyframeAsset(1f, new float3(2f, 3f, 1f), AnimationInterpolationMode.Linear)
+                        ]
+                    }
+                ]
+            };
+
+            component.Play(clip, false);
+            component.Advance(0.5f);
+
+            Assert.Equal(new float3(1.5f, 2f, 1f), entity.LocalScale);
+        }
+
+        /// <summary>
+        /// Ensures rotation tracks write the resolved local orientation onto the owning entity during playback.
+        /// </summary>
+        [Fact]
+        public void Advance_WhenRotationTrackIsPlaying_UpdatesEntityLocalOrientation() {
+            InitializeCore();
+            Entity entity = new Entity();
+            entity.InitComponents();
+            AnimationPlayerComponent component = new AnimationPlayerComponent();
+            entity.AddComponent(component);
+            float4 endOrientation;
+            float4.CreateFromYawPitchRoll(0f, 0f, (float)(Math.PI / 2d), out endOrientation);
+            AnimationClipAsset clip = new AnimationClipAsset {
+                Id = "Animations/Rotate.hanim",
+                Duration = 1f,
+                RotationTracks = [
+                    new RotationKeyframeTrackAsset {
+                        Keyframes = [
+                            new RotationKeyframeAsset(0f, float4.Identity, AnimationInterpolationMode.Step),
+                            new RotationKeyframeAsset(1f, endOrientation, AnimationInterpolationMode.Linear)
+                        ]
+                    }
+                ]
+            };
+
+            component.Play(clip, false);
+            component.Advance(1f);
+
+            Assert.Equal(endOrientation.X, entity.LocalOrientation.X, 3);
+            Assert.Equal(endOrientation.Y, entity.LocalOrientation.Y, 3);
+            Assert.Equal(endOrientation.Z, entity.LocalOrientation.Z, 3);
+            Assert.Equal(endOrientation.W, entity.LocalOrientation.W, 3);
+        }
+
+        /// <summary>
         /// Ensures the first runtime slice rejects multiple transform tracks on the same channel because target bindings do not exist yet.
         /// </summary>
         [Fact]
@@ -112,7 +176,7 @@ namespace helengine.editor.tests {
             AnimationPlayerComponent component = new AnimationPlayerComponent();
             entity.AddComponent(component);
             AnimationClipAsset clip = new AnimationClipAsset {
-                Id = "Animations/Unsupported.animation",
+                Id = "Animations/Unsupported.hanim",
                 Duration = 1f,
                 PositionTracks = [
                     new PositionKeyframeTrackAsset {

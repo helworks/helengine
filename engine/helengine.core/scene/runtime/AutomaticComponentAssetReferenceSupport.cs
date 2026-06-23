@@ -3,6 +3,7 @@ namespace helengine {
     /// Provides shared detection and runtime resolution for automatically persisted asset-backed component members.
     /// </summary>
     public static class AutomaticComponentAssetReferenceSupport {
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
         /// <summary>
         /// Message used when one reflected member type is not supported by automatic runtime asset-reference restoration.
         /// </summary>
@@ -21,7 +22,8 @@ namespace helengine {
             return valueType == typeof(FontAsset)
                 || valueType == typeof(RuntimeTexture)
                 || valueType == typeof(RuntimeModel)
-                || valueType == typeof(RuntimeMaterial);
+                || valueType == typeof(RuntimeMaterial)
+                || valueType == typeof(AnimationClipAsset);
         }
 
         /// <summary>
@@ -101,8 +103,12 @@ namespace helengine {
             if (valueType == typeof(RuntimeMaterial)) {
                 return referenceResolver.ResolveMaterial(reference);
             }
+            if (valueType == typeof(AnimationClipAsset)) {
+                return referenceResolver.ResolveAnimationClip(reference);
+            }
 
             throw new InvalidOperationException(UnsupportedAssetReferenceTypeMessage);
         }
+#endif
     }
 }

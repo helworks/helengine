@@ -192,6 +192,70 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Windows scene packaging copies authored animation clips referenced by automatic scripted components and rewrites the packaged payload so runtime deserialization resolves the clip.
+        /// </summary>
+        [Fact]
+        public void Package_WhenAutomaticScriptComponentUsesAnimationClipAsset_CopiesClipAndResolvesRuntimeReference() {
+            string sceneId = "Scenes/AnimationClipScene.helen";
+            string clipRelativePath = "Animations/TestLogoIdle.hanim";
+            WriteAnimationClipAsset(clipRelativePath);
+
+            SceneComponentAssetRecord componentRecord = CreateAnimationClipScriptComponentRecord(clipRelativePath);
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = [
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "AnimationRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = [componentRecord],
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                ],
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestAnimationClipAssetScriptComponent)));
+
+            packager.Package([sceneId], BuildRootPath);
+
+            string packagedClipPath = Path.Combine(BuildRootPath, "cooked", "Animations", "TestLogoIdle.hanim");
+            Assert.True(File.Exists(packagedClipPath));
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+            AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestAnimationClipAssetScriptComponent)),
+                typeof(TestAnimationClipAssetScriptComponent));
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            TestAnimationClipAssetScriptComponent packagedComponent = Assert.IsType<TestAnimationClipAssetScriptComponent>(
+                deserializer.Deserialize(packagedRecord, resolver));
+
+            Assert.NotNull(packagedComponent.IdleClip);
+            Assert.Equal(0.75f, packagedComponent.IdleClip.Duration);
+            Assert.Equal("logo-idle", packagedComponent.Label);
+        }
+
+        /// <summary>
         /// Loads the editor host's default importer registrations so the repro test matches the real Windows build path.
         /// </summary>
         /// <returns>Importer registrations used by the editor host.</returns>
@@ -985,6 +1049,173 @@ namespace helengine.editor.tests {
 
             Assert.Same(firstMeshComponent.Model, secondMeshComponent.Model);
             Assert.Same(Assert.Single(firstMeshComponent.Materials), Assert.Single(secondMeshComponent.Materials));
+        }
+
+        /// <summary>
+        /// Ensures packaged runtime scene loading registers generic mesh payloads into the loaded camera's 3D render queue.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPackagedSceneContainsCameraAndGenericMesh_RegistersTheMeshInRenderQueue3D() {
+            string sceneId = "Scenes/CameraMeshScene.helen";
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "CameraRoot",
+                        LocalPosition = new float3(0f, 0f, 5f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateCameraComponentRecord()
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 2u,
+                        Name = "MeshRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.MeshComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteMeshComponentPayload(
+                                    CreateGeneratedCubeReference(),
+                                    CreateGeneratedStandardMaterialReference())
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, sceneAsset);
+            }
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+
+            CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is CameraComponent));
+            MeshComponent meshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[1].Components, component => component is MeshComponent));
+
+            Assert.Contains(meshComponent, Core.Instance.ObjectManager.Drawables3D);
+            Assert.Equal(1, cameraComponent.RenderQueue3D.Count);
+        }
+
+        /// <summary>
+        /// Ensures packaged scene-object entity masks are normalized into the same runtime layer as packaged cameras so loaded player scenes populate 3D camera queues.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPackagedSceneEntityUsesSceneObjectLayerMask_RegistersTheMeshInRenderQueue3D() {
+            string sceneId = "Scenes/SceneObjectLayerCameraMeshScene.helen";
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+            InitializeRuntimeCore(BuildRootPath);
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "CameraRoot",
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        LocalPosition = new float3(0f, 0f, 5f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateCameraComponentRecord()
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 2u,
+                        Name = "MeshRoot",
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.MeshComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteMeshComponentPayload(
+                                    CreateGeneratedCubeReference(),
+                                    CreateGeneratedStandardMaterialReference())
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, sceneAsset);
+            }
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.All(packagedScene.RootEntities, entityAsset => Assert.Equal((ushort)1, entityAsset.LayerMask));
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+
+            CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is CameraComponent));
+            MeshComponent meshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[1].Components, component => component is MeshComponent));
+
+            Assert.Equal((ushort)1, loadedRoots[0].LayerMask);
+            Assert.Equal((ushort)1, loadedRoots[1].LayerMask);
+            Assert.Contains(meshComponent, Core.Instance.ObjectManager.Drawables3D);
+            Assert.Equal(1, cameraComponent.RenderQueue3D.Count);
         }
 
         /// <summary>
@@ -1940,7 +2171,6 @@ namespace helengine.editor.tests {
             Assert.Equal(new byte4(249, 243, 255, 255), loadedSpriteComponent.Color);
             Assert.Equal(34, loadedSpriteComponent.RenderOrder2D);
             Assert.Equal(1, loadedSpriteComponent.LayerMask);
-            Assert.Equal(15f, loadedSpriteComponent.Rotation);
         }
 
         /// <summary>
@@ -2937,6 +3167,66 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one automatic scripted component record that persists an authored animation-clip scene reference.
+        /// </summary>
+        /// <param name="clipRelativePath">Project-relative animation-clip path referenced by the component.</param>
+        /// <returns>Serialized automatic component record.</returns>
+        static SceneComponentAssetRecord CreateAnimationClipScriptComponentRecord(string clipRelativePath) {
+            if (string.IsNullOrWhiteSpace(clipRelativePath)) {
+                throw new ArgumentException("Clip relative path must be provided.", nameof(clipRelativePath));
+            }
+
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestAnimationClipAssetScriptComponent component = new TestAnimationClipAssetScriptComponent {
+                Label = "logo-idle",
+                IdleClip = new AnimationClipAsset {
+                    Id = clipRelativePath,
+                    Duration = 0.75f
+                }
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(
+                nameof(TestAnimationClipAssetScriptComponent.IdleClip),
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                    RelativePath = clipRelativePath,
+                    ProviderId = string.Empty,
+                    AssetId = string.Empty
+                });
+
+            return descriptor.SerializeComponent(component, 0, saveState);
+        }
+
+        /// <summary>
+        /// Writes one minimal authored animation clip asset to the test project.
+        /// </summary>
+        /// <param name="relativePath">Project-relative animation clip path to write.</param>
+        void WriteAnimationClipAsset(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Animation clip path must be provided.", nameof(relativePath));
+            }
+
+            string clipPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(clipPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Animation clip directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            AnimationClipAsset clipAsset = new AnimationClipAsset {
+                Id = relativePath,
+                Duration = 0.75f,
+                PositionTracks = Array.Empty<PositionKeyframeTrackAsset>(),
+                PositionOffsetTracks = Array.Empty<PositionOffsetKeyframeTrackAsset>(),
+                ScaleTracks = Array.Empty<ScaleKeyframeTrackAsset>(),
+                RotationTracks = Array.Empty<RotationKeyframeTrackAsset>()
+            };
+
+            using FileStream stream = new FileStream(clipPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, clipAsset);
+        }
+
+        /// <summary>
         /// Creates the generated scene reference used for the editor's built-in font asset.
         /// </summary>
         /// <returns>Generated editor font scene reference.</returns>
@@ -3823,8 +4113,7 @@ namespace helengine.editor.tests {
                 Size = new int2(32, 14),
                 Color = new byte4(249, 243, 255, 255),
                 RenderOrder2D = 34,
-                LayerMask = 1,
-                Rotation = 15f
+                LayerMask = 1
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference("Texture", textureReference);

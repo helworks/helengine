@@ -299,6 +299,44 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures automatic reflected persistence restores animation-clip asset members through the same scene-reference flow used by other asset-backed scripted components.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenScriptComponentUsesAnimationClipAsset_RestoresResolvedClipAndSaveState() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneAssetReference clipReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Animations/Test.hanim",
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+            TestAnimationClipAssetScriptComponent component = new TestAnimationClipAssetScriptComponent {
+                Label = "logo",
+                IdleClip = CreateAnimationClip("Animations/Preview.hanim")
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(TestAnimationClipAssetScriptComponent.IdleClip), clipReference);
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, saveState);
+
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            AnimationClipAsset loadedClip = CreateAnimationClip("Animations/Test.hanim");
+            resolver.RegisterAnimationClip(clipReference, loadedClip);
+            EntitySaveComponent loadedSaveComponent = new EntitySaveComponent();
+
+            TestAnimationClipAssetScriptComponent restored = Assert.IsType<TestAnimationClipAssetScriptComponent>(
+                descriptor.DeserializeComponent(record, loadedSaveComponent, resolver));
+
+            Assert.Equal("logo", restored.Label);
+            Assert.Same(loadedClip, restored.IdleClip);
+            Assert.True(loadedSaveComponent.TryGetComponentState(restored, out EntityComponentSaveState loadedSaveState));
+            Assert.True(loadedSaveState.TryGetAssetReference(nameof(TestAnimationClipAssetScriptComponent.IdleClip), out SceneAssetReference loadedReference));
+            Assert.Equal(clipReference.RelativePath, loadedReference.RelativePath);
+            Assert.Equal(clipReference.ProviderId, loadedReference.ProviderId);
+            Assert.Equal(clipReference.AssetId, loadedReference.AssetId);
+        }
+
+        /// <summary>
         /// Ensures the automatic reflected fallback still understands legacy tagged `TextComponent` payloads that persisted the font under `FontReference`.
         /// </summary>
         [Fact]
@@ -419,6 +457,34 @@ namespace helengine.editor.tests.serialization.scene {
                 16f,
                 1,
                 1);
+        }
+
+        /// <summary>
+        /// Creates one deterministic animation clip used by automatic persistence tests that restore clip asset references.
+        /// </summary>
+        /// <param name="assetId">Stable asset id assigned to the clip.</param>
+        /// <returns>Animation clip with deterministic transform tracks.</returns>
+        static AnimationClipAsset CreateAnimationClip(string assetId) {
+            return new AnimationClipAsset {
+                Id = assetId,
+                Duration = 1f,
+                PositionOffsetTracks = [
+                    new PositionOffsetKeyframeTrackAsset {
+                        Keyframes = [
+                            new PositionKeyframeAsset(0f, float3.Zero, AnimationInterpolationMode.Linear),
+                            new PositionKeyframeAsset(1f, new float3(4f, 6f, 0f), AnimationInterpolationMode.Linear)
+                        ]
+                    }
+                ],
+                ScaleTracks = [
+                    new ScaleKeyframeTrackAsset {
+                        Keyframes = [
+                            new PositionKeyframeAsset(0f, new float3(1f, 1f, 1f), AnimationInterpolationMode.Linear),
+                            new PositionKeyframeAsset(1f, new float3(1.1f, 0.95f, 1f), AnimationInterpolationMode.Linear)
+                        ]
+                    }
+                ]
+            };
         }
 
         /// <summary>

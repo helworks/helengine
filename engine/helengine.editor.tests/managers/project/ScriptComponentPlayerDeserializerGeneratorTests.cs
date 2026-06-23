@@ -122,5 +122,66 @@ namespace helengine.editor.tests.managers.project {
             Assert.Contains("component->set_Alignment(static_cast<::TextAlignment>(reader->ReadInt32()));", source, StringComparison.Ordinal);
             Assert.DoesNotContain("component->set_Texture(", source, StringComparison.Ordinal);
         }
+
+        /// <summary>
+        /// Ensures generated native scripted-component deserializers support animation-clip asset references through the shared runtime scene asset resolver.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsAnimationClipAssetMember_EmitsAnimationClipReferenceResolution() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TestAnimationClipAssetScriptComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            Assert.True(generator.CanGenerateNativeDeserializer(schema));
+
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("AnimationClipAsset", header, StringComparison.Ordinal);
+            Assert.Contains("referenceResolver->ResolveAnimationClip(reference)", source, StringComparison.Ordinal);
+            Assert.Contains("component->set_IdleClip(", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("ReadAnimationClipAsset(", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"UInt64.hpp\"", header, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures primitive reflected members do not emit synthetic native headers or helper methods when generated native deserializers already read those scalar payloads directly.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsPrimitiveMembers_DoesNotEmitSyntheticPrimitiveHeaders() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.DoesNotContain("\"Boolean.hpp\"", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"Byte.hpp\"", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"Single.hpp\"", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"Boolean.hpp\"", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"Byte.hpp\"", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"Single.hpp\"", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("static bool ReadBoolean", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("static uint8_t ReadByte", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("static float ReadSingle", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("static ::ShadowMapMode ReadShadowMapMode", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("value.value__", source, StringComparison.Ordinal);
+            Assert.Contains("component->set_Intensity(reader->ReadSingle());", source, StringComparison.Ordinal);
+            Assert.Contains("component->set_ShadowMapMode(static_cast<::ShadowMapMode>(reader->ReadByte()));", source, StringComparison.Ordinal);
+            Assert.Contains("component->set_ShadowsEnabled(reader->ReadByte() != 0);", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures generated native deserializers include the current qualified engine math header path instead of the removed legacy leaf header name.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerHeader_WhenSchemaContainsAmbientLightComponent_UsesGeneratedEngineMathHeaderNames() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+
+            Assert.Contains("#include \"float4.hpp\"", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("#include \"helengine_float4.hpp\"", header, StringComparison.Ordinal);
+        }
     }
 }

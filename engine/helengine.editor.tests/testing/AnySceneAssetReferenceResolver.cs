@@ -24,6 +24,11 @@ namespace helengine.editor.tests.testing {
         readonly RuntimeTexture Texture;
 
         /// <summary>
+        /// Shared animation clip returned for every resolved animation-clip reference.
+        /// </summary>
+        readonly AnimationClipAsset AnimationClip;
+
+        /// <summary>
         /// Initializes the reusable dummy runtime assets used for permissive scene loading.
         /// </summary>
         public AnySceneAssetReferenceResolver() {
@@ -33,6 +38,10 @@ namespace helengine.editor.tests.testing {
             Texture = new ManagedRuntimeTexture {
                 Width = 1,
                 Height = 1
+            };
+            AnimationClip = new AnimationClipAsset {
+                Id = "Animations/Test.hanim",
+                Duration = 1f
             };
         }
 
@@ -86,6 +95,19 @@ namespace helengine.editor.tests.testing {
             }
 
             return Texture;
+        }
+
+        /// <summary>
+        /// Resolves one animation-clip reference to the shared dummy clip.
+        /// </summary>
+        /// <param name="reference">Ignored scene asset reference.</param>
+        /// <returns>Shared dummy animation clip.</returns>
+        public AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            return AnimationClip;
         }
     }
 }

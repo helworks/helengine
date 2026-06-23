@@ -285,6 +285,20 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves one packaged animation-clip reference into an animation clip asset instance.
+        /// </summary>
+        /// <param name="reference">Packaged scene asset reference to resolve.</param>
+        /// <returns>Animation clip asset loaded from packaged content.</returns>
+        public AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            string fullPath = ResolveFileBackedAssetPath(reference);
+            return AssetContentManager.Load<AnimationClipAsset>(fullPath, RuntimeContentProcessorIds.AnimationClipAsset);
+        }
+
+        /// <summary>
         /// Starts one scene-owned asset tracking scope for the next packaged scene materialization.
         /// </summary>
         public void BeginOwnedAssetTracking() {

@@ -679,6 +679,9 @@ namespace helengine.editor {
             if (valueType == typeof(RuntimeMaterial)) {
                 return "ResolveMaterial";
             }
+            if (valueType == typeof(AnimationClipAsset)) {
+                return "ResolveAnimationClip";
+            }
 
             throw new InvalidOperationException($"Ordinal scripted component deserializer generation does not support asset-backed member type '{valueType?.FullName}'.");
         }
@@ -940,6 +943,9 @@ namespace helengine.editor {
             if (valueType == typeof(RuntimeMaterial)) {
                 return "::RuntimeMaterial*";
             }
+            if (valueType == typeof(AnimationClipAsset)) {
+                return "::AnimationClipAsset*";
+            }
             if (valueType == typeof(SceneEntityReference)) {
                 return "::SceneEntityReference*";
             }
@@ -1013,6 +1019,15 @@ namespace helengine.editor {
             if (valueType == typeof(string) || valueType.IsAbstract) {
                 return false;
             }
+            if (valueType.IsEnum) {
+                return false;
+            }
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(valueType)) {
+                return false;
+            }
+            if (IsDirectlySupportedScalarValueType(valueType)) {
+                return false;
+            }
             if (!valueType.IsClass && !valueType.IsValueType) {
                 return false;
             }
@@ -1027,6 +1042,26 @@ namespace helengine.editor {
             }
 
             return valueType.GetConstructor(Type.EmptyTypes) != null;
+        }
+
+        /// <summary>
+        /// Returns whether the supplied type already has one direct scalar read path in generated scripted-component deserializers and therefore must not be treated as one nested object include/helper type.
+        /// </summary>
+        /// <param name="valueType">Reflected member value type under evaluation.</param>
+        /// <returns>True when the type is read directly from the binary reader without nested helper generation.</returns>
+        static bool IsDirectlySupportedScalarValueType(Type valueType) {
+            if (valueType == null) {
+                return false;
+            }
+
+            return valueType == typeof(bool)
+                || valueType == typeof(byte)
+                || valueType == typeof(ushort)
+                || valueType == typeof(int)
+                || valueType == typeof(uint)
+                || valueType == typeof(long)
+                || valueType == typeof(float)
+                || valueType == typeof(double);
         }
 
         /// <summary>
