@@ -198,6 +198,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the current stream position for diagnostics when the underlying stream supports seeking.
+        /// </summary>
+        /// <returns>Current byte offset from the start of the stream.</returns>
+        public long GetStreamPosition() {
+            return BaseStream.Seek(0L, SeekOrigin.Current);
+        }
+
+        /// <summary>
         /// Reads an array prefixed by a 32-bit length.
         /// </summary>
         /// <typeparam name="T">Element type stored in the array.</typeparam>
@@ -269,13 +277,30 @@ namespace helengine {
         /// Creates one end-of-stream exception that includes the current asset path when available.
         /// </summary>
         /// <returns>Configured end-of-stream exception.</returns>
-        static EndOfStreamException CreateEndOfStreamException() {
+        EndOfStreamException CreateEndOfStreamException() {
             string assetPath = EngineBinaryReadContext.CurrentAssetPath;
-            if (string.IsNullOrWhiteSpace(assetPath)) {
-                return new EndOfStreamException("Unexpected end of stream while reading engine binary data.");
+            string readStage = EngineBinaryReadContext.CurrentReadStage;
+            string lastCheckpoint = EngineBinaryReadContext.LastCheckpoint;
+            string positionText = string.Empty;
+            if (BaseStream is FileStream || BaseStream is MemoryStream) {
+                long currentPosition = BaseStream.Seek(0L, SeekOrigin.Current);
+                long streamLength = BaseStream.Seek(0L, SeekOrigin.End);
+                BaseStream.Seek(currentPosition, SeekOrigin.Begin);
+                positionText = $" position={currentPosition} length={streamLength}";
+            }
+            string checkpointText = string.IsNullOrWhiteSpace(lastCheckpoint)
+                ? string.Empty
+                : $" last_checkpoint='{lastCheckpoint}'";
+
+            if (string.IsNullOrWhiteSpace(assetPath) && string.IsNullOrWhiteSpace(readStage)) {
+                return new EndOfStreamException($"Unexpected end of stream while reading engine binary data.{positionText}{checkpointText}");
+            } else if (string.IsNullOrWhiteSpace(readStage)) {
+                return new EndOfStreamException($"Unexpected end of stream while reading engine binary data from '{assetPath}'.{positionText}{checkpointText}");
+            } else if (string.IsNullOrWhiteSpace(assetPath)) {
+                return new EndOfStreamException($"Unexpected end of stream while reading engine binary data during '{readStage}'.{positionText}{checkpointText}");
             }
 
-            return new EndOfStreamException($"Unexpected end of stream while reading engine binary data from '{assetPath}'.");
+            return new EndOfStreamException($"Unexpected end of stream while reading engine binary data from '{assetPath}' during '{readStage}'.{positionText}{checkpointText}");
         }
     }
 }

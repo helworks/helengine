@@ -84,8 +84,10 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(header));
             }
 
+            EngineBinaryReadContext.CurrentReadStage = "EditorAssetBinarySerializer:ValidateHeader";
             ValidateHeader(header);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            EngineBinaryReadContext.CurrentReadStage = "EditorAssetBinarySerializer:ReadAssetPayload";
             return ReadAssetPayload(reader, (EditorAssetBinaryValueKind)header.ValueKind, header.Version);
         }
 
@@ -429,14 +431,19 @@ namespace helengine {
             }
 
             SceneAsset asset = new SceneAsset();
+            EngineBinaryReadContext.CurrentReadStage = "SceneAsset:Identity";
             ReadAssetIdentity(reader, asset, version);
+            EngineBinaryReadContext.CurrentReadStage = "SceneAsset:RootEntities";
             asset.RootEntities = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>();
+            EngineBinaryReadContext.CurrentReadStage = "SceneAsset:AssetReferences";
             asset.AssetReferences = version >= 4
                 ? ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>()
                 : Array.Empty<SceneAssetReference>();
+            EngineBinaryReadContext.CurrentReadStage = "SceneAsset:Physics3DSceneFeatureFlags";
             asset.Physics3DSceneFeatureFlags = version >= 5
                 ? reader.ReadUInt32()
                 : 0u;
+            EngineBinaryReadContext.CurrentReadStage = "SceneAsset:SceneSettings";
             asset.SceneSettings = version >= 6
                 ? ReadSceneSettingsAsset(reader, version)
                 : new SceneSettingsAsset();
@@ -511,33 +518,44 @@ namespace helengine {
             }
 
             if (version == LegacyVersion) {
+                EngineBinaryReadContext.CurrentReadStage = "SceneEntity:LegacyPayload";
                 return ReadLegacySceneEntityAsset(reader);
             }
 
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:PayloadVersion";
             byte payloadVersion = reader.ReadByte();
             if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != 4 && payloadVersion != SceneEntityPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
             uint id = 0u;
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Identity";
             if (payloadVersion >= 4) {
                 id = reader.ReadUInt32();
             } else {
                 reader.ReadString();
             }
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Name";
             string name = reader.ReadString();
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Transform";
             bool isStatic = payloadVersion >= 4 && reader.ReadByte() != 0;
             ushort layerMask = payloadVersion >= 5 ? reader.ReadUInt16() : (ushort)0b00000001;
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
             float4 localOrientation = reader.ReadFloat4();
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Components";
             SceneComponentAssetRecord[] components = ReadSceneComponentAssetRecordArray(reader, payloadVersion) ?? Array.Empty<SceneComponentAssetRecord>();
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:PlatformTransformOverrides";
             SceneEntityPlatformTransformOverrideAsset[] platformTransformOverrides = payloadVersion >= 2
                 ? reader.ReadArray(ReadSceneEntityPlatformTransformOverrideAsset) ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>()
                 : Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:PlatformComponentOverrides";
             SceneEntityPlatformComponentOverrideAsset[] platformComponentOverrides = payloadVersion >= 3
                 ? reader.ReadArray(ReadSceneEntityPlatformComponentOverrideAsset) ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>()
                 : Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Children";
+            SceneEntityAsset[] children = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>();
+            EngineBinaryReadContext.LastCheckpoint = $"SceneEntityEnd:{name}@{reader.GetStreamPosition()}";
 
             return new SceneEntityAsset {
                 Id = id,
@@ -550,7 +568,7 @@ namespace helengine {
                 Components = components,
                 PlatformTransformOverrides = platformTransformOverrides,
                 PlatformComponentOverrides = platformComponentOverrides,
-                Children = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>()
+                Children = children
             };
         }
 
@@ -687,12 +705,7 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset reference.</returns>
         static SceneAssetReference ReadSceneAssetReference(EngineBinaryReader reader) {
-            return new SceneAssetReference {
-                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
-                RelativePath = reader.ReadString(),
-                ProviderId = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
+            return SceneAssetReferenceFactory.ReadRequiredReference(reader);
         }
 
         /// <summary>
@@ -701,6 +714,7 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset references.</returns>
         static SceneAssetReference[] ReadSceneAssetReferenceArray(EngineBinaryReader reader) {
+            EngineBinaryReadContext.CurrentReadStage = "SceneAssetReferenceArray:Length";
             return reader.ReadArray(ReadSceneAssetReference);
         }
 
@@ -714,10 +728,17 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(reader));
             }
 
+            EngineBinaryReadContext.CurrentReadStage = "SceneComponentRecord:ComponentKey";
+            string componentKey = sceneEntityPayloadVersion >= 3 ? reader.ReadString() : string.Empty;
+            EngineBinaryReadContext.CurrentReadStage = "SceneComponentRecord:ComponentTypeId";
+            string componentTypeId = reader.ReadString();
+            EngineBinaryReadContext.CurrentReadStage = "SceneComponentRecord:ComponentIndex";
+            int componentIndex = reader.ReadInt32();
+            EngineBinaryReadContext.CurrentReadStage = $"SceneComponentRecord:Payload:{componentTypeId}";
             return new SceneComponentAssetRecord {
-                ComponentKey = sceneEntityPayloadVersion >= 3 ? reader.ReadString() : string.Empty,
-                ComponentTypeId = reader.ReadString(),
-                ComponentIndex = reader.ReadInt32(),
+                ComponentKey = componentKey,
+                ComponentTypeId = componentTypeId,
+                ComponentIndex = componentIndex,
                 Payload = reader.ReadByteArray() ?? Array.Empty<byte>()
             };
         }
@@ -729,6 +750,7 @@ namespace helengine {
         /// <param name="sceneEntityPayloadVersion">Owning scene entity payload version.</param>
         /// <returns>Decoded component records or null when the source payload was null.</returns>
         static SceneComponentAssetRecord[] ReadSceneComponentAssetRecordArray(EngineBinaryReader reader, byte sceneEntityPayloadVersion) {
+            EngineBinaryReadContext.CurrentReadStage = "SceneComponentRecordArray:Length";
             int length = reader.ReadInt32();
             if (length == -1) {
                 return null;
@@ -740,6 +762,7 @@ namespace helengine {
 
             SceneComponentAssetRecord[] values = new SceneComponentAssetRecord[length];
             for (int index = 0; index < values.Length; index++) {
+                EngineBinaryReadContext.CurrentReadStage = $"SceneComponentRecordArray:Element:{index}";
                 values[index] = ReadSceneComponentAssetRecord(reader, sceneEntityPayloadVersion);
             }
 
@@ -753,6 +776,7 @@ namespace helengine {
         /// <param name="version">Scene entity payload version.</param>
         /// <returns>Decoded scene entity array or null when the source payload was null.</returns>
         static SceneEntityAsset[] ReadSceneEntityAssetArray(EngineBinaryReader reader, byte version) {
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntityArray:Length";
             int length = reader.ReadInt32();
             if (length == -1) {
                 return null;
@@ -764,6 +788,7 @@ namespace helengine {
 
             SceneEntityAsset[] values = new SceneEntityAsset[length];
             for (int index = 0; index < values.Length; index++) {
+                EngineBinaryReadContext.CurrentReadStage = $"SceneEntityArray:Element:{index}";
                 values[index] = ReadSceneEntityAsset(reader, version);
             }
 
