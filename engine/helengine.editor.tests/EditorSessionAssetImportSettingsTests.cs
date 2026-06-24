@@ -100,10 +100,10 @@ namespace helengine.editor.tests {
             };
             RuntimeModel originalModel = meshComponent.Model;
             entity.AddComponent(meshComponent);
-            GetSaveComponent(entity).SetAssetReference(meshComponent, "Model", new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Models/sponza.obj"
-            });
+            GetSaveComponent(entity).SetAssetReference(
+                meshComponent,
+                "Model",
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemModel("Models/sponza.obj"));
             AssetProcessorSettings processorSettings = new AssetProcessorSettings();
             processorSettings.Platforms["windows"] = new AssetPlatformProcessorSettings {
                 Model = new ModelAssetProcessorSettings {

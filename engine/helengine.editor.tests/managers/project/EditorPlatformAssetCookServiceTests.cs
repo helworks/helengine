@@ -45,12 +45,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         WriteSceneAsset(
             startupScenePath,
             new[] {
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = sourceModelRelativePath,
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                }
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemModel(sourceModelRelativePath)
             });
         WriteSceneAsset(secondaryScenePath, Array.Empty<SceneAssetReference>());
 
@@ -409,12 +404,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         writer.WriteField("MaterialReferences", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(
             fieldWriter,
             [
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = materialRelativePath,
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                }
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath)
             ]));
         writer.WriteField("RenderOrder3D", fieldWriter => fieldWriter.WriteByte(0));
 

@@ -727,12 +727,7 @@ namespace helengine.editor {
         }
 
         SceneAssetReference CreateFontFileReference(string relativePath) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = ResolveRuntimeReferencePath(relativePath),
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemFont(ResolveRuntimeReferencePath(relativePath));
         }
 
         /// <summary>
@@ -1649,12 +1644,11 @@ namespace helengine.editor {
         }
 
         SceneAssetReference CreateFileSystemReference(string relativePath) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = ResolveRuntimeReferencePath(relativePath),
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                SceneAssetReferenceSourceKind.FileSystem,
+                ResolveRuntimeReferencePath(relativePath),
+                string.Empty,
+                string.Empty);
         }
 
         /// <summary>
@@ -1672,12 +1666,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Generated asset id must be provided.", nameof(assetId));
             }
 
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = ResolveRuntimeReferencePath(relativePath),
-                ProviderId = providerId,
-                AssetId = assetId
-            };
+            return global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                SceneAssetReferenceSourceKind.Generated,
+                ResolveRuntimeReferencePath(relativePath),
+                providerId,
+                assetId);
         }
 
         string ResolveProjectAssetPath(string relativePath) {
@@ -1768,20 +1761,7 @@ namespace helengine.editor {
         }
 
         SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            if (reader.ReadByte() == 0) {
-                return null;
-            }
-
-            return new SceneAssetReference {
-                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
-                RelativePath = reader.ReadString(),
-                ProviderId = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
+            return global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
         }
 
         void WriteOptionalReference(EngineBinaryWriter writer, SceneAssetReference reference) {

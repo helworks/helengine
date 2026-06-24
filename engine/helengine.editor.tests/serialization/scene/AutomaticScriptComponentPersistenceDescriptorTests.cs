@@ -219,7 +219,7 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void SerializeAndDeserialize_WhenTextComponentUsesFontScaleAndAlignment_RoundTripsThroughAutomaticPersistence() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            SceneAssetReference fontReference = BuildFontReference("Fonts/Ui.hefont", "fonts", "ui");
+            SceneAssetReference fontReference = BuildFontReference("Fonts/Ui.hefont");
             TextComponent component = new TextComponent {
                 Font = CreateFont("Ui"),
                 Text = "Scaled heading",
@@ -275,7 +275,7 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void SerializeAndDeserialize_WhenTextComponentUsesBuildTimeSpriteConversion_RoundTripsThroughAutomaticPersistence() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            SceneAssetReference fontReference = BuildFontReference("Fonts/Demo.hefont", "fonts", "demo");
+            SceneAssetReference fontReference = BuildFontReference("Fonts/Demo.hefont");
             TextComponent component = new TextComponent {
                 Font = CreateFont("Demo"),
                 Text = "Bake me",
@@ -304,12 +304,7 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void SerializeAndDeserialize_WhenScriptComponentUsesAnimationClipAsset_RestoresResolvedClipAndSaveState() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            SceneAssetReference clipReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Animations/Test.hanim",
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            SceneAssetReference clipReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip("Animations/Test.hanim");
             TestAnimationClipAssetScriptComponent component = new TestAnimationClipAssetScriptComponent {
                 Label = "logo",
                 IdleClip = CreateAnimationClip("Animations/Preview.hanim")
@@ -337,12 +332,37 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures automatic reflected persistence rejects unsupported generated font references before one tagged payload is written.
+        /// </summary>
+        [Fact]
+        public void SerializeComponent_WhenTextUsesRemovedNintendoDsGeneratedFont_ThrowsBeforeWritingPayload() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneAssetReference fontReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.Generated,
+                "generated/editor/fonts/ds-debug.hefont",
+                "editor",
+                "ds-debug-font");
+            TextComponent component = new TextComponent {
+                Font = CreateFont("Body"),
+                Text = "Tagged",
+                Size = new int2(96, 24)
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(TextComponent.Font), fontReference);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => descriptor.SerializeComponent(component, 0, saveState));
+
+            Assert.Contains("Unsupported generated font asset id", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("member 'Font'", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures the automatic reflected fallback still understands legacy tagged `TextComponent` payloads that persisted the font under `FontReference`.
         /// </summary>
         [Fact]
         public void DeserializeComponent_WhenLegacyTextComponentPayloadUsesFontReference_RestoresFontAndSaveState() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            SceneAssetReference fontReference = BuildFontReference("Fonts/Legacy.hefont", "fonts", "legacy");
+            SceneAssetReference fontReference = BuildFontReference("Fonts/Legacy.hefont");
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TextComponent)),
                 ComponentIndex = 0,
@@ -491,16 +511,9 @@ namespace helengine.editor.tests.serialization.scene {
         /// Builds one deterministic scene asset reference for a font used by automatic persistence tests.
         /// </summary>
         /// <param name="relativePath">Project-relative path recorded for the font.</param>
-        /// <param name="providerId">Generated provider identifier.</param>
-        /// <param name="assetId">Provider-local asset identifier.</param>
         /// <returns>Stable scene asset reference.</returns>
-        static SceneAssetReference BuildFontReference(string relativePath, string providerId, string assetId) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = relativePath,
-                ProviderId = providerId,
-                AssetId = assetId
-            };
+        static SceneAssetReference BuildFontReference(string relativePath) {
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont(relativePath);
         }
 
         /// <summary>

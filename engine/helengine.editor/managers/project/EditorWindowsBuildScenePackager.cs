@@ -1163,12 +1163,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Generated editor-font scene reference.</returns>
         SceneAssetReference BuildEditorFontReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "generated/editor/fonts/ui.hasset",
-                ProviderId = EditorGeneratedProviderId,
-                AssetId = EditorFontAssetId
-            };
+            return EditorSceneAssetReferenceFactory.CreateEditorUiFont();
         }
 
         /// <summary>
@@ -2134,12 +2129,11 @@ namespace helengine.editor {
         /// <param name="relativePath">Packaged asset path relative to the build root.</param>
         /// <returns>File-backed packaged scene reference.</returns>
         SceneAssetReference CreateFileSystemReference(string relativePath) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = ResolveRuntimeReferencePath(relativePath),
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                SceneAssetReferenceSourceKind.FileSystem,
+                ResolveRuntimeReferencePath(relativePath),
+                string.Empty,
+                string.Empty);
         }
 
         /// <summary>
@@ -2157,12 +2151,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Generated asset id must be provided.", nameof(assetId));
             }
 
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = ResolveRuntimeReferencePath(relativePath),
-                ProviderId = providerId,
-                AssetId = assetId
-            };
+            return global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                SceneAssetReferenceSourceKind.Generated,
+                ResolveRuntimeReferencePath(relativePath),
+                providerId,
+                assetId);
         }
 
         /// <summary>

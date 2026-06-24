@@ -30,20 +30,7 @@ namespace helengine.editor {
         /// <param name="reader">Source reader positioned at the encoded reference.</param>
         /// <returns>Decoded scene asset reference when present; otherwise null.</returns>
         public static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            if (reader.ReadByte() == 0) {
-                return null;
-            }
-
-            return new SceneAssetReference {
-                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
-                RelativePath = reader.ReadString(),
-                ProviderId = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
+            return global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
         }
 
         /// <summary>

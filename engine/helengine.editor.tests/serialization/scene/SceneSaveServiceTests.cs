@@ -54,16 +54,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void SaveAndLoad_WhenSceneContainsUserEntities_RoundTripsUserHierarchyAndExcludesInternalEntities() {
-            SceneAssetReference modelReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Engine/Models/Cube",
-                ProviderId = "engine",
-                AssetId = EngineGeneratedModelCache.CubeAssetId
-            };
-            SceneAssetReference materialReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Materials/Default.hasset"
-            };
+            SceneAssetReference modelReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineCubeModel();
+            SceneAssetReference materialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial("Materials/Default.hasset");
 
             EditorEntity root = CreateUserEntity("Root", new float3(1f, 2f, 3f), new float3(2f, 2f, 2f), new float4(0f, 0.70710677f, 0f, 0.70710677f));
             MeshComponent rootMesh = new MeshComponent {
@@ -212,18 +204,8 @@ namespace helengine.editor.tests.serialization.scene {
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
             RuntimeModel generatedModel = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId);
             RuntimeMaterial generatedMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
-            resolver.RegisterModel(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = EngineGeneratedAssetProvider.CubeRelativePath,
-                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
-                AssetId = EngineGeneratedModelCache.CubeAssetId
-            }, generatedModel);
-            resolver.RegisterMaterial(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = EngineGeneratedAssetProvider.StandardMaterialRelativePath,
-                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
-                AssetId = EngineGeneratedMaterialCache.StandardAssetId
-            }, generatedMaterial);
+            resolver.RegisterModel(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineCubeModel(), generatedModel);
+            resolver.RegisterMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineStandardMaterial(), generatedMaterial);
             SceneLoadService loadService = new SceneLoadService(registry, resolver);
             EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
             MeshComponent loadedMesh = FindMeshComponent(loadedRoot);
@@ -246,18 +228,8 @@ namespace helengine.editor.tests.serialization.scene {
         public void Save_WhenLoadedSceneUsesLegacyMeshMaterialReferencesField_PreservesMaterialDependency() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
-            SceneAssetReference modelReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = EngineGeneratedAssetProvider.CubeRelativePath,
-                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
-                AssetId = EngineGeneratedModelCache.CubeAssetId
-            };
-            SceneAssetReference materialReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Materials/physics/PhysicsDemoBlue.hasset",
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            SceneAssetReference modelReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineCubeModel();
+            SceneAssetReference materialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial("Materials/physics/PhysicsDemoBlue.hasset");
             resolver.RegisterModel(modelReference, EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId));
             resolver.RegisterMaterial(materialReference, new TestRuntimeMaterial());
 
@@ -408,18 +380,8 @@ namespace helengine.editor.tests.serialization.scene {
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextRoundTrip.helen");
 
-            SceneAssetReference titleFontReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Fonts/Title",
-                ProviderId = "fonts",
-                AssetId = "title"
-            };
-            SceneAssetReference bodyFontReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Fonts/Body",
-                ProviderId = "fonts",
-                AssetId = "body"
-            };
+            SceneAssetReference titleFontReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/Title.ttf");
+            SceneAssetReference bodyFontReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/Body.ttf");
 
             EditorEntity root = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
             TextComponent titleText = new TextComponent {
@@ -497,12 +459,7 @@ namespace helengine.editor.tests.serialization.scene {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextFontFieldName.helen");
-            SceneAssetReference fontReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Fonts/Body",
-                ProviderId = "fonts",
-                AssetId = "body"
-            };
+            SceneAssetReference fontReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/Body.ttf");
 
             EditorEntity root = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
             TextComponent textComponent = new TextComponent {
@@ -537,6 +494,35 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures save fails early when one built-in text component carries one unsupported generated font reference.
+        /// </summary>
+        [Fact]
+        public void Save_WhenTextComponentUsesRemovedNintendoDsGeneratedFont_ThrowsBeforeWritingScene() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "UnsupportedGeneratedFont.helen");
+            SceneAssetReference fontReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.Generated,
+                "generated/editor/fonts/ds-debug.hefont",
+                "editor",
+                "ds-debug-font");
+
+            EditorEntity root = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
+            TextComponent textComponent = new TextComponent {
+                Font = CreateFont("Body"),
+                Text = "Tagged",
+                Size = new int2(96, 24)
+            };
+            root.AddComponent(textComponent);
+            GetSaveComponent(root).SetAssetReference(textComponent, nameof(TextComponent.Font), fontReference);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => saveService.Save(scenePath));
+
+            Assert.Contains("Unsupported generated font asset id", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("member 'Font'", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures built-in text components persist authored font scale through the reflected tagged payload instead of silently dropping it.
         /// </summary>
         [Fact]
@@ -544,12 +530,7 @@ namespace helengine.editor.tests.serialization.scene {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextFontScale.helen");
-            SceneAssetReference fontReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Fonts/Body",
-                ProviderId = "fonts",
-                AssetId = "body"
-            };
+            SceneAssetReference fontReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/Body.ttf");
 
             EditorEntity root = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
             TextComponent textComponent = new TextComponent {
@@ -592,12 +573,7 @@ namespace helengine.editor.tests.serialization.scene {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextConvertTextToSprite.helen");
-            SceneAssetReference fontReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Fonts/Body",
-                ProviderId = "fonts",
-                AssetId = "body"
-            };
+            SceneAssetReference fontReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/Body.ttf");
 
             EditorEntity root = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
             TextComponent textComponent = new TextComponent {

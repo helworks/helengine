@@ -4,16 +4,6 @@ namespace helengine.editor {
     /// </summary>
     public sealed class PhysicsValidationSceneFactory {
         /// <summary>
-        /// Stable generated provider identifier used for built-in primitive assets.
-        /// </summary>
-        const string GeneratedProviderId = EngineGeneratedAssetProvider.ProviderIdValue;
-
-        /// <summary>
-        /// Stable scene-asset source kind byte used for generated primitive references.
-        /// </summary>
-        const SceneAssetReferenceSourceKind GeneratedSourceKind = SceneAssetReferenceSourceKind.Generated;
-
-        /// <summary>
         /// Stable render order assigned to generated debug geometry meshes.
         /// </summary>
         const byte DefaultMeshRenderOrder = 0;
@@ -72,11 +62,6 @@ namespace helengine.editor {
         /// Stable tagged field name used for camera render-settings persistence.
         /// </summary>
         const string CameraRenderSettingsFieldName = "RenderSettings";
-
-        /// <summary>
-        /// File-system scene-asset source kind used for authored shader and material assets.
-        /// </summary>
-        const SceneAssetReferenceSourceKind FileSystemSourceKind = SceneAssetReferenceSourceKind.FileSystem;
 
         /// <summary>
         /// Relative project asset path for the shared physics demo mesh shader.
@@ -964,7 +949,7 @@ namespace helengine.editor {
                 LocalScale = float3.One,
                 LocalOrientation = orientation,
                 Components = new[] {
-                    CreateMeshComponentRecord(CreateGeneratedReference(EngineGeneratedAssetProvider.SphereRelativePath, EngineGeneratedModelCache.SphereAssetId), materialReference),
+                    CreateMeshComponentRecord(global::helengine.EngineSceneAssetReferenceFactory.CreateSphereModel(), materialReference),
                     CreateRigidBodyComponentRecord(bodyKindCode, useGravity, 1d, 1d, float3.Zero, 1),
                     CreateSphereColliderComponentRecord(0.5f, 2)
                 },
@@ -1105,8 +1090,8 @@ namespace helengine.editor {
         /// <returns>Stable generated asset reference list.</returns>
         static SceneAssetReference[] CreateAssetReferences() {
             return new[] {
-                CreateGeneratedReference(EngineGeneratedAssetProvider.CubeRelativePath, EngineGeneratedModelCache.CubeAssetId),
-                CreateGeneratedReference(EngineGeneratedAssetProvider.SphereRelativePath, EngineGeneratedModelCache.SphereAssetId),
+                global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel(),
+                global::helengine.EngineSceneAssetReferenceFactory.CreateSphereModel(),
                 CreateGeneratedStandardMaterialReference(),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoGroundMaterialRelativePath),
                 CreatePhysicsDemoMaterialReference(PhysicsDemoNeutralMaterialRelativePath),
@@ -1154,12 +1139,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
             }
 
-            return new SceneAssetReference {
-                SourceKind = FileSystemSourceKind,
-                RelativePath = relativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(relativePath);
         }
 
         /// <summary>
@@ -1167,29 +1147,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Generated standard material scene asset reference.</returns>
         static SceneAssetReference CreateGeneratedStandardMaterialReference() {
-            return CreateGeneratedReference(EngineGeneratedAssetProvider.StandardMaterialRelativePath, EngineGeneratedMaterialCache.StandardAssetId);
-        }
-
-        /// <summary>
-        /// Creates one generated asset reference.
-        /// </summary>
-        /// <param name="relativePath">Generated asset relative path.</param>
-        /// <param name="assetId">Stable generated asset id.</param>
-        /// <returns>Generated scene asset reference.</returns>
-        static SceneAssetReference CreateGeneratedReference(string relativePath, string assetId) {
-            if (string.IsNullOrWhiteSpace(relativePath)) {
-                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                throw new ArgumentException("Asset id must be provided.", nameof(assetId));
-            }
-
-            return new SceneAssetReference {
-                SourceKind = GeneratedSourceKind,
-                RelativePath = relativePath,
-                ProviderId = GeneratedProviderId,
-                AssetId = assetId
-            };
+            return global::helengine.EngineSceneAssetReferenceFactory.CreateStandardMaterial();
         }
 
         /// <summary>
@@ -1201,7 +1159,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(materialReference));
             }
 
-            SceneAssetReference modelReference = CreateGeneratedReference(EngineGeneratedAssetProvider.CubeRelativePath, EngineGeneratedModelCache.CubeAssetId);
+            SceneAssetReference modelReference = global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel();
 
             return CreateMeshComponentRecord(modelReference, materialReference);
         }

@@ -183,5 +183,20 @@ namespace helengine.editor.tests.managers.project {
             Assert.Contains("#include \"float4.hpp\"", header, StringComparison.Ordinal);
             Assert.DoesNotContain("#include \"helengine_float4.hpp\"", header, StringComparison.Ordinal);
         }
+
+        /// <summary>
+        /// Ensures generated native deserializers rebuild optional scene asset references through the sanctioned factory path instead of constructing mutable references inline.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsTextComponent_UsesSceneAssetReferenceFactoryReadPath() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TextComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("SceneAssetReferenceFactory::ReadOptionalReference(reader)", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("new ::SceneAssetReference()", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("value->set_SourceKind", source, StringComparison.Ordinal);
+        }
     }
 }

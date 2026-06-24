@@ -14,20 +14,63 @@ namespace helengine.editor {
             }
 
             if (entry.IsGenerated) {
-                return new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.Generated,
-                    RelativePath = entry.RelativePath,
-                    ProviderId = entry.ProviderId,
-                    AssetId = entry.AssetId
-                };
+                return CreateGeneratedFromEntry(entry);
             }
 
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = entry.RelativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return CreateFileSystemFromEntry(entry);
+        }
+
+        /// <summary>
+        /// Creates one stable file-backed scene asset reference from an asset-browser entry.
+        /// </summary>
+        /// <param name="entry">Selected file-backed browser entry to convert.</param>
+        /// <returns>Stable file-backed scene asset reference.</returns>
+        static SceneAssetReference CreateFileSystemFromEntry(AssetBrowserEntry entry) {
+            if (entry.EntryKind == AssetEntryKind.Image) {
+                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemTexture(entry.RelativePath);
+            }
+            if (entry.EntryKind == AssetEntryKind.Model) {
+                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemModel(entry.RelativePath);
+            }
+            if (entry.EntryKind == AssetEntryKind.Material) {
+                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(entry.RelativePath);
+            }
+            if (entry.EntryKind == AssetEntryKind.Font) {
+                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemFont(entry.RelativePath);
+            }
+
+            throw new InvalidOperationException($"Asset browser entry kind '{entry.EntryKind}' does not support scene asset references.");
+        }
+
+        /// <summary>
+        /// Creates one stable generated scene asset reference from an asset-browser entry.
+        /// </summary>
+        /// <param name="entry">Selected generated browser entry to convert.</param>
+        /// <returns>Stable generated scene asset reference.</returns>
+        static SceneAssetReference CreateGeneratedFromEntry(AssetBrowserEntry entry) {
+            if (string.Equals(entry.ProviderId, EngineGeneratedAssetProvider.ProviderIdValue, StringComparison.Ordinal)) {
+                if (entry.EntryKind == AssetEntryKind.Model) {
+                    if (string.Equals(entry.AssetId, EngineGeneratedModelCache.CubeAssetId, StringComparison.Ordinal)) {
+                        return global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel();
+                    }
+                    if (string.Equals(entry.AssetId, EngineGeneratedModelCache.PlaneAssetId, StringComparison.Ordinal)) {
+                        return global::helengine.EngineSceneAssetReferenceFactory.CreatePlaneModel();
+                    }
+                    if (string.Equals(entry.AssetId, EngineGeneratedModelCache.SphereAssetId, StringComparison.Ordinal)) {
+                        return global::helengine.EngineSceneAssetReferenceFactory.CreateSphereModel();
+                    }
+                } else if (entry.EntryKind == AssetEntryKind.Material &&
+                           string.Equals(entry.AssetId, EngineGeneratedMaterialCache.StandardAssetId, StringComparison.Ordinal)) {
+                    return global::helengine.EngineSceneAssetReferenceFactory.CreateStandardMaterial();
+                }
+            } else if (string.Equals(entry.ProviderId, EditorSceneAssetReferenceFactory.ProviderIdValue, StringComparison.Ordinal) &&
+                       entry.EntryKind == AssetEntryKind.Font &&
+                       string.Equals(entry.AssetId, EditorSceneAssetReferenceFactory.EditorUiFontAssetId, StringComparison.Ordinal)) {
+                return EditorSceneAssetReferenceFactory.CreateEditorUiFont();
+            }
+
+            throw new InvalidOperationException(
+                $"Unsupported generated asset browser entry '{entry.ProviderId}:{entry.AssetId}' of kind '{entry.EntryKind}'.");
         }
     }
 }

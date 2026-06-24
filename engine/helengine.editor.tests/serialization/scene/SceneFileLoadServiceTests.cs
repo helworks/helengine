@@ -429,12 +429,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Stable generated model reference.</returns>
         SceneAssetReference CreateGeneratedModelReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Engine/Models/Cube",
-                ProviderId = "engine",
-                AssetId = EngineGeneratedModelCache.CubeAssetId
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineCubeModel();
         }
 
         /// <summary>
@@ -442,12 +437,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Stable generated material reference.</returns>
         SceneAssetReference CreateGeneratedMaterialReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = EngineGeneratedAssetProvider.StandardMaterialRelativePath,
-                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
-                AssetId = EngineGeneratedMaterialCache.StandardAssetId
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineStandardMaterial();
         }
     }
 }

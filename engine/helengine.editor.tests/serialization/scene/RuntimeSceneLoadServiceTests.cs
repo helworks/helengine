@@ -96,12 +96,8 @@ namespace helengine.editor.tests.serialization.scene {
             WriteTextureAsset("cooked/imported/runtime-scene-load-texture.hetex", packagedTextureAsset);
             resolver.BeginOwnedAssetTracking();
             try {
-                RuntimeTexture runtimeTexture = resolver.ResolveTexture(new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = "cooked/imported/runtime-scene-load-texture.hetex",
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                });
+                RuntimeTexture runtimeTexture = resolver.ResolveTexture(
+                    global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("cooked/imported/runtime-scene-load-texture.hetex"));
 
                 Assert.NotNull(runtimeTexture);
                 Assert.Equal("ResolveTextureTracked", resolver.LastTextureLoadStage);
@@ -144,12 +140,8 @@ namespace helengine.editor.tests.serialization.scene {
 
             WriteAnimationClipAsset("Animations/runtime-scene-load.hanim", clipAsset);
 
-            AnimationClipAsset loadedClip = resolver.ResolveAnimationClip(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Animations/runtime-scene-load.hanim",
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            });
+            AnimationClipAsset loadedClip = resolver.ResolveAnimationClip(
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip("Animations/runtime-scene-load.hanim"));
 
             Assert.NotNull(loadedClip);
             Assert.Equal("Animations/runtime-scene-load.hanim", loadedClip.Id);
@@ -1192,12 +1184,7 @@ namespace helengine.editor.tests.serialization.scene {
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(
                 "Texture",
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = "cooked/imported/runtime-scene-load-sprite.hetex",
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                });
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("cooked/imported/runtime-scene-load-sprite.hetex"));
 
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
@@ -1481,12 +1468,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="relativePath">Relative font path to encode.</param>
         /// <returns>File-backed scene reference.</returns>
         SceneAssetReference CreateFileFontReference(string relativePath) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = relativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont(relativePath);
         }
 
         /// <summary>

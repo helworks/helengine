@@ -178,6 +178,7 @@ namespace helengine.editor {
 
                     IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(component);
                     SceneComponentAssetRecord baseRecord = descriptor.SerializeComponent(component, persistedComponentIndex, saveState);
+                    SceneAssetReferenceValidationService.ValidateComponentSaveState(component, saveState);
                     if (saveState != null) {
                         baseRecord.ComponentKey = saveState.ComponentKey;
                     }
@@ -358,6 +359,7 @@ namespace helengine.editor {
 
             IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(addedComponentState.Component);
             SceneComponentAssetRecord componentRecord = descriptor.SerializeComponent(addedComponentState.Component, 0, addedComponentState.SaveState);
+            SceneAssetReferenceValidationService.ValidateComponentSaveState(addedComponentState.Component, addedComponentState.SaveState);
             componentRecord.ComponentKey = addedComponentState.ComponentKey;
             return new SceneEntityPlatformAddedComponentAsset {
                 Component = componentRecord

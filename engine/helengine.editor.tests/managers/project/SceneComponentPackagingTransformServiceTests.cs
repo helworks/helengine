@@ -376,12 +376,9 @@ namespace helengine.editor.tests {
                 LayerMask = 7
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
-            saveState.SetAssetReference(nameof(SpriteComponent.Texture), new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Images/Menu/helengine-logo.png",
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            });
+            saveState.SetAssetReference(
+                nameof(SpriteComponent.Texture),
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Images/Menu/helengine-logo.png"));
 
             return descriptor.SerializeComponent(spriteComponent, 0, saveState);
         }
@@ -413,12 +410,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Generated editor-font reference.</returns>
         static SceneAssetReference CreateEditorFontReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "generated/editor/fonts/ui.hefont",
-                ProviderId = "editor",
-                AssetId = "ui-font"
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEditorUiFont();
         }
 
         /// <summary>
@@ -427,12 +419,7 @@ namespace helengine.editor.tests {
         /// <param name="relativePath">Project-relative font path.</param>
         /// <returns>File-backed font reference.</returns>
         static SceneAssetReference CreateFileFontReference(string relativePath) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = relativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont(relativePath);
         }
 
         /// <summary>
@@ -440,12 +427,11 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Generated Nintendo DS debug-font reference.</returns>
         static SceneAssetReference CreateNintendoDsDebugFontReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "generated/editor/fonts/ds-debug.hefont",
-                ProviderId = "editor",
-                AssetId = "ds-debug-font"
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.Generated,
+                "generated/editor/fonts/ds-debug.hefont",
+                "editor",
+                "ds-debug-font");
         }
 
         /// <summary>

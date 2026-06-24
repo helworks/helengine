@@ -95,12 +95,11 @@ namespace helengine.editor.tests {
             TextComponentSpriteBakeRequest request = new TextComponentSpriteBakeRequest(
                 0,
                 "ds",
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.Generated,
-                    RelativePath = "generated/editor/fonts/ds-debug.hefont",
-                    ProviderId = "editor",
-                    AssetId = "ds-debug-font"
-                },
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                    SceneAssetReferenceSourceKind.Generated,
+                    "generated/editor/fonts/ds-debug.hefont",
+                    "editor",
+                    "ds-debug-font"),
                 "BACK",
                 new int2(96, 24),
                 new byte4(255, 255, 255, 255),
@@ -161,12 +160,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Generated editor-font reference.</returns>
         static SceneAssetReference CreateEditorFontReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "generated/editor/fonts/ui.hefont",
-                ProviderId = "editor",
-                AssetId = "ui-font"
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEditorUiFont();
         }
 
         /// <summary>

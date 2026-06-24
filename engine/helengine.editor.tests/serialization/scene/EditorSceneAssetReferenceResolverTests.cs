@@ -50,12 +50,7 @@ namespace helengine.editor.tests.serialization.scene {
                 runtimeMaterial));
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(new ContentManager(TempProjectRootPath), TempProjectRootPath);
 
-            RuntimeMaterial resolvedMaterial = resolver.ResolveMaterial(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Engine/Materials/Standard",
-                ProviderId = "engine",
-                AssetId = EngineGeneratedMaterialCache.StandardAssetId
-            });
+            RuntimeMaterial resolvedMaterial = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineStandardMaterial());
 
             Assert.Same(runtimeMaterial, resolvedMaterial);
         }
@@ -75,10 +70,7 @@ namespace helengine.editor.tests.serialization.scene {
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager));
 
-            RuntimeModel runtimeModel = resolver.ResolveModel(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Models/Sponza.obj"
-            });
+            RuntimeModel runtimeModel = resolver.ResolveModel(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemModel("Models/Sponza.obj"));
 
             Assert.NotNull(runtimeModel);
             ModelAsset builtModelAsset = Assert.Single(renderManager.BuiltModelAssets);
@@ -100,10 +92,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new EditorFileSystemModelResolver(assetImportManager),
                 new EditorFileSystemFontResolver(assetImportManager));
 
-            FontAsset font = resolver.ResolveFont(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Fonts/DemoDiscTitle.ttf"
-            });
+            FontAsset font = resolver.ResolveFont(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/DemoDiscTitle.ttf"));
 
             Assert.Equal("ImportedTestFont", font.FontInfo.Name);
         }
@@ -115,12 +104,12 @@ namespace helengine.editor.tests.serialization.scene {
         public void ResolveFont_WhenReferenceUsesRemovedNintendoDsGeneratedFont_ThrowsUnsupportedGeneratedFontAssetId() {
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(new ContentManager(TempProjectRootPath), TempProjectRootPath);
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => resolver.ResolveFont(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "generated/editor/fonts/ds-debug.hefont",
-                ProviderId = "editor",
-                AssetId = "ds-debug-font"
-            }));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => resolver.ResolveFont(
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                    SceneAssetReferenceSourceKind.Generated,
+                    "generated/editor/fonts/ds-debug.hefont",
+                    "editor",
+                    "ds-debug-font")));
 
             Assert.Contains("Unsupported generated font asset id", exception.Message);
         }
@@ -140,14 +129,8 @@ namespace helengine.editor.tests.serialization.scene {
                 new EditorFileSystemModelResolver(assetImportManager),
                 new EditorFileSystemFontResolver(assetImportManager));
 
-            FontAsset importedFont = resolver.ResolveFont(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Fonts/DemoDiscBody.ttf"
-            });
-            FontAsset cachedFont = resolver.ResolveFont(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Fonts/DemoDiscBody.ttf"
-            });
+            FontAsset importedFont = resolver.ResolveFont(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/DemoDiscBody.ttf"));
+            FontAsset cachedFont = resolver.ResolveFont(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/DemoDiscBody.ttf"));
 
             TestRenderManager2D renderManager = Assert.IsType<TestRenderManager2D>(Core.Instance.RenderManager2D);
             Assert.NotNull(importedFont.Texture);
@@ -171,10 +154,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new EditorFileSystemFontResolver(assetImportManager),
                 new EditorFileSystemTextureResolver(assetImportManager));
 
-            RuntimeTexture texture = resolver.ResolveTexture(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Images/Menu/helengine-logo.png"
-            });
+            RuntimeTexture texture = resolver.ResolveTexture(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Images/Menu/helengine-logo.png"));
 
             TestRenderManager2D renderManager = Assert.IsType<TestRenderManager2D>(Core.Instance.RenderManager2D);
             Assert.NotNull(texture);
@@ -197,10 +177,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
 
-            RuntimeMaterial material = resolver.ResolveMaterial(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = materialRelativePath
-            });
+            RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
             Assert.NotNull(material);
             Assert.True(File.Exists(materialFullPath));
@@ -220,10 +197,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
 
-            RuntimeMaterial material = resolver.ResolveMaterial(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = materialRelativePath
-            });
+            RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
             ShaderMaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
@@ -249,10 +223,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
 
-            RuntimeMaterial material = resolver.ResolveMaterial(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = materialRelativePath
-            });
+            RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
             ShaderMaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
@@ -281,10 +252,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
 
-            RuntimeMaterial material = resolver.ResolveMaterial(new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = materialRelativePath
-            });
+            RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
             ShaderMaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);

@@ -209,15 +209,15 @@ namespace helengine.editor {
             }
 
             if (ReferenceEquals(runtimeModel, EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId))) {
-                reference = CreateGeneratedReference(EngineGeneratedAssetProvider.CubeRelativePath, EngineGeneratedModelCache.CubeAssetId);
+                reference = global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel();
                 return true;
             }
             if (ReferenceEquals(runtimeModel, EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.PlaneAssetId))) {
-                reference = CreateGeneratedReference(EngineGeneratedAssetProvider.PlaneRelativePath, EngineGeneratedModelCache.PlaneAssetId);
+                reference = global::helengine.EngineSceneAssetReferenceFactory.CreatePlaneModel();
                 return true;
             }
             if (ReferenceEquals(runtimeModel, EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.SphereAssetId))) {
-                reference = CreateGeneratedReference(EngineGeneratedAssetProvider.SphereRelativePath, EngineGeneratedModelCache.SphereAssetId);
+                reference = global::helengine.EngineSceneAssetReferenceFactory.CreateSphereModel();
                 return true;
             }
 
@@ -248,12 +248,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            reference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = relativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemModel(relativePath);
             return true;
         }
 
@@ -273,7 +268,7 @@ namespace helengine.editor {
             if (ReferenceEquals(rootMaterial, standardMaterial) ||
                 ReferenceEquals(runtimeMaterial, standardMaterial) ||
                 string.Equals(rootMaterial.Id, BuiltInMaterialIds.StandardRuntimeMaterialAssetId, StringComparison.Ordinal)) {
-                reference = CreateGeneratedReference(EngineGeneratedAssetProvider.StandardMaterialRelativePath, EngineGeneratedMaterialCache.StandardAssetId);
+                reference = global::helengine.EngineSceneAssetReferenceFactory.CreateStandardMaterial();
                 return true;
             }
 
@@ -305,12 +300,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            reference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = relativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(relativePath);
             return true;
         }
 
@@ -421,26 +411,5 @@ namespace helengine.editor {
             return AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(MeshMaterialReferenceName, slotIndex);
         }
 
-        /// <summary>
-        /// Builds one generated scene asset reference for the engine generated-asset provider.
-        /// </summary>
-        /// <param name="relativePath">Virtual generated asset path.</param>
-        /// <param name="assetId">Stable generated asset identifier.</param>
-        /// <returns>Generated scene asset reference.</returns>
-        static SceneAssetReference CreateGeneratedReference(string relativePath, string assetId) {
-            if (string.IsNullOrWhiteSpace(relativePath)) {
-                throw new ArgumentException("Generated asset path must be provided.", nameof(relativePath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                throw new ArgumentException("Generated asset id must be provided.", nameof(assetId));
-            }
-
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = relativePath,
-                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
-                AssetId = assetId
-            };
-        }
     }
 }

@@ -1294,10 +1294,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures builder-backed Windows material cooking still copies imported diffuse textures into the player-visible cooked texture location.
+        /// Ensures builder-backed Windows material cooking still copies imported diffuse textures into the player-visible cooked texture location and preserves the imported runtime texture binding.
         /// </summary>
         [Fact]
-        public void Package_WhenBuilderCooksMaterialWithImportedDiffuseTexture_WritesCookedImportedTexture() {
+        public void Package_WhenBuilderCooksMaterialWithImportedDiffuseTexture_WritesCookedImportedTextureAndLoadsRuntimeMaterial() {
             string sceneId = "Scenes/TexturedMaterialScene.helen";
             string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
             string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
@@ -1320,6 +1320,31 @@ namespace helengine.editor.tests {
 
             string cookedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", textureAssetId);
             Assert.True(File.Exists(cookedTexturePath));
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+
+            MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
+            ShaderRuntimeMaterial runtimeMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(firstMeshComponent.Materials));
+            RuntimeTexture resolvedTexture = runtimeMaterial.ResolveTexture();
+            Assert.NotNull(resolvedTexture);
+            Assert.Equal(4, resolvedTexture.Width);
+            Assert.Equal(2, resolvedTexture.Height);
         }
 
         /// <summary>
@@ -2259,12 +2284,7 @@ namespace helengine.editor.tests {
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
                 AssetReferences = new[] {
-                    new SceneAssetReference {
-                        SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                        RelativePath = sourceModelRelativePath,
-                        ProviderId = string.Empty,
-                        AssetId = string.Empty
-                    }
+                    global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemModel(sourceModelRelativePath)
                 },
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -3187,12 +3207,7 @@ namespace helengine.editor.tests {
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(
                 nameof(TestAnimationClipAssetScriptComponent.IdleClip),
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = clipRelativePath,
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                });
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip(clipRelativePath));
 
             return descriptor.SerializeComponent(component, 0, saveState);
         }
@@ -3231,12 +3246,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Generated editor font scene reference.</returns>
         static SceneAssetReference CreateEditorFontReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "generated/editor/fonts/ui.hefont",
-                ProviderId = "editor",
-                AssetId = "ui-font"
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEditorUiFont();
         }
 
         /// <summary>
@@ -3244,12 +3254,11 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Generated Nintendo DS debug-font scene reference.</returns>
         static SceneAssetReference CreateNintendoDsDebugFontReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "generated/editor/fonts/ds-debug.hefont",
-                ProviderId = "editor",
-                AssetId = "ds-debug-font"
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.Generated,
+                "generated/editor/fonts/ds-debug.hefont",
+                "editor",
+                "ds-debug-font");
         }
 
         /// <summary>
@@ -3257,12 +3266,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Generated engine standard-material scene reference.</returns>
         static SceneAssetReference CreateGeneratedStandardMaterialReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = EngineGeneratedAssetProvider.StandardMaterialRelativePath,
-                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
-                AssetId = EngineGeneratedMaterialCache.StandardAssetId
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineStandardMaterial();
         }
 
         /// <summary>
@@ -3270,12 +3274,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Generated engine cube scene reference.</returns>
         static SceneAssetReference CreateGeneratedCubeReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = EngineGeneratedAssetProvider.CubeRelativePath,
-                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
-                AssetId = EngineGeneratedModelCache.CubeAssetId
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineCubeModel();
         }
 
         /// <summary>
@@ -3348,12 +3347,7 @@ namespace helengine.editor.tests {
         /// <param name="relativePath">Project-relative font asset path.</param>
         /// <returns>File-backed scene reference.</returns>
         static SceneAssetReference CreateFileFontReference(string relativePath) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = relativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont(relativePath);
         }
 
         /// <summary>
@@ -3362,12 +3356,7 @@ namespace helengine.editor.tests {
         /// <param name="relativePath">Project-relative texture asset path.</param>
         /// <returns>File-backed scene reference.</returns>
         static SceneAssetReference CreateFileTextureReference(string relativePath) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = relativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture(relativePath);
         }
 
         /// <summary>
@@ -3803,12 +3792,9 @@ namespace helengine.editor.tests {
                 Materials = new RuntimeMaterial[] { new TestRuntimeMaterial() }
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
-            saveState.SetAssetReference("Materials[0]", new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = materialRelativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            });
+            saveState.SetAssetReference(
+                "Materials[0]",
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
             return CreateAuthoredMeshComponentRecord(meshComponent, saveState).Payload;
         }
 
@@ -3868,18 +3854,12 @@ namespace helengine.editor.tests {
             });
 
             EntityComponentSaveState saveState = new EntityComponentSaveState();
-            saveState.SetAssetReference("Materials[0]", new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = firstMaterialRelativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            });
-            saveState.SetAssetReference("Materials[1]", new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = secondMaterialRelativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            });
+            saveState.SetAssetReference(
+                "Materials[0]",
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(firstMaterialRelativePath));
+            saveState.SetAssetReference(
+                "Materials[1]",
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(secondMaterialRelativePath));
             return CreateAuthoredMeshComponentRecord(meshComponent, saveState).Payload;
         }
 

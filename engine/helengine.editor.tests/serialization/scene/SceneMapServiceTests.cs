@@ -785,12 +785,11 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="relativePath">Content-relative packaged asset path.</param>
         /// <returns>File-backed scene asset reference.</returns>
         SceneAssetReference CreateFileReference(string relativePath) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = relativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.FileSystem,
+                relativePath,
+                string.Empty,
+                string.Empty);
         }
 
         /// <summary>
@@ -801,12 +800,11 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="assetId">Stable generated asset identifier.</param>
         /// <returns>Generated scene asset reference.</returns>
         SceneAssetReference CreateGeneratedReference(string relativePath, string providerId, string assetId) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = relativePath,
-                ProviderId = providerId,
-                AssetId = assetId
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.Generated,
+                relativePath,
+                providerId,
+                assetId);
         }
 
         /// <summary>

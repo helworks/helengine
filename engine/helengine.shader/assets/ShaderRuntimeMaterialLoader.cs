@@ -104,8 +104,12 @@ namespace helengine {
             }
 
             string diffuseTexturePath = ResolveImportedTexturePackagePath(contentRootPath, materialAsset.DiffuseTextureAssetId);
+#if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
+            RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromCooked(diffuseTexturePath);
+#else
             TextureAsset textureAsset = assetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
             RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromRaw(textureAsset);
+#endif
             shaderRuntimeMaterial.Properties.SetTexture(diffuseTextureBindingIndex, runtimeTexture);
         }
 

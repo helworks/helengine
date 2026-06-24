@@ -4,28 +4,6 @@ namespace helengine.editor {
     /// </summary>
     static class FontAssetScenePersistenceSupport {
         /// <summary>
-        /// Generated provider id reserved for the editor's built-in font asset.
-        /// </summary>
-        const string EditorGeneratedProviderId = "editor";
-
-        /// <summary>
-        /// Stable asset id used for the editor's built-in font asset.
-        /// </summary>
-        const string EditorFontAssetId = "ui-font";
-
-        /// <summary>
-        /// Stable asset id used for the generated Nintendo DS debug font.
-        /// </summary>
-
-        /// <summary>
-        /// Stable relative path used for the editor's built-in font asset.
-        /// </summary>
-        const string EditorFontRelativePath = "generated/editor/fonts/ui.hefont";
-
-        /// <summary>
-        /// Stable relative path used for the generated Nintendo DS debug font asset.
-        /// </summary>
-        /// <summary>
         /// Stable reference slot name used for font references.
         /// </summary>
         internal const string FontReferenceName = "Font";
@@ -105,12 +83,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Stable generated editor-font reference.</returns>
         internal static SceneAssetReference BuildEditorFontReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = EditorFontRelativePath,
-                ProviderId = EditorGeneratedProviderId,
-                AssetId = EditorFontAssetId
-            };
+            return EditorSceneAssetReferenceFactory.CreateEditorUiFont();
         }
 
         /// <summary>
@@ -119,20 +92,7 @@ namespace helengine.editor {
         /// <param name="reader">Reader positioned at the reference payload.</param>
         /// <returns>Stable scene asset reference when present; otherwise null.</returns>
         internal static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            if (reader.ReadByte() == 0) {
-                return null;
-            }
-
-            return new SceneAssetReference {
-                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
-                RelativePath = reader.ReadString(),
-                ProviderId = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
+            return global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
         }
 
         /// <summary>

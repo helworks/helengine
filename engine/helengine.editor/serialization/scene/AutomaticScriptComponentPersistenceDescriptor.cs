@@ -496,6 +496,12 @@ namespace helengine.editor {
                 throw new InvalidOperationException(
                     $"Component '{component.GetType().FullName}' requires scene asset reference '{referenceName}' before member '{member.Name}' can be serialized.");
             }
+            if (reference != null) {
+                SceneAssetReferenceValidationService.ValidateTypedReference(
+                    member.ValueType,
+                    reference,
+                    $"component '{component.GetType().FullName}' member '{member.Name}'");
+            }
 
             SceneComponentBinaryFieldEncoding.WriteOptionalReference(writer, reference);
         }
@@ -580,6 +586,12 @@ namespace helengine.editor {
                 if (runtimeValue != null && reference == null) {
                     throw new InvalidOperationException(
                         $"Component '{component.GetType().FullName}' requires scene asset reference '{referenceName}' before member '{member.Name}' can be serialized.");
+                }
+                if (reference != null) {
+                    SceneAssetReferenceValidationService.ValidateTypedReference(
+                        member.ValueType.GetElementType() ?? throw new InvalidOperationException($"Asset-backed array member '{member.Name}' must expose one element type."),
+                        reference,
+                        $"component '{component.GetType().FullName}' member '{member.Name}[{index}]'");
                 }
 
                 references[index] = reference;

@@ -131,15 +131,9 @@ namespace helengine.editor.tests.managers.scene {
             EditorSceneCreationService service = new EditorSceneCreationService();
             RuntimeModel runtimeModel = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId);
             RuntimeMaterial runtimeMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
-            SceneAssetReference modelReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Models/Cube.obj"
-            };
+            SceneAssetReference modelReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemModel("Models/Cube.obj");
             SceneAssetReference[] materialReferences = {
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = "Models/Cube.hasset"
-                }
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial("Models/Cube.hasset")
             };
 
             EditorEntity entity = service.CreateModel("Cube", runtimeModel, new[] { runtimeMaterial }, modelReference, materialReferences);

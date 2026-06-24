@@ -475,14 +475,20 @@ namespace helengine {
         /// Executes the engine draw cycle.
         /// </summary>
         public virtual void Draw() {
+            LastSceneTransitionStage = "DrawBegin";
             if (InitializationOptions.CommitPendingSceneOperationsDuringDraw) {
+                LastSceneTransitionStage = "BeforeCompleteFrameBoundary";
                 CompleteFrameBoundary();
+                LastSceneTransitionStage = "AfterCompleteFrameBoundary";
             }
 
+            LastSceneTransitionStage = "BeforeRenderManager3DDraw";
             LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
+            LastSceneTransitionStage = "AfterRenderManager3DDraw";
             LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
             FPSComponent.RecordRenderFrame();
             DebugComponent.RecordRenderFrame();
+            LastSceneTransitionStage = "DrawEnd";
         }
 
         /// <summary>
@@ -490,7 +496,9 @@ namespace helengine {
         /// </summary>
         public virtual void CompleteFrameBoundary() {
             if (SceneManager != null) {
+                LastSceneTransitionStage = "CompleteFrameBoundaryCommitBegin";
                 SceneManager.CommitPendingOperationsAtFrameBoundary();
+                LastSceneTransitionStage = "CompleteFrameBoundaryCommitEnd";
             }
         }
 
@@ -628,8 +636,16 @@ namespace helengine {
         /// </summary>
         /// <param name="stage">Short stage label describing the next core update boundary.</param>
         void RecordUpdateStage(string stage) {
-            LastSceneTransitionStage = stage;
-            UpdateStageDiagnosticsProviderValue.ReportUpdateStage(stage);
+            ReportSceneTransitionStage(stage);
+        }
+
+        /// <summary>
+        /// Stores one shared scene-transition stage and forwards it to hosts that render live diagnostics.
+        /// </summary>
+        /// <param name="stage">Short stage label describing the current runtime transition boundary.</param>
+        internal void ReportSceneTransitionStage(string stage) {
+            LastSceneTransitionStage = stage ?? string.Empty;
+            UpdateStageDiagnosticsProviderValue?.ReportUpdateStage(LastSceneTransitionStage);
         }
 
         /// <summary>

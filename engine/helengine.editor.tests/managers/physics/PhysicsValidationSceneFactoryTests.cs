@@ -729,12 +729,7 @@ namespace helengine.editor.tests.managers.physics {
 
             bool hasValue = reader.ReadByte() != 0;
             Assert.True(hasValue);
-            return new SceneAssetReference {
-                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
-                RelativePath = reader.ReadString(),
-                ProviderId = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
+            return SceneAssetReferenceFactory.ReadRequiredReference(reader);
         }
 
         /// <summary>

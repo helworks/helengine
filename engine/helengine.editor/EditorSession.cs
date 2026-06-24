@@ -2833,10 +2833,7 @@ namespace helengine.editor {
             string materialFullPath = Path.GetFullPath(Path.Combine(sourceDirectoryPath, generatedMaterial.RelativeMaterialPath));
             string assetsRootPath = ResolveAssetsRootPath(projectPath);
             string relativePath = Path.GetRelativePath(assetsRootPath, materialFullPath).Replace('\\', '/');
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = relativePath
-            };
+            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(relativePath);
         }
 
         /// <summary>
@@ -2844,12 +2841,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Stable scene reference for the generated standard material.</returns>
         SceneAssetReference BuildGeneratedStandardMaterialReference() {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = EngineGeneratedAssetProvider.StandardMaterialRelativePath,
-                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
-                AssetId = EngineGeneratedMaterialCache.StandardAssetId
-            };
+            return global::helengine.EngineSceneAssetReferenceFactory.CreateStandardMaterial();
         }
 
         /// <summary>

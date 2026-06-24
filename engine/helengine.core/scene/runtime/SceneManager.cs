@@ -1014,17 +1014,14 @@ namespace helengine {
         /// <param name="stage">Short stage name describing the current transition boundary.</param>
         /// <param name="sceneId">Stable scene identifier associated with the current transition boundary.</param>
         void RecordTraceState(string stage, string sceneId) {
-            if (SceneTransitionDiagnosticsProvider == null) {
-                return;
-            }
-
             LastTraceStage = stage;
-            LastTraceSceneId = sceneId;
+            LastTraceSceneId = sceneId ?? string.Empty;
             LastTraceLoadedSceneCount = LoadedSceneRecords.Count;
             LastTracePendingOperationCount = PendingOperations.Count;
-            SceneTransitionDiagnosticsProvider.ReportSceneTransitionStage(
+            Core.Instance?.ReportSceneTransitionStage($"SceneManager:{LastTraceStage}");
+            SceneTransitionDiagnosticsProvider?.ReportSceneTransitionStage(
                 stage,
-                sceneId,
+                LastTraceSceneId,
                 LastTraceLoadedSceneCount,
                 LastTracePendingOperationCount);
         }

@@ -154,8 +154,18 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(processor));
             }
 
-            using FileStream stream = File.OpenRead(fullPath);
-            return processor.Read(stream);
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
+            string previousReadStage = EngineBinaryReadContext.CurrentReadStage;
+            EngineBinaryReadContext.CurrentAssetPath = fullPath;
+            EngineBinaryReadContext.CurrentReadStage = "ContentManager:OpenRead";
+            try {
+                using FileStream stream = File.OpenRead(fullPath);
+                EngineBinaryReadContext.CurrentReadStage = "ContentManager:ProcessorRead";
+                return processor.Read(stream);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
+                EngineBinaryReadContext.CurrentReadStage = previousReadStage;
+            }
         }
 
         /// <summary>

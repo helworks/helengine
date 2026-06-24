@@ -61,12 +61,11 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="relativePath">Relative asset path stored by the reference.</param>
         /// <returns>File-system scene asset reference.</returns>
         static SceneAssetReference CreateFileReference(string relativePath) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = relativePath,
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.FileSystem,
+                relativePath,
+                string.Empty,
+                string.Empty);
         }
 
         /// <summary>

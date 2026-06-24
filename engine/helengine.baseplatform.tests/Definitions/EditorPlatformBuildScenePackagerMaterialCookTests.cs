@@ -192,12 +192,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         SceneAsset sceneAsset = new SceneAsset {
             Id = sceneId,
             AssetReferences = [
-                new SceneAssetReference {
-                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                    RelativePath = materialRelativePath,
-                    ProviderId = string.Empty,
-                    AssetId = string.Empty
-                }
+                global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(materialRelativePath)
             ],
             RootEntities = Array.Empty<SceneEntityAsset>()
         };

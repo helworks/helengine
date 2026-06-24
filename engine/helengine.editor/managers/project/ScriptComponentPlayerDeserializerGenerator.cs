@@ -177,6 +177,7 @@ namespace helengine.editor {
             builder.AppendLine("#include \"system/io/memory-stream.hpp\"");
             builder.AppendLine("#include \"EngineBinaryReader.hpp\"");
             builder.AppendLine("#include \"EngineBinaryEndianness.hpp\"");
+            builder.AppendLine("#include \"SceneAssetReferenceFactory.hpp\"");
             builder.AppendLine("#include \"runtime/array.hpp\"");
             builder.AppendLine("#include \"runtime/finally.hpp\"");
             builder.AppendLine($"#include \"{schema.ComponentType.Name}.hpp\"");
@@ -653,12 +654,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Reader variable name must be provided.", nameof(readerVariableName));
             }
 
-            return "("
-                + readerVariableName + ".ReadByte() == 0 ? null : new SceneAssetReference { "
-                + "SourceKind = (SceneAssetReferenceSourceKind)" + readerVariableName + ".ReadInt32(), "
-                + "RelativePath = " + readerVariableName + ".ReadString(), "
-                + "ProviderId = " + readerVariableName + ".ReadString(), "
-                + "AssetId = " + readerVariableName + ".ReadString() })";
+            return "global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(" + readerVariableName + ")";
         }
 
         /// <summary>
@@ -714,15 +710,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Reader variable name must be provided.", nameof(readerVariableName));
             }
 
-            return "([&]() { "
-                + "if (" + readerVariableName + "->ReadByte() == 0) { return static_cast<::SceneAssetReference*>(nullptr); } "
-                + "::SceneAssetReference* value = new ::SceneAssetReference(); "
-                + "value->set_SourceKind(static_cast<::SceneAssetReferenceSourceKind>(" + readerVariableName + "->ReadInt32())); "
-                + "value->set_RelativePath(" + readerVariableName + "->ReadString()); "
-                + "value->set_ProviderId(" + readerVariableName + "->ReadString()); "
-                + "value->set_AssetId(" + readerVariableName + "->ReadString()); "
-                + "return value; "
-                + "})()";
+            return "::SceneAssetReferenceFactory::ReadOptionalReference(" + readerVariableName + ")";
         }
 
         /// <summary>

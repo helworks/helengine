@@ -47,6 +47,20 @@ public sealed class CityPhysicsSceneSourceTests {
     }
 
     /// <summary>
+    /// Ensures the authored city mixed stack also assigns the tiled sphere-stack materials to its sphere layers so their rotation stays readable beside the box layers.
+    /// </summary>
+    [Fact]
+    public void City_dynamic_mixed_stack_source_uses_tiled_sphere_materials_for_spheres() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("CreatePhysicsSphereMeshEntity(\"dynamic_mixed_stack.sphere01\", \"StackSphere01\", new float3(0.08f, 1.5f, -0.04f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoSphereStackGreenMaterialRelativePath))", source, StringComparison.Ordinal);
+        Assert.Contains("CreatePhysicsSphereMeshEntity(\"dynamic_mixed_stack.sphere02\", \"StackSphere02\", new float3(0.05f, 3.5f, 0.08f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoSphereStackYellowMaterialRelativePath))", source, StringComparison.Ordinal);
+        Assert.Contains("CreatePhysicsSphereMeshEntity(\"dynamic_mixed_stack.sphere03\", \"StackSphere03\", new float3(-0.05f, 5.5f, 0.04f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoSphereStackRedMaterialRelativePath))", source, StringComparison.Ordinal);
+        Assert.Contains("CreatePhysicsSphereMeshEntity(\"dynamic_mixed_stack.sphere04\", \"StackSphere04\", new float3(-0.04f, 7.5f, -0.05f), float4.Identity, DynamicBodyKindCode, true, CreatePhysicsDemoMaterialReference(PhysicsDemoSphereStackPurpleMaterialRelativePath))", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Ensures playable physics showcase scene reload uses an editor-configured asset content manager instead of the runtime core manager so textured file-backed materials can resolve imported textures.
     /// </summary>
     [Fact]

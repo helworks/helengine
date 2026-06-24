@@ -4,6 +4,21 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorGeneratedBootScenePreparationService {
         /// <summary>
+        /// Stable Nintendo DS platform identifier used by boot-scene remap generation.
+        /// </summary>
+        const string NintendoDsPlatformId = "ds";
+
+        /// <summary>
+        /// Stable Nintendo 3DS platform identifier that reuses Nintendo DS companion-scene remaps.
+        /// </summary>
+        const string Nintendo3DsPlatformId = "3ds";
+
+        /// <summary>
+        /// Stable suffix used by Nintendo DS companion scene ids.
+        /// </summary>
+        const string NintendoDsSceneSuffix = "_ds";
+
+        /// <summary>
         /// Absolute project root path that owns the assets directory.
         /// </summary>
         readonly string ProjectRootPath;
@@ -39,6 +54,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
 
+            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
             Dictionary<string, string> mappings = BuildMappings(platformId, sceneIds);
             if (mappings == null) {
                 return;
@@ -48,7 +64,6 @@ namespace helengine.editor {
                 "Scenes/" + PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen",
                 PlatformMenuSceneResolver.DesktopMainMenuSceneId,
                 mappings);
-            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
             string directoryPath = Path.GetDirectoryName(scenePath)
                 ?? throw new InvalidOperationException("Generated boot scene path did not include a writable directory.");
             Directory.CreateDirectory(directoryPath);
@@ -74,8 +89,47 @@ namespace helengine.editor {
                 return null;
             }
 
-            _ = platformId;
+            if (string.Equals(platformId, NintendoDsPlatformId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, Nintendo3DsPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return BuildNintendoDsMappings(sceneIds);
+            }
+
             return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        /// <summary>
+        /// Builds the logical-scene remap table for Nintendo DS companion-scene selections.
+        /// </summary>
+        /// <param name="sceneIds">Stable scene ids selected for the build.</param>
+        /// <returns>Deterministic mapping from logical scene ids to Nintendo DS companion scene ids.</returns>
+        static Dictionary<string, string> BuildNintendoDsMappings(IReadOnlyList<string> sceneIds) {
+            if (sceneIds == null) {
+                throw new ArgumentNullException(nameof(sceneIds));
+            }
+
+            Dictionary<string, string> mappings = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (ContainsSceneId(sceneIds, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId)) {
+                mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId] = PlatformMenuSceneResolver.NintendoDsMainMenuSceneId;
+            }
+
+            for (int index = 0; index < sceneIds.Count; index++) {
+                string sceneId = sceneIds[index];
+                if (string.IsNullOrWhiteSpace(sceneId)) {
+                    continue;
+                }
+                if (!sceneId.EndsWith(NintendoDsSceneSuffix, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                string logicalSceneId = sceneId.Substring(0, sceneId.Length - NintendoDsSceneSuffix.Length);
+                if (string.IsNullOrWhiteSpace(logicalSceneId)) {
+                    continue;
+                }
+
+                mappings[logicalSceneId] = sceneId;
+            }
+
+            return mappings;
         }
 
         /// <summary>

@@ -51,24 +51,21 @@ namespace helengine.editor.tests.serialization.scene {
                 secondMaterial
             });
 
-            SceneAssetReference modelReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Engine/Models/Cube.hasset",
-                ProviderId = "engine",
-                AssetId = "engine:model:cube"
-            };
-            SceneAssetReference firstMaterialReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Engine/Materials/Standard.hasset",
-                ProviderId = "engine",
-                AssetId = "engine:material:standard"
-            };
-            SceneAssetReference secondMaterialReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Materials/Accent.helmat",
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            SceneAssetReference modelReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.Generated,
+                "Engine/Models/Cube.hasset",
+                "engine",
+                "engine:model:cube");
+            SceneAssetReference firstMaterialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.Generated,
+                "Engine/Materials/Standard.hasset",
+                "engine",
+                "engine:material:standard");
+            SceneAssetReference secondMaterialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.FileSystem,
+                "Materials/Accent.helmat",
+                string.Empty,
+                string.Empty);
             TestRuntimeModel restoredModel = new TestRuntimeModel();
             TestRuntimeMaterial restoredFirstMaterial = new TestRuntimeMaterial();
             TestRuntimeMaterial restoredSecondMaterial = new TestRuntimeMaterial();
@@ -102,18 +99,16 @@ namespace helengine.editor.tests.serialization.scene {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
             EntitySaveComponent saveComponent = new EntitySaveComponent();
-            SceneAssetReference modelReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = "Engine/Models/Cube.hasset",
-                ProviderId = "engine",
-                AssetId = "engine:model:cube"
-            };
-            SceneAssetReference materialReference = new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Materials/physics/PhysicsDemoBlue.hasset",
-                ProviderId = string.Empty,
-                AssetId = string.Empty
-            };
+            SceneAssetReference modelReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.Generated,
+                "Engine/Models/Cube.hasset",
+                "engine",
+                "engine:model:cube");
+            SceneAssetReference materialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.FileSystem,
+                "Materials/physics/PhysicsDemoBlue.hasset",
+                string.Empty,
+                string.Empty);
             TestRuntimeModel restoredModel = new TestRuntimeModel();
             TestRuntimeMaterial restoredMaterial = new TestRuntimeMaterial();
             resolver.RegisterModel(modelReference, restoredModel);

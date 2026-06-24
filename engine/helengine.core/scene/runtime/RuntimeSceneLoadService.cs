@@ -187,6 +187,7 @@ namespace helengine {
             LastTraceRootEntityIndex = rootEntityIndex;
             LastTraceEntityDepth = entityDepth;
             LastTraceComponentTypeId = componentTypeId ?? string.Empty;
+            Core.Instance?.ReportSceneTransitionStage($"SceneLoad:{LastTraceStage}");
         }
     }
 }

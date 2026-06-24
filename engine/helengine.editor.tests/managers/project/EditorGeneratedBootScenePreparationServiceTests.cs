@@ -27,19 +27,19 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
     }
 
     /// <summary>
-    /// Ensures generated boot-scene preparation writes an empty shared scene-map when the generated boot scene is selected.
+    /// Ensures generated boot-scene preparation writes Nintendo DS remaps for the generated boot scene.
     /// </summary>
     [Fact]
-    public void EnsurePrepared_WhenBuildIncludesGeneratedBootScene_WritesEmptySceneMapMappings() {
+    public void EnsurePrepared_WhenBuildIncludesGeneratedBootScene_WritesNintendoDsSceneMapMappings() {
         EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
 
         service.EnsurePrepared(
             "ds",
             [
                 PlatformMenuSceneResolver.GeneratedBootSceneId,
-                PlatformMenuSceneResolver.DesktopMainMenuSceneId,
-                "cube_test",
-                "cube_test_ds"
+                "DemoDiscMainMenuDs",
+                "cube_test_ds",
+                "axis_test_ds"
             ]);
 
         string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
@@ -53,14 +53,16 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
         Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Empty(sceneMapComponent.Mappings);
+        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+        Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
+        Assert.Equal("axis_test_ds", sceneMapComponent.Mappings["axis_test"]);
     }
 
     /// <summary>
-    /// Ensures generated boot-scene preparation ignores platform-specific scene-id naming conventions.
+    /// Ensures generated boot-scene preparation derives remaps from Nintendo DS companion-scene ids.
     /// </summary>
     [Fact]
-    public void EnsurePrepared_WhenBuildIncludesOnlyPlatformSpecificSceneNames_WritesEmptySceneMapMappings() {
+    public void EnsurePrepared_WhenBuildIncludesOnlyPlatformSpecificSceneNames_WritesNintendoDsSceneMapMappings() {
         EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
 
         service.EnsurePrepared(
@@ -80,14 +82,15 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
         Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Empty(sceneMapComponent.Mappings);
+        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+        Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
     }
 
     /// <summary>
-    /// Ensures platform id no longer changes generated boot-scene mappings.
+    /// Ensures Nintendo 3DS boot-scene preparation reuses the Nintendo DS companion-scene remap behavior.
     /// </summary>
     [Fact]
-    public void EnsurePrepared_WhenNintendo3DsBuildIncludesOnlyDsScenes_WritesEmptySceneMapMappings() {
+    public void EnsurePrepared_WhenNintendo3DsBuildIncludesOnlyDsScenes_WritesNintendoDsSceneMapMappings() {
         EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
 
         service.EnsurePrepared(
@@ -107,7 +110,46 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
         Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Empty(sceneMapComponent.Mappings);
+        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+        Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
+    }
+
+    /// <summary>
+    /// Ensures generated boot-scene preparation refreshes stale generated boot-scene assets with the current Nintendo DS remap set.
+    /// </summary>
+    [Fact]
+    public void EnsurePrepared_WhenGeneratedBootSceneAlreadyExists_RewritesMappingsFromNintendoDsSceneSelection() {
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        GeneratedBootSceneAssetFactory factory = new GeneratedBootSceneAssetFactory();
+        SceneAsset existingSceneAsset = factory.BuildSceneAsset(
+            "Scenes/" + PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen",
+            PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+            new Dictionary<string, string>(StringComparer.Ordinal));
+        using (FileStream stream = File.Create(scenePath)) {
+            AssetSerializer.Serialize(stream, existingSceneAsset);
+        }
+
+        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+        service.EnsurePrepared(
+            "ds",
+            [
+                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                "DemoDiscMainMenuDs",
+                "cube_test_ds",
+                "axis_test_ds"
+            ]);
+
+        using FileStream readStream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(readStream));
+        SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
+
+        SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
+        Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
+        Assert.Equal(3, sceneMapComponent.Mappings.Count);
+        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+        Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
+        Assert.Equal("axis_test_ds", sceneMapComponent.Mappings["axis_test"]);
     }
 
     /// <summary>

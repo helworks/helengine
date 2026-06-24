@@ -1072,12 +1072,7 @@ namespace helengine.files {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset reference.</returns>
         static SceneAssetReference ReadSceneAssetReference(EngineBinaryReader reader) {
-            return new SceneAssetReference {
-                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
-                RelativePath = reader.ReadString(),
-                ProviderId = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
+            return SceneAssetReferenceFactory.ReadRequiredReference(reader);
         }
 
         /// <summary>
