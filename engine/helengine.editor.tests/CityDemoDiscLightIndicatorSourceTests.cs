@@ -15,6 +15,7 @@ public sealed class CityDemoDiscLightIndicatorSourceTests {
         Assert.Contains("Text = \"Light\"", source, StringComparison.Ordinal);
         Assert.Contains("new RoundedRectComponent", source, StringComparison.Ordinal);
         Assert.Contains("DemoDiscLightIndicatorSwatch", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ScalingMode = ViewportComponent.ReferenceCanvasScalingMode", source, StringComparison.Ordinal);
     }
 
     /// <summary>
