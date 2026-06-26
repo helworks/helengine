@@ -744,7 +744,12 @@ namespace helengine.editor {
             }
 
             EnsureFontImporterExists(settings.Importer.ImporterId);
-            FontAsset asset = AssetContentManager.Load<FontAsset>(sourcePath, settings.Importer.ImporterId);
+            IFontImporter importer = GetFontImporter(settings.Importer.ImporterId);
+            FontAssetProcessorSettings fontProcessorSettings = GetFontProcessorSettings(settings, platformId);
+            FontAsset asset;
+            using (FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                asset = importer.ImportFont(stream, fontProcessorSettings);
+            }
 
             if (asset == null) {
                 throw new InvalidOperationException($"Font importer '{settings.Importer.ImporterId}' did not return an asset.");
@@ -3062,6 +3067,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the font processor settings for the requested platform, returning defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <param name="platformId">Target platform identifier whose font settings should be applied.</param>
+        /// <returns>Font processor settings for the requested platform context.</returns>
+        FontAssetProcessorSettings GetFontProcessorSettings(AssetImportSettings settings, string platformId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                return CreateDefaultFontProcessorSettings();
+            } else if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return CreateDefaultFontProcessorSettings();
+            }
+
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out AssetPlatformProcessorSettings platformSettings) || platformSettings == null) {
+                return CreateDefaultFontProcessorSettings();
+            }
+
+            return platformSettings.Font;
+        }
+
+        /// <summary>
         /// Creates the default texture processor settings used when a source asset has not authored an explicit override for the active platform yet.
         /// </summary>
         /// <param name="platformId">Active processing platform identifier.</param>
@@ -3071,6 +3098,16 @@ namespace helengine.editor {
                 MaxResolution = 0,
                 ColorFormatId = TextureAssetColorFormat.Rgba32.ToString(),
                 AlphaPrecision = TextureAssetAlphaPrecision.A8
+            };
+        }
+
+        /// <summary>
+        /// Creates the default font processor settings used when a source asset has not authored an explicit override yet.
+        /// </summary>
+        /// <returns>Default font processor settings.</returns>
+        FontAssetProcessorSettings CreateDefaultFontProcessorSettings() {
+            return new FontAssetProcessorSettings {
+                PixelSize = FontAssetProcessorSettings.DefaultPixelSize
             };
         }
 

@@ -120,6 +120,26 @@ public sealed class EditorPlatformFontVariantCacheServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures changing per-platform font settings invalidates the cached font variant and regenerates the cached outputs.
+    /// </summary>
+    [Fact]
+    public void ResolveVariant_WhenPlatformFontSettingsChange_RegeneratesCachedVariant() {
+        string sourcePath = WriteSourceFont("Fonts/DemoCaption.ttf");
+        AssetImportManager manager = CreateFontManager(new ConfigurableFontImporter(256, 128, new byte[256 * 128 * 4]));
+        ConfigureFontSettings(manager, sourcePath, "gamecube", 32);
+        EditorPlatformFontVariantCacheService service = new EditorPlatformFontVariantCacheService(manager);
+
+        EditorPlatformFontVariantCacheResult firstResult = service.ResolveVariant(sourcePath, "gamecube");
+        ConfigureFontSettings(manager, sourcePath, "gamecube", 12);
+
+        EditorPlatformFontVariantCacheResult secondResult = service.ResolveVariant(sourcePath, "gamecube");
+
+        Assert.False(firstResult.IsCacheHit);
+        Assert.False(secondResult.IsCacheHit);
+        Assert.NotEqual(firstResult.CachedFontAssetPath, secondResult.CachedFontAssetPath);
+    }
+
+    /// <summary>
     /// Creates one font-enabled asset import manager for the current temporary project.
     /// </summary>
     /// <param name="fontImporter">Deterministic font importer used by the test case.</param>
@@ -178,6 +198,36 @@ public sealed class EditorPlatformFontVariantCacheServiceTests : IDisposable {
             Model = new ModelAssetProcessorSettings(),
             Material = new MaterialAssetProcessorSettings()
         };
+        manager.SaveImportSettings(sourcePath, settings);
+    }
+
+    /// <summary>
+    /// Writes one per-platform font rasterization override into the authored import settings sidecar.
+    /// </summary>
+    /// <param name="manager">Asset import manager that owns the source font settings.</param>
+    /// <param name="sourcePath">Absolute source font path.</param>
+    /// <param name="platformId">Target platform identifier whose settings should be changed.</param>
+    /// <param name="pixelSize">Requested font pixel size.</param>
+    void ConfigureFontSettings(AssetImportManager manager, string sourcePath, string platformId, int pixelSize) {
+        if (manager == null) {
+            throw new ArgumentNullException(nameof(manager));
+        } else if (string.IsNullOrWhiteSpace(sourcePath)) {
+            throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+        } else if (string.IsNullOrWhiteSpace(platformId)) {
+            throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+        } else if (pixelSize < 1) {
+            throw new ArgumentOutOfRangeException(nameof(pixelSize));
+        }
+
+        AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+        if (!settings.Processor.Platforms.TryGetValue(platformId, out AssetPlatformProcessorSettings platformSettings) || platformSettings == null) {
+            platformSettings = new AssetPlatformProcessorSettings();
+            settings.Processor.Platforms[platformId] = platformSettings;
+        }
+
+        AssetPlatformSettingsSectionRegistry.Shared.SetSection(platformSettings, "font", new FontAssetProcessorSettings {
+            PixelSize = pixelSize
+        });
         manager.SaveImportSettings(sourcePath, settings);
     }
 }

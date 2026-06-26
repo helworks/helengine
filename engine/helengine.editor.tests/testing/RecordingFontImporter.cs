@@ -1,10 +1,15 @@
 namespace helengine.editor.tests.testing {
     /// <summary>
-    /// Provides a deterministic font importer for editor asset-import tests.
+    /// Records the last platform font settings supplied to one font import call.
     /// </summary>
-    internal sealed class TestFontImporter : IFontImporter {
+    internal sealed class RecordingFontImporter : IFontImporter {
         /// <summary>
-        /// Imports one minimal font asset without depending on platform font APIs.
+        /// Gets the last recorded platform font settings payload.
+        /// </summary>
+        public FontAssetProcessorSettings LastSettings { get; private set; }
+
+        /// <summary>
+        /// Imports one minimal font asset and records the supplied platform font settings.
         /// </summary>
         /// <param name="stream">Source font stream used only to satisfy the importer contract.</param>
         /// <param name="settings">Platform font settings supplied by the caller.</param>
@@ -16,8 +21,12 @@ namespace helengine.editor.tests.testing {
                 throw new ArgumentNullException(nameof(settings));
             }
 
+            LastSettings = new FontAssetProcessorSettings {
+                PixelSize = settings.PixelSize
+            };
+
             FontAsset fontAsset = new FontAsset(
-                new FontInfo("ImportedTestFont", 16, 4f),
+                new FontInfo("ImportedRecordingFont", 16, 4f),
                 new TestRuntimeTexture {
                     Width = 1,
                     Height = 1
@@ -29,7 +38,7 @@ namespace helengine.editor.tests.testing {
             fontAsset.SourceTextureAsset = new TextureAsset {
                 Width = 1,
                 Height = 1,
-                Colors = new byte[] { 255, 255, 255, 255 }
+                Colors = [255, 255, 255, 255]
             };
             return fontAsset;
         }

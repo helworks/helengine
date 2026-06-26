@@ -42,10 +42,13 @@ namespace helengine.editor.tests.testing {
         /// Imports one deterministic font asset regardless of the source stream contents.
         /// </summary>
         /// <param name="stream">Stream containing source bytes.</param>
+        /// <param name="settings">Platform font settings supplied by the caller.</param>
         /// <returns>Deterministic font asset carrying the configured atlas payload.</returns>
-        public FontAsset ImportFont(Stream stream) {
+        public FontAsset ImportFont(Stream stream, FontAssetProcessorSettings settings) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
             }
 
             FontAsset fontAsset = new FontAsset(

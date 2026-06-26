@@ -10,10 +10,13 @@ namespace helengine.editor {
         /// Imports one source font stream into a runtime-ready font asset.
         /// </summary>
         /// <param name="stream">Stream containing source font bytes.</param>
+        /// <param name="settings">Platform font settings supplied by the caller.</param>
         /// <returns>Imported font asset.</returns>
-        public FontAsset ImportFont(Stream stream) {
+        public FontAsset ImportFont(Stream stream, FontAssetProcessorSettings settings) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
             }
 
             using MemoryStream buffer = new MemoryStream();

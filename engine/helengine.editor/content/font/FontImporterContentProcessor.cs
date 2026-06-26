@@ -31,7 +31,9 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            return Importer.ImportFont(stream);
+            return Importer.ImportFont(stream, new FontAssetProcessorSettings {
+                PixelSize = FontAssetProcessorSettings.DefaultPixelSize
+            });
         }
 
         /// <summary>
