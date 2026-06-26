@@ -17,6 +17,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             } else if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
+            } else if (settings.PixelSize < 1) {
+                throw new InvalidOperationException("Font pixel size must be greater than zero.");
             }
 
             using MemoryStream buffer = new MemoryStream();
@@ -29,7 +31,11 @@ namespace helengine.editor {
             string temporaryFontFilePath = string.Empty;
             try {
                 using PrivateFontCollection fontCollection = LoadFontCollection(bytes, ref temporaryFontFilePath);
-                using System.Drawing.Font font = new System.Drawing.Font(fontCollection.Families[0], 32f, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Pixel);
+                using System.Drawing.Font font = new System.Drawing.Font(
+                    fontCollection.Families[0],
+                    settings.PixelSize,
+                    System.Drawing.FontStyle.Regular,
+                    System.Drawing.GraphicsUnit.Pixel);
                 return GDIFontProcessor.ImportFont(font);
             } finally {
                 if (!string.IsNullOrWhiteSpace(temporaryFontFilePath) && File.Exists(temporaryFontFilePath)) {
