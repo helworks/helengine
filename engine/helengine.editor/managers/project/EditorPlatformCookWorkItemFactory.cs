@@ -415,11 +415,60 @@ internal static class EditorPlatformCookWorkItemFactory {
         if (!string.IsNullOrWhiteSpace(targetPlatformId)
             && platformSettingsById != null
             && platformSettingsById.TryGetValue(targetPlatformId, out AssetPlatformProcessorSettings platformSettings)
-            && platformSettings?.Texture != null) {
-            return platformSettings.Texture;
+            && platformSettings != null) {
+            TextureAssetProcessorSettings selectedSettings = ResolveExplicitTextureProcessorSettings(platformSettings, capability);
+            if (selectedSettings != null) {
+                return selectedSettings;
+            }
         }
 
         return ResolveDefaultTextureProcessorSettings(capability);
+    }
+
+    /// <summary>
+    /// Resolves the explicitly-authored asset-platform texture settings section that matches one builder-owned cook capability.
+    /// </summary>
+    /// <param name="platformSettings">Asset-platform settings document that may expose multiple texture-derived sections.</param>
+    /// <param name="capability">Builder-owned cook capability that determines which texture section should be used.</param>
+    /// <returns>Matching explicit texture settings section, or <c>null</c> when the capability has no authored platform override.</returns>
+    static TextureAssetProcessorSettings ResolveExplicitTextureProcessorSettings(
+        AssetPlatformProcessorSettings platformSettings,
+        PlatformAssetCookCapabilityDefinition capability) {
+        if (platformSettings == null) {
+            throw new ArgumentNullException(nameof(platformSettings));
+        } else if (capability == null) {
+            throw new ArgumentNullException(nameof(capability));
+        }
+
+        if (string.Equals(capability.SourceAssetKind, "font-atlas-texture", StringComparison.OrdinalIgnoreCase)) {
+            return ResolveExplicitTextureProcessorSettings(platformSettings, FontAtlasTextureAssetPlatformSettingsSectionDefinition.SectionIdValue);
+        }
+
+        return ResolveExplicitTextureProcessorSettings(platformSettings, TextureAssetPlatformSettingsSectionDefinition.SectionIdValue);
+    }
+
+    /// <summary>
+    /// Resolves one explicitly-authored texture settings section by section identifier without materializing registry defaults.
+    /// </summary>
+    /// <param name="platformSettings">Asset-platform settings document that owns the section map.</param>
+    /// <param name="sectionId">Registered section identifier to resolve.</param>
+    /// <returns>Explicitly-authored texture settings section, or <c>null</c> when no payload has been stored.</returns>
+    static TextureAssetProcessorSettings ResolveExplicitTextureProcessorSettings(
+        AssetPlatformProcessorSettings platformSettings,
+        string sectionId) {
+        if (platformSettings == null) {
+            throw new ArgumentNullException(nameof(platformSettings));
+        } else if (string.IsNullOrWhiteSpace(sectionId)) {
+            throw new ArgumentException("Section id must be provided.", nameof(sectionId));
+        }
+
+        if (!platformSettings.Sections.TryGetValue(sectionId, out AssetPlatformSettingsSection section) || section?.Settings == null) {
+            return null;
+        } else if (section.Settings is not TextureAssetProcessorSettings) {
+            throw new InvalidOperationException($"Asset-platform settings section '{sectionId}' stored one '{section.Settings.GetType().Name}' payload instead of '{nameof(TextureAssetProcessorSettings)}'.");
+        }
+
+        return (TextureAssetProcessorSettings)section.Settings;
     }
 
     static TextureAssetProcessorSettings ResolveDefaultTextureProcessorSettings(PlatformAssetCookCapabilityDefinition capability) {
