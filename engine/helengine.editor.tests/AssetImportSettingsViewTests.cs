@@ -333,6 +333,71 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures font assets expose the registered font section for the active platform.
+        /// </summary>
+        [Fact]
+        public void Show_WhenFontSettingsExist_UsesTheActivePlatformFontPixelSize() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            AssetPlatformProcessorSettings dsSettings = new AssetPlatformProcessorSettings();
+            AssetPlatformSettingsSectionRegistry.Shared.SetSection(dsSettings, "font", new FontAssetProcessorSettings {
+                PixelSize = 10
+            });
+            AssetPlatformSettingsSectionRegistry.Shared.SetSection(dsSettings, "texture", new TextureAssetProcessorSettings {
+                MaxResolution = 64,
+                ColorFormat = TextureAssetColorFormat.Indexed8,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8
+            });
+            settings.Platforms["ds"] = dsSettings;
+
+            view.Show(
+                ["test-font"],
+                "test-font",
+                settings,
+                ["windows", "ds"],
+                "ds",
+                AssetEntryKind.Font,
+                CreatePlatformDefinitionsById());
+
+            Assert.True(view.IsFontProcessorVisible);
+            Assert.Equal(10, view.CurrentFontPixelSizeValue);
+        }
+
+        /// <summary>
+        /// Ensures changing one platform font pixel size raises an apply request only for the selected platform.
+        /// </summary>
+        [Fact]
+        public void Apply_WhenFontPixelSizeChanges_RaisesPlatformScopedRequest() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsApplyRequest raisedRequest = null;
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            AssetPlatformProcessorSettings windowsSettings = new AssetPlatformProcessorSettings();
+            AssetPlatformSettingsSectionRegistry.Shared.SetSection(windowsSettings, "font", new FontAssetProcessorSettings {
+                PixelSize = 32
+            });
+            settings.Platforms["windows"] = windowsSettings;
+            view.ApplyRequested += request => raisedRequest = request;
+
+            view.Show(
+                ["test-font"],
+                "test-font",
+                settings,
+                ["windows"],
+                "windows",
+                AssetEntryKind.Font);
+
+            TextBoxComponent fontPixelSizeTextBox = GetPrivateField<TextBoxComponent>(view, "FontPixelSizeTextBox");
+            fontPixelSizeTextBox.Text = "12";
+            InvokePrivate(view, "HandleApplyClicked");
+
+            Assert.NotNull(raisedRequest);
+            FontAssetProcessorSettings savedSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<FontAssetProcessorSettings>(
+                raisedRequest.ProcessorSettings.Platforms["windows"],
+                "font");
+            Assert.Equal(12, savedSettings.PixelSize);
+        }
+
+        /// <summary>
         /// Ensures invalid texture color-format and alpha-precision combinations are repaired to a valid platform-supported pair.
         /// </summary>
         [Fact]

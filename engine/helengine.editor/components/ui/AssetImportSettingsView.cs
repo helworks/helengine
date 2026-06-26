@@ -70,6 +70,10 @@ namespace helengine.editor {
         /// </summary>
         const string TextureIndexingMethodLabel = "Indexing";
         /// <summary>
+        /// Label text used for the font pixel-size processor setting.
+        /// </summary>
+        const string FontPixelSizeLabel = "Pixel Size";
+        /// <summary>
         /// Status prefix used for feedback messages.
         /// </summary>
         const string StatusPrefix = "Status:";
@@ -223,6 +227,22 @@ namespace helengine.editor {
         /// </summary>
         readonly ComboBoxComponent TextureIndexingMethodComboBox;
         /// <summary>
+        /// Host entity for the font pixel-size label.
+        /// </summary>
+        readonly EditorEntity FontPixelSizeLabelHost;
+        /// <summary>
+        /// Text component used to render the font pixel-size label.
+        /// </summary>
+        readonly TextComponent FontPixelSizeLabelText;
+        /// <summary>
+        /// Host entity for the font pixel-size text box.
+        /// </summary>
+        readonly EditorEntity FontPixelSizeTextBoxHost;
+        /// <summary>
+        /// Text box used to edit the font pixel size for the selected platform.
+        /// </summary>
+        readonly TextBoxComponent FontPixelSizeTextBox;
+        /// <summary>
         /// Host entity for the apply button.
         /// </summary>
         readonly EditorEntity ApplyHost;
@@ -287,6 +307,10 @@ namespace helengine.editor {
         /// Tracks whether texture controls are being synchronized from pending platform settings.
         /// </summary>
         bool IsUpdatingTextureControls;
+        /// <summary>
+        /// Tracks whether font controls are being synchronized from pending platform settings.
+        /// </summary>
+        bool IsUpdatingFontControls;
 
         /// <summary>
         /// Raised when the user clicks apply with pending importer or processor changes.
@@ -460,6 +484,25 @@ namespace helengine.editor {
             TextureIndexingMethodComboBox.SelectionChanged += HandleTextureIndexingMethodChanged;
             TextureIndexingMethodComboBoxHost.AddComponent(TextureIndexingMethodComboBox);
 
+            FontPixelSizeLabelHost = new EditorEntity();
+            FontPixelSizeLabelHost.LayerMask = layerMask;
+            RootEntity.AddChild(FontPixelSizeLabelHost);
+
+            FontPixelSizeLabelText = new TextComponent();
+            FontPixelSizeLabelText.Font = font;
+            FontPixelSizeLabelText.Text = FontPixelSizeLabel;
+            FontPixelSizeLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            FontPixelSizeLabelText.RenderOrder2D = TextOrder;
+            FontPixelSizeLabelHost.AddComponent(FontPixelSizeLabelText);
+
+            FontPixelSizeTextBoxHost = new EditorEntity();
+            FontPixelSizeTextBoxHost.LayerMask = layerMask;
+            RootEntity.AddChild(FontPixelSizeTextBoxHost);
+
+            FontPixelSizeTextBox = new TextBoxComponent(new int2(80, ControlHeight), font);
+            FontPixelSizeTextBox.TextChanged += HandleFontPixelSizeTextChanged;
+            FontPixelSizeTextBoxHost.AddComponent(FontPixelSizeTextBox);
+
             ApplyHost = new EditorEntity();
             ApplyHost.LayerMask = layerMask;
             RootEntity.AddChild(ApplyHost);
@@ -521,6 +564,10 @@ namespace helengine.editor {
         /// </summary>
         public bool IsTextureProcessorVisible => CurrentEntryKind == AssetEntryKind.Image || CurrentEntryKind == AssetEntryKind.Font;
         /// <summary>
+        /// Gets a value indicating whether font processor controls are visible.
+        /// </summary>
+        public bool IsFontProcessorVisible => CurrentEntryKind == AssetEntryKind.Font;
+        /// <summary>
         /// Gets a value indicating whether the indexing-method control should be shown for the selected platform texture settings.
         /// </summary>
         public bool IsTextureIndexingMethodVisible => IsTextureProcessorVisible && GetPendingPlatformSettings(CurrentPlatformId).Texture.UsesIndexedColorFormat();
@@ -548,6 +595,10 @@ namespace helengine.editor {
         /// Gets the current pending indexing-method value for the selected platform texture settings.
         /// </summary>
         public TextureAssetIndexingMethod CurrentTextureIndexingMethodValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.ResolveIndexingMethod();
+        /// <summary>
+        /// Gets the current pending pixel-size value for the selected platform font settings.
+        /// </summary>
+        public int CurrentFontPixelSizeValue => GetPendingPlatformSettings(CurrentPlatformId).Font.PixelSize;
 
         /// <summary>
         /// Shows the view with the provided importer list, current settings, and supported platforms.
@@ -701,6 +752,18 @@ namespace helengine.editor {
                 }
             }
 
+            if (IsFontProcessorVisible) {
+                int labelOffsetY = (int)Math.Round((ControlHeight - labelHeight) / 2d);
+                int controlLeft = ProcessorPanelPadding + ProcessorFieldLabelWidth + ProcessorPanelPadding;
+                int controlWidth = Math.Max(1, width - controlLeft - ProcessorPanelPadding);
+
+                FontPixelSizeLabelHost.Position = new float3(ProcessorPanelPadding, currentTop + labelOffsetY, 0.1f);
+                FontPixelSizeLabelText.Size = new int2(ProcessorFieldLabelWidth, labelHeight);
+                FontPixelSizeTextBoxHost.Position = new float3(controlLeft, currentTop, 0.1f);
+                FontPixelSizeTextBox.Size = new int2(controlWidth, ControlHeight);
+                currentTop += ControlHeight + RowSpacing;
+            }
+
             ApplyHost.Position = new float3(ProcessorPanelPadding, currentTop, 0.1f);
 
             currentTop += ControlHeight + RowSpacing;
@@ -842,6 +905,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Applies one pixel-size textbox value to the currently selected platform font settings.
+        /// </summary>
+        /// <param name="component">Text box that raised the change event.</param>
+        void HandleFontPixelSizeTextChanged(TextBoxComponent component) {
+            int pixelSize;
+            if (IsUpdatingFontControls) {
+                return;
+            } else if (!int.TryParse(component.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out pixelSize)) {
+                return;
+            } else if (pixelSize < 1) {
+                throw new InvalidOperationException("Font pixel size must be greater than zero.");
+            }
+
+            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
+            platformSettings.Font.PixelSize = pixelSize;
+            UpdateStatusText();
+        }
+
+        /// <summary>
         /// Handles apply button clicks by raising the apply event when needed.
         /// </summary>
         void HandleApplyClicked() {
@@ -868,6 +950,7 @@ namespace helengine.editor {
 
             bool showModelProcessor = IsModelProcessorVisible;
             bool showTextureProcessor = IsTextureProcessorVisible;
+            bool showFontProcessor = IsFontProcessorVisible;
             FlipWindingLabelHost.Enabled = showModelProcessor;
             FlipWindingCheckBoxHost.Enabled = showModelProcessor;
             TextureMaxResolutionLabelHost.Enabled = showTextureProcessor;
@@ -878,6 +961,8 @@ namespace helengine.editor {
             TextureAlphaPrecisionComboBoxHost.Enabled = showTextureProcessor;
             TextureIndexingMethodLabelHost.Enabled = showTextureProcessor && IsTextureIndexingMethodVisible;
             TextureIndexingMethodComboBoxHost.Enabled = showTextureProcessor && IsTextureIndexingMethodVisible;
+            FontPixelSizeLabelHost.Enabled = showFontProcessor;
+            FontPixelSizeTextBoxHost.Enabled = showFontProcessor;
 
             if (showModelProcessor) {
                 FlipWindingCheckBox.IsChecked = GetPendingPlatformSettings(CurrentPlatformId).Model.FlipWinding;
@@ -885,6 +970,10 @@ namespace helengine.editor {
 
             if (showTextureProcessor) {
                 SyncTextureProcessorControlsFromPendingSettings();
+            }
+
+            if (showFontProcessor) {
+                SyncFontProcessorControlsFromPendingSettings();
             }
 
             UpdatePlatformTabVisualState();
@@ -1037,6 +1126,17 @@ namespace helengine.editor {
             TextureAlphaPrecisionComboBox.SetItems(TextureAlphaPrecisionValues, GetTextureAlphaPrecisionIndex(textureSettings.AlphaPrecision));
             TextureIndexingMethodComboBox.SetItems(TextureIndexingMethodValues, GetTextureIndexingMethodIndex(textureSettings));
             IsUpdatingTextureControls = false;
+        }
+
+        /// <summary>
+        /// Synchronizes the font processor controls from the current pending platform settings.
+        /// </summary>
+        void SyncFontProcessorControlsFromPendingSettings() {
+            FontAssetProcessorSettings fontSettings = GetPendingPlatformSettings(CurrentPlatformId).Font;
+
+            IsUpdatingFontControls = true;
+            FontPixelSizeTextBox.Text = fontSettings.PixelSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            IsUpdatingFontControls = false;
         }
 
         /// <summary>
@@ -1327,8 +1427,14 @@ namespace helengine.editor {
                 return clone;
             }
 
-            clone.Texture = CloneTextureProcessorSettings(platformSettings.Texture);
-            clone.Model = CloneModelProcessorSettings(platformSettings.Model);
+            foreach (KeyValuePair<string, AssetPlatformSettingsSection> pair in platformSettings.Sections) {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null) {
+                    continue;
+                }
+
+                clone.Sections[pair.Key] = AssetPlatformSettingsSectionRegistry.Shared.CloneSection(pair.Key, pair.Value);
+            }
+
             return clone;
         }
 
@@ -1376,17 +1482,7 @@ namespace helengine.editor {
                 string platformId = SupportedPlatformIds[i];
                 AssetPlatformProcessorSettings leftPlatform = ResolvePlatformSettings(left, platformId);
                 AssetPlatformProcessorSettings rightPlatform = ResolvePlatformSettings(right, platformId);
-                if (leftPlatform.Texture.MaxResolution != rightPlatform.Texture.MaxResolution
-                    || leftPlatform.Texture.ColorFormat != rightPlatform.Texture.ColorFormat
-                    || leftPlatform.Texture.AlphaPrecision != rightPlatform.Texture.AlphaPrecision
-                    || !string.Equals(
-                        ResolveTextureIndexingMethodIdForComparison(leftPlatform.Texture),
-                        ResolveTextureIndexingMethodIdForComparison(rightPlatform.Texture),
-                        StringComparison.Ordinal)) {
-                    return false;
-                }
-
-                if (leftPlatform.Model.FlipWinding != rightPlatform.Model.FlipWinding) {
+                if (!AssetPlatformSettingsSectionRegistry.Shared.SectionsEqual(leftPlatform, rightPlatform)) {
                     return false;
                 }
             }
