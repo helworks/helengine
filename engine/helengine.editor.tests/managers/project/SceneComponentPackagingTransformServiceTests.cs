@@ -119,7 +119,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures builder-owned font-atlas texture capabilities externalize imported font atlases through the shared generic texture path.
+        /// Ensures builder-owned font-atlas texture capabilities externalize imported font atlases through the dedicated cook kind while keeping the shared runtime texture path.
         /// </summary>
         [Fact]
         public void TryTransform_WhenPlatformOwnsFontAtlasTextureCooking_ExternalizesImportedFontAtlasUsingGenericTexturePath() {
@@ -134,7 +134,7 @@ namespace helengine.editor.tests {
             Assert.True(transformed);
             Assert.NotNull(transformedRecord);
             PlatformCookWorkItem workItem = Assert.Single(workItems);
-            Assert.Equal("texture", workItem.SourceAssetKind);
+            Assert.Equal("font-atlas-texture", workItem.SourceAssetKind);
             Assert.Equal(".hetex", Path.GetExtension(workItem.SourceAssetPath));
             Assert.Contains(Path.Combine(ProjectRootPath, "cache", "generated", "platform-fonts"), workItem.SourceAssetPath, StringComparison.OrdinalIgnoreCase);
             Assert.Equal("cooked/fonts/demodisctitle.hetex", workItem.OutputRelativePath);
@@ -531,9 +531,9 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Creates one minimal platform definition whose texture cook is owned by the builder and reused for font atlas outputs.
+        /// Creates one minimal platform definition whose dedicated font-atlas cook is owned by the builder.
         /// </summary>
-        /// <returns>Minimal platform definition with one builder-owned texture cook capability.</returns>
+        /// <returns>Minimal platform definition with one builder-owned font-atlas cook capability.</returns>
         static PlatformDefinition CreateBuilderOwnedFontAtlasPlatformDefinition() {
             return new PlatformDefinition(
                 "external-platform",
@@ -550,11 +550,13 @@ namespace helengine.editor.tests {
                 PlatformHostDebugCapability.CreateDefault(),
                 new[] {
                     new PlatformAssetCookCapabilityDefinition(
-                        "texture",
+                        "font-atlas-texture",
                         "runtime-texture",
                         PlatformAssetCookOwnershipKind.BuilderOwned,
                         "texture.settings",
-                        "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\",\"indexingMethod\":\"QuantizedIndexed\"}")
+                        "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\",\"indexingMethod\":\"QuantizedIndexed\"}",
+                        null,
+                        ".hetex")
                 });
         }
 
@@ -581,11 +583,13 @@ namespace helengine.editor.tests {
                 PlatformHostDebugCapability.CreateDefault(),
                 new[] {
                     new PlatformAssetCookCapabilityDefinition(
-                        "texture",
+                        "font-atlas-texture",
                         "runtime-texture",
                         PlatformAssetCookOwnershipKind.BuilderOwned,
                         "texture.settings",
-                        "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\",\"indexingMethod\":\"QuantizedIndexed\"}")
+                        "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A8\",\"indexingMethod\":\"QuantizedIndexed\"}",
+                        null,
+                        ".hetex")
                 });
         }
 

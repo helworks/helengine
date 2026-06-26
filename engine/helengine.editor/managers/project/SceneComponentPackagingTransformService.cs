@@ -766,7 +766,7 @@ namespace helengine.editor {
         SceneAssetReference RewriteFileSystemFontReference(SceneAssetReference reference, string buildRootPath) {
             string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
             string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
-            if (SupportsBuilderOwnedPlatformCookKind("texture")) {
+            if (SupportsBuilderOwnedFontAtlasCookKind()) {
                 string cookedAtlasTextureRelativePath = BuildCookedFontAtlasTextureRelativePath(reference.RelativePath);
                 if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
                     FontAsset sourceFontAsset = LoadPackagedFontAssetForPackaging(sourcePath);
@@ -1227,7 +1227,7 @@ namespace helengine.editor {
         }
 
         void RememberFontCookWorkItem(string sourceAssetPath, string cookedRelativePath, AssetImportSettings settings) {
-            if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedPlatformCookKind("texture")) {
+            if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedFontAtlasCookKind()) {
                 return;
             } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
                 throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
@@ -1257,7 +1257,7 @@ namespace helengine.editor {
         /// <param name="cookedRelativePath">Runtime-relative cooked atlas texture path the builder must produce.</param>
         /// <param name="sourceAssetId">Stable identifier of the generated source texture asset, or an empty string when the output path should become the fallback identifier.</param>
         void RememberGeneratedFontCookWorkItem(string sourceAssetPath, string cookedRelativePath, string sourceAssetId) {
-            if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedPlatformCookKind("texture")) {
+            if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedFontAtlasCookKind()) {
                 return;
             } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
                 throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
@@ -1304,6 +1304,52 @@ namespace helengine.editor {
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Returns whether the selected platform publishes one builder-owned font-atlas cook capability or a generic texture fallback for font atlases.
+        /// </summary>
+        /// <returns>True when the builder should own cooked font-atlas generation for the selected platform.</returns>
+        bool SupportsBuilderOwnedFontAtlasCookKind() {
+            return ResolveBuilderOwnedFontAtlasCookCapability() != null;
+        }
+
+        /// <summary>
+        /// Resolves the builder-owned cook capability used for externalized packaged font atlases.
+        /// </summary>
+        /// <returns>Dedicated font-atlas capability when published; otherwise a generic builder-owned texture capability; otherwise null.</returns>
+        PlatformAssetCookCapabilityDefinition ResolveBuilderOwnedFontAtlasCookCapability() {
+            return ResolveBuilderOwnedPlatformCookCapability("font-atlas-texture")
+                ?? ResolveBuilderOwnedPlatformCookCapability("texture");
+        }
+
+        /// <summary>
+        /// Resolves one builder-owned cook capability by source asset kind.
+        /// </summary>
+        /// <param name="sourceAssetKind">Generic source asset kind to probe.</param>
+        /// <returns>Resolved builder-owned cook capability, or null when the platform does not publish one.</returns>
+        PlatformAssetCookCapabilityDefinition ResolveBuilderOwnedPlatformCookCapability(string sourceAssetKind) {
+            if (PlatformDefinition == null) {
+                return null;
+            } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
+                throw new ArgumentException("Source asset kind must be provided.", nameof(sourceAssetKind));
+            }
+
+            PlatformAssetCookCapabilityDefinition[] capabilities = PlatformDefinition.AssetCookCapabilities ?? [];
+            for (int index = 0; index < capabilities.Length; index++) {
+                PlatformAssetCookCapabilityDefinition capability = capabilities[index];
+                if (capability == null) {
+                    continue;
+                }
+                if (!string.Equals(capability.SourceAssetKind, sourceAssetKind, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (capability.OwnershipKind == PlatformAssetCookOwnershipKind.BuilderOwned) {
+                    return capability;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -1732,7 +1778,11 @@ namespace helengine.editor {
         /// <returns>Cooked packaged atlas-texture relative path.</returns>
         string BuildCookedFontAtlasTextureRelativePath(string relativePath) {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hetex");
+            PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedFontAtlasCookCapability();
+            string outputExtension = capability == null || string.IsNullOrWhiteSpace(capability.OutputFileExtension)
+                ? ".hetex"
+                : capability.OutputFileExtension;
+            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, outputExtension);
             return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
         }
 
