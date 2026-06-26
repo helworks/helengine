@@ -62,5 +62,17 @@ namespace helengine.editor {
                 AssetPlatformSettingsSectionRegistry.Shared.SetSection(this, FontAssetPlatformSettingsSectionDefinition.SectionIdValue, value ?? throw new ArgumentNullException(nameof(value)));
             }
         }
+
+        /// <summary>
+        /// Gets or sets the processor settings that affect generated font-atlas texture cooking on this platform.
+        /// </summary>
+        public TextureAssetProcessorSettings FontAtlasTexture {
+            get {
+                return AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<TextureAssetProcessorSettings>(this, FontAtlasTextureAssetPlatformSettingsSectionDefinition.SectionIdValue);
+            }
+            set {
+                AssetPlatformSettingsSectionRegistry.Shared.SetSection(this, FontAtlasTextureAssetPlatformSettingsSectionDefinition.SectionIdValue, value ?? throw new ArgumentNullException(nameof(value)));
+            }
+        }
     }
 }

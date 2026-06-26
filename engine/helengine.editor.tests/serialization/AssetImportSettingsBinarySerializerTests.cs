@@ -34,6 +34,12 @@ namespace helengine.editor.tests.serialization {
             AssetPlatformSettingsSectionRegistry.Shared.SetSection(windowsSettings, "font", new FontAssetProcessorSettings {
                 PixelSize = 14
             });
+            AssetPlatformSettingsSectionRegistry.Shared.SetSection(windowsSettings, "font-atlas-texture", new TextureAssetProcessorSettings {
+                MaxResolution = 0,
+                ColorFormat = TextureAssetColorFormat.Indexed4,
+                AlphaPrecision = TextureAssetAlphaPrecision.Binary,
+                IndexingMethodId = TextureAssetIndexingMethod.QuantizedIndexed.ToString()
+            });
             settings.Processor.Platforms["windows"] = windowsSettings;
 
             using MemoryStream stream = new MemoryStream();
@@ -44,8 +50,13 @@ namespace helengine.editor.tests.serialization {
             FontAssetProcessorSettings fontSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<FontAssetProcessorSettings>(
                 deserialized.Processor.Platforms["windows"],
                 "font");
+            TextureAssetProcessorSettings fontAtlasSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<TextureAssetProcessorSettings>(
+                deserialized.Processor.Platforms["windows"],
+                "font-atlas-texture");
 
             Assert.Equal(14, fontSettings.PixelSize);
+            Assert.Equal(TextureAssetColorFormat.Indexed4, fontAtlasSettings.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.Binary, fontAtlasSettings.AlphaPrecision);
         }
     }
 }

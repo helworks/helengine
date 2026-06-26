@@ -18,6 +18,20 @@ namespace helengine.editor.tests.managers.asset {
         }
 
         /// <summary>
+        /// Ensures the built-in font-atlas texture section creates one default texture payload through the typed convenience property.
+        /// </summary>
+        [Fact]
+        public void FontAtlasTexture_WhenSectionIsMissing_CreatesDefaultTextureProcessorSettings() {
+            AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
+
+            TextureAssetProcessorSettings fontAtlasSettings = platformSettings.FontAtlasTexture;
+
+            Assert.NotNull(fontAtlasSettings);
+            Assert.Equal(TextureAssetColorFormat.Rgba32, fontAtlasSettings.ColorFormat);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, fontAtlasSettings.AlphaPrecision);
+        }
+
+        /// <summary>
         /// Ensures requesting a section through the wrong payload type fails explicitly.
         /// </summary>
         [Fact]

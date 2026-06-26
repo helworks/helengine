@@ -19,6 +19,7 @@ namespace helengine.editor {
         public AssetPlatformSettingsSectionRegistry() {
             DefinitionsById = new Dictionary<string, IAssetPlatformSettingsSectionDefinition>(StringComparer.OrdinalIgnoreCase);
             RegisterDefinition(new TextureAssetPlatformSettingsSectionDefinition());
+            RegisterDefinition(new FontAtlasTextureAssetPlatformSettingsSectionDefinition());
             RegisterDefinition(new ModelAssetPlatformSettingsSectionDefinition());
             RegisterDefinition(new MaterialAssetPlatformSettingsSectionDefinition());
             RegisterDefinition(new FontAssetPlatformSettingsSectionDefinition());
