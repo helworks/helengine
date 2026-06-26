@@ -9,11 +9,24 @@ namespace helengine {
         StaticMeshCollisionData3D CollisionDataValue;
 
         /// <summary>
+        /// Backing field for the optional cooked runtime payload.
+        /// </summary>
+        StaticMeshCollisionRuntimeData3D CookedRuntimeDataValue;
+
+        /// <summary>
         /// Gets or sets the cooked static collision data queried by the runtime.
         /// </summary>
         public StaticMeshCollisionData3D CollisionData {
             get { return CollisionDataValue; }
             set { CollisionDataValue = value ?? throw new ArgumentNullException(nameof(value)); }
+        }
+
+        /// <summary>
+        /// Gets or sets the optional cooked runtime payload generated for the active physics backend.
+        /// </summary>
+        public StaticMeshCollisionRuntimeData3D CookedRuntimeData {
+            get { return CookedRuntimeDataValue; }
+            set { CookedRuntimeDataValue = value; }
         }
     }
 }
