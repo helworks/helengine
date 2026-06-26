@@ -148,6 +148,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures font assets read their previewed texture settings from the dedicated font-atlas texture section instead of the generic image texture section.
+        /// </summary>
+        [Fact]
+        public void Show_WhenFontAtlasTextureProcessorSettingsExist_UsesTheActivePlatformFontAtlasTextureValues() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["ds"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 256,
+                    ColorFormat = TextureAssetColorFormat.Rgba4444,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A4
+                },
+                FontAtlasTexture = new TextureAssetProcessorSettings {
+                    MaxResolution = 64,
+                    ColorFormat = TextureAssetColorFormat.Indexed4,
+                    AlphaPrecision = TextureAssetAlphaPrecision.Binary
+                }
+            };
+
+            view.Show(
+                ["test-font"],
+                "test-font",
+                settings,
+                ["windows", "ds"],
+                "ds",
+                AssetEntryKind.Font,
+                CreatePlatformDefinitionsById());
+
+            Assert.True(view.IsTextureProcessorVisible);
+            Assert.Equal(64, view.CurrentTextureMaxResolutionValue);
+            Assert.Equal(TextureAssetColorFormat.Indexed4, view.CurrentTextureColorFormatValue);
+            Assert.Equal(TextureAssetAlphaPrecision.Binary, view.CurrentTextureAlphaPrecisionValue);
+        }
+
+        /// <summary>
         /// Ensures indexed texture formats expose the shared indexing-method selector and default legacy blank settings to the quantized method in the UI.
         /// </summary>
         [Fact]
@@ -300,14 +335,14 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures font atlas texture settings use the generic platform texture capability metadata.
+        /// Ensures font atlas texture settings use the dedicated font-atlas platform texture capability metadata.
         /// </summary>
         [Fact]
         public void Show_WhenFontTextureCapabilityMetadataExists_ConstrainsFontTextureFormatOptions() {
             AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
-                Texture = new TextureAssetProcessorSettings {
+                FontAtlasTexture = new TextureAssetProcessorSettings {
                     MaxResolution = 64,
                     ColorFormat = TextureAssetColorFormat.Indexed8,
                     AlphaPrecision = TextureAssetAlphaPrecision.A8
@@ -328,8 +363,8 @@ namespace helengine.editor.tests {
             List<string> colorItems = GetPrivateField<List<string>>(colorComboBox, "items");
             List<string> alphaItems = GetPrivateField<List<string>>(alphaComboBox, "items");
 
-            Assert.Equal([TextureAssetColorFormat.Rgba4444.ToString(), TextureAssetColorFormat.Indexed8.ToString()], colorItems);
-            Assert.Equal([TextureAssetAlphaPrecision.A4.ToString(), TextureAssetAlphaPrecision.A8.ToString()], alphaItems);
+            Assert.Equal([TextureAssetColorFormat.Indexed4.ToString(), TextureAssetColorFormat.Indexed8.ToString()], colorItems);
+            Assert.Equal([TextureAssetAlphaPrecision.Binary.ToString(), TextureAssetAlphaPrecision.A8.ToString()], alphaItems);
         }
 
         /// <summary>
@@ -343,7 +378,7 @@ namespace helengine.editor.tests {
             AssetPlatformSettingsSectionRegistry.Shared.SetSection(dsSettings, "font", new FontAssetProcessorSettings {
                 PixelSize = 10
             });
-            AssetPlatformSettingsSectionRegistry.Shared.SetSection(dsSettings, "texture", new TextureAssetProcessorSettings {
+            AssetPlatformSettingsSectionRegistry.Shared.SetSection(dsSettings, "font-atlas-texture", new TextureAssetProcessorSettings {
                 MaxResolution = 64,
                 ColorFormat = TextureAssetColorFormat.Indexed8,
                 AlphaPrecision = TextureAssetAlphaPrecision.A8
@@ -361,6 +396,44 @@ namespace helengine.editor.tests {
 
             Assert.True(view.IsFontProcessorVisible);
             Assert.Equal(10, view.CurrentFontPixelSizeValue);
+        }
+
+        /// <summary>
+        /// Ensures shared texture handlers update the dedicated font-atlas texture section when editing a font asset.
+        /// </summary>
+        [Fact]
+        public void HandleTextureColorFormatChanged_WhenFontEntryIsActive_UpdatesFontAtlasTextureSettingsOnly() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsApplyRequest raisedRequest = null;
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 256,
+                    ColorFormat = TextureAssetColorFormat.Rgba4444,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A4
+                },
+                FontAtlasTexture = new TextureAssetProcessorSettings {
+                    MaxResolution = 64,
+                    ColorFormat = TextureAssetColorFormat.Indexed4,
+                    AlphaPrecision = TextureAssetAlphaPrecision.Binary
+                }
+            };
+            view.ApplyRequested += request => raisedRequest = request;
+
+            view.Show(
+                ["test-font"],
+                "test-font",
+                settings,
+                ["external-platform"],
+                "external-platform",
+                AssetEntryKind.Font,
+                CreatePlatformDefinitionsById());
+            InvokePrivate(view, "HandleTextureColorFormatChanged", 1, TextureAssetColorFormat.Indexed8.ToString());
+            InvokePrivate(view, "HandleApplyClicked");
+
+            Assert.NotNull(raisedRequest);
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, raisedRequest.ProcessorSettings.Platforms["external-platform"].Texture.ColorFormat);
+            Assert.Equal(TextureAssetColorFormat.Indexed8, raisedRequest.ProcessorSettings.Platforms["external-platform"].FontAtlasTexture.ColorFormat);
         }
 
         /// <summary>
@@ -601,7 +674,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Creates one platform-definition map that publishes generic texture capability metadata shared by image and font atlas settings.
+        /// Creates one platform-definition map that publishes separate image-texture and font-atlas texture capability metadata.
         /// </summary>
         /// <returns>Platform definitions keyed by platform id.</returns>
         IReadOnlyDictionary<string, PlatformDefinition> CreatePlatformDefinitionsById() {
@@ -628,6 +701,18 @@ namespace helengine.editor.tests {
                                 [TextureAssetAlphaPrecision.A4, TextureAssetAlphaPrecision.A8],
                                 [
                                     new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Rgba4444.ToString(), TextureAssetAlphaPrecision.A4),
+                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8.ToString(), TextureAssetAlphaPrecision.A8)
+                                ])),
+                        new PlatformAssetCookCapabilityDefinition(
+                            "font-atlas-texture",
+                            "runtime-texture",
+                            PlatformAssetCookOwnershipKind.BuilderOwned,
+                            "external-platform-font-atlas-texture",
+                            textureFormatCapabilities: new PlatformTextureFormatCapabilityDefinition(
+                                [TextureAssetColorFormat.Indexed4.ToString(), TextureAssetColorFormat.Indexed8.ToString()],
+                                [TextureAssetAlphaPrecision.Binary, TextureAssetAlphaPrecision.A8],
+                                [
+                                    new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed4.ToString(), TextureAssetAlphaPrecision.Binary),
                                     new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Indexed8.ToString(), TextureAssetAlphaPrecision.A8)
                                 ])),
                     ])

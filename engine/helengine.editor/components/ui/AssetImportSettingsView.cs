@@ -292,6 +292,10 @@ namespace helengine.editor {
         /// </summary>
         const string ImageTextureCapabilitySourceAssetKind = "texture";
         /// <summary>
+        /// Texture capability source asset kind used for generated font atlas entries.
+        /// </summary>
+        const string FontAtlasTextureCapabilitySourceAssetKind = "font-atlas-texture";
+        /// <summary>
         /// Cached height of the view in pixels.
         /// </summary>
         int LayoutHeightValue;
@@ -570,7 +574,7 @@ namespace helengine.editor {
         /// <summary>
         /// Gets a value indicating whether the indexing-method control should be shown for the selected platform texture settings.
         /// </summary>
-        public bool IsTextureIndexingMethodVisible => IsTextureProcessorVisible && GetPendingPlatformSettings(CurrentPlatformId).Texture.UsesIndexedColorFormat();
+        public bool IsTextureIndexingMethodVisible => IsTextureProcessorVisible && GetActiveTextureProcessorSettings().UsesIndexedColorFormat();
 
         /// <summary>
         /// Gets the current pending flip-winding value for the selected platform.
@@ -580,21 +584,21 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the current pending max-resolution value for the selected platform texture settings.
         /// </summary>
-        public int CurrentTextureMaxResolutionValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.MaxResolution;
+        public int CurrentTextureMaxResolutionValue => GetActiveTextureProcessorSettings().MaxResolution;
 
         /// <summary>
         /// Gets the current pending color-format value for the selected platform texture settings.
         /// </summary>
-        public TextureAssetColorFormat CurrentTextureColorFormatValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.ColorFormat;
+        public TextureAssetColorFormat CurrentTextureColorFormatValue => GetActiveTextureProcessorSettings().ColorFormat;
 
         /// <summary>
         /// Gets the current pending alpha-precision value for the selected platform texture settings.
         /// </summary>
-        public TextureAssetAlphaPrecision CurrentTextureAlphaPrecisionValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.AlphaPrecision;
+        public TextureAssetAlphaPrecision CurrentTextureAlphaPrecisionValue => GetActiveTextureProcessorSettings().AlphaPrecision;
         /// <summary>
         /// Gets the current pending indexing-method value for the selected platform texture settings.
         /// </summary>
-        public TextureAssetIndexingMethod CurrentTextureIndexingMethodValue => GetPendingPlatformSettings(CurrentPlatformId).Texture.ResolveIndexingMethod();
+        public TextureAssetIndexingMethod CurrentTextureIndexingMethodValue => GetActiveTextureProcessorSettings().ResolveIndexingMethod();
         /// <summary>
         /// Gets the current pending pixel-size value for the selected platform font settings.
         /// </summary>
@@ -838,8 +842,8 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Texture max resolution must not be negative.");
             }
 
-            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
-            platformSettings.Texture.MaxResolution = maxResolution;
+            TextureAssetProcessorSettings textureSettings = GetActiveTextureProcessorSettings();
+            textureSettings.MaxResolution = maxResolution;
             UpdateStatusText();
         }
 
@@ -855,10 +859,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Texture color format selection was not provided.");
             }
 
-            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
-            platformSettings.Texture.ColorFormatId = selectedValue;
-            RepairTextureFormatSelection(platformSettings.Texture);
-            ApplyDefaultTextureIndexingMethodIfNeeded(platformSettings.Texture);
+            TextureAssetProcessorSettings textureSettings = GetActiveTextureProcessorSettings();
+            textureSettings.ColorFormatId = selectedValue;
+            RepairTextureFormatSelection(textureSettings);
+            ApplyDefaultTextureIndexingMethodIfNeeded(textureSettings);
             UpdateStatusText();
             SyncTextureProcessorControlsFromPendingSettings();
         }
@@ -875,9 +879,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Texture alpha precision selection was not provided.");
             }
 
-            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
-            platformSettings.Texture.AlphaPrecision = Enum.Parse<TextureAssetAlphaPrecision>(selectedValue, false);
-            RepairTextureFormatSelection(platformSettings.Texture);
+            TextureAssetProcessorSettings textureSettings = GetActiveTextureProcessorSettings();
+            textureSettings.AlphaPrecision = Enum.Parse<TextureAssetAlphaPrecision>(selectedValue, false);
+            RepairTextureFormatSelection(textureSettings);
             UpdateStatusText();
             SyncTextureProcessorControlsFromPendingSettings();
         }
@@ -894,12 +898,12 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Texture indexing method selection was not provided.");
             }
 
-            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
-            if (!platformSettings.Texture.UsesIndexedColorFormat()) {
+            TextureAssetProcessorSettings textureSettings = GetActiveTextureProcessorSettings();
+            if (!textureSettings.UsesIndexedColorFormat()) {
                 throw new InvalidOperationException("Texture indexing method can only be changed for indexed color formats.");
             }
 
-            platformSettings.Texture.IndexingMethodId = selectedValue;
+            textureSettings.IndexingMethodId = selectedValue;
             UpdateStatusText();
             SyncTextureProcessorControlsFromPendingSettings();
         }
@@ -1116,7 +1120,7 @@ namespace helengine.editor {
         /// Synchronizes the texture processor controls from the current pending platform settings.
         /// </summary>
         void SyncTextureProcessorControlsFromPendingSettings() {
-            TextureAssetProcessorSettings textureSettings = GetPendingPlatformSettings(CurrentPlatformId).Texture;
+            TextureAssetProcessorSettings textureSettings = GetActiveTextureProcessorSettings();
             RepairTextureFormatSelection(textureSettings);
             SyncTextureFormatValues();
 
@@ -1156,6 +1160,19 @@ namespace helengine.editor {
 
                 PlatformDefinitionsById[pair.Key] = pair.Value;
             }
+        }
+
+        /// <summary>
+        /// Resolves the active texture processor settings for the selected platform and asset kind.
+        /// </summary>
+        /// <returns>Texture processor settings currently being edited.</returns>
+        TextureAssetProcessorSettings GetActiveTextureProcessorSettings() {
+            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
+            if (CurrentEntryKind == AssetEntryKind.Font) {
+                return platformSettings.FontAtlasTexture;
+            }
+
+            return platformSettings.Texture;
         }
 
         /// <summary>
@@ -1248,9 +1265,28 @@ namespace helengine.editor {
                 return null;
             }
 
+            if (CurrentEntryKind == AssetEntryKind.Font) {
+                PlatformTextureFormatCapabilityDefinition fontAtlasCapability = ResolveTextureFormatCapability(platformDefinition, FontAtlasTextureCapabilitySourceAssetKind);
+                if (fontAtlasCapability != null) {
+                    return fontAtlasCapability;
+                }
+            }
+
             string sourceAssetKind = ResolveTextureCapabilitySourceAssetKind();
-            if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
-                return null;
+            return string.IsNullOrWhiteSpace(sourceAssetKind) ? null : ResolveTextureFormatCapability(platformDefinition, sourceAssetKind);
+        }
+
+        /// <summary>
+        /// Resolves texture capability metadata for one explicit source asset kind on one platform definition.
+        /// </summary>
+        /// <param name="platformDefinition">Platform definition publishing the cook capabilities.</param>
+        /// <param name="sourceAssetKind">Source asset kind to match.</param>
+        /// <returns>Matching texture format capability metadata, or <c>null</c> when the platform does not publish it.</returns>
+        PlatformTextureFormatCapabilityDefinition ResolveTextureFormatCapability(PlatformDefinition platformDefinition, string sourceAssetKind) {
+            if (platformDefinition == null) {
+                throw new ArgumentNullException(nameof(platformDefinition));
+            } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
+                throw new ArgumentException("Texture capability source asset kind must be provided.", nameof(sourceAssetKind));
             }
 
             for (int i = 0; i < platformDefinition.AssetCookCapabilities.Length; i++) {
