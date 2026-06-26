@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 8;
+        public const byte CurrentVersion = 9;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -61,39 +61,21 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Asset import settings cannot contain a blank processor platform id.");
                 } else if (entry.Value == null) {
                     throw new InvalidOperationException($"Asset import settings must include processor settings for platform '{entry.Key}'.");
-                } else if (entry.Value.Texture == null) {
-                    throw new InvalidOperationException($"Asset import settings must include texture processor settings for platform '{entry.Key}'.");
-                } else if (entry.Value.Texture.MaxResolution < 0) {
-                    throw new InvalidOperationException($"Asset import settings cannot contain a negative texture max resolution for platform '{entry.Key}'.");
-                } else if (string.IsNullOrWhiteSpace(entry.Value.Texture.ColorFormatId)) {
-                    throw new InvalidOperationException($"Asset import settings cannot contain a blank texture color format id for platform '{entry.Key}'.");
-                } else if (!IsSupportedAlphaPrecision(entry.Value.Texture.AlphaPrecision)) {
-                    throw new InvalidOperationException($"Asset import settings cannot contain unsupported texture alpha precision '{entry.Value.Texture.AlphaPrecision}' for platform '{entry.Key}'.");
-                } else if (entry.Value.Model == null) {
-                    throw new InvalidOperationException($"Asset import settings must include model processor settings for platform '{entry.Key}'.");
-                } else if (entry.Value.Material == null) {
-                    throw new InvalidOperationException($"Asset import settings must include material processor settings for platform '{entry.Key}'.");
-                } else if (entry.Value.Material.FieldValues == null) {
-                    throw new InvalidOperationException($"Asset import settings must include material field values for platform '{entry.Key}'.");
+                } else if (entry.Value.Sections == null) {
+                    throw new InvalidOperationException($"Asset import settings must include registered processor settings sections for platform '{entry.Key}'.");
                 }
 
                 writer.WriteString(entry.Key);
-                writer.WriteByte(entry.Value.Model.FlipWinding ? (byte)1 : (byte)0);
-                writer.WriteInt32(entry.Value.Texture.MaxResolution);
-                writer.WriteString(entry.Value.Texture.ColorFormatId);
-                writer.WriteByte((byte)entry.Value.Texture.AlphaPrecision);
-                writer.WriteString(entry.Value.Texture.IndexingMethodId ?? string.Empty);
-                writer.WriteString(entry.Value.Material.SchemaId ?? string.Empty);
-                writer.WriteInt32(entry.Value.Material.FieldValues.Count);
-                foreach (KeyValuePair<string, string> fieldEntry in entry.Value.Material.FieldValues) {
-                    if (string.IsNullOrWhiteSpace(fieldEntry.Key)) {
-                        throw new InvalidOperationException($"Asset import settings cannot contain a blank material field id for platform '{entry.Key}'.");
-                    } else if (fieldEntry.Value == null) {
-                        throw new InvalidOperationException($"Asset import settings cannot contain a null material field value for platform '{entry.Key}'.");
+                writer.WriteInt32(entry.Value.Sections.Count);
+                foreach (KeyValuePair<string, AssetPlatformSettingsSection> sectionEntry in entry.Value.Sections) {
+                    if (string.IsNullOrWhiteSpace(sectionEntry.Key)) {
+                        throw new InvalidOperationException($"Asset import settings cannot contain a blank processor section id for platform '{entry.Key}'.");
+                    } else if (sectionEntry.Value == null) {
+                        throw new InvalidOperationException($"Asset import settings cannot contain a null processor section for platform '{entry.Key}'.");
                     }
 
-                    writer.WriteString(fieldEntry.Key);
-                    writer.WriteString(fieldEntry.Value);
+                    writer.WriteString(sectionEntry.Key);
+                    AssetPlatformSettingsSectionRegistry.Shared.SerializeSection(writer, sectionEntry.Key, sectionEntry.Value.Settings);
                 }
             }
         }
@@ -128,37 +110,23 @@ namespace helengine.editor {
                 }
 
                 AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
-                platformSettings.Model.FlipWinding = ReadBooleanByte(reader);
-                platformSettings.Texture.MaxResolution = reader.ReadInt32();
-                if (platformSettings.Texture.MaxResolution < 0) {
-                    throw new InvalidOperationException($"Asset import settings cannot contain a negative texture max resolution for platform '{platformId}'.");
-                }
-                platformSettings.Texture.ColorFormatId = header.Version >= CurrentVersion
-                    ? reader.ReadString()
-                    : (header.Version >= 5
-                        ? ReadLegacyTextureAssetColorFormat(reader).ToString()
-                        : TextureAssetColorFormat.Rgba32.ToString());
-                platformSettings.Texture.AlphaPrecision = header.Version >= 6
-                    ? ReadTextureAssetAlphaPrecision(reader)
-                    : TextureAssetAlphaPrecision.A8;
-                platformSettings.Texture.IndexingMethodId = header.Version >= CurrentVersion
-                    ? reader.ReadString()
-                    : string.Empty;
-                platformSettings.Material.SchemaId = reader.ReadString();
-
-                int fieldValueCount = reader.ReadInt32();
-                if (fieldValueCount < 0) {
-                    throw new InvalidOperationException("Asset import settings material field count cannot be negative.");
+                int sectionCount = reader.ReadInt32();
+                if (sectionCount < 0) {
+                    throw new InvalidOperationException("Asset import settings section count cannot be negative.");
                 }
 
-                for (int fieldIndex = 0; fieldIndex < fieldValueCount; fieldIndex++) {
-                    string fieldId = reader.ReadString();
-                    if (string.IsNullOrWhiteSpace(fieldId)) {
-                        throw new InvalidOperationException("Asset import settings cannot contain a blank material field id.");
+                for (int sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+                    string sectionId = reader.ReadString();
+                    if (string.IsNullOrWhiteSpace(sectionId)) {
+                        throw new InvalidOperationException("Asset import settings cannot contain a blank processor section id.");
+                    } else if (platformSettings.Sections.ContainsKey(sectionId)) {
+                        throw new InvalidOperationException($"Asset import settings cannot contain duplicate processor section id '{sectionId}' for platform '{platformId}'.");
                     }
 
-                    platformSettings.Material.FieldValues.Add(fieldId, reader.ReadString());
+                    object sectionSettings = AssetPlatformSettingsSectionRegistry.Shared.DeserializeSection(reader, sectionId);
+                    platformSettings.Sections.Add(sectionId, new AssetPlatformSettingsSection(sectionId, sectionSettings));
                 }
+
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }
 
@@ -178,89 +146,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected asset import settings record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)ValueKind) {
                 throw new InvalidOperationException($"Unexpected asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version < 4 || header.Version > CurrentVersion) {
+            } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset import settings binary version '{header.Version}'.");
             }
-        }
-
-        /// <summary>
-        /// Reads a boolean encoded as a single byte where zero means false and one means true.
-        /// </summary>
-        /// <param name="reader">Reader positioned at the encoded boolean value.</param>
-        /// <returns>Decoded boolean value.</returns>
-        static bool ReadBooleanByte(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            byte value = reader.ReadByte();
-            if (value == 0) {
-                return false;
-            } else if (value == 1) {
-                return true;
-            }
-
-            throw new InvalidOperationException($"Unsupported asset import settings boolean value '{value}'.");
-        }
-
-        /// <summary>
-        /// Reads one serialized texture color-format value.
-        /// </summary>
-        /// <param name="reader">Reader positioned at the texture format byte.</param>
-        /// <returns>Decoded texture color format.</returns>
-        static TextureAssetColorFormat ReadLegacyTextureAssetColorFormat(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            byte serializedValue = reader.ReadByte();
-            if (serializedValue == (byte)TextureAssetColorFormat.Rgba32) {
-                return TextureAssetColorFormat.Rgba32;
-            } else if (serializedValue == (byte)TextureAssetColorFormat.Rgba4444) {
-                return TextureAssetColorFormat.Rgba4444;
-            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed4) {
-                return TextureAssetColorFormat.Indexed4;
-            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
-                return TextureAssetColorFormat.Indexed8;
-            }
-
-            throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
-        }
-
-        /// <summary>
-        /// Reads one serialized texture alpha-precision value.
-        /// </summary>
-        /// <param name="reader">Reader positioned at the texture alpha-precision byte.</param>
-        /// <returns>Decoded texture alpha precision.</returns>
-        static TextureAssetAlphaPrecision ReadTextureAssetAlphaPrecision(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            byte serializedValue = reader.ReadByte();
-            if (serializedValue == (byte)TextureAssetAlphaPrecision.Opaque) {
-                return TextureAssetAlphaPrecision.Opaque;
-            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.Binary) {
-                return TextureAssetAlphaPrecision.Binary;
-            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A4) {
-                return TextureAssetAlphaPrecision.A4;
-            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A8) {
-                return TextureAssetAlphaPrecision.A8;
-            }
-
-            throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");
-        }
-
-        /// <summary>
-        /// Determines whether one texture alpha precision can be serialized by this settings document.
-        /// </summary>
-        /// <param name="alphaPrecision">Texture alpha precision to validate.</param>
-        /// <returns>True when the alpha precision is supported.</returns>
-        static bool IsSupportedAlphaPrecision(TextureAssetAlphaPrecision alphaPrecision) {
-            return alphaPrecision == TextureAssetAlphaPrecision.Opaque
-                || alphaPrecision == TextureAssetAlphaPrecision.Binary
-                || alphaPrecision == TextureAssetAlphaPrecision.A4
-                || alphaPrecision == TextureAssetAlphaPrecision.A8;
         }
     }
 }
