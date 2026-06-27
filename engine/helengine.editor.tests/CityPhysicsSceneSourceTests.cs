@@ -190,9 +190,14 @@ public sealed class CityPhysicsSceneSourceTests {
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("CreateStaticMeshMinimalScene()", source, StringComparison.Ordinal);
-        Assert.Contains("test_scene_static_mesh_minimal", source, StringComparison.Ordinal);
-        Assert.Contains("\"Ground\"", source, StringComparison.Ordinal);
-        Assert.Contains("\"PlayerSphere\"", source, StringComparison.Ordinal);
+        Assert.Contains("CreatePhysicsBoxMeshEntity(", source, StringComparison.Ordinal);
+        Assert.Contains("\"static_mesh_minimal.ground\",", source, StringComparison.Ordinal);
+        Assert.Contains("\"Ground\",", source, StringComparison.Ordinal);
+        Assert.Contains("\"static_mesh_minimal.player\",", source, StringComparison.Ordinal);
+        Assert.Contains("\"PlayerSphere\",", source, StringComparison.Ordinal);
+        Assert.Contains("PhysicsSceneCatalog.StaticMeshMinimalSceneId", source, StringComparison.Ordinal);
+        Assert.Contains("\"test_scene_static_mesh_minimal\"", source, StringComparison.Ordinal);
         Assert.Contains("CreateLiveStaticMeshShowcaseCameraEntity(", source, StringComparison.Ordinal);
+        Assert.Contains("RebindStaticMeshShowcaseCameraTarget(cameraEntity, scenarioRoots);", source, StringComparison.Ordinal);
     }
 }
