@@ -124,4 +124,75 @@ public sealed class CityPhysicsSceneSourceTests {
         Assert.Contains("const string MeshModelReferenceFieldName = \"Model\";", source, StringComparison.Ordinal);
         Assert.Contains("const string MeshMaterialReferencesFieldName = \"Materials\";", source, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Ensures the static-mesh follow camera resolves its tracked target from a serialized scene-entity reference and runtime scene ids.
+    /// </summary>
+    [Fact]
+    public void City_static_mesh_follow_camera_source_uses_scene_entity_reference_and_runtime_id_lookup() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering\DemoFollowCameraComponent.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("public SceneEntityReference TargetEntityReference { get; set; }", source, StringComparison.Ordinal);
+        Assert.Contains("SceneEntityRuntimeIdComponent", source, StringComparison.Ordinal);
+        Assert.Contains("Core.Instance.ObjectManager.Entities", source, StringComparison.Ordinal);
+        Assert.Contains("TargetEntityReference.EntityId", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the static-mesh showcase uses the dedicated follow camera for both packaged and direct-launch playable scene paths.
+    /// </summary>
+    [Fact]
+    public void City_static_mesh_showcase_source_uses_demo_follow_camera_for_packaged_and_live_paths() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("CreateStaticMeshShowcaseCameraEntity(", source, StringComparison.Ordinal);
+        Assert.Contains("CreateLiveStaticMeshShowcaseCameraEntity(", source, StringComparison.Ordinal);
+        Assert.Contains("new city.rendering.DemoFollowCameraComponent", source, StringComparison.Ordinal);
+        Assert.Contains("TargetEntityReference = new SceneEntityReference {", source, StringComparison.Ordinal);
+        Assert.Contains("FindRequiredSceneEntityAssetByName(scenarioChildren, \"PlayerSphere\")", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateLivePhysicsShowcaseCameraEntity(\r\n                    \"StaticMeshShowcaseCamera\"", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the generated static-mesh showcase scene rebinds the follow camera after fresh live save ids are assigned so the serialized target reference matches the persisted player sphere.
+    /// </summary>
+    [Fact]
+    public void City_static_mesh_showcase_source_rebinds_follow_camera_after_live_id_assignment() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("RebindStaticMeshShowcaseCameraTarget(cameraEntity, scenarioRoots);", source, StringComparison.Ordinal);
+        Assert.Contains("EditorEntity playerSphereEntity = FindRequiredEditorEntityByName(scenarioRoots, \"PlayerSphere\");", source, StringComparison.Ordinal);
+        Assert.Contains("EntitySaveComponent playerSphereSaveComponent = FindRequiredEntitySaveComponent(playerSphereEntity);", source, StringComparison.Ordinal);
+        Assert.Contains("EntityId = playerSphereSaveComponent.EntityId", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the physics scene catalog exports the minimal static-mesh playable scene.
+    /// </summary>
+    [Fact]
+    public void City_physics_scene_catalog_source_exports_static_mesh_minimal_scene() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneCatalog.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("public const string StaticMeshMinimalSceneId = \"scenes/physics/test_scene_static_mesh_minimal.helen\";", source, StringComparison.Ordinal);
+        Assert.Contains("StaticMeshMinimalSceneId,", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the minimal static-mesh playable scene keeps only a ground cube, player sphere, and follow-camera playable path.
+    /// </summary>
+    [Fact]
+    public void City_static_mesh_minimal_scene_source_uses_ground_player_sphere_and_follow_camera() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("CreateStaticMeshMinimalScene()", source, StringComparison.Ordinal);
+        Assert.Contains("test_scene_static_mesh_minimal", source, StringComparison.Ordinal);
+        Assert.Contains("\"Ground\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"PlayerSphere\"", source, StringComparison.Ordinal);
+        Assert.Contains("CreateLiveStaticMeshShowcaseCameraEntity(", source, StringComparison.Ordinal);
+    }
 }
