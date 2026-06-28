@@ -47,6 +47,22 @@ public sealed class CityPhysicsSceneSourceTests {
     }
 
     /// <summary>
+    /// Ensures the strict rotated-box comparison scene keeps one render-only control box beside one physics-backed rotated box.
+    /// </summary>
+    [Fact]
+    public void City_strict_rotated_box_compare_scene_source_uses_control_and_physics_boxes_side_by_side() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("CreateStrictRotatedBoxCompareScene()", source, StringComparison.Ordinal);
+        Assert.Contains("CreateCubeMeshEntity(\"strict_rotated_box_compare.control_box\", \"ControlVisualBox\"", source, StringComparison.Ordinal);
+        Assert.Contains("CreatePhysicsBoxMeshEntity(\"strict_rotated_box_compare.physics_box\", \"PhysicsVisualBox\"", source, StringComparison.Ordinal);
+        Assert.Contains("CreatePhysicsBoxMeshEntity(\"strict_rotated_box_compare.flat_box\", \"PhysicsFlatBox\"", source, StringComparison.Ordinal);
+        Assert.Contains("CreatePhysicsSphereMeshEntity(\"strict_rotated_box_compare.physics_probe\", \"PhysicsProbe\"", source, StringComparison.Ordinal);
+        Assert.Contains("PhysicsSceneCatalog.StrictRotatedBoxCompareSceneId", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Ensures the authored city mixed stack also assigns the tiled sphere-stack materials to its sphere layers so their rotation stays readable beside the box layers.
     /// </summary>
     [Fact]
@@ -182,6 +198,79 @@ public sealed class CityPhysicsSceneSourceTests {
     }
 
     /// <summary>
+    /// Ensures the physics scene catalog exports the strict rotated-box comparison scene.
+    /// </summary>
+    [Fact]
+    public void City_physics_scene_catalog_source_exports_strict_rotated_box_compare_scene() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneCatalog.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("public const string StrictRotatedBoxCompareSceneId = \"scenes/physics/test_scene_strict_rotated_box_compare.helen\";", source, StringComparison.Ordinal);
+        Assert.Contains("StrictRotatedBoxCompareSceneId,", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the physics scene catalog and factory expose the render-only slope comparison scene used to isolate non-BEPU transform rendering.
+    /// </summary>
+    [Fact]
+    public void City_render_only_slope_scene_source_is_exposed_by_catalog_and_factory() {
+        string catalogSourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneCatalog.cs";
+        string catalogSource = File.ReadAllText(catalogSourcePath);
+        string factorySourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string factorySource = File.ReadAllText(factorySourcePath);
+
+        Assert.Contains("public const string RenderOnlySlopeSceneId = \"scenes/physics/test_scene_render_only_slope.helen\";", catalogSource, StringComparison.Ordinal);
+        Assert.Contains("RenderOnlySlopeSceneId,", catalogSource, StringComparison.Ordinal);
+        Assert.Contains("CreateRenderOnlySlopeScene()", factorySource, StringComparison.Ordinal);
+        Assert.Contains("PhysicsSceneCatalog.RenderOnlySlopeSceneId", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"render_only_slope.ramp\"", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreatePhysicsBoxMeshEntity(\"render_only_slope.ramp\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("CreateCubeMeshEntity(\"render_only_slope.ramp\"", factorySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the render-matrix probe scene is exposed through the catalog and factory as a visual-only cube comparison.
+    /// </summary>
+    [Fact]
+    public void City_render_matrix_probe_scene_source_is_exposed_as_render_only_visual_cases() {
+        string catalogSourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneCatalog.cs";
+        string catalogSource = File.ReadAllText(catalogSourcePath);
+        string factorySourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string factorySource = File.ReadAllText(factorySourcePath);
+
+        Assert.Contains("public const string RenderMatrixProbeSceneId = \"scenes/physics/test_scene_render_matrix_probe.helen\";", catalogSource, StringComparison.Ordinal);
+        Assert.Contains("RenderMatrixProbeSceneId,", catalogSource, StringComparison.Ordinal);
+        Assert.Contains("CreateRenderMatrixProbeScene()", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"render_matrix_probe.flat_control\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"render_matrix_probe.rotated_only\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"render_matrix_probe.scaled_only\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"render_matrix_probe.rotated_scaled\"", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreatePhysicsBoxMeshEntity(\"render_matrix_probe", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreatePhysicsSphereMeshEntity(\"render_matrix_probe", factorySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the render-motion probe scene is exposed by the catalog and factory as a visual-only scene with one animated hero cube.
+    /// </summary>
+    [Fact]
+    public void City_render_motion_probe_scene_source_is_exposed_as_visual_only_with_motion_probe_component() {
+        string catalogSourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneCatalog.cs";
+        string catalogSource = File.ReadAllText(catalogSourcePath);
+        string factorySourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
+        string factorySource = File.ReadAllText(factorySourcePath);
+
+        Assert.Contains("public const string RenderMotionProbeSceneId = \"scenes/physics/test_scene_render_motion_probe.helen\";", catalogSource, StringComparison.Ordinal);
+        Assert.Contains("RenderMotionProbeSceneId,", catalogSource, StringComparison.Ordinal);
+        Assert.Contains("CreateRenderMotionProbeScene()", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"render_motion_probe.hero\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"render_motion_probe.flat_control\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"render_motion_probe.rotated_scaled_reference\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("new city.rendering.RenderMotionProbeComponent", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreatePhysicsBoxMeshEntity(\"render_motion_probe", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreatePhysicsSphereMeshEntity(\"render_motion_probe", factorySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Ensures the minimal static-mesh playable scene keeps only a ground cube, player sphere, and follow-camera playable path.
     /// </summary>
     [Fact]
@@ -199,5 +288,20 @@ public sealed class CityPhysicsSceneSourceTests {
         Assert.Contains("\"test_scene_static_mesh_minimal\"", source, StringComparison.Ordinal);
         Assert.Contains("CreateLiveStaticMeshShowcaseCameraEntity(", source, StringComparison.Ordinal);
         Assert.Contains("RebindStaticMeshShowcaseCameraTarget(cameraEntity, scenarioRoots);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the minimal static-mesh scene is exposed through the demo-disc physics catalog and Nintendo DS playable-scene generator.
+    /// </summary>
+    [Fact]
+    public void City_static_mesh_minimal_scene_source_is_exposed_to_menu_and_ds_generation() {
+        string sceneCatalogSourcePath = @"C:\dev\helprojs\city\assets\codebase\menu\DemoDiscSceneCatalog.cs";
+        string sceneCatalogSource = File.ReadAllText(sceneCatalogSourcePath);
+        string dsGeneratorSourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsNintendoDsSceneGenerator.cs";
+        string dsGeneratorSource = File.ReadAllText(dsGeneratorSourcePath);
+
+        Assert.Contains("\"test_scene_static_mesh_minimal\"", sceneCatalogSource, StringComparison.Ordinal);
+        Assert.Contains("\"test_scene_static_mesh_minimal_ds\"", sceneCatalogSource, StringComparison.Ordinal);
+        Assert.Contains("\"test_scene_static_mesh_minimal\"", dsGeneratorSource, StringComparison.Ordinal);
     }
 }
