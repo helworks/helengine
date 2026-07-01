@@ -199,6 +199,9 @@ namespace helengine.editor {
                 AppendRegenerationLog(regenerationLogPath, "runtime-support-merge-start");
                 MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
                 AppendRegenerationLog(regenerationLogPath, "runtime-support-merge-complete");
+                AppendRegenerationLog(regenerationLogPath, "runtime-module-support-start");
+                EnsureGeneratedRuntimeModuleRegistrationSupport(generatedCoreOutputRoot);
+                AppendRegenerationLog(regenerationLogPath, "runtime-module-support-complete");
                 AppendRegenerationLog(regenerationLogPath, "deserializer-support-start");
                 EnsureGeneratedRuntimeComponentDeserializerSupport(generatedCoreOutputRoot, platformDefinition.PlatformId);
                 AppendRegenerationLog(regenerationLogPath, "deserializer-support-complete");
@@ -1005,6 +1008,55 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures generated runtime module registration support files exist in one generated core source tree.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        internal static void EnsureGeneratedRuntimeModuleRegistrationSupport(string generatedCoreRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+
+            Directory.CreateDirectory(generatedCoreRootPath);
+            File.WriteAllText(
+                Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.hpp"),
+                BuildGeneratedRuntimeModuleRegistrationHeader());
+            File.WriteAllText(
+                Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.cpp"),
+                BuildGeneratedRuntimeModuleRegistrationSource(Array.Empty<GeneratedRuntimeModuleManifestAttribute>()));
+        }
+
+        /// <summary>
+        /// Emits one generated runtime module registration surface for the supplied used runtime types.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root that should receive the generated files.</param>
+        /// <param name="usedTypes">Runtime types used by the cooked build.</param>
+        internal static void EmitGeneratedRuntimeModuleRegistration(
+            string generatedCoreRootPath,
+            IReadOnlyList<Type> usedTypes) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            } else if (usedTypes == null) {
+                throw new ArgumentNullException(nameof(usedTypes));
+            }
+
+            Directory.CreateDirectory(generatedCoreRootPath);
+            IReadOnlyList<Assembly> assemblies = usedTypes
+                .Where(type => type != null)
+                .Select(type => type.Assembly)
+                .Distinct()
+                .ToArray();
+            IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests = DiscoverGeneratedRuntimeModuleManifests(assemblies);
+            IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> activeManifests = ResolveActiveGeneratedRuntimeModuleManifests(manifests, usedTypes);
+
+            File.WriteAllText(
+                Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.hpp"),
+                BuildGeneratedRuntimeModuleRegistrationHeader());
+            File.WriteAllText(
+                Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.cpp"),
+                BuildGeneratedRuntimeModuleRegistrationSource(activeManifests));
+        }
+
+        /// <summary>
         /// Parses one quoted include directive and returns its included file name when the line declares one.
         /// </summary>
         /// <param name="sourceLine">One generated C++ source line.</param>
@@ -1408,6 +1460,55 @@ namespace helengine.editor {
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Builds the generated native registration header used to install all emitted runtime modules.
+        /// </summary>
+        /// <returns>Generated native runtime module registration header text.</returns>
+        static string BuildGeneratedRuntimeModuleRegistrationHeader() {
+            return "#pragma once" + Environment.NewLine
+                + "#ifdef DrawText" + Environment.NewLine
+                + "#undef DrawText" + Environment.NewLine
+                + "#endif" + Environment.NewLine
+                + "class Core;" + Environment.NewLine + Environment.NewLine
+                + "void RegisterGeneratedRuntimeModules(Core* core);" + Environment.NewLine;
+        }
+
+        /// <summary>
+        /// Builds the generated native registration source used to install all emitted runtime modules.
+        /// </summary>
+        /// <param name="manifests">Generated runtime module manifests whose registration calls should be emitted.</param>
+        /// <returns>Generated native runtime module registration source text.</returns>
+        static string BuildGeneratedRuntimeModuleRegistrationSource(IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests) {
+            if (manifests == null) {
+                throw new ArgumentNullException(nameof(manifests));
+            }
+
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine("#ifdef DrawText");
+            builder.AppendLine("#undef DrawText");
+            builder.AppendLine("#endif");
+            builder.AppendLine("#include \"GeneratedRuntimeModuleRegistration.hpp\"");
+            builder.AppendLine("#include \"Core.hpp\"");
+            builder.AppendLine("#include \"runtime/native_exceptions.hpp\"");
+            for (int index = 0; index < manifests.Count; index++) {
+                builder.AppendLine($"#include \"{manifests[index].RegistrationType.Name}.hpp\"");
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("void RegisterGeneratedRuntimeModules(Core* core)");
+            builder.AppendLine("{");
+            builder.AppendLine("    if (core == nullptr)");
+            builder.AppendLine("    {");
+            builder.AppendLine("throw new ArgumentNullException(\"core\");");
+            builder.AppendLine("    }");
+            for (int index = 0; index < manifests.Count; index++) {
+                builder.AppendLine($"{manifests[index].RegistrationType.Name}::{manifests[index].RegistrationMethodName}(core);");
+            }
+
+            builder.AppendLine("}");
+            return builder.ToString();
         }
 
         /// <summary>

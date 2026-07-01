@@ -1207,4 +1207,48 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         GeneratedRuntimeModuleManifestAttribute manifest = Assert.Single(activeManifests);
         Assert.Equal("editor-tests-runtime-module", manifest.ModuleId);
     }
+
+    /// <summary>
+    /// Verifies generated-core runtime module support emits one stable no-op bootstrap surface even when no runtime modules are active.
+    /// </summary>
+    [Fact]
+    public void Ensure_generated_runtime_module_registration_support_when_no_modules_are_active_emits_no_op_bootstrap() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-modules-empty");
+        try {
+            EditorGeneratedCoreRegenerationService.EnsureGeneratedRuntimeModuleRegistrationSupport(generatedCoreRootPath);
+
+            string headerPath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.hpp");
+            string sourcePath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.cpp");
+
+            Assert.True(File.Exists(headerPath));
+            Assert.True(File.Exists(sourcePath));
+            Assert.Contains("void RegisterGeneratedRuntimeModules(Core* core);", File.ReadAllText(headerPath), StringComparison.Ordinal);
+            Assert.Contains("void RegisterGeneratedRuntimeModules(Core* core)", File.ReadAllText(sourcePath), StringComparison.Ordinal);
+            Assert.DoesNotContain("::Register(core);", File.ReadAllText(sourcePath), StringComparison.Ordinal);
+        } finally {
+            DeleteDirectoryIfPresent(generatedCoreRootPath);
+        }
+    }
+
+    /// <summary>
+    /// Verifies generated-core runtime module emission includes one registration call and one generated include when one activation type participates in the cooked used-type set.
+    /// </summary>
+    [Fact]
+    public void Emit_generated_runtime_module_registration_when_activation_type_is_used_emits_registration_call() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-modules-active");
+        try {
+            EditorGeneratedCoreRegenerationService.EnsureGeneratedRuntimeModuleRegistrationSupport(generatedCoreRootPath);
+            EditorGeneratedCoreRegenerationService.EmitGeneratedRuntimeModuleRegistration(
+                generatedCoreRootPath,
+                [typeof(GeneratedRuntimeModuleRegistrationTestComponent)]);
+
+            string sourcePath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.cpp");
+            string source = File.ReadAllText(sourcePath);
+
+            Assert.Contains("#include \"GeneratedRuntimeModuleRegistrationTestRegistration.hpp\"", source, StringComparison.Ordinal);
+            Assert.Contains("GeneratedRuntimeModuleRegistrationTestRegistration::Register(core);", source, StringComparison.Ordinal);
+        } finally {
+            DeleteDirectoryIfPresent(generatedCoreRootPath);
+        }
+    }
 }

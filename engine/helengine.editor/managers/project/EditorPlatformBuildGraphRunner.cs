@@ -534,6 +534,12 @@ namespace helengine.editor {
                 cookedSceneAssetPaths.Add(ResolveCookedSceneAssetPath(scene, packagedContentRootPath));
             }
 
+            IReadOnlyList<Type> sceneReferencedComponentTypes = EditorGeneratedCoreRegenerationService.DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
+                cookedSceneAssetPaths,
+                ScriptTypeResolver);
+            EditorGeneratedCoreRegenerationService.EmitGeneratedRuntimeModuleRegistration(
+                generatedCoreRootPath,
+                sceneReferencedComponentTypes);
             EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
                 generatedCoreRootPath,
                 cookedSceneAssetPaths,
