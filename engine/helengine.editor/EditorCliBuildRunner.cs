@@ -51,7 +51,7 @@ namespace helengine.editor {
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             EditorProjectPaths.Initialize(bootstrap.ProjectRootPath);
-            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
+            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService, options.PlatformId);
             EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
@@ -74,6 +74,7 @@ namespace helengine.editor {
 
             EditorBuildExecutionResult scriptLoadResult = BuildAndLoadProjectScripts(
                 bootstrap,
+                options.PlatformId,
                 out EditorGameScriptAssemblyHost assemblyHost,
                 out EditorGameScriptHotReloadService hotReloadService);
             using (assemblyHost)
@@ -140,16 +141,22 @@ namespace helengine.editor {
         /// <returns>Structured result describing whether project libraries loaded successfully.</returns>
         EditorBuildExecutionResult BuildAndLoadProjectScripts(
             EditorProjectBootstrapContext bootstrap,
+            string platformId,
             out EditorGameScriptAssemblyHost assemblyHost,
             out EditorGameScriptHotReloadService hotReloadService) {
             if (bootstrap == null) {
                 throw new ArgumentNullException(nameof(bootstrap));
             }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
 
+            EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(bootstrap.ProjectRootPath);
             EditorGameSolutionService solutionService = new EditorGameSolutionService(
                 bootstrap.ProjectRootPath,
                 bootstrap.ProjectName,
-                new EditorVisualStudioLauncher());
+                new EditorVisualStudioLauncher(),
+                isolationPathResolver.ResolveGeneratedCodeOutputRootPath(platformId));
             EditorDotNetScriptBuildTool buildTool = new EditorDotNetScriptBuildTool();
             assemblyHost = new EditorGameScriptAssemblyHost(bootstrap.ProjectRootPath);
             hotReloadService = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);
@@ -184,15 +191,18 @@ namespace helengine.editor {
         /// Creates the shader backend registry required by the headless editor build runner.
         /// </summary>
         /// <param name="platformCatalogService">Dynamic platform catalog that can contribute additional shader backends from loaded platform builders.</param>
+        /// <param name="platformId">Stable target platform identifier for the active headless build.</param>
         /// <returns>Registry populated with the desktop shader backends supported by the build runner.</returns>
-        static ShaderBackendRegistry CreateShaderBackendRegistry(EditorPlatformCatalogService platformCatalogService) {
+        static ShaderBackendRegistry CreateShaderBackendRegistry(EditorPlatformCatalogService platformCatalogService, string platformId) {
             if (platformCatalogService == null) {
                 throw new ArgumentNullException(nameof(platformCatalogService));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            platformCatalogService.RegisterShaderBackends(shaderBackendRegistry);
+            platformCatalogService.RegisterShaderBackends(shaderBackendRegistry, platformId);
             return shaderBackendRegistry;
         }
     }

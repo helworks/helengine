@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Walks the current 2D render queue and emits one reusable flat command list for backend consumption.
     /// </summary>
-    public sealed class RenderCommandListBuilder2D : IRenderVisitor2D {
+    public sealed class RenderCommandListBuilder2D : IRenderVisitor2D, IDisposable {
         /// <summary>
         /// Reusable command list populated during the current build pass.
         /// </summary>
@@ -22,6 +22,11 @@ namespace helengine {
         /// Clip chain resolved for the drawable currently being visited.
         /// </summary>
         readonly List<IClipRegion2D> NextClipChain;
+
+        /// <summary>
+        /// Tracks whether the native reusable builder state was already released.
+        /// </summary>
+        bool IsDisposedValue;
 
         /// <summary>
         /// Initializes one reusable 2D command builder.
@@ -53,6 +58,24 @@ namespace helengine {
             renderQueue.VisitOrdered(this);
             EmitTrailingClipPops();
             return CommandListValue;
+        }
+
+        /// <summary>
+        /// Releases the reusable command-list state and native clip-chain lists owned by this builder.
+        /// </summary>
+        public void Dispose() {
+            if (IsDisposedValue) {
+                return;
+            }
+
+            ActiveClipChain.Clear();
+            NextClipChain.Clear();
+            NativeOwnership.DisposeAndDelete(CommandListValue);
+            NativeOwnership.Delete(ClipRegionStackBuilder);
+            NativeOwnership.Delete(ActiveClipChain);
+            NativeOwnership.Delete(NextClipChain);
+            CommandListValue = null;
+            IsDisposedValue = true;
         }
 
         /// <summary>

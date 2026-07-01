@@ -80,6 +80,12 @@ namespace helengine {
             TextBoxShortcutRegistryValue = new TextBoxShortcutRegistry();
             UpdateStopwatchValue = Stopwatch.StartNew();
             DrawStopwatchValue = new Stopwatch();
+            ResolvedPerformanceOverlayFontScale = 1f;
+            ResolvedPerformanceOverlayPadding = new int2(0, 0);
+            ResolvedPerformanceOverlayUpdateText = string.Empty;
+            ResolvedPerformanceOverlayRenderText = string.Empty;
+            ResolvedPerformanceOverlayDetailText = string.Empty;
+            ResolvedPerformanceOverlayAdditionalText = string.Empty;
         }
 
         /// <summary>
@@ -166,6 +172,66 @@ namespace helengine {
         /// Gets the most recent dispatch count published for the FPS overlay.
         /// </summary>
         public int PerformanceOverlayDispatchCount { get; private set; }
+
+        /// <summary>
+        /// Gets one optional platform-owned update-row text override for the FPS overlay.
+        /// </summary>
+        public string PerformanceOverlayUpdateText { get; private set; }
+
+        /// <summary>
+        /// Gets one optional platform-owned render-row text override for the FPS overlay.
+        /// </summary>
+        public string PerformanceOverlayRenderText { get; private set; }
+
+        /// <summary>
+        /// Gets one optional platform-owned detail-row text override for the FPS overlay.
+        /// </summary>
+        public string PerformanceOverlayDetailText { get; private set; }
+
+        /// <summary>
+        /// Gets one optional platform-owned multi-line text block rendered beneath the FPS overlay rows.
+        /// </summary>
+        public string PerformanceOverlayAdditionalText { get; private set; }
+
+        /// <summary>
+        /// Gets whether the active runtime owns final presentation of the FPS overlay rows instead of relying on scene text drawables.
+        /// </summary>
+        public bool UsesPlatformOwnedPerformanceOverlayPresentation { get; private set; }
+
+        /// <summary>
+        /// Gets the font assigned to the resolved FPS overlay presentation contract.
+        /// </summary>
+        public FontAsset ResolvedPerformanceOverlayFont { get; private set; }
+
+        /// <summary>
+        /// Gets the font scale assigned to the resolved FPS overlay presentation contract.
+        /// </summary>
+        public float ResolvedPerformanceOverlayFontScale { get; private set; }
+
+        /// <summary>
+        /// Gets the resolved overlay padding assigned to the platform-owned FPS presentation contract.
+        /// </summary>
+        public int2 ResolvedPerformanceOverlayPadding { get; private set; }
+
+        /// <summary>
+        /// Gets the final resolved update-row text published for platform-owned FPS overlay presentation.
+        /// </summary>
+        public string ResolvedPerformanceOverlayUpdateText { get; private set; }
+
+        /// <summary>
+        /// Gets the final resolved render-row text published for platform-owned FPS overlay presentation.
+        /// </summary>
+        public string ResolvedPerformanceOverlayRenderText { get; private set; }
+
+        /// <summary>
+        /// Gets the final resolved detail-row text published for platform-owned FPS overlay presentation.
+        /// </summary>
+        public string ResolvedPerformanceOverlayDetailText { get; private set; }
+
+        /// <summary>
+        /// Gets the final resolved additional text block published for platform-owned FPS overlay presentation.
+        /// </summary>
+        public string ResolvedPerformanceOverlayAdditionalText { get; private set; }
 
         /// <summary>
         /// Gets the 2D render manager.
@@ -296,6 +362,87 @@ namespace helengine {
             PerformanceOverlayWaitMilliseconds = waitMilliseconds;
             PerformanceOverlaySubmittedTriangleCount = submittedTriangleCount;
             PerformanceOverlayDispatchCount = dispatchCount;
+            PerformanceOverlayUpdateText = string.Empty;
+            PerformanceOverlayRenderText = string.Empty;
+            PerformanceOverlayDetailText = string.Empty;
+            PerformanceOverlayAdditionalText = string.Empty;
+        }
+
+        /// <summary>
+        /// Updates optional platform-owned text rows consumed by the FPS overlay when one runtime wants to surface custom diagnostics labels.
+        /// </summary>
+        /// <param name="usesPerformanceOverlayMetrics">Whether the active runtime wants the FPS overlay to show custom metrics.</param>
+        /// <param name="updateText">Visible update-row text override.</param>
+        /// <param name="renderText">Visible render-row text override.</param>
+        /// <param name="detailText">Visible detail-row text override.</param>
+        /// <param name="additionalText">Optional multi-line text block rendered beneath the main overlay rows.</param>
+        public void SetPerformanceOverlayTextRows(
+            bool usesPerformanceOverlayMetrics,
+            string updateText,
+            string renderText,
+            string detailText,
+            string additionalText) {
+            UsesPerformanceOverlayMetrics = usesPerformanceOverlayMetrics;
+            PerformanceOverlayUpdateText = usesPerformanceOverlayMetrics ? updateText ?? string.Empty : string.Empty;
+            PerformanceOverlayRenderText = usesPerformanceOverlayMetrics ? renderText ?? string.Empty : string.Empty;
+            PerformanceOverlayDetailText = usesPerformanceOverlayMetrics ? detailText ?? string.Empty : string.Empty;
+            PerformanceOverlayAdditionalText = usesPerformanceOverlayMetrics ? additionalText ?? string.Empty : string.Empty;
+        }
+
+        /// <summary>
+        /// Stores whether the active runtime owns final FPS overlay presentation instead of using scene text drawables.
+        /// </summary>
+        /// <param name="usesPlatformOwnedPresentation">True when the runtime should consume resolved FPS overlay rows directly.</param>
+        public void SetPlatformOwnedPerformanceOverlayPresentation(bool usesPlatformOwnedPresentation) {
+            UsesPlatformOwnedPerformanceOverlayPresentation = usesPlatformOwnedPresentation;
+            if (!usesPlatformOwnedPresentation) {
+                ClearResolvedPerformanceOverlayPresentation();
+            }
+        }
+
+        /// <summary>
+        /// Updates the final resolved FPS overlay presentation state consumed by one platform-owned overlay renderer.
+        /// </summary>
+        /// <param name="font">Font chosen by the FPS component for the visible overlay.</param>
+        /// <param name="fontScale">Font scale chosen by the FPS component for the visible overlay.</param>
+        /// <param name="padding">Resolved top-left overlay padding in screen pixels.</param>
+        /// <param name="updateText">Final visible update-row text.</param>
+        /// <param name="renderText">Final visible render-row text.</param>
+        /// <param name="detailText">Final visible optional detail-row text.</param>
+        /// <param name="additionalText">Final visible optional additional multi-line text block.</param>
+        public void SetResolvedPerformanceOverlayPresentation(
+            FontAsset font,
+            float fontScale,
+            int2 padding,
+            string updateText,
+            string renderText,
+            string detailText,
+            string additionalText) {
+            if (!UsesPlatformOwnedPerformanceOverlayPresentation) {
+                ClearResolvedPerformanceOverlayPresentation();
+                return;
+            }
+
+            ResolvedPerformanceOverlayFont = font;
+            ResolvedPerformanceOverlayFontScale = fontScale;
+            ResolvedPerformanceOverlayPadding = padding;
+            ResolvedPerformanceOverlayUpdateText = updateText ?? string.Empty;
+            ResolvedPerformanceOverlayRenderText = renderText ?? string.Empty;
+            ResolvedPerformanceOverlayDetailText = detailText ?? string.Empty;
+            ResolvedPerformanceOverlayAdditionalText = additionalText ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Clears the final resolved FPS overlay presentation state when the runtime no longer owns presentation.
+        /// </summary>
+        void ClearResolvedPerformanceOverlayPresentation() {
+            ResolvedPerformanceOverlayFont = null;
+            ResolvedPerformanceOverlayFontScale = 1f;
+            ResolvedPerformanceOverlayPadding = new int2(0, 0);
+            ResolvedPerformanceOverlayUpdateText = string.Empty;
+            ResolvedPerformanceOverlayRenderText = string.Empty;
+            ResolvedPerformanceOverlayDetailText = string.Empty;
+            ResolvedPerformanceOverlayAdditionalText = string.Empty;
         }
 
         /// <summary>
@@ -449,6 +596,13 @@ namespace helengine {
         /// </summary>
         public void DetachPhysicsRuntime() {
             PhysicsRuntimeValue = null;
+            PhysicsSchedulerValue.Reset();
+        }
+
+        /// <summary>
+        /// Clears any accumulated fixed-step timing debt so the next scene starts from a clean physics schedule.
+        /// </summary>
+        public void ResetPhysicsTimingState() {
             PhysicsSchedulerValue.Reset();
         }
 

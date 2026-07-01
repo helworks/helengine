@@ -39,4 +39,20 @@ public sealed class CityPsVitaBuildConfigSourceTests {
 
         Assert.Equal("System.Numerics.Vector2=helengine.float2;System.Numerics.Vector3=helengine.float3;System.Numerics.Vector4=helengine.float4;System.Numerics.Quaternion=helengine.float4", typeRemaps);
     }
+
+    /// <summary>
+    /// Ensures the persisted city PS Vita build configuration supplies the generic native C++ platform-shape options required by custom codegen platforms.
+    /// </summary>
+    [Fact]
+    public void City_psvita_build_config_includes_required_custom_cpp_platform_shape_options() {
+        string sourcePath = @"C:\dev\helprojs\city\user_settings\build_config.json";
+        string source = File.ReadAllText(sourcePath);
+        using JsonDocument document = JsonDocument.Parse(source);
+        JsonElement platforms = document.RootElement.GetProperty("platforms");
+        JsonElement psVitaPlatform = platforms.EnumerateArray().Single(platform => string.Equals(platform.GetProperty("platformId").GetString(), "psvita", StringComparison.Ordinal));
+        JsonElement selectedCodegenOptionValues = psVitaPlatform.GetProperty("selectedCodegenOptionValues");
+
+        Assert.Equal("native-column-vector", selectedCodegenOptionValues.GetProperty("generated-math-convention").GetString());
+        Assert.Equal("4", selectedCodegenOptionValues.GetProperty("pointer-size-bytes").GetString());
+    }
 }

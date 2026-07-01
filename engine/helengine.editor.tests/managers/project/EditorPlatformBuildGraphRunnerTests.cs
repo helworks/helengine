@@ -1506,6 +1506,30 @@ public class EditorPlatformBuildGraphRunnerTests {
         AssetSerializer.Serialize(stream, sceneAsset);
     }
 
+    /// <summary>
+    /// Ensures targeted shader-backend registration only loads the requested platform builder instead of every installed builder.
+    /// </summary>
+    [Fact]
+    public void RegisterShaderBackends_for_target_platform_loads_only_requested_builder() {
+        TestEditorPlatformAssetBuilderLoader builderLoader = new(new Dictionary<string, IPlatformAssetBuilder> {
+            ["ds.builder.dll"] = new TestShaderBackendContributorPlatformAssetBuilder("ds", ShaderCompileTarget.Vulkan),
+            ["gamecube.builder.dll"] = new TestShaderBackendContributorPlatformAssetBuilder("gamecube", ShaderCompileTarget.Metal)
+        });
+        EditorPlatformCatalogService catalogService = new(
+            [
+                new AvailablePlatformDescriptor("ds", "Nintendo DS", "ds.builder.dll"),
+                new AvailablePlatformDescriptor("gamecube", "Nintendo GameCube", "gamecube.builder.dll")
+            ],
+            builderLoader);
+        ShaderBackendRegistry shaderBackendRegistry = new();
+
+        catalogService.RegisterShaderBackends(shaderBackendRegistry, "gamecube");
+
+        Assert.Equal(["gamecube.builder.dll"], builderLoader.LoadedAssemblyPaths);
+        Assert.True(shaderBackendRegistry.ContainsTarget(ShaderCompileTarget.Metal));
+        Assert.False(shaderBackendRegistry.ContainsTarget(ShaderCompileTarget.Vulkan));
+    }
+
     sealed class HostDebugPlatformBuilder : IPlatformAssetBuilder {
         public HostDebugPlatformBuilder() {
             Descriptor = new(

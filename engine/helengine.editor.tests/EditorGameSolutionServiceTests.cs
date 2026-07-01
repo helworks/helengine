@@ -201,6 +201,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures generated solution outputs can be redirected to one explicit isolated root for platform build workflows.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenGeneratedOutputRootIsOverridden_WritesProjectOutputsIntoTheSuppliedRoot() {
+            string isolatedOutputRootPath = Path.Combine(Path.GetTempPath(), "helengine-builds", Guid.NewGuid().ToString("N"), "ds", "generated-dotnet");
+
+            try {
+                EditorGameSolutionService service = new EditorGameSolutionService(
+                    TempProjectRootPath,
+                    "SkyRider",
+                    new TestIdeLauncher(),
+                    isolatedOutputRootPath);
+
+                service.GenerateSolutionFiles();
+
+                string projectFilePath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "gameplay.csproj");
+                string projectFileContents = File.ReadAllText(projectFilePath);
+                Assert.Contains("<BaseIntermediateOutputPath>" + EscapeXml(Path.Combine(isolatedOutputRootPath, "generated_code", "obj", "gameplay") + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>", projectFileContents);
+                Assert.Contains("<BaseOutputPath>" + EscapeXml(Path.Combine(isolatedOutputRootPath, "generated_code", "bin", "gameplay") + Path.DirectorySeparatorChar) + "</BaseOutputPath>", projectFileContents);
+                Assert.Equal(Path.Combine(isolatedOutputRootPath, "generated_code", "bin", "gameplay", "Debug", "net9.0"), service.GeneratedOutputDirectoryPath);
+            } finally {
+                if (Directory.Exists(isolatedOutputRootPath)) {
+                    Directory.Delete(isolatedOutputRootPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Escapes one text value for inclusion in XML text content so string assertions can match generated project values.
         /// </summary>
         /// <param name="value">Text value to escape.</param>

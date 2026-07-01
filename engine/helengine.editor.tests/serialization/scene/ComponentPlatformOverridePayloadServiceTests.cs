@@ -23,6 +23,7 @@ namespace helengine.editor.tests.serialization.scene {
             };
             overrideState.SetAssetReference("Font", CreateFileReference("fonts/default.hefont"));
             overrideState.SetPropertyOverride("Transform.Position");
+            overrideState.SetMemberValue("BGLayer", "1");
             saveState.SetPlatformOverride("windows", overrideState);
 
             SceneComponentAssetRecord wrappedRecord = service.Wrap(baseRecord, saveState);
@@ -35,6 +36,8 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("windows", loadedOverride.PlatformId);
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, loadedOverride.Payload);
             Assert.True(loadedOverride.HasPropertyOverride("Transform.Position"));
+            Assert.True(loadedOverride.TryGetMemberValue("BGLayer", out string bgLayerValue));
+            Assert.Equal("1", bgLayerValue);
             Assert.True(loadedOverride.TryGetAssetReference("Font", out SceneAssetReference loadedReference));
             Assert.Equal("fonts/default.hefont", loadedReference.RelativePath);
         }

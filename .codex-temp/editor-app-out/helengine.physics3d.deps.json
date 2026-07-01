@@ -1,0 +1,105 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "helengine.physics3d/1.0.0": {
+        "dependencies": {
+          "helengine.bepu": "1.0.0",
+          "helengine.core": "1.0.0",
+          "helengine.physics": "1.0.0"
+        },
+        "runtime": {
+          "helengine.physics3d.dll": {}
+        }
+      },
+      "BepuPhysics/2.5.0-beta.24": {
+        "dependencies": {
+          "BepuUtilities": "2.5.0-beta.24"
+        },
+        "runtime": {
+          "BepuPhysics.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "BepuUtilities/2.5.0-beta.24": {
+        "runtime": {
+          "BepuUtilities.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "helengine.bepu/1.0.0": {
+        "dependencies": {
+          "BepuPhysics": "2.5.0-beta.24",
+          "BepuUtilities": "2.5.0-beta.24",
+          "helengine.core": "1.0.0",
+          "helengine.physics": "1.0.0"
+        },
+        "runtime": {
+          "helengine.bepu.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "helengine.core/1.0.0": {
+        "runtime": {
+          "helengine.core.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "helengine.physics/1.0.0": {
+        "dependencies": {
+          "helengine.core": "1.0.0"
+        },
+        "runtime": {
+          "helengine.physics.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "helengine.physics3d/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "BepuPhysics/2.5.0-beta.24": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "BepuUtilities/2.5.0-beta.24": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "helengine.bepu/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "helengine.core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "helengine.physics/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

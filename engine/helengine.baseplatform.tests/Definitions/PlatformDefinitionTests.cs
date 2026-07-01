@@ -92,6 +92,15 @@ public class PlatformDefinitionTests {
                     PlatformMediaLayoutKind.InstallTree,
                     false,
                     false)
+            ],
+            componentMemberDefinitions: [
+                new PlatformComponentMemberDefinition(
+                    "helengine.TextComponent",
+                    "BGLayer",
+                    "BG Layer",
+                    PlatformComponentMemberValueKind.Int32,
+                    "0",
+                    10)
             ]);
 
         Assert.Equal("windows", definition.PlatformId);
@@ -105,6 +114,9 @@ public class PlatformDefinitionTests {
         Assert.Equal("default", definition.CodegenProfiles[0].ProfileId);
         Assert.Equal("install-tree", definition.StorageProfiles[0].ProfileId);
         Assert.Equal("install-tree", definition.MediaProfiles[0].ProfileId);
+        Assert.Equal("helengine.TextComponent", definition.ComponentMemberDefinitions[0].ComponentTypeId);
+        Assert.Equal("BGLayer", definition.ComponentMemberDefinitions[0].MemberName);
+        Assert.Equal(PlatformComponentMemberValueKind.Int32, definition.ComponentMemberDefinitions[0].ValueKind);
         Assert.Equal(RuntimeMaterialResolutionMode.RawShaderBacked, definition.RuntimeGenerationContract.MaterialResolutionMode);
         Assert.True(definition.RuntimeGenerationContract.SupportsRenderManager2DTextureReleaseFlush);
         Assert.Equal(PackagedPathPolicy.ContentRelativeOnly, definition.RuntimeGenerationContract.PackagedPathPolicy);

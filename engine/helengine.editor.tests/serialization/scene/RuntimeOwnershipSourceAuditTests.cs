@@ -100,6 +100,31 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures reusable 2D command builders and command lists expose explicit native disposal seams so hosts do not leak per-frame helper allocations in native runtime builds.
+        /// </summary>
+        [Fact]
+        public void Dispose_whenReusable2dCommandHelpersAreReleased_deletesOwnedNativeListsAndCommandContainers() {
+            string renderCommandListBuilder2DSource = ReadSource("helengine.core", "managers", "rendering", "RenderCommandListBuilder2D.cs");
+            string renderCommandList2DSource = ReadSource("helengine.core", "managers", "rendering", "RenderCommandList2D.cs");
+
+            Assert.Contains("public sealed class RenderCommandListBuilder2D : IRenderVisitor2D, IDisposable", renderCommandListBuilder2DSource);
+            Assert.Contains("public void Dispose()", renderCommandListBuilder2DSource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(CommandListValue);", renderCommandListBuilder2DSource);
+            Assert.Contains("NativeOwnership.Delete(ClipRegionStackBuilder);", renderCommandListBuilder2DSource);
+            Assert.Contains("NativeOwnership.Delete(ActiveClipChain);", renderCommandListBuilder2DSource);
+            Assert.Contains("NativeOwnership.Delete(NextClipChain);", renderCommandListBuilder2DSource);
+
+            Assert.Contains("public sealed class RenderCommandList2D : IDisposable", renderCommandList2DSource);
+            Assert.Contains("public void Dispose()", renderCommandList2DSource);
+            Assert.Contains("NativeOwnership.Delete(CommandTypes);", renderCommandList2DSource);
+            Assert.Contains("NativeOwnership.Delete(PayloadIndices);", renderCommandList2DSource);
+            Assert.Contains("NativeOwnership.Delete(ClipRects);", renderCommandList2DSource);
+            Assert.Contains("NativeOwnership.Delete(QuadTextures);", renderCommandList2DSource);
+            Assert.Contains("NativeOwnership.Delete(GlyphTextures);", renderCommandList2DSource);
+            Assert.Contains("NativeOwnership.Delete(RoundedRectBounds);", renderCommandList2DSource);
+        }
+
+        /// <summary>
         /// Ensures viewport scaling components delete native snapshot records instead of only clearing the managed list wrapper.
         /// </summary>
         [Fact]

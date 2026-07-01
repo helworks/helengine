@@ -1,3 +1,4 @@
+using helengine.baseplatform.Definitions;
 using System.Reflection;
 using helengine.editor;
 using helengine.editor.tests.testing;
@@ -388,6 +389,39 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures submitting one builder-owned synthetic platform member persists a detached override value without mutating the common component.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenDsSyntheticTextMemberIsSubmitted_PersistsDetachedPlatformMemberValue() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Text Entity"
+            };
+            TextComponent text = new TextComponent {
+                Text = "HELLO"
+            };
+            entity.AddComponent(text);
+
+            panel.ShowEntityProperties(entity, new[] { "ds" }, CreatePlatformDefinitionsById());
+            SelectInspectorPlatform(panel, "ds");
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow bgLayerRow = GetSingleRow(view, "BG Layer");
+            bgLayerRow.ScalarField.Text = "1";
+
+            MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
+            submitMethod.Invoke(view, new object[] { bgLayerRow.ScalarField });
+
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(text);
+            Assert.True(saveState.TryGetPlatformOverride("ds", out EntityComponentPlatformOverrideState overrideState));
+            Assert.True(overrideState.HasPropertyOverride("BGLayer"));
+            Assert.True(overrideState.TryGetMemberValue("BGLayer", out string memberValue));
+            Assert.Equal("1", memberValue);
+            Assert.Equal("HELLO", text.Text);
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -472,6 +506,41 @@ namespace helengine.editor.tests {
         /// <returns>Attached hidden save component.</returns>
         EntitySaveComponent GetSaveComponent(EditorEntity entity) {
             return Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
+        }
+
+        /// <summary>
+        /// Creates the minimal platform definition set required by the synthetic platform-member inspector tests.
+        /// </summary>
+        /// <returns>Platform definitions keyed by stable platform identifier.</returns>
+        IReadOnlyDictionary<string, PlatformDefinition> CreatePlatformDefinitionsById() {
+            return new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase) {
+                ["ds"] = new PlatformDefinition(
+                    "ds",
+                    "Nintendo DS",
+                    [],
+                    [],
+                    [],
+                    [],
+                    [
+                        new PlatformComponentSupportRule(
+                            "helengine.TextComponent",
+                            PlatformComponentSupportKind.Transform,
+                            "DS text components support detached synthetic text-layer metadata.",
+                            string.Empty)
+                    ],
+                    [],
+                    [],
+                    [],
+                    componentMemberDefinitions: [
+                        new PlatformComponentMemberDefinition(
+                            "helengine.TextComponent",
+                            "BGLayer",
+                            "BG Layer",
+                            PlatformComponentMemberValueKind.Int32,
+                            "0",
+                            0)
+                    ])
+            };
         }
 
         /// <summary>

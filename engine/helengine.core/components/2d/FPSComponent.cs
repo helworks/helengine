@@ -19,9 +19,14 @@ namespace helengine {
         float FontScaleValue = 1f;
 
         /// <summary>
-        /// Additional authored overlay rows rendered beneath the update and render FPS text.
+        /// Additional authored overlay text retained for compatibility even though only two visible rows are rendered.
         /// </summary>
         string AdditionalTextValue = string.Empty;
+
+        /// <summary>
+        /// Current resolved extra text block retained for compatibility even though only two visible rows are rendered.
+        /// </summary>
+        string VisibleAdditionalTextValue = string.Empty;
 
         /// <summary>
         /// Root entity that positions the overlay in viewport space.
@@ -153,7 +158,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets authored instruction rows rendered beneath the FPS lines.
+        /// Gets or sets authored extra overlay text retained for compatibility with existing scene data.
         /// </summary>
         public string AdditionalText {
             get { return AdditionalTextValue; }
@@ -167,7 +172,7 @@ namespace helengine {
                 }
 
                 AdditionalTextValue = value;
-                RebuildAdditionalLineRows();
+                UpdateAdditionalLineRows(Core.Instance);
             }
         }
 
@@ -180,6 +185,11 @@ namespace helengine {
         /// Gets the last formatted render-FPS line.
         /// </summary>
         public string RenderFpsText { get; private set; }
+
+        /// <summary>
+        /// Gets the last formatted performance-detail line retained for compatibility with earlier overlay layouts.
+        /// </summary>
+        public string DetailFpsText { get; private set; }
 
         /// <summary>
         /// Gets how many FPS components are currently registered for frame sampling.
@@ -284,12 +294,14 @@ namespace helengine {
                 ApplyCurrentOverlayText();
                 ApplyPadding();
                 ApplyRenderOrder();
+                ApplyOverlayPresentationVisibility();
                 return;
             }
 
             ApplyFont();
             ApplyRenderOrder();
             ApplyPadding();
+            ApplyOverlayPresentationVisibility();
         }
 
         /// <summary>
@@ -345,7 +357,8 @@ namespace helengine {
             Initialized = true;
             ActiveComponents.Add(this);
             ApplyFont();
-            RebuildAdditionalLineRows();
+            UpdateAdditionalLineRows(Core.Instance);
+            ApplyOverlayPresentationVisibility();
         }
 
         /// <summary>
@@ -354,6 +367,7 @@ namespace helengine {
         void TearDownOverlay() {
             Entity overlayHost = OverlayHost;
             ReleaseOverlayReferences();
+            ClearPublishedOverlayTextRows();
             if (overlayHost != null) {
                 NativeOwnership.DisposeAndDelete(overlayHost);
             }
@@ -371,6 +385,7 @@ namespace helengine {
             RenderTextComponent = null;
             AdditionalLineRowHosts.Clear();
             AdditionalLineTextComponents.Clear();
+            VisibleAdditionalTextValue = string.Empty;
             Initialized = false;
         }
 
@@ -412,6 +427,19 @@ namespace helengine {
             }
 
             OverlayHost.LocalPosition = new float3(padding.X, padding.Y, 0f);
+        }
+
+        /// <summary>
+        /// Enables or suppresses the scene-owned text hierarchy depending on whether the active runtime owns final overlay presentation.
+        /// </summary>
+        void ApplyOverlayPresentationVisibility() {
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
+            Core core = Core.Instance;
+            OverlayHost.Enabled = !ShouldUsePlatformOwnedOverlayPresentation(core);
         }
 
         /// <summary>
@@ -473,9 +501,11 @@ namespace helengine {
             if (Initialized && core != null) {
                 UpdateFpsText = ResolveUpdateOverlayText(core, 0d);
                 RenderFpsText = ResolveRenderOverlayText(core, 0d, core.LastRenderManager3DDrawMilliseconds);
+                DetailFpsText = string.Empty;
             } else {
                 UpdateFpsText = "Update FPS: --";
                 RenderFpsText = "Render FPS: -- (-- ms)";
+                DetailFpsText = string.Empty;
             }
 
             if (UpdateTextComponent != null) {
@@ -485,6 +515,10 @@ namespace helengine {
             if (RenderTextComponent != null) {
                 RenderTextComponent.Text = FormatOverlaySecondaryLine(RenderFpsText);
             }
+
+            UpdateAdditionalLineRows(core);
+            PublishResolvedOverlayTextRows(core);
+            ApplyRowLayout();
         }
 
         /// <summary>
@@ -507,6 +541,7 @@ namespace helengine {
 
             UpdateFpsText = ResolveUpdateOverlayText(core, 0d);
             RenderFpsText = ResolveRenderOverlayText(core, 0d, core.LastRenderManager3DDrawMilliseconds);
+            DetailFpsText = string.Empty;
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Text = UpdateFpsText;
@@ -515,6 +550,10 @@ namespace helengine {
             if (RenderTextComponent != null) {
                 RenderTextComponent.Text = FormatOverlaySecondaryLine(RenderFpsText);
             }
+
+            UpdateAdditionalLineRows(core);
+            PublishResolvedOverlayTextRows(core);
+            ApplyRowLayout();
         }
 
         /// <summary>
@@ -537,6 +576,7 @@ namespace helengine {
             double renderFps = RenderFrameCount / safeElapsedSeconds;
             UpdateFpsText = ResolveUpdateOverlayText(core, updateFps);
             RenderFpsText = ResolveRenderOverlayText(core, renderFps, core.LastRenderManager3DDrawMilliseconds);
+            DetailFpsText = string.Empty;
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Text = UpdateFpsText;
@@ -546,49 +586,67 @@ namespace helengine {
                 RenderTextComponent.Text = FormatOverlaySecondaryLine(RenderFpsText);
             }
 
+            UpdateAdditionalLineRows(core);
+            PublishResolvedOverlayTextRows(core);
+            ApplyRowLayout();
+
             UpdateFrameCount = 0;
             RenderFrameCount = 0;
             LastSampleElapsedSeconds = core.TotalElapsedSeconds;
         }
 
         /// <summary>
-        /// Rebuilds the authored extra overlay rows so they match the current additional text block.
+        /// Synchronizes compatibility-only extra overlay text even though only two visible rows are rendered.
         /// </summary>
-        void RebuildAdditionalLineRows() {
-            if (!Initialized) {
+        /// <param name="core">Active core instance that may contribute platform-owned diagnostics rows.</param>
+        void UpdateAdditionalLineRows(Core core) {
+            string resolvedAdditionalText = string.Empty;
+            if (VisibleAdditionalTextValue == resolvedAdditionalText && AreAdditionalRowsLive()) {
+                PublishResolvedOverlayTextRows(core);
                 return;
             }
 
-            if (!EnsureOverlayHierarchyIsLive()) {
-                ReleaseOverlayReferences();
+            VisibleAdditionalTextValue = resolvedAdditionalText;
+            SynchronizeAdditionalLineRows();
+            PublishResolvedOverlayTextRows(core);
+        }
+
+        /// <summary>
+        /// Publishes the final resolved overlay rows so one platform-owned renderer can present them without scene text drawables.
+        /// </summary>
+        /// <param name="core">Active core instance receiving the resolved overlay state.</param>
+        void PublishResolvedOverlayTextRows(Core core) {
+            if (core == null) {
                 return;
             }
 
-            DisposeAdditionalLineRows();
-            if (string.IsNullOrWhiteSpace(AdditionalTextValue)) {
+            core.SetResolvedPerformanceOverlayPresentation(
+                Font,
+                FontScale,
+                Padding,
+                UpdateFpsText,
+                RenderFpsText,
+                DetailFpsText,
+                VisibleAdditionalTextValue);
+        }
+
+        /// <summary>
+        /// Clears any previously published platform-owned overlay rows when this component tears down.
+        /// </summary>
+        void ClearPublishedOverlayTextRows() {
+            Core core = Core.Instance;
+            if (core == null) {
                 return;
             }
 
-            string currentLine = string.Empty;
-            for (int characterIndex = 0; characterIndex < AdditionalTextValue.Length; characterIndex++) {
-                char currentCharacter = AdditionalTextValue[characterIndex];
-                if (currentCharacter == '\r') {
-                    continue;
-                }
-
-                if (currentCharacter == '\n') {
-                    AppendAdditionalLineRow(currentLine);
-                    currentLine = string.Empty;
-                    continue;
-                }
-
-                currentLine += currentCharacter;
-            }
-
-            AppendAdditionalLineRow(currentLine);
-
-            ApplyRenderOrder();
-            ApplyRowLayout();
+            core.SetResolvedPerformanceOverlayPresentation(
+                null,
+                1f,
+                new int2(0, 0),
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                string.Empty);
         }
 
         /// <summary>
@@ -601,6 +659,88 @@ namespace helengine {
 
             AdditionalLineRowHosts.Clear();
             AdditionalLineTextComponents.Clear();
+        }
+
+        /// <summary>
+        /// Synchronizes the live authored extra overlay rows with the current visible additional text block.
+        /// </summary>
+        void SynchronizeAdditionalLineRows() {
+            if (!Initialized) {
+                return;
+            }
+
+            if (!EnsureOverlayHierarchyIsLive()) {
+                ReleaseOverlayReferences();
+                return;
+            }
+
+            List<string> visibleLines = BuildVisibleAdditionalLines();
+            while (AdditionalLineRowHosts.Count > visibleLines.Count) {
+                RemoveAdditionalLineRowAt(AdditionalLineRowHosts.Count - 1);
+            }
+
+            for (int lineIndex = 0; lineIndex < visibleLines.Count; lineIndex++) {
+                string lineText = visibleLines[lineIndex];
+                if (lineIndex >= AdditionalLineTextComponents.Count) {
+                    AppendAdditionalLineRow(lineText);
+                    continue;
+                }
+
+                TextComponent textComponent = AdditionalLineTextComponents[lineIndex];
+                textComponent.Font = Font;
+                textComponent.FontScale = FontScale;
+                textComponent.Text = lineText;
+            }
+
+            ApplyRenderOrder();
+            ApplyRowLayout();
+        }
+
+        /// <summary>
+        /// Builds the currently visible authored extra overlay lines from the merged additional text block.
+        /// </summary>
+        /// <returns>Ordered visible overlay lines with blank rows removed.</returns>
+        List<string> BuildVisibleAdditionalLines() {
+            List<string> visibleLines = new List<string>();
+            if (string.IsNullOrWhiteSpace(VisibleAdditionalTextValue)) {
+                return visibleLines;
+            }
+
+            string currentLine = string.Empty;
+            for (int characterIndex = 0; characterIndex < VisibleAdditionalTextValue.Length; characterIndex++) {
+                char currentCharacter = VisibleAdditionalTextValue[characterIndex];
+                if (currentCharacter == '\r') {
+                    continue;
+                }
+
+                if (currentCharacter == '\n') {
+                    if (currentLine.Length > 0) {
+                        visibleLines.Add(currentLine);
+                    }
+
+                    currentLine = string.Empty;
+                    continue;
+                }
+
+                currentLine += currentCharacter;
+            }
+
+            if (currentLine.Length > 0) {
+                visibleLines.Add(currentLine);
+            }
+
+            return visibleLines;
+        }
+
+        /// <summary>
+        /// Removes one authored extra overlay row at the requested index.
+        /// </summary>
+        /// <param name="lineIndex">Zero-based extra overlay row index to remove.</param>
+        void RemoveAdditionalLineRowAt(int lineIndex) {
+            Entity rowHost = AdditionalLineRowHosts[lineIndex];
+            AdditionalLineRowHosts.RemoveAt(lineIndex);
+            AdditionalLineTextComponents.RemoveAt(lineIndex);
+            NativeOwnership.DisposeAndDelete(rowHost);
         }
 
         /// <summary>
@@ -695,6 +835,14 @@ namespace helengine {
         /// <param name="updateFps">Measured update FPS value.</param>
         /// <returns>Update overlay text for the current sample.</returns>
         string ResolveUpdateOverlayText(Core core, double updateFps) {
+            if (ShouldUsePlatformOwnedOverlayTextRows(core)) {
+                if (!string.IsNullOrEmpty(core.PerformanceOverlayUpdateText)) {
+                    return core.PerformanceOverlayUpdateText;
+                }
+
+                return "Upd " + FormatFpsValue(updateFps);
+            }
+
             if (ShouldUsePerformanceOverlayRows(core)) {
                 return "Upd " + FormatFpsValue(updateFps)
                     + " Set " + FormatFpsValue(core.PerformanceOverlayTriangleSetupMilliseconds)
@@ -713,17 +861,63 @@ namespace helengine {
         /// <param name="drawMilliseconds">Measured draw duration in milliseconds.</param>
         /// <returns>Render overlay text for the current sample.</returns>
         string ResolveRenderOverlayText(Core core, double renderFps, double drawMilliseconds) {
+            if (ShouldUsePlatformOwnedOverlayTextRows(core)) {
+                if (!string.IsNullOrEmpty(core.PerformanceOverlayRenderText)) {
+                    return core.PerformanceOverlayRenderText;
+                }
+
+                return "Rdr " + FormatFpsValue(renderFps) + " Drw " + FormatFpsValue(drawMilliseconds);
+            }
+
             if (ShouldUsePerformanceOverlayRows(core)) {
                 return "Rdr " + FormatFpsValue(renderFps)
                     + " Drw " + FormatFpsValue(drawMilliseconds)
                     + " Enc " + FormatFpsValue(core.PerformanceOverlayPacketEncodeMilliseconds)
-                    + " Tpl " + FormatFpsValue(core.PerformanceOverlaySubmitMilliseconds)
-                    + " Wt " + FormatFpsValue(core.PerformanceOverlayWaitMilliseconds)
-                    + " Hit " + core.PerformanceOverlaySubmittedTriangleCount
-                    + " Mis " + core.PerformanceOverlayDispatchCount;
+                    + " Lgt " + FormatFpsValue(core.PerformanceOverlaySubmitMilliseconds);
             }
 
             return FormatRenderFpsText(renderFps, drawMilliseconds);
+        }
+
+        /// <summary>
+        /// Resolves one optional third overlay row retained for compatibility with earlier overlay layouts.
+        /// </summary>
+        /// <param name="core">Active core instance that may provide custom overlay metrics.</param>
+        /// <returns>An empty string because the runtime overlay now renders only two visible rows.</returns>
+        string ResolveDetailOverlayText(Core core) {
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Resolves one optional compatibility-only text block retained for scene-data stability.
+        /// </summary>
+        /// <param name="core">Active core instance that may contribute platform-owned diagnostics rows.</param>
+        /// <returns>An empty string because the runtime overlay now renders only two visible rows.</returns>
+        string ResolveAdditionalOverlayText(Core core) {
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Returns whether the active runtime published explicit text rows for the FPS overlay.
+        /// </summary>
+        /// <param name="core">Active core instance that may expose explicit platform diagnostics rows.</param>
+        /// <returns><c>true</c> when at least one platform-owned overlay row is available.</returns>
+        bool ShouldUsePlatformOwnedOverlayTextRows(Core core) {
+            return core != null
+                && core.UsesPerformanceOverlayMetrics
+                && (!string.IsNullOrEmpty(core.PerformanceOverlayUpdateText)
+                    || !string.IsNullOrEmpty(core.PerformanceOverlayRenderText)
+                    || !string.IsNullOrEmpty(core.PerformanceOverlayDetailText)
+                    || !string.IsNullOrEmpty(core.PerformanceOverlayAdditionalText));
+        }
+
+        /// <summary>
+        /// Returns whether the active runtime owns final FPS overlay presentation and should suppress the scene text hierarchy.
+        /// </summary>
+        /// <param name="core">Active core instance that may expose one platform-owned FPS overlay presentation path.</param>
+        /// <returns><c>true</c> when scene text drawables should stay hidden and only resolved rows should be published.</returns>
+        bool ShouldUsePlatformOwnedOverlayPresentation(Core core) {
+            return core != null && core.UsesPlatformOwnedPerformanceOverlayPresentation;
         }
 
         /// <summary>

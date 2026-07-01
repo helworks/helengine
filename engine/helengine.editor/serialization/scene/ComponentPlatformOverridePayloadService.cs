@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current wrapped payload format version.
         /// </summary>
-        const int WrappedPayloadVersion = 2;
+        const int WrappedPayloadVersion = 3;
 
         /// <summary>
         /// Wraps one serialized component record with editor-only platform override metadata when overrides exist.
@@ -186,6 +186,13 @@ namespace helengine.editor {
             for (int index = 0; index < propertyPaths.Count; index++) {
                 writer.WriteString(propertyPaths[index]);
             }
+
+            List<KeyValuePair<string, string>> memberValues = GetOverrideMemberValues(overrideState);
+            writer.WriteInt32(memberValues.Count);
+            for (int index = 0; index < memberValues.Count; index++) {
+                writer.WriteString(memberValues[index].Key);
+                writer.WriteString(memberValues[index].Value);
+            }
         }
 
         /// <summary>
@@ -338,6 +345,15 @@ namespace helengine.editor {
                 overrideState.SetPropertyOverride(reader.ReadString());
             }
 
+            int memberValueCount = reader.ReadInt32();
+            if (memberValueCount < 0) {
+                throw new InvalidOperationException("Platform override payload entries cannot contain a negative member value count.");
+            }
+
+            for (int index = 0; index < memberValueCount; index++) {
+                overrideState.SetMemberValue(reader.ReadString(), reader.ReadString());
+            }
+
             return overrideState;
         }
 
@@ -375,6 +391,24 @@ namespace helengine.editor {
             }
 
             return propertyPaths;
+        }
+
+        /// <summary>
+        /// Copies the detached synthetic member values stored in one platform override payload.
+        /// </summary>
+        /// <param name="overrideState">Override payload whose detached member values should be copied.</param>
+        /// <returns>Copied detached synthetic member values.</returns>
+        List<KeyValuePair<string, string>> GetOverrideMemberValues(EntityComponentPlatformOverrideState overrideState) {
+            if (overrideState == null) {
+                throw new ArgumentNullException(nameof(overrideState));
+            }
+
+            List<KeyValuePair<string, string>> memberValues = new List<KeyValuePair<string, string>>();
+            foreach (KeyValuePair<string, string> memberValue in overrideState.EnumerateMemberValues()) {
+                memberValues.Add(memberValue);
+            }
+
+            return memberValues;
         }
     }
 }

@@ -166,6 +166,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures update-loop playback consumes the current core frame delta instead of a hardcoded fixed slice.
+        /// </summary>
+        [Fact]
+        public void Update_WhenRunningInsideCoreUpdate_UsesCurrentCoreDeltaTime() {
+            Core core = InitializeCore();
+            Entity entity = new Entity();
+            entity.InitComponents();
+            AnimationPlayerComponent component = new AnimationPlayerComponent();
+            entity.AddComponent(component);
+            AnimationClipAsset clip = new AnimationClipAsset {
+                Id = "Animations/RuntimeDelta.hanim",
+                Duration = 1f,
+                PositionTracks = [
+                    new PositionKeyframeTrackAsset {
+                        Keyframes = [
+                            new PositionKeyframeAsset(0f, float3.Zero, AnimationInterpolationMode.Step),
+                            new PositionKeyframeAsset(1f, new float3(30f, 0f, 0f), AnimationInterpolationMode.Linear)
+                        ]
+                    }
+                ]
+            };
+
+            component.Play(clip, false);
+
+            core.Update(1d / 30d);
+
+            Assert.Equal(1f / 30f, component.CurrentTime, 3);
+            Assert.Equal(new float3(1f, 0f, 0f), entity.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures one configured player can begin its authored clip automatically without a custom startup component.
         /// </summary>
         [Fact]
@@ -267,9 +298,10 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Initializes the minimal core services required by animation-player tests.
         /// </summary>
-        void InitializeCore() {
+        Core InitializeCore() {
             Core core = new Core();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            return core;
         }
     }
 }

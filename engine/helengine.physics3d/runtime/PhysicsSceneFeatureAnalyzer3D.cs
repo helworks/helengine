@@ -64,6 +64,11 @@ namespace helengine {
         const string StaticMeshCollider3DComponentTypeId = "helengine.StaticMeshCollider3DComponent";
 
         /// <summary>
+        /// Automatic reflected static-mesh-collider payload member count used after built-in component persistence moved onto the shared reflected path.
+        /// </summary>
+        const int AutomaticStaticMeshColliderMemberCount = 8;
+
+        /// <summary>
         /// Stable serialized component id for 3D character controllers.
         /// </summary>
         const string CharacterController3DComponentTypeId = "helengine.CharacterController3DComponent";
@@ -768,11 +773,22 @@ namespace helengine {
         /// <param name="record">Serialized static-mesh-collider scene component record.</param>
         /// <returns>True when the collider is configured as a trigger; otherwise false.</returns>
         static bool ReadStaticMeshColliderIsTrigger(SceneComponentAssetRecord record) {
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
             if (version != 1) {
                 throw new InvalidOperationException($"Unsupported static mesh collider component payload version '{version}'.");
+            }
+
+            if (TryReadAutomaticMemberCount(payload, AutomaticStaticMeshColliderMemberCount)) {
+                reader.ReadInt32();
+                SkipAutomaticStaticMeshCollisionData(reader);
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                SkipAutomaticStaticMeshCookedRuntimeData(reader);
+                reader.ReadDouble();
+                return reader.ReadByte() != 0;
             }
 
             int vertexCount = reader.ReadInt32();
@@ -786,6 +802,122 @@ namespace helengine {
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Skips one reflected static-mesh collision-data payload written through automatic component persistence.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the collision-data member payload.</param>
+        static void SkipAutomaticStaticMeshCollisionData(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            if (reader.ReadByte() == 0) {
+                return;
+            }
+
+            SkipAutomaticIntArray(reader);
+            SkipAutomaticFloat3Array(reader);
+        }
+
+        /// <summary>
+        /// Skips one reflected optional cooked static-mesh runtime payload written through automatic component persistence.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the cooked-runtime-data member payload.</param>
+        static void SkipAutomaticStaticMeshCookedRuntimeData(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            if (reader.ReadByte() == 0) {
+                return;
+            }
+
+            SkipAutomaticEngineSerializedPayload(reader);
+        }
+
+        /// <summary>
+        /// Skips one engine-owned serialized payload written through automatic component persistence.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the serialized-payload member payload.</param>
+        static void SkipAutomaticEngineSerializedPayload(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            if (reader.ReadByte() == 0) {
+                return;
+            }
+
+            reader.ReadString();
+            SkipAutomaticByteArray(reader);
+        }
+
+        /// <summary>
+        /// Skips one reflected integer array payload written through automatic component persistence.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the integer-array payload.</param>
+        static void SkipAutomaticIntArray(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            int length = reader.ReadInt32();
+            if (length == -1) {
+                return;
+            }
+            if (length < -1) {
+                throw new InvalidOperationException("Array length cannot be negative.");
+            }
+
+            for (int index = 0; index < length; index++) {
+                reader.ReadInt32();
+            }
+        }
+
+        /// <summary>
+        /// Skips one reflected byte array payload written through automatic component persistence.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the byte-array payload.</param>
+        static void SkipAutomaticByteArray(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            int length = reader.ReadInt32();
+            if (length == -1) {
+                return;
+            }
+            if (length < -1) {
+                throw new InvalidOperationException("Array length cannot be negative.");
+            }
+
+            for (int index = 0; index < length; index++) {
+                reader.ReadByte();
+            }
+        }
+
+        /// <summary>
+        /// Skips one reflected <see cref="float3"/> array payload written through automatic component persistence.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the <see cref="float3"/> array payload.</param>
+        static void SkipAutomaticFloat3Array(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            int length = reader.ReadInt32();
+            if (length == -1) {
+                return;
+            }
+            if (length < -1) {
+                throw new InvalidOperationException("Array length cannot be negative.");
+            }
+
+            for (int index = 0; index < length; index++) {
+                reader.ReadFloat3();
+            }
         }
 
         /// <summary>

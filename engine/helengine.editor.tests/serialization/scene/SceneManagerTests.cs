@@ -292,6 +292,33 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures one single-scene transition clears any fixed-step physics backlog accumulated by the previous scene.
+        /// </summary>
+        [Fact]
+        public void LoadScene_whenModeIsSingleAfterPhysicsBacklogWasAccumulated_resetsFixedStepAccumulator() {
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 1u);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
+            TestPhysicsRuntime physicsRuntime = new TestPhysicsRuntime();
+            core.AttachPhysicsRuntime(physicsRuntime);
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+
+            core.Update(0.5d);
+
+            Assert.True(core.PhysicsScheduler.AccumulatedSeconds > 0d);
+            Assert.True(physicsRuntime.StepCount > 0);
+
+            core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+
+            Assert.Equal(0d, core.PhysicsScheduler.AccumulatedSeconds);
+        }
+
+        /// <summary>
         /// Ensures single-mode scene transitions release font textures owned by the previous scene before the next scene loads.
         /// </summary>
         [Fact]

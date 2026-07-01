@@ -200,12 +200,13 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
-        /// Ensures the DirectX11 standard-mesh shader data uploads the inverse-transpose matrix directly so rotated meshes light in world space instead of local space.
+        /// Ensures the DirectX11 standard-mesh shader data transposes the inverse-transpose matrix before upload so HLSL row-vector normal transforms match the uploaded world-matrix convention.
         /// </summary>
         [Fact]
-        public void BuildStandardMeshShaderData_WhenWorldContainsRotation_UploadsInverseTransposeNormalMatrix() {
+        public void BuildStandardMeshShaderData_WhenWorldContainsRotation_UploadsTransposedInverseTransposeNormalMatrix() {
             float4x4.CreateFromYawPitchRoll((float)(Math.PI * 0.5d), 0f, 0f, out float4x4 world);
             float4x4.InverseTranspose(ref world, out float4x4 expectedUploadedNormalMatrix);
+            float4x4.Transpose(ref expectedUploadedNormalMatrix, out expectedUploadedNormalMatrix);
             MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("BuildStandardMeshShaderData", BindingFlags.Static | BindingFlags.NonPublic);
 
             Assert.NotNull(method);

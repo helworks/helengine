@@ -3,10 +3,14 @@ namespace helengine.editor {
     /// Validates persisted scene asset references against the editor-supported reference surface.
     /// </summary>
     public static class SceneAssetReferenceValidationService {
-        /// <summary>
         /// Packaged runtime relative path emitted for the generated engine cube model during scene packaging.
         /// </summary>
         const string PackagedCubeModelRelativePath = "cooked/engine/models/cube.hasset";
+
+        /// <summary>
+        /// Rooted packaged runtime path emitted for the generated engine cube model when the active runtime contract allows rooted packaged references.
+        /// </summary>
+        const string RootedPackagedCubeModelRelativePath = "/cooked/engine/models/cube.hasset";
 
         /// <summary>
         /// Packaged runtime relative path emitted for the generated engine plane model during scene packaging.
@@ -14,14 +18,29 @@ namespace helengine.editor {
         const string PackagedPlaneModelRelativePath = "cooked/engine/models/plane.hasset";
 
         /// <summary>
+        /// Rooted packaged runtime path emitted for the generated engine plane model when the active runtime contract allows rooted packaged references.
+        /// </summary>
+        const string RootedPackagedPlaneModelRelativePath = "/cooked/engine/models/plane.hasset";
+
+        /// <summary>
         /// Packaged runtime relative path emitted for the generated engine sphere model during scene packaging.
         /// </summary>
         const string PackagedSphereModelRelativePath = "cooked/engine/models/sphere.hasset";
 
         /// <summary>
+        /// Rooted packaged runtime path emitted for the generated engine sphere model when the active runtime contract allows rooted packaged references.
+        /// </summary>
+        const string RootedPackagedSphereModelRelativePath = "/cooked/engine/models/sphere.hasset";
+
+        /// <summary>
         /// Packaged runtime relative path emitted for the generated engine standard material during scene packaging.
         /// </summary>
         const string PackagedStandardMaterialRelativePath = "cooked/engine/materials/standard.hasset";
+
+        /// <summary>
+        /// Rooted packaged runtime path emitted for the generated engine standard material when the active runtime contract allows rooted packaged references.
+        /// </summary>
+        const string RootedPackagedStandardMaterialRelativePath = "/cooked/engine/materials/standard.hasset";
 
         /// <summary>
         /// Validates every named scene asset reference stored in one component save-state.
@@ -226,7 +245,9 @@ namespace helengine.editor {
                 return;
             }
 
-            throw new InvalidOperationException($"Unsupported generated model asset id '{reference.AssetId}' for {context}.");
+            throw new InvalidOperationException(
+                $"Unsupported generated model asset id '{reference.AssetId}' for {context}. " +
+                $"SourceKind='{reference.SourceKind}', RelativePath='{reference.RelativePath}', ProviderId='{reference.ProviderId}'.");
         }
 
         /// <summary>
@@ -248,7 +269,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported generated material provider '{reference.ProviderId}' for {context}.");
             }
             if (!IsSupportedGeneratedMaterialReference(reference)) {
-                throw new InvalidOperationException($"Unsupported generated material asset id '{reference.AssetId}' for {context}.");
+                throw new InvalidOperationException(
+                    $"Unsupported generated material asset id '{reference.AssetId}' for {context}. " +
+                    $"SourceKind='{reference.SourceKind}', RelativePath='{reference.RelativePath}', ProviderId='{reference.ProviderId}'.");
             }
         }
 
@@ -326,7 +349,10 @@ namespace helengine.editor {
                    MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.CreateSphereModel()) ||
                    MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.ModelUtils.GeneratedCubeModelId, PackagedCubeModelRelativePath) ||
                    MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.ModelUtils.GeneratedPlaneModelId, PackagedPlaneModelRelativePath) ||
-                   MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.ModelUtils.GeneratedSphereModelId, PackagedSphereModelRelativePath);
+                   MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.ModelUtils.GeneratedSphereModelId, PackagedSphereModelRelativePath) ||
+                   MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.ModelUtils.GeneratedCubeModelId, RootedPackagedCubeModelRelativePath) ||
+                   MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.ModelUtils.GeneratedPlaneModelId, RootedPackagedPlaneModelRelativePath) ||
+                   MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.ModelUtils.GeneratedSphereModelId, RootedPackagedSphereModelRelativePath);
         }
 
         /// <summary>
@@ -340,7 +366,8 @@ namespace helengine.editor {
             }
 
             return MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.CreateStandardMaterial()) ||
-                   MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.EngineSceneAssetReferenceFactory.StandardMaterialAssetId, PackagedStandardMaterialRelativePath);
+                   MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.EngineSceneAssetReferenceFactory.StandardMaterialAssetId, PackagedStandardMaterialRelativePath) ||
+                   MatchesGeneratedReference(reference, global::helengine.EngineSceneAssetReferenceFactory.ProviderIdValue, global::helengine.EngineSceneAssetReferenceFactory.StandardMaterialAssetId, RootedPackagedStandardMaterialRelativePath);
         }
 
         /// <summary>

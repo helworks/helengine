@@ -9,6 +9,11 @@ namespace helengine.editor {
         const string HelEngineEditorProjectRelativePath = "engine/helengine.editor/helengine.editor.csproj";
 
         /// <summary>
+        /// Environment variable that can explicitly point the locator at the active HelEngine source root.
+        /// </summary>
+        const string HelEngineSourceRootEnvironmentVariableName = "HELENGINE_SOURCE_ROOT";
+
+        /// <summary>
         /// Hidden git worktree directory name used by this source workspace.
         /// </summary>
         const string HiddenWorktreeDirectoryName = ".worktrees";
@@ -23,6 +28,10 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Absolute HelEngine source root path.</returns>
         public string ResolveHelEngineRootPath() {
+            if (TryResolveEnvironmentOverrideRootPath(out string environmentOverrideRootPath)) {
+                return environmentOverrideRootPath;
+            }
+
             string baseDirectory = AppContext.BaseDirectory;
             if (string.IsNullOrWhiteSpace(baseDirectory)) {
                 throw new InvalidOperationException("Application base directory could not be resolved.");
@@ -39,6 +48,28 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException("HelEngine source root could not be resolved from the current editor build.");
+        }
+
+        /// <summary>
+        /// Attempts to resolve the HelEngine source root from an explicit environment-variable override.
+        /// </summary>
+        /// <param name="helEngineRootPath">Resolved HelEngine source root path when the override is valid.</param>
+        /// <returns>True when a valid override was supplied; otherwise false.</returns>
+        bool TryResolveEnvironmentOverrideRootPath(out string helEngineRootPath) {
+            helEngineRootPath = string.Empty;
+            string configuredRootPath = Environment.GetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName);
+            if (string.IsNullOrWhiteSpace(configuredRootPath)) {
+                return false;
+            }
+
+            string fullConfiguredRootPath = Path.GetFullPath(configuredRootPath);
+            string markerPath = Path.Combine(fullConfiguredRootPath, HelEngineEditorProjectRelativePath);
+            if (!File.Exists(markerPath)) {
+                throw new InvalidOperationException($"The HelEngine source-root override '{fullConfiguredRootPath}' does not contain '{HelEngineEditorProjectRelativePath}'.");
+            }
+
+            helEngineRootPath = fullConfiguredRootPath;
+            return true;
         }
 
         /// <summary>

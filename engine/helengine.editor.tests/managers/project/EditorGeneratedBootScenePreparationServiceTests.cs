@@ -5,6 +5,11 @@ namespace helengine.editor.tests.managers.project;
 /// </summary>
 public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposable {
     /// <summary>
+    /// Environment variable used to override the generated boot-scene startup target during build preparation.
+    /// </summary>
+    const string GeneratedBootSceneInitialSceneIdEnvironmentVariable = "HELENGINE_GENERATED_BOOT_SCENE_INITIAL_SCENE_ID";
+
+    /// <summary>
     /// Temporary project root used by the current test instance.
     /// </summary>
     readonly string ProjectRootPath;
@@ -21,9 +26,56 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
     /// Deletes the temporary project root after each test.
     /// </summary>
     public void Dispose() {
+        Environment.SetEnvironmentVariable(GeneratedBootSceneInitialSceneIdEnvironmentVariable, null);
         if (Directory.Exists(ProjectRootPath)) {
             Directory.Delete(ProjectRootPath, true);
         }
+    }
+
+    /// <summary>
+    /// Ensures desktop boot-scene preparation can direct startup into an explicitly selected scene for fast runtime repro.
+    /// </summary>
+    [Fact]
+    public void EnsurePrepared_WhenDesktopStartupOverrideIsSet_WritesOverrideAsInitialSceneId() {
+        Environment.SetEnvironmentVariable(GeneratedBootSceneInitialSceneIdEnvironmentVariable, "test_scene_static_mesh_showcase");
+        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+        service.EnsurePrepared(
+            "windows",
+            [
+                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                "test_scene_static_mesh_showcase"
+            ]);
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        Assert.True(File.Exists(scenePath));
+
+        using FileStream stream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+        SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
+
+        SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
+        Assert.Equal("test_scene_static_mesh_showcase", sceneMapComponent.InitialSceneId);
+        Assert.Empty(sceneMapComponent.Mappings);
+    }
+
+    /// <summary>
+    /// Ensures boot-scene preparation rejects startup overrides that are not present in the selected scene set.
+    /// </summary>
+    [Fact]
+    public void EnsurePrepared_WhenStartupOverrideTargetsUnselectedScene_Throws() {
+        Environment.SetEnvironmentVariable(GeneratedBootSceneInitialSceneIdEnvironmentVariable, "test_scene_static_mesh_showcase");
+        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.EnsurePrepared(
+            "windows",
+            [
+                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                PlatformMenuSceneResolver.DesktopMainMenuSceneId
+            ]));
+
+        Assert.Contains("test_scene_static_mesh_showcase", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -45,7 +45,7 @@ namespace helengine.editor {
 
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                builder.AppendLine($"    component.{member.Name} = {BuildReadExpression(member.ValueType)};");
+                builder.AppendLine("    " + BuildManagedAssignmentStatement(member, BuildReadExpression(member.ValueType)));
             }
 
             builder.AppendLine("    return component;");
@@ -440,6 +440,17 @@ namespace helengine.editor {
                     + "value.Z = " + readerVariableName + "->ReadByte(); "
                     + "value.W = " + readerVariableName + "->ReadByte(); "
                     + "return value; "
+                    + "})()";
+                return true;
+            }
+            if (valueType == typeof(EngineSerializedPayload)) {
+                expression = "([&]() { "
+                    + "if (" + readerVariableName + "->ReadByte() == 0) { return static_cast<::EngineSerializedPayload*>(nullptr); } "
+                    + "std::string formatId = " + readerVariableName + "->ReadString(); "
+                    + "Array<uint8_t>* serializedBytes = "
+                    + BuildNativeInlineArrayExpression(typeof(byte), readerVariableName, nativeNestedHelperNames)
+                    + "; "
+                    + "return ::EngineSerializedPayload::Restore(formatId, serializedBytes); "
                     + "})()";
                 return true;
             }
@@ -1158,10 +1169,81 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(expression)) {
                 throw new ArgumentException("Native assignment expression must be provided.", nameof(expression));
             }
+            if (member.PlatformComponentMemberDefinition != null) {
+                return BuildNativeSyntheticAssignmentStatement(member, expression);
+            }
 
             return member.IsProperty
                 ? $"component->{BuildNativeWriteTarget(member)}({expression});"
                 : $"component->{BuildNativeWriteTarget(member)} = {expression};";
+        }
+
+        /// <summary>
+        /// Builds one managed assignment statement for the supplied reflected or synthetic schema member.
+        /// </summary>
+        /// <param name="member">Schema member that should receive the decoded runtime value.</param>
+        /// <param name="expression">Managed expression that evaluates to the decoded runtime value.</param>
+        /// <returns>Complete managed assignment statement.</returns>
+        string BuildManagedAssignmentStatement(ScriptComponentReflectionMember member, string expression) {
+            if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            }
+            if (string.IsNullOrWhiteSpace(expression)) {
+                throw new ArgumentException("Managed assignment expression must be provided.", nameof(expression));
+            }
+            if (member.PlatformComponentMemberDefinition != null) {
+                return BuildManagedSyntheticAssignmentStatement(member, expression);
+            }
+
+            return $"component.{member.Name} = {expression};";
+        }
+
+        /// <summary>
+        /// Builds one managed assignment statement that stores a synthetic platform member through the component's generic synthetic-member store.
+        /// </summary>
+        /// <param name="member">Synthetic schema member that should receive the decoded runtime value.</param>
+        /// <param name="expression">Managed expression that evaluates to the decoded runtime value.</param>
+        /// <returns>Complete managed synthetic-member assignment statement.</returns>
+        string BuildManagedSyntheticAssignmentStatement(ScriptComponentReflectionMember member, string expression) {
+            string escapedMemberName = EscapeForManagedString(member.Name);
+            if (member.ValueType == typeof(string)) {
+                return $"component.SetSyntheticStringMember(\"{escapedMemberName}\", {expression});";
+            }
+            if (member.ValueType == typeof(bool)) {
+                return $"component.SetSyntheticBooleanMember(\"{escapedMemberName}\", {expression});";
+            }
+            if (member.ValueType == typeof(int)) {
+                return $"component.SetSyntheticInt32Member(\"{escapedMemberName}\", {expression});";
+            }
+            if (member.ValueType == typeof(float)) {
+                return $"component.SetSyntheticSingleMember(\"{escapedMemberName}\", {expression});";
+            }
+
+            throw new InvalidOperationException($"Managed synthetic component member assignment does not support type '{member.ValueType?.FullName}'.");
+        }
+
+        /// <summary>
+        /// Builds one native assignment statement that stores a synthetic platform member through the component's generic synthetic-member store.
+        /// </summary>
+        /// <param name="member">Synthetic schema member that should receive the decoded runtime value.</param>
+        /// <param name="expression">Native expression that evaluates to the decoded runtime value.</param>
+        /// <returns>Complete native synthetic-member assignment statement.</returns>
+        string BuildNativeSyntheticAssignmentStatement(ScriptComponentReflectionMember member, string expression) {
+            string escapedMemberName = EscapeForCppString(member.Name);
+            if (member.ValueType == typeof(string)) {
+                return $"component->SetSyntheticStringMember(std::string(\"{escapedMemberName}\"), {expression});";
+            }
+            if (member.ValueType == typeof(bool)) {
+                return $"component->SetSyntheticBooleanMember(std::string(\"{escapedMemberName}\"), {expression});";
+            }
+            if (member.ValueType == typeof(int)) {
+                return $"component->SetSyntheticInt32Member(std::string(\"{escapedMemberName}\"), {expression});";
+            }
+            if (member.ValueType == typeof(float)) {
+                return $"component->SetSyntheticSingleMember(std::string(\"{escapedMemberName}\"), {expression});";
+            }
+
+            throw new InvalidOperationException($"Native synthetic component member assignment does not support type '{member.ValueType?.FullName}'.");
         }
 
         /// <summary>
@@ -1170,6 +1252,21 @@ namespace helengine.editor {
         /// <param name="value">Managed string value to escape.</param>
         /// <returns>Escaped C++ string literal contents.</returns>
         static string EscapeForCppString(string value) {
+            if (string.IsNullOrEmpty(value)) {
+                return string.Empty;
+            }
+
+            return value
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("\"", "\\\"", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Escapes one managed string so it can appear inside a generated C# string literal.
+        /// </summary>
+        /// <param name="value">Managed string value to escape.</param>
+        /// <returns>Escaped C# string literal contents.</returns>
+        static string EscapeForManagedString(string value) {
             if (string.IsNullOrEmpty(value)) {
                 return string.Empty;
             }

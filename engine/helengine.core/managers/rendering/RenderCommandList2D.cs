@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Stores one flat, reusable stream of resolved 2D commands for one camera frame.
     /// </summary>
-    public sealed class RenderCommandList2D {
+    public sealed class RenderCommandList2D : IDisposable {
         /// <summary>
         /// Logical command kinds in insertion order.
         /// </summary>
@@ -94,6 +94,11 @@ namespace helengine {
         readonly List<byte4> RoundedRectBorderColors;
 
         /// <summary>
+        /// Tracks whether the native backing lists owned by this reusable command container were already released.
+        /// </summary>
+        bool IsDisposedValue;
+
+        /// <summary>
         /// Initializes a reusable command list with the supplied initial capacity.
         /// </summary>
         /// <param name="initialCapacity">Initial logical command capacity.</param>
@@ -127,6 +132,36 @@ namespace helengine {
         /// </summary>
         public int Count {
             get { return CommandTypes.Count; }
+        }
+
+        /// <summary>
+        /// Releases the native backing lists owned by this reusable command container.
+        /// </summary>
+        public void Dispose() {
+            if (IsDisposedValue) {
+                return;
+            }
+
+            Reset();
+            NativeOwnership.Delete(CommandTypes);
+            NativeOwnership.Delete(PayloadIndices);
+            NativeOwnership.Delete(ClipRects);
+            NativeOwnership.Delete(QuadTextures);
+            NativeOwnership.Delete(QuadBounds);
+            NativeOwnership.Delete(QuadSourceRects);
+            NativeOwnership.Delete(QuadColors);
+            NativeOwnership.Delete(QuadRotations);
+            NativeOwnership.Delete(GlyphTextures);
+            NativeOwnership.Delete(GlyphBounds);
+            NativeOwnership.Delete(GlyphSourceRects);
+            NativeOwnership.Delete(GlyphColors);
+            NativeOwnership.Delete(RoundedRectBounds);
+            NativeOwnership.Delete(RoundedRectRadii);
+            NativeOwnership.Delete(RoundedRectBorderThicknesses);
+            NativeOwnership.Delete(RoundedRectCornersValues);
+            NativeOwnership.Delete(RoundedRectFillColors);
+            NativeOwnership.Delete(RoundedRectBorderColors);
+            IsDisposedValue = true;
         }
 
         /// <summary>

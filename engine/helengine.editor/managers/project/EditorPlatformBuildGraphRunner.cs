@@ -98,7 +98,7 @@ namespace helengine.editor {
             BuilderLoader = builderLoader ?? throw new ArgumentNullException(nameof(builderLoader));
             GeneratedCoreRegenerationService = generatedCoreRegenerationService ?? throw new ArgumentNullException(nameof(generatedCoreRegenerationService));
             GeneratedBootScenePreparationService = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
-            WorkspaceFactory = workspaceFactory ?? new EditorPlatformBuildGraphWorkspaceFactory();
+            WorkspaceFactory = workspaceFactory ?? new EditorPlatformBuildGraphWorkspaceFactory(ProjectRootPath);
             AssetCookService = new EditorPlatformAssetCookService(
                 ProjectRootPath,
                 RequiredEngineVersion,
@@ -160,7 +160,7 @@ namespace helengine.editor {
             PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
             WritePhaseMarker(workspace, "code-compiled");
             CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(cookedManifest, codeModules, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.ExecutionRootPath);
-            EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.ExecutionRootPath);
+            EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.ExecutionRootPath, builder.Definition);
             EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(workspace.GeneratedCoreRootPath);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
             WritePhaseMarker(workspace, "generated-core-finalized");
@@ -505,10 +505,12 @@ namespace helengine.editor {
         /// <param name="cookedManifest">Cooked manifest whose scene payloads should drive generated deserializer coverage.</param>
         /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
         /// <param name="packagedContentRootPath">Packaged content root that contains the cooked scene payloads beneath a top-level <c>cooked/</c> segment.</param>
+        /// <param name="platformDefinition">Typed platform metadata exposed by the active builder.</param>
         void EmitGeneratedRuntimeComponentDeserializersForCookedScenes(
             PlatformBuildManifest cookedManifest,
             string generatedCoreRootPath,
-            string packagedContentRootPath) {
+            string packagedContentRootPath,
+            PlatformDefinition platformDefinition) {
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
@@ -517,6 +519,9 @@ namespace helengine.editor {
             }
             if (string.IsNullOrWhiteSpace(packagedContentRootPath)) {
                 throw new ArgumentException("Packaged content root path must be provided.", nameof(packagedContentRootPath));
+            }
+            if (platformDefinition == null) {
+                throw new ArgumentNullException(nameof(platformDefinition));
             }
 
             List<string> cookedSceneAssetPaths = new List<string>(cookedManifest.Scenes.Length);
@@ -532,7 +537,8 @@ namespace helengine.editor {
             EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
                 generatedCoreRootPath,
                 cookedSceneAssetPaths,
-                ScriptTypeResolver);
+                ScriptTypeResolver,
+                platformDefinition);
             EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
         }
 

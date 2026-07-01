@@ -5,13 +5,13 @@ namespace helengine.editor {
     /// <summary>
     /// Loads a platform asset builder from one dynamically provided assembly path.
     /// </summary>
-    public sealed class EditorPlatformAssetBuilderLoader {
+    public class EditorPlatformAssetBuilderLoader {
         /// <summary>
         /// Loads one builder implementation from the supplied assembly path.
         /// </summary>
         /// <param name="assemblyPath">Absolute builder assembly path resolved from the platform manifest.</param>
         /// <returns>Loaded platform asset builder instance.</returns>
-        public IPlatformAssetBuilder Load(string assemblyPath) {
+        public virtual IPlatformAssetBuilder Load(string assemblyPath) {
             if (string.IsNullOrWhiteSpace(assemblyPath)) {
                 throw new ArgumentException("Builder assembly path must be provided.", nameof(assemblyPath));
             }

@@ -1,4 +1,5 @@
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Manifest;
 using helengine.editor.tests.testing;
 
@@ -68,6 +69,23 @@ namespace helengine.editor.tests {
             Assert.True(transformed);
             Assert.NotNull(transformedRecord);
             Assert.Equal("helengine.TextComponent", transformedRecord.ComponentTypeId);
+        }
+
+        /// <summary>
+        /// Ensures platform-extended text metadata stored in detached DS overrides is emitted into the packaged ordinal runtime payload.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenDsTextComponentHasSyntheticBgLayerOverride_WritesSyntheticPlatformMemberIntoPackagedPayload() {
+            PlatformDefinition platformDefinition = CreateDsSyntheticTextPlatformDefinition();
+            SceneComponentPackagingTransformService service = CreateDsSyntheticTextService(platformDefinition);
+            SceneComponentAssetRecord record = CreateWrappedTextRecord(false, "1");
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            TextComponent restored = DeserializePlatformExtendedAutomaticComponent<TextComponent>(transformedRecord, platformDefinition);
+            Assert.Equal(1, restored.GetSyntheticInt32MemberOrDefault("BGLayer", -1));
         }
 
         /// <summary>
@@ -202,11 +220,80 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a registered static-mesh cook processor can populate the cooked runtime payload during packaging.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenStaticMeshColliderUsesRegisteredCookProcessor_WritesCookedRuntimePayload() {
+            StaticMeshCollisionCookProcessorRegistry registry = new StaticMeshCollisionCookProcessorRegistry();
+            registry.RegisterProcessor(new StubStaticMeshCollisionCookProcessor3D());
+            SceneComponentPackagingTransformService service = CreateBigEndianStaticMeshService(new StubTextComponentSpriteBakeService(), registry);
+            SceneComponentAssetRecord record = CreateStaticMeshColliderRecord();
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            StaticMeshCollider3DComponent restored = DeserializeAutomaticComponent<StaticMeshCollider3DComponent>(transformedRecord);
+            Assert.NotNull(restored.CookedRuntimeData);
+            Assert.Equal("test.static-mesh", restored.CookedRuntimeData.FormatId);
+            using EngineBinaryReader reader = restored.CookedRuntimeData.CreatePayloadReader("test.static-mesh", 0x7A01, 3);
+            Assert.Equal(EngineBinaryEndianness.BigEndian, reader.Endianness);
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(0.25f, reader.ReadSingle());
+        }
+
+        /// <summary>
+        /// Ensures the real BEPU static-mesh cook processor can populate a BEPU-owned runtime payload during packaging.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenStaticMeshColliderUsesRealBepuCookProcessor_WritesBepuPayload() {
+            StaticMeshCollisionCookProcessorRegistry registry = new StaticMeshCollisionCookProcessorRegistry();
+            registry.RegisterProcessor(new BepuStaticMeshCollisionCookProcessor3D());
+            SceneComponentPackagingTransformService service = CreateBigEndianStaticMeshService(new StubTextComponentSpriteBakeService(), registry);
+
+            bool transformed = service.TryTransform(CreateStaticMeshColliderRecord(), BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            StaticMeshCollider3DComponent restored = DeserializeAutomaticComponent<StaticMeshCollider3DComponent>(transformedRecord);
+            Assert.Equal(BepuStaticMeshCollisionCookProcessor3D.FormatIdValue, restored.CookedRuntimeData.FormatId);
+            using EngineBinaryReader reader = restored.CookedRuntimeData.CreatePayloadReader(
+                BepuStaticMeshCollisionCookProcessor3D.FormatIdValue,
+                BepuStaticMeshCollisionCookProcessor3D.BinaryFormatIdValue,
+                BepuStaticMeshCollisionCookProcessor3D.BinaryFormatVersionValue);
+            Assert.Equal(EngineBinaryEndianness.BigEndian, reader.Endianness);
+        }
+
+        /// <summary>
+        /// Ensures the BEPU cook processor preserves the generic static mesh collision data while adding the cooked payload.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenBepuCookProcessorRuns_PreservesGenericCollisionDataAlongsideCookedPayload() {
+            StaticMeshCollisionCookProcessorRegistry registry = new StaticMeshCollisionCookProcessorRegistry();
+            registry.RegisterProcessor(new BepuStaticMeshCollisionCookProcessor3D());
+            SceneComponentPackagingTransformService service = CreateBigEndianStaticMeshService(new StubTextComponentSpriteBakeService(), registry);
+
+            bool transformed = service.TryTransform(CreateStaticMeshColliderRecord(), BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            StaticMeshCollider3DComponent restored = DeserializeAutomaticComponent<StaticMeshCollider3DComponent>(transformedRecord);
+            Assert.Equal(3, restored.CollisionData.Vertices.Length);
+            Assert.Equal(new[] { 0, 1, 2 }, restored.CollisionData.Indices);
+            Assert.Equal(BepuStaticMeshCollisionCookProcessor3D.FormatIdValue, restored.CookedRuntimeData.FormatId);
+            using EngineBinaryReader reader = restored.CookedRuntimeData.CreatePayloadReader(
+                BepuStaticMeshCollisionCookProcessor3D.FormatIdValue,
+                BepuStaticMeshCollisionCookProcessor3D.BinaryFormatIdValue,
+                BepuStaticMeshCollisionCookProcessor3D.BinaryFormatVersionValue);
+            Assert.Equal(EngineBinaryEndianness.BigEndian, reader.Endianness);
+        }
+
+        /// <summary>
         /// Creates one transform service wired to real project dependencies and one injected bake-service seam.
         /// </summary>
         /// <param name="bakeService">Bake service that should receive flagged text requests.</param>
         /// <returns>Configured transform service.</returns>
-        SceneComponentPackagingTransformService CreateService(ITextComponentSpriteBakeService bakeService) {
+        SceneComponentPackagingTransformService CreateService(ITextComponentSpriteBakeService bakeService, StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry = null) {
             ContentManager contentManager = new ContentManager(ProjectRootPath);
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
@@ -227,7 +314,75 @@ namespace helengine.editor.tests {
                 null,
                 null,
                 null,
-                bakeService);
+                bakeService,
+                staticMeshCookProcessorRegistry);
+        }
+
+        /// <summary>
+        /// Creates one transform service configured with one big-endian codegen profile for static-mesh runtime payload verification.
+        /// </summary>
+        /// <param name="bakeService">Bake service that should receive flagged text requests.</param>
+        /// <param name="staticMeshCookProcessorRegistry">Cook processor registry used by the service.</param>
+        /// <returns>Configured transform service.</returns>
+        SceneComponentPackagingTransformService CreateBigEndianStaticMeshService(
+            ITextComponentSpriteBakeService bakeService,
+            StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry) {
+            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
+            assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
+            PlatformDefinition platformDefinition = CreateBigEndianStaticMeshPlatformDefinition();
+
+            return new SceneComponentPackagingTransformService(
+                Path.Combine(ProjectRootPath, "assets"),
+                contentManager,
+                assetImportManager,
+                fileSystemModelResolver,
+                new List<string>(),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                "gamecube",
+                null,
+                "main",
+                string.Empty,
+                null,
+                null,
+                platformDefinition,
+                bakeService,
+                staticMeshCookProcessorRegistry);
+        }
+
+        /// <summary>
+        /// Creates one transform service configured for DS text synthetic-member packaging verification.
+        /// </summary>
+        /// <param name="platformDefinition">Platform definition that exposes the synthetic text member.</param>
+        /// <returns>Configured transform service.</returns>
+        SceneComponentPackagingTransformService CreateDsSyntheticTextService(PlatformDefinition platformDefinition) {
+            if (platformDefinition == null) {
+                throw new ArgumentNullException(nameof(platformDefinition));
+            }
+
+            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
+            assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
+
+            return new SceneComponentPackagingTransformService(
+                Path.Combine(ProjectRootPath, "assets"),
+                contentManager,
+                assetImportManager,
+                fileSystemModelResolver,
+                new List<string>(),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                "ds",
+                null,
+                string.Empty,
+                string.Empty,
+                null,
+                null,
+                platformDefinition,
+                new StubTextComponentSpriteBakeService());
         }
 
         /// <summary>
@@ -358,6 +513,58 @@ namespace helengine.editor.tests {
             saveState.SetAssetReference(nameof(TextComponent.Font), CreateEditorFontReference());
 
             return descriptor.SerializeComponent(textComponent, 0, saveState);
+        }
+
+        /// <summary>
+        /// Creates one wrapped automatic reflected text-component record that carries one detached DS synthetic member override.
+        /// </summary>
+        /// <param name="convertTextToSprite">True when the authored text should request build-time sprite conversion.</param>
+        /// <param name="bgLayerValue">Serialized DS background-layer override value.</param>
+        /// <returns>Wrapped serialized text-component record.</returns>
+        SceneComponentAssetRecord CreateWrappedTextRecord(bool convertTextToSprite, string bgLayerValue) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TextComponent textComponent = new TextComponent {
+                Font = CreatePackagedFontAsset(),
+                Text = "Hello world",
+                WrapText = true,
+                Size = new int2(128, 32),
+                Color = new byte4(12, 34, 56, 255),
+                SourceRect = new float4(0f, 0f, 1f, 1f),
+                Rotation = 0.25f,
+                FontScale = 2f,
+                RenderOrder2D = 19,
+                LayerMask = 7,
+                SelectionEnabled = true,
+                ConvertTextToSprite = convertTextToSprite,
+                Alignment = TextAlignment.Center
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(TextComponent.Font), CreateEditorFontReference());
+            SceneComponentAssetRecord baseRecord = descriptor.SerializeComponent(textComponent, 0, saveState);
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride("ds");
+            overrideState.Payload = baseRecord.Payload;
+            overrideState.SetPropertyOverride("BGLayer");
+            overrideState.SetMemberValue("BGLayer", bgLayerValue);
+            return new ComponentPlatformOverridePayloadService().Wrap(baseRecord, saveState);
+        }
+
+        /// <summary>
+        /// Creates one automatic reflected static-mesh collider record for packaging verification.
+        /// </summary>
+        /// <returns>Serialized static-mesh collider record.</returns>
+        static SceneComponentAssetRecord CreateStaticMeshColliderRecord() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            StaticMeshCollider3DComponent component = new StaticMeshCollider3DComponent {
+                CollisionData = new StaticMeshCollisionData3D(
+                    [
+                        new float3(-1f, 0f, -1f),
+                        new float3(1f, 0f, -1f),
+                        new float3(-1f, 0f, 1f)
+                    ],
+                    [0, 1, 2])
+            };
+
+            return descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
         }
 
         /// <summary>
@@ -503,6 +710,53 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Deserializes one automatic reflected component from the supplied transformed record.
+        /// </summary>
+        /// <typeparam name="TComponent">Expected component type.</typeparam>
+        /// <param name="record">Transformed record to deserialize.</param>
+        /// <returns>Deserialized component instance.</returns>
+        static TComponent DeserializeAutomaticComponent<TComponent>(SceneComponentAssetRecord record) where TComponent : Component {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return Assert.IsType<TComponent>(descriptor.DeserializeComponent(record, new EntitySaveComponent(), new TestSceneAssetReferenceResolver()));
+        }
+
+        /// <summary>
+        /// Deserializes one packaged automatic component record using the platform-extended schema expected by the target runtime.
+        /// </summary>
+        /// <typeparam name="TComponent">Expected component type.</typeparam>
+        /// <param name="record">Packaged component record being decoded.</param>
+        /// <param name="platformDefinition">Platform definition that owns any synthetic schema members.</param>
+        /// <returns>Decoded component instance.</returns>
+        static TComponent DeserializePlatformExtendedAutomaticComponent<TComponent>(
+            SceneComponentAssetRecord record,
+            PlatformDefinition platformDefinition) where TComponent : Component, new() {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (platformDefinition == null) {
+                throw new ArgumentNullException(nameof(platformDefinition));
+            }
+
+            PlatformExtendedScriptComponentSchemaBuilder schemaBuilder = new PlatformExtendedScriptComponentSchemaBuilder();
+            ScriptComponentReflectionSchema schema = schemaBuilder.Build(typeof(TComponent), platformDefinition);
+            TComponent component = new TComponent();
+            TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
+            referenceResolver.RegisterFont(
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("cooked/fonts/default.hefont"),
+                CreatePackagedFontAsset());
+            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(schema.Members.Count, reader.ReadInt32());
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                member.SetValue(component, AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, new EntitySaveComponent(), referenceResolver));
+            }
+
+            return component;
+        }
+
+        /// <summary>
         /// Creates one minimal platform definition whose texture cook is owned by the builder.
         /// </summary>
         /// <returns>Minimal platform definition with one builder-owned texture cook capability.</returns>
@@ -594,6 +848,73 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one minimal DS platform definition that exposes the synthetic text background-layer member.
+        /// </summary>
+        /// <returns>Minimal DS platform definition with one synthetic text member.</returns>
+        static PlatformDefinition CreateDsSyntheticTextPlatformDefinition() {
+            return new PlatformDefinition(
+                "ds",
+                "Nintendo DS",
+                Array.Empty<PlatformBuildProfileDefinition>(),
+                Array.Empty<PlatformGraphicsProfileDefinition>(),
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                componentMemberDefinitions: [
+                    new PlatformComponentMemberDefinition(
+                        "helengine.TextComponent",
+                        "BGLayer",
+                        "BG Layer",
+                        PlatformComponentMemberValueKind.Int32,
+                        "0",
+                        0)
+                ]);
+        }
+
+        /// <summary>
+        /// Creates one minimal platform definition whose selected build profile resolves to one big-endian codegen profile.
+        /// </summary>
+        /// <returns>Minimal big-endian platform definition.</returns>
+        static PlatformDefinition CreateBigEndianStaticMeshPlatformDefinition() {
+            return new PlatformDefinition(
+                "gamecube",
+                "GameCube",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "main",
+                        "Main",
+                        "Main build profile",
+                        "default",
+                        "gc-cpp",
+                        Array.Empty<PlatformSettingDefinition>())
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "default",
+                        "Default",
+                        "Default graphics profile",
+                        Array.Empty<PlatformSettingDefinition>())
+                ],
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                [
+                    new PlatformCodegenProfileDefinition(
+                        "gc-cpp",
+                        "GC C++",
+                        "GameCube codegen",
+                        PlatformCodegenLanguage.Cpp,
+                        PlatformSerializationEndianness.BigEndian,
+                        Array.Empty<PlatformSettingDefinition>())
+                ],
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>());
+        }
+
+        /// <summary>
         /// Provides a controllable text-sprite bake result for transform-service tests.
         /// </summary>
         sealed class StubTextComponentSpriteBakeService : ITextComponentSpriteBakeService {
@@ -630,6 +951,42 @@ namespace helengine.editor.tests {
                         AlphaPrecision = TextureAssetAlphaPrecision.A8
                     },
                     "text-scene-0");
+            }
+        }
+
+        /// <summary>
+        /// Provides one deterministic cooked runtime payload for static-mesh packaging tests.
+        /// </summary>
+        sealed class StubStaticMeshCollisionCookProcessor3D : IStaticMeshCollisionCookProcessor3D {
+            /// <summary>
+            /// Gets the stable test payload format identifier.
+            /// </summary>
+            public string FormatId => "test.static-mesh";
+
+            /// <summary>
+            /// Gets the stable binary payload format identifier written into the HELE header.
+            /// </summary>
+            public ushort BinaryFormatId => 0x7A01;
+
+            /// <summary>
+            /// Gets the binary payload format version written into the HELE header.
+            /// </summary>
+            public byte BinaryFormatVersion => 3;
+
+            /// <summary>
+            /// Writes one deterministic cooked payload for test assertions.
+            /// </summary>
+            /// <param name="writer">Endian-aware writer owned by Helengine.</param>
+            /// <param name="collisionData">Generic collision data passed by the packaging service.</param>
+            public void WritePayload(EngineBinaryWriter writer, StaticMeshCollisionData3D collisionData) {
+                if (writer == null) {
+                    throw new ArgumentNullException(nameof(writer));
+                } else if (collisionData == null) {
+                    throw new ArgumentNullException(nameof(collisionData));
+                }
+
+                writer.WriteInt32(collisionData.TriangleCount);
+                writer.WriteSingle(0.25f);
             }
         }
     }

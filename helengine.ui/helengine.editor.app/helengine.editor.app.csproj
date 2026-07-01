@@ -50,6 +50,7 @@
 		<ProjectReference Include="..\..\engine\helengine.editor.windows.magickimporter\helengine.editor.windows.magickimporter.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.files\helengine.files.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.input\helengine.input.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.bepu\helengine.bepu.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.editor.windows\helengine.editor.windows.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />

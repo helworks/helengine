@@ -6,14 +6,14 @@ namespace helengine {
         /// <summary>
         /// Measures the visible width of one rendered text line using glyph bounds instead of only advance widths.
         /// </summary>
-        /// <param name="line">Single text line to measure.</param>
+        /// <param name="line">Single text line to measure. Null or empty lines contribute zero visible width.</param>
         /// <param name="font">Font asset that supplies glyph metrics.</param>
         /// <param name="fontScale">Uniform scale applied to glyph metrics.</param>
         /// <param name="textureWidth">Atlas texture width used to resolve normalized glyph widths into pixels.</param>
         /// <returns>Visible line width in pixels.</returns>
         public static double MeasureVisibleLineWidth(string line, FontAsset font, double fontScale, double textureWidth) {
-            if (line == null) {
-                throw new ArgumentNullException(nameof(line));
+            if (string.IsNullOrEmpty(line)) {
+                return 0d;
             } else if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             } else if (fontScale <= 0d) {

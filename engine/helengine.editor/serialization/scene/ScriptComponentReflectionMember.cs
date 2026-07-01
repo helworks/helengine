@@ -1,3 +1,4 @@
+using helengine.baseplatform.Definitions;
 using System.Reflection;
 
 namespace helengine.editor {
@@ -9,6 +10,26 @@ namespace helengine.editor {
         /// Backing member info used for value access.
         /// </summary>
         readonly MemberInfo MemberInfoValue;
+        /// <summary>
+        /// Stable synthetic member name used when the schema exposes one builder-owned runtime extension rather than one reflected property or field.
+        /// </summary>
+        readonly string SyntheticName;
+        /// <summary>
+        /// Runtime value type used by one synthetic member definition.
+        /// </summary>
+        readonly Type SyntheticValueType;
+        /// <summary>
+        /// Reads one synthetic member value from a live component instance.
+        /// </summary>
+        readonly Func<Component, object> SyntheticValueGetter;
+        /// <summary>
+        /// Writes one synthetic member value onto a live component instance.
+        /// </summary>
+        readonly Action<Component, object> SyntheticValueSetter;
+        /// <summary>
+        /// Optional builder-owned synthetic member definition that produced this schema entry.
+        /// </summary>
+        readonly PlatformComponentMemberDefinition PlatformComponentMemberDefinitionValue;
 
         /// <summary>
         /// Initializes one reflected script-component member descriptor.
@@ -40,9 +61,43 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Initializes one synthetic script-component member descriptor backed by explicit value access delegates.
+        /// </summary>
+        /// <param name="name">Stable synthetic member name.</param>
+        /// <param name="valueType">Runtime value type used by the synthetic member.</param>
+        /// <param name="valueGetter">Delegate that reads the synthetic value from one live component instance.</param>
+        /// <param name="valueSetter">Delegate that writes the synthetic value onto one live component instance.</param>
+        /// <param name="platformComponentMemberDefinition">Optional builder-owned synthetic member definition that produced this schema entry.</param>
+        public ScriptComponentReflectionMember(
+            string name,
+            Type valueType,
+            Func<Component, object> valueGetter,
+            Action<Component, object> valueSetter,
+            PlatformComponentMemberDefinition platformComponentMemberDefinition = null) {
+            if (string.IsNullOrWhiteSpace(name)) {
+                throw new ArgumentException("Synthetic member name must be provided.", nameof(name));
+            }
+            if (valueType == null) {
+                throw new ArgumentNullException(nameof(valueType));
+            }
+            if (valueGetter == null) {
+                throw new ArgumentNullException(nameof(valueGetter));
+            }
+            if (valueSetter == null) {
+                throw new ArgumentNullException(nameof(valueSetter));
+            }
+
+            SyntheticName = name;
+            SyntheticValueType = valueType;
+            SyntheticValueGetter = valueGetter;
+            SyntheticValueSetter = valueSetter;
+            PlatformComponentMemberDefinitionValue = platformComponentMemberDefinition;
+        }
+
+        /// <summary>
         /// Gets the stable persisted member name.
         /// </summary>
-        public string Name => MemberInfoValue.Name;
+        public string Name => MemberInfoValue != null ? MemberInfoValue.Name : SyntheticName;
 
         /// <summary>
         /// Gets whether the reflected member is one property.
@@ -55,6 +110,16 @@ namespace helengine.editor {
         public bool IsField => MemberInfoValue is FieldInfo;
 
         /// <summary>
+        /// Gets a value indicating whether the schema member is synthetic rather than backed by one reflected property or field.
+        /// </summary>
+        public bool IsSynthetic => MemberInfoValue == null;
+
+        /// <summary>
+        /// Gets the builder-owned synthetic member definition that produced this schema entry when one exists.
+        /// </summary>
+        public PlatformComponentMemberDefinition PlatformComponentMemberDefinition => PlatformComponentMemberDefinitionValue;
+
+        /// <summary>
         /// Gets the runtime value type stored by this member.
         /// </summary>
         public Type ValueType {
@@ -65,8 +130,11 @@ namespace helengine.editor {
                 if (MemberInfoValue is FieldInfo fieldInfo) {
                     return fieldInfo.FieldType;
                 }
+                if (SyntheticValueType != null) {
+                    return SyntheticValueType;
+                }
 
-                throw new InvalidOperationException($"Reflected member '{MemberInfoValue.Name}' is not a supported property or field.");
+                throw new InvalidOperationException($"Schema member '{Name}' is not a supported property, field, or synthetic value.");
             }
         }
 
@@ -86,8 +154,11 @@ namespace helengine.editor {
             if (MemberInfoValue is FieldInfo fieldInfo) {
                 return fieldInfo.GetValue(component);
             }
+            if (SyntheticValueGetter != null) {
+                return SyntheticValueGetter(component);
+            }
 
-            throw new InvalidOperationException($"Reflected member '{MemberInfoValue.Name}' is not a supported property or field.");
+            throw new InvalidOperationException($"Schema member '{Name}' is not a supported property, field, or synthetic value.");
         }
 
         /// <summary>
@@ -108,8 +179,12 @@ namespace helengine.editor {
                 fieldInfo.SetValue(component, value);
                 return;
             }
+            if (SyntheticValueSetter != null) {
+                SyntheticValueSetter(component, value);
+                return;
+            }
 
-            throw new InvalidOperationException($"Reflected member '{MemberInfoValue.Name}' is not a supported property or field.");
+            throw new InvalidOperationException($"Schema member '{Name}' is not a supported property, field, or synthetic value.");
         }
     }
 }

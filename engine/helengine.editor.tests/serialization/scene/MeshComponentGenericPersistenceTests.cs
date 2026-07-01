@@ -53,12 +53,12 @@ namespace helengine.editor.tests.serialization.scene {
 
             SceneAssetReference modelReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
                 SceneAssetReferenceSourceKind.Generated,
-                "Engine/Models/Cube.hasset",
+                "Engine/Models/Cube",
                 "engine",
                 "engine:model:cube");
             SceneAssetReference firstMaterialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
                 SceneAssetReferenceSourceKind.Generated,
-                "Engine/Materials/Standard.hasset",
+                "Engine/Materials/Standard",
                 "engine",
                 "engine:material:standard");
             SceneAssetReference secondMaterialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
@@ -88,7 +88,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal((byte)7, restored.RenderOrder3D);
             Assert.True(saveComponent.TryGetComponentState(restored, out EntityComponentSaveState restoredSaveState));
             Assert.True(restoredSaveState.TryGetAssetReference("Materials[0]", out SceneAssetReference restoredReference));
-            Assert.Equal("Engine/Materials/Standard.hasset", restoredReference.RelativePath);
+            Assert.Equal("Engine/Materials/Standard", restoredReference.RelativePath);
         }
 
         /// <summary>
@@ -101,7 +101,7 @@ namespace helengine.editor.tests.serialization.scene {
             EntitySaveComponent saveComponent = new EntitySaveComponent();
             SceneAssetReference modelReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
                 SceneAssetReferenceSourceKind.Generated,
-                "Engine/Models/Cube.hasset",
+                "Engine/Models/Cube",
                 "engine",
                 "engine:model:cube");
             SceneAssetReference materialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(

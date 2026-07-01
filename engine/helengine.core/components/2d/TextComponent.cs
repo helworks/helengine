@@ -43,6 +43,38 @@ namespace helengine {
         /// Uniform glyph scale applied during text layout, hit testing, and rendering.
         /// </summary>
         float FontScaleValue;
+        /// <summary>
+        /// Stores the rotation applied during rendering.
+        /// </summary>
+        float RotationValue;
+        /// <summary>
+        /// Stores the source rectangle within the font atlas or pre-rendered text texture.
+        /// </summary>
+        float4 SourceRectValue;
+        /// <summary>
+        /// Stores the authored layout size used for rendering and wrapping.
+        /// </summary>
+        int2 SizeValue;
+        /// <summary>
+        /// Stores the current glyph tint color.
+        /// </summary>
+        byte4 ColorValue;
+        /// <summary>
+        /// Stores whether the text renderer should wrap glyphs within the authored width.
+        /// </summary>
+        bool WrapTextValue;
+        /// <summary>
+        /// Stores the font asset used for text rendering.
+        /// </summary>
+        FontAsset FontValue;
+        /// <summary>
+        /// Stores the authored horizontal alignment used during rendering.
+        /// </summary>
+        TextAlignment AlignmentValue;
+        /// <summary>
+        /// Stores the monotonically increasing version that changes whenever render-relevant text state changes.
+        /// </summary>
+        int TextRenderStateVersionValue;
         byte RenderOrder2DValue;
 
         /// <summary>
@@ -71,17 +103,50 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the rotation applied during rendering.
         /// </summary>
-        public float Rotation { get; set; }
+        public float Rotation {
+            get { return RotationValue; }
+            set {
+                if (RotationValue == value) {
+                    return;
+                }
+
+                RotationValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the source rectangle within the backing texture.
         /// </summary>
-        public float4 SourceRect { get; set; }
+        public float4 SourceRect {
+            get { return SourceRectValue; }
+            set {
+                if (SourceRectValue.X == value.X
+                    && SourceRectValue.Y == value.Y
+                    && SourceRectValue.Z == value.Z
+                    && SourceRectValue.W == value.W) {
+                    return;
+                }
+
+                SourceRectValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the layout size of the rendered text.
         /// </summary>
-        public int2 Size { get; set; }
+        public int2 Size {
+            get { return SizeValue; }
+            set {
+                if (SizeValue.X == value.X && SizeValue.Y == value.Y) {
+                    return;
+                }
+
+                SizeValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
 
         /// <summary>
         /// Gets the local size used by anchored layout calculations.
@@ -91,7 +156,20 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the color tint applied to the glyphs.
         /// </summary>
-        public byte4 Color { get; set; }
+        public byte4 Color {
+            get { return ColorValue; }
+            set {
+                if (ColorValue.X == value.X
+                    && ColorValue.Y == value.Y
+                    && ColorValue.Z == value.Z
+                    && ColorValue.W == value.W) {
+                    return;
+                }
+
+                ColorValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the text content to render.
@@ -99,21 +177,48 @@ namespace helengine {
         public string Text {
             get { return TextValue; }
             set {
-                TextValue = value ?? "";
+                string normalizedValue = value ?? "";
+                if (string.Equals(TextValue, normalizedValue, StringComparison.Ordinal)) {
+                    return;
+                }
+
+                TextValue = normalizedValue;
                 ClampSelectionToTextLength();
                 UpdateSelectionVisual();
+                MarkTextRenderStateDirty();
             }
         }
 
         /// <summary>
         /// Gets or sets whether the renderer should wrap text against the component width.
         /// </summary>
-        public bool WrapText { get; set; }
+        public bool WrapText {
+            get { return WrapTextValue; }
+            set {
+                if (WrapTextValue == value) {
+                    return;
+                }
+
+                WrapTextValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the font asset used for rendering.
         /// </summary>
-        public FontAsset Font { get; set; }
+        public FontAsset Font {
+            get { return FontValue; }
+            set {
+                if (ReferenceEquals(FontValue, value)) {
+                    return;
+                }
+
+                FontValue = value;
+                UpdateSelectionVisual();
+                MarkTextRenderStateDirty();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the uniform glyph scale applied during rendering and interaction.
@@ -128,6 +233,7 @@ namespace helengine {
                 if (FontScaleValue != value) {
                     FontScaleValue = value;
                     UpdateSelectionVisual();
+                    MarkTextRenderStateDirty();
                 }
             }
         }
@@ -135,7 +241,24 @@ namespace helengine {
         /// <summary>
         /// Gets or sets how glyphs are positioned horizontally inside the authored layout box.
         /// </summary>
-        public TextAlignment Alignment { get; set; }
+        public TextAlignment Alignment {
+            get { return AlignmentValue; }
+            set {
+                if (AlignmentValue == value) {
+                    return;
+                }
+
+                AlignmentValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
+
+        /// <summary>
+        /// Gets the monotonically increasing version that changes whenever render-relevant text state changes.
+        /// </summary>
+        public int TextRenderStateVersion {
+            get { return TextRenderStateVersionValue; }
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether scene packaging should bake this authored text into a sprite-backed runtime component.
@@ -211,6 +334,7 @@ namespace helengine {
             TextValue = "";
             SelectionAnchorPositionValue = 0;
             CursorPositionValue = 0;
+            TextRenderStateVersionValue = 1;
             Color = new byte4(255, 255, 255, 255);
             SourceRect = new float4(0, 0, 1, 1);
             WrapText = false;
@@ -359,6 +483,18 @@ namespace helengine {
             }
 
             return (byte)(RenderOrder2DValue - 1);
+        }
+
+        /// <summary>
+        /// Advances the render-state version so platform backends can skip re-submitting unchanged text data.
+        /// </summary>
+        void MarkTextRenderStateDirty() {
+            if (TextRenderStateVersionValue == int.MaxValue) {
+                TextRenderStateVersionValue = 1;
+                return;
+            }
+
+            TextRenderStateVersionValue++;
         }
 
         /// <summary>

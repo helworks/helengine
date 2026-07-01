@@ -148,11 +148,11 @@ namespace helengine {
                     ushort nextRowVertexNextIndex = (ushort)(nextRowVertex + 1);
 
                     indices[indexWriteOffset++] = currentVertexIndex;
-                    indices[indexWriteOffset++] = nextRowVertexNextIndex;
                     indices[indexWriteOffset++] = currentVertexNextIndex;
-                    indices[indexWriteOffset++] = currentVertexIndex;
-                    indices[indexWriteOffset++] = nextRowVertexIndex;
                     indices[indexWriteOffset++] = nextRowVertexNextIndex;
+                    indices[indexWriteOffset++] = currentVertexIndex;
+                    indices[indexWriteOffset++] = nextRowVertexNextIndex;
+                    indices[indexWriteOffset++] = nextRowVertexIndex;
                 }
             }
 

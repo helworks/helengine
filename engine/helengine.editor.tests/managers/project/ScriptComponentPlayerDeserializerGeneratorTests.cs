@@ -1,3 +1,4 @@
+using helengine.baseplatform.Definitions;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -197,6 +198,65 @@ namespace helengine.editor.tests.managers.project {
             Assert.Contains("SceneAssetReferenceFactory::ReadOptionalReference(reader)", source, StringComparison.Ordinal);
             Assert.DoesNotContain("new ::SceneAssetReference()", source, StringComparison.Ordinal);
             Assert.DoesNotContain("value->set_SourceKind", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures platform-extended schemas emit native deserializer writes through the component synthetic-member store instead of assuming one reflected property exists on the component type.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsDsSyntheticTextMember_EmitsSyntheticMemberStoreWrite() {
+            PlatformExtendedScriptComponentSchemaBuilder schemaBuilder = new PlatformExtendedScriptComponentSchemaBuilder();
+            ScriptComponentReflectionSchema schema = schemaBuilder.Build(typeof(TextComponent), CreateDsSyntheticTextPlatformDefinition());
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("component->SetSyntheticInt32Member(std::string(\"BGLayer\"), reader->ReadInt32());", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures generated native deserializers rebuild engine-owned serialized payload members through the shared restore helper instead of traversing one removed reflected byte-array contract.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsStaticMeshCookedRuntimePayload_EmitsEngineSerializedPayloadRestore() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(StaticMeshCollider3DComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            Assert.True(generator.CanGenerateNativeDeserializer(schema));
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("EngineSerializedPayload::Restore", source, StringComparison.Ordinal);
+            Assert.Contains("value->set_Payload(", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("value->set_Data(", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("value->set_FormatId(", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Creates the minimal DS platform definition required by the synthetic text deserializer test.
+        /// </summary>
+        /// <returns>Minimal DS platform definition with one synthetic text member.</returns>
+        static PlatformDefinition CreateDsSyntheticTextPlatformDefinition() {
+            return new PlatformDefinition(
+                "ds",
+                "Nintendo DS",
+                Array.Empty<PlatformBuildProfileDefinition>(),
+                Array.Empty<PlatformGraphicsProfileDefinition>(),
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                componentMemberDefinitions: [
+                    new PlatformComponentMemberDefinition(
+                        "helengine.TextComponent",
+                        "BGLayer",
+                        "BG Layer",
+                        PlatformComponentMemberValueKind.Int32,
+                        "0",
+                        0)
+                ]);
         }
     }
 }

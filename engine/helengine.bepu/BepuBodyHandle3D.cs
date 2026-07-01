@@ -24,6 +24,7 @@ namespace helengine {
             RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
             BoxCollider = boxCollider ?? throw new ArgumentNullException(nameof(boxCollider));
             SphereCollider = null;
+            StaticMeshCollider = null;
             ShapeIndex = shapeIndex;
             BodyHandle = bodyHandle;
             HasBodyHandle = true;
@@ -49,6 +50,7 @@ namespace helengine {
             RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
             BoxCollider = boxCollider ?? throw new ArgumentNullException(nameof(boxCollider));
             SphereCollider = null;
+            StaticMeshCollider = null;
             ShapeIndex = shapeIndex;
             BodyHandle = default;
             HasBodyHandle = false;
@@ -74,6 +76,7 @@ namespace helengine {
             RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
             BoxCollider = null;
             SphereCollider = sphereCollider ?? throw new ArgumentNullException(nameof(sphereCollider));
+            StaticMeshCollider = null;
             ShapeIndex = shapeIndex;
             BodyHandle = bodyHandle;
             HasBodyHandle = true;
@@ -99,6 +102,33 @@ namespace helengine {
             RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
             BoxCollider = null;
             SphereCollider = sphereCollider ?? throw new ArgumentNullException(nameof(sphereCollider));
+            StaticMeshCollider = null;
+            ShapeIndex = shapeIndex;
+            BodyHandle = default;
+            HasBodyHandle = false;
+            StaticHandle = staticHandle;
+            HasStaticHandle = true;
+        }
+
+        /// <summary>
+        /// Initializes one static-mesh-backed static runtime body handle.
+        /// </summary>
+        /// <param name="entity">Entity owning the body.</param>
+        /// <param name="rigidBody">Authored rigid-body component bound to the runtime handle.</param>
+        /// <param name="staticMeshCollider">Authored static mesh collider attached to the entity.</param>
+        /// <param name="shapeIndex">Shape index allocated in the active BEPU simulation.</param>
+        /// <param name="staticHandle">BEPU static handle.</param>
+        public BepuBodyHandle3D(
+            Entity entity,
+            RigidBody3DComponent rigidBody,
+            StaticMeshCollider3DComponent staticMeshCollider,
+            TypedIndex shapeIndex,
+            StaticHandle staticHandle) {
+            Entity = entity ?? throw new ArgumentNullException(nameof(entity));
+            RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
+            BoxCollider = null;
+            SphereCollider = null;
+            StaticMeshCollider = staticMeshCollider ?? throw new ArgumentNullException(nameof(staticMeshCollider));
             ShapeIndex = shapeIndex;
             BodyHandle = default;
             HasBodyHandle = false;
@@ -132,6 +162,7 @@ namespace helengine {
             RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
             BoxCollider = boxCollider;
             SphereCollider = sphereCollider;
+            StaticMeshCollider = null;
             ShapeIndex = shapeIndex;
             BodyHandle = bodyHandle;
             HasBodyHandle = hasBodyHandle;
@@ -173,6 +204,11 @@ namespace helengine {
         /// Gets the authored sphere collider when one is attached.
         /// </summary>
         public SphereCollider3DComponent SphereCollider { get; }
+
+        /// <summary>
+        /// Gets the authored static mesh collider when one is attached.
+        /// </summary>
+        public StaticMeshCollider3DComponent StaticMeshCollider { get; }
 
         /// <summary>
         /// Gets the BEPU shape index allocated for this entity.

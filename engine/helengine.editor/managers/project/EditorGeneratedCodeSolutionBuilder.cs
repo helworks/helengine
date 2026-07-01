@@ -29,20 +29,42 @@ namespace helengine.editor {
             if (manifestDocument == null) {
                 throw new ArgumentNullException(nameof(manifestDocument));
             }
+
+            string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            return Build(fullProjectRootPath, manifestDocument, ResolveGeneratedOutputRootPath(fullProjectRootPath));
+        }
+
+        /// <summary>
+        /// Builds the generated code solution description for the supplied authored modules and explicit output root.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute game project root path.</param>
+        /// <param name="manifestDocument">Discovered authored code-module manifest document.</param>
+        /// <param name="generatedOutputRootPath">Absolute output root used by generated module projects.</param>
+        /// <returns>Generated code solution description.</returns>
+        public EditorGeneratedCodeSolution Build(string projectRootPath, EditorCodeModuleManifestDocument manifestDocument, string generatedOutputRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (manifestDocument == null) {
+                throw new ArgumentNullException(nameof(manifestDocument));
+            }
+            if (string.IsNullOrWhiteSpace(generatedOutputRootPath)) {
+                throw new ArgumentException("Generated output root path must be provided.", nameof(generatedOutputRootPath));
+            }
             if (manifestDocument.Modules.Length == 0) {
                 throw new InvalidOperationException("At least one code module must exist before generating script projects.");
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
-            string generatedOutputRootPath = ResolveGeneratedOutputRootPath(fullProjectRootPath);
+            string fullGeneratedOutputRootPath = Path.GetFullPath(generatedOutputRootPath);
             List<EditorGeneratedCodeModuleProject> moduleProjects = [];
             for (int index = 0; index < manifestDocument.Modules.Length; index++) {
                 EditorCodeModuleManifestEntry module = manifestDocument.Modules[index];
                 string projectDirectoryPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "projects", module.ModuleId);
                 string projectFilePath = Path.Combine(projectDirectoryPath, module.ModuleId + ".csproj");
                 string generatedGlobalUsingsFilePath = Path.Combine(projectDirectoryPath, "GlobalUsings.g.cs");
-                string baseIntermediateOutputPath = Path.Combine(generatedOutputRootPath, "generated_code", "obj", module.ModuleId);
-                string baseOutputPath = Path.Combine(generatedOutputRootPath, "generated_code", "bin", module.ModuleId);
+                string baseIntermediateOutputPath = Path.Combine(fullGeneratedOutputRootPath, "generated_code", "obj", module.ModuleId);
+                string baseOutputPath = Path.Combine(fullGeneratedOutputRootPath, "generated_code", "bin", module.ModuleId);
                 string targetFramework = module.ModuleKind == EditorCodeModuleKind.Editor
                     ? EditorTargetFrameworkValue
                     : RuntimeTargetFrameworkValue;

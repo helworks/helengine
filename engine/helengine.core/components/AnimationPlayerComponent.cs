@@ -17,7 +17,7 @@ namespace helengine {
         float4 baseLocalOrientation;
 
         /// <summary>
-        /// Initializes a new player with a fixed default frame delta for update-loop playback.
+        /// Initializes a new player with a fallback frame delta used only when no active core timing state is available.
         /// </summary>
         public AnimationPlayerComponent() {
             frameDeltaTime = 1f / 60f;
@@ -76,7 +76,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets the fixed delta time applied when the component is advanced through the engine update loop.
+        /// Gets or sets the fallback delta time applied only when the component updates without one active core timing source.
         /// </summary>
         public float FrameDeltaTime {
             get { return frameDeltaTime; }
@@ -231,10 +231,16 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Advances playback using the configured fixed frame delta.
+        /// Advances playback using the current core frame delta when available and otherwise falls back to the configured local frame delta.
         /// </summary>
         public override void Update() {
             base.Update();
+            Core core = Core.Instance;
+            if (core != null) {
+                Advance(core.DeltaTime);
+                return;
+            }
+
             Advance(frameDeltaTime);
         }
 

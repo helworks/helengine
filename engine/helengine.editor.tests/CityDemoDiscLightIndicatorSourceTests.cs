@@ -56,4 +56,21 @@ public sealed class CityDemoDiscLightIndicatorSourceTests {
             Assert.Contains("AttachToSceneUi", source, StringComparison.Ordinal);
         }
     }
+
+    /// <summary>
+    /// Ensures the textured cube-grid authored material payload keeps the diffuse texture id on the top-level shader material asset so generated sidecars cannot collapse it back to empty.
+    /// </summary>
+    [Fact]
+    public void City_textured_cube_grid_authored_material_source_preserves_diffuse_texture_id() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\TexturedCubeGridSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("CreateAuthoredMaterialAsset(int cubeIndex)", source, StringComparison.Ordinal);
+        Assert.Contains("Id = CreateMaterialAssetId(cubeIndex),", source, StringComparison.Ordinal);
+        Assert.Contains("ShaderAssetId = StandardShaderAssetId,", source, StringComparison.Ordinal);
+        Assert.Contains("VertexProgram = StandardVertexProgramName,", source, StringComparison.Ordinal);
+        Assert.Contains("PixelProgram = StandardPixelProgramName,", source, StringComparison.Ordinal);
+        Assert.Contains("Variant = MeshVariantName,", source, StringComparison.Ordinal);
+        Assert.Contains("DiffuseTextureAssetId = CubeTextureAssetIds[cubeIndex],", source, StringComparison.Ordinal);
+    }
 }

@@ -7,7 +7,7 @@ namespace helengine {
     /// <summary>
     /// Hosts the real BEPU simulation used by supported Helengine 3D rigid-body scenes.
     /// </summary>
-    public sealed class BepuPhysicsWorld3D : ISceneBindablePhysicsRuntime {
+    public sealed class BepuPhysicsWorld3D : ISceneBindablePhysicsRuntime, IPhysicsBodySynchronizationRuntime3D {
         /// <summary>
         /// Default contact spring settings used for the initial BEPU integration pass.
         /// </summary>
@@ -132,6 +132,44 @@ namespace helengine {
         public int SolveSubstepCount => SolveSubstepCountValue;
 
         /// <summary>
+        /// Synchronizes one already-bound kinematic body from the current authored entity transform and rigid-body velocity values.
+        /// </summary>
+        /// <param name="entity">Bound entity whose kinematic body should be updated.</param>
+        public void SynchronizeKinematicBody(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            } else if (SimulationValue == null) {
+                throw new InvalidOperationException("A BEPU simulation must exist before kinematic bodies can be synchronized.");
+            }
+
+            BepuBodyHandle3D handle = FindRequiredKinematicBodyHandle(entity);
+            BodyReference bodyReference = SimulationValue.Bodies[handle.BodyHandle];
+            bodyReference.Pose = BepuEntitySynchronization3D.CreatePose(entity);
+            bodyReference.Velocity = BepuEntitySynchronization3D.CreateVelocity(handle.RigidBody);
+            bodyReference.UpdateBounds();
+            bodyReference.Awake = true;
+        }
+
+        /// <summary>
+        /// Synchronizes one already-bound dynamic body from the current authored entity transform and rigid-body velocity values.
+        /// </summary>
+        /// <param name="entity">Bound entity whose dynamic body should be updated.</param>
+        public void SynchronizeDynamicBody(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            } else if (SimulationValue == null) {
+                throw new InvalidOperationException("A BEPU simulation must exist before dynamic bodies can be synchronized.");
+            }
+
+            BepuBodyHandle3D handle = FindRequiredDynamicBodyHandle(entity);
+            BodyReference bodyReference = SimulationValue.Bodies[handle.BodyHandle];
+            bodyReference.Pose = BepuEntitySynchronization3D.CreatePose(entity);
+            bodyReference.Velocity = BepuEntitySynchronization3D.CreateVelocity(handle.RigidBody);
+            bodyReference.UpdateBounds();
+            bodyReference.Awake = true;
+        }
+
+        /// <summary>
         /// Binds one scene hierarchy to the active BEPU simulation.
         /// </summary>
         /// <param name="rootEntities">Root entities that should be scanned for supported rigid bodies.</param>
@@ -237,11 +275,21 @@ namespace helengine {
 
             BoxCollider3DComponent boxCollider = ResolveBoxCollider(entity);
             SphereCollider3DComponent sphereCollider = ResolveSphereCollider(entity);
-            if (boxCollider == null && sphereCollider == null) {
+            StaticMeshCollider3DComponent staticMeshCollider = ResolveStaticMeshCollider(entity);
+            if (boxCollider == null && sphereCollider == null && staticMeshCollider == null) {
                 return;
             }
-            if (boxCollider != null && sphereCollider != null) {
-                throw new NotSupportedException("Entities with both box and sphere colliders are not supported by helengine.bepu.");
+            int colliderCount = 0;
+            colliderCount += boxCollider == null ? 0 : 1;
+            colliderCount += sphereCollider == null ? 0 : 1;
+            colliderCount += staticMeshCollider == null ? 0 : 1;
+            if (colliderCount > 1) {
+                throw new NotSupportedException("Entities with more than one supported collider are not supported by helengine.bepu.");
+            }
+
+            if (staticMeshCollider != null) {
+                RegisterStaticMeshBody(entity, rigidBody, staticMeshCollider);
+                return;
             }
 
             if (boxCollider != null) {
@@ -294,6 +342,24 @@ namespace helengine {
             CollidablePropertiesValue.Allocate(bodyHandle) = CreateCollidableProperties(sphereCollider);
             GravityAccelerationsValue.Allocate(bodyHandle) = ResolveGravityAcceleration(rigidBody);
             BodyRegistryValue.Add(new BepuBodyHandle3D(entity, rigidBody, sphereCollider, shapeIndex, bodyHandle));
+        }
+
+        /// <summary>
+        /// Registers one cooked static-mesh-backed rigid body in the active BEPU simulation.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
+        /// <param name="rigidBody">Authored rigid body.</param>
+        /// <param name="staticMeshCollider">Authored static mesh collider.</param>
+        void RegisterStaticMeshBody(Entity entity, RigidBody3DComponent rigidBody, StaticMeshCollider3DComponent staticMeshCollider) {
+            if (rigidBody.BodyKind != BodyKind3D.Static) {
+                throw new NotSupportedException("Static mesh colliders are supported only for static rigid bodies in helengine.bepu.");
+            }
+
+            Mesh meshShape = BepuShapeFactory3D.CreateStaticMeshShape(staticMeshCollider.CookedRuntimeData, BufferPoolValue);
+            TypedIndex shapeIndex = SimulationValue.Shapes.Add(meshShape);
+            StaticHandle staticHandle = SimulationValue.Statics.Add(new StaticDescription(BepuEntitySynchronization3D.CreatePose(entity), shapeIndex));
+            CollidablePropertiesValue.Allocate(staticHandle) = CreateCollidableProperties(staticMeshCollider);
+            BodyRegistryValue.Add(new BepuBodyHandle3D(entity, rigidBody, staticMeshCollider, shapeIndex, staticHandle));
         }
 
         /// <summary>
@@ -379,6 +445,60 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves one already-bound kinematic runtime handle for the supplied entity.
+        /// </summary>
+        /// <param name="entity">Bound entity whose kinematic body should be located.</param>
+        /// <returns>Resolved kinematic runtime handle.</returns>
+        BepuBodyHandle3D FindRequiredKinematicBodyHandle(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
+            for (int index = 0; index < handles.Count; index++) {
+                BepuBodyHandle3D handle = handles[index];
+                if (!ReferenceEquals(handle.Entity, entity)) {
+                    continue;
+                } else if (!handle.IsKinematic) {
+                    throw new InvalidOperationException("Only kinematic BEPU bodies can be synchronized from authored transforms.");
+                } else if (!handle.HasBodyHandle) {
+                    throw new InvalidOperationException("Kinematic BEPU body synchronization requires one runtime body handle.");
+                }
+
+                return handle;
+            }
+
+            throw new InvalidOperationException("The supplied entity is not registered as one bound kinematic BEPU body.");
+        }
+
+        /// <summary>
+        /// Resolves one already-bound dynamic runtime handle for the supplied entity.
+        /// </summary>
+        /// <param name="entity">Bound entity whose dynamic body should be located.</param>
+        /// <returns>Resolved dynamic runtime handle.</returns>
+        BepuBodyHandle3D FindRequiredDynamicBodyHandle(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
+            for (int index = 0; index < handles.Count; index++) {
+                BepuBodyHandle3D handle = handles[index];
+                if (!ReferenceEquals(handle.Entity, entity)) {
+                    continue;
+                } else if (!handle.IsDynamic) {
+                    throw new InvalidOperationException("Only dynamic BEPU bodies can be synchronized through the dynamic-body transform path.");
+                } else if (!handle.HasBodyHandle) {
+                    throw new InvalidOperationException("Dynamic BEPU body synchronization requires one runtime body handle.");
+                }
+
+                return handle;
+            }
+
+            throw new InvalidOperationException("The supplied entity is not registered as one bound dynamic BEPU body.");
+        }
+
+        /// <summary>
         /// Resolves the authored rigid-body component attached to one entity.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
@@ -420,6 +540,22 @@ namespace helengine {
             for (int index = 0; index < components.Count; index++) {
                 if (components[index] is SphereCollider3DComponent sphereCollider) {
                     return sphereCollider;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the authored static mesh collider attached to one entity.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>Static mesh collider component when present; otherwise null.</returns>
+        StaticMeshCollider3DComponent ResolveStaticMeshCollider(Entity entity) {
+            List<Component> components = entity.Components;
+            for (int index = 0; index < components.Count; index++) {
+                if (components[index] is StaticMeshCollider3DComponent staticMeshCollider) {
+                    return staticMeshCollider;
                 }
             }
 

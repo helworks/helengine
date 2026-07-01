@@ -11,6 +11,10 @@ namespace helengine {
         /// Stable property paths that are explicitly overridden for the target platform.
         /// </summary>
         readonly HashSet<string> OverriddenPropertyPaths;
+        /// <summary>
+        /// Detached synthetic platform-member values keyed by stable member name.
+        /// </summary>
+        readonly Dictionary<string, string> MemberValuesByName;
 
         /// <summary>
         /// Initializes a new empty platform override state container.
@@ -18,6 +22,7 @@ namespace helengine {
         public EntityComponentPlatformOverrideState() {
             AssetReferencesByName = new Dictionary<string, SceneAssetReference>(StringComparer.Ordinal);
             OverriddenPropertyPaths = new HashSet<string>(StringComparer.Ordinal);
+            MemberValuesByName = new Dictionary<string, string>(StringComparer.Ordinal);
             PlatformId = string.Empty;
             Payload = Array.Empty<byte>();
         }
@@ -137,11 +142,76 @@ namespace helengine {
         public bool HasAnyAssetReferences => AssetReferencesByName.Count > 0;
 
         /// <summary>
+        /// Gets a value indicating whether the platform payload contains any detached synthetic member values.
+        /// </summary>
+        public bool HasAnyMemberValues => MemberValuesByName.Count > 0;
+
+        /// <summary>
         /// Enumerates every explicit property path stored in this platform override state.
         /// </summary>
         /// <returns>Stable property paths stored for the override payload.</returns>
         public IEnumerable<string> EnumeratePropertyOverrides() {
             return OverriddenPropertyPaths;
+        }
+
+        /// <summary>
+        /// Stores one detached synthetic platform-member value.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="value">Serialized value to store.</param>
+        public void SetMemberValue(string memberName, string value) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Member name must be provided.", nameof(memberName));
+            }
+
+            MemberValuesByName[memberName] = value ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Attempts to resolve one detached synthetic platform-member value.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="value">Serialized value when the member exists.</param>
+        /// <returns>True when one value exists for the supplied member.</returns>
+        public bool TryGetMemberValue(string memberName, out string value) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Member name must be provided.", nameof(memberName));
+            }
+
+            return MemberValuesByName.TryGetValue(memberName, out value);
+        }
+
+        /// <summary>
+        /// Returns whether one detached synthetic platform-member value exists.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <returns>True when the member has one stored value.</returns>
+        public bool HasMemberValue(string memberName) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Member name must be provided.", nameof(memberName));
+            }
+
+            return MemberValuesByName.ContainsKey(memberName);
+        }
+
+        /// <summary>
+        /// Removes one detached synthetic platform-member value.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        public void RemoveMemberValue(string memberName) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Member name must be provided.", nameof(memberName));
+            }
+
+            MemberValuesByName.Remove(memberName);
+        }
+
+        /// <summary>
+        /// Enumerates every detached synthetic platform-member value stored in this platform override state.
+        /// </summary>
+        /// <returns>Detached synthetic member values keyed by stable member name.</returns>
+        public IEnumerable<KeyValuePair<string, string>> EnumerateMemberValues() {
+            return MemberValuesByName;
         }
     }
 }

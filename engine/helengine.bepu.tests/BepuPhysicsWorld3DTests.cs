@@ -120,6 +120,56 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures a dynamic sphere resolves ground contact against one cooked static mesh collider.
+        /// </summary>
+        [Fact]
+        public void Step_WithDynamicSphereAboveStaticMeshGround_ResolvesGroundContact() {
+            Entity groundEntity = CreateStaticMeshGroundEntity();
+            Entity sphereEntity = CreateDynamicSphereEntity(new float3(0f, 2f, 0f), 0.5f);
+            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+
+            world.BindScene(new[] { groundEntity, sphereEntity });
+            for (int index = 0; index < 180; index++) {
+                world.Step(1.0 / 60.0);
+            }
+
+            Assert.True(sphereEntity.LocalPosition.Y < 2f);
+            Assert.InRange(sphereEntity.LocalPosition.Y, 0.49f, 0.56f);
+        }
+
+        /// <summary>
+        /// Ensures scene binding rejects static mesh colliders carrying the wrong backend payload format.
+        /// </summary>
+        [Fact]
+        public void BindScene_WithStaticMeshColliderUsingWrongPayloadFormat_ThrowsNotSupportedException() {
+            StaticMeshCollisionData3D collisionData = new StaticMeshCollisionData3D(
+                [
+                    new float3(-1f, 0f, -1f),
+                    new float3(1f, 0f, -1f),
+                    new float3(-1f, 0f, 1f)
+                ],
+                [0, 1, 2]);
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static
+            });
+            entity.AddComponent(new StaticMeshCollider3DComponent {
+                CollisionData = collisionData,
+                CookedRuntimeData = StaticMeshCollisionRuntimeData3D.Create(
+                    "wrong.format",
+                    0x5510,
+                    1,
+                    EngineBinaryEndianness.LittleEndian,
+                    writer => writer.WriteByte(0x01))
+            });
+
+            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+
+            Assert.Throws<NotSupportedException>(() => world.BindScene(new[] { entity }));
+        }
+
+        /// <summary>
         /// Ensures one simple two-box stack remains vertically supported above the ground.
         /// </summary>
         [Fact]
@@ -210,6 +260,64 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures one bound kinematic body can be resynchronized from an updated entity pose after scene binding.
+        /// </summary>
+        [Fact]
+        public void SynchronizeKinematicBody_WithUpdatedEntityPose_UpdatesRuntimeBodyPose() {
+            Entity entity = CreateKinematicBoxEntity(new float3(0f, 0.5f, 0f), new float3(4f, 1f, 4f));
+
+            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.BindScene(new[] { entity });
+
+            float4 updatedOrientation;
+            float4.CreateFromYawPitchRoll(0f, 0f, 0.2f, out updatedOrientation);
+            entity.LocalPosition = new float3(1f, 1.25f, 2f);
+            entity.LocalOrientation = updatedOrientation;
+
+            world.SynchronizeKinematicBody(entity);
+            world.Step(1.0 / 60.0);
+
+            Assert.Equal(1f, entity.LocalPosition.X);
+            Assert.Equal(1.25f, entity.LocalPosition.Y);
+            Assert.Equal(2f, entity.LocalPosition.Z);
+            Assert.Equal(updatedOrientation.X, entity.LocalOrientation.X);
+            Assert.Equal(updatedOrientation.Y, entity.LocalOrientation.Y);
+            Assert.Equal(updatedOrientation.Z, entity.LocalOrientation.Z);
+            Assert.Equal(updatedOrientation.W, entity.LocalOrientation.W);
+        }
+
+        /// <summary>
+        /// Ensures one bound dynamic body can be resynchronized from an updated entity pose after scene binding.
+        /// </summary>
+        [Fact]
+        public void SynchronizeDynamicBody_WithUpdatedEntityPose_UpdatesRuntimeBodyPose() {
+            Entity entity = CreateDynamicSphereEntity(new float3(0f, 2f, 0f), 0.5f);
+
+            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.BindScene(new[] { entity });
+
+            float4 updatedOrientation;
+            float4.CreateFromYawPitchRoll(0.15f, 0f, 0f, out updatedOrientation);
+            entity.LocalPosition = new float3(2f, 3f, -1f);
+            entity.LocalOrientation = updatedOrientation;
+
+            RigidBody3DComponent rigidBody = FindRequiredRigidBody(entity);
+            rigidBody.LinearVelocity = float3.Zero;
+            rigidBody.AngularVelocity = float3.Zero;
+
+            world.SynchronizeDynamicBody(entity);
+            world.Step(1.0 / 60.0);
+
+            Assert.InRange(entity.LocalPosition.X, 1.99f, 2.01f);
+            Assert.InRange(entity.LocalPosition.Z, -1.01f, -0.99f);
+            Assert.True(entity.LocalPosition.Y < 3f);
+            Assert.Equal(updatedOrientation.X, entity.LocalOrientation.X);
+            Assert.Equal(updatedOrientation.Y, entity.LocalOrientation.Y);
+            Assert.Equal(updatedOrientation.Z, entity.LocalOrientation.Z);
+            Assert.Equal(updatedOrientation.W, entity.LocalOrientation.W);
+        }
+
+        /// <summary>
         /// Creates one static box entity for BEPU-backed world tests.
         /// </summary>
         /// <param name="position">Authored box center position.</param>
@@ -269,6 +377,79 @@ namespace helengine.bepu.tests {
                 Radius = radius
             });
             return entity;
+        }
+
+        /// <summary>
+        /// Creates one kinematic box entity for BEPU-backed world tests.
+        /// </summary>
+        /// <param name="position">Authored box center position.</param>
+        /// <param name="size">Full box size.</param>
+        /// <returns>Configured kinematic box entity.</returns>
+        static Entity CreateKinematicBoxEntity(float3 position, float3 size) {
+            Entity entity = new Entity();
+            entity.LocalPosition = position;
+            entity.InitComponents();
+            entity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Kinematic,
+                UseGravity = false,
+                Mass = 1d
+            });
+            entity.AddComponent(new BoxCollider3DComponent {
+                Size = size
+            });
+            return entity;
+        }
+
+        /// <summary>
+        /// Creates one static mesh ground entity backed by one cooked BEPU mesh payload.
+        /// </summary>
+        /// <returns>Configured static mesh ground entity.</returns>
+        static Entity CreateStaticMeshGroundEntity() {
+            BepuStaticMeshCollisionCookProcessor3D processor = new BepuStaticMeshCollisionCookProcessor3D();
+            StaticMeshCollisionData3D collisionData = new StaticMeshCollisionData3D(
+                [
+                    new float3(-4f, 0f, -4f),
+                    new float3(4f, 0f, -4f),
+                    new float3(-4f, 0f, 4f),
+                    new float3(4f, 0f, 4f)
+                ],
+                [0, 1, 2, 2, 1, 3]);
+
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            entity.AddComponent(new StaticMeshCollider3DComponent {
+                CollisionData = collisionData,
+                CookedRuntimeData = StaticMeshCollisionRuntimeData3D.Create(
+                    processor.FormatId,
+                    processor.BinaryFormatId,
+                    processor.BinaryFormatVersion,
+                    EngineBinaryEndianness.LittleEndian,
+                    writer => processor.WritePayload(writer, collisionData))
+            });
+            return entity;
+        }
+
+        /// <summary>
+        /// Resolves the rigid body attached to one test entity.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>Resolved rigid body component.</returns>
+        static RigidBody3DComponent FindRequiredRigidBody(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is RigidBody3DComponent rigidBody) {
+                    return rigidBody;
+                }
+            }
+
+            throw new InvalidOperationException("Expected a rigid body component on the test entity.");
         }
     }
 }

@@ -51,6 +51,16 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures every generated sphere triangle uses winding that agrees with the authored outward vertex normals.
+        /// </summary>
+        [Fact]
+        public void GenerateSphereMesh_WhenUsingIdentityArguments_WindsTrianglesToMatchOutwardNormals() {
+            ModelAsset model = ModelUtils.GenerateSphereMesh(float3.Zero, float3.One);
+
+            AssertAllNonDegenerateTrianglesFollowVertexNormals(model);
+        }
+
+        /// <summary>
         /// Ensures the generated cube primitive uses unit-size bounds centered at the origin so authored entity scale values map directly to final cube dimensions.
         /// </summary>
         [Fact]
@@ -111,6 +121,45 @@ namespace helengine.editor.tests.rendering {
                     alignment > 0.5f,
                     $"Triangle starting at index {triangleStart} winds against its authored normal. Alignment={alignment}.");
             }
+        }
+
+        /// <summary>
+        /// Verifies that every non-degenerate indexed triangle in one generated model asset has a geometric face normal aligned with its authored vertex normals.
+        /// </summary>
+        /// <param name="model">Generated model asset to validate.</param>
+        void AssertAllNonDegenerateTrianglesFollowVertexNormals(ModelAsset model) {
+            Assert.NotNull(model);
+            Assert.NotNull(model.Positions);
+            Assert.NotNull(model.Normals);
+            Assert.NotNull(model.Indices16);
+
+            int validatedTriangleCount = 0;
+            for (int triangleStart = 0; triangleStart < model.Indices16.Length; triangleStart += 3) {
+                ushort index0 = model.Indices16[triangleStart];
+                ushort index1 = model.Indices16[triangleStart + 1];
+                ushort index2 = model.Indices16[triangleStart + 2];
+
+                float3 position0 = model.Positions[index0];
+                float3 position1 = model.Positions[index1];
+                float3 position2 = model.Positions[index2];
+                float3 edge1 = position1 - position0;
+                float3 edge2 = position2 - position0;
+                float3 rawGeometricNormal = float3.Cross(edge1, edge2);
+                if (rawGeometricNormal.Length() <= 0.0001f) {
+                    continue;
+                }
+
+                float3 geometricNormal = float3.Normalize(rawGeometricNormal);
+                float3 authoredNormal = float3.Normalize(model.Normals[index0]);
+                float alignment = float3.Dot(geometricNormal, authoredNormal);
+                validatedTriangleCount++;
+
+                Assert.True(
+                    alignment > 0.5f,
+                    $"Triangle starting at index {triangleStart} winds against its authored normal. Alignment={alignment}.");
+            }
+
+            Assert.True(validatedTriangleCount > 0, "Expected at least one non-degenerate triangle to validate.");
         }
     }
 }

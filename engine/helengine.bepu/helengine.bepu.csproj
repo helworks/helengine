@@ -6,8 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\vendor\bepuphysics2\BepuUtilities\BepuUtilities.Minimal.csproj" SkipGetTargetFrameworkProperties="true" />
-    <ProjectReference Include="..\vendor\bepuphysics2\BepuPhysics\BepuPhysics.Minimal.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\vendor\bepuphysics2\BepuUtilities\BepuUtilities.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\vendor\bepuphysics2\BepuPhysics\BepuPhysics.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.physics\helengine.physics.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>

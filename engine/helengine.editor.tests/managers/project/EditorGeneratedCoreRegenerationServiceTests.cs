@@ -10,15 +10,26 @@ namespace helengine.editor.tests.managers.project;
 /// </summary>
 public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     /// <summary>
+    /// Name of the environment variable used to override source-root discovery.
+    /// </summary>
+    const string HelEngineSourceRootEnvironmentVariableName = "HELENGINE_SOURCE_ROOT";
+
+    /// <summary>
     /// Temporary workspace used by the tests.
     /// </summary>
     readonly string RootPath;
+
+    /// <summary>
+    /// Original environment-variable value restored after each test.
+    /// </summary>
+    readonly string OriginalHelEngineSourceRootEnvironmentVariableValue;
 
     /// <summary>
     /// Initializes the test workspace.
     /// </summary>
     public EditorGeneratedCoreRegenerationServiceTests() {
         RootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-core-service-tests", Guid.NewGuid().ToString("N"));
+        OriginalHelEngineSourceRootEnvironmentVariableValue = Environment.GetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName);
         Directory.CreateDirectory(RootPath);
     }
 
@@ -176,6 +187,25 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies portable input symbol resolution forwards helengine-owned runtime contract symbols without inventing codegen-owned platform identities.
+    /// </summary>
+    [Fact]
+    public void Resolve_portable_input_preprocessor_symbols_includes_runtime_contract_portable_symbols() {
+        PlatformDefinition definition = CreatePlatformDefinition(
+            "gamecube",
+            new RuntimeGenerationContract(
+                RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                true,
+                PackagedPathPolicy.ContentRelativeOnly,
+                [PortableInputPreprocessorSymbolCatalog.MatrixAbiGxGameCubeWiiSymbol]));
+
+        IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(definition);
+
+        Assert.Contains(PortableInputPreprocessorSymbolCatalog.MatrixAbiGxGameCubeWiiSymbol, symbols);
+        Assert.DoesNotContain("GAMECUBE_PLATFORM", symbols);
+    }
+
+    /// <summary>
     /// Verifies portable input symbol resolution does not invent platform-id-specific runtime symbols for external packages.
     /// </summary>
     [Fact]
@@ -250,6 +280,46 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         Assert.Contains("--set", arguments);
         Assert.Contains("include-project-defined-preprocessor-symbols=true", arguments);
+    }
+
+    /// <summary>
+    /// Verifies feature-catalog resolution honors an explicit source-root override so isolated editor builds can still find checked-in codegen metadata.
+    /// </summary>
+    [Fact]
+    public void Build_arguments_uses_feature_catalog_from_explicit_source_root_override() {
+        string sourceRootPath = Path.Combine(RootPath, "source-root");
+        string editorProjectPath = Path.Combine(
+            sourceRootPath,
+            "engine",
+            "helengine.editor",
+            "helengine.editor.csproj");
+        string featureCatalogPath = Path.Combine(
+            sourceRootPath,
+            "engine",
+            "helengine.editor",
+            "codegen",
+            "features",
+            "helengine-feature-catalog.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(editorProjectPath)
+            ?? throw new InvalidOperationException("Editor project directory could not be resolved."));
+        Directory.CreateDirectory(Path.GetDirectoryName(featureCatalogPath)
+            ?? throw new InvalidOperationException("Feature catalog directory could not be resolved."));
+        File.WriteAllText(editorProjectPath, "<Project />");
+        File.WriteAllText(featureCatalogPath, "{ \"features\": [] }");
+        Environment.SetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName, sourceRootPath);
+
+        IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
+            @"C:\tmp\fixture.csproj",
+            @"C:\tmp\generated",
+            CreatePlatformDefinition("windows", runtimeGenerationContract: null),
+            CreateDefaultCodegenProfile(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            [],
+            false);
+
+        int featureCatalogArgumentIndex = Array.IndexOf(arguments.ToArray(), "--feature-catalog");
+        Assert.True(featureCatalogArgumentIndex >= 0);
+        Assert.Equal(featureCatalogPath, arguments[featureCatalogArgumentIndex + 1]);
     }
 
     /// <summary>
@@ -742,6 +812,29 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies cooked-scene runtime deserializer emission augments text-component schemas with DS synthetic members exposed by the active platform definition.
+    /// </summary>
+    [Fact]
+    public void Emit_cooked_scene_automatic_runtime_component_deserializers_includes_ds_synthetic_text_members() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-ds-text");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string scenePath = CreateCookedScene(
+            "engine-components-scene-ds-text.hasset",
+            "helengine.TextComponent");
+
+        EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            [scenePath],
+            null,
+            CreateDsSyntheticTextPlatformDefinition());
+
+        string sourcePath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeTextComponentDeserializer.cpp");
+        Assert.True(File.Exists(sourcePath));
+        string source = File.ReadAllText(sourcePath);
+        Assert.Contains("component->SetSyntheticInt32Member(std::string(\"BGLayer\"), reader->ReadInt32());", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies cooked scenes that serialize scripted component ids infer the owning runtime module assembly names.
     /// </summary>
     [Fact]
@@ -851,6 +944,33 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_scene_catalog_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", unitySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Creates the minimal DS platform definition required by the generated runtime deserializer synthetic-member test.
+    /// </summary>
+    /// <returns>Minimal DS platform definition with one synthetic text member.</returns>
+    static PlatformDefinition CreateDsSyntheticTextPlatformDefinition() {
+        return new PlatformDefinition(
+            "ds",
+            "Nintendo DS",
+            Array.Empty<PlatformBuildProfileDefinition>(),
+            Array.Empty<PlatformGraphicsProfileDefinition>(),
+            Array.Empty<PlatformAssetRequirementDefinition>(),
+            Array.Empty<PlatformMaterialSchemaDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
+            Array.Empty<PlatformCodegenProfileDefinition>(),
+            Array.Empty<PlatformStorageProfileDefinition>(),
+            Array.Empty<PlatformMediaProfileDefinition>(),
+            componentMemberDefinitions: [
+                new PlatformComponentMemberDefinition(
+                    "helengine.TextComponent",
+                    "BGLayer",
+                    "BG Layer",
+                    PlatformComponentMemberValueKind.Int32,
+                    "0",
+                    0)
+            ]);
     }
 
     /// <summary>

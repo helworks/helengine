@@ -238,6 +238,9 @@ namespace helengine {
             if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(valueType)) {
                 return ReadAssetReferenceArrayValue(reader, valueType, referenceResolver);
             }
+            if (TryReadEngineSerializedPayload(reader, valueType, out object payloadValue)) {
+                return payloadValue;
+            }
 
             if (TryReadLeafValue(reader, valueType, out object leafValue)) {
                 return leafValue;
@@ -256,6 +259,29 @@ namespace helengine {
             }
 
             throw new InvalidOperationException($"Automatic scripted runtime deserialization does not support member type '{valueType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Attempts to read one engine-owned serialized payload member.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the value payload.</param>
+        /// <param name="valueType">Runtime value type expected for the payload.</param>
+        /// <param name="value">Decoded payload value when supported.</param>
+        /// <returns>True when the value type was handled as one engine-owned serialized payload.</returns>
+        static bool TryReadEngineSerializedPayload(EngineBinaryReader reader, Type valueType, out object value) {
+            if (valueType != typeof(EngineSerializedPayload)) {
+                value = null;
+                return false;
+            }
+            if (reader.ReadByte() == 0) {
+                value = null;
+                return true;
+            }
+
+            string formatId = reader.ReadString();
+            byte[] serializedBytes = reader.ReadByteArray();
+            value = EngineSerializedPayload.Restore(formatId, serializedBytes);
+            return true;
         }
 
         /// <summary>
@@ -465,6 +491,9 @@ namespace helengine {
             if (!valueType.IsArray || valueType.GetArrayRank() != 1) {
                 value = null;
                 return false;
+            }
+            if (valueType == typeof(byte[])) {
+                throw new InvalidOperationException("Automatic scripted runtime deserialization does not support raw byte[] members. Use one engine-managed binary payload type instead.");
             }
 
             Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");

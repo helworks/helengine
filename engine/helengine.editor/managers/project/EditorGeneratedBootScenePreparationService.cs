@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorGeneratedBootScenePreparationService {
         /// <summary>
+        /// Environment variable that can override the generated boot-scene startup target for local build verification.
+        /// </summary>
+        const string GeneratedBootSceneInitialSceneIdEnvironmentVariable = "HELENGINE_GENERATED_BOOT_SCENE_INITIAL_SCENE_ID";
+
+        /// <summary>
         /// Stable Nintendo DS platform identifier used by boot-scene remap generation.
         /// </summary>
         const string NintendoDsPlatformId = "ds";
@@ -60,9 +65,10 @@ namespace helengine.editor {
                 return;
             }
 
+            string initialSceneId = ResolveInitialSceneId(sceneIds);
             SceneAsset sceneAsset = BootSceneAssetFactory.BuildSceneAsset(
                 "Scenes/" + PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen",
-                PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                initialSceneId,
                 mappings);
             string directoryPath = Path.GetDirectoryName(scenePath)
                 ?? throw new InvalidOperationException("Generated boot scene path did not include a writable directory.");
@@ -70,6 +76,26 @@ namespace helengine.editor {
 
             using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
+        /// Resolves the startup scene id that should be written into the generated boot scene for the current build.
+        /// </summary>
+        /// <param name="sceneIds">Stable scene ids selected for the build.</param>
+        /// <returns>Startup scene id that should be requested after the generated boot scene loads.</returns>
+        static string ResolveInitialSceneId(IReadOnlyList<string> sceneIds) {
+            if (sceneIds == null) {
+                throw new ArgumentNullException(nameof(sceneIds));
+            }
+
+            string overrideSceneId = Environment.GetEnvironmentVariable(GeneratedBootSceneInitialSceneIdEnvironmentVariable);
+            if (string.IsNullOrWhiteSpace(overrideSceneId)) {
+                return PlatformMenuSceneResolver.DesktopMainMenuSceneId;
+            } else if (!ContainsSceneId(sceneIds, overrideSceneId)) {
+                throw new InvalidOperationException($"Generated boot scene startup override '{overrideSceneId}' is not present in the selected build scene set.");
+            }
+
+            return overrideSceneId;
         }
 
         /// <summary>

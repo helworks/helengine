@@ -73,6 +73,7 @@ namespace helengine.editor {
                 defaultFontAsset,
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
+                new EditorPlatformBuildGraphWorkspaceFactory(projectRootPath),
                 scriptTypeResolver);
         }
 

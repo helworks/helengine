@@ -42,5 +42,10 @@ namespace helengine {
         /// Gets or sets how glyphs are positioned horizontally inside the authored text layout box.
         /// </summary>
         TextAlignment Alignment { get; set; }
+
+        /// <summary>
+        /// Gets the monotonically increasing version that changes whenever render-relevant text state changes.
+        /// </summary>
+        int TextRenderStateVersion { get; }
     }
 }

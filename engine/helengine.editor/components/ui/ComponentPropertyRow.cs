@@ -1,3 +1,4 @@
+using helengine.baseplatform.Definitions;
 using System.Reflection;
 
 namespace helengine.editor {
@@ -72,6 +73,11 @@ namespace helengine.editor {
         /// Gets or sets the effective value type edited by this row.
         /// </summary>
         public Type ValueType { get; set; }
+
+        /// <summary>
+        /// Gets or sets the synthetic platform-specific member descriptor edited by this row when the inspector exposes builder-owned component members.
+        /// </summary>
+        public PlatformComponentMemberDescriptor PlatformComponentMemberDescriptor { get; set; }
 
         /// <summary>
         /// Gets or sets the stable custom editor type identifier when this row participates in a provider-backed editor.

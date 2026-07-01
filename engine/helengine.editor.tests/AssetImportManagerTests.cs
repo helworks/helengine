@@ -142,6 +142,66 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures legacy generic texture sidecars are upgraded to the current typed texture settings format without losing GameCube processor settings.
+        /// </summary>
+        [Fact]
+        public void LoadOrCreateTextureImportSettings_WhenLegacyGenericSidecarCarriesGameCubeTextureSettings_PreservesThemInTypedRewrite() {
+            string sourcePath = WriteSourceTexture("legacy-generic-gamecube-texture-settings.png");
+            string settingsPath = sourcePath + ".hasset";
+            AssetImportManager manager = CreateManager();
+            manager.CurrentPlatformId = "gamecube";
+
+            AssetImportSettings legacySettings = manager.LoadOrCreateImportSettings(sourcePath);
+            legacySettings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 256,
+                    ColorFormatId = "GxRgb5A3",
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                }
+            };
+            manager.SaveImportSettings(sourcePath, legacySettings);
+
+            TextureAssetImportSettings rewrittenSettings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+
+            Assert.True(rewrittenSettings.Processor.Platforms.TryGetValue("gamecube", out TextureAssetProcessorSettings platformSettings));
+            Assert.NotNull(platformSettings);
+            Assert.Equal(256, platformSettings.MaxResolution);
+            Assert.Equal("GxRgb5A3", platformSettings.ColorFormatId);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, platformSettings.AlphaPrecision);
+
+            byte[] rewrittenData = File.ReadAllBytes(settingsPath);
+            EngineBinaryHeader header = ReadHeader(rewrittenData);
+            Assert.Equal((ushort)TextureAssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal((ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings, header.ValueKind);
+        }
+
+        /// <summary>
+        /// Ensures imported texture source resolution honors an explicit sidecar asset id even when the id does not match the current computed identity.
+        /// </summary>
+        [Fact]
+        public void TryResolveImportedTextureSourcePath_WhenLegacySidecarCarriesExplicitAssetId_ResolvesSourcePath() {
+            string sourcePath = WriteSourceTexture("legacy-explicit-texture-id.png");
+            AssetImportManager manager = CreateManager();
+            manager.CurrentPlatformId = "gamecube";
+
+            AssetImportSettings legacySettings = manager.LoadOrCreateImportSettings(sourcePath);
+            legacySettings.Importer.AssetId = "legacy-generated-texture-id";
+            legacySettings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 256,
+                    ColorFormatId = "GxRgb5A3",
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                }
+            };
+            manager.SaveImportSettings(sourcePath, legacySettings);
+
+            bool resolved = manager.TryResolveImportedTextureSourcePath("legacy-generated-texture-id", out string resolvedSourcePath);
+
+            Assert.True(resolved);
+            Assert.Equal(Path.GetFullPath(sourcePath), resolvedSourcePath);
+        }
+
+        /// <summary>
         /// Ensures loaded texture settings with a missing importer id are repaired to the registered default importer.
         /// </summary>
         [Fact]
@@ -774,6 +834,20 @@ namespace helengine.editor.tests {
             string sourcePath = Path.Combine(AssetsRootPath, fileName);
             File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
             return sourcePath;
+        }
+
+        /// <summary>
+        /// Reads the engine binary header from a serialized settings payload.
+        /// </summary>
+        /// <param name="data">Serialized settings bytes.</param>
+        /// <returns>Deserialized engine binary header.</returns>
+        static EngineBinaryHeader ReadHeader(byte[] data) {
+            if (data == null) {
+                throw new ArgumentNullException(nameof(data));
+            }
+
+            using MemoryStream stream = new MemoryStream(data);
+            return EngineBinaryHeaderSerializer.Read(stream);
         }
     }
 }

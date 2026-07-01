@@ -76,13 +76,29 @@ namespace helengine.editor {
         EditorGeneratedCodeSolution GeneratedCodeSolutionValue;
 
         /// <summary>
+        /// Optional explicit output root used by generated module projects for isolated headless builds.
+        /// </summary>
+        readonly string GeneratedOutputRootPath;
+
+        /// <summary>
         /// Initializes one solution generator for the supplied game project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative game project root path.</param>
         /// <param name="projectName">Display name of the game project.</param>
         /// <param name="ideLauncher">Launcher used to open the generated solution.</param>
         public EditorGameSolutionService(string projectRootPath, string projectName, IEditorIdeLauncher ideLauncher)
-            : this(projectRootPath, projectName, ideLauncher, new EditorVisualStudioLauncher()) {
+            : this(projectRootPath, projectName, ideLauncher, new EditorVisualStudioLauncher(), string.Empty) {
+        }
+
+        /// <summary>
+        /// Initializes one solution generator for the supplied game project root and explicit generated output root.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative game project root path.</param>
+        /// <param name="projectName">Display name of the game project.</param>
+        /// <param name="ideLauncher">Launcher used to open the generated solution.</param>
+        /// <param name="generatedOutputRootPath">Explicit generated output root used by the generated projects.</param>
+        public EditorGameSolutionService(string projectRootPath, string projectName, IEditorIdeLauncher ideLauncher, string generatedOutputRootPath)
+            : this(projectRootPath, projectName, ideLauncher, new EditorVisualStudioLauncher(), generatedOutputRootPath) {
         }
 
         /// <summary>
@@ -117,6 +133,50 @@ namespace helengine.editor {
             SolutionDetector = solutionDetector;
             CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
             GeneratedCodeSolutionBuilder = new EditorGeneratedCodeSolutionBuilder();
+            GeneratedOutputRootPath = string.Empty;
+        }
+
+        /// <summary>
+        /// Initializes one solution generator for the supplied game project root.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative game project root path.</param>
+        /// <param name="projectName">Display name of the game project.</param>
+        /// <param name="ideLauncher">Launcher used to open the generated solution.</param>
+        /// <param name="solutionDetector">Detector used to skip reopening an already-open solution.</param>
+        /// <param name="generatedOutputRootPath">Explicit generated output root used by the generated projects.</param>
+        public EditorGameSolutionService(
+            string projectRootPath,
+            string projectName,
+            IEditorIdeLauncher ideLauncher,
+            IEditorIdeSolutionDetector solutionDetector,
+            string generatedOutputRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(projectName)) {
+                throw new ArgumentException("Project name must be provided.", nameof(projectName));
+            }
+            if (ideLauncher == null) {
+                throw new ArgumentNullException(nameof(ideLauncher));
+            }
+            if (solutionDetector == null) {
+                throw new ArgumentNullException(nameof(solutionDetector));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            ProjectIdentifier = SanitizeIdentifier(projectName);
+            if (string.IsNullOrWhiteSpace(ProjectIdentifier)) {
+                ProjectIdentifier = "Game";
+            }
+
+            SolutionFilePath = Path.Combine(ProjectRootPath, ProjectIdentifier + SolutionFileExtension);
+            IdeLauncher = ideLauncher;
+            SolutionDetector = solutionDetector;
+            CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
+            GeneratedCodeSolutionBuilder = new EditorGeneratedCodeSolutionBuilder();
+            GeneratedOutputRootPath = string.IsNullOrWhiteSpace(generatedOutputRootPath)
+                ? string.Empty
+                : Path.GetFullPath(generatedOutputRootPath);
         }
 
         /// <summary>
@@ -362,7 +422,11 @@ namespace helengine.editor {
         EditorGeneratedCodeSolution BuildGeneratedCodeSolution() {
             EditorProjectPaths.Initialize(ProjectRootPath);
             EditorCodeModuleManifestDocument manifestDocument = CodeModuleManifestService.Load();
-            return GeneratedCodeSolutionBuilder.Build(ProjectRootPath, manifestDocument);
+            if (string.IsNullOrWhiteSpace(GeneratedOutputRootPath)) {
+                return GeneratedCodeSolutionBuilder.Build(ProjectRootPath, manifestDocument);
+            }
+
+            return GeneratedCodeSolutionBuilder.Build(ProjectRootPath, manifestDocument, GeneratedOutputRootPath);
         }
 
         /// <summary>

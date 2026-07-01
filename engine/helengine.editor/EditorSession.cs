@@ -3830,8 +3830,9 @@ namespace helengine.editor {
 
             if (args.HasSelection) {
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = CreateSupportedPlatformDefinitionsById();
                 for (int index = 0; index < propertiesPanels.Count; index++) {
-                    propertiesPanels[index].ShowEntityProperties(args.SelectedEntity, ProjectSupportedPlatforms);
+                    propertiesPanels[index].ShowEntityProperties(args.SelectedEntity, ProjectSupportedPlatforms, platformDefinitionsById);
                 }
             } else {
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
@@ -4078,7 +4079,7 @@ namespace helengine.editor {
             }
 
             if (SelectedSceneEntity != null) {
-                panel.ShowEntityProperties(SelectedSceneEntity, ProjectSupportedPlatforms);
+                panel.ShowEntityProperties(SelectedSceneEntity, ProjectSupportedPlatforms, CreateSupportedPlatformDefinitionsById());
                 return;
             }
 

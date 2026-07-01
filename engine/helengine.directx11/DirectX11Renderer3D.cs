@@ -1565,20 +1565,7 @@ namespace helengine.directx11 {
                 throw new ArgumentNullException(nameof(drawable));
             }
 
-            float4 orientation = drawable.Parent.Orientation;
-            float4x4 rotation;
-            float4x4.CreateFromQuaternion(ref orientation, out rotation);
-            float3 scale = drawable.Parent.Scale;
-            float4x4 size;
-            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
-            float4x4 rotationScale;
-            float4x4.Multiply(ref rotation, ref size, out rotationScale);
-            float3 position = drawable.Parent.Position;
-            float4x4 translation;
-            float4x4.CreateTranslation(ref position, out translation);
-            float4x4 world;
-            float4x4.Multiply(ref rotationScale, ref translation, out world);
-            return world;
+            return drawable.Parent.WorldTransformMatrix;
         }
 
         /// <summary>
@@ -1764,23 +1751,7 @@ namespace helengine.directx11 {
                 context.InputAssembler.SetIndexBuffer(data.IndexBuffer, indexFormat, 0);
             }
 
-            float4 orientation = parent.Orientation;
-            float4x4 rotation;
-            float4x4.CreateFromQuaternion(ref orientation, out rotation);
-
-            float3 scale = parent.Scale;
-            float4x4 size;
-            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
-
-            float4x4 rotationScale;
-            float4x4.Multiply(ref rotation, ref size, out rotationScale);
-
-            float3 position = parent.Position;
-            float4x4 translation;
-            float4x4.CreateTranslation(ref position, out translation);
-
-            float4x4 world;
-            float4x4.Multiply(ref rotationScale, ref translation, out world);
+            float4x4 world = parent.WorldTransformMatrix;
 
             float4x4 worldViewProj;
             float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);
@@ -1829,11 +1800,12 @@ namespace helengine.directx11 {
         /// <returns>Standard-mesh shader data configured for one draw.</returns>
         static StandardMeshShaderData BuildStandardMeshShaderData(float4x4 world, float3 cameraPosition, bool receivesShadows) {
             float4x4.InverseTranspose(ref world, out float4x4 inverseTransposeNormalMatrix);
+            float4x4.Transpose(ref inverseTransposeNormalMatrix, out float4x4 normalMatrixTransposed);
 
             return new StandardMeshShaderData {
                 World = default,
                 WorldViewProj = default,
-                NormalMatrix = inverseTransposeNormalMatrix,
+                NormalMatrix = normalMatrixTransposed,
                 CameraPosition = new float4(cameraPosition.X, cameraPosition.Y, cameraPosition.Z, 0f),
                 MaterialFlags = new float4(receivesShadows ? 1f : 0f, 0f, 0f, 0f)
             };

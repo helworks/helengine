@@ -1,4 +1,5 @@
 using BepuPhysics.Collidables;
+using BepuUtilities.Memory;
 
 namespace helengine {
     /// <summary>
@@ -29,6 +30,26 @@ namespace helengine {
             }
 
             return new Sphere(collider.Radius);
+        }
+
+        /// <summary>
+        /// Builds one BEPU static mesh shape from one cooked runtime payload.
+        /// </summary>
+        /// <param name="runtimeData">Cooked runtime payload emitted for the BEPU backend.</param>
+        /// <param name="pool">Buffer pool that should own the deserialized mesh resources.</param>
+        /// <returns>BEPU mesh shape matching the cooked payload.</returns>
+        public static Mesh CreateStaticMeshShape(StaticMeshCollisionRuntimeData3D runtimeData, BufferPool pool) {
+            if (runtimeData == null) {
+                throw new ArgumentNullException(nameof(runtimeData));
+            } else if (!string.Equals(runtimeData.FormatId, BepuStaticMeshCollisionCookProcessor3D.FormatIdValue, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Unsupported BEPU static mesh payload format '{runtimeData.FormatId}'.");
+            }
+
+            using EngineBinaryReader reader = runtimeData.CreatePayloadReader(
+                BepuStaticMeshCollisionCookProcessor3D.FormatIdValue,
+                BepuStaticMeshCollisionCookProcessor3D.BinaryFormatIdValue,
+                BepuStaticMeshCollisionCookProcessor3D.BinaryFormatVersionValue);
+            return BepuStaticMeshCollisionBinarySerializer.Read(reader, pool ?? throw new ArgumentNullException(nameof(pool)));
         }
     }
 }

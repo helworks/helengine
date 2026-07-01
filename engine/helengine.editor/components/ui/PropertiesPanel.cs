@@ -331,6 +331,10 @@ namespace helengine.editor {
         /// </summary>
         IReadOnlyList<string> CurrentComponentPlatformIds;
         /// <summary>
+        /// Platform definitions currently available to the inspector for synthetic component-member discovery.
+        /// </summary>
+        IReadOnlyDictionary<string, PlatformDefinition> CurrentPlatformDefinitionsById;
+        /// <summary>
         /// Component currently pending removal confirmation.
         /// </summary>
         ComponentSectionView PendingRemovalSection;
@@ -576,6 +580,7 @@ namespace helengine.editor {
             NameTextCache = string.Empty;
             SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
             CurrentComponentPlatformIds = new[] { ComponentPlatformEditingService.CommonPlatformId };
+            CurrentPlatformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
 
             HookNameEvents(NameField);
             HookTransformEvents(PositionFields);
@@ -776,7 +781,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Selected entity to display.</param>
         public void ShowEntityProperties(Entity entity) {
-            ShowEntityProperties(entity, CurrentComponentPlatformIds);
+            ShowEntityProperties(entity, CurrentComponentPlatformIds, CurrentPlatformDefinitionsById);
         }
 
         /// <summary>
@@ -785,6 +790,19 @@ namespace helengine.editor {
         /// <param name="entity">Selected entity to display.</param>
         /// <param name="supportedPlatformIds">Project-supported platform identifiers that should appear alongside the shared common tab.</param>
         public void ShowEntityProperties(Entity entity, IReadOnlyList<string> supportedPlatformIds) {
+            ShowEntityProperties(entity, supportedPlatformIds, CurrentPlatformDefinitionsById);
+        }
+
+        /// <summary>
+        /// Shows transform and component details for a selected entity using the supplied project platform list and platform definitions.
+        /// </summary>
+        /// <param name="entity">Selected entity to display.</param>
+        /// <param name="supportedPlatformIds">Project-supported platform identifiers that should appear alongside the shared common tab.</param>
+        /// <param name="platformDefinitionsById">Platform definitions keyed by stable platform identifier.</param>
+        public void ShowEntityProperties(
+            Entity entity,
+            IReadOnlyList<string> supportedPlatformIds,
+            IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
@@ -799,12 +817,14 @@ namespace helengine.editor {
             MaterialView.Hide();
             SelectedEntity = entity;
             CurrentComponentPlatformIds = ResolveComponentPlatformIds(supportedPlatformIds);
+            CurrentPlatformDefinitionsById = platformDefinitionsById ?? new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
             SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
             ActivateSelectedEntityTransformPlatform();
             ComponentPlatformTabStrip.SetPlatforms(CurrentComponentPlatformIds, SelectedComponentPlatformId, HandleComponentPlatformTabChanged);
             ComponentPlatformTabStrip.Root.Enabled = true;
             ApplyLines(Array.Empty<string>());
             SyncTransformFields(entity);
+            ComponentView.SetPlatformDefinitions(CurrentPlatformDefinitionsById);
             ComponentView.ShowComponents(entity, SelectedComponentPlatformId);
             SetTransformVisible(true);
             LayoutLines();
@@ -898,6 +918,7 @@ namespace helengine.editor {
             ActivateSelectedEntityTransformPlatform();
             ComponentPlatformTabStrip.SetSelectedPlatform(platformId);
             SyncTransformFields(SelectedEntity);
+            ComponentView.SetPlatformDefinitions(CurrentPlatformDefinitionsById);
             ComponentView.ShowComponents(SelectedEntity, platformId);
             LayoutLines();
         }

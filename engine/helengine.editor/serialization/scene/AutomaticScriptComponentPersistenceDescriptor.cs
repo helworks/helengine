@@ -230,9 +230,9 @@ namespace helengine.editor {
             }
 
             int memberCount = reader.ReadInt32();
-            if (memberCount != schema.Members.Count) {
+            if (memberCount < schema.Members.Count) {
                 throw new InvalidOperationException(
-                    $"Automatic scripted component payload expected {schema.Members.Count} members but contained {memberCount}.");
+                    $"Automatic scripted component payload expected at least {schema.Members.Count} members but contained {memberCount}.");
             }
 
             for (int index = 0; index < schema.Members.Count; index++) {
@@ -408,6 +408,9 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(valueType));
             }
 
+            if (TryWriteEngineSerializedPayload(writer, valueType, value)) {
+                return;
+            }
             if (TryWriteLeafValue(writer, valueType, value)) {
                 return;
             }
@@ -444,6 +447,9 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(valueType));
             }
 
+            if (TryReadEngineSerializedPayload(reader, valueType, out object payloadValue)) {
+                return payloadValue;
+            }
             if (TryReadLeafValue(reader, valueType, out object leafValue)) {
                 return leafValue;
             }
@@ -461,6 +467,53 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Automatic script-component persistence does not support member type '{valueType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Attempts to write one engine-owned serialized payload member.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the value payload.</param>
+        /// <param name="valueType">Runtime value type being serialized.</param>
+        /// <param name="value">Current member value.</param>
+        /// <returns>True when the value type was handled as one engine-owned serialized payload.</returns>
+        static bool TryWriteEngineSerializedPayload(EngineBinaryWriter writer, Type valueType, object value) {
+            if (valueType != typeof(EngineSerializedPayload)) {
+                return false;
+            }
+            if (value == null) {
+                writer.WriteByte(0);
+                return true;
+            }
+
+            EngineSerializedPayload payload = value as EngineSerializedPayload
+                ?? throw new InvalidOperationException($"Automatic script-component persistence expected an {nameof(EngineSerializedPayload)} instance.");
+            writer.WriteByte(1);
+            writer.WriteString(payload.FormatId);
+            writer.WriteByteArray(payload.GetSerializedBytesForPersistence());
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to read one engine-owned serialized payload member.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the value payload.</param>
+        /// <param name="valueType">Runtime value type expected for the payload.</param>
+        /// <param name="value">Decoded payload value when supported.</param>
+        /// <returns>True when the value type was handled as one engine-owned serialized payload.</returns>
+        static bool TryReadEngineSerializedPayload(EngineBinaryReader reader, Type valueType, out object value) {
+            if (valueType != typeof(EngineSerializedPayload)) {
+                value = null;
+                return false;
+            }
+            if (reader.ReadByte() == 0) {
+                value = null;
+                return true;
+            }
+
+            string formatId = reader.ReadString();
+            byte[] serializedBytes = reader.ReadByteArray();
+            value = EngineSerializedPayload.Restore(formatId, serializedBytes);
+            return true;
         }
 
         /// <summary>
@@ -973,6 +1026,9 @@ namespace helengine.editor {
             if (!valueType.IsArray || valueType.GetArrayRank() != 1) {
                 return false;
             }
+            if (valueType == typeof(byte[])) {
+                throw new InvalidOperationException("Automatic script-component persistence does not support raw byte[] members. Use one engine-managed binary payload type instead.");
+            }
 
             Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
             Array values = value as Array;
@@ -1000,6 +1056,9 @@ namespace helengine.editor {
             if (!valueType.IsArray || valueType.GetArrayRank() != 1) {
                 value = null;
                 return false;
+            }
+            if (valueType == typeof(byte[])) {
+                throw new InvalidOperationException("Automatic script-component persistence does not support raw byte[] members. Use one engine-managed binary payload type instead.");
             }
 
             Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");

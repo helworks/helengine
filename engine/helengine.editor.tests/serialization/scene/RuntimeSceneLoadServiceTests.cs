@@ -188,6 +188,41 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures runtime scene loading attaches the stable serialized scene-entity id to each live entity.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneEntityIdsExist_AttachesRuntimeSceneEntityIdComponents() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 17u,
+                        Name = "Root",
+                        Children = new[] {
+                            new SceneEntityAsset {
+                                Id = 23u,
+                                Name = "Child",
+                                Children = Array.Empty<SceneEntityAsset>()
+                            }
+                        }
+                    }
+                }
+            };
+
+            Entity loadedRoot = Assert.Single(loadService.Load(sceneAsset));
+            SceneEntityRuntimeIdComponent rootRuntimeId = Assert.IsType<SceneEntityRuntimeIdComponent>(Assert.Single(loadedRoot.Components, component => component is SceneEntityRuntimeIdComponent));
+            Entity loadedChild = Assert.Single(loadedRoot.Children);
+            SceneEntityRuntimeIdComponent childRuntimeId = Assert.IsType<SceneEntityRuntimeIdComponent>(Assert.Single(loadedChild.Components, component => component is SceneEntityRuntimeIdComponent));
+
+            Assert.Equal(17u, rootRuntimeId.SceneEntityId);
+            Assert.Equal(23u, childRuntimeId.SceneEntityId);
+        }
+
+        /// <summary>
         /// Resolves the packaged scene file path for one authored scene inside the supplied build output root.
         /// </summary>
         /// <param name="buildRootPath">Build output root that contains packaged scene assets.</param>

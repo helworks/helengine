@@ -282,6 +282,8 @@ namespace helengine {
 
                 RecordTraceState("LoadSceneImmediateFlushReleasedTextures", sceneId);
                 FlushReleasedAssets();
+                RecordTraceState("LoadSceneImmediateResetPhysicsTiming", sceneId);
+                ResetPhysicsTimingForSingleLoad();
             }
 
             SceneLoadingEventArgs sceneLoadingEventArgs = new SceneLoadingEventArgs(sceneId, sceneContentPath);
@@ -435,6 +437,17 @@ namespace helengine {
             for (int index = 0; index < sceneIdsToUnload.Count; index++) {
                 UnloadSceneImmediate(sceneIdsToUnload[index]);
             }
+        }
+
+        /// <summary>
+        /// Clears any fixed-step physics backlog carried by the previous scene so the next single-scene load starts without catch-up debt.
+        /// </summary>
+        void ResetPhysicsTimingForSingleLoad() {
+            if (Core.Instance == null) {
+                return;
+            }
+
+            Core.Instance.ResetPhysicsTimingState();
         }
 
         /// <summary>

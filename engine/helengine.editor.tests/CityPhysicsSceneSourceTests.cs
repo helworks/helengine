@@ -31,6 +31,19 @@ public sealed class CityPhysicsSceneSourceTests {
     }
 
     /// <summary>
+    /// Ensures the obsolete Matrix Probe scene is no longer exposed through the demo-disc menu catalog.
+    /// </summary>
+    [Fact]
+    public void City_matrix_probe_source_is_not_exposed_by_demo_disc_menu_catalog() {
+        string catalogSourcePath = @"C:\dev\helprojs\city\assets\codebase\menu\DemoDiscSceneCatalog.cs";
+        string catalogSource = File.ReadAllText(catalogSourcePath);
+
+        Assert.DoesNotContain("\"scene-render-matrix-probe\"", catalogSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Matrix Probe\"", catalogSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"test_scene_render_matrix_probe\"", catalogSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Ensures the authored city dynamic sphere stack uses one shared tiled texture across distinct colored standard materials so sphere rotation reads clearly.
     /// </summary>
     [Fact]
@@ -229,45 +242,79 @@ public sealed class CityPhysicsSceneSourceTests {
     }
 
     /// <summary>
-    /// Ensures the render-matrix probe scene is exposed through the catalog and factory as a visual-only cube comparison.
+    /// Ensures the obsolete render-matrix probe scene has been fully removed from source generation and authored scene output.
     /// </summary>
     [Fact]
-    public void City_render_matrix_probe_scene_source_is_exposed_as_render_only_visual_cases() {
-        string catalogSourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneCatalog.cs";
-        string catalogSource = File.ReadAllText(catalogSourcePath);
-        string factorySourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
-        string factorySource = File.ReadAllText(factorySourcePath);
+    public void City_render_matrix_probe_scene_source_is_removed_everywhere() {
+        string renderingGeneratorSourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\RenderingSceneGenerator.cs";
+        string renderingGeneratorSource = File.ReadAllText(renderingGeneratorSourcePath);
+        string obsoleteRenderingFactoryPath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\RenderMatrixProbeSceneFactory.cs";
+        string obsoleteRenderingScenePath = @"C:\dev\helprojs\city\assets\scenes\rendering\test_scene_render_matrix_probe.helen";
+        string obsoleteNintendoDsScenePath = @"C:\dev\helprojs\city\assets\scenes\physics\test_scene_render_matrix_probe_ds.helen";
 
-        Assert.Contains("public const string RenderMatrixProbeSceneId = \"scenes/physics/test_scene_render_matrix_probe.helen\";", catalogSource, StringComparison.Ordinal);
-        Assert.Contains("RenderMatrixProbeSceneId,", catalogSource, StringComparison.Ordinal);
-        Assert.Contains("CreateRenderMatrixProbeScene()", factorySource, StringComparison.Ordinal);
-        Assert.Contains("\"render_matrix_probe.flat_control\"", factorySource, StringComparison.Ordinal);
-        Assert.Contains("\"render_matrix_probe.rotated_only\"", factorySource, StringComparison.Ordinal);
-        Assert.Contains("\"render_matrix_probe.scaled_only\"", factorySource, StringComparison.Ordinal);
-        Assert.Contains("\"render_matrix_probe.rotated_scaled\"", factorySource, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreatePhysicsBoxMeshEntity(\"render_matrix_probe", factorySource, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreatePhysicsSphereMeshEntity(\"render_matrix_probe", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("RenderMatrixProbeSceneId", renderingGeneratorSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("RenderMatrixProbeFactory", renderingGeneratorSource, StringComparison.Ordinal);
+        Assert.False(File.Exists(obsoleteRenderingFactoryPath), $"Obsolete source file still exists: {obsoleteRenderingFactoryPath}");
+        Assert.False(File.Exists(obsoleteRenderingScenePath), $"Obsolete authored scene still exists: {obsoleteRenderingScenePath}");
+        Assert.False(File.Exists(obsoleteNintendoDsScenePath), $"Obsolete Nintendo DS authored scene still exists: {obsoleteNintendoDsScenePath}");
     }
 
     /// <summary>
-    /// Ensures the render-motion probe scene is exposed by the catalog and factory as a visual-only scene with one animated hero cube.
+    /// Ensures the matrix render scene is exposed by the catalog and factory as a visual-only scene with one animated hero cube and an orbit camera.
     /// </summary>
     [Fact]
-    public void City_render_motion_probe_scene_source_is_exposed_as_visual_only_with_motion_probe_component() {
+    public void City_matrix_render_scene_source_is_exposed_as_visual_only_with_matrix_render_component() {
         string catalogSourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneCatalog.cs";
         string catalogSource = File.ReadAllText(catalogSourcePath);
         string factorySourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
         string factorySource = File.ReadAllText(factorySourcePath);
+        string componentSourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering\MatrixRenderComponent.cs";
+        string componentSource = File.ReadAllText(componentSourcePath);
 
-        Assert.Contains("public const string RenderMotionProbeSceneId = \"scenes/physics/test_scene_render_motion_probe.helen\";", catalogSource, StringComparison.Ordinal);
-        Assert.Contains("RenderMotionProbeSceneId,", catalogSource, StringComparison.Ordinal);
-        Assert.Contains("CreateRenderMotionProbeScene()", factorySource, StringComparison.Ordinal);
-        Assert.Contains("\"render_motion_probe.hero\"", factorySource, StringComparison.Ordinal);
-        Assert.Contains("\"render_motion_probe.flat_control\"", factorySource, StringComparison.Ordinal);
-        Assert.Contains("\"render_motion_probe.rotated_scaled_reference\"", factorySource, StringComparison.Ordinal);
-        Assert.Contains("new city.rendering.RenderMotionProbeComponent", factorySource, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreatePhysicsBoxMeshEntity(\"render_motion_probe", factorySource, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreatePhysicsSphereMeshEntity(\"render_motion_probe", factorySource, StringComparison.Ordinal);
+        Assert.Contains("public const string MatrixRenderSceneId = \"scenes/physics/test_scene_matrix_render.helen\";", catalogSource, StringComparison.Ordinal);
+        Assert.Contains("MatrixRenderSceneId,", catalogSource, StringComparison.Ordinal);
+        Assert.Contains("CreateMatrixRenderScene()", factorySource, StringComparison.Ordinal);
+        Assert.Contains("CreateMatrixRenderCameraEntity()", factorySource, StringComparison.Ordinal);
+        Assert.Contains("CreateMatrixRenderKeyLightEntity()", factorySource, StringComparison.Ordinal);
+        Assert.Contains("CreateLiveMatrixRenderUiEntity()", factorySource, StringComparison.Ordinal);
+        Assert.Contains("MatrixRenderPhaseStatusTextComponent", factorySource, StringComparison.Ordinal);
+        Assert.Contains("Operation: Translation", factorySource, StringComparison.Ordinal);
+        Assert.Contains("phaseStatusEntity.LocalPosition = new float3(16f, 392f, 0f);", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"matrix_render.hero\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("new city.rendering.MatrixRenderComponent", factorySource, StringComparison.Ordinal);
+        Assert.Contains("new city.rendering.DemoDiscOrbitCameraComponent", factorySource, StringComparison.Ordinal);
+        Assert.Contains("float3 orbitCenter = new float3(0f, 0f, 2.5f);", factorySource, StringComparison.Ordinal);
+        Assert.Contains("OrbitCenter = orbitCenter", factorySource, StringComparison.Ordinal);
+        Assert.Contains("AutoYawSpeedRadians = 0.08f", factorySource, StringComparison.Ordinal);
+        Assert.Contains("CreateYawPitchRollDegrees(26.0, -28.0, 0.0)", factorySource, StringComparison.Ordinal);
+        Assert.Contains("LayerMask = 1", factorySource, StringComparison.Ordinal);
+        Assert.Contains("OperationLabels", componentSource, StringComparison.Ordinal);
+        Assert.Contains("\"Translation + Rotation + Scale\"", componentSource, StringComparison.Ordinal);
+        Assert.Contains("public string GetCurrentOperationLabel()", componentSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"matrix_render.ground\"", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"matrix_render.flat_control\"", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"matrix_render.rotated_only\"", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"matrix_render.scaled_only\"", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"matrix_render.rotated_scaled_reference\"", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreatePhysicsBoxMeshEntity(\"matrix_render", factorySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreatePhysicsSphereMeshEntity(\"matrix_render", factorySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the matrix render scene is emitted through the Nintendo DS companion-scene pipeline without exposing a duplicate physics menu entry.
+    /// </summary>
+    [Fact]
+    public void City_matrix_render_scene_source_is_exposed_to_ds_generation_only() {
+        string sceneCatalogSourcePath = @"C:\dev\helprojs\city\assets\codebase\menu\DemoDiscSceneCatalog.cs";
+        string sceneCatalogSource = File.ReadAllText(sceneCatalogSourcePath);
+        string dsGeneratorSourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsNintendoDsSceneGenerator.cs";
+        string dsGeneratorSource = File.ReadAllText(dsGeneratorSourcePath);
+
+        Assert.Contains("public IReadOnlyList<DemoDiscPhysicsSceneEntry> CreatePhysicsNintendoDsSceneEntries()", sceneCatalogSource, StringComparison.Ordinal);
+        Assert.Contains("\"test_scene_matrix_render_ds\"", sceneCatalogSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"test_scene_render_matrix_probe_ds\"", sceneCatalogSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"physics-matrix-render\",", sceneCatalogSource, StringComparison.Ordinal);
+        Assert.Contains("sceneCatalog.CreatePhysicsNintendoDsSceneEntries()", dsGeneratorSource, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -39,6 +39,25 @@ public sealed class CityCubeTestSceneSourceTests {
     }
 
     /// <summary>
+    /// Ensures the generated cube-test material authors explicit PlayStation 2 settings so PS2 scene packaging does not depend on stale sidecar state.
+    /// </summary>
+    [Fact]
+    public void City_cube_test_material_source_authors_ps2_material_settings() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\ForwardSolidColorMaterialFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("const string Ps2MaterialSchemaId = \"ps2-simple-lit-textured\";", source, StringComparison.Ordinal);
+        Assert.Contains("GeneratedMaterialPlatformDefinition ps2Settings = definition.GetOrCreatePlatform(\"ps2\");", source, StringComparison.Ordinal);
+        Assert.Contains("ps2Settings.SchemaId = Ps2MaterialSchemaId;", source, StringComparison.Ordinal);
+        Assert.Contains("ps2Settings.SetFieldValue(Ps2TextureRelativePathFieldId, string.Empty);", source, StringComparison.Ordinal);
+        Assert.Contains("ps2Settings.SetFieldValue(AlphaModeFieldId, \"opaque\");", source, StringComparison.Ordinal);
+        Assert.Contains("ps2Settings.SetFieldValue(DoubleSidedFieldId, \"false\");", source, StringComparison.Ordinal);
+        Assert.Contains("ps2Settings.SetFieldValue(CastsShadowFieldId, \"false\");", source, StringComparison.Ordinal);
+        Assert.Contains("ps2Settings.SetFieldValue(VertexColorModeFieldId, \"ignore\");", source, StringComparison.Ordinal);
+        Assert.Contains("ps2Settings.SetFieldValue(BaseColorFieldId, CubeBaseColor);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Ensures the packaged cube-test scene does not include the editor-only video preview sprite in its runtime root list.
     /// </summary>
     [Fact]

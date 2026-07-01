@@ -57,11 +57,35 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Replaces the authored linear velocity with the supplied world-space value.
+        /// </summary>
+        /// <param name="value">New authored linear velocity in world units per second.</param>
+        public void SetLinearVelocity(float3 value) {
+            LinearVelocityValue = value;
+        }
+
+        /// <summary>
+        /// Returns the authored linear velocity in world units per second.
+        /// </summary>
+        /// <returns>Current authored linear velocity.</returns>
+        public float3 GetLinearVelocity() {
+            return LinearVelocityValue;
+        }
+
+        /// <summary>
         /// Gets or sets the authored angular velocity in radians per second around each world axis.
         /// </summary>
         public float3 AngularVelocity {
             get { return AngularVelocityValue; }
             set { AngularVelocityValue = value; }
+        }
+
+        /// <summary>
+        /// Replaces the authored angular velocity with the supplied world-space value.
+        /// </summary>
+        /// <param name="value">New authored angular velocity in radians per second.</param>
+        public void SetAngularVelocity(float3 value) {
+            AngularVelocityValue = value;
         }
 
         /// <summary>

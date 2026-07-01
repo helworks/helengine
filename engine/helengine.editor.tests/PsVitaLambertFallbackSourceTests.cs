@@ -28,7 +28,7 @@ public sealed class PsVitaLambertFallbackSourceTests {
         string headerPath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRenderManager3D.hpp";
         string sourcePath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRenderManager3D.cpp";
         string headerSource = File.ReadAllText(headerPath);
-        string source = File.ReadAllText(sourcePath);
+        string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
 
         Assert.Contains("std::vector<rendering::PsVitaSolidColorVertex> QueuedMeshTriangles;", headerSource, StringComparison.Ordinal);
         Assert.Contains("DirectionalLightComponent", source, StringComparison.Ordinal);
@@ -39,5 +39,27 @@ public sealed class PsVitaLambertFallbackSourceTests {
         Assert.Contains("ResolveAmbientLightColor", source, StringComparison.Ordinal);
         Assert.Contains("BuildLambertVertexColor", source, StringComparison.Ordinal);
         Assert.DoesNotContain("SubmitSolidWhiteMeshTriangles(QueuedMeshTriangles);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the Vita Lambert fallback respects material cull mode so hidden faces do not leak through the painter-sorted CPU path as small triangle artifacts.
+    /// </summary>
+    [Fact]
+    public void PsVita_render_manager_honors_material_cull_mode_in_lambert_fallback() {
+        string headerPath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRenderManager3D.hpp";
+        string sourcePath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRenderManager3D.cpp";
+        string headerSource = File.ReadAllText(headerPath);
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("ResolveSubmeshCullMode", headerSource, StringComparison.Ordinal);
+        Assert.Contains("ShouldCullProjectedTriangle", headerSource, StringComparison.Ordinal);
+        Assert.Contains("MaterialCullMode", source, StringComparison.Ordinal);
+        Assert.Contains("ResolveSubmeshCullMode", source, StringComparison.Ordinal);
+        Assert.Contains("ShouldCullProjectedTriangle", source, StringComparison.Ordinal);
+        Assert.Contains("if (ShouldCullProjectedTriangle(", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "if (cullMode == ::MaterialCullMode::Front) {\n            return signedAreaTwice < 0.0;\n        }\n\n        return signedAreaTwice > 0.0;",
+            source,
+            StringComparison.Ordinal);
     }
 }

@@ -7,6 +7,22 @@ namespace helengine {
         /// Tracks whether the component has completed disposal and should reject further use.
         /// </summary>
         bool isDisposed;
+        /// <summary>
+        /// Stores synthetic string members populated by platform-extended runtime payloads.
+        /// </summary>
+        readonly Dictionary<string, string> SyntheticStringMembers = new Dictionary<string, string>(StringComparer.Ordinal);
+        /// <summary>
+        /// Stores synthetic boolean members populated by platform-extended runtime payloads.
+        /// </summary>
+        readonly Dictionary<string, bool> SyntheticBooleanMembers = new Dictionary<string, bool>(StringComparer.Ordinal);
+        /// <summary>
+        /// Stores synthetic 32-bit integer members populated by platform-extended runtime payloads.
+        /// </summary>
+        readonly Dictionary<string, int> SyntheticInt32Members = new Dictionary<string, int>(StringComparer.Ordinal);
+        /// <summary>
+        /// Stores synthetic single-precision members populated by platform-extended runtime payloads.
+        /// </summary>
+        readonly Dictionary<string, float> SyntheticSingleMembers = new Dictionary<string, float>(StringComparer.Ordinal);
 
         /// <summary>
         /// Gets the entity this component is attached to.
@@ -27,6 +43,130 @@ namespace helengine {
         /// Gets whether disposal has completed and the component should reject further use.
         /// </summary>
         internal bool IsDisposed => isDisposed;
+
+        /// <summary>
+        /// Stores one synthetic string member value on the component.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="value">String value to store.</param>
+        public void SetSyntheticStringMember(string memberName, string value) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
+            }
+
+            SyntheticStringMembers[memberName] = value ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Resolves one synthetic string member value from the component or returns the supplied fallback when no value has been materialized.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="defaultValue">Fallback value returned when the member is absent.</param>
+        /// <returns>Stored string value when present; otherwise the supplied fallback.</returns>
+        public string GetSyntheticStringMemberOrDefault(string memberName, string defaultValue) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
+            }
+
+            if (SyntheticStringMembers.TryGetValue(memberName, out string value)) {
+                return value;
+            }
+
+            return defaultValue ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Stores one synthetic boolean member value on the component.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="value">Boolean value to store.</param>
+        public void SetSyntheticBooleanMember(string memberName, bool value) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
+            }
+
+            SyntheticBooleanMembers[memberName] = value;
+        }
+
+        /// <summary>
+        /// Resolves one synthetic boolean member value from the component or returns the supplied fallback when no value has been materialized.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="defaultValue">Fallback value returned when the member is absent.</param>
+        /// <returns>Stored boolean value when present; otherwise the supplied fallback.</returns>
+        public bool GetSyntheticBooleanMemberOrDefault(string memberName, bool defaultValue) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
+            }
+
+            if (SyntheticBooleanMembers.TryGetValue(memberName, out bool value)) {
+                return value;
+            }
+
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// Stores one synthetic 32-bit integer member value on the component.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="value">Integer value to store.</param>
+        public void SetSyntheticInt32Member(string memberName, int value) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
+            }
+
+            SyntheticInt32Members[memberName] = value;
+        }
+
+        /// <summary>
+        /// Resolves one synthetic 32-bit integer member value from the component or returns the supplied fallback when no value has been materialized.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="defaultValue">Fallback value returned when the member is absent.</param>
+        /// <returns>Stored integer value when present; otherwise the supplied fallback.</returns>
+        public int GetSyntheticInt32MemberOrDefault(string memberName, int defaultValue) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
+            }
+
+            if (SyntheticInt32Members.TryGetValue(memberName, out int value)) {
+                return value;
+            }
+
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// Stores one synthetic single-precision member value on the component.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="value">Single-precision value to store.</param>
+        public void SetSyntheticSingleMember(string memberName, float value) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
+            }
+
+            SyntheticSingleMembers[memberName] = value;
+        }
+
+        /// <summary>
+        /// Resolves one synthetic single-precision member value from the component or returns the supplied fallback when no value has been materialized.
+        /// </summary>
+        /// <param name="memberName">Stable synthetic member name.</param>
+        /// <param name="defaultValue">Fallback value returned when the member is absent.</param>
+        /// <returns>Stored single-precision value when present; otherwise the supplied fallback.</returns>
+        public float GetSyntheticSingleMemberOrDefault(string memberName, float defaultValue) {
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
+            }
+
+            if (SyntheticSingleMembers.TryGetValue(memberName, out float value)) {
+                return value;
+            }
+
+            return defaultValue;
+        }
 
         /// <summary>
         /// Associates the component with one entity before any runtime lifecycle callbacks are considered.

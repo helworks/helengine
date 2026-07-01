@@ -28,4 +28,17 @@ public sealed class CityRenderingRotationSourceTests {
         Assert.Contains("Axis = new float3(1f, 0f, 0f)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("new AxisTestZSpinComponent", source, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Ensures the Axis 2 showcase scene also rotates the authored light arrow around the visible X axis.
+    /// </summary>
+    [Fact]
+    public void City_axis_test2_scene_source_uses_axis_rotation_component_for_light_arrow_motion() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\AxisTest2SceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("new gameplay.rendering.AxisRotationComponent", source, StringComparison.Ordinal);
+        Assert.Contains("Axis = new float3(1f, 0f, 0f)", source, StringComparison.Ordinal);
+        Assert.Contains("AngularSpeedRadiansPerSecond = ArrowAngularSpeedRadians", source, StringComparison.Ordinal);
+    }
 }

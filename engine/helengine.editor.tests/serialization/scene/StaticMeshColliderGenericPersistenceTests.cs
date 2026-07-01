@@ -22,9 +22,15 @@ namespace helengine.editor.tests.serialization.scene {
                         new float3(-1f, 0f, 1f)
                     ],
                     [0, 1, 2]),
-                CookedRuntimeData = new StaticMeshCollisionRuntimeData3D(
+                CookedRuntimeData = StaticMeshCollisionRuntimeData3D.Create(
                     "helengine.bepu.static-mesh",
-                    [0x10, 0x20, 0x30, 0x40])
+                    0x7301,
+                    2,
+                    EngineBinaryEndianness.BigEndian,
+                    writer => {
+                        writer.WriteInt32(4);
+                        writer.WriteFloat3(new float3(0.25f, 0.5f, 0.75f));
+                    })
             };
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(collider, 0, saveComponent.GetOrCreateComponentState(collider));
@@ -34,7 +40,10 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(new float3(-1f, 0f, -1f), restored.CollisionData.Vertices[0]);
             Assert.Equal(new[] { 0, 1, 2 }, restored.CollisionData.Indices);
             Assert.Equal("helengine.bepu.static-mesh", restored.CookedRuntimeData.FormatId);
-            Assert.Equal(new byte[] { 0x10, 0x20, 0x30, 0x40 }, restored.CookedRuntimeData.Data);
+            using EngineBinaryReader reader = restored.CookedRuntimeData.CreatePayloadReader("helengine.bepu.static-mesh", 0x7301, 2);
+            Assert.Equal(EngineBinaryEndianness.BigEndian, reader.Endianness);
+            Assert.Equal(4, reader.ReadInt32());
+            Assert.Equal(new float3(0.25f, 0.5f, 0.75f), reader.ReadFloat3());
         }
     }
 }

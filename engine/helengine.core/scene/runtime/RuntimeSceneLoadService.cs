@@ -144,6 +144,11 @@ namespace helengine {
             };
             entity.InitComponents();
             entity.InitChildren();
+            if (entityAsset.Id != 0u) {
+                entity.AddComponent(new SceneEntityRuntimeIdComponent {
+                    SceneEntityId = entityAsset.Id
+                });
+            }
 
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < componentRecords.Length; index++) {

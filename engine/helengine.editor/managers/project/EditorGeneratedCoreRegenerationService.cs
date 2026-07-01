@@ -479,42 +479,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the checked-in helengine codegen feature catalog path by searching upward from the editor process base directory and current working directory.
+        /// Resolves the checked-in helengine codegen feature catalog path beneath the active HelEngine source root.
         /// </summary>
         /// <returns>Absolute path to the helengine feature catalog file.</returns>
         static string ResolveHelengineFeatureCatalogPath() {
-            string relativeCatalogPath = Path.Combine(
+            string helEngineRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string featureCatalogPath = Path.Combine(
+                helEngineRootPath,
                 "engine",
                 "helengine.editor",
                 "codegen",
                 "features",
                 "helengine-feature-catalog.json");
-
-            string[] searchRoots = new[] {
-                AppContext.BaseDirectory,
-                Directory.GetCurrentDirectory()
-            };
-
-            for (int rootIndex = 0; rootIndex < searchRoots.Length; rootIndex++) {
-                string searchRoot = searchRoots[rootIndex];
-                if (string.IsNullOrWhiteSpace(searchRoot)) {
-                    continue;
-                }
-
-                DirectoryInfo currentDirectory = new DirectoryInfo(Path.GetFullPath(searchRoot));
-                for (int depth = 0; depth < 10 && currentDirectory != null; depth++) {
-                    string candidatePath = Path.Combine(currentDirectory.FullName, relativeCatalogPath);
-                    if (File.Exists(candidatePath)) {
-                        return candidatePath;
-                    }
-
-                    currentDirectory = currentDirectory.Parent;
-                }
+            if (!File.Exists(featureCatalogPath)) {
+                throw new FileNotFoundException(
+                    "Could not locate the checked-in helengine codegen feature catalog.",
+                    featureCatalogPath);
             }
 
-            throw new FileNotFoundException(
-                "Could not locate the checked-in helengine codegen feature catalog.",
-                relativeCatalogPath);
+            return featureCatalogPath;
         }
 
         /// <summary>
@@ -1048,7 +1031,10 @@ namespace helengine.editor {
         /// Emits generated native runtime component deserializers for engine-owned components that use automatic packaged scene persistence.
         /// </summary>
         /// <param name="generatedCoreRootPath">Absolute generated core output root that should receive the generated native files.</param>
-        internal static void EmitGeneratedAutomaticRuntimeComponentDeserializers(string generatedCoreRootPath, IReadOnlyList<Type> additionalComponentTypes = null) {
+        internal static void EmitGeneratedAutomaticRuntimeComponentDeserializers(
+            string generatedCoreRootPath,
+            IReadOnlyList<Type> additionalComponentTypes = null,
+            PlatformDefinition platformDefinition = null) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
@@ -1056,7 +1042,7 @@ namespace helengine.editor {
             Directory.CreateDirectory(generatedCoreRootPath);
             ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
             ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
-            IReadOnlyList<ScriptComponentReflectionSchema> schemas = DiscoverAutomaticRuntimeComponentSchemas(schemaBuilder, generator, additionalComponentTypes);
+            IReadOnlyList<ScriptComponentReflectionSchema> schemas = DiscoverAutomaticRuntimeComponentSchemas(schemaBuilder, generator, additionalComponentTypes, platformDefinition);
             if (schemas.Count == 0) {
                 return;
             }
@@ -1090,7 +1076,8 @@ namespace helengine.editor {
         internal static void EmitCookedSceneAutomaticRuntimeComponentDeserializers(
             string generatedCoreRootPath,
             IReadOnlyList<string> cookedSceneAssetPaths,
-            IScriptTypeResolver scriptTypeResolver) {
+            IScriptTypeResolver scriptTypeResolver,
+            PlatformDefinition platformDefinition = null) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
@@ -1100,7 +1087,8 @@ namespace helengine.editor {
 
             EmitGeneratedAutomaticRuntimeComponentDeserializers(
                 generatedCoreRootPath,
-                DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(cookedSceneAssetPaths, scriptTypeResolver));
+                DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(cookedSceneAssetPaths, scriptTypeResolver),
+                platformDefinition);
         }
 
         /// <summary>
@@ -1113,13 +1101,16 @@ namespace helengine.editor {
         static IReadOnlyList<ScriptComponentReflectionSchema> DiscoverAutomaticRuntimeComponentSchemas(
             ScriptComponentReflectionSchemaBuilder schemaBuilder,
             ScriptComponentPlayerDeserializerGenerator generator,
-            IReadOnlyList<Type> additionalComponentTypes) {
+            IReadOnlyList<Type> additionalComponentTypes,
+            PlatformDefinition platformDefinition) {
             if (schemaBuilder == null) {
                 throw new ArgumentNullException(nameof(schemaBuilder));
             }
             if (generator == null) {
                 throw new ArgumentNullException(nameof(generator));
             }
+
+            PlatformExtendedScriptComponentSchemaBuilder platformExtendedSchemaBuilder = new PlatformExtendedScriptComponentSchemaBuilder();
 
             HashSet<Type> requiredAdditionalComponentTypes = new HashSet<Type>();
             if (additionalComponentTypes != null) {
@@ -1151,7 +1142,7 @@ namespace helengine.editor {
             List<ScriptComponentReflectionSchema> schemas = new List<ScriptComponentReflectionSchema>(orderedComponentTypes.Count);
             for (int index = 0; index < orderedComponentTypes.Count; index++) {
                 Type componentType = orderedComponentTypes[index];
-                ScriptComponentReflectionSchema schema = schemaBuilder.Build(componentType);
+                ScriptComponentReflectionSchema schema = platformExtendedSchemaBuilder.Build(componentType, platformDefinition);
                 if (generator.CanGenerateNativeDeserializer(schema)) {
                     schemas.Add(schema);
                     continue;

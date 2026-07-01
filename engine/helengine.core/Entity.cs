@@ -36,7 +36,8 @@ namespace helengine {
                 float3 pos = position;
 
                 if (Parent != null) {
-                    float3 rotatedLocal = float4.RotateVector(pos, Parent.Orientation);
+                    float3 scaledLocal = pos * Parent.Scale;
+                    float3 rotatedLocal = float4.RotateVector(scaledLocal, Parent.Orientation);
                     pos = rotatedLocal + Parent.Position;
                 }
 
@@ -128,6 +129,33 @@ namespace helengine {
             set {
                 ThrowIfDisposed();
                 orientation = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets the exact local affine transform matrix composed from the stored local scale, local orientation, and local position.
+        /// </summary>
+        public float4x4 LocalTransformMatrix {
+            get {
+                ThrowIfDisposed();
+                return CreateTransformMatrix(LocalPosition, LocalScale, LocalOrientation);
+            }
+        }
+
+        /// <summary>
+        /// Gets the exact world affine transform matrix by recursively composing local transforms through the full parent chain.
+        /// </summary>
+        public float4x4 WorldTransformMatrix {
+            get {
+                ThrowIfDisposed();
+                float4x4 localTransform = LocalTransformMatrix;
+                if (Parent == null) {
+                    return localTransform;
+                }
+
+                float4x4 parentWorldTransform = Parent.WorldTransformMatrix;
+                float4x4.Multiply(ref localTransform, ref parentWorldTransform, out float4x4 worldTransform);
+                return worldTransform;
             }
         }
 
@@ -509,6 +537,26 @@ namespace helengine {
             }
 
             return isDisposing || entity.isDisposing;
+        }
+
+        /// <summary>
+        /// Builds one affine transform matrix using the engine row-vector convention of scale, then rotation, then translation.
+        /// </summary>
+        /// <param name="position">Translation component to encode.</param>
+        /// <param name="scale">Per-axis scale component to encode.</param>
+        /// <param name="orientation">Quaternion rotation component to encode.</param>
+        /// <returns>Affine transform matrix that applies scale, rotation, and translation in row-vector order.</returns>
+        static float4x4 CreateTransformMatrix(float3 position, float3 scale, float4 orientation) {
+            float4x4 rotation;
+            float4x4.CreateFromQuaternion(ref orientation, out rotation);
+            float4x4 size;
+            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
+            float4x4 scaleRotation;
+            float4x4.Multiply(ref size, ref rotation, out scaleRotation);
+            float4x4 translation;
+            float4x4.CreateTranslation(ref position, out translation);
+            float4x4.Multiply(ref scaleRotation, ref translation, out float4x4 transform);
+            return transform;
         }
 
         /// <summary>

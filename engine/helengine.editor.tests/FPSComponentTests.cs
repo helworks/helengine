@@ -131,10 +131,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures authored extra overlay rows are generated beneath the two FPS rows and inherit the configured font scale.
+        /// Ensures authored extra overlay text stays stored for compatibility without generating visible extra rows.
         /// </summary>
         [Fact]
-        public void AdditionalText_WhenAssignedBeforeAttachment_BuildsAdditionalOverlayRows() {
+        public void AdditionalText_WhenAssignedBeforeAttachment_DoesNotBuildVisibleAdditionalOverlayRows() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
@@ -149,17 +149,8 @@ namespace helengine.editor.tests {
             entity.AddComponent(fps);
 
             Entity overlayHost = Assert.Single(entity.Children);
-            Assert.Equal(4, overlayHost.Children.Count);
-
-            TextComponent lightText = Assert.Single(overlayHost.Children[2].Components.OfType<TextComponent>());
-            TextComponent cameraText = Assert.Single(overlayHost.Children[3].Components.OfType<TextComponent>());
-
-            Assert.Equal("Light: On (L / South Toggle)", lightText.Text);
-            Assert.Equal("Camera: WASD / DPad / Stick", cameraText.Text);
-            Assert.Equal(2f, lightText.FontScale);
-            Assert.Equal(2f, cameraText.FontScale);
-            Assert.Equal(font.LineHeight * 4f, overlayHost.Children[2].LocalPosition.Y);
-            Assert.Equal(font.LineHeight * 6f, overlayHost.Children[3].LocalPosition.Y);
+            Assert.Equal(2, overlayHost.Children.Count);
+            Assert.Equal("Light: On (L / South Toggle)\nCamera: WASD / DPad / Stick", fps.AdditionalText);
         }
 
         /// <summary>
@@ -335,7 +326,120 @@ namespace helengine.editor.tests {
             Core.Instance.Update(0.25d);
 
             Assert.Equal("Upd 4.0 Set 7.0 Prep 1.5 Emit 0.5", fps.UpdateFpsText);
-            Assert.Equal("Rdr 4.0 Drw 0.0 Enc 8.0 Tpl 0.8 Wt 0.2 Hit 12 Mis 3", fps.RenderFpsText);
+            Assert.Equal("Rdr 4.0 Drw 0.0 Enc 8.0 Lgt 0.8", fps.RenderFpsText);
+            Assert.Equal(string.Empty, fps.DetailFpsText);
+        }
+
+        /// <summary>
+        /// Ensures platform-published overlay text rows only replace the two visible summary rows.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenPlatformPublishesOverlayTextRows_UsesPublishedTextAndAdditionalRows() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(fps);
+            Core.Instance.SetPerformanceOverlayMetrics(true, 7.0d, 1.5d, 0.5d, 8.0d, 0.8d, 0.2d, 12, 3);
+            Core.Instance.SetPerformanceOverlayTextRows(
+                true,
+                "Upd 4.0 Q3D 1 Sub 1",
+                "Rdr 4.0 Drw 15.8 2D 0.4",
+                "Set 0.1 Geo 0.2 Fl 15.1",
+                "Xf 0.0 Mat 0.0 DL 0.1\nPre 0.0 Kck 0.1 Pst 0.0");
+
+            Core.Instance.Update(0.25d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.25d);
+
+            Assert.Equal("Upd 4.0 Q3D 1 Sub 1", fps.UpdateFpsText);
+            Assert.Equal("Rdr 4.0 Drw 15.8 2D 0.4", fps.RenderFpsText);
+            Assert.Equal(string.Empty, fps.DetailFpsText);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            Assert.Equal(2, overlayHost.Children.Count);
+        }
+
+        /// <summary>
+        /// Ensures platform detail-only rows are ignored while the FPS component keeps the compact two-line summary.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenPlatformPublishesOnlyDetailRows_KeepsCompactUpdateAndRenderSummaryRows() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(fps);
+            CoreInstance.QueueMeasuredDrawMilliseconds(new[] { 15.8d });
+            Core.Instance.SetPerformanceOverlayMetrics(true, 7.0d, 1.5d, 0.5d, 8.0d, 0.8d, 0.2d, 12, 3);
+            Core.Instance.SetPerformanceOverlayTextRows(
+                true,
+                string.Empty,
+                string.Empty,
+                "Q3D 1 Sub 1 2D 0.4",
+                "Set 0.1 Geo 0.2 Fl 15.1\nDL 0.1 Pre 0.0 K 0.1 P 0.0");
+
+            Core.Instance.Update(0.25d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.25d);
+
+            Assert.Equal("Upd 4.0", fps.UpdateFpsText);
+            Assert.Equal("Rdr 4.0 Drw 15.8", fps.RenderFpsText);
+            Assert.Equal(string.Empty, fps.DetailFpsText);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            Assert.Equal(2, overlayHost.Children.Count);
+        }
+
+        /// <summary>
+        /// Ensures one platform-owned presentation path can consume the resolved overlay rows while the scene-owned overlay hierarchy stays disabled.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenPlatformOwnsOverlayPresentation_PublishesResolvedRowsAndDisablesSceneHierarchy() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            Core.Instance.SetPlatformOwnedPerformanceOverlayPresentation(true);
+            Core.Instance.SetPerformanceOverlayMetrics(true, 7.0d, 1.5d, 0.5d, 8.0d, 0.8d, 0.2d, 12, 3);
+            Core.Instance.SetPerformanceOverlayTextRows(
+                true,
+                string.Empty,
+                string.Empty,
+                "Q3D 1 Sub 1 2D 0.4",
+                "Set 0.1 Geo 0.2 Fl 15.1\nDL 0.1 Pre 0.0 K 0.1 P 0.0");
+            CoreInstance.QueueMeasuredDrawMilliseconds(new[] { 15.8d });
+
+            entity.AddComponent(fps);
+
+            Core.Instance.Update(0.25d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.25d);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            Assert.False(overlayHost.Enabled);
+            Assert.Equal("Upd 4.0", Core.Instance.ResolvedPerformanceOverlayUpdateText);
+            Assert.Equal("Rdr 4.0 Drw 15.8", Core.Instance.ResolvedPerformanceOverlayRenderText);
+            Assert.Equal(string.Empty, Core.Instance.ResolvedPerformanceOverlayDetailText);
+            Assert.Equal(string.Empty, Core.Instance.ResolvedPerformanceOverlayAdditionalText);
+            Assert.Same(fps.Font, Core.Instance.ResolvedPerformanceOverlayFont);
+            Assert.Equal(fps.Padding.X, Core.Instance.ResolvedPerformanceOverlayPadding.X);
+            Assert.Equal(fps.Padding.Y, Core.Instance.ResolvedPerformanceOverlayPadding.Y);
         }
 
         /// <summary>
@@ -356,7 +460,8 @@ namespace helengine.editor.tests {
             entity.AddComponent(fps);
 
             Assert.Equal("Upd 0.0 Set 0.0 Prep 0.0 Emit 0.0", fps.UpdateFpsText);
-            Assert.Equal("Rdr 0.0 Drw 0.0 Enc 0.0 Tpl 0.0 Wt 0.0 Hit 0 Mis 0", fps.RenderFpsText);
+            Assert.Equal("Rdr 0.0 Drw 0.0 Enc 0.0 Lgt 0.0", fps.RenderFpsText);
+            Assert.Equal(string.Empty, fps.DetailFpsText);
         }
 
         /// <summary>
@@ -376,6 +481,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal("Update FPS: 0.0", fps.UpdateFpsText);
             Assert.Equal("Render FPS: 0.0 (0.0 ms)", fps.RenderFpsText);
+            Assert.Equal(string.Empty, fps.DetailFpsText);
         }
 
         /// <summary>
@@ -388,6 +494,7 @@ namespace helengine.editor.tests {
             Assert.Null(typeof(RenderManager3D).GetMethod("GetPerformanceOverlayDispatchCount"));
             Assert.NotNull(typeof(Core).GetProperty("UsesPerformanceOverlayMetrics"));
             Assert.NotNull(typeof(Core).GetMethod("SetPerformanceOverlayMetrics"));
+            Assert.NotNull(typeof(Core).GetMethod("SetPerformanceOverlayTextRows"));
         }
 
         /// <summary>

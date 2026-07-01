@@ -14,6 +14,8 @@ namespace helengine.editor.app {
         /// <param name="args">Command-line arguments provided by the operating system shell.</param>
         [STAThread]
         static int Main(string[] args) {
+            EditorHostStaticMeshCollisionCookProcessorRegistration.RegisterDefaults();
+
             if (TryRunEditorCommandMode(args, out int commandExitCode)) {
                 return commandExitCode;
             }

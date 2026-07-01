@@ -757,23 +757,7 @@ namespace helengine.vulkan {
         /// <param name="entity">Entity to build transform data for.</param>
         /// <returns>Per-draw standard mesh shader data.</returns>
         StandardMeshShaderData BuildStandardMeshShaderData(Entity entity, RuntimeMaterial runtimeMaterial) {
-            float4 orientation = entity.Orientation;
-            float4x4 rotation;
-            float4x4.CreateFromQuaternion(ref orientation, out rotation);
-
-            float3 scale = entity.Scale;
-            float4x4 size;
-            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
-
-            float4x4 rotationScale;
-            float4x4.Multiply(ref rotation, ref size, out rotationScale);
-
-            float3 position = entity.Position;
-            float4x4 translation;
-            float4x4.CreateTranslation(ref position, out translation);
-
-            float4x4 world;
-            float4x4.Multiply(ref rotationScale, ref translation, out world);
+            float4x4 world = entity.WorldTransformMatrix;
 
             float4x4 worldViewProj;
             float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);
@@ -784,10 +768,11 @@ namespace helengine.vulkan {
             float4x4.Transpose(ref worldViewProj, out transposed);
             float4x4 normalMatrix;
             float4x4.InverseTranspose(ref world, out normalMatrix);
+            float4x4.Transpose(ref normalMatrix, out float4x4 normalMatrixTransposed);
             return new StandardMeshShaderData {
                 World = worldTransposed,
                 WorldViewProj = transposed,
-                NormalMatrix = normalMatrix,
+                NormalMatrix = normalMatrixTransposed,
                 CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f),
                 MaterialFlags = new float4(runtimeMaterial.ReceivesShadows ? 1f : 0f, 0f, 0f, 0f)
             };
@@ -799,23 +784,7 @@ namespace helengine.vulkan {
         /// <param name="entity">Entity to build transform data for.</param>
         /// <returns>Transposed world-view-projection matrix ready for the shader constant buffer.</returns>
         float4x4 BuildSingleMatrixWorldViewProjection(Entity entity) {
-            float4 orientation = entity.Orientation;
-            float4x4 rotation;
-            float4x4.CreateFromQuaternion(ref orientation, out rotation);
-
-            float3 scale = entity.Scale;
-            float4x4 size;
-            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
-
-            float4x4 rotationScale;
-            float4x4.Multiply(ref rotation, ref size, out rotationScale);
-
-            float3 position = entity.Position;
-            float4x4 translation;
-            float4x4.CreateTranslation(ref position, out translation);
-
-            float4x4 world;
-            float4x4.Multiply(ref rotationScale, ref translation, out world);
+            float4x4 world = entity.WorldTransformMatrix;
 
             float4x4 worldViewProj;
             float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);

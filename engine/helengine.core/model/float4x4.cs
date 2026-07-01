@@ -217,18 +217,10 @@ namespace helengine {
             result.M22 = yScale;
             result.M21 = result.M23 = result.M24 = 0.0f;
             result.M31 = result.M32 = 0.0f;
-#if HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII
-            result.M33 = float.IsPositiveInfinity(farPlaneDistance) ? 0.0f : nearPlaneDistance / (nearPlaneDistance - farPlaneDistance);
-            result.M34 = nearPlaneDistance * negFarRange;
-            result.M41 = result.M42 = 0.0f;
-            result.M43 = -1.0f;
-            result.M44 = 0.0f;
-#else
             result.M33 = negFarRange;
             result.M34 = -1.0f;
             result.M41 = result.M42 = result.M44 = 0.0f;
             result.M43 = nearPlaneDistance * negFarRange;
-#endif
         }
 
         /// <summary>
@@ -275,33 +267,18 @@ namespace helengine {
             result.M11 = 1;
             result.M12 = 0;
             result.M13 = 0;
-#if HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII
-            result.M14 = x;
-#else
             result.M14 = 0;
-#endif
             result.M21 = 0;
             result.M22 = 1;
             result.M23 = 0;
-#if HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII
-            result.M24 = y;
-#else
             result.M24 = 0;
-#endif
             result.M31 = 0;
             result.M32 = 0;
             result.M33 = 1;
-#if HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII
-            result.M34 = z;
-            result.M41 = 0;
-            result.M42 = 0;
-            result.M43 = 0;
-#else
             result.M34 = 0;
             result.M41 = x;
             result.M42 = y;
             result.M43 = z;
-#endif
             result.M44 = 1;
         }
 
@@ -314,33 +291,18 @@ namespace helengine {
             result.M11 = 1;
             result.M12 = 0;
             result.M13 = 0;
-#if HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII
-            result.M14 = position.X;
-#else
             result.M14 = 0;
-#endif
             result.M21 = 0;
             result.M22 = 1;
             result.M23 = 0;
-#if HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII
-            result.M24 = position.Y;
-#else
             result.M24 = 0;
-#endif
             result.M31 = 0;
             result.M32 = 0;
             result.M33 = 1;
-#if HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII
-            result.M34 = position.Z;
-            result.M41 = 0;
-            result.M42 = 0;
-            result.M43 = 0;
-#else
             result.M34 = 0;
             result.M41 = position.X;
             result.M42 = position.Y;
             result.M43 = position.Z;
-#endif
             result.M44 = 1;
         }
 
@@ -351,24 +313,6 @@ namespace helengine {
         /// <param name="matrix2">Source <see cref="Matrix"/>.</param>
         /// <param name="result">Result of the matrix multiplication as an output parameter.</param>
         public static void Multiply(ref float4x4 matrix1, ref float4x4 matrix2, out float4x4 result) {
-#if HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII
-            var m11 = (((matrix2.M11 * matrix1.M11) + (matrix2.M12 * matrix1.M21)) + (matrix2.M13 * matrix1.M31)) + (matrix2.M14 * matrix1.M41);
-            var m12 = (((matrix2.M11 * matrix1.M12) + (matrix2.M12 * matrix1.M22)) + (matrix2.M13 * matrix1.M32)) + (matrix2.M14 * matrix1.M42);
-            var m13 = (((matrix2.M11 * matrix1.M13) + (matrix2.M12 * matrix1.M23)) + (matrix2.M13 * matrix1.M33)) + (matrix2.M14 * matrix1.M43);
-            var m14 = (((matrix2.M11 * matrix1.M14) + (matrix2.M12 * matrix1.M24)) + (matrix2.M13 * matrix1.M34)) + (matrix2.M14 * matrix1.M44);
-            var m21 = (((matrix2.M21 * matrix1.M11) + (matrix2.M22 * matrix1.M21)) + (matrix2.M23 * matrix1.M31)) + (matrix2.M24 * matrix1.M41);
-            var m22 = (((matrix2.M21 * matrix1.M12) + (matrix2.M22 * matrix1.M22)) + (matrix2.M23 * matrix1.M32)) + (matrix2.M24 * matrix1.M42);
-            var m23 = (((matrix2.M21 * matrix1.M13) + (matrix2.M22 * matrix1.M23)) + (matrix2.M23 * matrix1.M33)) + (matrix2.M24 * matrix1.M43);
-            var m24 = (((matrix2.M21 * matrix1.M14) + (matrix2.M22 * matrix1.M24)) + (matrix2.M23 * matrix1.M34)) + (matrix2.M24 * matrix1.M44);
-            var m31 = (((matrix2.M31 * matrix1.M11) + (matrix2.M32 * matrix1.M21)) + (matrix2.M33 * matrix1.M31)) + (matrix2.M34 * matrix1.M41);
-            var m32 = (((matrix2.M31 * matrix1.M12) + (matrix2.M32 * matrix1.M22)) + (matrix2.M33 * matrix1.M32)) + (matrix2.M34 * matrix1.M42);
-            var m33 = (((matrix2.M31 * matrix1.M13) + (matrix2.M32 * matrix1.M23)) + (matrix2.M33 * matrix1.M33)) + (matrix2.M34 * matrix1.M43);
-            var m34 = (((matrix2.M31 * matrix1.M14) + (matrix2.M32 * matrix1.M24)) + (matrix2.M33 * matrix1.M34)) + (matrix2.M34 * matrix1.M44);
-            var m41 = (((matrix2.M41 * matrix1.M11) + (matrix2.M42 * matrix1.M21)) + (matrix2.M43 * matrix1.M31)) + (matrix2.M44 * matrix1.M41);
-            var m42 = (((matrix2.M41 * matrix1.M12) + (matrix2.M42 * matrix1.M22)) + (matrix2.M43 * matrix1.M32)) + (matrix2.M44 * matrix1.M42);
-            var m43 = (((matrix2.M41 * matrix1.M13) + (matrix2.M42 * matrix1.M23)) + (matrix2.M43 * matrix1.M33)) + (matrix2.M44 * matrix1.M43);
-            var m44 = (((matrix2.M41 * matrix1.M14) + (matrix2.M42 * matrix1.M24)) + (matrix2.M43 * matrix1.M34)) + (matrix2.M44 * matrix1.M44);
-#else
             var m11 = (((matrix1.M11 * matrix2.M11) + (matrix1.M12 * matrix2.M21)) + (matrix1.M13 * matrix2.M31)) + (matrix1.M14 * matrix2.M41);
             var m12 = (((matrix1.M11 * matrix2.M12) + (matrix1.M12 * matrix2.M22)) + (matrix1.M13 * matrix2.M32)) + (matrix1.M14 * matrix2.M42);
             var m13 = (((matrix1.M11 * matrix2.M13) + (matrix1.M12 * matrix2.M23)) + (matrix1.M13 * matrix2.M33)) + (matrix1.M14 * matrix2.M43);
@@ -385,7 +329,6 @@ namespace helengine {
             var m42 = (((matrix1.M41 * matrix2.M12) + (matrix1.M42 * matrix2.M22)) + (matrix1.M43 * matrix2.M32)) + (matrix1.M44 * matrix2.M42);
             var m43 = (((matrix1.M41 * matrix2.M13) + (matrix1.M42 * matrix2.M23)) + (matrix1.M43 * matrix2.M33)) + (matrix1.M44 * matrix2.M43);
             var m44 = (((matrix1.M41 * matrix2.M14) + (matrix1.M42 * matrix2.M24)) + (matrix1.M43 * matrix2.M34)) + (matrix1.M44 * matrix2.M44);
-#endif
             result.M11 = m11;
             result.M12 = m12;
             result.M13 = m13;

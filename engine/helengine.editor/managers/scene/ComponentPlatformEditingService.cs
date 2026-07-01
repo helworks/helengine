@@ -274,8 +274,11 @@ namespace helengine.editor {
             if (!string.IsNullOrWhiteSpace(assetReferenceName)) {
                 overrideState.RemoveAssetReference(assetReferenceName);
             }
+            if (overrideState.HasMemberValue(propertyPath)) {
+                overrideState.RemoveMemberValue(propertyPath);
+            }
 
-            if (!overrideState.HasAnyPropertyOverrides && !overrideState.HasAnyAssetReferences) {
+            if (!overrideState.HasAnyPropertyOverrides && !overrideState.HasAnyAssetReferences && !overrideState.HasAnyMemberValues) {
                 componentSaveState.RemovePlatformOverride(platformId);
                 ClearCachedOverrideComponent(commonComponent, platformId);
             }

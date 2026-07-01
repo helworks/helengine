@@ -20,6 +20,7 @@ public class PlatformDefinition {
     /// <param name="runtimeGenerationContract">Cross-platform runtime-generation behavior exposed by the platform.</param>
     /// <param name="hostDebugCapability">Cross-platform host-debug capability metadata exposed by the platform.</param>
     /// <param name="assetCookCapabilities">Generic asset-kind cook capabilities exposed by the platform.</param>
+    /// <param name="componentMemberDefinitions">Platform-specific synthetic component members exposed to editor and runtime packaging flows.</param>
     public PlatformDefinition(
         string platformId,
         string displayName,
@@ -33,7 +34,8 @@ public class PlatformDefinition {
         PlatformMediaProfileDefinition[] mediaProfiles,
         RuntimeGenerationContract runtimeGenerationContract = null,
         PlatformHostDebugCapability hostDebugCapability = null,
-        PlatformAssetCookCapabilityDefinition[] assetCookCapabilities = null) {
+        PlatformAssetCookCapabilityDefinition[] assetCookCapabilities = null,
+        PlatformComponentMemberDefinition[] componentMemberDefinitions = null) {
         if (string.IsNullOrWhiteSpace(platformId)) {
             throw new ArgumentException("Platform id is required.", nameof(platformId));
         } else if (string.IsNullOrWhiteSpace(displayName)) {
@@ -72,6 +74,8 @@ public class PlatformDefinition {
             throw new ArgumentException("Media profiles cannot contain null entries.", nameof(mediaProfiles));
         } else if (assetCookCapabilities != null && Array.Exists(assetCookCapabilities, assetCookCapability => assetCookCapability == null)) {
             throw new ArgumentException("Asset cook capabilities cannot contain null entries.", nameof(assetCookCapabilities));
+        } else if (componentMemberDefinitions != null && Array.Exists(componentMemberDefinitions, definition => definition == null)) {
+            throw new ArgumentException("Component member definitions cannot contain null entries.", nameof(componentMemberDefinitions));
         }
 
         PlatformId = platformId;
@@ -87,6 +91,7 @@ public class PlatformDefinition {
         RuntimeGenerationContract = runtimeGenerationContract ?? RuntimeGenerationContract.CreateDefault();
         HostDebugCapability = hostDebugCapability ?? PlatformHostDebugCapability.CreateDefault();
         AssetCookCapabilities = assetCookCapabilities == null ? Array.Empty<PlatformAssetCookCapabilityDefinition>() : [.. assetCookCapabilities];
+        ComponentMemberDefinitions = componentMemberDefinitions == null ? Array.Empty<PlatformComponentMemberDefinition>() : [.. componentMemberDefinitions];
     }
 
     /// <summary>
@@ -419,6 +424,11 @@ public class PlatformDefinition {
     /// Gets the generic asset-kind cook capabilities exposed by the platform.
     /// </summary>
     public PlatformAssetCookCapabilityDefinition[] AssetCookCapabilities { get; }
+
+    /// <summary>
+    /// Gets the platform-specific synthetic component members exposed to editor and runtime packaging flows.
+    /// </summary>
+    public PlatformComponentMemberDefinition[] ComponentMemberDefinitions { get; }
 }
 
 
