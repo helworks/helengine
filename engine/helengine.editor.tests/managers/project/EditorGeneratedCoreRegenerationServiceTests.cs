@@ -1171,4 +1171,40 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         throw new InvalidOperationException("Could not resolve the helengine repository root from the current test assembly location.");
     }
+
+    /// <summary>
+    /// Verifies generated runtime module discovery finds one assembly-level manifest exposed by a contributing runtime assembly.
+    /// </summary>
+    [Fact]
+    public void Discover_generated_runtime_module_manifests_when_assembly_declares_manifest_returns_manifest() {
+        IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests =
+            EditorGeneratedCoreRegenerationService.DiscoverGeneratedRuntimeModuleManifests([
+                typeof(GeneratedRuntimeModuleRegistrationTestComponent).Assembly
+            ]);
+
+        GeneratedRuntimeModuleManifestAttribute manifest = Assert.Single(manifests);
+        Assert.Equal("editor-tests-runtime-module", manifest.ModuleId);
+        Assert.Equal(typeof(GeneratedRuntimeModuleRegistrationTestRegistration), manifest.RegistrationType);
+        Assert.Equal(nameof(GeneratedRuntimeModuleRegistrationTestRegistration.Register), manifest.RegistrationMethodName);
+        Assert.Contains(typeof(GeneratedRuntimeModuleRegistrationTestComponent), manifest.ActivationTypes);
+    }
+
+    /// <summary>
+    /// Verifies generated runtime module discovery activates one manifest only when one declared activation type participates in the used-type set.
+    /// </summary>
+    [Fact]
+    public void Resolve_active_generated_runtime_module_manifests_when_activation_type_is_used_returns_manifest() {
+        IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests =
+            EditorGeneratedCoreRegenerationService.DiscoverGeneratedRuntimeModuleManifests([
+                typeof(GeneratedRuntimeModuleRegistrationTestComponent).Assembly
+            ]);
+
+        IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> activeManifests =
+            EditorGeneratedCoreRegenerationService.ResolveActiveGeneratedRuntimeModuleManifests(
+                manifests,
+                [typeof(GeneratedRuntimeModuleRegistrationTestComponent)]);
+
+        GeneratedRuntimeModuleManifestAttribute manifest = Assert.Single(activeManifests);
+        Assert.Equal("editor-tests-runtime-module", manifest.ModuleId);
+    }
 }

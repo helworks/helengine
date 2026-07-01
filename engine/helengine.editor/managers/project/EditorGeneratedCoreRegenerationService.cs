@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -1223,6 +1224,71 @@ namespace helengine.editor {
             }
 
             return [.. moduleIds];
+        }
+
+        /// <summary>
+        /// Discovers the generated runtime module manifests declared by the supplied assemblies.
+        /// </summary>
+        /// <param name="assemblies">Assemblies that may contribute generated runtime module manifests.</param>
+        /// <returns>Deterministically ordered generated runtime module manifests keyed by module id.</returns>
+        internal static IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> DiscoverGeneratedRuntimeModuleManifests(
+            IReadOnlyList<Assembly> assemblies) {
+            if (assemblies == null) {
+                throw new ArgumentNullException(nameof(assemblies));
+            }
+
+            Dictionary<string, GeneratedRuntimeModuleManifestAttribute> manifestsById = new Dictionary<string, GeneratedRuntimeModuleManifestAttribute>(StringComparer.Ordinal);
+            for (int index = 0; index < assemblies.Count; index++) {
+                Assembly assembly = assemblies[index];
+                if (assembly == null) {
+                    continue;
+                }
+
+                GeneratedRuntimeModuleManifestAttribute[] manifests = assembly
+                    .GetCustomAttributes<GeneratedRuntimeModuleManifestAttribute>()
+                    .ToArray();
+                for (int manifestIndex = 0; manifestIndex < manifests.Length; manifestIndex++) {
+                    GeneratedRuntimeModuleManifestAttribute manifest = manifests[manifestIndex];
+                    if (manifestsById.ContainsKey(manifest.ModuleId)) {
+                        throw new InvalidOperationException($"Duplicate generated runtime module id '{manifest.ModuleId}' was declared.");
+                    }
+
+                    manifestsById.Add(manifest.ModuleId, manifest);
+                }
+            }
+
+            return manifestsById.Values
+                .OrderBy(manifest => manifest.ModuleId, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Filters discovered generated runtime module manifests down to the modules whose activation types participate in the supplied used-type set.
+        /// </summary>
+        /// <param name="manifests">Generated runtime module manifests discovered from the build closure.</param>
+        /// <param name="usedTypes">Runtime types used by the cooked build.</param>
+        /// <returns>Deterministically ordered generated runtime module manifests activated by the supplied used-type set.</returns>
+        internal static IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> ResolveActiveGeneratedRuntimeModuleManifests(
+            IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests,
+            IReadOnlyList<Type> usedTypes) {
+            if (manifests == null) {
+                throw new ArgumentNullException(nameof(manifests));
+            } else if (usedTypes == null) {
+                throw new ArgumentNullException(nameof(usedTypes));
+            }
+
+            HashSet<Type> usedTypeSet = new HashSet<Type>(usedTypes);
+            List<GeneratedRuntimeModuleManifestAttribute> activeManifests = new List<GeneratedRuntimeModuleManifestAttribute>();
+            for (int index = 0; index < manifests.Count; index++) {
+                GeneratedRuntimeModuleManifestAttribute manifest = manifests[index];
+                if (manifest.ActivationTypes.Any(usedTypeSet.Contains)) {
+                    activeManifests.Add(manifest);
+                }
+            }
+
+            return activeManifests
+                .OrderBy(manifest => manifest.ModuleId, StringComparer.Ordinal)
+                .ToArray();
         }
 
         /// <summary>
