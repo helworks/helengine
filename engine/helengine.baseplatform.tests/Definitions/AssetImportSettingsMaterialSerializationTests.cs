@@ -72,7 +72,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
     /// </summary>
     [Fact]
     public void MaterialAssetSettingsService_loads_or_creates_platform_material_settings_from_schema_metadata() {
-        MaterialAsset materialAsset = new MaterialAsset {
+        ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
             Id = "Materials/Test.helmat",
             ShaderAssetId = "shaders/test",
             VertexProgram = "Test.vs",
@@ -345,11 +345,92 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
     }
 
     /// <summary>
+    /// Verifies build-time in-memory loads for one target platform do not rewrite authored multi-platform material settings.
+    /// </summary>
+    [Fact]
+    public void MaterialAssetSettingsService_loads_one_platform_in_memory_without_rewriting_other_platform_settings() {
+        string materialAssetPath = Path.Combine(TempRootPath, "Test.hasset");
+        MaterialAssetImportSettings authoredSettings = new MaterialAssetImportSettings();
+        authoredSettings.Importer.ImporterId = "helengine.material";
+        authoredSettings.Importer.AssetId = "Materials/Test.hasset";
+        authoredSettings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+            SchemaId = "standard-shader",
+            FieldValues = {
+                ["base-color"] = "#11223344",
+                ["texture-id"] = "Textures/Windows.png"
+            }
+        };
+        authoredSettings.Processor.Platforms["ps2"] = new MaterialAssetProcessorSettings {
+            SchemaId = "ps2-standard-textured",
+            FieldValues = {
+                ["base-color"] = "#AABBCCDD",
+                ["texture-relative-path"] = "cooked/imported/textures/ps2"
+            }
+        };
+
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+        service.Save(materialAssetPath, authoredSettings);
+
+        PlatformDefinition definition = new(
+            "ps2",
+            "PlayStation 2",
+            [
+                new PlatformBuildProfileDefinition(
+                    "debug",
+                    "Debug",
+                    "Debug build",
+                    "ps2",
+                    [])
+            ],
+            [
+                new PlatformGraphicsProfileDefinition(
+                    "ps2",
+                    "PlayStation 2",
+                    "PlayStation 2 graphics profile",
+                    [])
+            ],
+            [],
+            [
+                new PlatformMaterialSchemaDefinition(
+                    "ps2-standard-textured",
+                    "PS2 Standard Textured",
+                    ["ps2"],
+                    [
+                        new PlatformMaterialFieldDefinition(
+                            "base-color",
+                            "Base Color",
+                            PlatformMaterialFieldKind.Color,
+                            "#ffffff",
+                            false,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "texture-relative-path",
+                            "Texture Relative Path",
+                            PlatformMaterialFieldKind.Text,
+                            string.Empty,
+                            false,
+                            [])
+                    ])
+            ]);
+
+        MaterialAssetImportSettings resolvedSettings = service.LoadOrCreateInMemory(
+            materialAssetPath,
+            ["ps2"],
+            platformId => EditorPlatformBuildSelectionModel.From(definition));
+
+        Assert.Equal("ps2-standard-textured", resolvedSettings.Processor.Platforms["ps2"].SchemaId);
+        Assert.True(service.TryLoadPlatformSettings(materialAssetPath, "windows", out MaterialAssetProcessorSettings windowsSettings));
+        Assert.Equal("standard-shader", windowsSettings.SchemaId);
+        Assert.Equal("Textures/Windows.png", windowsSettings.FieldValues["texture-id"]);
+        Assert.True(File.Exists(materialAssetPath + ".windows.hasset"));
+    }
+
+    /// <summary>
     /// Verifies standard shader mirrored material fields mirror authored texture and shadow values back into the raw material payload.
     /// </summary>
     [Fact]
     public void ApplyPlatformMaterialFields_when_standard_shader_fields_are_present_mirrors_texture_and_shadow_values() {
-        MaterialAsset materialAsset = new MaterialAsset {
+        ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
             ShaderAssetId = "shaders/test",
             VertexProgram = "Test.vs",
             PixelProgram = "Test.ps",
@@ -386,7 +467,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
     /// </summary>
     [Fact]
     public void ApplyPlatformMaterialFields_when_shader_fields_are_missing_clears_shader_values() {
-        MaterialAsset materialAsset = new MaterialAsset {
+        ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
             ShaderAssetId = "shaders/test",
             VertexProgram = "Test.vs",
             PixelProgram = "Test.ps",

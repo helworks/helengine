@@ -103,6 +103,64 @@ namespace helengine.editor {
             MaterialAsset materialAsset,
             IReadOnlyList<string> supportedPlatforms,
             Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver) {
+            return LoadOrCreateInternal(
+                materialAssetPath,
+                materialAsset,
+                supportedPlatforms,
+                selectionModelResolver,
+                true);
+        }
+
+        /// <summary>
+        /// Loads one material settings document set or creates seeded defaults entirely in memory without rewriting the authored material files.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="materialAsset">Current material asset authored on disk.</param>
+        /// <param name="supportedPlatforms">Platforms the caller needs resolved settings for.</param>
+        /// <param name="selectionModelResolver">Resolver that returns builder metadata for one platform id.</param>
+        /// <returns>Resolved in-memory per-platform settings payload.</returns>
+        public MaterialAssetImportSettings LoadOrCreateInMemory(
+            string materialAssetPath,
+            MaterialAsset materialAsset,
+            IReadOnlyList<string> supportedPlatforms,
+            Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver) {
+            return LoadOrCreateInternal(
+                materialAssetPath,
+                materialAsset,
+                supportedPlatforms,
+                selectionModelResolver,
+                false);
+        }
+
+        /// <summary>
+        /// Loads one material settings document set or creates seeded defaults without rewriting the authored material files.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset document.</param>
+        /// <param name="supportedPlatforms">Platforms the caller needs resolved settings for.</param>
+        /// <param name="selectionModelResolver">Resolver that returns builder metadata for one platform id.</param>
+        /// <returns>Resolved in-memory per-platform settings payload.</returns>
+        public MaterialAssetImportSettings LoadOrCreateInMemory(
+            string materialAssetPath,
+            IReadOnlyList<string> supportedPlatforms,
+            Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver) {
+            return LoadOrCreateInMemory(materialAssetPath, null, supportedPlatforms, selectionModelResolver);
+        }
+
+        /// <summary>
+        /// Loads one material settings document set or creates seeded defaults and optionally persists the normalized result back to disk.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="materialAsset">Current material asset authored on disk.</param>
+        /// <param name="supportedPlatforms">Platforms the active project supports.</param>
+        /// <param name="selectionModelResolver">Resolver that returns builder metadata for one platform id.</param>
+        /// <param name="persistResolvedSettings">True to rewrite the authored material settings documents with the resolved result.</param>
+        /// <returns>Resolved in-memory per-platform settings payload.</returns>
+        MaterialAssetImportSettings LoadOrCreateInternal(
+            string materialAssetPath,
+            MaterialAsset materialAsset,
+            IReadOnlyList<string> supportedPlatforms,
+            Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver,
+            bool persistResolvedSettings) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (supportedPlatforms == null) {
@@ -118,7 +176,9 @@ namespace helengine.editor {
 
             NormalizeCommonDocument(commonDocument, materialAsset);
             MaterialAssetImportSettings settings = BuildEffectiveSettings(materialAssetPath, commonDocument, materialAsset, supportedPlatforms, selectionModelResolver);
-            Save(materialAssetPath, settings);
+            if (persistResolvedSettings) {
+                Save(materialAssetPath, settings);
+            }
             return settings;
         }
 

@@ -2,6 +2,7 @@ using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
 using helengine.baseplatform.Paths;
+using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Results;
 using System.Reflection;
@@ -230,6 +231,10 @@ namespace helengine.editor {
         /// Reflected component schema builder used for automatic ordinal payload rewrites.
         /// </summary>
         readonly ScriptComponentReflectionSchemaBuilder ScriptComponentSchemaBuilder;
+        /// <summary>
+        /// Platform-aware schema builder used to append builder-owned synthetic members to automatic runtime payloads.
+        /// </summary>
+        readonly PlatformExtendedScriptComponentSchemaBuilder PlatformExtendedSchemaBuilder;
 
         /// <summary>
         /// Optional shared script type resolver used for loaded gameplay modules.
@@ -245,6 +250,10 @@ namespace helengine.editor {
         /// Shared persistence registry used to resolve explicit descriptors and the automatic reflected fallback by serialized component type id.
         /// </summary>
         readonly ComponentPersistenceRegistry PersistenceRegistry;
+        /// <summary>
+        /// Reads detached component platform override payloads so packaging can resolve builder-owned synthetic member values.
+        /// </summary>
+        readonly ComponentPlatformOverridePayloadService PlatformOverridePayloadService;
         /// <summary>
         /// Callback that records builder-owned platform cook work items discovered while rewriting scene content.
         /// </summary>
@@ -264,6 +273,11 @@ namespace helengine.editor {
         readonly ITextComponentSpriteBakeService TextComponentSpriteBakeService;
 
         /// <summary>
+        /// Registry that exposes the static mesh collision cook processor selected for this packaging run.
+        /// </summary>
+        readonly StaticMeshCollisionCookProcessorRegistry StaticMeshCookProcessorRegistry;
+
+        /// <summary>
         /// Initializes one shared scene-component transform service.
         /// </summary>
         /// <param name="assetsRootPath">Absolute source assets root path.</param>
@@ -280,6 +294,7 @@ namespace helengine.editor {
         /// <param name="platformCookWorkItemSink">Optional callback that records builder-owned platform cook work items discovered while packaging.</param>
         /// <param name="platformDefinition">Optional platform definition that publishes builder-owned asset cook capabilities.</param>
         /// <param name="textComponentSpriteBakeService">Optional bake service used to convert authored text components into sprite-backed runtime payloads.</param>
+        /// <param name="staticMeshCookProcessorRegistry">Optional registry that exposes the active static mesh collision cook processor.</param>
         public SceneComponentPackagingTransformService(
             string assetsRootPath,
             ContentManager projectContentManager,
@@ -294,7 +309,8 @@ namespace helengine.editor {
             IScriptTypeResolver scriptTypeResolver = null,
             Action<PlatformCookWorkItem> platformCookWorkItemSink = null,
             PlatformDefinition platformDefinition = null,
-            ITextComponentSpriteBakeService textComponentSpriteBakeService = null) {
+            ITextComponentSpriteBakeService textComponentSpriteBakeService = null,
+            StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry = null) {
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
                 : Path.GetFullPath(assetsRootPath);
@@ -319,13 +335,16 @@ namespace helengine.editor {
             SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
             ScriptComponentSchemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            PlatformExtendedSchemaBuilder = new PlatformExtendedScriptComponentSchemaBuilder();
             ScriptTypeResolver = scriptTypeResolver;
             PlatformCookWorkItemSink = platformCookWorkItemSink;
             PlatformDefinition = platformDefinition;
             FileHasher = new AssetFileHasher();
             TextComponentSpriteBakeService = textComponentSpriteBakeService;
+            StaticMeshCookProcessorRegistry = staticMeshCookProcessorRegistry ?? StaticMeshCollisionCookProcessorRegistry.Shared;
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
+            PlatformOverridePayloadService = new ComponentPlatformOverridePayloadService();
         }
 
         /// <summary>
@@ -417,13 +436,16 @@ namespace helengine.editor {
             }
 
             EntitySaveComponent saveComponent = new EntitySaveComponent();
-            Component component = DeserializeAutomaticComponentForPackaging(record, descriptor, saveComponent);
+            SceneComponentAssetRecord baseRecord = PlatformOverridePayloadService.UnwrapBaseRecord(record);
+            Component component = DeserializeAutomaticComponentForPackaging(baseRecord, descriptor, saveComponent);
             NormalizeAutomaticComponentForRuntimePackaging(component);
+            ApplyStaticMeshCookedRuntimeData(component);
             transformedRecord = BuildAutomaticRuntimeComponentRecord(
-                record.ComponentTypeId,
-                record.ComponentIndex,
+                baseRecord.ComponentTypeId,
+                baseRecord.ComponentIndex,
                 component,
                 ResolveAutomaticComponentSaveState(saveComponent, component),
+                record,
                 buildRootPath);
             return true;
         }
@@ -444,6 +466,110 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Applies one backend-owned static mesh runtime payload when the supplied component requires cook-time collision conversion.
+        /// </summary>
+        /// <param name="component">Live component instance under packaging.</param>
+        void ApplyStaticMeshCookedRuntimeData(Component component) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            if (component is not StaticMeshCollider3DComponent staticMeshCollider) {
+                return;
+            } else if (staticMeshCollider.CollisionData == null) {
+                throw new InvalidOperationException("Static mesh collider packaging requires collision data before backend cooking can run.");
+            }
+
+            IReadOnlyList<IStaticMeshCollisionCookProcessor3D> processors = StaticMeshCookProcessorRegistry.Processors;
+            if (processors.Count == 0) {
+                return;
+            } else if (processors.Count > 1) {
+                throw new InvalidOperationException("Static mesh collider packaging requires exactly one registered cook processor.");
+            }
+
+            IStaticMeshCollisionCookProcessor3D processor = processors[0];
+            staticMeshCollider.CookedRuntimeData = StaticMeshCollisionRuntimeData3D.Create(
+                processor.FormatId,
+                processor.BinaryFormatId,
+                processor.BinaryFormatVersion,
+                ResolveAutomaticPayloadEndianness(),
+                writer => processor.WritePayload(writer, staticMeshCollider.CollisionData));
+        }
+
+        /// <summary>
+        /// Resolves the byte order used for nested engine-owned runtime payloads emitted during packaging.
+        /// </summary>
+        /// <returns>Resolved engine binary endianness.</returns>
+        EngineBinaryEndianness ResolveAutomaticPayloadEndianness() {
+            PlatformSerializationEndianness serializationEndianness = ResolvePlatformSerializationEndianness();
+            if (serializationEndianness == PlatformSerializationEndianness.BigEndian) {
+                return EngineBinaryEndianness.BigEndian;
+            }
+
+            return EngineBinaryEndianness.LittleEndian;
+        }
+
+        /// <summary>
+        /// Resolves the target platform serialization endianness from the selected build and codegen profile metadata.
+        /// </summary>
+        /// <returns>Resolved platform serialization endianness.</returns>
+        PlatformSerializationEndianness ResolvePlatformSerializationEndianness() {
+            if (PlatformDefinition == null || PlatformDefinition.BuildProfiles.Length == 0 || PlatformDefinition.CodegenProfiles.Length == 0) {
+                return PlatformSerializationEndianness.LittleEndian;
+            }
+
+            PlatformBuildProfileDefinition selectedBuildProfile = ResolveSelectedBuildProfile();
+            if (selectedBuildProfile == null || string.IsNullOrWhiteSpace(selectedBuildProfile.CodegenProfileId)) {
+                return PlatformSerializationEndianness.LittleEndian;
+            }
+
+            PlatformCodegenProfileDefinition selectedCodegenProfile = ResolveCodegenProfile(selectedBuildProfile.CodegenProfileId);
+            return selectedCodegenProfile.Endianness;
+        }
+
+        /// <summary>
+        /// Resolves the build profile currently selected for the packaging operation when one is available.
+        /// </summary>
+        /// <returns>Resolved build profile or null when no matching build profile is configured.</returns>
+        PlatformBuildProfileDefinition ResolveSelectedBuildProfile() {
+            if (PlatformDefinition == null || PlatformDefinition.BuildProfiles.Length == 0) {
+                return null;
+            }
+            if (!string.IsNullOrWhiteSpace(SelectedBuildProfileId)) {
+                for (int index = 0; index < PlatformDefinition.BuildProfiles.Length; index++) {
+                    PlatformBuildProfileDefinition buildProfile = PlatformDefinition.BuildProfiles[index];
+                    if (string.Equals(buildProfile.ProfileId, SelectedBuildProfileId, StringComparison.OrdinalIgnoreCase)) {
+                        return buildProfile;
+                    }
+                }
+            }
+
+            return PlatformDefinition.BuildProfiles[0];
+        }
+
+        /// <summary>
+        /// Resolves one codegen profile by identifier from the target platform definition.
+        /// </summary>
+        /// <param name="codegenProfileId">Codegen profile identifier to resolve.</param>
+        /// <returns>Resolved codegen profile.</returns>
+        PlatformCodegenProfileDefinition ResolveCodegenProfile(string codegenProfileId) {
+            if (string.IsNullOrWhiteSpace(codegenProfileId)) {
+                throw new ArgumentException("Codegen profile id must be provided.", nameof(codegenProfileId));
+            } else if (PlatformDefinition == null) {
+                throw new InvalidOperationException("Platform definition is required before codegen profile endianness can be resolved.");
+            }
+
+            for (int index = 0; index < PlatformDefinition.CodegenProfiles.Length; index++) {
+                PlatformCodegenProfileDefinition codegenProfile = PlatformDefinition.CodegenProfiles[index];
+                if (string.Equals(codegenProfile.ProfileId, codegenProfileId, StringComparison.OrdinalIgnoreCase)) {
+                    return codegenProfile;
+                }
+            }
+
+            throw new InvalidOperationException($"Platform '{PlatformDefinition.PlatformId}' does not define codegen profile '{codegenProfileId}'.");
+        }
+
+        /// <summary>
         /// Builds one strict runtime automatic-component payload from the supplied live component instance.
         /// </summary>
         /// <param name="componentTypeId">Serialized runtime component type id to emit.</param>
@@ -455,6 +581,7 @@ namespace helengine.editor {
             int componentIndex,
             Component component,
             EntityComponentSaveState saveState,
+            SceneComponentAssetRecord sourceRecord,
             string buildRootPath) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
@@ -462,11 +589,14 @@ namespace helengine.editor {
             if (component == null) {
                 throw new ArgumentNullException(nameof(component));
             }
+            if (sourceRecord == null) {
+                throw new ArgumentNullException(nameof(sourceRecord));
+            }
             if (string.IsNullOrWhiteSpace(buildRootPath)) {
                 throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
             }
 
-            ScriptComponentReflectionSchema schema = ScriptComponentSchemaBuilder.Build(component.GetType());
+            ScriptComponentReflectionSchema schema = PlatformExtendedSchemaBuilder.Build(component.GetType(), PlatformDefinition);
             EntityComponentSaveState rewrittenSaveState = RewriteAutomaticComponentSaveStateReferences(schema, saveState, buildRootPath);
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
@@ -474,6 +604,10 @@ namespace helengine.editor {
             writer.WriteInt32(schema.Members.Count);
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
+                if (member.PlatformComponentMemberDefinition != null) {
+                    WriteSyntheticPlatformMemberValue(writer, member, sourceRecord);
+                    continue;
+                }
                 AutomaticScriptComponentPersistenceDescriptor.WriteSupportedMemberValue(writer, member, component, rewrittenSaveState);
             }
 
@@ -482,6 +616,69 @@ namespace helengine.editor {
                 ComponentIndex = componentIndex,
                 Payload = stream.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Writes one builder-owned synthetic platform member into the packaged runtime payload using the detached override value when authored or the platform default otherwise.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the ordinal runtime payload.</param>
+        /// <param name="member">Synthetic schema member being serialized.</param>
+        /// <param name="sourceRecord">Original authored scene component record that may contain detached platform overrides.</param>
+        void WriteSyntheticPlatformMemberValue(
+            EngineBinaryWriter writer,
+            ScriptComponentReflectionMember member,
+            SceneComponentAssetRecord sourceRecord) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            }
+            if (member == null) {
+                throw new ArgumentNullException(nameof(member));
+            }
+            if (sourceRecord == null) {
+                throw new ArgumentNullException(nameof(sourceRecord));
+            }
+            if (member.PlatformComponentMemberDefinition == null) {
+                throw new InvalidOperationException("Synthetic platform member serialization requires a platform definition-backed schema member.");
+            }
+
+            string serializedValue = ResolveSyntheticPlatformMemberSerializedValue(sourceRecord, member.PlatformComponentMemberDefinition);
+            object parsedValue = PlatformComponentMemberValueUtility.ParseValue(member.PlatformComponentMemberDefinition, serializedValue);
+            AutomaticScriptComponentPersistenceDescriptor.WriteSupportedValue(writer, member.ValueType, parsedValue);
+        }
+
+        /// <summary>
+        /// Resolves the detached serialized value authored for one builder-owned synthetic platform member or returns the platform default when no override exists.
+        /// </summary>
+        /// <param name="sourceRecord">Original authored scene component record that may contain detached platform overrides.</param>
+        /// <param name="definition">Builder-owned synthetic platform member definition.</param>
+        /// <returns>Serialized member value that should be emitted into the packaged runtime payload.</returns>
+        string ResolveSyntheticPlatformMemberSerializedValue(
+            SceneComponentAssetRecord sourceRecord,
+            PlatformComponentMemberDefinition definition) {
+            if (sourceRecord == null) {
+                throw new ArgumentNullException(nameof(sourceRecord));
+            }
+            if (definition == null) {
+                throw new ArgumentNullException(nameof(definition));
+            }
+            if (PlatformDefinition == null || string.IsNullOrWhiteSpace(PlatformDefinition.PlatformId)) {
+                return definition.DefaultValue;
+            }
+
+            IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = PlatformOverridePayloadService.ReadOverrideStates(sourceRecord);
+            for (int index = 0; index < overrideStates.Count; index++) {
+                EntityComponentPlatformOverrideState overrideState = overrideStates[index];
+                if (!string.Equals(overrideState.PlatformId, PlatformDefinition.PlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (overrideState.TryGetMemberValue(definition.MemberName, out string overrideValue)) {
+                    return overrideValue;
+                }
+
+                break;
+            }
+
+            return definition.DefaultValue;
         }
 
         /// <summary>
@@ -1368,11 +1565,12 @@ namespace helengine.editor {
             }
 
             if (MaterialBuilder != null) {
-                return MaterialAssetSettingsService.LoadOrCreate(
+                MaterialAssetImportSettings materialSettings = MaterialAssetSettingsService.LoadOrCreateInMemory(
                     materialAssetPath,
                     materialAsset,
                     [TargetPlatformId],
                     ResolveSelectionModelForMaterialSettings);
+                return materialSettings;
             }
 
             throw new InvalidOperationException($"Material '{materialRelativePath}' is missing settings required for target platform '{TargetPlatformId}'.");

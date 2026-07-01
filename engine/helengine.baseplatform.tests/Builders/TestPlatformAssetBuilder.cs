@@ -165,7 +165,7 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
         bool receivesShadows = request.FieldValues != null && request.FieldValues.TryGetValue("receives-shadow", out string receivesShadowValue) ? string.Equals(receivesShadowValue, "true", StringComparison.OrdinalIgnoreCase) : true;
         string baseColor = request.FieldValues != null && request.FieldValues.TryGetValue(BaseColorFieldId, out string baseColorValue) ? baseColorValue : "#ffffff";
 
-        MaterialAsset materialAsset = new MaterialAsset {
+        ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
             Id = request.MaterialAssetId,
             ShaderAssetId = shaderAssetId,
             VertexProgram = vertexProgram,

@@ -553,7 +553,8 @@ namespace helengine.editor {
                 scriptTypeResolver,
                 workItem => RememberPlatformCookWorkItem(workItem),
                 platformDefinition,
-                effectiveTextComponentSpriteBakeService);
+                effectiveTextComponentSpriteBakeService,
+                StaticMeshCollisionCookProcessorRegistry.Shared);
         }
 
         /// <summary>
@@ -836,6 +837,28 @@ namespace helengine.editor {
 
                 if (AssetImportManager.IsFontExtension(fullExtension)) {
                     return RewriteFileSystemFontReference(reference, buildRootPath);
+                }
+
+                if (AssetImportManager.IsTextureExtension(fullExtension)) {
+                    string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+                    TextureAssetImportSettings settings;
+                    if (!AssetImportManager.TryLoadOrCreateTextureImportSettings(sourcePath, out settings) || settings == null) {
+                        throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not create import settings for packaging.");
+                    }
+                    if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+                        throw new InvalidOperationException($"Texture source '{reference.RelativePath}' did not produce an imported asset id for packaging.");
+                    }
+                    if (!AssetImportManager.TryLoadTextureAsset(sourcePath, out TextureAsset textureAsset) || textureAsset == null) {
+                        throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not be imported for packaging.");
+                    }
+
+                    string cookedRelativePath = BuildImportedTextureCookedRelativePath(settings.Importer.AssetId);
+                    if (!SupportsBuilderOwnedPlatformCookKind("texture")) {
+                        WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+                    }
+
+                    RememberTextureCookWorkItem(NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, sourcePath)), cookedRelativePath, settings);
+                    return CreateFileSystemReference(cookedRelativePath);
                 }
 
                 if (IsFileSystemMaterialReference(reference.RelativePath)) {
@@ -1781,11 +1804,11 @@ namespace helengine.editor {
             }
 
             if (MaterialBuilder != null) {
-                return MaterialAssetSettingsService.LoadOrCreate(
+                MaterialAssetImportSettings materialSettings = MaterialAssetSettingsService.LoadOrCreateInMemory(
                     materialAssetPath,
-                    materialAsset,
                     [TargetPlatformId],
                     ResolveSelectionModelForMaterialSettings);
+                return materialSettings;
             }
 
             throw new InvalidOperationException($"Material '{materialRelativePath}' is missing settings required for target platform '{TargetPlatformId}'.");

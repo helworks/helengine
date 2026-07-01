@@ -66,7 +66,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
 
         string packagedMaterialPath = Path.Combine(BuildRootPath, materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
         using FileStream stream = new FileStream(packagedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        MaterialAsset packagedMaterial = Assert.IsType<MaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(stream));
+        ShaderMaterialAsset packagedMaterial = Assert.IsType<ShaderMaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(stream));
 
         Assert.Equal("CookedShader", packagedMaterial.ShaderAssetId);
         Assert.Equal("CookedShader.vs", packagedMaterial.VertexProgram);
@@ -95,9 +95,9 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             "debug",
             "directx11");
         string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        MaterialAsset materialAsset;
+        ShaderMaterialAsset materialAsset;
         using (FileStream stream = new FileStream(materialPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-            materialAsset = Assert.IsType<MaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(stream));
+            materialAsset = Assert.IsType<ShaderMaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(stream));
         }
         MethodInfo loadMethod = typeof(EditorPlatformBuildScenePackager).GetMethod(
             "LoadMaterialSettingsForCook",
@@ -142,7 +142,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
 
         string packagedMaterialPath = Path.Combine(BuildRootPath, "cooked", "Materials", "TestMaterial.hasset");
         using FileStream materialStream = new FileStream(packagedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        MaterialAsset packagedMaterial = Assert.IsType<MaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(materialStream));
+        ShaderMaterialAsset packagedMaterial = Assert.IsType<ShaderMaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(materialStream));
         Assert.Equal("CookedShader", packagedMaterial.ShaderAssetId);
     }
 
@@ -210,7 +210,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
 
-        MaterialAsset materialAsset = new MaterialAsset {
+        ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
             Id = materialRelativePath,
             ShaderAssetId = shaderAssetId,
             VertexProgram = string.Concat(shaderAssetId, ".vs"),
