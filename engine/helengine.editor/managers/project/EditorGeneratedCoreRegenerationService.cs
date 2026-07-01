@@ -1040,10 +1040,11 @@ namespace helengine.editor {
             }
 
             Directory.CreateDirectory(generatedCoreRootPath);
-            IReadOnlyList<Assembly> assemblies = usedTypes
-                .Where(type => type != null)
-                .Select(type => type.Assembly)
+            IReadOnlyList<Assembly> assemblies = AppDomain.CurrentDomain
+                .GetAssemblies()
+                .Where(assembly => assembly != null && !assembly.IsDynamic)
                 .Distinct()
+                .OrderBy(assembly => assembly.FullName, StringComparer.Ordinal)
                 .ToArray();
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests = DiscoverGeneratedRuntimeModuleManifests(assemblies);
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> activeManifests = ResolveActiveGeneratedRuntimeModuleManifests(manifests, usedTypes);
