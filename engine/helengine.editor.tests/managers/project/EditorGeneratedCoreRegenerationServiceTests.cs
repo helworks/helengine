@@ -26,6 +26,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     /// Releases the temporary workspace used by the tests.
     /// </summary>
     public void Dispose() {
+        Environment.SetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName, OriginalHelEngineSourceRootEnvironmentVariableValue);
         if (Directory.Exists(RootPath)) {
             Directory.Delete(RootPath, true);
         }

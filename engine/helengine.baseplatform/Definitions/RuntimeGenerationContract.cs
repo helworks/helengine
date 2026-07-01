@@ -21,13 +21,16 @@ public sealed class RuntimeGenerationContract {
     /// <param name="materialResolutionMode">How generated runtime code should resolve packaged material assets.</param>
     /// <param name="supportsRenderManager2DTextureReleaseFlush">Whether generated scene-management code may call texture-release flushing on the 2D render manager.</param>
     /// <param name="packagedPathPolicy">Which packaged file path forms generated player code may consume.</param>
+    /// <param name="portableInputPreprocessorSymbols">Additional portable-input preprocessor symbols that select helengine-owned generated-core source branches.</param>
     public RuntimeGenerationContract(
         RuntimeMaterialResolutionMode materialResolutionMode,
         bool supportsRenderManager2DTextureReleaseFlush,
-        PackagedPathPolicy packagedPathPolicy) {
+        PackagedPathPolicy packagedPathPolicy,
+        IReadOnlyList<string> portableInputPreprocessorSymbols = null) {
         MaterialResolutionMode = materialResolutionMode;
         SupportsRenderManager2DTextureReleaseFlush = supportsRenderManager2DTextureReleaseFlush;
         PackagedPathPolicy = packagedPathPolicy;
+        PortableInputPreprocessorSymbols = portableInputPreprocessorSymbols ?? [];
     }
 
     /// <summary>
@@ -44,4 +47,9 @@ public sealed class RuntimeGenerationContract {
     /// Gets which packaged file path forms generated player code may consume.
     /// </summary>
     public PackagedPathPolicy PackagedPathPolicy { get; }
+
+    /// <summary>
+    /// Gets the additional portable-input preprocessor symbols that select helengine-owned generated-core source branches.
+    /// </summary>
+    public IReadOnlyList<string> PortableInputPreprocessorSymbols { get; }
 }

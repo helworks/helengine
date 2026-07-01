@@ -71,9 +71,30 @@ namespace helengine.editor {
             if (runtimeGenerationContract.SupportsRenderManager2DTextureReleaseFlush) {
                 symbols.Add(RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol);
             }
+            AddUniqueSymbols(symbols, runtimeGenerationContract.PortableInputPreprocessorSymbols);
             symbols.Add("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION");
             symbols.Add("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION");
             return symbols;
+        }
+
+        /// <summary>
+        /// Adds each source symbol once while preserving the first-seen order.
+        /// </summary>
+        /// <param name="destination">Destination symbol list.</param>
+        /// <param name="source">Source symbols to append.</param>
+        static void AddUniqueSymbols(List<string> destination, IReadOnlyList<string> source) {
+            if (destination == null) {
+                throw new ArgumentNullException(nameof(destination));
+            } else if (source == null) {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            for (int index = 0; index < source.Count; index++) {
+                string symbol = source[index];
+                if (!destination.Contains(symbol, StringComparer.Ordinal)) {
+                    destination.Add(symbol);
+                }
+            }
         }
     }
 }
