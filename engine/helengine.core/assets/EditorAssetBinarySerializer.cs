@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 18;
+        public const byte CurrentVersion = 19;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -52,6 +52,11 @@ namespace helengine {
         /// Version marker written into scene entity payloads that include stable ids and the static flag.
         /// </summary>
         const byte SceneEntityPayloadVersion = 5;
+
+        /// <summary>
+        /// First asset version that stores animation clip platform override payloads and editor-only frame identifiers.
+        /// </summary>
+        const byte AnimationClipPlatformOverrideVersion = 19;
 
         /// <summary>
         /// Deserializes an asset from the supplied stream using the editor asset format.
@@ -334,10 +339,13 @@ namespace helengine {
             AnimationClipAsset asset = new AnimationClipAsset();
             ReadAssetIdentity(reader, asset, version);
             asset.Duration = reader.ReadSingle();
-            asset.PositionTracks = reader.ReadArray(ReadPositionKeyframeTrackAsset) ?? Array.Empty<PositionKeyframeTrackAsset>();
-            asset.PositionOffsetTracks = reader.ReadArray(ReadPositionOffsetKeyframeTrackAsset) ?? Array.Empty<PositionOffsetKeyframeTrackAsset>();
-            asset.ScaleTracks = reader.ReadArray(ReadScaleKeyframeTrackAsset) ?? Array.Empty<ScaleKeyframeTrackAsset>();
-            asset.RotationTracks = reader.ReadArray(ReadRotationKeyframeTrackAsset) ?? Array.Empty<RotationKeyframeTrackAsset>();
+            asset.PositionTracks = reader.ReadArray(currentReader => ReadPositionKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<PositionKeyframeTrackAsset>();
+            asset.PositionOffsetTracks = reader.ReadArray(currentReader => ReadPositionOffsetKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<PositionOffsetKeyframeTrackAsset>();
+            asset.ScaleTracks = reader.ReadArray(currentReader => ReadScaleKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<ScaleKeyframeTrackAsset>();
+            asset.RotationTracks = reader.ReadArray(currentReader => ReadRotationKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<RotationKeyframeTrackAsset>();
+            asset.PlatformOverrides = version >= AnimationClipPlatformOverrideVersion
+                ? reader.ReadArray(currentReader => ReadAnimationClipPlatformOverrideAsset(currentReader, version)) ?? Array.Empty<AnimationClipPlatformOverrideAsset>()
+                : Array.Empty<AnimationClipPlatformOverrideAsset>();
             return asset;
         }
 
@@ -346,9 +354,9 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized track asset.</returns>
-        static PositionKeyframeTrackAsset ReadPositionKeyframeTrackAsset(EngineBinaryReader reader) {
+        static PositionKeyframeTrackAsset ReadPositionKeyframeTrackAsset(EngineBinaryReader reader, byte version) {
             return new PositionKeyframeTrackAsset {
-                Keyframes = reader.ReadArray(ReadPositionKeyframeAsset) ?? Array.Empty<PositionKeyframeAsset>()
+                Keyframes = reader.ReadArray(currentReader => ReadPositionKeyframeAsset(currentReader, version)) ?? Array.Empty<PositionKeyframeAsset>()
             };
         }
 
@@ -357,9 +365,9 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized track asset.</returns>
-        static PositionOffsetKeyframeTrackAsset ReadPositionOffsetKeyframeTrackAsset(EngineBinaryReader reader) {
+        static PositionOffsetKeyframeTrackAsset ReadPositionOffsetKeyframeTrackAsset(EngineBinaryReader reader, byte version) {
             return new PositionOffsetKeyframeTrackAsset {
-                Keyframes = reader.ReadArray(ReadPositionKeyframeAsset) ?? Array.Empty<PositionKeyframeAsset>()
+                Keyframes = reader.ReadArray(currentReader => ReadPositionKeyframeAsset(currentReader, version)) ?? Array.Empty<PositionKeyframeAsset>()
             };
         }
 
@@ -368,9 +376,9 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized track asset.</returns>
-        static ScaleKeyframeTrackAsset ReadScaleKeyframeTrackAsset(EngineBinaryReader reader) {
+        static ScaleKeyframeTrackAsset ReadScaleKeyframeTrackAsset(EngineBinaryReader reader, byte version) {
             return new ScaleKeyframeTrackAsset {
-                Keyframes = reader.ReadArray(ReadPositionKeyframeAsset) ?? Array.Empty<PositionKeyframeAsset>()
+                Keyframes = reader.ReadArray(currentReader => ReadPositionKeyframeAsset(currentReader, version)) ?? Array.Empty<PositionKeyframeAsset>()
             };
         }
 
@@ -379,9 +387,50 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized track asset.</returns>
-        static RotationKeyframeTrackAsset ReadRotationKeyframeTrackAsset(EngineBinaryReader reader) {
+        static RotationKeyframeTrackAsset ReadRotationKeyframeTrackAsset(EngineBinaryReader reader, byte version) {
             return new RotationKeyframeTrackAsset {
-                Keyframes = reader.ReadArray(ReadRotationKeyframeAsset) ?? Array.Empty<RotationKeyframeAsset>()
+                Keyframes = reader.ReadArray(currentReader => ReadRotationKeyframeAsset(currentReader, version)) ?? Array.Empty<RotationKeyframeAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Reads one platform-authored animation clip override payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <param name="version">Asset format version being decoded.</param>
+        /// <returns>Deserialized platform override asset.</returns>
+        static AnimationClipPlatformOverrideAsset ReadAnimationClipPlatformOverrideAsset(EngineBinaryReader reader, byte version) {
+            return new AnimationClipPlatformOverrideAsset {
+                PlatformId = reader.ReadString(),
+                Mode = (AnimationClipPlatformOverrideMode)reader.ReadByte(),
+                PositionTracks = reader.ReadArray(currentReader => ReadPlatformPositionKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<PlatformPositionKeyframeTrackAsset>(),
+                PositionOffsetTracks = reader.ReadArray(currentReader => ReadPlatformPositionKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<PlatformPositionKeyframeTrackAsset>(),
+                ScaleTracks = reader.ReadArray(currentReader => ReadPlatformPositionKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<PlatformPositionKeyframeTrackAsset>(),
+                RotationTracks = reader.ReadArray(currentReader => ReadPlatformRotationKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<PlatformRotationKeyframeTrackAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Reads one platform-authored position-style keyframe track payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <param name="version">Asset format version being decoded.</param>
+        /// <returns>Deserialized track asset.</returns>
+        static PlatformPositionKeyframeTrackAsset ReadPlatformPositionKeyframeTrackAsset(EngineBinaryReader reader, byte version) {
+            return new PlatformPositionKeyframeTrackAsset {
+                Keyframes = reader.ReadArray(currentReader => ReadPositionKeyframeAsset(currentReader, version)) ?? Array.Empty<PositionKeyframeAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Reads one platform-authored rotation keyframe track payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <param name="version">Asset format version being decoded.</param>
+        /// <returns>Deserialized track asset.</returns>
+        static PlatformRotationKeyframeTrackAsset ReadPlatformRotationKeyframeTrackAsset(EngineBinaryReader reader, byte version) {
+            return new PlatformRotationKeyframeTrackAsset {
+                Keyframes = reader.ReadArray(currentReader => ReadRotationKeyframeAsset(currentReader, version)) ?? Array.Empty<RotationKeyframeAsset>()
             };
         }
 
@@ -390,11 +439,16 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized keyframe asset.</returns>
-        static PositionKeyframeAsset ReadPositionKeyframeAsset(EngineBinaryReader reader) {
-            return new PositionKeyframeAsset(
-                reader.ReadSingle(),
-                ReadFloat3(reader),
-                ReadAnimationInterpolationMode(reader));
+        static PositionKeyframeAsset ReadPositionKeyframeAsset(EngineBinaryReader reader, byte version) {
+            PositionKeyframeAsset asset = new PositionKeyframeAsset();
+            if (version >= AnimationClipPlatformOverrideVersion) {
+                asset.FrameId = reader.ReadString();
+            }
+
+            asset.Time = reader.ReadSingle();
+            asset.Value = ReadFloat3(reader);
+            asset.InterpolationMode = ReadAnimationInterpolationMode(reader);
+            return asset;
         }
 
         /// <summary>
@@ -402,11 +456,16 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized keyframe asset.</returns>
-        static RotationKeyframeAsset ReadRotationKeyframeAsset(EngineBinaryReader reader) {
-            return new RotationKeyframeAsset(
-                reader.ReadSingle(),
-                ReadFloat4(reader),
-                ReadAnimationInterpolationMode(reader));
+        static RotationKeyframeAsset ReadRotationKeyframeAsset(EngineBinaryReader reader, byte version) {
+            RotationKeyframeAsset asset = new RotationKeyframeAsset();
+            if (version >= AnimationClipPlatformOverrideVersion) {
+                asset.FrameId = reader.ReadString();
+            }
+
+            asset.Time = reader.ReadSingle();
+            asset.Value = ReadFloat4(reader);
+            asset.InterpolationMode = ReadAnimationInterpolationMode(reader);
+            return asset;
         }
 
         /// <summary>

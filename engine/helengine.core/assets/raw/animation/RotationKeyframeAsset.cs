@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public class RotationKeyframeAsset {
         /// <summary>
+        /// Gets or sets the stable editor-only frame identifier used to target this keyframe from platform overrides.
+        /// </summary>
+        public string FrameId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets or sets the keyframe time in seconds.
         /// </summary>
         public float Time { get; set; }

@@ -27,5 +27,10 @@ namespace helengine {
         /// Gets or sets the absolute rotation tracks stored by this clip.
         /// </summary>
         public RotationKeyframeTrackAsset[] RotationTracks { get; set; } = Array.Empty<RotationKeyframeTrackAsset>();
+
+        /// <summary>
+        /// Gets or sets the platform-authored override payloads that specialize this clip per target platform.
+        /// </summary>
+        public AnimationClipPlatformOverrideAsset[] PlatformOverrides { get; set; } = Array.Empty<AnimationClipPlatformOverrideAsset>();
     }
 }
