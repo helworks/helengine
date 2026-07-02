@@ -1582,6 +1582,7 @@ namespace helengine.editor {
 
             string unitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
             string[] excludedSourceRelativePaths = new[] {
+                "GeneratedRuntimeModuleManifestAttribute.cpp",
                 "runtime/runtime_startup_manifest.cpp",
                 "runtime/runtime_scene_catalog_manifest.cpp",
                 "runtime/runtime_code_module_manifest.cpp"
