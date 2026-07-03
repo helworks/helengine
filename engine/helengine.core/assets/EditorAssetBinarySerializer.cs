@@ -49,9 +49,9 @@ namespace helengine {
         const byte LegacyMaterialFieldVersion = 16;
 
         /// <summary>
-        /// Version marker written into scene entity payloads that include stable ids and the static flag.
+        /// Version marker written into scene entity payloads that include stable ids, static state, layer masks, and enabled state.
         /// </summary>
-        const byte SceneEntityPayloadVersion = 5;
+        const byte SceneEntityPayloadVersion = 6;
 
         /// <summary>
         /// First asset version that stores animation clip platform override payloads and editor-only frame identifiers.
@@ -77,6 +77,24 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Deserializes one scene asset directly from the supplied stream using the editor asset format.
+        /// </summary>
+        /// <param name="stream">Source stream containing the scene-asset payload.</param>
+        /// <returns>Deserialized scene asset.</returns>
+        public static SceneAsset DeserializeSceneAsset(Stream stream) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            try {
+                return DeserializeSceneAsset(stream, header);
+            } finally {
+                NativeOwnership.Delete(header);
+            }
+        }
+
+        /// <summary>
         /// Deserializes an asset from a stream after the standardized header has already been read.
         /// </summary>
         /// <param name="stream">Source stream positioned at the payload.</param>
@@ -94,6 +112,30 @@ namespace helengine {
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
             EngineBinaryReadContext.CurrentReadStage = "EditorAssetBinarySerializer:ReadAssetPayload";
             return ReadAssetPayload(reader, (EditorAssetBinaryValueKind)header.ValueKind, header.Version);
+        }
+
+        /// <summary>
+        /// Deserializes one scene asset from a stream after the standardized header has already been read.
+        /// </summary>
+        /// <param name="stream">Source stream positioned at the payload.</param>
+        /// <param name="header">Previously decoded HELE header.</param>
+        /// <returns>Deserialized scene asset.</returns>
+        public static SceneAsset DeserializeSceneAsset(Stream stream, EngineBinaryHeader header) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            } else if (header == null) {
+                throw new ArgumentNullException(nameof(header));
+            }
+
+            EngineBinaryReadContext.CurrentReadStage = "EditorAssetBinarySerializer:ValidateHeader";
+            ValidateHeader(header);
+            if ((EditorAssetBinaryValueKind)header.ValueKind != EditorAssetBinaryValueKind.SceneAsset) {
+                throw new InvalidOperationException($"Serialized payload value kind '{header.ValueKind}' is not supported for scene-asset deserialization.");
+            }
+
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            EngineBinaryReadContext.CurrentReadStage = "EditorAssetBinarySerializer:ReadAssetPayload";
+            return ReadSceneAsset(reader, header.Version);
         }
 
         /// <summary>
@@ -583,7 +625,7 @@ namespace helengine {
 
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:PayloadVersion";
             byte payloadVersion = reader.ReadByte();
-            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != 4 && payloadVersion != SceneEntityPayloadVersion) {
+            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != 4 && payloadVersion != 5 && payloadVersion != SceneEntityPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
@@ -598,6 +640,7 @@ namespace helengine {
             string name = reader.ReadString();
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Transform";
             bool isStatic = payloadVersion >= 4 && reader.ReadByte() != 0;
+            bool enabled = payloadVersion >= 6 ? reader.ReadByte() != 0 : true;
             ushort layerMask = payloadVersion >= 5 ? reader.ReadUInt16() : (ushort)0b00000001;
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
@@ -620,6 +663,7 @@ namespace helengine {
                 Id = id,
                 Name = name,
                 IsStatic = isStatic,
+                Enabled = enabled,
                 LayerMask = layerMask,
                 LocalPosition = localPosition,
                 LocalScale = localScale,

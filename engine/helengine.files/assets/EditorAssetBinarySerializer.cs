@@ -51,9 +51,9 @@ namespace helengine.files {
         const byte LegacyMaterialFieldVersion = 16;
 
         /// <summary>
-        /// Version marker written into scene entity payloads that include stable ids and the static flag.
+        /// Version marker written into scene entity payloads that include stable ids, static state, layer masks, and enabled state.
         /// </summary>
-        const byte SceneEntityPayloadVersion = 5;
+        const byte SceneEntityPayloadVersion = 6;
 
         /// <summary>
         /// First asset version that stores animation clip platform override payloads and editor-only frame identifiers.
@@ -900,6 +900,7 @@ namespace helengine.files {
             writer.WriteUInt32(asset.Id);
             writer.WriteString(asset.Name);
             writer.WriteByte(asset.IsStatic ? (byte)1 : (byte)0);
+            writer.WriteByte(asset.Enabled ? (byte)1 : (byte)0);
             writer.WriteUInt16(asset.LayerMask);
             writer.WriteFloat3(asset.LocalPosition);
             writer.WriteFloat3(asset.LocalScale);
@@ -927,7 +928,7 @@ namespace helengine.files {
             }
 
             byte payloadVersion = reader.ReadByte();
-            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != 4 && payloadVersion != SceneEntityPayloadVersion) {
+            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != 4 && payloadVersion != 5 && payloadVersion != SceneEntityPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
@@ -939,6 +940,7 @@ namespace helengine.files {
             }
             string name = reader.ReadString();
             bool isStatic = payloadVersion >= 4 && reader.ReadByte() != 0;
+            bool enabled = payloadVersion >= 6 ? reader.ReadByte() != 0 : true;
             ushort layerMask = payloadVersion >= 5 ? reader.ReadUInt16() : (ushort)0b00000001;
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
@@ -955,6 +957,7 @@ namespace helengine.files {
                 Id = id,
                 Name = name,
                 IsStatic = isStatic,
+                Enabled = enabled,
                 LayerMask = layerMask,
                 LocalPosition = localPosition,
                 LocalScale = localScale,

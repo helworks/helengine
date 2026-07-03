@@ -113,6 +113,7 @@ namespace helengine.editor {
 
             EditorEntity entity = ResolveEditorEntity(EntityFactory.Create(entityAsset.Name));
             entity.Static = entityAsset.IsStatic;
+            entity.Enabled = entityAsset.Enabled;
             entity.LayerMask = entityAsset.LayerMask;
             entity.LocalPosition = entityAsset.LocalPosition;
             entity.LocalScale = entityAsset.LocalScale;

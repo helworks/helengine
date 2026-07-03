@@ -188,6 +188,41 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures runtime scene loading restores the serialized enabled flag onto live entities.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneEntityEnabledFlagsDiffer_RestoresEnabledFlags() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "DisabledRoot",
+                        Enabled = false,
+                        Children = new[] {
+                            new SceneEntityAsset {
+                                Id = 2u,
+                                Name = "EnabledChild",
+                                Enabled = true,
+                                Children = Array.Empty<SceneEntityAsset>()
+                            }
+                        }
+                    }
+                }
+            };
+
+            Entity loadedRoot = Assert.Single(loadService.Load(sceneAsset));
+            Assert.False(loadedRoot.Enabled);
+
+            Entity loadedChild = Assert.Single(loadedRoot.Children);
+            Assert.True(loadedChild.Enabled);
+        }
+
+        /// <summary>
         /// Ensures runtime scene loading attaches the stable serialized scene-entity id to each live entity.
         /// </summary>
         [Fact]

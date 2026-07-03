@@ -211,6 +211,7 @@ namespace helengine.editor {
                 Id = entityId,
                 Name = entity.Name,
                 IsStatic = entity.Static,
+                Enabled = entity.Enabled,
                 LayerMask = entity.LayerMask,
                 LocalPosition = ResolveSerializedLocalPosition(entity, saveComponent),
                 LocalScale = ResolveSerializedLocalScale(entity, saveComponent),
@@ -536,5 +537,6 @@ namespace helengine.editor {
                 DontUnload = sceneSettings.DontUnload
             };
         }
+
     }
 }
