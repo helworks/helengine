@@ -71,6 +71,24 @@ public sealed class CityCubeTestSceneSourceTests {
     }
 
     /// <summary>
+    /// Ensures the generated cube-test scene authors one top-screen hello-world text entity that survives into the DS companion scene through the shared root path.
+    /// </summary>
+    [Fact]
+    public void City_cube_test_scene_source_authors_top_screen_hello_world_text() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\CubeTestSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("Entity topScreenHelloWorldEntity = CreateTopScreenHelloWorldEntity(instructionFont);", source, StringComparison.Ordinal);
+        Assert.Contains("CreateTopScreenHelloWorldEntity(FontAsset font)", source, StringComparison.Ordinal);
+        Assert.Contains("Text = \"Hello World\"", source, StringComparison.Ordinal);
+        Assert.Contains("Font = font", source, StringComparison.Ordinal);
+        Assert.Contains("FontScale = 4f", source, StringComparison.Ordinal);
+        Assert.Contains("Size = new int2(320, 48)", source, StringComparison.Ordinal);
+        Assert.Contains("RenderOrder2D = 180", source, StringComparison.Ordinal);
+        Assert.Contains("entity.LocalPosition = new float3(20f, 20f, 0f);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Ensures the authored cube-test material stays on the lit forward standard shader so the light-toggle overlay has a visible effect.
     /// </summary>
     [Fact]

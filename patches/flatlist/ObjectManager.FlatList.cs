@@ -191,7 +191,7 @@ public class ObjectManager {
             if (camera is not CameraComponent cam) {
                 continue;
             }
-            if ((drawable.Parent.LayerMask & cam.LayerMask) == 0) {
+            if (!ShouldRegisterDrawableWithCamera(drawable.Parent, camera)) {
                 continue;
             }
 
@@ -237,7 +237,7 @@ public class ObjectManager {
             if (camera is not CameraComponent cam) {
                 continue;
             }
-            if ((drawable.Parent.LayerMask & cam.LayerMask) == 0) {
+            if (!ShouldRegisterDrawableWithCamera(drawable.Parent, camera)) {
                 continue;
             }
 
@@ -352,21 +352,25 @@ public class ObjectManager {
         var reg3 = camComp.Get3DRegistry();
         for (int i = 0; i < Drawables3D.Count; i++) {
             IDrawable3D drawable = Drawables3D[i];
-            if ((drawable.Parent.LayerMask & camera.LayerMask) != 0) {
-                int pos3 = reg3.Bucket.InsertSorted(drawable);
-                reg3.Map[drawable] = new Index3D(0, 0, 0, pos3);
-                Update3DIndicesAfterInsert(reg3, pos3 + 1);
+            if (!ShouldRegisterDrawableWithCamera(drawable.Parent, camera)) {
+                continue;
             }
+
+            int pos3 = reg3.Bucket.InsertSorted(drawable);
+            reg3.Map[drawable] = new Index3D(0, 0, 0, pos3);
+            Update3DIndicesAfterInsert(reg3, pos3 + 1);
         }
 
         var reg = camComp.Get2DRegistry();
         for (int i = 0; i < Drawables2D.Count; i++) {
             IDrawable2D drawable2D = Drawables2D[i];
-            if ((drawable2D.Parent.LayerMask & camera.LayerMask) != 0) {
-                int pos = reg.Bucket.InsertSorted(drawable2D);
-                reg.Map[drawable2D] = new Index2D(0, pos);
-                Update2DIndicesAfterInsert(reg, pos + 1);
+            if (!ShouldRegisterDrawableWithCamera(drawable2D.Parent, camera)) {
+                continue;
             }
+
+            int pos = reg.Bucket.InsertSorted(drawable2D);
+            reg.Map[drawable2D] = new Index2D(0, pos);
+            Update2DIndicesAfterInsert(reg, pos + 1);
         }
     }
 
@@ -393,6 +397,60 @@ public class ObjectManager {
         }
 
         Cameras.Insert(insertIndex, camera);
+    }
+
+    /// <summary>
+    /// Determines whether one drawable owner should be registered with one camera after applying layer-mask and viewport-binding rules.
+    /// </summary>
+    /// <param name="drawableOwner">Entity that owns the drawable being considered.</param>
+    /// <param name="camera">Camera that may receive the drawable.</param>
+    /// <returns>True when the drawable should appear in the camera registry; otherwise false.</returns>
+    bool ShouldRegisterDrawableWithCamera(Entity drawableOwner, ICamera camera) {
+        if (drawableOwner == null || camera == null) {
+            return false;
+        }
+
+        if ((drawableOwner.LayerMask & camera.LayerMask) == 0) {
+            return false;
+        }
+
+        ICameraBoundViewportOwner viewportComponent = ResolveNearestViewportComponent(drawableOwner);
+        if (viewportComponent == null) {
+            return true;
+        }
+
+        CameraComponent boundCamera = viewportComponent.GetBoundCameraComponent();
+        if (viewportComponent.BindingMode == ViewportComponent.ExplicitCameraBindingMode) {
+            return ReferenceEquals(boundCamera, camera);
+        }
+
+        if (viewportComponent.BindingMode == ViewportComponent.AncestorCameraBindingMode && boundCamera != null) {
+            return ReferenceEquals(boundCamera, camera);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves the nearest viewport owner in the supplied entity ancestry when one exists.
+    /// </summary>
+    /// <param name="entity">Entity whose ancestry should be searched for a viewport owner.</param>
+    /// <returns>Nearest viewport owner or <see langword="null"/> when none exists.</returns>
+    ICameraBoundViewportOwner ResolveNearestViewportComponent(Entity entity) {
+        Entity current = entity;
+        while (current != null) {
+            if (current.Components != null) {
+                for (int componentIndex = 0; componentIndex < current.Components.Count; componentIndex++) {
+                    if (current.Components[componentIndex] is ICameraBoundViewportOwner viewportComponent) {
+                        return viewportComponent;
+                    }
+                }
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
     }
 
     /// <summary>
