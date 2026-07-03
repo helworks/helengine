@@ -27,8 +27,8 @@ namespace helengine.bepu.tests {
 
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(physicsOnlySceneAsset);
+            BepuRuntimeComponentRegistration.HandleLoadedScene(core, rootEntities);
             BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
-            world.BindScene(rootEntities);
 
             Entity groundEntity = rootEntities[0];
             Entity cubeEntity = rootEntities[1];

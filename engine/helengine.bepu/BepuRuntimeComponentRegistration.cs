@@ -4,18 +4,23 @@ namespace helengine {
     /// </summary>
     public static class BepuRuntimeComponentRegistration {
         /// <summary>
+        /// Stores the last core instance that registered the BEPU-backed runtime hook.
+        /// </summary>
+        static Core RuntimeCore;
+
+        /// <summary>
         /// Last default world attached through this registration hook; used by scene-load callbacks emitted by the active core.
         /// </summary>
         static BepuPhysicsWorld3D RuntimeWorld;
 
         /// <summary>
-        /// Attaches the BEPU-backed runtime and scene-load binding on one initialized core instance.
+        /// Hooks scene-load binding on one initialized core instance and defers BEPU-backed runtime attachment until one supported physics scene loads.
         /// </summary>
         /// <param name="core">Initialized core that owns the runtime scene loader.</param>
         public static void Register(Core core) {
             ValidateCore(core);
-            BepuPhysicsWorld3D world = CreateRuntimeWorld(core);
-            AttachRuntimeWorld(core, world);
+            RuntimeCore = core;
+            RuntimeWorld = core.PhysicsRuntime as BepuPhysicsWorld3D;
             RegisterSceneBinding(core);
         }
 
@@ -90,10 +95,128 @@ namespace helengine {
                 throw new InvalidOperationException("A core instance is required before binding a loaded scene to the BEPU-backed 3D physics runtime.");
             }
             if (RuntimeWorld == null) {
-                throw new InvalidOperationException("The BEPU-backed 3D physics world must be attached before binding loaded scenes.");
+                RuntimeCore = Core.Instance;
             }
 
-            RuntimeWorld.BindScene(eventArgs.RootEntities);
+            HandleLoadedScene(Core.Instance, eventArgs.RootEntities);
+        }
+
+        /// <summary>
+        /// Applies lazy runtime attachment and scene binding for one loaded scene hierarchy.
+        /// </summary>
+        /// <param name="core">Initialized core that owns the runtime scene loader.</param>
+        /// <param name="rootEntities">Materialized root entities that may require BEPU-backed simulation.</param>
+        internal static void HandleLoadedScene(Core core, IReadOnlyList<Entity> rootEntities) {
+            ValidateCore(core);
+            ValidateRootEntities(rootEntities);
+
+            RuntimeCore = core;
+            if (!SceneRequiresRuntime(rootEntities)) {
+                DetachRuntimeWorld(core);
+                return;
+            }
+
+            BepuPhysicsWorld3D world = EnsureRuntimeWorldAttached(core);
+            world.BindScene(rootEntities);
+        }
+
+        /// <summary>
+        /// Ensures one BEPU-backed runtime world exists and is attached to the supplied core before scene binding proceeds.
+        /// </summary>
+        /// <param name="core">Initialized core that should own the BEPU-backed runtime.</param>
+        /// <returns>Attached BEPU-backed runtime world.</returns>
+        static BepuPhysicsWorld3D EnsureRuntimeWorldAttached(Core core) {
+            ValidateCore(core);
+
+            if (RuntimeWorld == null) {
+                RuntimeWorld = CreateRuntimeWorld(core);
+            }
+            if (!ReferenceEquals(core.PhysicsRuntime, RuntimeWorld)) {
+                AttachRuntimeWorld(core, RuntimeWorld);
+            }
+
+            return RuntimeWorld;
+        }
+
+        /// <summary>
+        /// Detaches the currently attached BEPU-backed runtime when one loaded scene does not require physics simulation.
+        /// </summary>
+        /// <param name="core">Initialized core that currently owns the runtime attachment.</param>
+        static void DetachRuntimeWorld(Core core) {
+            ValidateCore(core);
+
+            if (ReferenceEquals(core.PhysicsRuntime, RuntimeWorld)) {
+                core.DetachPhysicsRuntime();
+            }
+        }
+
+        /// <summary>
+        /// Determines whether one loaded scene hierarchy contains authored components handled by the BEPU-backed runtime.
+        /// </summary>
+        /// <param name="rootEntities">Materialized root entities emitted by the scene manager.</param>
+        /// <returns>True when the scene requires BEPU-backed simulation.</returns>
+        static bool SceneRequiresRuntime(IReadOnlyList<Entity> rootEntities) {
+            ValidateRootEntities(rootEntities);
+
+            for (int index = 0; index < rootEntities.Count; index++) {
+                if (EntityRequiresRuntime(rootEntities[index])) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Determines whether one entity subtree contains authored rigid-body and collider components handled by the BEPU-backed runtime.
+        /// </summary>
+        /// <param name="entity">Entity subtree root under inspection.</param>
+        /// <returns>True when the entity subtree requires BEPU-backed simulation.</returns>
+        static bool EntityRequiresRuntime(Entity entity) {
+            if (entity == null) {
+                return false;
+            }
+
+            bool hasRigidBody = false;
+            bool hasSupportedCollider = false;
+            List<Component> components = entity.Components;
+            if (components != null) {
+                for (int componentIndex = 0; componentIndex < components.Count; componentIndex++) {
+                    Component component = components[componentIndex];
+                    if (component is RigidBody3DComponent) {
+                        hasRigidBody = true;
+                    } else if (component is BoxCollider3DComponent || component is SphereCollider3DComponent || component is StaticMeshCollider3DComponent) {
+                        hasSupportedCollider = true;
+                    }
+                }
+            }
+
+            if (hasRigidBody && hasSupportedCollider) {
+                return true;
+            }
+
+            List<Entity> children = entity.Children;
+            if (children == null) {
+                return false;
+            }
+
+            for (int childIndex = 0; childIndex < children.Count; childIndex++) {
+                if (EntityRequiresRuntime(children[childIndex])) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Validates that one loaded scene hierarchy is available before lazy runtime attachment proceeds.
+        /// </summary>
+        /// <param name="rootEntities">Loaded scene hierarchy under validation.</param>
+        static void ValidateRootEntities(IReadOnlyList<Entity> rootEntities) {
+            if (rootEntities == null) {
+                throw new ArgumentNullException(nameof(rootEntities));
+            }
         }
     }
 }

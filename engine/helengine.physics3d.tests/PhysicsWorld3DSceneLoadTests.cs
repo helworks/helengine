@@ -5,10 +5,10 @@ namespace helengine.physics3d.tests {
     [Collection(Physics3DTestCollection.Name)]
     public sealed class PhysicsWorld3DSceneLoadTests {
         /// <summary>
-        /// Ensures runtime registration attaches a default world that can be stepped by the core update loop.
+        /// Ensures runtime registration defers world attachment until one supported physics scene is actually loaded.
         /// </summary>
         [Fact]
-        public void Register_AttachesDefaultWorld() {
+        public void Register_DoesNotAttachDefaultWorldUntilPhysicsSceneLoads() {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
@@ -17,8 +17,7 @@ namespace helengine.physics3d.tests {
 
                 Physics3DRuntimeComponentRegistration.Register(core);
 
-                BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
-                Assert.Equal(0, world.RegisteredBodyCount);
+                Assert.Null(core.PhysicsRuntime);
             } finally {
                 core.Dispose();
             }

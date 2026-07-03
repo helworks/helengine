@@ -4,10 +4,10 @@ namespace helengine.bepu.tests {
     /// </summary>
     public sealed class LegacyPhysics3DRuntimeComponentRegistrationTests {
         /// <summary>
-        /// Ensures the legacy registration hook attaches the BEPU-backed runtime instead of the retired custom world.
+        /// Ensures the legacy registration hook defers BEPU-backed runtime attachment until one supported physics scene loads.
         /// </summary>
         [Fact]
-        public void Register_WhenCalledThroughLegacyEntryPoint_AttachesBepuPhysicsRuntime() {
+        public void Register_WhenCalledThroughLegacyEntryPoint_DoesNotAttachBepuPhysicsRuntimeUntilPhysicsSceneLoads() {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = AppContext.BaseDirectory
             });
@@ -15,7 +15,7 @@ namespace helengine.bepu.tests {
 
             Physics3DRuntimeComponentRegistration.Register(core);
 
-            Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+            Assert.Null(core.PhysicsRuntime);
         }
     }
 }
