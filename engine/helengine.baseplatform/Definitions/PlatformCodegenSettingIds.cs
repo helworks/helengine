@@ -7,5 +7,10 @@ namespace helengine.baseplatform.Definitions {
         /// Stable setting identifier for the named csharpcodegen conversion preset.
         /// </summary>
         public const string PresetId = "codegen-preset-id";
+
+        /// <summary>
+        /// Stable setting identifier for the generic forced-disabled feature list consumed by csharpcodegen.
+        /// </summary>
+        public const string ForcedDisabledFeatures = "codegen-forced-disabled-features";
     }
 }

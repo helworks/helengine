@@ -243,6 +243,31 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies the generated-core regeneration service forwards generic forced-disabled feature settings through the shared `--set` argument path.
+    /// </summary>
+    [Fact]
+    public void Build_arguments_includes_forced_disabled_features_as_generic_set_option() {
+        PlatformDefinition platformDefinition = CreatePlatformDefinition("ds", runtimeGenerationContract: null);
+        PlatformCodegenProfileDefinition codegenProfile = CreateDefaultCodegenProfile();
+        Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase) {
+            [PlatformCodegenSettingIds.ForcedDisabledFeatures] = "debug_overlay;shaders"
+        };
+
+        IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
+            @"C:\tmp\fixture.csproj",
+            @"C:\tmp\generated",
+            platformDefinition,
+            codegenProfile,
+            values,
+            [],
+            false);
+
+        Assert.Contains("--set", arguments);
+        Assert.Contains("codegen-forced-disabled-features=debug_overlay;shaders", arguments);
+        Assert.DoesNotContain("--preset", arguments);
+    }
+
+    /// <summary>
     /// Verifies engine-owned generated-core regeneration disables project-defined preprocessor symbols so platform-specific symbols come only from the selected build target.
     /// </summary>
     [Fact]
