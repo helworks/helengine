@@ -6,10 +6,15 @@
 		<Nullable>disable</Nullable>
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
 		<EnableWindowsFormsHighDpiAutoResizing>false</EnableWindowsFormsHighDpiAutoResizing>
 		<AddSyntheticProjectReferencesForSolutionDependencies>false</AddSyntheticProjectReferencesForSolutionDependencies>
 		<RestoreBuildInParallel>false</RestoreBuildInParallel>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(BuildingInsideVisualStudio)' == 'true'">
+		<BaseOutputPath>bin\vs\</BaseOutputPath>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
