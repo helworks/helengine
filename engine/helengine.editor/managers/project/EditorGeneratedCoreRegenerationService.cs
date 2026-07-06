@@ -486,7 +486,7 @@ namespace helengine.editor {
         /// Resolves the checked-in helengine codegen feature catalog path beneath the active HelEngine source root.
         /// </summary>
         /// <returns>Absolute path to the helengine feature catalog file.</returns>
-        static string ResolveHelengineFeatureCatalogPath() {
+        internal static string ResolveHelengineFeatureCatalogPath() {
             string helEngineRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
             string featureCatalogPath = Path.Combine(
                 helEngineRootPath,

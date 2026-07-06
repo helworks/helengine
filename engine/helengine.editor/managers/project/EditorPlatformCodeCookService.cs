@@ -72,6 +72,7 @@ namespace helengine.editor {
                     "--cpp",
                     "--project", projectFilePath,
                     "--output", moduleRootPath,
+                    "--feature-catalog", EditorGeneratedCoreRegenerationService.ResolveHelengineFeatureCatalogPath(),
                     "--platform", platformId,
                     "--set", $"runtime-specialization={runtimeSpecializationId}",
                     "--set", "include-project-defined-preprocessor-symbols=true",

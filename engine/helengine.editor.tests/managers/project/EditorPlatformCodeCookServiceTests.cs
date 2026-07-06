@@ -203,6 +203,37 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
     }
 
     [Fact]
+    public void Compile_code_modules_forwards_helengine_feature_catalog_to_codegen() {
+        RecordingCodegenToolRunner toolRunner = new();
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+            []),
+            ["gameplay"],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        Assert.Single(toolRunner.Invocations);
+        Assert.Contains("--feature-catalog", toolRunner.Invocations[0].Arguments);
+        Assert.Contains(
+            toolRunner.Invocations[0].Arguments,
+            argument => argument.EndsWith("helengine-feature-catalog.json", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Compile_code_modules_emits_generated_global_usings_for_runtime_scripts() {
         RecordingCodegenToolRunner toolRunner = new();
         EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
