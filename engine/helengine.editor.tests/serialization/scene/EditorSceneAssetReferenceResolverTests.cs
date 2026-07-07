@@ -259,6 +259,44 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.NotNull(material);
             Assert.Equal("ForwardStandardShader", builtMaterialAsset.ShaderAssetId);
+            MaterialConstantBufferAsset roughnessBuffer = Assert.Single(
+                builtMaterialAsset.ConstantBuffers,
+                constantBuffer => constantBuffer.Name == StandardMaterialRoughnessDefaults.RoughnessBufferName);
+            Assert.Equal(StandardMaterialRoughnessDefaults.CreateDefaultConstantBufferData(), roughnessBuffer.Data);
+        }
+
+        /// <summary>
+        /// Ensures file-backed fixed-pipeline materials still receive default metallic and specular preview buffers when the editor builds a fallback standard-shader preview material.
+        /// </summary>
+        [Fact]
+        public void ResolveMaterial_WhenOnlyFixedPipelineMaterialExists_SeedsDefaultMetallicAndSpecularPreviewBuffers() {
+            string materialRelativePath = "Materials/rendering/fixed_pipeline/Cube00.hasset";
+            WriteMaterialSettingsDocument(materialRelativePath, CreatePs2OnlyMaterialSettings("#336699"));
+            new EditorProjectPlatformsService(TempProjectRootPath).Save(new EditorProjectPlatformsDocument {
+                SupportedPlatforms = ["ps2"]
+            });
+            new EditorProjectLocalSettingsService(TempProjectRootPath, ["ps2"]).SaveActivePlatform("ps2");
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorProjectPaths.Initialize(TempProjectRootPath);
+            using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
+            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
+
+            RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
+
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            ShaderMaterialAsset builtMaterialAsset = Assert.Single(renderManager.BuiltMaterialAssets);
+            MaterialConstantBufferAsset metallicBuffer = Assert.Single(
+                builtMaterialAsset.ConstantBuffers,
+                constantBuffer => constantBuffer.Name == StandardMaterialMetallicDefaults.MetallicBufferName);
+            MaterialConstantBufferAsset specularBuffer = Assert.Single(
+                builtMaterialAsset.ConstantBuffers,
+                constantBuffer => constantBuffer.Name == StandardMaterialSpecularDefaults.SpecularBufferName);
+
+            Assert.NotNull(material);
+            Assert.Equal(StandardMaterialMetallicDefaults.CreateDefaultConstantBufferData(), metallicBuffer.Data);
+            Assert.Equal(StandardMaterialSpecularDefaults.CreateDefaultConstantBufferData(), specularBuffer.Data);
         }
 
         /// <summary>
@@ -436,6 +474,30 @@ namespace helengine.editor.tests.serialization.scene {
                     ["texture-id"] = string.Empty,
                     ["casts-shadow"] = "true",
                     ["receives-shadow"] = "true",
+                    ["base-color"] = baseColor
+                }
+            };
+            return settings;
+        }
+
+        /// <summary>
+        /// Creates one PS2-only material settings payload so the editor must synthesize a standard-shader preview material.
+        /// </summary>
+        /// <param name="baseColor">Authored base color in editor HTML hex form.</param>
+        /// <returns>Material settings payload that lacks any shader-backed preview platform.</returns>
+        MaterialAssetImportSettings CreatePs2OnlyMaterialSettings(string baseColor) {
+            if (string.IsNullOrWhiteSpace(baseColor)) {
+                throw new ArgumentException("Base color must be provided.", nameof(baseColor));
+            }
+
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+            settings.Importer.ImporterId = "helengine.material";
+            settings.Importer.AssetId = "Materials/rendering/fixed_pipeline/Cube00.hasset";
+            settings.Processor.Platforms["ps2"] = new MaterialAssetProcessorSettings {
+                SchemaId = "ps2-simple-lit-textured",
+                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["texture-id"] = string.Empty,
+                    ["cast-shadows"] = "true",
                     ["base-color"] = baseColor
                 }
             };

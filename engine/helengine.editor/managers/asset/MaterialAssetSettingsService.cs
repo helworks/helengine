@@ -61,6 +61,36 @@ namespace helengine.editor {
         const string BaseColorFieldId = "base-color";
 
         /// <summary>
+        /// Field id used by the standard shader schema for authored roughness.
+        /// </summary>
+        const string RoughnessFieldId = "roughness";
+
+        /// <summary>
+        /// Field id used by the standard shader schema for the authored roughness texture asset id.
+        /// </summary>
+        const string RoughnessTextureAssetIdFieldId = "roughness-texture-id";
+
+        /// <summary>
+        /// Field id used by the standard shader schema for authored metallic.
+        /// </summary>
+        const string MetallicFieldId = "metallic";
+
+        /// <summary>
+        /// Field id used by the standard shader schema for authored specular.
+        /// </summary>
+        const string SpecularFieldId = "specular";
+
+        /// <summary>
+        /// Field id used by the standard shader schema for authored alpha behavior.
+        /// </summary>
+        const string AlphaModeFieldId = "alpha-mode";
+
+        /// <summary>
+        /// Field id used by the standard shader schema for authored double-sided rendering.
+        /// </summary>
+        const string DoubleSidedFieldId = "double-sided";
+
+        /// <summary>
         /// Schema id used by the Windows standard material path.
         /// </summary>
         const string StandardShaderSchemaId = "standard-shader";
@@ -1302,8 +1332,92 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(fieldValues));
             }
 
+            bool changed = ApplyStandardShaderRenderState(shaderMaterialAsset, fieldValues);
             byte[] baseColorData = ResolveStandardShaderBaseColorBufferData(fieldValues);
-            return UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialBaseColorDefaults.BaseColorBufferName, baseColorData);
+            byte[] roughnessData = ResolveStandardShaderRoughnessBufferData(fieldValues);
+            byte[] metallicData = ResolveStandardShaderMetallicBufferData(fieldValues);
+            byte[] specularData = ResolveStandardShaderSpecularBufferData(fieldValues);
+            changed |= UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialBaseColorDefaults.BaseColorBufferName, baseColorData);
+            changed |= UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialRoughnessDefaults.RoughnessBufferName, roughnessData);
+            changed |= UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialMetallicDefaults.MetallicBufferName, metallicData);
+            changed |= UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialSpecularDefaults.SpecularBufferName, specularData);
+            changed |= ApplyMirroredField(
+                fieldValues,
+                RoughnessTextureAssetIdFieldId,
+                shaderMaterialAsset.RoughnessTextureAssetId,
+                value => shaderMaterialAsset.RoughnessTextureAssetId = value,
+                true);
+            return changed;
+        }
+
+        /// <summary>
+        /// Applies the standard-shader render-state fields that control fixed-function blend and cull behavior.
+        /// </summary>
+        /// <param name="shaderMaterialAsset">Material asset whose render state should be updated.</param>
+        /// <param name="fieldValues">Standard-shader field values keyed by field id.</param>
+        /// <returns>True when the render state changed.</returns>
+        bool ApplyStandardShaderRenderState(ShaderMaterialAsset shaderMaterialAsset, Dictionary<string, string> fieldValues) {
+            if (shaderMaterialAsset == null) {
+                throw new ArgumentNullException(nameof(shaderMaterialAsset));
+            } else if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            }
+
+            shaderMaterialAsset.RenderState ??= new MaterialRenderState();
+
+            MaterialBlendMode resolvedBlendMode = ResolveStandardShaderBlendMode(fieldValues);
+            MaterialCullMode resolvedCullMode = ResolveStandardShaderCullMode(fieldValues);
+            bool changed = false;
+            if (shaderMaterialAsset.RenderState.BlendMode != resolvedBlendMode) {
+                shaderMaterialAsset.RenderState.BlendMode = resolvedBlendMode;
+                changed = true;
+            }
+            if (shaderMaterialAsset.RenderState.CullMode != resolvedCullMode) {
+                shaderMaterialAsset.RenderState.CullMode = resolvedCullMode;
+                changed = true;
+            }
+            return changed;
+        }
+
+        /// <summary>
+        /// Resolves one standard-shader blend mode from the authored alpha-mode field.
+        /// </summary>
+        /// <param name="fieldValues">Standard-shader field values keyed by field id.</param>
+        /// <returns>Opaque or alpha-blended fixed-function mode supported by the runtime material asset.</returns>
+        MaterialBlendMode ResolveStandardShaderBlendMode(Dictionary<string, string> fieldValues) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            }
+
+            if (!fieldValues.TryGetValue(AlphaModeFieldId, out string alphaMode) || string.IsNullOrWhiteSpace(alphaMode)) {
+                return MaterialBlendMode.Opaque;
+            }
+
+            if (string.Equals(alphaMode, "alpha-blend", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(alphaMode, "additive", StringComparison.OrdinalIgnoreCase)) {
+                return MaterialBlendMode.AlphaBlend;
+            }
+
+            return MaterialBlendMode.Opaque;
+        }
+
+        /// <summary>
+        /// Resolves one standard-shader cull mode from the authored double-sided field.
+        /// </summary>
+        /// <param name="fieldValues">Standard-shader field values keyed by field id.</param>
+        /// <returns>Front/back cull mode used by the runtime material asset.</returns>
+        MaterialCullMode ResolveStandardShaderCullMode(Dictionary<string, string> fieldValues) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            }
+
+            if (fieldValues.TryGetValue(DoubleSidedFieldId, out string doubleSidedValue) &&
+                bool.TryParse(doubleSidedValue, out bool doubleSided) &&
+                doubleSided) {
+                return MaterialCullMode.None;
+            }
+
+            return MaterialCullMode.Back;
         }
 
         /// <summary>
@@ -1332,6 +1446,70 @@ namespace helengine.editor {
                 parsedColor.Z / 255f,
                 parsedColor.W / 255f));
         }
+
+        /// <summary>
+        /// Resolves the packed standard-shader roughness constant-buffer payload from one field-value map.
+        /// </summary>
+        /// <param name="fieldValues">Field values that may contain an authored roughness scalar.</param>
+        /// <returns>Sixteen-byte constant-buffer payload for the standard-shader roughness.</returns>
+        byte[] ResolveStandardShaderRoughnessBufferData(Dictionary<string, string> fieldValues) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            }
+
+            if (!fieldValues.TryGetValue(RoughnessFieldId, out string roughnessValue) || string.IsNullOrWhiteSpace(roughnessValue)) {
+                return StandardMaterialRoughnessDefaults.CreateDefaultConstantBufferData();
+            }
+
+            if (!float.TryParse(roughnessValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float roughness)) {
+                throw new InvalidOperationException("Standard material roughness must be a floating-point value.");
+            }
+
+            return StandardMaterialRoughnessDefaults.CreateConstantBufferData(roughness);
+        }
+
+        /// <summary>
+        /// Resolves the packed standard-shader metallic constant-buffer payload from one field-value map.
+        /// </summary>
+        /// <param name="fieldValues">Field values that may contain an authored metallic scalar.</param>
+        /// <returns>Sixteen-byte constant-buffer payload for the standard-shader metallic value.</returns>
+        byte[] ResolveStandardShaderMetallicBufferData(Dictionary<string, string> fieldValues) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            }
+
+            if (!fieldValues.TryGetValue(MetallicFieldId, out string metallicValue) || string.IsNullOrWhiteSpace(metallicValue)) {
+                return StandardMaterialMetallicDefaults.CreateDefaultConstantBufferData();
+            }
+
+            if (!float.TryParse(metallicValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float metallic)) {
+                throw new InvalidOperationException("Standard material metallic must be a floating-point value.");
+            }
+
+            return StandardMaterialMetallicDefaults.CreateConstantBufferData(metallic);
+        }
+
+        /// <summary>
+        /// Resolves the packed standard-shader specular constant-buffer payload from one field-value map.
+        /// </summary>
+        /// <param name="fieldValues">Field values that may contain an authored specular scalar.</param>
+        /// <returns>Sixteen-byte constant-buffer payload for the standard-shader specular value.</returns>
+        byte[] ResolveStandardShaderSpecularBufferData(Dictionary<string, string> fieldValues) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            }
+
+            if (!fieldValues.TryGetValue(SpecularFieldId, out string specularValue) || string.IsNullOrWhiteSpace(specularValue)) {
+                return StandardMaterialSpecularDefaults.CreateDefaultConstantBufferData();
+            }
+
+            if (!float.TryParse(specularValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float specular)) {
+                throw new InvalidOperationException("Standard material specular must be a floating-point value.");
+            }
+
+            return StandardMaterialSpecularDefaults.CreateConstantBufferData(specular);
+        }
+
 
         /// <summary>
         /// Inserts or replaces one named constant-buffer payload on the material asset.

@@ -452,6 +452,18 @@ namespace helengine.editor {
                     new MaterialConstantBufferAsset {
                         Name = StandardMaterialBaseColorDefaults.BaseColorBufferName,
                         Data = StandardMaterialBaseColorDefaults.CreateConstantBufferData(ResolvePreviewBaseColor(platformSettings))
+                    },
+                    new MaterialConstantBufferAsset {
+                        Name = StandardMaterialRoughnessDefaults.RoughnessBufferName,
+                        Data = StandardMaterialRoughnessDefaults.CreateDefaultConstantBufferData()
+                    },
+                    new MaterialConstantBufferAsset {
+                        Name = StandardMaterialMetallicDefaults.MetallicBufferName,
+                        Data = StandardMaterialMetallicDefaults.CreateDefaultConstantBufferData()
+                    },
+                    new MaterialConstantBufferAsset {
+                        Name = StandardMaterialSpecularDefaults.SpecularBufferName,
+                        Data = StandardMaterialSpecularDefaults.CreateDefaultConstantBufferData()
                     }
                 },
                 CastsShadows = materialAsset.CastsShadows,

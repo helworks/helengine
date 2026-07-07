@@ -75,6 +75,100 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures Windows standard-shader field values hydrate the runtime material render state used by preview and direct packaging paths.
+        /// </summary>
+        [Fact]
+        public void LoadMaterialAsset_WhenWindowsStandardShaderFieldsSpecifyAlphaBlendAndDoubleSided_HydratesRenderState() {
+            string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectoryPath);
+
+            try {
+                string materialAssetPath = Path.Combine(tempDirectoryPath, "TransparentPanel.hasset");
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
+                settings.Processor.Platforms["windows"].FieldValues["alpha-mode"] = "alpha-blend";
+                settings.Processor.Platforms["windows"].FieldValues["double-sided"] = "true";
+
+                service.Save(materialAssetPath, settings);
+
+                ShaderMaterialAsset materialAsset = service.LoadMaterialAsset(materialAssetPath, "windows");
+
+                Assert.NotNull(materialAsset.RenderState);
+                Assert.Equal(MaterialBlendMode.AlphaBlend, materialAsset.RenderState.BlendMode);
+                Assert.Equal(MaterialCullMode.None, materialAsset.RenderState.CullMode);
+            } finally {
+                if (Directory.Exists(tempDirectoryPath)) {
+                    Directory.Delete(tempDirectoryPath, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ensures Windows standard-shader roughness fields hydrate both the runtime texture reference and constant-buffer payload.
+        /// </summary>
+        [Fact]
+        public void LoadMaterialAsset_WhenWindowsStandardShaderFieldsSpecifyRoughness_HydratesRoughnessData() {
+            string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectoryPath);
+
+            try {
+                string materialAssetPath = Path.Combine(tempDirectoryPath, "MarbleSphere.hasset");
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
+                settings.Processor.Platforms["windows"].FieldValues["roughness"] = "0.35";
+                settings.Processor.Platforms["windows"].FieldValues["roughness-texture-id"] = "imported-roughness-id";
+
+                service.Save(materialAssetPath, settings);
+
+                ShaderMaterialAsset materialAsset = service.LoadMaterialAsset(materialAssetPath, "windows");
+                MaterialConstantBufferAsset roughnessBuffer = Assert.Single(
+                    materialAsset.ConstantBuffers,
+                    constantBuffer => constantBuffer.Name == StandardMaterialRoughnessDefaults.RoughnessBufferName);
+
+                Assert.Equal("imported-roughness-id", materialAsset.RoughnessTextureAssetId);
+                Assert.Equal(StandardMaterialRoughnessDefaults.CreateConstantBufferData(0.35f), roughnessBuffer.Data);
+            } finally {
+                if (Directory.Exists(tempDirectoryPath)) {
+                    Directory.Delete(tempDirectoryPath, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ensures Windows standard-shader metallic and specular fields hydrate the matching runtime constant-buffer payloads.
+        /// </summary>
+        [Fact]
+        public void LoadMaterialAsset_WhenWindowsStandardShaderFieldsSpecifyMetallicAndSpecular_HydratesBothBuffers() {
+            string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectoryPath);
+
+            try {
+                string materialAssetPath = Path.Combine(tempDirectoryPath, "MarbleSphere.hasset");
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
+                settings.Processor.Platforms["windows"].FieldValues["metallic"] = "0.25";
+                settings.Processor.Platforms["windows"].FieldValues["specular"] = "0.75";
+
+                service.Save(materialAssetPath, settings);
+
+                ShaderMaterialAsset materialAsset = service.LoadMaterialAsset(materialAssetPath, "windows");
+                MaterialConstantBufferAsset metallicBuffer = Assert.Single(
+                    materialAsset.ConstantBuffers,
+                    constantBuffer => constantBuffer.Name == StandardMaterialMetallicDefaults.MetallicBufferName);
+                MaterialConstantBufferAsset specularBuffer = Assert.Single(
+                    materialAsset.ConstantBuffers,
+                    constantBuffer => constantBuffer.Name == StandardMaterialSpecularDefaults.SpecularBufferName);
+
+                Assert.Equal(StandardMaterialMetallicDefaults.CreateConstantBufferData(0.25f), metallicBuffer.Data);
+                Assert.Equal(StandardMaterialSpecularDefaults.CreateConstantBufferData(0.75f), specularBuffer.Data);
+            } finally {
+                if (Directory.Exists(tempDirectoryPath)) {
+                    Directory.Delete(tempDirectoryPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Creates one representative generated material settings payload that matches the city textured cube-grid generator.
         /// </summary>
         /// <param name="textureAssetId">Shared authored texture asset id that should survive save/load.</param>
