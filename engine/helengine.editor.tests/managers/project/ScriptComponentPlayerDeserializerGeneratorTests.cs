@@ -41,6 +41,24 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures generated native deserializers route numeric exception message formatting through the shared native string helper instead of pulling <c>std::to_string</c> into every packaged component deserializer.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsClipRectComponent_UsesNativeStringJoinFormattingForVersionAndMemberCounts() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ClipRectComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("String::ToJoinString(version)", source, StringComparison.Ordinal);
+            Assert.Contains("String::ToJoinString(MemberCount)", source, StringComparison.Ordinal);
+            Assert.Contains("String::ToJoinString(memberCount)", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("std::to_string(version)", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("std::to_string(MemberCount)", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("std::to_string(memberCount)", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures native runtime deserializers release the temporary stream and reader allocated while decoding component payloads.
         /// </summary>
         [Fact]

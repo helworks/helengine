@@ -224,12 +224,12 @@ namespace helengine.editor {
             builder.AppendLine("const uint8_t version = reader->ReadByte();");
             builder.AppendLine("    if (version != CurrentVersion)");
             builder.AppendLine("    {");
-            builder.AppendLine("throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload version '\") + std::to_string(version) + std::string(\"'.\"));");
+            builder.AppendLine("throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload version '\") + String::ToJoinString(version) + std::string(\"'.\"));");
             builder.AppendLine("    }");
             builder.AppendLine("const int32_t memberCount = reader->ReadInt32();");
             builder.AppendLine("    if (memberCount != MemberCount)");
             builder.AppendLine("    {");
-            builder.AppendLine("throw new InvalidOperationException(std::string(\"Expected \") + std::to_string(MemberCount) + std::string(\" packaged scripted members but payload contained \") + std::to_string(memberCount) + std::string(\".\"));");
+            builder.AppendLine("throw new InvalidOperationException(std::string(\"Expected \") + String::ToJoinString(MemberCount) + std::string(\" packaged scripted members but payload contained \") + String::ToJoinString(memberCount) + std::string(\".\"));");
             builder.AppendLine("    }");
             builder.AppendLine($"::{schema.ComponentType.Name} *component = new ::{schema.ComponentType.Name}();");
             Dictionary<Type, string> nativeNestedHelperNames = BuildNativeNestedHelperMap(schema);
