@@ -457,6 +457,7 @@ namespace helengine.editor.tests {
             Assert.Equal(asset.PixelProgram, deserialized.PixelProgram);
             Assert.Equal(asset.Variant, deserialized.Variant);
             Assert.Equal(asset.DiffuseTextureAssetId, deserialized.DiffuseTextureAssetId);
+            Assert.Equal(ReadPublicStringField(asset, "RoughnessTextureAssetId"), ReadPublicStringField(deserialized, "RoughnessTextureAssetId"));
             Assert.Equal(asset.CastsShadows, deserialized.CastsShadows);
             Assert.Equal(asset.ReceivesShadows, deserialized.ReceivesShadows);
             Assert.Equal(asset.RenderState.BlendMode, deserialized.RenderState.BlendMode);
@@ -466,6 +467,39 @@ namespace helengine.editor.tests {
             Assert.Equal(asset.ConstantBuffers.Length, deserialized.ConstantBuffers.Length);
             Assert.Equal(asset.ConstantBuffers[0].Name, deserialized.ConstantBuffers[0].Name);
             Assert.Equal(asset.ConstantBuffers[0].Data, deserialized.ConstantBuffers[0].Data);
+        }
+
+        /// <summary>
+        /// Ensures shader material assets preserve metallic and specular standard-material buffers through binary serialization.
+        /// </summary>
+        [Fact]
+        public void Shader_material_binary_serializer_round_trips_metallic_and_specular_constant_buffers() {
+            ShaderMaterialAsset asset = CreateMaterialAsset();
+            asset.ConstantBuffers = new[] {
+                new MaterialConstantBufferAsset {
+                    Name = StandardMaterialMetallicDefaults.MetallicBufferName,
+                    Data = StandardMaterialMetallicDefaults.CreateConstantBufferData(0.25f)
+                },
+                new MaterialConstantBufferAsset {
+                    Name = StandardMaterialSpecularDefaults.SpecularBufferName,
+                    Data = StandardMaterialSpecularDefaults.CreateConstantBufferData(0.75f)
+                }
+            };
+
+            byte[] data = ShaderMaterialAssetBinarySerializer.SerializeToBytes(asset);
+
+            using MemoryStream stream = new MemoryStream(data, writable: false);
+            ShaderMaterialAsset deserialized = ShaderMaterialAssetBinarySerializer.Deserialize(stream);
+
+            MaterialConstantBufferAsset metallicBuffer = Assert.Single(
+                deserialized.ConstantBuffers,
+                buffer => buffer.Name == StandardMaterialMetallicDefaults.MetallicBufferName);
+            MaterialConstantBufferAsset specularBuffer = Assert.Single(
+                deserialized.ConstantBuffers,
+                buffer => buffer.Name == StandardMaterialSpecularDefaults.SpecularBufferName);
+
+            Assert.Equal(StandardMaterialMetallicDefaults.CreateConstantBufferData(0.25f), metallicBuffer.Data);
+            Assert.Equal(StandardMaterialSpecularDefaults.CreateConstantBufferData(0.75f), specularBuffer.Data);
         }
 
         /// <summary>
@@ -1082,7 +1116,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Material asset with shader references.</returns>
         static ShaderMaterialAsset CreateMaterialAsset() {
-            return new ShaderMaterialAsset {
+            ShaderMaterialAsset asset = new ShaderMaterialAsset {
                 Id = "material/test",
                 ShaderAssetId = "shader/test",
                 VertexProgram = "ProgramMain",
@@ -1101,9 +1135,57 @@ namespace helengine.editor.tests {
                     new MaterialConstantBufferAsset {
                         Name = "MaterialParams",
                         Data = new byte[] { 9, 8, 7, 6 }
+                    },
+                    new MaterialConstantBufferAsset {
+                        Name = "RoughnessBuffer",
+                        Data = new byte[] {
+                            0x33, 0x33, 0x33, 0x3F,
+                            0x33, 0x33, 0x33, 0x3F,
+                            0x33, 0x33, 0x33, 0x3F,
+                            0x33, 0x33, 0x33, 0x3F
+                        }
                     }
                 }
             };
+
+            WritePublicStringField(asset, "RoughnessTextureAssetId", "textures/roughness");
+            return asset;
+        }
+
+        /// <summary>
+        /// Reads one public instance string field via reflection so serializer tests can fail cleanly before the field is implemented.
+        /// </summary>
+        /// <param name="instance">Object instance to inspect.</param>
+        /// <param name="fieldName">Public instance field name.</param>
+        /// <returns>Current string field value.</returns>
+        static string ReadPublicStringField(object instance, string fieldName) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            } else if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+
+            System.Reflection.FieldInfo field = instance.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            Assert.NotNull(field);
+            return Assert.IsType<string>(field.GetValue(instance));
+        }
+
+        /// <summary>
+        /// Writes one public instance string field via reflection so serializer tests can set future fields before they exist.
+        /// </summary>
+        /// <param name="instance">Object instance to mutate.</param>
+        /// <param name="fieldName">Public instance field name.</param>
+        /// <param name="value">String value to assign.</param>
+        static void WritePublicStringField(object instance, string fieldName, string value) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            } else if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+
+            System.Reflection.FieldInfo field = instance.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            Assert.NotNull(field);
+            field.SetValue(instance, value);
         }
 
         /// <summary>
