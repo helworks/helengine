@@ -65,6 +65,37 @@ namespace helengine.editor.tests.shaders {
         }
 
         /// <summary>
+        /// Ensures the built-in forward standard shader source exposes the authored roughness contract instead of a fixed specular exponent.
+        /// </summary>
+        [Fact]
+        public void ForwardStandardShaderSource_WhenInspected_UsesAuthoredRoughnessInputs() {
+            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
+            string shaderSource = File.ReadAllText(shaderPath);
+
+            Assert.Contains("cbuffer RoughnessBuffer", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("Texture2D RoughnessTexture", shaderSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("pow(saturate(dot(normal, halfVector)), 32.0f)", shaderSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the built-in forward standard shader source exposes authored metallic and specular inputs in the standard PBR contract.
+        /// </summary>
+        [Fact]
+        public void ForwardStandardShaderSource_WhenInspected_UsesAuthoredMetallicAndSpecularInputs() {
+            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
+            string shaderSource = File.ReadAllText(shaderPath);
+
+            Assert.Contains("cbuffer MetallicBuffer", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("cbuffer SpecularBuffer", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("float metallic = saturate(metallicValue.x);", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("float specular = saturate(specularValue.x);", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("float dielectricF0 = saturate(specular) * 0.08f;", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("float3 reflectanceAtNormalIncidence = lerp(dielectricReflectance, surfaceColor, metallic);", shaderSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Compiles the built-in forward standard shader for one backend and verifies the resolved material layout.
         /// </summary>
         /// <param name="target">Shader backend that should receive the compiled built-in shader.</param>
@@ -82,10 +113,15 @@ namespace helengine.editor.tests.shaders {
             MaterialLayout layout = MaterialLayoutBuilder.Build(CreateMaterialAsset(shaderAsset.Id), shaderAsset);
 
             Assert.Contains(layout.TextureBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+            Assert.Contains(layout.TextureBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName);
             Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "BaseColorBuffer");
+            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialRoughnessDefaults.RoughnessBufferName);
+            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialMetallicDefaults.MetallicBufferName);
+            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialSpecularDefaults.SpecularBufferName);
             Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "ForwardLightBuffer");
             Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "ShadowBuffer");
             Assert.Contains(layout.SamplerBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName + "Sampler");
+            Assert.Contains(layout.SamplerBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName + "Sampler");
         }
 
         /// <summary>

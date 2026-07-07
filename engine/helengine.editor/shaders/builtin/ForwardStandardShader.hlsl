@@ -51,6 +51,21 @@ cbuffer BaseColorBuffer : register(b3)
     float4 baseColor;
 };
 
+cbuffer RoughnessBuffer : register(b4)
+{
+    float4 roughnessValue;
+};
+
+cbuffer MetallicBuffer : register(b5)
+{
+    float4 metallicValue;
+};
+
+cbuffer SpecularBuffer : register(b6)
+{
+    float4 specularValue;
+};
+
 Texture2D shadowAtlasTexture : register(t1);
 SamplerState shadowAtlasSampler : register(s1);
 TextureCube pointShadowTexture0 : register(t2);
@@ -60,6 +75,8 @@ TextureCube pointShadowTexture3 : register(t5);
 SamplerState pointShadowSampler : register(s2);
 Texture2D DiffuseTexture : register(t0);
 SamplerState DiffuseTextureSampler : register(s0);
+Texture2D RoughnessTexture : register(t6);
+SamplerState RoughnessTextureSampler : register(s6);
 
 struct VS_IN
 {
@@ -107,6 +124,35 @@ float SamplePointShadowTexture(int textureIndex, float3 sampleDirection)
     return pointShadowTexture3.Sample(pointShadowSampler, sampleDirection).r;
 }
 
+float DistributionGgx(float3 normal, float3 halfVector, float roughness)
+{
+    float alpha = max(roughness * roughness, 0.001f);
+    float alphaSquared = alpha * alpha;
+    float normalDotHalf = saturate(dot(normal, halfVector));
+    float normalDotHalfSquared = normalDotHalf * normalDotHalf;
+    float denominator = (normalDotHalfSquared * (alphaSquared - 1.0f)) + 1.0f;
+    return alphaSquared / max(3.14159265f * denominator * denominator, 0.0001f);
+}
+
+float GeometrySchlickGgx(float normalDotDirection, float roughness)
+{
+    float visibility = roughness + 1.0f;
+    float k = (visibility * visibility) * 0.125f;
+    return normalDotDirection / max((normalDotDirection * (1.0f - k)) + k, 0.0001f);
+}
+
+float GeometrySmith(float3 normal, float3 viewDirection, float3 lightDirection, float roughness)
+{
+    float normalDotView = saturate(dot(normal, viewDirection));
+    float normalDotLight = saturate(dot(normal, lightDirection));
+    return GeometrySchlickGgx(normalDotView, roughness) * GeometrySchlickGgx(normalDotLight, roughness);
+}
+
+float3 FresnelSchlick(float cosineTheta, float3 reflectanceAtNormalIncidence)
+{
+    return reflectanceAtNormalIncidence + (1.0f - reflectanceAtNormalIncidence) * pow(1.0f - cosineTheta, 5.0f);
+}
+
 float3 EvaluateForwardLight(
     float4 colorAndType,
     float4 directionAndShadow,
@@ -118,7 +164,10 @@ float3 EvaluateForwardLight(
     float3 surfaceColor,
     float3 worldPos,
     float3 normal,
-    float3 viewDirection)
+    float3 viewDirection,
+    float roughness,
+    float metallic,
+    float specular)
 {
     int lightType = (int)(colorAndType.w + 0.5f);
     float3 radiance = colorAndType.xyz;
@@ -202,9 +251,18 @@ float3 EvaluateForwardLight(
     }
 
     float3 halfVector = normalize(lightDirection + viewDirection);
-    float specular = pow(saturate(dot(normal, halfVector)), 32.0f);
-    float3 diffuseColor = surfaceColor * radiance * diffuse * attenuation;
-    float3 specularColor = radiance * specular * 0.35f * attenuation;
+    float resolvedRoughness = max(roughness, 0.045f);
+    float dielectricF0 = saturate(specular) * 0.08f;
+    float3 dielectricReflectance = float3(dielectricF0, dielectricF0, dielectricF0);
+    float3 reflectanceAtNormalIncidence = lerp(dielectricReflectance, surfaceColor, metallic);
+    float3 fresnel = FresnelSchlick(saturate(dot(halfVector, viewDirection)), reflectanceAtNormalIncidence);
+    float distribution = DistributionGgx(normal, halfVector, resolvedRoughness);
+    float geometry = GeometrySmith(normal, viewDirection, lightDirection, resolvedRoughness);
+    float normalDotView = saturate(dot(normal, viewDirection));
+    float specularDenominator = max(4.0f * normalDotView * diffuse, 0.0001f);
+    float3 specularColor = (distribution * geometry * fresnel / specularDenominator) * radiance * diffuse * attenuation;
+    float3 diffuseWeight = (1.0f - fresnel) * (1.0f - metallic);
+    float3 diffuseColor = (surfaceColor / 3.14159265f) * diffuseWeight * radiance * diffuse * attenuation;
 
     return diffuseColor + specularColor;
 }
@@ -212,6 +270,9 @@ float3 EvaluateForwardLight(
 float4 PS(PS_IN input) : SV_Target
 {
     float4 sampledBaseColor = DiffuseTexture.Sample(DiffuseTextureSampler, input.texCoord) * baseColor;
+    float roughness = saturate(RoughnessTexture.Sample(RoughnessTextureSampler, input.texCoord).r * roughnessValue.x);
+    float metallic = saturate(metallicValue.x);
+    float specular = saturate(specularValue.x);
     float3 surfaceColor = sampledBaseColor.rgb;
     float3 normal = normalize(input.normal);
     float3 viewDirection = normalize(cameraPosition.xyz - input.worldPos);
@@ -220,22 +281,22 @@ float4 PS(PS_IN input) : SV_Target
 
     if (activeLightCount > 0)
     {
-        color += EvaluateForwardLight(light0ColorAndType, light0DirectionAndShadow, light0PositionAndRange, light0SpotAngles, shadowLight0AtlasRect, shadowLight0Metadata, shadowLight0WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection);
+        color += EvaluateForwardLight(light0ColorAndType, light0DirectionAndShadow, light0PositionAndRange, light0SpotAngles, shadowLight0AtlasRect, shadowLight0Metadata, shadowLight0WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection, roughness, metallic, specular);
     }
 
     if (activeLightCount > 1)
     {
-        color += EvaluateForwardLight(light1ColorAndType, light1DirectionAndShadow, light1PositionAndRange, light1SpotAngles, shadowLight1AtlasRect, shadowLight1Metadata, shadowLight1WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection);
+        color += EvaluateForwardLight(light1ColorAndType, light1DirectionAndShadow, light1PositionAndRange, light1SpotAngles, shadowLight1AtlasRect, shadowLight1Metadata, shadowLight1WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection, roughness, metallic, specular);
     }
 
     if (activeLightCount > 2)
     {
-        color += EvaluateForwardLight(light2ColorAndType, light2DirectionAndShadow, light2PositionAndRange, light2SpotAngles, shadowLight2AtlasRect, shadowLight2Metadata, shadowLight2WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection);
+        color += EvaluateForwardLight(light2ColorAndType, light2DirectionAndShadow, light2PositionAndRange, light2SpotAngles, shadowLight2AtlasRect, shadowLight2Metadata, shadowLight2WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection, roughness, metallic, specular);
     }
 
     if (activeLightCount > 3)
     {
-        color += EvaluateForwardLight(light3ColorAndType, light3DirectionAndShadow, light3PositionAndRange, light3SpotAngles, shadowLight3AtlasRect, shadowLight3Metadata, shadowLight3WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection);
+        color += EvaluateForwardLight(light3ColorAndType, light3DirectionAndShadow, light3PositionAndRange, light3SpotAngles, shadowLight3AtlasRect, shadowLight3Metadata, shadowLight3WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection, roughness, metallic, specular);
     }
 
     return float4(saturate(color), sampledBaseColor.a);
