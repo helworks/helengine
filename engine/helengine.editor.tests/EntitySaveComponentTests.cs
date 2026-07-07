@@ -20,7 +20,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -51,7 +51,7 @@ namespace helengine.editor.tests {
         public void ShowComponents_WhenEntityContainsHiddenSaveComponent_DoesNotShowItInThePropertiesView() {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(new MeshComponent());
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
 
             view.ShowComponents(entity);
 
@@ -147,3 +147,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

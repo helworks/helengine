@@ -26,7 +26,8 @@ namespace helengine {
             }
 
             this.rootDirectory = rootDirectory;
-            IncludeContentManager = new ContentManager(rootDirectory);
+            IncludeContentManager = new ContentManager(new HostFileSystemContentStreamSource(rootDirectory));
+            TextContentManagerConfiguration.Configure(IncludeContentManager);
         }
 
         /// <summary>

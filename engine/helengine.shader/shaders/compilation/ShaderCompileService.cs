@@ -121,7 +121,8 @@ namespace helengine {
                 throw new InvalidOperationException("Shader source directory could not be resolved.");
             }
 
-            ContentManager contentManager = new ContentManager(directory);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(directory));
+            TextContentManagerConfiguration.Configure(contentManager);
             TextContent sourceContent = contentManager.Load<TextContent>(path);
             string source = sourceContent.Text;
             ShaderSourceInfo sourceInfo = new ShaderSourceInfo(path, source);

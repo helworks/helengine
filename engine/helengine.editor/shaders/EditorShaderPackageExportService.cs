@@ -23,7 +23,7 @@ namespace helengine.editor {
             }
 
             ShaderCacheRootPath = Path.GetFullPath(shaderCacheRootPath);
-            ShaderCacheContentManager = new ContentManager(ShaderCacheRootPath);
+            ShaderCacheContentManager = new ContentManager(new HostFileSystemContentStreamSource(ShaderCacheRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(ShaderCacheContentManager);
         }
 

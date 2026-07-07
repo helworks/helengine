@@ -496,7 +496,7 @@ namespace helengine.editor {
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
             availablePlatformProviderResolver = CreateAvailablePlatformProviderResolver();
             platformCatalogService = CreatePlatformCatalogService();
-            EditorContentManager = new ContentManager(ResolveAssetsRootPath(this.projectPath));
+            EditorContentManager = new ContentManager(new HostFileSystemContentStreamSource(ResolveAssetsRootPath(this.projectPath)));
             EditorContentManagerConfiguration.ConfigureEditorContentManager(EditorContentManager);
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -3521,6 +3521,26 @@ namespace helengine.editor {
                 RefreshPreviewSource();
                 return;
             }
+            if (IsAnimationClipAssetEntry(entry)) {
+                try {
+                    AnimationClipAsset clipAsset = LoadAnimationClipAsset(entry.FullPath);
+                    IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                    for (int index = 0; index < propertiesPanels.Count; index++) {
+                        propertiesPanels[index].ShowAnimationClipSettings(
+                            entry,
+                            clipAsset,
+                            SupportedPlatforms,
+                            CurrentProjectPlatform);
+                    }
+                } catch (Exception ex) {
+                    IReadOnlyList<PropertiesPanel> errorPanels = GetPropertiesPanels();
+                    for (int index = 0; index < errorPanels.Count; index++) {
+                        errorPanels[index].ShowImportError(entry, ex.Message);
+                    }
+                }
+                RefreshPreviewSource();
+                return;
+            }
 
             if (IsMaterialAssetEntry(entry)) {
                 try {
@@ -3781,6 +3801,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Determines whether the selected entry is an animation clip asset.
+        /// </summary>
+        /// <param name="entry">Entry to evaluate.</param>
+        /// <returns>True when the entry is an animation clip asset.</returns>
+        bool IsAnimationClipAssetEntry(AssetBrowserEntry entry) {
+            if (entry == null) {
+                return false;
+            }
+
+            return string.Equals(entry.Extension, ".hanim", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Loads a material asset from disk.
         /// </summary>
         /// <param name="path">Path to the material asset.</param>
@@ -3791,6 +3824,31 @@ namespace helengine.editor {
             }
 
             return materialAssetSettingsService.LoadMaterialAsset(path, CurrentProjectPlatform);
+        }
+
+        /// <summary>
+        /// Loads an animation clip asset from disk.
+        /// </summary>
+        /// <param name="path">Path to the animation clip asset.</param>
+        /// <returns>Animation clip asset instance.</returns>
+        AnimationClipAsset LoadAnimationClipAsset(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                throw new ArgumentException("Animation clip path must be provided.", nameof(path));
+            }
+
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
+            try {
+                EngineBinaryReadContext.CurrentAssetPath = path;
+                using FileStream stream = File.OpenRead(path);
+                Asset asset = AssetSerializer.Deserialize(stream);
+                if (asset is not AnimationClipAsset animationClipAsset) {
+                    throw new InvalidOperationException($"Animation clip '{path}' did not deserialize into an animation clip asset.");
+                }
+
+                return animationClipAsset;
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
+            }
         }
 
         /// <summary>
@@ -4711,7 +4769,7 @@ namespace helengine.editor {
 
             string projectRootPath = ResolveProjectRootPath(projectPath);
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
-            ContentManager projectContentManager = new ContentManager(projectAssetsRootPath);
+            ContentManager projectContentManager = new ContentManager(new HostFileSystemContentStreamSource(projectAssetsRootPath));
             var manager = new AssetImportManager(projectRootPath, projectContentManager);
             manager.CurrentPlatformId = ActiveProjectPlatform;
             for (int i = 0; i < importers.Count; i++) {

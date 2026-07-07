@@ -28,7 +28,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Path = TempProjectRootPath
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
@@ -441,3 +441,4 @@ namespace helengine.editor.tests.serialization.scene {
         }
     }
 }
+

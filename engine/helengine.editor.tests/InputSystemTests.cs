@@ -368,6 +368,43 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures steady-state pointer binding updates do not allocate one new scratch collection set every frame after bindings are warm.
+        /// This protects long-running native menu idles where the input system stays active for minutes at a time.
+        /// </summary>
+        [Fact]
+        public void EarlyUpdate_WhenPointerBindingIsWarm_DoesNotAllocatePerFrameScratchCollections() {
+            TestInputBackend input = InitializeCore();
+            InputContextId contextId = new InputContextId(17);
+            InputActionId actionId = new InputActionId(29);
+
+            Core.Instance.InputSystem.RegisterBinding(CreatePrimaryPointerButtonBinding(contextId, actionId, 1f));
+            Core.Instance.InputSystem.PushContext(contextId);
+
+            CaptureInputFrame(input, CreateReleasedMouseState(32, 32));
+
+            input.SetMouseState(CreatePressedMouseState(32, 32));
+            input.EarlyUpdate();
+            input.Update();
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            long beforeAllocatedBytes = GC.GetAllocatedBytesForCurrentThread();
+            for (int frameIndex = 0; frameIndex < 120; frameIndex++) {
+                input.SetMouseState(CreatePressedMouseState(32, 32));
+                input.EarlyUpdate();
+                input.Update();
+            }
+
+            long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - beforeAllocatedBytes;
+            Assert.True(
+                allocatedBytes <= 2048,
+                $"Expected warm input updates to stay under 2048 allocated bytes across 120 frames, but observed {allocatedBytes} bytes.");
+            Assert.True(Core.Instance.InputSystem.IsActionDown(actionId));
+        }
+
+        /// <summary>
         /// Initializes a core instance with the minimum services required for input-routing tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>

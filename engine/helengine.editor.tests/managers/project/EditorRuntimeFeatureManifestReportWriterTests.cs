@@ -37,10 +37,10 @@ public sealed class EditorRuntimeFeatureManifestReportWriterTests : IDisposable 
         PlatformBuildRuntimeFeatureManifest manifest = new(
             [
                 new PlatformBuildRequiredRuntimeFeature(
-                    "runtime_json",
+                    "test_runtime_feature",
                     RuntimeFeatureRequirementSourceKind.RuntimeType,
                     "helengine.editor.tests.GeneratedRuntimeModuleRegistrationTestComponent",
-                    "Component requires runtime JSON.")
+                    "Component requires one synthetic runtime feature.")
             ]);
 
         writer.Write(LogsRootPath, manifest, ["debug_overlay"]);
@@ -48,7 +48,7 @@ public sealed class EditorRuntimeFeatureManifestReportWriterTests : IDisposable 
         string reportPath = Path.Combine(LogsRootPath, "runtime-feature-manifest.json");
         string reportJson = File.ReadAllText(reportPath);
 
-        Assert.Contains("\"runtime_json\"", reportJson, StringComparison.Ordinal);
+        Assert.Contains("\"test_runtime_feature\"", reportJson, StringComparison.Ordinal);
         Assert.Contains("\"debug_overlay\"", reportJson, StringComparison.Ordinal);
         Assert.Contains("\"RuntimeType\"", reportJson, StringComparison.Ordinal);
     }

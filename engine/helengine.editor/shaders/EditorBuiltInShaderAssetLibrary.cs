@@ -182,7 +182,8 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Shader name could not be resolved.");
             }
 
-            ContentManager contentManager = new ContentManager(shaderDirectory);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(shaderDirectory));
+            TextContentManagerConfiguration.Configure(contentManager);
             TextContent sourceContent = contentManager.Load<TextContent>(shaderPath);
             ShaderSourceInfo sourceInfo = new ShaderSourceInfo(shaderPath, sourceContent.Text);
             ShaderCompileService compileService = CreateCompileService(target, shaderDirectory);

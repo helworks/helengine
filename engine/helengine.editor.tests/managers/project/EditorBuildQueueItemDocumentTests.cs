@@ -122,6 +122,123 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures PS2 queued builds drop the generated boot scene so packaged startup can target the authored main menu directly.
+        /// </summary>
+        [Fact]
+        public void Create_WhenPs2BuildIncludesGeneratedBootScene_PrunesGeneratedBootSceneFromStartupOrder() {
+            WriteScene("Scenes/GeneratedBootScene.helen");
+            WriteScene("Scenes/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/rendering/cube_test.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "ps2",
+                SelectedSceneIds = [
+                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    "cube_test"
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreatePs2SelectionModel());
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal(
+                [
+                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    "cube_test"
+                ],
+                queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
+        /// Ensures Nintendo handheld queued builds drop the generated boot scene so startup targets the canonical authored scenes directly.
+        /// </summary>
+        /// <param name="platformId">Nintendo handheld platform identifier under test.</param>
+        [Theory]
+        [InlineData("ds")]
+        [InlineData("3ds")]
+        public void Create_WhenNintendoHandheldBuildIncludesGeneratedBootScene_PrunesGeneratedBootSceneFromStartupOrder(string platformId) {
+            WriteScene("Scenes/GeneratedBootScene.helen");
+            WriteScene("Scenes/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/rendering/cube_test.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = platformId,
+                SelectedSceneIds = [
+                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    "cube_test"
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal(
+                [
+                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    "cube_test"
+                ],
+                queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
+        /// Ensures Nintendo handheld queued builds remap stale companion-scene ids back to canonical authored scene ids before packaging.
+        /// </summary>
+        /// <param name="platformId">Nintendo handheld platform identifier under test.</param>
+        [Theory]
+        [InlineData("ds")]
+        [InlineData("3ds")]
+        public void Create_WhenNintendoHandheldBuildUsesStaleCompanionSceneIds_RemapsSelectionBackToCanonicalSceneIds(string platformId) {
+            WriteScene("Scenes/GeneratedBootScene.helen");
+            WriteScene("Scenes/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/rendering/cube_test.helen");
+            WriteScene("Scenes/rendering/colored_cube_grid.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = platformId,
+                SelectedSceneIds = [
+                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    PlatformMenuSceneResolver.NintendoDsMainMenuSceneId,
+                    "cube_test_ds",
+                    "colored_cube_grid_ds"
+                ],
+                SceneOrders = [
+                    new EditorBuildSceneOrderDocument {
+                        SceneId = PlatformMenuSceneResolver.GeneratedBootSceneId,
+                        OrderNumber = 1
+                    },
+                    new EditorBuildSceneOrderDocument {
+                        SceneId = PlatformMenuSceneResolver.NintendoDsMainMenuSceneId,
+                        OrderNumber = 2
+                    },
+                    new EditorBuildSceneOrderDocument {
+                        SceneId = "cube_test_ds",
+                        OrderNumber = 3
+                    },
+                    new EditorBuildSceneOrderDocument {
+                        SceneId = "colored_cube_grid_ds",
+                        OrderNumber = 4
+                    }
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal(
+                [
+                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    "cube_test",
+                    "colored_cube_grid"
+                ],
+                queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
         /// Ensures queued builds for external package-owned platforms preserve the authored selected-scene order.
         /// </summary>
         [Fact]

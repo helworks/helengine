@@ -34,7 +34,7 @@ namespace helengine.editor.tests.serialization {
         [Fact]
         public void SerializeDeserialize_whenFontAtlasIsCooked_preservesSourceTextureRuntimeAssetId() {
             using Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "version"));
 
@@ -75,7 +75,7 @@ namespace helengine.editor.tests.serialization {
         [Fact]
         public void SerializeDeserialize_whenFontAtlasIsIndexed8_preservesPaletteAndAlphaPrecision() {
             using Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "version"));
 
@@ -123,7 +123,7 @@ namespace helengine.editor.tests.serialization {
         [Fact]
         public void SerializeDeserialize_whenFontUsesExternalCookedAtlasPath_preservesPathWithoutBuildingRawTexture() {
             using Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             TestRenderManager2D renderManager2D = new TestRenderManager2D();
             core.Initialize(new TestRenderManager3D(), renderManager2D, new TestInputBackend(), new PlatformInfo("test", "version"));
@@ -151,3 +151,4 @@ namespace helengine.editor.tests.serialization {
         }
     }
 }
+

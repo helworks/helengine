@@ -760,7 +760,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Directory.CreateDirectory(Path.GetDirectoryName(textureSourcePath)!);
         File.WriteAllBytes(textureSourcePath, [1, 2, 3, 4]);
 
-        ContentManager contentManager = new(ProjectRootPath);
+        ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
         AssetImportManager assetImportManager = new(ProjectRootPath, contentManager);
         assetImportManager.CurrentPlatformId = platformId;
         assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [extension]));

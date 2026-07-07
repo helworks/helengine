@@ -703,7 +703,7 @@ namespace helengine.editor.tests {
                     null,
                     new PlatformInfo("test", "test-version"),
                     new CoreInitializationOptions {
-                        ContentRootPath = TempProjectRootPath
+                        ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
                     });
                 EditorKeyboardFocusService.Reset();
                 GeneratedAssetProviderRegistry.ResetForTests();
@@ -711,7 +711,7 @@ namespace helengine.editor.tests {
 
                 Font = CreateFont();
                 ViewportToolbarIcons = CreateViewportToolbarIcons();
-                ContentManager = new ContentManager(TempProjectRootPath);
+                ContentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
                 EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(ContentManager);
                 AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, ContentManager);
                 assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
@@ -1157,3 +1157,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

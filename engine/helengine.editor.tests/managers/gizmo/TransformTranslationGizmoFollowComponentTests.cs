@@ -307,6 +307,71 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures the cone tip stays exactly one authored shaft length from the axis origin after gizmo scaling is applied.
+        /// </summary>
+        [Fact]
+        public void Update_WhenGizmoScaleChanges_KeepsConeTipAtScaledShaftLength() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+
+            EditorEntity selectedEntity = new EditorEntity();
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+
+            UpdateFollowComponent(gizmoRoot);
+
+            EditorEntity xHandle = (EditorEntity)gizmoRoot.Children[0];
+            EditorEntity tipEntity = FindChildEntity((Entity)xHandle, "Transform Gizmo X Tip");
+            float scale = gizmoRoot.Scale.X;
+            float3 expectedTipOffset = float4.RotateVector(
+                new float3(0f, TransformTranslationGizmoFactory.ShaftLength * scale, 0f),
+                xHandle.Orientation);
+            float3 actualTipOffset = tipEntity.Position - xHandle.Position;
+
+            AssertVectorEquals(expectedTipOffset, actualTipOffset);
+        }
+
+        /// <summary>
+        /// Ensures yaw-facing updates rotate the translation handles around the gizmo root without scrambling the authored axis and plane orientations.
+        /// </summary>
+        [Fact]
+        public void Update_WhenYawFacingIsApplied_PreservesExpectedWorldHandleDirections() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(8f, 2f, 0f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+
+            EditorEntity selectedEntity = new EditorEntity();
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+
+            UpdateFollowComponent(gizmoRoot);
+
+            float4 yawFacingOrientation = TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedEntity.Position, sceneCamera.Parent.Position);
+            EditorEntity xHandle = (EditorEntity)gizmoRoot.Children[0];
+            EditorEntity planeHandle = (EditorEntity)gizmoRoot.Children[1];
+
+            float3 expectedXAxisDirection = float4.RotateVector(new float3(1f, 0f, 0f), yawFacingOrientation);
+            float3 actualXAxisDirection = float4.RotateVector(new float3(0f, 1f, 0f), xHandle.Orientation);
+            AssertVectorEquals(expectedXAxisDirection, actualXAxisDirection);
+
+            float3 basePlaneNormal = float4.RotateVector(new float3(0f, 0f, 1f), CreateXzPlaneOrientation());
+            float3 expectedPlaneNormal = float4.RotateVector(basePlaneNormal, yawFacingOrientation);
+            float3 actualPlaneNormal = float4.RotateVector(new float3(0f, 0f, 1f), planeHandle.Orientation);
+            AssertVectorEquals(expectedPlaneNormal, actualPlaneNormal);
+        }
+
+        /// <summary>
         /// Initializes a fresh core with a configurable input system for entity-based tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
@@ -486,6 +551,34 @@ namespace helengine.editor.tests.managers.gizmo {
             }
 
             throw new InvalidOperationException("Expected a mesh component on the translation gizmo entity.");
+        }
+
+        /// <summary>
+        /// Finds one direct child entity by exact name.
+        /// </summary>
+        /// <param name="entity">Parent entity to inspect.</param>
+        /// <param name="name">Exact child entity name.</param>
+        /// <returns>Matching direct child entity.</returns>
+        EditorEntity FindChildEntity(Entity entity, string name) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (string.IsNullOrWhiteSpace(name)) {
+                throw new ArgumentException("Child entity name must be provided.", nameof(name));
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                if (entity.Children[childIndex] is not EditorEntity childEntity) {
+                    continue;
+                }
+
+                if (string.Equals(childEntity.Name, name, StringComparison.Ordinal)) {
+                    return childEntity;
+                }
+            }
+
+            throw new InvalidOperationException($"Expected child entity '{name}'.");
         }
 
         /// <summary>

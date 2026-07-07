@@ -20,7 +20,7 @@ namespace helengine.editor.tests.serialization.scene {
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets"));
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -48,7 +48,7 @@ namespace helengine.editor.tests.serialization.scene {
                 },
                 new TestRuntimeModel(),
                 runtimeMaterial));
-            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(new ContentManager(TempProjectRootPath), TempProjectRootPath);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)), TempProjectRootPath);
 
             RuntimeMaterial resolvedMaterial = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineStandardMaterial());
 
@@ -66,7 +66,7 @@ namespace helengine.editor.tests.serialization.scene {
             AssetImportManager assetImportManager = CreateAssetImportManager();
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
-                new ContentManager(TempProjectRootPath),
+                new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager));
 
@@ -87,7 +87,7 @@ namespace helengine.editor.tests.serialization.scene {
             File.WriteAllBytes(fontPath, new byte[] { 1, 2, 3, 4 });
             AssetImportManager assetImportManager = CreateAssetImportManager();
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
-                new ContentManager(TempProjectRootPath),
+                new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager),
                 new EditorFileSystemFontResolver(assetImportManager));
@@ -102,7 +102,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void ResolveFont_WhenReferenceUsesRemovedNintendoDsGeneratedFont_ThrowsUnsupportedGeneratedFontAssetId() {
-            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(new ContentManager(TempProjectRootPath), TempProjectRootPath);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)), TempProjectRootPath);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => resolver.ResolveFont(
                 global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
@@ -124,7 +124,7 @@ namespace helengine.editor.tests.serialization.scene {
             File.WriteAllBytes(fontPath, new byte[] { 1, 2, 3, 4 });
             AssetImportManager assetImportManager = CreateAssetImportManager();
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
-                new ContentManager(TempProjectRootPath),
+                new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager),
                 new EditorFileSystemFontResolver(assetImportManager));
@@ -148,7 +148,7 @@ namespace helengine.editor.tests.serialization.scene {
             File.WriteAllBytes(texturePath, new byte[] { 1, 2, 3, 4 });
             AssetImportManager assetImportManager = CreateAssetImportManager();
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
-                new ContentManager(TempProjectRootPath),
+                new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager),
                 new EditorFileSystemFontResolver(assetImportManager),
@@ -170,7 +170,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void ResolveMaterial_WhenFileSystemMaterialUsesBuiltInShader_LoadsBuiltInShaderWithoutCachedPackage() {
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             string materialFullPath = WriteMaterialSettingsDocument(materialRelativePath, CreateCustomShaderMaterialSettings("ForwardStandardShader"));
-            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
@@ -190,7 +190,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void ResolveMaterial_WhenFileSystemMaterialHasStandardShaderBaseColorSettings_AppliesBaseColorBuffer() {
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             WriteMaterialSettingsDocument(materialRelativePath, CreateStandardMaterialSettings("#336699"));
-            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
@@ -216,7 +216,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void ResolveMaterial_WhenFileSystemMaterialUsesBaseHassetDocument_LoadsRuntimeMaterial() {
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             WriteMaterialSettingsDocument(materialRelativePath, CreateStandardMaterialSettings("#336699"));
-            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
@@ -245,7 +245,7 @@ namespace helengine.editor.tests.serialization.scene {
                 SupportedPlatforms = ["windows", "ps2"]
             });
             new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows", "ps2"]).SaveActivePlatform("ps2");
-            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
@@ -266,7 +266,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Configured asset import manager.</returns>
         AssetImportManager CreateAssetImportManager() {
-            ContentManager contentManager = new ContentManager(Path.Combine(TempProjectRootPath, "assets"));
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
@@ -443,3 +443,4 @@ namespace helengine.editor.tests.serialization.scene {
         }
     }
 }
+

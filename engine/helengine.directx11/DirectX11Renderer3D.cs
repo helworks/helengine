@@ -596,15 +596,13 @@ namespace helengine.directx11 {
         /// Builds a runtime material from one packaged material asset using the DirectX11 shader runtime loader.
         /// </summary>
         /// <param name="assetContentManager">Content manager that can deserialize companion shader packages.</param>
-        /// <param name="contentRootPath">Absolute packaged content root.</param>
-        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="materialAssetPath">Runtime asset path to the serialized material asset.</param>
         /// <param name="materialAsset">Raw material asset definition.</param>
         /// <returns>Runtime material instance.</returns>
         public override RuntimeMaterial BuildMaterialFromRawAsset(
             ContentManager assetContentManager,
-            string contentRootPath,
             string materialAssetPath) {
-            return ShaderRuntimeMaterialLoader.BuildMaterialFromRawAsset(this, assetContentManager, contentRootPath, materialAssetPath);
+            return ShaderRuntimeMaterialLoader.BuildMaterialFromRawAsset(this, assetContentManager, materialAssetPath);
         }
 
         /// <summary>

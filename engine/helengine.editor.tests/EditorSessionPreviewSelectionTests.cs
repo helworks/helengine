@@ -29,7 +29,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(AssetsRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -147,7 +147,7 @@ namespace helengine.editor.tests {
         /// <returns>Editor session instance configured for preview selection tests.</returns>
         EditorSession CreateSession() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
@@ -354,3 +354,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

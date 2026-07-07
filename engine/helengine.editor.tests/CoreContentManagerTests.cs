@@ -2,7 +2,7 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies that the core owns and reuses content managers by root path.
+    /// Verifies that the core owns and reuses content managers by injected content stream source.
     /// </summary>
     public class CoreContentManagerTests : IDisposable {
         /// <summary>
@@ -11,7 +11,7 @@ namespace helengine.editor.tests {
         readonly string DefaultContentRootPath;
 
         /// <summary>
-        /// Temporary root used for a secondary content manager lookup.
+        /// Temporary root used for a secondary content-manager source lookup.
         /// </summary>
         readonly string ProjectContentRootPath;
 
@@ -37,32 +37,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the core returns the same content manager instance for repeated requests to the same root.
+        /// Ensures the core returns the same content manager instance for repeated requests to the same source.
         /// </summary>
         [Fact]
-        public void GetContentManager_WithSameRoot_ReturnsCachedInstance() {
+        public void GetContentManager_WithSameSource_ReturnsCachedInstance() {
+            HostFileSystemContentStreamSource defaultSource = new HostFileSystemContentStreamSource(DefaultContentRootPath);
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = DefaultContentRootPath
+                ContentStreamSource = defaultSource
             });
 
-            ContentManager first = core.GetContentManager(DefaultContentRootPath);
-            ContentManager second = core.GetContentManager(DefaultContentRootPath);
+            ContentManager first = core.GetContentManager(defaultSource);
+            ContentManager second = core.GetContentManager(defaultSource);
 
             Assert.Same(first, second);
             Assert.Same(first, core.ContentManager);
         }
 
         /// <summary>
-        /// Ensures different content roots receive different cached manager instances.
+        /// Ensures different content sources receive different cached manager instances.
         /// </summary>
         [Fact]
-        public void GetContentManager_WithDifferentRoots_ReturnsDifferentInstances() {
+        public void GetContentManager_WithDifferentSources_ReturnsDifferentInstances() {
+            HostFileSystemContentStreamSource defaultSource = new HostFileSystemContentStreamSource(DefaultContentRootPath);
+            HostFileSystemContentStreamSource projectSource = new HostFileSystemContentStreamSource(ProjectContentRootPath);
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = DefaultContentRootPath
+                ContentStreamSource = defaultSource
             });
 
-            ContentManager defaultManager = core.GetContentManager(DefaultContentRootPath);
-            ContentManager projectManager = core.GetContentManager(ProjectContentRootPath);
+            ContentManager defaultManager = core.GetContentManager(defaultSource);
+            ContentManager projectManager = core.GetContentManager(projectSource);
 
             Assert.NotSame(defaultManager, projectManager);
         }
@@ -72,11 +75,13 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ConfigureProjectContentManager_WhenCalledTwice_RemainsReusable() {
+            HostFileSystemContentStreamSource defaultSource = new HostFileSystemContentStreamSource(DefaultContentRootPath);
+            HostFileSystemContentStreamSource projectSource = new HostFileSystemContentStreamSource(ProjectContentRootPath);
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = DefaultContentRootPath
+                ContentStreamSource = defaultSource
             });
 
-            ContentManager contentManager = core.GetContentManager(ProjectContentRootPath);
+            ContentManager contentManager = core.GetContentManager(projectSource);
 
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             EditorContentManagerConfiguration.ConfigureProjectContentManager(contentManager);
@@ -84,6 +89,20 @@ namespace helengine.editor.tests {
 
             Assert.True(contentManager.IsProcessorRegistered(EditorContentProcessorIds.AssetImportSettings));
             Assert.True(contentManager.IsProcessorRegistered(EditorContentProcessorIds.TextureAsset));
+        }
+
+        /// <summary>
+        /// Ensures core initialization rejects missing content stream sources.
+        /// </summary>
+        [Fact]
+        public void Initialize_WhenContentStreamSourceIsMissing_Throws() {
+            CoreInitializationOptions options = new CoreInitializationOptions {
+                ContentStreamSource = null
+            };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new Core(options));
+
+            Assert.Contains("ContentStreamSource", exception.Message);
         }
 
     }

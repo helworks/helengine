@@ -181,4 +181,101 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         string unitySourceContents = File.ReadAllText(unitySourcePath);
         Assert.Contains("#include \"runtime/runtime_standard_platform_input_manifest.cpp\"", unitySourceContents);
     }
+
+    /// <summary>
+    /// Ensures Nintendo DS generated-boot-scene startup metadata emits the stable canonical startup path instead of the hashed generated-build scene path.
+    /// </summary>
+    [Fact]
+    public void Write_whenNintendoDsStartupSceneIsGeneratedBootScene_usesStableCanonicalStartupScenePath() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-core");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        PlatformBuildScene startupScene = new(
+            "GeneratedBootScene",
+            "Generated Boot Scene",
+            "Scenes/GeneratedBootScene.helen",
+            Array.Empty<PlatformBuildPayloadReference>(),
+            [
+                new KeyValuePair<string, string>(
+                    PlatformBuildSceneMetadataKeys.CookedRelativePath,
+                    "cooked/scenes/.generated-build/ds/buildid/generatedbootscene_buildid.hasset")
+            ]);
+
+        PlatformBuildManifest manifest = new(
+            1,
+            "project",
+            "1.0.0",
+            "1.0.0",
+            "ds",
+            "2026.07.02",
+            "GeneratedBootScene",
+            [startupScene],
+            Array.Empty<PlatformBuildAsset>(),
+            Array.Empty<PlatformBuildArtifact>(),
+            Array.Empty<PlatformBuildCodeModule>(),
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+        EditorRuntimeNativeManifestWriter writer = new();
+        writer.Write(generatedCoreRootPath, manifest);
+
+        string runtimeRootPath = Path.Combine(generatedCoreRootPath, "runtime");
+        string startupSourcePath = Path.Combine(runtimeRootPath, "runtime_startup_manifest.cpp");
+        string sceneCatalogSourcePath = Path.Combine(runtimeRootPath, "runtime_scene_catalog_manifest.cpp");
+        string startupSourceContents = File.ReadAllText(startupSourcePath);
+        string sceneCatalogSourceContents = File.ReadAllText(sceneCatalogSourcePath);
+
+        Assert.Contains("cooked/scenes/generatedbootscene.hasset", startupSourceContents, StringComparison.Ordinal);
+        Assert.Contains("cooked/scenes/generatedbootscene.hasset", sceneCatalogSourceContents, StringComparison.Ordinal);
+        Assert.DoesNotContain(".generated-build/ds/buildid/generatedbootscene_buildid.hasset", startupSourceContents, StringComparison.Ordinal);
+        Assert.DoesNotContain(".generated-build/ds/buildid/generatedbootscene_buildid.hasset", sceneCatalogSourceContents, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures Nintendo 3DS generated-boot-scene startup metadata emits the stable canonical startup path instead of the hashed generated-build scene path.
+    /// </summary>
+    [Fact]
+    public void Write_whenNintendo3DsStartupSceneIsGeneratedBootScene_usesStableCanonicalStartupScenePath() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-core");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        PlatformBuildScene startupScene = new(
+            "GeneratedBootScene",
+            "Generated Boot Scene",
+            "Scenes/GeneratedBootScene.helen",
+            Array.Empty<PlatformBuildPayloadReference>(),
+            [
+                new KeyValuePair<string, string>(
+                    PlatformBuildSceneMetadataKeys.CookedRelativePath,
+                    "cooked/scenes/.generated-build/3ds/buildid/generatedbootscene_buildid.hasset")
+            ]);
+
+        PlatformBuildManifest manifest = new(
+            1,
+            "project",
+            "1.0.0",
+            "1.0.0",
+            "3ds",
+            "2026.07.02",
+            "GeneratedBootScene",
+            [startupScene],
+            Array.Empty<PlatformBuildAsset>(),
+            Array.Empty<PlatformBuildArtifact>(),
+            Array.Empty<PlatformBuildCodeModule>(),
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+        EditorRuntimeNativeManifestWriter writer = new();
+        writer.Write(generatedCoreRootPath, manifest);
+
+        string runtimeRootPath = Path.Combine(generatedCoreRootPath, "runtime");
+        string startupSourcePath = Path.Combine(runtimeRootPath, "runtime_startup_manifest.cpp");
+        string sceneCatalogSourcePath = Path.Combine(runtimeRootPath, "runtime_scene_catalog_manifest.cpp");
+        string startupSourceContents = File.ReadAllText(startupSourcePath);
+        string sceneCatalogSourceContents = File.ReadAllText(sceneCatalogSourcePath);
+
+        Assert.Contains("cooked/scenes/generatedbootscene.hasset", startupSourceContents, StringComparison.Ordinal);
+        Assert.Contains("cooked/scenes/generatedbootscene.hasset", sceneCatalogSourceContents, StringComparison.Ordinal);
+        Assert.DoesNotContain(".generated-build/3ds/buildid/generatedbootscene_buildid.hasset", startupSourceContents, StringComparison.Ordinal);
+    }
 }

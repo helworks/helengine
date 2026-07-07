@@ -64,7 +64,7 @@ public sealed class CityGameCubeImportedTextureResolutionTests {
     /// </summary>
     /// <returns>Configured asset import manager.</returns>
     static AssetImportManager CreateManager() {
-        ContentManager contentManager = new ContentManager(CityProjectRootPath);
+        ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(CityProjectRootPath));
         AssetImportManager manager = new AssetImportManager(CityProjectRootPath, contentManager);
         manager.RegisterTextureImporter(new TextureImporterRegistration("gdi", new TestTextureImporter(), new[] { ".bmp" }));
         manager.CurrentPlatformId = "gamecube";

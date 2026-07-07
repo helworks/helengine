@@ -22,7 +22,7 @@ namespace helengine.editor.tests {
             EditorSceneMutationService.Reset();
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -43,7 +43,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowComponents_WhenEntityHasVisibleComponents_CreatesOneSectionPerComponent() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
             view.ShowComponents(entity);
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HeaderPressed_WhenSectionIsExpanded_CollapsesOnlyThatSection() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
             view.ShowComponents(entity);
@@ -83,7 +83,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HeaderHovered_WhenSectionIsVisible_UsesFlushTitleLayoutAndHoverTint() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
             view.ShowComponents(entity);
@@ -117,7 +117,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentClicked_WhenEntityAlreadyHasCamera_ShowsModalWithoutCamera() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -142,7 +142,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void HandleAddComponentClicked_WhenScriptProviderReturnsComponents_ShowsScriptDescriptors() {
             TestScriptComponentCatalogProvider scriptProvider = new TestScriptComponentCatalogProvider();
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath), null, new EditorEntity(), scriptProvider);
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)), null, new EditorEntity(), scriptProvider);
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -161,7 +161,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentClicked_WhenDialogOpens_IncludesFpsDescriptor() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -180,7 +180,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentClicked_WhenSearchTextChanges_FiltersTheComponentList() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -205,7 +205,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentClicked_WhenDialogIsVisible_BlocksViewportInputUntilHidden() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -230,7 +230,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentClicked_WhenRowIsHovered_ChangesTheRowBackground() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -258,7 +258,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentClicked_WhenRowIsActivated_SelectsItWithoutClosing() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -294,7 +294,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentClicked_WhenRowIsDoubleActivated_AddsTheComponentAndCloses() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -325,7 +325,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentClicked_WhenSelectionIsConfirmedWithAddButton_AddsTheComponentAndCloses() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -354,7 +354,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentClicked_WhenDialogIsVisible_CreatesTheFooterAddButton() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -374,7 +374,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenEntityIsSelected_ShowsPlatformTabsDirectlyUnderEntityName() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -395,7 +395,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenEntityIsSelected_ParentsPlatformTabsIntoTransformSection() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             panel.Position = new float3(160f, 120f, 0f);
             panel.Size = new int2(320, 420);
 
@@ -419,7 +419,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenEntityIsSelected_CreatesVisiblePlatformTabHosts() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             panel.Size = new int2(320, 420);
 
             EditorEntity entity = new EditorEntity {
@@ -444,7 +444,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenEntityIsSelected_EmitsVisiblePlatformTabRenderCommands() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             panel.Position = new float3(160f, 120f, 0f);
             panel.Size = new int2(320, 420);
 
@@ -512,7 +512,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowSceneAssetSummary_AfterEntityProperties_HidesComponentPlatformTabStrip() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -537,8 +537,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenTwoPropertiesPanelsExist_DoesNotRenderSiblingPanelPlatformTabs() {
-            PropertiesPanel firstPanel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
-            PropertiesPanel secondPanel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel firstPanel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel secondPanel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             firstPanel.Position = new float3(40f, 60f, 0f);
             firstPanel.Size = new int2(320, 420);
             secondPanel.Position = new float3(420f, 60f, 0f);
@@ -591,7 +591,7 @@ namespace helengine.editor.tests {
             EditorEntity modalHost = new EditorEntity {
                 LayerMask = EditorLayerMasks.EditorModalUi
             };
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath), null, modalHost);
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)), null, modalHost);
 
             ComponentAddDialog addDialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
             RemoveComponentDialog removeDialog = GetPrivateField<RemoveComponentDialog>(panel, "RemoveComponentDialog");
@@ -605,7 +605,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenEntityIsSelected_BuildsAddComponentButtonVisuals() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -629,7 +629,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenPropertyContentExceedsPanelBody_ExposesPositiveScrollRange() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
                 Position = new float3(32f, 40f, 0f),
                 Size = new int2(320, 120)
             };
@@ -651,7 +651,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenPropertyContentExceedsPanelBody_UsesRowSizedWheelScrollSteps() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
                 Position = new float3(32f, 40f, 0f),
                 Size = new int2(320, 120)
             };
@@ -669,7 +669,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenScrollableBodyIsBuilt_ParentsChildContentToTheClippedViewportLayer() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
                 Position = new float3(32f, 40f, 0f),
                 Size = new int2(320, 120)
             };
@@ -703,7 +703,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenScrollableBodyIsBuilt_AttachesClipOwnerToTheFixedViewportHost() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
                 Position = new float3(32f, 40f, 0f),
                 Size = new int2(320, 120)
             };
@@ -729,7 +729,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenPointerTargetsAddButtonOutsideViewport_DoesNotResolveTheClippedOverflowButton() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
                 Position = new float3(32f, 40f, 0f),
                 Size = new int2(320, 120)
             };
@@ -764,7 +764,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSectionRemoveClicked_RaisesRemoveRequestedForTheSectionComponent() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateEntityWithVisibleComponents();
             ComponentSectionView removedSection = null;
             view.RemoveRequested += value => removedSection = value;
@@ -783,7 +783,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowComponents_WhenLightContainsBooleanShadowProperty_UsesCheckboxRowAndUpdatesTheLight() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Light"
             };
@@ -810,7 +810,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowComponents_WhenDirectionalLightContainsShadowDistance_UsesScalarRowAndUpdatesTheLight() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Light"
             };
@@ -838,7 +838,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowComponents_WhenScalarPropertyRowsAreVisible_UsesFortySixtyLabelSplit() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Light"
             };
@@ -861,7 +861,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleScalarSubmitted_WhenTextIsInvalid_RestoresLastValidTextWithoutChangingTheValue() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Light"
             };
@@ -887,7 +887,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ScalarField_WhenBlurredWithInvalidText_RestoresLastValidTextWithoutChangingTheValue() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Light"
             };
@@ -913,7 +913,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleRemoveComponentConfirmed_WhenDialogWasOpened_RemovesTheComponentAndKeepsTheSelection() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
             panel.ShowEntityProperties(entity);
@@ -934,7 +934,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleRemoveComponentCanceled_WhenDialogWasOpened_LeavesTheComponentAttached() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
             panel.ShowEntityProperties(entity);
@@ -955,7 +955,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentSelected_WhenWindowsTabAddsMesh_KeepsTheLiveEntityCommonAndShowsTheComponentOnlyOnWindows() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -988,7 +988,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddComponentSelected_WhenWindowsTabAddsMesh_ShowsHeaderRevertChromeAndCanRevertThePlatformOnlySection() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = new EditorEntity {
                 Name = "Cube"
             };
@@ -1026,7 +1026,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleRemoveComponentConfirmed_WhenWindowsTabRemovesMesh_KeepsTheLiveMeshAndHidesItOnlyOnWindows() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
             panel.ShowEntityProperties(entity, new[] { "windows" });
@@ -1057,7 +1057,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleRemoveComponentConfirmed_WhenWindowsTabRemovesMesh_ShowsHeaderRevertChromeAndRestoresTheSectionWhenReverted() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
             panel.ShowEntityProperties(entity, new[] { "windows" });
@@ -1092,6 +1092,42 @@ namespace helengine.editor.tests {
             Assert.False(restoredMeshSection.RevertButtonHost.Enabled);
             Assert.True(restoredMeshSection.RemoveButtonHost.Enabled);
             Assert.Equal(0f, restoredMeshSection.HeaderOverrideOutline.BorderThickness);
+        }
+
+        /// <summary>
+        /// Ensures the component Exists row on a non-common platform tab can hide one common component without deleting it from the live entity and can restore it again.
+        /// </summary>
+        [Fact]
+        public void HandleBooleanCheckedChanged_WhenWindowsExistsRowUnchecked_HidesAndRestoresTheCommonComponent() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            EditorEntity entity = CreateEntityWithVisibleComponents();
+
+            panel.ShowEntityProperties(entity, new[] { "windows" });
+            SelectInspectorPlatform(panel, "windows");
+
+            ComponentPropertiesView windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            List<ComponentSectionView> windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            ComponentSectionView meshSection = Assert.Single(windowsSections, value => value.TargetComponent is MeshComponent);
+            ComponentPropertyRow existsRow = Assert.Single(meshSection.Rows, row => string.Equals(row.Label.Text, "Exists", StringComparison.Ordinal));
+
+            InvokePrivate(windowsView, "HandleBooleanCheckedChanged", existsRow.CheckBoxField, false);
+
+            Assert.Contains(entity.Components, value => value is MeshComponent);
+
+            windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            ComponentSectionView removedMeshSection = Assert.Single(windowsSections, value => value.TargetComponent is MeshComponent);
+            ComponentPropertyRow removedExistsRow = Assert.Single(removedMeshSection.Rows, row => string.Equals(row.Label.Text, "Exists", StringComparison.Ordinal));
+            Assert.False(removedExistsRow.CheckBoxField.IsChecked);
+
+            InvokePrivate(windowsView, "HandleBooleanCheckedChanged", removedExistsRow.CheckBoxField, true);
+
+            windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            ComponentSectionView restoredMeshSection = Assert.Single(windowsSections, value => value.TargetComponent is MeshComponent);
+            ComponentPropertyRow restoredExistsRow = Assert.Single(restoredMeshSection.Rows, row => string.Equals(row.Label.Text, "Exists", StringComparison.Ordinal));
+            Assert.True(restoredExistsRow.CheckBoxField.IsChecked);
+            Assert.Contains(entity.Components, value => value is MeshComponent);
         }
 
         /// <summary>
@@ -1368,3 +1404,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

@@ -21,7 +21,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -230,7 +230,7 @@ namespace helengine.editor.tests {
         public void FileMenu_WhenClickedThroughPointerSystemAboveDockable_RaisesOpenMapRequested() {
             TestInputBackend input = new TestInputBackend();
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
             CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
@@ -397,3 +397,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

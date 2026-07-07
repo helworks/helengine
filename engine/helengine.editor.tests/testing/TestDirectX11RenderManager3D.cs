@@ -9,7 +9,7 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Captured raw model assets passed through the build API.
         /// </summary>
-        readonly List<ModelAsset> BuiltModelAssetsValue;
+        readonly List<ModelAsset> BuiltModelAssetsValue = new List<ModelAsset>();
 
         /// <summary>
         /// Creates one uninitialized DirectX11-shaped renderer for tests that only need backend type identity.

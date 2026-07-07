@@ -6,12 +6,12 @@ namespace helengine {
     /// </summary>
     public class Core : IDisposable {
         /// <summary>
-        /// Cached content managers keyed by normalized root path.
+        /// Cached content managers keyed by stream-source identity.
         /// </summary>
-        readonly Dictionary<string, ContentManager> ContentManagersByRootPath;
+        readonly Dictionary<IContentStreamSource, ContentManager> ContentManagersBySource;
 
         /// <summary>
-        /// Synchronizes content-manager creation for shared roots.
+        /// Synchronizes content-manager creation for shared sources.
         /// </summary>
         readonly object ContentManagerLock;
 
@@ -67,7 +67,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(options));
             }
 
-            ContentManagersByRootPath = new Dictionary<string, ContentManager>(StringComparer.OrdinalIgnoreCase);
+            ContentManagersBySource = new Dictionary<IContentStreamSource, ContentManager>(ReferenceEqualityComparer.Instance);
             ContentManagerLock = new object();
             Instance = this;
             InitializationOptions = options;
@@ -99,7 +99,7 @@ namespace helengine {
         public CoreInitializationOptions InitializationOptions { get; private set; }
 
         /// <summary>
-        /// Gets the default content manager rooted at <see cref="CoreInitializationOptions.ContentRootPath"/>.
+        /// Gets the default content manager backed by <see cref="CoreInitializationOptions.ContentStreamSource"/>.
         /// </summary>
         public ContentManager ContentManager => GetContentManager();
 
@@ -284,6 +284,11 @@ namespace helengine {
         /// Gets the fixed-step scheduler that converts host frame time into physics simulation steps.
         /// </summary>
         public PhysicsFixedStepScheduler PhysicsScheduler => PhysicsSchedulerValue;
+
+        /// <summary>
+        /// Gets the total fixed-step physics time predicted to be consumed during the current update based on the scheduler accumulator and catch-up cap.
+        /// </summary>
+        public double PredictedPhysicsStepSeconds { get; private set; }
 
         /// <summary>
         /// Gets the currently attached pluggable physics runtime, when one has been configured.
@@ -496,9 +501,7 @@ namespace helengine {
 
             ContentManager contentManager = GetContentManager();
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
-            SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(
-                contentManager,
-                InitializationOptions.ContentRootPath);
+            SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(contentManager);
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
             SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
             SceneManager = CreateSceneManager(contentManager, InitializationOptions.SceneCatalog);
@@ -551,29 +554,28 @@ namespace helengine {
         /// <summary>
         /// Gets the default content manager configured for the current core instance.
         /// </summary>
-        /// <returns>Cached content manager rooted at the configured content root path.</returns>
+        /// <returns>Cached content manager backed by the configured content stream source.</returns>
         public ContentManager GetContentManager() {
-            return GetContentManager(InitializationOptions.ContentRootPath);
+            return GetContentManager(InitializationOptions.ContentStreamSource);
         }
 
         /// <summary>
-        /// Gets a cached content manager for a specific root directory, creating it the first time that root is requested.
+        /// Gets a cached content manager for a specific content stream source, creating it the first time that source is requested.
         /// </summary>
-        /// <param name="rootDirectory">Directory used to resolve relative content paths.</param>
-        /// <returns>Cached content manager for the requested root.</returns>
-        public ContentManager GetContentManager(string rootDirectory) {
-            if (string.IsNullOrWhiteSpace(rootDirectory)) {
-                throw new ArgumentException("Root directory must be provided.", nameof(rootDirectory));
+        /// <param name="streamSource">Source used to open runtime content streams.</param>
+        /// <returns>Cached content manager for the requested source.</returns>
+        public ContentManager GetContentManager(IContentStreamSource streamSource) {
+            if (streamSource == null) {
+                throw new ArgumentNullException(nameof(streamSource));
             }
 
-            string normalizedRootDirectory = Path.GetFullPath(rootDirectory);
             lock (ContentManagerLock) {
-                if (ContentManagersByRootPath.TryGetValue(normalizedRootDirectory, out ContentManager contentManager)) {
+                if (ContentManagersBySource.TryGetValue(streamSource, out ContentManager contentManager)) {
                     return contentManager;
                 }
 
-                contentManager = new ContentManager(normalizedRootDirectory);
-                ContentManagersByRootPath.Add(normalizedRootDirectory, contentManager);
+                contentManager = new ContentManager(streamSource);
+                ContentManagersBySource.Add(streamSource, contentManager);
                 return contentManager;
             }
         }
@@ -589,6 +591,7 @@ namespace helengine {
 
             PhysicsRuntimeValue = runtime;
             PhysicsSchedulerValue.Reset();
+            PredictedPhysicsStepSeconds = 0d;
         }
 
         /// <summary>
@@ -597,6 +600,7 @@ namespace helengine {
         public void DetachPhysicsRuntime() {
             PhysicsRuntimeValue = null;
             PhysicsSchedulerValue.Reset();
+            PredictedPhysicsStepSeconds = 0d;
         }
 
         /// <summary>
@@ -604,6 +608,7 @@ namespace helengine {
         /// </summary>
         public void ResetPhysicsTimingState() {
             PhysicsSchedulerValue.Reset();
+            PredictedPhysicsStepSeconds = 0d;
         }
 
         /// <summary>
@@ -728,6 +733,7 @@ namespace helengine {
             TotalElapsedSeconds += elapsedSeconds;
             PreviousMeasuredUpdateSeconds = currentMeasuredUpdateSeconds;
             HasPreviousMeasuredUpdateSeconds = true;
+            PredictedPhysicsStepSeconds = ResolvePredictedPhysicsStepSeconds(elapsedSeconds);
 
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeInputEarlyUpdatePhaseId);
             bool shouldRecordUpdateStages = UpdateStageDiagnosticsProviderValue != null;
@@ -813,6 +819,26 @@ namespace helengine {
             }
 
             return new PhysicsFixedStepScheduler(options.PhysicsFixedStepSeconds);
+        }
+
+        /// <summary>
+        /// Predicts the amount of fixed-step physics time the current update will actually consume after applying the scheduler accumulator and maximum catch-up step cap.
+        /// </summary>
+        /// <param name="elapsedSeconds">Elapsed host frame time in seconds for the current update.</param>
+        /// <returns>Total fixed-step physics seconds expected to run during this update.</returns>
+        double ResolvePredictedPhysicsStepSeconds(double elapsedSeconds) {
+            if (PhysicsRuntimeValue == null) {
+                return 0d;
+            }
+
+            double projectedAccumulatedSeconds = PhysicsSchedulerValue.AccumulatedSeconds + elapsedSeconds;
+            int predictedStepCount = (int)(projectedAccumulatedSeconds / PhysicsSchedulerValue.StepSeconds);
+            if (predictedStepCount <= 0) {
+                return 0d;
+            }
+
+            predictedStepCount = Math.Min(predictedStepCount, InitializationOptions.PhysicsMaxStepsPerUpdate);
+            return predictedStepCount * PhysicsSchedulerValue.StepSeconds;
         }
 
         /// <summary>

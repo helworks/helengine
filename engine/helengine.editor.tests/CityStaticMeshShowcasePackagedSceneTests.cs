@@ -34,7 +34,7 @@ public sealed class CityStaticMeshShowcasePackagedSceneTests {
         using FileStream stream = File.OpenRead(PackagedScenePath);
         SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
         Core core = new Core(new CoreInitializationOptions {
-            ContentRootPath = PackagedContentRootPath
+            ContentStreamSource = new HostFileSystemContentStreamSource(PackagedContentRootPath)
         });
         core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         BepuRuntimeComponentRegistration.Register(core);
@@ -198,3 +198,4 @@ public sealed class CityStaticMeshShowcasePackagedSceneTests {
         return Assert.IsType<T>(descriptor.DeserializeComponent(record, saveComponent, resolver));
     }
 }
+

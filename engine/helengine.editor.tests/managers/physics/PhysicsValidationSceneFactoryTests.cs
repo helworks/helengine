@@ -416,7 +416,7 @@ namespace helengine.editor.tests.managers.physics {
             }
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = buildRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(buildRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -459,7 +459,7 @@ namespace helengine.editor.tests.managers.physics {
             }
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = buildRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(buildRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -500,7 +500,7 @@ namespace helengine.editor.tests.managers.physics {
             }
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = buildRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(buildRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -569,7 +569,7 @@ namespace helengine.editor.tests.managers.physics {
             };
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -805,3 +805,4 @@ namespace helengine.editor.tests.managers.physics {
         }
     }
 }
+

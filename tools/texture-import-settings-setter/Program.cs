@@ -24,7 +24,7 @@ namespace helengine.tools.textureimportsettingssetter {
             string textureSourcePath = Path.GetFullPath(args[1]);
             Dictionary<string, int> maxResolutionsByPlatformId = ParsePlatformResolutionArguments(args);
 
-            ContentManager contentManager = new ContentManager(Path.Combine(projectRootPath, "assets"));
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets")));
             AssetImportManager importManager = new AssetImportManager(projectRootPath, contentManager);
             TextureImporterRegistration registration = new TextureImporterRegistration("gdi", new GDITextureImporter(), new[] { ".png" });
             registration.Register(importManager);

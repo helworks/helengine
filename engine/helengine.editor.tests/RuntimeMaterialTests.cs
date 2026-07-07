@@ -64,6 +64,53 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures generic runtime materials resolve one explicitly assigned primary texture without requiring shader bindings.
+        /// </summary>
+        [Fact]
+        public void ResolvePrimaryTexture_WhenBaseMaterialHasAssignedTexture_ReturnsAssignedTexture() {
+            RuntimeMaterial material = new RuntimeMaterial();
+            TestRuntimeTexture texture = new TestRuntimeTexture();
+
+            material.SetPrimaryTexture(texture);
+
+            RuntimeTexture resolvedTexture = material.ResolvePrimaryTexture();
+
+            Assert.Same(texture, resolvedTexture);
+        }
+
+        /// <summary>
+        /// Ensures child runtime materials inherit the generic primary texture from their parent when they do not override it locally.
+        /// </summary>
+        [Fact]
+        public void ResolvePrimaryTexture_WhenChildHasNoOverride_InheritsParentTexture() {
+            RuntimeMaterial parentMaterial = new RuntimeMaterial();
+            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            TestRuntimeTexture parentTexture = new TestRuntimeTexture();
+            parentMaterial.SetPrimaryTexture(parentTexture);
+            childMaterial.SetParentMaterial(parentMaterial);
+
+            RuntimeTexture resolvedTexture = childMaterial.ResolvePrimaryTexture();
+
+            Assert.Same(parentTexture, resolvedTexture);
+        }
+
+        /// <summary>
+        /// Ensures shader runtime materials route the generic primary-texture assignment through their first texture binding.
+        /// </summary>
+        [Fact]
+        public void SetPrimaryTexture_WhenShaderMaterialHasTextureBinding_AssignsFirstTextureBinding() {
+            TestRuntimeMaterial material = new TestRuntimeMaterial();
+            MaterialLayout layout = CreateFirstLayout();
+            TestRuntimeTexture texture = new TestRuntimeTexture();
+            material.SetLayout(layout);
+
+            material.SetPrimaryTexture(texture);
+
+            Assert.Same(texture, material.Properties.GetTexture(0));
+            Assert.Same(texture, material.ResolvePrimaryTexture());
+        }
+
+        /// <summary>
         /// Ensures materials resolve assigned constant-buffer data from their local property block.
         /// </summary>
         [Fact]

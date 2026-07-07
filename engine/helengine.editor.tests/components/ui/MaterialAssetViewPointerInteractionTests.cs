@@ -27,7 +27,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
         Directory.CreateDirectory(TempRootPath);
 
         Core core = new Core(new CoreInitializationOptions {
-            ContentRootPath = TempRootPath
+            ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
         });
         Input = new TestInputBackend();
         core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
@@ -307,3 +307,4 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
             ButtonState.Released);
     }
 }
+

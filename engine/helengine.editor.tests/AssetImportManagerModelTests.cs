@@ -73,7 +73,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RegisterModelImporter_WhenIdAlreadyRegisteredForTexture_Throws() {
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("shared-id", new TestTextureImporter(), new[] { ".png" }));
 
@@ -408,7 +408,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(modelImporter));
             }
 
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterModelImporter(new ModelImporterRegistration("test-model", modelImporter, new[] { ".obj", ".x" }));
             return manager;
@@ -424,7 +424,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(modelImporter));
             }
 
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterModelImporter(new ModelImporterRegistration("test-model", modelImporter, new[] { ".obj", ".x" }));
             return manager;

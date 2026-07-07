@@ -21,7 +21,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -619,7 +619,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void PropertiesPanel_WhenAssetSettingsAreApplied_ForwardsTheRichApplyPayload() {
-            ContentManager contentManager = new ContentManager(TempRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             PropertiesPanel panel = new PropertiesPanel(CreateFont(), contentManager);
             AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile(
                 "Sponza.obj",
@@ -798,3 +798,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

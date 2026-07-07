@@ -298,7 +298,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// <returns>Initialized core instance for scene-map tests.</returns>
         Core CreateCore(RuntimeSceneCatalog sceneCatalog = null, TestInputBackend inputBackend = null) {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath,
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath),
                 SceneCatalog = sceneCatalog,
                 ScenePathResolver = new TestSceneIdPathResolver(new Dictionary<string, string>(StringComparer.Ordinal) {
                     { "Scenes/AuthoredMenu.helen", "Scenes/AuthoredMenu.helen" }
@@ -841,3 +841,4 @@ namespace helengine.editor.tests.serialization.scene {
         }
     }
 }
+

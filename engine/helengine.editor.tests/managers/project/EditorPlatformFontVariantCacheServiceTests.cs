@@ -149,7 +149,7 @@ public sealed class EditorPlatformFontVariantCacheServiceTests : IDisposable {
             throw new ArgumentNullException(nameof(fontImporter));
         }
 
-        ContentManager contentManager = new ContentManager(AssetsRootPath);
+        ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
         AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
         manager.RegisterFontImporter(new FontImporterRegistration("test-font", fontImporter, [".ttf"]));
         return manager;

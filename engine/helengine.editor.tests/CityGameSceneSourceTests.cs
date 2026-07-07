@@ -43,6 +43,7 @@ public sealed class CityGameSceneSourceTests {
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("CreateTiltTrialScene()", source, StringComparison.Ordinal);
+        Assert.Contains("entity.LocalPosition = new float3(0f, 3.675f, 1f);", source, StringComparison.Ordinal);
         Assert.Contains("\"StageRoot\"", source, StringComparison.Ordinal);
         Assert.Contains("\"StartPad\"", source, StringComparison.Ordinal);
         Assert.Contains("\"Ramp\"", source, StringComparison.Ordinal);
@@ -52,6 +53,18 @@ public sealed class CityGameSceneSourceTests {
         Assert.Contains("new city.game.DemoTiltStageComponent", source, StringComparison.Ordinal);
         Assert.Contains("new city.game.DemoTiltBallResetComponent", source, StringComparison.Ordinal);
         Assert.Contains("new city.game.DemoTiltFollowCameraComponent", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the Tilt Trial scene factory writes the tuned controller values directly into the generated authored scene instead of relying on stale serialized defaults.
+    /// </summary>
+    [Fact]
+    public void City_tilt_trial_source_writes_explicit_stage_drive_tuning() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("MaximumPlanarSpeed = 7.5f", source, StringComparison.Ordinal);
+        Assert.Contains("PlanarAccelerationUnitsPerSecond = 2.5f", source, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -69,5 +82,20 @@ public sealed class CityGameSceneSourceTests {
         Assert.Contains("Materials.rendering.tilt_trial.PlayerSphereWalnut", gameSceneFactorySource, StringComparison.Ordinal);
         Assert.Contains("TiltTrialPlayerSphereWalnutMaterialFactory", gameSceneGeneratorSource, StringComparison.Ordinal);
         Assert.Contains("materials/rendering/tilt_trial/PlayerSphereWalnut.hasset", preparationSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the Tilt Trial generated UI includes a packaged speed label that follows the player sphere target.
+    /// </summary>
+    [Fact]
+    public void City_tilt_trial_scene_source_includes_ball_speed_hud() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("\"TiltTrialSpeedText\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"0 km/h\"", source, StringComparison.Ordinal);
+        Assert.Contains("new city.game.DemoTiltSpeedTextComponent()", source, StringComparison.Ordinal);
+        Assert.Contains("ConfigureTiltTrialSpeedTextTarget(uiEntity, playerSphereEntity);", source, StringComparison.Ordinal);
+        Assert.Contains("CreateEditorUiFontReference()", source, StringComparison.Ordinal);
     }
 }

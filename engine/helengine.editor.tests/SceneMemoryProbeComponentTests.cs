@@ -345,7 +345,7 @@ namespace helengine.editor.tests {
             RuntimeSceneCatalog sceneCatalog = null,
             FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null) {
             TestClockDrivenCore core = new TestClockDrivenCore(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath,
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath),
                 SceneCatalog = sceneCatalog,
                 RuntimeDiagnosticsProvider = runtimeDiagnosticsProvider
             });
@@ -354,3 +354,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

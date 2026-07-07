@@ -121,8 +121,8 @@ namespace helengine.editor.tests {
         /// <returns>Configured bake service.</returns>
         TextComponentSpriteBakeService CreateService(IRenderTargetTextureAssetReader reader) {
             string assetsRootPath = Path.Combine(ProjectRootPath, "assets");
-            ContentManager contentManager = new ContentManager(assetsRootPath);
-            AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, new ContentManager(assetsRootPath));
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(assetsRootPath));
+            AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, new ContentManager(new HostFileSystemContentStreamSource(assetsRootPath)));
 
             return new TextComponentSpriteBakeService(
                 Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D),

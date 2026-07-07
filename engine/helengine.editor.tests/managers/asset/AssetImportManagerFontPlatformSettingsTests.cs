@@ -43,7 +43,7 @@ namespace helengine.editor.tests.managers.asset {
             Directory.CreateDirectory(Path.GetDirectoryName(sourcePath) ?? throw new InvalidOperationException("Font directory path could not be resolved."));
             File.WriteAllBytes(sourcePath, [0x01, 0x02, 0x03]);
 
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             RecordingFontImporter importer = new RecordingFontImporter();
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterFontImporter(new FontImporterRegistration("test-font", importer, [".ttf"]));

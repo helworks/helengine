@@ -36,7 +36,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(AssetsRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             Input = new TestInputBackend();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
@@ -83,7 +83,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RequestModelPick_WhenFileSystemModelIsSelected_DoesNotLeavePickerUpButtonVisible() {
             string sourcePath = WriteSourceModel("Sponza.obj");
-            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
@@ -131,7 +131,7 @@ namespace helengine.editor.tests {
             WriteSourceModel("Sponza.obj");
             CreateModalCamera(1280, 720);
 
-            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
@@ -197,7 +197,7 @@ namespace helengine.editor.tests {
             WriteSourceModel("Models/Sponza.obj");
             CreateModalCamera(1280, 720);
 
-            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
@@ -241,7 +241,7 @@ namespace helengine.editor.tests {
         /// <returns>Editor session configured for filesystem model asset selection tests.</returns>
         EditorSession CreateSession() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(TempProjectRootPath, contentManager);
             PropertiesPanel propertiesPanel = new PropertiesPanel(CreateFont(), contentManager);
             PreviewPanel previewPanel = new PreviewPanel(CreateFont());
@@ -687,4 +687,5 @@ namespace helengine.editor.tests {
         }
     }
 }
+
 

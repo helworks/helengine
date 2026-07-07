@@ -5,7 +5,6 @@
     { "id": "text2d", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "shaders", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "debug_overlay", "defaultMode": "auto", "conflictPolicy": "error" },
-    { "id": "runtime_json", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "reflection_like_runtime", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "managed_metadata_only", "defaultMode": "disabled", "conflictPolicy": "error" },
     { "id": "host_file_system", "defaultMode": "auto", "conflictPolicy": "error" },
@@ -91,14 +90,11 @@
     { "typeName": "helengine.MaterialLayoutBuilder", "featureIds": [ "shaders", "text_processing" ] },
     { "typeName": "helengine.MaterialPropertyBlock", "featureIds": [ "shaders", "text_processing" ] },
     { "typeName": "helengine.IShaderRenderManager3D", "featureIds": [ "shaders", "text_processing" ] },
-    { "typeName": "helengine.core.content.RuntimeManifestJsonReader", "featureIds": [ "runtime_json", "text_processing" ] },
     { "typeName": "helengine.TextContentProcessor", "featureIds": [ "text_processing" ] },
     { "typeName": "helengine.TextContentManagerConfiguration", "featureIds": [ "text_processing" ] },
-    { "typeName": "helengine.core.content.RuntimeStartupManifest", "featureIds": [ "runtime_json", "host_file_system" ] },
-    { "typeName": "helengine.core.content.RuntimeCodeModuleManifest", "featureIds": [ "runtime_json", "host_file_system" ] },
     { "typeName": "helengine.GeneratedRuntimeModuleManifestAttribute", "featureIds": [ "managed_metadata_only" ] },
     { "typeName": "helengine.RuntimeFeatureRequirementAttribute", "featureIds": [ "managed_metadata_only" ] },
-    { "typeName": "helengine.ContentManager", "featureIds": [ "host_file_system" ] }
+    { "typeName": "helengine.HostFileSystemContentStreamSource", "featureIds": [ "host_file_system" ] }
   ],
   "runtimeRequirements": [
     { "requirementId": "StringBuilder", "featureIds": [ "debug_overlay", "shaders", "text_processing" ] },

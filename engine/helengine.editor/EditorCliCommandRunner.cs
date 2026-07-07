@@ -35,7 +35,7 @@ namespace helengine.editor {
             using DirectX11Renderer3D renderer3D = new DirectX11Renderer3D();
             using EditorCore core = new EditorCore(null);
             CoreInitializationOptions initializationOptions = new CoreInitializationOptions {
-                ContentRootPath = Path.Combine(bootstrap.ProjectRootPath, "assets")
+                ContentStreamSource = new HostFileSystemContentStreamSource(Path.Combine(bootstrap.ProjectRootPath, "assets"))
             };
             PlatformInfo platformInfo = new PlatformInfo("editor", bootstrap.RequiredEngineVersion);
             core.Initialize(renderer3D, renderer3D.Render2D, null, platformInfo, initializationOptions);

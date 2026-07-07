@@ -39,11 +39,15 @@ namespace helengine {
         /// <summary>
         /// Builds a runtime model from one platform-owned cooked model payload.
         /// </summary>
-        /// <param name="cookedAssetPath">Absolute path to the cooked model payload.</param>
+        /// <param name="cookedAssetPath">Runtime asset path of the cooked model payload.</param>
+        /// <param name="contentStreamSource">Stream source that owns cooked asset reads for the active runtime.</param>
         /// <returns>Runtime model instance.</returns>
-        public virtual RuntimeModel BuildModelFromCooked(string cookedAssetPath) {
+        public virtual RuntimeModel BuildModelFromCooked(string cookedAssetPath, IContentStreamSource contentStreamSource) {
             if (string.IsNullOrWhiteSpace(cookedAssetPath)) {
                 throw new ArgumentException("Cooked model asset path must be provided.", nameof(cookedAssetPath));
+            }
+            if (contentStreamSource == null) {
+                throw new ArgumentNullException(nameof(contentStreamSource));
             }
 
             throw new NotSupportedException("This renderer does not support platform-owned cooked model creation.");
@@ -63,18 +67,13 @@ namespace helengine {
         /// Builds a runtime material from one raw material asset using the active renderer's asset-loading strategy.
         /// </summary>
         /// <param name="assetContentManager">Content manager that can load companion assets needed by the renderer.</param>
-        /// <param name="contentRootPath">Absolute packaged content root that owns the material asset.</param>
-        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="materialAssetPath">Runtime asset path to the serialized material asset.</param>
         /// <returns>Runtime material instance.</returns>
         public virtual RuntimeMaterial BuildMaterialFromRawAsset(
             ContentManager assetContentManager,
-            string contentRootPath,
             string materialAssetPath) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
-            }
-            if (string.IsNullOrWhiteSpace(contentRootPath)) {
-                throw new ArgumentException("Content root path must be provided.", nameof(contentRootPath));
             }
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
@@ -126,11 +125,15 @@ namespace helengine {
         /// <summary>
         /// Builds a runtime material directly from one platform-owned cooked material payload path.
         /// </summary>
-        /// <param name="cookedAssetPath">Absolute path to the cooked material payload.</param>
+        /// <param name="cookedAssetPath">Runtime asset path of the cooked material payload.</param>
+        /// <param name="contentStreamSource">Stream source that owns cooked asset reads for the active runtime.</param>
         /// <returns>Runtime material instance.</returns>
-        public virtual RuntimeMaterial BuildMaterialFromCooked(string cookedAssetPath) {
+        public virtual RuntimeMaterial BuildMaterialFromCooked(string cookedAssetPath, IContentStreamSource contentStreamSource) {
             if (string.IsNullOrWhiteSpace(cookedAssetPath)) {
                 throw new ArgumentException("Cooked material asset path must be provided.", nameof(cookedAssetPath));
+            }
+            if (contentStreamSource == null) {
+                throw new ArgumentNullException(nameof(contentStreamSource));
             }
 
             throw new NotSupportedException("This renderer does not support opaque platform-owned cooked material creation.");

@@ -22,7 +22,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             EditorSceneMutationService.Reset();
@@ -54,7 +54,7 @@ namespace helengine.editor.tests {
 
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
 
             ComponentPropertyRow modelRow = FindModelRow(view);
@@ -91,7 +91,7 @@ namespace helengine.editor.tests {
 
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
 
             ComponentPropertyRow modelRow = FindModelRow(view);
@@ -128,7 +128,7 @@ namespace helengine.editor.tests {
 
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
 
             ComponentPropertyRow materialRow = FindMaterialRow(view);
@@ -172,7 +172,7 @@ namespace helengine.editor.tests {
                 target => target.AddComponent(new MeshComponent()));
             EntityPlatformAddedComponentState addedComponentState = platformEditingService.AddPlatformOnlyComponent(descriptor, saveComponent, "windows");
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity, "windows");
 
             ComponentPropertyRow materialRow = FindMaterialRow(view);
@@ -203,7 +203,7 @@ namespace helengine.editor.tests {
             });
             new EditorProjectLocalSettingsService(TempRootPath, ["windows", "ps2"]).SaveActivePlatform("ps2");
             EditorProjectPaths.Initialize(TempRootPath);
-            ContentManager contentManager = new ContentManager(TempRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
@@ -394,3 +394,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

@@ -296,11 +296,13 @@ namespace helengine.editor {
         /// </summary>
         void InitializePackageBuilder() {
             ShaderCompileService compileService = BuildCompileService();
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(options.ShaderRootPath));
+            TextContentManagerConfiguration.Configure(contentManager);
             packageBuilder = new ShaderPackageBuilder(
                 compileService,
                 new ShaderModulePackageWriter(),
                 options.BuildOptions,
-                new ContentManager(options.ShaderRootPath));
+                contentManager);
         }
 
         /// <summary>

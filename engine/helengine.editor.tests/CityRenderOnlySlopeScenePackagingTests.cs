@@ -56,7 +56,7 @@ public sealed class CityRenderOnlySlopeScenePackagingTests : IDisposable {
     /// </summary>
     /// <returns>Configured component packaging transform service.</returns>
     SceneComponentPackagingTransformService CreatePackagingService() {
-        ContentManager contentManager = new ContentManager(CityProjectRootPath);
+        ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(CityProjectRootPath));
         AssetImportManager assetImportManager = new AssetImportManager(CityProjectRootPath, contentManager);
         assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
         assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
@@ -86,7 +86,7 @@ public sealed class CityRenderOnlySlopeScenePackagingTests : IDisposable {
     /// <returns>Initialized core instance.</returns>
     static Core CreateInitializedCore() {
         Core core = new Core(new CoreInitializationOptions {
-            ContentRootPath = Path.Combine(CityProjectRootPath, "assets")
+            ContentStreamSource = new HostFileSystemContentStreamSource(Path.Combine(CityProjectRootPath, "assets"))
         });
         core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         return core;
@@ -208,3 +208,4 @@ public sealed class CityRenderOnlySlopeScenePackagingTests : IDisposable {
         }
     }
 }
+

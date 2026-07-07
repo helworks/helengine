@@ -57,10 +57,9 @@ namespace helengine.editor.tests {
             WriteMaterialAsset(diffuseTextureAssetId);
             WriteImportedTextureAsset(diffuseTextureAssetId);
 
-            ContentManager contentManager = new ContentManager(ContentRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
             RuntimeMaterial runtimeMaterial = RenderManager3DValue.BuildMaterialFromRawAsset(
                 contentManager,
-                ContentRootPath,
                 Path.Combine(ContentRootPath, "cooked", "materials", "TestMaterial.hasset"));
 
             RuntimeTexture runtimeTexture = ShaderRuntimeMaterialAccess.Require(runtimeMaterial).ResolveTexture();
@@ -195,3 +194,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

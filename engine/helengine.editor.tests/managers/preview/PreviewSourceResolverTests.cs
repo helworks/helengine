@@ -31,11 +31,11 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(AssetsRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
 
-            ContentManager contentManager = new ContentManager(TempProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             AssetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             AssetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
@@ -206,3 +206,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

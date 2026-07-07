@@ -27,7 +27,7 @@ public sealed class CityRenderOnlySlopePackagedSceneRuntimeTests {
         using FileStream stream = File.OpenRead(PackagedScenePath);
         SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
         using Core core = new Core(new CoreInitializationOptions {
-            ContentRootPath = PackagedContentRootPath
+            ContentStreamSource = new HostFileSystemContentStreamSource(PackagedContentRootPath)
         });
         core.Initialize(new TestRenderManager3D(ShaderCompileTarget.DirectX11), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         BepuRuntimeComponentRegistration.Register(core);
@@ -105,3 +105,4 @@ public sealed class CityRenderOnlySlopePackagedSceneRuntimeTests {
         }
     }
 }
+

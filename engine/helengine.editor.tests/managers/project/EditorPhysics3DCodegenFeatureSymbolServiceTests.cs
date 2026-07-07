@@ -157,6 +157,64 @@ public sealed class EditorPhysics3DCodegenFeatureSymbolServiceTests : IDisposabl
     }
 
     /// <summary>
+    /// Verifies selected stable scene ids resolve the expected raw 3D physics feature flags for downstream generic runtime feature collectors.
+    /// </summary>
+    [Fact]
+    public void ResolveFeatureFlags_WithSelectedScenes_ReturnsExpectedPhysicsFeatureFlags() {
+        WriteSceneAsset(
+            "Scenes/PhysicsFlagsScene.helen",
+            new SceneAsset {
+                Id = "Scenes/PhysicsFlagsScene.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Ground",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateRigidBodyRecord(BodyKind3D.Static, false),
+                            CreateBoxColliderRecord(new float3(8f, 1f, 8f), false)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 2u,
+                        Name = "DynamicBox",
+                        LocalPosition = new float3(0f, 2f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateRigidBodyRecord(BodyKind3D.Dynamic, true),
+                            CreateBoxColliderRecord(new float3(1f, 1f, 1f), false)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 3u,
+                        Name = "Trigger",
+                        LocalPosition = new float3(0f, 1f, 2f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateRigidBodyRecord(BodyKind3D.Static, false),
+                            CreateBoxColliderRecord(new float3(2f, 2f, 2f), true)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+        EditorPhysics3DCodegenFeatureSymbolService service = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
+
+        PhysicsSceneFeatureFlags3D featureFlags = service.ResolveFeatureFlags(["PhysicsFlagsScene"]);
+
+        Assert.Equal(
+            PhysicsSceneFeatureFlags3D.TriggerEvents | PhysicsSceneFeatureFlags3D.BoxBoxContact,
+            featureFlags);
+    }
+
+    /// <summary>
     /// Writes one serialized scene asset into the temporary source project.
     /// </summary>
     /// <param name="sceneId">Project-relative scene id.</param>

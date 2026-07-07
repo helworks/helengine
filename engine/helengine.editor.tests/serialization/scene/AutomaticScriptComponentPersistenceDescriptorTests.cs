@@ -19,7 +19,7 @@ namespace helengine.editor.tests.serialization.scene {
             Directory.CreateDirectory(TempContentRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempContentRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempContentRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -561,3 +561,4 @@ namespace helengine.editor.tests.serialization.scene {
         }
     }
 }
+

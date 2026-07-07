@@ -89,7 +89,7 @@ namespace helengine {
             }
 
             string path = GetBinaryPath(programName, variant);
-            ContentManager contentManager = new ContentManager(RootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(RootPath));
             RawByteContent binaryContent = contentManager.Load<RawByteContent>(path);
             return binaryContent.Bytes;
         }

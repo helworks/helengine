@@ -22,7 +22,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -91,7 +91,7 @@ namespace helengine.editor.tests {
         /// <returns>Editor session instance configured for generated-asset selection tests.</returns>
         EditorSession CreateSessionForGeneratedSelection() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            PropertiesPanel propertiesPanel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel propertiesPanel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             PreviewPanel previewPanel = new PreviewPanel(CreateFont());
 
             SetPrivateField(session, "propertiesPanel", propertiesPanel);
@@ -171,3 +171,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

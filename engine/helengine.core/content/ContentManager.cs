@@ -1,13 +1,8 @@
 namespace helengine {
     /// <summary>
-    /// Loads processed or raw content from disk using processors selected by output type and file extension.
+    /// Loads processed or raw content using processors selected by output type and file extension.
     /// </summary>
     public class ContentManager {
-        /// <summary>
-        /// Processor id used for the built-in UTF-8 text loader.
-        /// </summary>
-        const string TextContentProcessorId = "core.text-content";
-
         /// <summary>
         /// Processor id used for the built-in raw-byte loader.
         /// </summary>
@@ -19,9 +14,9 @@ namespace helengine {
         const string WildcardExtension = "*";
 
         /// <summary>
-        /// Root directory used to resolve relative content paths.
+        /// Stream source used to open runtime asset payloads.
         /// </summary>
-        readonly string RootDirectoryPath;
+        readonly IContentStreamSource StreamSource;
         /// <summary>
         /// Registered processors keyed by stable identifier.
         /// </summary>
@@ -32,26 +27,24 @@ namespace helengine {
         readonly Dictionary<Type, Dictionary<string, ContentProcessorRegistration>> DefaultProcessorsByTypeAndExtension;
 
         /// <summary>
-        /// Initializes a new content manager rooted at the provided directory.
+        /// Initializes a new content manager backed by one explicit content stream source.
         /// </summary>
-        /// <param name="rootDirectory">Directory used to resolve relative content paths.</param>
-        public ContentManager(string rootDirectory) {
-            if (string.IsNullOrWhiteSpace(rootDirectory)) {
-                throw new ArgumentException("Root directory must be provided.", nameof(rootDirectory));
+        /// <param name="streamSource">Source that opens runtime content streams for requested asset paths.</param>
+        public ContentManager(IContentStreamSource streamSource) {
+            if (streamSource == null) {
+                throw new ArgumentNullException(nameof(streamSource));
             }
 
-            RootDirectoryPath = HasVirtualRootPrefix(rootDirectory)
-                ? rootDirectory
-                : Path.GetFullPath(rootDirectory);
+            StreamSource = streamSource;
             ProcessorRegistrationsById = new Dictionary<string, ContentProcessorRegistration>(StringComparer.OrdinalIgnoreCase);
             DefaultProcessorsByTypeAndExtension = new Dictionary<Type, Dictionary<string, ContentProcessorRegistration>>();
             RegisterBuiltInProcessors();
         }
 
         /// <summary>
-        /// Gets the root directory used to resolve relative content paths.
+        /// Gets the stream source that owns runtime asset stream creation for this content manager.
         /// </summary>
-        public string RootDirectory => RootDirectoryPath;
+        public IContentStreamSource ContentStreamSource => StreamSource;
 
         /// <summary>
         /// Determines whether a processor id is already registered on this content manager.
@@ -118,9 +111,8 @@ namespace helengine {
         /// <param name="processorId">Optional processor identifier used to override default resolution.</param>
         /// <returns>Loaded content value.</returns>
         public T Load<T>(string assetPath, string processorId = null) {
-            string fullPath = ResolveContentPath(assetPath);
-            IContentProcessor<T> processor = ResolveProcessor<T>(fullPath, processorId);
-            return LoadProcessedContent(fullPath, processor);
+            IContentProcessor<T> processor = ResolveProcessor<T>(assetPath, processorId);
+            return LoadProcessedContent(assetPath, processor);
         }
 
         /// <summary>
@@ -135,20 +127,19 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(processor));
             }
 
-            string fullPath = ResolveContentPath(assetPath);
-            return LoadProcessedContent(fullPath, processor);
+            return LoadProcessedContent(assetPath, processor);
         }
 
         /// <summary>
         /// Loads processed content from disk using the supplied typed processor.
         /// </summary>
         /// <typeparam name="T">Type of content to load.</typeparam>
-        /// <param name="fullPath">Absolute file system path to the content file.</param>
+        /// <param name="assetPath">Runtime asset path supplied by the caller.</param>
         /// <param name="processor">Processor instance used to parse the content.</param>
         /// <returns>Loaded content value.</returns>
-        T LoadProcessedContent<T>(string fullPath, IContentProcessor<T> processor) {
-            if (string.IsNullOrWhiteSpace(fullPath)) {
-                throw new ArgumentException("Content path must be provided.", nameof(fullPath));
+        T LoadProcessedContent<T>(string assetPath, IContentProcessor<T> processor) {
+            if (string.IsNullOrWhiteSpace(assetPath)) {
+                throw new ArgumentException("Content path must be provided.", nameof(assetPath));
             }
             if (processor == null) {
                 throw new ArgumentNullException(nameof(processor));
@@ -156,12 +147,16 @@ namespace helengine {
 
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             string previousReadStage = EngineBinaryReadContext.CurrentReadStage;
-            EngineBinaryReadContext.CurrentAssetPath = fullPath;
+            EngineBinaryReadContext.CurrentAssetPath = assetPath;
             EngineBinaryReadContext.CurrentReadStage = "ContentManager:OpenRead";
             try {
-                using FileStream stream = File.OpenRead(fullPath);
+                using Stream stream = StreamSource.OpenRead(assetPath);
                 EngineBinaryReadContext.CurrentReadStage = "ContentManager:ProcessorRead";
                 return processor.Read(stream);
+            } catch (Exception exception) when (ShouldWrapContentReadFailure(exception)) {
+                throw new InvalidOperationException(
+                    $"{exception.Message} (asset_path='{EngineBinaryReadContext.CurrentAssetPath}', read_stage='{EngineBinaryReadContext.CurrentReadStage}')",
+                    exception);
             } finally {
                 EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
                 EngineBinaryReadContext.CurrentReadStage = previousReadStage;
@@ -172,12 +167,12 @@ namespace helengine {
         /// Resolves the processor used for one content load.
         /// </summary>
         /// <typeparam name="T">Requested output type.</typeparam>
-        /// <param name="fullPath">Absolute file path to load.</param>
+        /// <param name="assetPath">Runtime asset path to load.</param>
         /// <param name="processorId">Optional explicit processor identifier.</param>
         /// <returns>Typed processor instance.</returns>
-        IContentProcessor<T> ResolveProcessor<T>(string fullPath, string processorId) {
+        IContentProcessor<T> ResolveProcessor<T>(string assetPath, string processorId) {
             ContentProcessorRegistration registration = string.IsNullOrWhiteSpace(processorId)
-                ? ResolveDefaultProcessorRegistration(typeof(T), fullPath)
+                ? ResolveDefaultProcessorRegistration(typeof(T), assetPath)
                 : ResolveExplicitProcessorRegistration(typeof(T), processorId);
             if (registration.Processor is IContentProcessor<T> typedProcessor) {
                 return typedProcessor;
@@ -191,23 +186,23 @@ namespace helengine {
         /// Resolves the default processor registration for a type and file path.
         /// </summary>
         /// <param name="requestedType">Requested output type.</param>
-        /// <param name="fullPath">Absolute file path being loaded.</param>
+        /// <param name="assetPath">Runtime asset path being loaded.</param>
         /// <returns>Matching processor registration.</returns>
-        ContentProcessorRegistration ResolveDefaultProcessorRegistration(Type requestedType, string fullPath) {
+        ContentProcessorRegistration ResolveDefaultProcessorRegistration(Type requestedType, string assetPath) {
             if (requestedType == null) {
                 throw new ArgumentNullException(nameof(requestedType));
             }
-            if (string.IsNullOrWhiteSpace(fullPath)) {
-                throw new ArgumentException("Content path must be provided.", nameof(fullPath));
+            if (string.IsNullOrWhiteSpace(assetPath)) {
+                throw new ArgumentException("Content path must be provided.", nameof(assetPath));
             }
 
             if (!DefaultProcessorsByTypeAndExtension.TryGetValue(requestedType, out Dictionary<string, ContentProcessorRegistration> registrationsByExtension)) {
                 throw new InvalidOperationException($"No content processors are registered for type '{requestedType.Name}'.");
             }
 
-            string fileName = Path.GetFileName(fullPath);
+            string fileName = Path.GetFileName(assetPath);
             if (string.IsNullOrWhiteSpace(fileName)) {
-                throw new InvalidOperationException($"Unable to resolve a content processor for '{requestedType.Name}' because '{fullPath}' does not contain a file name.");
+                throw new InvalidOperationException($"Unable to resolve a content processor for '{requestedType.Name}' because '{assetPath}' does not contain a file name.");
             }
 
             string extension;
@@ -269,114 +264,14 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves a relative or absolute content path to an absolute file system path.
+        /// Determines whether one read failure should be wrapped with asset-path and read-stage diagnostics.
         /// </summary>
-        /// <param name="assetPath">Absolute path or root-relative path to the content file.</param>
-        /// <returns>Absolute file system path.</returns>
-        string ResolveContentPath(string assetPath) {
-            if (string.IsNullOrWhiteSpace(assetPath)) {
-                throw new ArgumentException("Asset path must be provided.", nameof(assetPath));
-            }
-
-            if (HasVirtualRootPrefix(assetPath)) {
-                return assetPath;
-            }
-
-            if (Path.IsPathRooted(assetPath)) {
-                return Path.GetFullPath(assetPath);
-            }
-
-            if (HasVirtualRootPrefix(RootDirectoryPath)) {
-                return CombineVirtualRootedPath(RootDirectoryPath, assetPath);
-            }
-
-            return Path.GetFullPath(Path.Combine(RootDirectoryPath, assetPath));
-        }
-
-        /// <summary>
-        /// Combines one relative path beneath a virtual rooted content prefix such as <c>dvd:/</c>.
-        /// </summary>
-        /// <param name="rootPath">Virtual rooted content prefix.</param>
-        /// <param name="relativePath">Relative path to append beneath the prefix.</param>
-        /// <returns>Combined virtual rooted path.</returns>
-        static string CombineVirtualRootedPath(string rootPath, string relativePath) {
-            if (string.IsNullOrWhiteSpace(rootPath)) {
-                throw new ArgumentException("Root path must be provided.", nameof(rootPath));
-            }
-            if (string.IsNullOrWhiteSpace(relativePath)) {
-                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
-            }
-
-            return EnsureTrailingDirectorySeparator(rootPath) + TrimLeadingDirectorySeparators(relativePath);
-        }
-
-        /// <summary>
-        /// Returns whether one path uses a virtual platform root such as <c>dvd:/...</c> that must be preserved verbatim.
-        /// </summary>
-        /// <param name="path">Path text to inspect.</param>
-        /// <returns>True when the path uses a non-drive virtual root prefix; otherwise false.</returns>
-        static bool HasVirtualRootPrefix(string path) {
-            if (string.IsNullOrWhiteSpace(path)) {
-                return false;
-            }
-
-            int colonIndex = -1;
-            for (int index = 0; index < path.Length; index++) {
-                if (path[index] == ':') {
-                    colonIndex = index;
-                    break;
-                }
-            }
-
-            if (colonIndex <= 0) {
-                return false;
-            } else if (colonIndex == 1) {
-                return false;
-            } else if (colonIndex >= path.Length - 1) {
-                return false;
-            }
-
-            char nextCharacter = path[colonIndex + 1];
-            return nextCharacter == Path.DirectorySeparatorChar || nextCharacter == Path.AltDirectorySeparatorChar;
-        }
-
-        /// <summary>
-        /// Ensures one directory path ends with a trailing separator before prefix combinations occur.
-        /// </summary>
-        /// <param name="path">Directory path that should end with a separator.</param>
-        /// <returns>Directory path with a trailing separator.</returns>
-        static string EnsureTrailingDirectorySeparator(string path) {
-            if (path.EndsWith(Path.DirectorySeparatorChar) || path.EndsWith(Path.AltDirectorySeparatorChar)) {
-                return path;
-            }
-
-            return path + Path.DirectorySeparatorChar;
-        }
-
-        /// <summary>
-        /// Trims any leading directory separators from one relative path before it is combined beneath a virtual root.
-        /// </summary>
-        /// <param name="path">Relative path whose leading separators should be removed.</param>
-        /// <returns>Relative path without leading separators.</returns>
-        static string TrimLeadingDirectorySeparators(string path) {
-            if (string.IsNullOrWhiteSpace(path)) {
-                return string.Empty;
-            }
-
-            int startIndex = 0;
-            while (startIndex < path.Length
-                && (path[startIndex] == Path.DirectorySeparatorChar || path[startIndex] == Path.AltDirectorySeparatorChar)) {
-                startIndex++;
-            }
-
-            if (startIndex == 0) {
-                return path;
-            }
-            if (startIndex >= path.Length) {
-                return string.Empty;
-            }
-
-            return path.Substring(startIndex);
+        /// <param name="exception">Failure thrown during stream opening or processor execution.</param>
+        /// <returns>True when the failure should be wrapped with content-read context.</returns>
+        static bool ShouldWrapContentReadFailure(Exception exception) {
+            return exception is not OutOfMemoryException
+                && exception is not StackOverflowException
+                && exception is not AccessViolationException;
         }
 
         /// <summary>
@@ -444,13 +339,9 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Registers the built-in raw text and raw byte processors available on every content manager.
+        /// Registers the built-in raw-byte processor available on every content manager.
         /// </summary>
         void RegisterBuiltInProcessors() {
-            RegisterProcessor(
-                TextContentProcessorId,
-                new TextContentProcessor(),
-                new[] { WildcardExtension });
             RegisterProcessor(
                 RawByteContentProcessorId,
                 new RawByteContentProcessor(),

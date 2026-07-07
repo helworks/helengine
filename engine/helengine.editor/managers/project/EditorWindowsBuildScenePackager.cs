@@ -288,6 +288,10 @@ namespace helengine.editor {
         /// Hasher used to compute stable source and settings hashes for builder-owned platform cook work items.
         /// </summary>
         readonly AssetFileHasher FileHasher;
+        /// <summary>
+        /// Resolves editor-authored animation clips into flat platform-specific runtime clips before packaging writes them into the player content root.
+        /// </summary>
+        readonly AnimationClipPlatformResolutionService AnimationClipPlatformResolutionService;
 
         /// <summary>
         /// Initializes one Windows scene packager for the supplied project root.
@@ -489,7 +493,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
-            ProjectContentManager = new ContentManager(AssetsRootPath);
+            ProjectContentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(ProjectContentManager);
             DefaultFontAsset = defaultFontAsset;
             string effectiveTargetPlatformId = targetPlatformId;
@@ -505,7 +509,7 @@ namespace helengine.editor {
             SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
 
-            ContentManager importContentManager = new ContentManager(AssetsRootPath);
+            ContentManager importContentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager = new AssetImportManager(ProjectRootPath, importContentManager);
             AssetImportManager.CurrentPlatformId = TargetPlatformId;
             PlatformFontVariantCacheService = new EditorPlatformFontVariantCacheService(AssetImportManager);
@@ -526,6 +530,7 @@ namespace helengine.editor {
             PlatformId = effectiveTargetPlatformId;
             PlatformDefinition = platformDefinition;
             FileHasher = new AssetFileHasher();
+            AnimationClipPlatformResolutionService = new AnimationClipPlatformResolutionService();
             ComponentSupportRulesByTypeId = BuildEffectiveSupportRuleLookup(platformDefinition?.ComponentSupportRules);
             ITextComponentSpriteBakeService effectiveTextComponentSpriteBakeService = textComponentSpriteBakeService;
             if (effectiveTextComponentSpriteBakeService == null &&
@@ -564,11 +569,31 @@ namespace helengine.editor {
         /// <param name="buildRootPath">Absolute build root path that will host the packaged content.</param>
         /// <returns>Scene-packaging result that carries the referenced shader ids.</returns>
         public EditorPlatformBuildScenePackagerResult Package(IReadOnlyList<string> sceneIds, string buildRootPath) {
+            return PackagePreservingIdentityPaths(sceneIds, sceneIds, buildRootPath);
+        }
+
+        /// <summary>
+        /// Packages the selected scenes by reading authored source paths while preserving canonical scene identity paths for packaged output names.
+        /// </summary>
+        /// <param name="sceneIds">Project-relative canonical scene ids or authored identity paths selected for the build.</param>
+        /// <param name="sceneSourcePaths">Project-relative authored source paths that should be loaded for each selected scene.</param>
+        /// <param name="buildRootPath">Absolute build root path that will host the packaged content.</param>
+        /// <returns>Scene-packaging result that carries the referenced shader ids.</returns>
+        public EditorPlatformBuildScenePackagerResult PackagePreservingIdentityPaths(
+            IReadOnlyList<string> sceneIds,
+            IReadOnlyList<string> sceneSourcePaths,
+            string buildRootPath) {
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
+            if (sceneSourcePaths == null) {
+                throw new ArgumentNullException(nameof(sceneSourcePaths));
+            }
             if (sceneIds.Count == 0) {
                 throw new InvalidOperationException($"At least one scene must be selected for platform '{PlatformId}'.");
+            }
+            if (sceneIds.Count != sceneSourcePaths.Count) {
+                throw new InvalidOperationException("Canonical scene ids and authored source paths must contain the same number of entries.");
             }
             if (string.IsNullOrWhiteSpace(buildRootPath)) {
                 throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
@@ -585,7 +610,9 @@ namespace helengine.editor {
 
             for (int index = 0; index < sceneIds.Count; index++) {
                 string sceneId = sceneIds[index];
-                SceneAsset packagedSceneAsset = LoadSceneAsset(sceneId);
+                string sceneSourcePath = sceneSourcePaths[index];
+                SceneAsset packagedSceneAsset = LoadSceneAsset(sceneId, sceneSourcePath);
+                packagedSceneAsset.Id = sceneId;
                 RewriteSceneAsset(packagedSceneAsset, fullBuildRootPath);
 
                 string packagedSceneRelativePath = BuildPackagedSceneRelativePath(sceneId, index);
@@ -598,21 +625,25 @@ namespace helengine.editor {
         /// <summary>
         /// Loads one selected scene asset from the source project.
         /// </summary>
-        /// <param name="sceneId">Project-relative scene id to load.</param>
+        /// <param name="sceneId">Project-relative canonical scene id or identity path reported by the build graph.</param>
+        /// <param name="sceneSourcePath">Project-relative authored scene source path that should be deserialized.</param>
         /// <returns>Loaded serialized scene asset.</returns>
-        SceneAsset LoadSceneAsset(string sceneId) {
+        SceneAsset LoadSceneAsset(string sceneId, string sceneSourcePath) {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
             }
+            if (string.IsNullOrWhiteSpace(sceneSourcePath)) {
+                throw new ArgumentException("Scene source path must be provided.", nameof(sceneSourcePath));
+            }
 
-            string fullScenePath = ResolveProjectAssetPath(sceneId);
+            string fullScenePath = ResolveProjectAssetPath(sceneSourcePath);
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 EngineBinaryReadContext.CurrentAssetPath = fullScenePath;
                 using FileStream stream = File.OpenRead(fullScenePath);
                 Asset asset = AssetSerializer.Deserialize(stream);
                 if (asset is not SceneAsset sceneAsset) {
-                    throw new InvalidOperationException($"Scene '{sceneId}' did not deserialize into a SceneAsset.");
+                    throw new InvalidOperationException($"Scene '{sceneId}' sourced from '{sceneSourcePath}' did not deserialize into a SceneAsset.");
                 }
 
                 return sceneAsset;
@@ -637,9 +668,17 @@ namespace helengine.editor {
             }
 
             SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
+            List<SceneEntityAsset> rewrittenRootEntities = new List<SceneEntityAsset>(rootEntityAssets.Length);
             for (int index = 0; index < rootEntityAssets.Length; index++) {
-                RewriteEntityAsset(rootEntityAssets[index], buildRootPath);
+                SceneEntityAsset rootEntityAsset = rootEntityAssets[index];
+                if (rootEntityAsset == null || !ShouldEntityExistOnTargetPlatform(rootEntityAsset)) {
+                    continue;
+                }
+
+                RewriteEntityAsset(rootEntityAsset, buildRootPath);
+                rewrittenRootEntities.Add(rootEntityAsset);
             }
+            sceneAsset.RootEntities = rewrittenRootEntities.ToArray();
 
             SceneAssetReference[] assetReferences = sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>();
             List<SceneAssetReference> rewrittenAssetReferences = new List<SceneAssetReference>(assetReferences.Length);
@@ -662,6 +701,7 @@ namespace helengine.editor {
             }
 
             entityAsset.LayerMask = NormalizePackagedEntityLayerMask(entityAsset.LayerMask);
+            entityAsset.PlatformExistenceOverrides = Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
             ApplyTargetPlatformTransformOverride(entityAsset);
             ApplyTargetPlatformComponentOverrides(entityAsset);
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
@@ -670,9 +710,35 @@ namespace helengine.editor {
             }
 
             SceneEntityAsset[] childEntityAssets = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
+            List<SceneEntityAsset> rewrittenChildEntityAssets = new List<SceneEntityAsset>(childEntityAssets.Length);
             for (int index = 0; index < childEntityAssets.Length; index++) {
-                RewriteEntityAsset(childEntityAssets[index], buildRootPath);
+                SceneEntityAsset childEntityAsset = childEntityAssets[index];
+                if (childEntityAsset == null || !ShouldEntityExistOnTargetPlatform(childEntityAsset)) {
+                    continue;
+                }
+
+                RewriteEntityAsset(childEntityAsset, buildRootPath);
+                rewrittenChildEntityAssets.Add(childEntityAsset);
             }
+            entityAsset.Children = rewrittenChildEntityAssets.ToArray();
+        }
+
+        /// <summary>
+        /// Determines whether one serialized scene entity should exist in the packaged scene for the current target platform.
+        /// </summary>
+        /// <param name="entityAsset">Scene entity payload being evaluated.</param>
+        /// <returns>True when the entity should remain in the packaged scene; otherwise false.</returns>
+        bool ShouldEntityExistOnTargetPlatform(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                throw new ArgumentNullException(nameof(entityAsset));
+            }
+
+            SceneEntityPlatformExistenceOverrideAsset existenceOverride = FindTargetPlatformExistenceOverride(entityAsset);
+            if (existenceOverride == null) {
+                return true;
+            }
+
+            return existenceOverride.Exists;
         }
 
         /// <summary>
@@ -747,6 +813,36 @@ namespace helengine.editor {
 
             entityAsset.Components = effectiveComponents.ToArray();
             entityAsset.PlatformComponentOverrides = Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+        }
+
+        /// <summary>
+        /// Resolves the entity existence override that matches the current packaging target platform.
+        /// </summary>
+        /// <param name="entityAsset">Scene entity payload whose existence override should be resolved.</param>
+        /// <returns>Matching target-platform entity existence override when one exists; otherwise null.</returns>
+        SceneEntityPlatformExistenceOverrideAsset FindTargetPlatformExistenceOverride(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                throw new ArgumentNullException(nameof(entityAsset));
+            }
+
+            if (string.IsNullOrWhiteSpace(TargetPlatformId) ||
+                string.Equals(TargetPlatformId, EntityPlatformTransformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return null;
+            }
+
+            SceneEntityPlatformExistenceOverrideAsset[] existenceOverrides = entityAsset.PlatformExistenceOverrides ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
+            for (int index = 0; index < existenceOverrides.Length; index++) {
+                SceneEntityPlatformExistenceOverrideAsset existenceOverride = existenceOverrides[index];
+                if (existenceOverride == null || string.IsNullOrWhiteSpace(existenceOverride.PlatformId)) {
+                    continue;
+                }
+
+                if (string.Equals(existenceOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    return existenceOverride;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -864,6 +960,10 @@ namespace helengine.editor {
                 if (IsFileSystemMaterialReference(reference.RelativePath)) {
                     return RewriteFileSystemMaterialReference(reference, buildRootPath);
                 }
+                if (CanContainSerializedAnimationClip(fullExtension) &&
+                    TryRewriteSerializedAnimationClipReference(reference, fullPath, buildRootPath, out SceneAssetReference rewrittenAnimationClipReference)) {
+                    return rewrittenAnimationClipReference;
+                }
 
                 string copiedRelativePath = NormalizeRelativePath(reference.RelativePath);
                 CopyFile(fullPath, Path.Combine(buildRootPath, copiedRelativePath));
@@ -892,6 +992,107 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported scene asset reference source kind '{reference.SourceKind}'.");
+        }
+
+        /// <summary>
+        /// Returns whether the supplied file extension can contain one serialized animation clip asset that should be flattened during packaging.
+        /// </summary>
+        /// <param name="fullExtension">File extension read from the authored project asset path.</param>
+        /// <returns>True when the packager should inspect the payload for an animation clip; otherwise false.</returns>
+        static bool CanContainSerializedAnimationClip(string fullExtension) {
+            if (string.IsNullOrWhiteSpace(fullExtension)) {
+                return false;
+            }
+
+            return string.Equals(fullExtension, ".hanim", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Resolves one serialized animation clip reference for the selected platform and writes the flattened runtime payload into the packaged content root.
+        /// </summary>
+        /// <param name="reference">Scene asset reference being packaged.</param>
+        /// <param name="fullPath">Absolute authored asset path on disk.</param>
+        /// <param name="buildRootPath">Absolute packaged build root path.</param>
+        /// <param name="rewrittenReference">Resolved packaged reference when the payload is an animation clip.</param>
+        /// <returns>True when the authored payload contained one animation clip and was rewritten; otherwise false.</returns>
+        bool TryRewriteSerializedAnimationClipReference(
+            SceneAssetReference reference,
+            string fullPath,
+            string buildRootPath,
+            out SceneAssetReference rewrittenReference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Full path must be provided.", nameof(fullPath));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
+            rewrittenReference = null;
+            Asset serializedAsset = TryLoadSerializedProjectAsset(fullPath, reference.RelativePath);
+            if (serializedAsset is not AnimationClipAsset animationClipAsset) {
+                return false;
+            }
+
+            AnimationClipAsset resolvedAnimationClip = AnimationClipPlatformResolutionService.ResolveForPlatform(animationClipAsset, TargetPlatformId);
+            string copiedRelativePath = NormalizeRelativePath(reference.RelativePath);
+            WriteAsset(Path.Combine(buildRootPath, copiedRelativePath), resolvedAnimationClip);
+            rewrittenReference = CreateFileSystemReference(copiedRelativePath);
+            return true;
+        }
+
+        /// <summary>
+        /// Loads one serialized project asset so packaging can apply type-specific runtime rewrites before copying it into the build root.
+        /// </summary>
+        /// <param name="fullPath">Absolute authored asset path to inspect.</param>
+        /// <param name="relativePath">Project-relative authored asset path used for error context.</param>
+        /// <returns>Deserialized asset instance.</returns>
+        static Asset TryLoadSerializedProjectAsset(string fullPath, string relativePath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Full path must be provided.", nameof(fullPath));
+            }
+            if (!File.Exists(fullPath)) {
+                throw new InvalidOperationException($"Serialized project asset '{relativePath}' was not found at '{fullPath}'.");
+            }
+
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
+            try {
+                EngineBinaryReadContext.CurrentAssetPath = fullPath;
+                using FileStream stream = File.OpenRead(fullPath);
+                if (!UsesGenericEditorAssetSerialization(stream)) {
+                    return null;
+                }
+
+                return AssetSerializer.Deserialize(stream);
+            } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(relativePath ?? string.Empty, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Serialized project asset '{relativePath}' at '{fullPath}' could not be deserialized for packaging.", ex);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether the supplied project asset stream uses the generic editor-asset serializer that can contain animation clip payloads.
+        /// </summary>
+        /// <param name="stream">Readable project asset stream positioned at the start of the payload.</param>
+        /// <returns>True when the payload uses the generic editor-asset serializer; otherwise false.</returns>
+        static bool UsesGenericEditorAssetSerialization(Stream stream) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+            if (!stream.CanSeek) {
+                throw new InvalidOperationException("Serialized project asset inspection requires a seekable stream.");
+            }
+
+            long previousPosition = stream.Position;
+            try {
+                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                return header.FormatId == helengine.files.EditorAssetBinarySerializer.FormatId;
+            } finally {
+                stream.Position = previousPosition;
+            }
         }
 
         /// <summary>

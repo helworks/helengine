@@ -226,6 +226,52 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scene assets round-trip per-platform entity existence overrides through the HELE asset serializer.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_SceneAsset_WhenEntityUsesPlatformExistenceOverride_RoundTripsValues() {
+            SceneAsset asset = new SceneAsset {
+                Id = "Scenes/PlatformExistence.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 7u,
+                        Name = "Root",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        PlatformExistenceOverrides = new[] {
+                            new SceneEntityPlatformExistenceOverrideAsset {
+                                PlatformId = "Windows",
+                                Exists = true
+                            },
+                            new SceneEntityPlatformExistenceOverrideAsset {
+                                PlatformId = "Nintendo3DS",
+                                Exists = false
+                            }
+                        },
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            SceneAsset deserialized = Assert.IsType<SceneAsset>(AssetSerializer.DeserializeFromBytes(data));
+
+            SceneEntityAsset rootEntity = Assert.Single(deserialized.RootEntities);
+            Assert.Collection(
+                rootEntity.PlatformExistenceOverrides,
+                windowsOverride => {
+                    Assert.Equal("Windows", windowsOverride.PlatformId);
+                    Assert.True(windowsOverride.Exists);
+                },
+                nintendo3DsOverride => {
+                    Assert.Equal("Nintendo3DS", nintendo3DsOverride.PlatformId);
+                    Assert.False(nintendo3DsOverride.Exists);
+                });
+        }
+
+        /// <summary>
         /// Ensures legacy version-fourteen scene payloads default the dont-unload scene setting to false.
         /// </summary>
         [Fact]
@@ -674,7 +720,7 @@ namespace helengine.editor.tests {
                 RootEntities = Array.Empty<SceneEntityAsset>()
             };
             string scenePath = Path.Combine(TempRootPath, "BrowserTest.helen");
-            ContentManager contentManager = new ContentManager(TempRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
 
             using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
@@ -687,13 +733,54 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures typed content-load failures report the active asset path and read stage for diagnostics.
+        /// </summary>
+        [Fact]
+        public void ContentManager_Load_WithWrongAssetType_IncludesPathAndReadStageInExceptionMessage() {
+            TextureAsset asset = new TextureAsset {
+                Id = "Textures/WrongType",
+                Width = 1,
+                Height = 1,
+                Colors = new byte[] { 255, 255, 255, 255 }
+            };
+            string texturePath = Path.Combine(TempRootPath, "WrongType.hasset");
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+
+            using (FileStream stream = new FileStream(texturePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, asset);
+            }
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => contentManager.Load<SceneAsset>(texturePath, RuntimeContentProcessorIds.SceneAsset));
+
+            Assert.Contains("asset_path='", exception.Message);
+            Assert.Contains(texturePath, exception.Message);
+            Assert.Contains("read_stage='", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures runtime scene loads use one direct binary scene deserializer instead of the generic asset cast path.
+        /// </summary>
+        [Fact]
+        public void RuntimeContentManagerConfiguration_RegistersSceneAssetWithBinaryContentProcessor() {
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            var registrationsField = typeof(ContentManager).GetField("ProcessorRegistrationsById", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("Expected ProcessorRegistrationsById field was not found.");
+            var registrations = Assert.IsType<Dictionary<string, ContentProcessorRegistration>>(registrationsField.GetValue(contentManager));
+            ContentProcessorRegistration registration = Assert.Single(registrations, pair => pair.Key == RuntimeContentProcessorIds.SceneAsset).Value;
+
+            Assert.IsType<BinaryContentProcessor<SceneAsset>>(registration.Processor);
+        }
+
+        /// <summary>
         /// Ensures the editor content manager can load serialized asset import settings through the registered processor.
         /// </summary>
         [Fact]
         public void ContentManager_AssetImportSettings_RoundTripsSerializedFile() {
             AssetImportSettings settings = CreateAssetImportSettings();
             string settingsPath = Path.Combine(TempRootPath, "test.hasset");
-            ContentManager contentManager = new ContentManager(TempRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             EditorContentManagerConfiguration.ConfigureProjectContentManager(contentManager);
 
             using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
@@ -743,7 +830,7 @@ namespace helengine.editor.tests {
             using MemoryStream stream = new MemoryStream();
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Serialize(stream, settings));
-            Assert.Contains("negative texture max resolution", exception.Message);
+            Assert.Contains("Texture max resolution cannot be negative", exception.Message);
         }
 
         /// <summary>
@@ -809,7 +896,7 @@ namespace helengine.editor.tests {
                 AssetImportSettingsBinarySerializer.Serialize(stream, legacySettings);
             }
 
-            ContentManager contentManager = new ContentManager(TempRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             AssetImportManager manager = new AssetImportManager(TempRootPath, contentManager);
 
             ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);

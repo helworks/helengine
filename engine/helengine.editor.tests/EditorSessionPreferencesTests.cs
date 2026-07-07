@@ -27,7 +27,7 @@ namespace helengine.editor.tests {
             OriginalTheme = ThemeManager.Current;
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -255,7 +255,7 @@ namespace helengine.editor.tests {
         PropertiesPanel CreatePropertiesPanel(EditorUiMetrics metrics) {
             return new PropertiesPanel(
                 CreateFont(),
-                new ContentManager(TempRootPath),
+                new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)),
                 null,
                 new EditorEntity(),
                 null,
@@ -415,3 +415,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

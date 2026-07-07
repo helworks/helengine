@@ -4,9 +4,10 @@ namespace helengine {
     /// </summary>
     public class CoreInitializationOptions {
         /// <summary>
-        /// Gets or sets the root directory used by the core-owned content manager.
+        /// Gets or sets the content stream source used by the core-owned content manager.
+        /// This replaces the legacy content-root-path initialization seam with one explicit runtime asset source.
         /// </summary>
-        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public IContentStreamSource ContentStreamSource { get; set; } = new HostFileSystemContentStreamSource(AppContext.BaseDirectory);
 
         /// <summary>
         /// Gets or sets the number of update order layers available for convenience helpers.
@@ -78,8 +79,8 @@ namespace helengine {
         /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {
-            if (string.IsNullOrWhiteSpace(ContentRootPath)) {
-                throw new InvalidOperationException("ContentRootPath must be provided.");
+            if (ContentStreamSource == null) {
+                throw new InvalidOperationException("ContentStreamSource must be provided.");
             }
 
             if (UpdateOrderLayers < 1) {

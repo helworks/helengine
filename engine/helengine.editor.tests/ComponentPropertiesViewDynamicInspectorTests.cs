@@ -20,7 +20,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             EditorSceneMutationService.Reset();
@@ -48,7 +48,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -74,7 +74,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -96,7 +96,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -112,7 +112,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -128,7 +128,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -153,7 +153,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -179,7 +179,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(sceneMapComponent);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -196,7 +196,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(sceneMapComponent);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -222,7 +222,7 @@ namespace helengine.editor.tests {
             bool wasSceneMutated = false;
             Action handleSceneMutated = () => wasSceneMutated = true;
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -252,7 +252,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(sceneMapComponent);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -282,7 +282,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(sceneMapComponent);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -393,3 +393,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

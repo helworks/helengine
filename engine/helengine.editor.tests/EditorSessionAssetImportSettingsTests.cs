@@ -29,7 +29,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(AssetsRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -131,7 +131,7 @@ namespace helengine.editor.tests {
         /// <returns>Editor session configured for asset-settings tests.</returns>
         EditorSession CreateSession() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(TempProjectRootPath, contentManager);
             PropertiesPanel panel = new PropertiesPanel(CreateFont(), contentManager);
             IReadOnlyList<string> supportedPlatforms = new List<string> { "windows", "android" };
@@ -317,3 +317,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

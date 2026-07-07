@@ -29,7 +29,8 @@ namespace helengine.directx11 {
                 throw new InvalidOperationException("Shader directory could not be resolved.");
             }
 
-            ContentManager contentManager = new ContentManager(shaderDirectory);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(shaderDirectory));
+            TextContentManagerConfiguration.Configure(contentManager);
             TextContent sourceContent = contentManager.Load<TextContent>(fullPath);
             string source = sourceContent.Text;
             ShaderFilesystemIncludeResolver includeResolver = new ShaderFilesystemIncludeResolver(shaderDirectory);

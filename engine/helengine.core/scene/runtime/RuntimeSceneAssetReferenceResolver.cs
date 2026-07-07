@@ -4,21 +4,6 @@ namespace helengine {
     /// </summary>
     public sealed class RuntimeSceneAssetReferenceResolver {
         /// <summary>
-        /// Folder name used for packaged imported texture assets.
-        /// </summary>
-        const string ImportedTextureDirectoryName = "cooked/imported";
-
-        /// <summary>
-        /// Folder name used for packaged font assets.
-        /// </summary>
-        const string FontDirectoryName = "fonts";
-
-        /// <summary>
-        /// Absolute packaged content root used to resolve file-backed scene references.
-        /// </summary>
-        readonly string ContentRootPath;
-
-        /// <summary>
         /// Content manager used to load packaged runtime assets.
         /// </summary>
         readonly ContentManager AssetContentManager;
@@ -87,16 +72,11 @@ namespace helengine {
         /// Initializes a new packaged scene asset resolver.
         /// </summary>
         /// <param name="assetContentManager">Content manager used to load packaged assets.</param>
-        /// <param name="contentRootPath">Absolute packaged content root path.</param>
-        public RuntimeSceneAssetReferenceResolver(ContentManager assetContentManager, string contentRootPath) {
+        public RuntimeSceneAssetReferenceResolver(ContentManager assetContentManager) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
-            if (string.IsNullOrWhiteSpace(contentRootPath)) {
-                throw new ArgumentException("Content root path must be provided.", nameof(contentRootPath));
-            }
 
-            ContentRootPath = Path.GetFullPath(contentRootPath);
             AssetContentManager = assetContentManager;
             ActiveGeneratedModelsByKey = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
             ActiveGeneratedMaterialsByKey = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
@@ -106,10 +86,9 @@ namespace helengine {
         /// Initializes a new packaged scene asset resolver while accepting the legacy third constructor argument kept only for compile-surface compatibility.
         /// </summary>
         /// <param name="assetContentManager">Content manager used to load packaged assets.</param>
-        /// <param name="contentRootPath">Absolute packaged content root path.</param>
         /// <param name="legacyShaderTarget">Legacy shader-target argument ignored by the generic runtime resolver.</param>
-        public RuntimeSceneAssetReferenceResolver(ContentManager assetContentManager, string contentRootPath, object legacyShaderTarget)
-            : this(assetContentManager, contentRootPath) {
+        public RuntimeSceneAssetReferenceResolver(ContentManager assetContentManager, object legacyShaderTarget)
+            : this(assetContentManager) {
             if (legacyShaderTarget == null) {
                 throw new ArgumentNullException(nameof(legacyShaderTarget));
             }
@@ -134,7 +113,7 @@ namespace helengine {
 
                 string generatedFullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED
-                RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromCooked(generatedFullPath);
+                RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource);
                 ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
                 TrackOwnedModel(generatedModel);
                 return generatedModel;
@@ -153,7 +132,7 @@ namespace helengine {
 
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED
-            RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromCooked(fullPath);
+            RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromCooked(fullPath, AssetContentManager.ContentStreamSource);
             TrackOwnedModel(runtimeModel);
             return runtimeModel;
 #else
@@ -187,14 +166,13 @@ namespace helengine {
 
                 string generatedFullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
-                RuntimeMaterial generatedCookedRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedFullPath);
+                RuntimeMaterial generatedCookedRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource);
                 ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);
                 TrackOwnedMaterial(generatedCookedRuntimeMaterial);
                 return generatedCookedRuntimeMaterial;
 #else
                 RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
                     AssetContentManager,
-                    ContentRootPath,
                     generatedFullPath);
                 ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
                 TrackOwnedMaterial(generatedRawRuntimeMaterial);
@@ -204,13 +182,12 @@ namespace helengine {
 
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
-            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(fullPath);
+            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(fullPath, AssetContentManager.ContentStreamSource);
             TrackOwnedMaterial(runtimeMaterial);
             return runtimeMaterial;
 #else
             RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
                 AssetContentManager,
-                ContentRootPath,
                 fullPath);
             TrackOwnedMaterial(runtimeMaterial);
             return runtimeMaterial;
@@ -263,7 +240,7 @@ namespace helengine {
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
             LastTextureLoadStage = "ResolveTextureBeforeBuild";
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(fullPath);
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(fullPath, AssetContentManager.ContentStreamSource);
             LastTextureLoadStage = "ResolveTextureAfterBuild";
             TrackOwnedTexture(runtimeTexture);
             LastTextureLoadStage = "ResolveTextureTracked";
@@ -458,10 +435,10 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves one packaged file-backed scene asset reference to an absolute file path inside the packaged content root.
+        /// Resolves one packaged file-backed scene asset reference to the runtime asset path consumed by the active content source.
         /// </summary>
         /// <param name="reference">Scene asset reference to resolve.</param>
-        /// <returns>Absolute packaged file path.</returns>
+        /// <returns>Runtime asset path understood by the active content source.</returns>
         string ResolveFileBackedAssetPath(SceneAssetReference reference) {
             if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem
                 && reference.SourceKind != SceneAssetReferenceSourceKind.Generated) {
@@ -476,60 +453,7 @@ namespace helengine {
                 return Path.GetFullPath(reference.RelativePath);
             }
 #endif
-            string fullPath = Path.GetFullPath(Path.Combine(ContentRootPath, reference.RelativePath));
-            string contentRootPrefix = EnsureTrailingDirectorySeparator(ContentRootPath);
-            if (!fullPath.StartsWith(contentRootPrefix, StringComparison.OrdinalIgnoreCase)) {
-                throw new InvalidOperationException("Packaged scene asset reference path must stay inside the content root.");
-            }
-
-            return fullPath;
-        }
-
-        /// <summary>
-        /// Resolves one imported texture asset id into the packaged texture-asset path used by shader-backed player builds.
-        /// </summary>
-        /// <param name="assetId">Imported texture asset identifier stored on the packaged material asset.</param>
-        /// <returns>Absolute packaged texture-asset path.</returns>
-        string ResolveImportedTexturePackagePath(string assetId) {
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                throw new InvalidOperationException("Packaged material assets must include a diffuse texture asset id before resolving imported textures.");
-            }
-
-            return Path.Combine(ContentRootPath, ImportedTextureDirectoryName, assetId);
-        }
-
-        /// <summary>
-        /// Resolves one authored diffuse texture file that lives beside the serialized material asset.
-        /// </summary>
-        /// <param name="materialPath">Absolute path to the serialized material asset.</param>
-        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved source texture path when one exists.</param>
-        /// <returns>True when the source texture path exists; otherwise false.</returns>
-        bool TryResolveSourceTexturePath(string materialPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(materialPath)) {
-                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string materialDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(materialPath));
-            if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string candidateTexturePath = Path.IsPathRooted(assetId)
-                ? Path.GetFullPath(assetId)
-                : Path.GetFullPath(Path.Combine(materialDirectoryPath, assetId));
-            if (File.Exists(candidateTexturePath)) {
-                texturePath = candidateTexturePath;
-                return true;
-            }
-
-            texturePath = string.Empty;
-            return false;
+            return CanonicalPackagedAssetPath.ValidateCanonical(reference.RelativePath);
         }
 
         /// <summary>
@@ -549,7 +473,7 @@ namespace helengine {
 
             string atlasFullPath = ResolvePackagedContentPath(fontAsset.CookedAtlasTextureRelativePath);
 #if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(atlasFullPath);
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(atlasFullPath, AssetContentManager.ContentStreamSource);
             fontAsset.AttachCookedRuntimeTexture(runtimeTexture);
 #else
             TextureAsset cookedAtlasTextureAsset = AssetContentManager.Load<TextureAsset>(atlasFullPath, RuntimeContentProcessorIds.TextureAsset);
@@ -559,10 +483,10 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves one packaged content-relative path to an absolute file path inside the configured content root.
+        /// Resolves one packaged content-relative path to the runtime asset path consumed by the active content source.
         /// </summary>
         /// <param name="relativePath">Packaged content-relative path to resolve.</param>
-        /// <returns>Absolute packaged content file path.</returns>
+        /// <returns>Runtime asset path understood by the active content source.</returns>
         string ResolvePackagedContentPath(string relativePath) {
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
@@ -573,26 +497,7 @@ namespace helengine {
                 return Path.GetFullPath(relativePath);
             }
 #endif
-            string fullPath = Path.GetFullPath(Path.Combine(ContentRootPath, relativePath));
-            string contentRootPrefix = EnsureTrailingDirectorySeparator(ContentRootPath);
-            if (!fullPath.StartsWith(contentRootPrefix, StringComparison.OrdinalIgnoreCase)) {
-                throw new InvalidOperationException("Packaged scene asset reference path must stay inside the content root.");
-            }
-
-            return fullPath;
-        }
-
-        /// <summary>
-        /// Ensures one directory path ends with a trailing separator before prefix comparisons occur.
-        /// </summary>
-        /// <param name="path">Directory path that should end with a separator.</param>
-        /// <returns>Directory path with a trailing separator.</returns>
-        string EnsureTrailingDirectorySeparator(string path) {
-            if (path.EndsWith(Path.DirectorySeparatorChar) || path.EndsWith(Path.AltDirectorySeparatorChar)) {
-                return path;
-            }
-
-            return string.Concat(path, Path.DirectorySeparatorChar);
+            return CanonicalPackagedAssetPath.ValidateCanonical(relativePath);
         }
 
         /// <summary>
@@ -652,3 +557,4 @@ namespace helengine {
         }
     }
 }
+

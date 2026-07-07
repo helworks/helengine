@@ -23,7 +23,7 @@ namespace helengine.editor.tests {
             EditorInputCaptureService.Reset();
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -345,3 +345,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

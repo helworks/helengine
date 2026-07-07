@@ -229,7 +229,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RegisterTextureImporter_WhenMultipleImportersShareExtension_RegistersAllForTheFormat() {
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("first-texture", new TestTextureImporter(), new[] { ".png" }));
             manager.RegisterTextureImporter(new TextureImporterRegistration("second-texture", new TestTextureImporter(), new[] { ".png" }));
@@ -246,7 +246,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetImporterIdsForExtension_WhenMultipleTextureImportersShareExtension_PreservesRegistrationOrder() {
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("z-default", new TestTextureImporter(), new[] { ".png" }));
             manager.RegisterTextureImporter(new TextureImporterRegistration("a-override", new TestTextureImporter(), new[] { ".png" }));
@@ -261,7 +261,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetDefaultTextureImporter_WhenImporterDoesNotSupportExtension_Throws() {
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("png-importer", new TestTextureImporter(), new[] { ".png" }));
             manager.RegisterTextureImporter(new TextureImporterRegistration("dds-importer", new TestTextureImporter(), new[] { ".dds" }));
@@ -278,7 +278,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TryLoadTextureAsset_WhenTextureImporterOverrideChangesForSharedExtension_ReimportsWithTheSelectedImporter() {
             string sourcePath = WriteSourceTexture("shared-override.tga");
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(new byte[] { 1, 2, 3, 4 }), new[] { ".tga" }));
             manager.RegisterTextureImporter(new TextureImporterRegistration("magick", new ConfigurableTextureImporter(new byte[] { 9, 8, 7, 6 }), new[] { ".tga" }));
@@ -300,7 +300,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TryLoadTextureAsset_WhenTextureMaxResolutionIsCapped_DownsizesWhilePreservingAspectRatio() {
             string sourcePath = WriteSourceTexture("checker.tga");
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(1024, 512, new byte[1024 * 512 * 4]), new[] { ".tga" }));
             manager.CurrentPlatformId = "windows";
@@ -325,7 +325,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TryLoadTextureAsset_WhenTextureMaxResolutionChanges_ReimportsWithANewAssetId() {
             string sourcePath = WriteSourceTexture("checker-id.tga");
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(1024, 512, new byte[1024 * 512 * 4]), new[] { ".tga" }));
             manager.CurrentPlatformId = "windows";
@@ -509,7 +509,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ResolveDefaultTextureProcessorSettings_uses_shared_defaults_without_platform_id_special_cases() {
             string sourcePath = WriteSourceTexture("typed-ds-default-budget.tga");
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(1024, 512, new byte[1024 * 512 * 4]), new[] { ".tga" }));
             manager.CurrentPlatformId = "ds";
@@ -530,7 +530,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TryLoadFontAsset_WhenSourceFontExists_ImportsAndCachesFontAsset() {
             string sourcePath = WriteSourceFont("demo-title.ttf");
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
 
@@ -573,7 +573,7 @@ namespace helengine.editor.tests {
 
             string outputPath = Path.Combine(CacheRootPath, manager.LoadOrCreateImportSettings(sourcePath).Importer.AssetId);
             using Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = ProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "version"));
             using FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -605,7 +605,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TryLoadFontAsset_WhenCurrentPlatformUsesSharedDefaultsAndTextureSettingsAreMissing_UsesSharedDefaultResolution() {
             string sourcePath = WriteSourceFont("demo-body-ds-default-budget.ttf");
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterFontImporter(new FontImporterRegistration("test-font", new ConfigurableFontImporter(256, 256, new byte[256 * 256 * 4]), new[] { ".ttf" }));
             manager.CurrentPlatformId = "ds";
@@ -626,7 +626,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void BuildFontAssetForPlatform_WhenExplicitPlatformResizesAtlas_UsesRequestedPlatformSettings() {
             string sourcePath = WriteSourceFont("demo-body-explicit-platform.ttf");
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterFontImporter(new FontImporterRegistration("test-font", new ConfigurableFontImporter(256, 128, new byte[256 * 128 * 4]), new[] { ".ttf" }));
 
@@ -661,7 +661,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TryLoadFontAsset_WhenPlatformTextureMaxResolutionResizesAtlas_RescalesFontMetrics() {
             string sourcePath = WriteSourceFont("demo-body-ds-resized-metrics.ttf");
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterFontImporter(new FontImporterRegistration("test-font", new ConfigurableFontImporter(256, 128, new byte[256 * 128 * 4]), new[] { ".ttf" }));
             manager.CurrentPlatformId = "ds";
@@ -763,7 +763,7 @@ namespace helengine.editor.tests {
                 AssetSerializer.Serialize(stream, materialAsset);
             }
 
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             EditorContentManagerConfiguration.ConfigureEditorContentManager(contentManager);
 
             ShaderMaterialAsset loadedMaterialAsset = contentManager.Load<ShaderMaterialAsset>(materialPath, ShaderRuntimeContentProcessorIds.ShaderMaterialAsset);
@@ -777,7 +777,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Configured asset import manager.</returns>
         AssetImportManager CreateManager() {
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
             return manager;
@@ -788,7 +788,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Configured asset import manager for .tga texture coverage.</returns>
         AssetImportManager CreateTgaManager() {
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(new byte[] { 1, 2, 3, 4 }), new[] { ".tga" }));
             manager.RegisterTextureImporter(new TextureImporterRegistration("magick", new ConfigurableTextureImporter(new byte[] { 9, 8, 7, 6 }), new[] { ".tga" }));
@@ -800,7 +800,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Configured asset import manager for ttf font coverage.</returns>
         AssetImportManager CreateFontManager() {
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
             return manager;
@@ -851,3 +851,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

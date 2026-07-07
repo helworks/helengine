@@ -146,7 +146,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "ruler"));
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = projectRoot
+                ContentStreamSource = new HostFileSystemContentStreamSource(projectRoot)
             });
             TestInputBackend input = new TestInputBackend();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
@@ -198,7 +198,7 @@ namespace helengine.editor.tests {
         /// <param name="projectRoot">Project root used as the content path.</param>
         void InitializeCore(string projectRoot) {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = projectRoot
+                ContentStreamSource = new HostFileSystemContentStreamSource(projectRoot)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             EditorKeyboardFocusService.Reset();
@@ -271,3 +271,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

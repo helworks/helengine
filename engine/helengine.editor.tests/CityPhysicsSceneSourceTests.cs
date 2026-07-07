@@ -97,7 +97,7 @@ public sealed class CityPhysicsSceneSourceTests {
         string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsSceneFactory.cs";
         string source = File.ReadAllText(sourcePath);
 
-        Assert.Contains("ContentManager assetContentManager = new ContentManager(Path.Combine(projectRootPath, \"assets\"));", source, StringComparison.Ordinal);
+        Assert.Contains("ContentManager assetContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, \"assets\")));", source, StringComparison.Ordinal);
         Assert.Contains("EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(assetContentManager);", source, StringComparison.Ordinal);
         Assert.Contains("EditorSceneAssetReferenceResolver referenceResolver = new EditorSceneAssetReferenceResolver(assetContentManager, projectRootPath);", source, StringComparison.Ordinal);
         Assert.DoesNotContain("new EditorSceneAssetReferenceResolver(Core.Instance.ContentManager, projectRootPath);", source, StringComparison.Ordinal);

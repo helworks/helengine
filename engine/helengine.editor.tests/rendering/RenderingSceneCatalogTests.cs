@@ -33,7 +33,7 @@ namespace helengine.editor.tests.rendering {
             RenderingCodeRootPath = Path.Combine(repositoryRootPath, "test-project", "assets", "codebase", "rendering");
 
             Core = new Core(new CoreInitializationOptions {
-                ContentRootPath = repositoryRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(repositoryRootPath)
             });
             Core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -289,3 +289,4 @@ namespace helengine.editor.tests.rendering {
         }
     }
 }
+

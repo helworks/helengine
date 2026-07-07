@@ -73,6 +73,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the core exposes the exact amount of fixed-step physics time that will be consumed during the current update so presentation systems can predict post-physics poses without leading frames that do not step physics.
+        /// </summary>
+        [Fact]
+        public void Update_WithAttachedPhysicsRuntime_SetsPredictedPhysicsStepSecondsToConsumedFixedTime() {
+            Core core = CreateCore(new CoreInitializationOptions {
+                PhysicsFixedStepSeconds = 1.0d / 60.0d
+            });
+            TestPhysicsRuntime runtime = new TestPhysicsRuntime();
+            core.AttachPhysicsRuntime(runtime);
+
+            core.Update(1.0d / 120.0d);
+            Assert.Equal(0d, core.PredictedPhysicsStepSeconds, 10);
+
+            core.Update(1.0d / 120.0d);
+            Assert.Equal(1.0d / 60.0d, core.PredictedPhysicsStepSeconds, 10);
+
+            core.Update(1.0d / 30.0d);
+            Assert.Equal(2.0d / 60.0d, core.PredictedPhysicsStepSeconds, 10);
+        }
+
+        /// <summary>
         /// Ensures a very slow host frame cannot force physics to consume an unbounded backlog of fixed steps while still preserving the remaining simulation debt for later catch-up.
         /// </summary>
         [Fact]

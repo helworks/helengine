@@ -25,7 +25,7 @@ namespace helengine.editor.tests {
                 Path = TempRootPath
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
         }
 
@@ -174,3 +174,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

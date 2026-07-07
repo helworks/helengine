@@ -294,7 +294,7 @@ namespace helengine.editor.tests {
         /// <param name="bakeService">Bake service that should receive flagged text requests.</param>
         /// <returns>Configured transform service.</returns>
         SceneComponentPackagingTransformService CreateService(ITextComponentSpriteBakeService bakeService, StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry = null) {
-            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
@@ -327,7 +327,7 @@ namespace helengine.editor.tests {
         SceneComponentPackagingTransformService CreateBigEndianStaticMeshService(
             ITextComponentSpriteBakeService bakeService,
             StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry) {
-            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
@@ -362,7 +362,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(platformDefinition));
             }
 
-            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
@@ -396,7 +396,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(workItems));
             }
 
-            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
@@ -430,7 +430,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(workItems));
             }
 
-            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
@@ -464,7 +464,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(workItems));
             }
 
-            ContentManager contentManager = new ContentManager(ProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));

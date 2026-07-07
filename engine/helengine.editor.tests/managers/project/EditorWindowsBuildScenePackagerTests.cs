@@ -241,12 +241,10 @@ namespace helengine.editor.tests {
                 typeof(TestAnimationClipAssetScriptComponent));
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             TestAnimationClipAssetScriptComponent packagedComponent = Assert.IsType<TestAnimationClipAssetScriptComponent>(
                 deserializer.Deserialize(packagedRecord, resolver));
 
@@ -809,13 +807,11 @@ namespace helengine.editor.tests {
             Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "fonts", "default.hefont")));
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             TextComponent loadedTextComponent = Assert.IsType<TextComponent>(
@@ -991,13 +987,11 @@ namespace helengine.editor.tests {
             }
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1032,13 +1026,11 @@ namespace helengine.editor.tests {
             }
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1112,13 +1104,11 @@ namespace helengine.editor.tests {
             }
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1197,13 +1187,11 @@ namespace helengine.editor.tests {
             Assert.All(packagedScene.RootEntities, entityAsset => Assert.Equal((ushort)1, entityAsset.LayerMask));
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1276,13 +1264,11 @@ namespace helengine.editor.tests {
             }
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1328,13 +1314,11 @@ namespace helengine.editor.tests {
             }
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1583,12 +1567,10 @@ namespace helengine.editor.tests {
             }
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
@@ -1766,12 +1748,10 @@ namespace helengine.editor.tests {
             }
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
@@ -1894,12 +1874,10 @@ namespace helengine.editor.tests {
                 towerRoot => Assert.Equal("project.rendering.TowerSpinComponent, gameplay", Assert.Single(towerRoot.Components).ComponentTypeId));
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(
                 resolver,
                 CreateRuntimeComponentRegistry(
@@ -2066,12 +2044,10 @@ namespace helengine.editor.tests {
             }
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -2120,12 +2096,10 @@ namespace helengine.editor.tests {
             AssertUsesAutomaticRuntimePayload(packagedRoundedRectRecord, typeof(RoundedRectComponent));
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
@@ -2179,12 +2153,10 @@ namespace helengine.editor.tests {
             AssertUsesAutomaticRuntimePayload(packagedSpriteRecord, typeof(SpriteComponent));
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             SpriteComponent loadedSpriteComponent = Assert.IsType<SpriteComponent>(
@@ -2242,12 +2214,10 @@ namespace helengine.editor.tests {
             }
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
@@ -2363,6 +2333,122 @@ namespace helengine.editor.tests {
 
             Assert.Equal(new float3(10f, 20f, 30f), packagedRoot.LocalPosition);
             Assert.Empty(packagedRoot.PlatformTransformOverrides);
+        }
+
+        /// <summary>
+        /// Ensures packaging for one target platform removes child entity subtrees authored as absent on that platform and strips the editor-only existence metadata from surviving runtime entities.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneChildDefinesWindowsExistenceOverrideFalse_PrunesTheChildSubtree() {
+            string sceneId = "Scenes/PlatformChildExistence.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        PlatformExistenceOverrides = new[] {
+                            new SceneEntityPlatformExistenceOverrideAsset {
+                                PlatformId = "windows",
+                                Exists = true
+                            }
+                        },
+                        Children = new[] {
+                            new SceneEntityAsset {
+                                Id = 2u,
+                                Name = "Child",
+                                LocalPosition = float3.Zero,
+                                LocalScale = float3.One,
+                                LocalOrientation = float4.Identity,
+                                Components = Array.Empty<SceneComponentAssetRecord>(),
+                                PlatformExistenceOverrides = new[] {
+                                    new SceneEntityPlatformExistenceOverrideAsset {
+                                        PlatformId = "windows",
+                                        Exists = false
+                                    }
+                                },
+                                Children = new[] {
+                                    new SceneEntityAsset {
+                                        Id = 3u,
+                                        Name = "GrandChild",
+                                        LocalPosition = float3.Zero,
+                                        LocalScale = float3.One,
+                                        LocalOrientation = float4.Identity,
+                                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                                        Children = Array.Empty<SceneEntityAsset>()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "windows");
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+
+            Assert.Empty(packagedRoot.PlatformExistenceOverrides);
+            Assert.Empty(packagedRoot.Children);
+        }
+
+        /// <summary>
+        /// Ensures packaging for one target platform removes root entity subtrees authored as absent on that platform.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneRootDefinesWindowsExistenceOverrideFalse_PrunesTheRootSubtree() {
+            string sceneId = "Scenes/PlatformRootExistence.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        PlatformExistenceOverrides = new[] {
+                            new SceneEntityPlatformExistenceOverrideAsset {
+                                PlatformId = "windows",
+                                Exists = false
+                            }
+                        },
+                        Children = new[] {
+                            new SceneEntityAsset {
+                                Id = 2u,
+                                Name = "Child",
+                                LocalPosition = float3.Zero,
+                                LocalScale = float3.One,
+                                LocalOrientation = float4.Identity,
+                                Components = Array.Empty<SceneComponentAssetRecord>(),
+                                Children = Array.Empty<SceneEntityAsset>()
+                            }
+                        }
+                    }
+                }
+            });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "windows");
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+
+            Assert.Empty(packagedScene.RootEntities);
         }
 
         /// <summary>
@@ -2622,7 +2708,7 @@ namespace helengine.editor.tests {
             Assert.True(File.Exists(packagedFontPath));
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             FontAsset loadedFont = runtimeContentManager.Load<FontAsset>(packagedFontPath, RuntimeContentProcessorIds.FontAsset);
@@ -2898,12 +2984,10 @@ namespace helengine.editor.tests {
             SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
 
             InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -3336,7 +3420,7 @@ namespace helengine.editor.tests {
         /// <param name="contentRootPath">Absolute content root path used by the runtime core.</param>
         void InitializeRuntimeCore(string contentRootPath) {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = contentRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(contentRootPath)
             });
             core.Initialize(new TestRenderManager3D(ShaderCompileTarget.DirectX11), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
@@ -3487,7 +3571,7 @@ namespace helengine.editor.tests {
         string WriteSourceTextureAssetAndReturnAssetId(string textureRelativePath, string extension, string platformId) {
             WriteSourceTextureAsset(textureRelativePath);
 
-            ContentManager contentManager = new(ProjectRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
             AssetImportManager assetImportManager = new(ProjectRootPath, contentManager);
             assetImportManager.CurrentPlatformId = platformId;
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [extension]));
@@ -4905,5 +4989,6 @@ namespace helengine.editor.tests {
         }
     }
 }
+
 
 

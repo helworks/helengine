@@ -31,6 +31,9 @@ public sealed class CityCubeTestSceneSourceTests {
         Assert.Contains("entity.AddComponent(new city.rendering.CubeTestSpinComponent", source, StringComparison.Ordinal);
         Assert.Contains("AngularSpeedRadians = CubeAngularSpeedRadians", source, StringComparison.Ordinal);
         Assert.Contains("entity.AddComponent(new FPSComponent", source, StringComparison.Ordinal);
+        Assert.Contains("FontScale = 1f", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("FontScale = 2f", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("FontScale = 1.5f", source, StringComparison.Ordinal);
         Assert.Contains("DemoDiscLightIndicatorOverlayFactory lightIndicatorOverlayFactory = new DemoDiscLightIndicatorOverlayFactory();", source, StringComparison.Ordinal);
         Assert.Contains("lightIndicatorOverlayFactory.AttachToSceneUi(entity, ResolveRequiredEditorFont());", source, StringComparison.Ordinal);
         Assert.Contains("entity.AddComponent(new DemoDiscReturnToMenuComponent());", source, StringComparison.Ordinal);
@@ -71,21 +74,73 @@ public sealed class CityCubeTestSceneSourceTests {
     }
 
     /// <summary>
-    /// Ensures the generated cube-test scene authors one top-screen hello-world text entity that survives into the DS companion scene through the shared root path.
+    /// Ensures the generated cube-test scene no longer authors the dedicated top-screen hello-world text entity.
     /// </summary>
     [Fact]
-    public void City_cube_test_scene_source_authors_top_screen_hello_world_text() {
+    public void City_cube_test_scene_source_excludes_top_screen_hello_world_text() {
         string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\CubeTestSceneFactory.cs";
         string source = File.ReadAllText(sourcePath);
 
-        Assert.Contains("Entity topScreenHelloWorldEntity = CreateTopScreenHelloWorldEntity(instructionFont);", source, StringComparison.Ordinal);
-        Assert.Contains("CreateTopScreenHelloWorldEntity(FontAsset font)", source, StringComparison.Ordinal);
-        Assert.Contains("Text = \"Hello World\"", source, StringComparison.Ordinal);
-        Assert.Contains("Font = font", source, StringComparison.Ordinal);
-        Assert.Contains("FontScale = 4f", source, StringComparison.Ordinal);
-        Assert.Contains("Size = new int2(320, 48)", source, StringComparison.Ordinal);
-        Assert.Contains("RenderOrder2D = 180", source, StringComparison.Ordinal);
-        Assert.Contains("entity.LocalPosition = new float3(20f, 20f, 0f);", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Entity topScreenHelloWorldEntity = CreateTopScreenHelloWorldEntity(instructionFont);", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateTopScreenHelloWorldEntity(FontAsset font)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text = \"Hello World\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("FontScale = 4f", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Size = new int2(320, 48)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("RenderOrder2D = 180", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("entity.LocalPosition = new float3(20f, 20f, 0f);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the dedicated cube-test regeneration command uses the same cube-test material path as the full rendering-scene generator.
+    /// </summary>
+    [Fact]
+    public void City_generate_cube_test_scene_command_uses_cube_test_solid_material() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\GenerateCubeTestSceneCommand.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("assets.GeneratedCubeTestSolidMaterial", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("assets.GeneratedStandardMaterial", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the authored colored cube-grid scene uses the smaller shared FPS scale instead of the oversized legacy value.
+    /// </summary>
+    [Fact]
+    public void City_colored_cube_grid_scene_source_uses_one_times_fps_scale() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\ColoredCubeGridSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("entity.AddComponent(new FPSComponent", source, StringComparison.Ordinal);
+        Assert.Contains("FontScale = 1f", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("FontScale = 2f", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the dedicated colored cube-grid regeneration command uses the same scene assets as the full rendering-scene generator.
+    /// </summary>
+    [Fact]
+    public void City_generate_colored_cube_grid_scene_command_uses_colored_cube_grid_runtime_materials() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\GenerateColoredCubeGridSceneCommand.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("ColoredCubeGridSceneFactory factory = new ColoredCubeGridSceneFactory();", source, StringComparison.Ordinal);
+        Assert.Contains("factory.WriteMaterialAssets(context.ProjectRootPath);", source, StringComparison.Ordinal);
+        Assert.Contains("factory.CreateRuntimeMaterials()", source, StringComparison.Ordinal);
+        Assert.Contains("sceneWriteService.WriteScene(context.ProjectRootPath, sceneDefinition);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the Nintendo 3DS renderer preserves the generic textured-material branch needed by textured cube scenes.
+    /// </summary>
+    [Fact]
+    public void Nintendo3ds_render_manager_source_supports_textured_3d_material_branch() {
+        string sourcePath = @"C:\dev\helworks\helengine-3ds\src\platform\3ds\Nintendo3DsRenderManager3D.cpp";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("TextureRelativePath", source, StringComparison.Ordinal);
+        Assert.Contains("Nintendo3DsRuntimeTexture", source, StringComparison.Ordinal);
+        Assert.Contains("C3D_TexBind(0,", source, StringComparison.Ordinal);
+        Assert.Contains("lit_textured_shbin", source, StringComparison.Ordinal);
     }
 
     /// <summary>

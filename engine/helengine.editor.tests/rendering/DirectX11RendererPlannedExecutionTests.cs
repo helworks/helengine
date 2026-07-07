@@ -726,7 +726,7 @@ namespace helengine.editor.tests.rendering {
             /// Creates one uninitialized renderer recorder instance.
             /// </summary>
             /// <returns>Renderer recorder that executes planned passes without constructing DirectX11.</returns>
-            public static SubmissionRecordingRenderer Create() {
+            public new static SubmissionRecordingRenderer Create() {
                 SubmissionRecordingRenderer renderer = (SubmissionRecordingRenderer)RuntimeHelpers.GetUninitializedObject(typeof(SubmissionRecordingRenderer));
                 renderer.VisitedSubmeshIndices = new List<int>();
                 return renderer;

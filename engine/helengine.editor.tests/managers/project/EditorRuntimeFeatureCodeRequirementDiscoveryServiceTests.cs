@@ -87,7 +87,7 @@ public sealed class EditorRuntimeFeatureCodeRequirementDiscoveryServiceTests {
                 Assert.Equal("editor-tests-runtime-module", requirement.SourceId);
             },
             requirement => {
-                Assert.Equal("runtime_json", requirement.FeatureId);
+                Assert.Equal("test_runtime_feature", requirement.FeatureId);
                 Assert.Equal(RuntimeFeatureRequirementSourceKind.RuntimeType, requirement.SourceKind);
                 Assert.Equal(typeof(GeneratedRuntimeModuleRegistrationTestComponent).FullName, requirement.SourceId);
             });

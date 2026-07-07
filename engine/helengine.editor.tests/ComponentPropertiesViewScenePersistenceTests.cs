@@ -20,7 +20,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(TempRootPath, "assets", "Models"));
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -43,7 +43,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.GetDirectoryName(modelPath));
             File.WriteAllText(modelPath, "raw obj source");
 
-            ContentManager contentManager = new ContentManager(TempRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             AssetImportManager assetImportManager = CreateAssetImportManager();
             MeshComponent meshComponent = new MeshComponent();
@@ -78,7 +78,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Configured asset import manager for `.obj` source files.</returns>
         AssetImportManager CreateAssetImportManager() {
-            ContentManager contentManager = new ContentManager(Path.Combine(TempRootPath, "assets"));
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempRootPath, "assets")));
             AssetImportManager assetImportManager = new AssetImportManager(TempRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
             return assetImportManager;
@@ -145,3 +145,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

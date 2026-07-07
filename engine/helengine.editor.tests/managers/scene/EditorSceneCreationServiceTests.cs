@@ -27,7 +27,7 @@ namespace helengine.editor.tests.managers.scene {
                 Path = TempProjectRootPath
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
@@ -76,7 +76,7 @@ namespace helengine.editor.tests.managers.scene {
         [Fact]
         public void CreateEmpty_WhenCoreEntityFactoryIsUnavailable_Throws() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new EditorSceneCreationService());
@@ -506,3 +506,4 @@ namespace helengine.editor.tests.managers.scene {
 
     }
 }
+

@@ -23,7 +23,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
 
             CoreInstance = new TestClockDrivenCore(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
 
             CoreInstance.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
@@ -600,4 +600,5 @@ namespace helengine.editor.tests {
 
     }
 }
+
 

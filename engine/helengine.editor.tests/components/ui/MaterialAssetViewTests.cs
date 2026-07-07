@@ -23,7 +23,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
         Directory.CreateDirectory(TempRootPath);
 
         Core core = new Core(new CoreInitializationOptions {
-            ContentRootPath = TempRootPath
+            ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
         });
         core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
     }
@@ -391,3 +391,4 @@ public sealed class MaterialAssetViewTests : IDisposable {
         method.Invoke(target, arguments);
     }
 }
+

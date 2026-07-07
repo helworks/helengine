@@ -17,7 +17,7 @@ namespace helengine {
                 throw new ArgumentException("Root directory must be provided.", nameof(rootDirectory));
             }
 
-            PackageContentManager = new ContentManager(rootDirectory);
+            PackageContentManager = new ContentManager(new HostFileSystemContentStreamSource(rootDirectory));
             ShaderRuntimeContentRegistration.Register(PackageContentManager);
         }
 

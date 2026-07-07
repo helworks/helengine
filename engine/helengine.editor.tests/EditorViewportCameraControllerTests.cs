@@ -134,6 +134,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures auto speed mode does not slow unit-size mesh navigation below a usable fraction of the configured baseline.
+        /// </summary>
+        [Fact]
+        public void UpdateEffectiveSpeeds_WhenAutoModeAndUnitCubeSelection_KeepsUsableMovementPanAndZoomFloor() {
+            InitializeCore();
+            EditorViewportSelectionFramingService selectionBounds = new EditorViewportSelectionFramingService();
+            EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            Entity meshEntity = CreateMeshEntity(new float3(0f, 0f, 0f), new float3(1f, 1f, 1f), float3.One);
+            EditorSelectionService.SetSelectedEntity(meshEntity);
+
+            controller.UpdateEffectiveSpeedsForTest(selectionBounds);
+
+            double expectedMinimumMoveSpeed = EditorViewportCameraController.DefaultMoveSpeed * 0.5;
+            double expectedMinimumPanSpeed = EditorViewportCameraController.DefaultPanSpeed * 0.5;
+            double expectedMinimumWheelZoomSpeed = EditorViewportCameraController.DefaultWheelZoomSpeed * 0.5;
+
+            Assert.True(controller.MoveSpeed >= expectedMinimumMoveSpeed);
+            Assert.True(controller.PanSpeed >= expectedMinimumPanSpeed);
+            Assert.True(controller.WheelZoomSpeed >= expectedMinimumWheelZoomSpeed);
+        }
+
+        /// <summary>
         /// Ensures manual speed mode ignores selection size and uses the authored override value instead.
         /// </summary>
         [Fact]
@@ -388,6 +411,27 @@ namespace helengine.editor.tests {
                 Size = size
             });
             return spriteEntity;
+        }
+
+        /// <summary>
+        /// Creates one mesh entity with deterministic runtime-model bounds and world scale.
+        /// </summary>
+        /// <param name="boundsMin">Minimum authored runtime-model bounds.</param>
+        /// <param name="boundsMax">Maximum authored runtime-model bounds.</param>
+        /// <param name="scale">World scale applied by the mesh entity.</param>
+        /// <returns>Configured mesh entity.</returns>
+        Entity CreateMeshEntity(float3 boundsMin, float3 boundsMax, float3 scale) {
+            TestRuntimeModel runtimeModel = new TestRuntimeModel();
+            runtimeModel.SetBounds(boundsMin, boundsMax);
+
+            Entity meshEntity = new Entity();
+            meshEntity.InitComponents();
+            meshEntity.InitChildren();
+            meshEntity.LocalScale = scale;
+            meshEntity.AddComponent(new MeshComponent {
+                Model = runtimeModel
+            });
+            return meshEntity;
         }
 
         /// <summary>

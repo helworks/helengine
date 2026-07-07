@@ -28,7 +28,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Path = TempProjectRootPath
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
@@ -732,6 +732,41 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures entity platform existence overrides round-trip through scene save and load as editor metadata.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenEntityHasNintendo3DsExistenceOverride_RoundTripsTheOverride() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "PlatformExistenceOverride.helen");
+            EditorEntity entity = CreateUserEntity("PlatformEntity", float3.Zero, float3.One, float4.Identity);
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+
+            saveComponent.SetExistencePlatformOverride("nintendo3ds", new SceneEntityPlatformExistenceOverrideAsset {
+                Exists = false
+            });
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset rootEntity = Assert.Single(asset.RootEntities);
+            SceneEntityPlatformExistenceOverrideAsset overrideAsset = Assert.Single(rootEntity.PlatformExistenceOverrides);
+            Assert.Equal("nintendo3ds", overrideAsset.PlatformId);
+            Assert.False(overrideAsset.Exists);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
+            EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
+
+            Assert.True(loadedSaveComponent.TryGetExistencePlatformOverride("nintendo3ds", out SceneEntityPlatformExistenceOverrideAsset loadedOverride));
+            Assert.False(loadedOverride.Exists);
+        }
+
+        /// <summary>
         /// Ensures sparse component platform overrides persist their explicit property paths and rebuild platform edits from the current common component after reload.
         /// </summary>
         [Fact]
@@ -1343,3 +1378,4 @@ namespace helengine.editor.tests.serialization.scene {
         }
     }
 }
+

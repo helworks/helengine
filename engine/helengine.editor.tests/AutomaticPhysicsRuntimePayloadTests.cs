@@ -54,14 +54,16 @@ namespace helengine.editor.tests {
             };
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
+            BepuPhysicsWorld3D world = BepuRuntimeComponentRegistration.CreateRuntimeWorld(core);
+            BepuRuntimeComponentRegistration.AttachRuntimeWorld(core, world);
 
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
-            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+            Assert.Same(world, core.PhysicsRuntime);
             world.BindScene(rootEntities);
 
             Entity upperBoxEntity = rootEntities[2];

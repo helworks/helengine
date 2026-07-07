@@ -17,6 +17,35 @@ public sealed class CityMenuSourceTests {
     }
 
     /// <summary>
+    /// Ensures the desktop and console menu path keeps the runtime platform-info updater and text rows alongside the Nintendo DS overlay updater.
+    /// </summary>
+    [Fact]
+    public void City_demo_disc_menu_source_keeps_platform_info_runtime_updater_for_non_ds_and_nintendo_ds_paths() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscMainMenuSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("CreateTextEntity(entity, \"DemoDiscPlatformInfoNameText\"", source, StringComparison.Ordinal);
+        Assert.Contains("CreateTextEntity(entity, \"DemoDiscPlatformInfoVersionText\"", source, StringComparison.Ordinal);
+        Assert.Contains("void CreateNintendoDsTopScreenPlatformInfoEntity(Entity topScreenRootEntity, MenuDefinition definition)", source, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(source, "entity.AddComponent(new PlatformInfoTextComponent());"));
+    }
+
+    /// <summary>
+    /// Ensures the non-DS menu item rows author visible text labels so the Wii U and other console menu paths render their item captions.
+    /// </summary>
+    [Fact]
+    public void City_demo_disc_menu_source_restores_non_ds_item_label_text() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscMainMenuSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("item-label-{itemDefinition.ItemId}", source, StringComparison.Ordinal);
+        Assert.Contains("itemDefinition.Label,", source, StringComparison.Ordinal);
+        Assert.Contains("definition.BodyFontPath,", source, StringComparison.Ordinal);
+        Assert.Contains("new int2(DemoMenuLayout.ButtonWidth - 40, 76),", source, StringComparison.Ordinal);
+        Assert.Equal(4, CountOccurrences(source, "CreateTextEntity("));
+    }
+
+    /// <summary>
     /// Ensures the desktop and Nintendo DS menu cameras render the authored scene-object layer so generated menu drawables register with their queues.
     /// </summary>
     [Fact]

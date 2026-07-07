@@ -42,6 +42,52 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.NotNull(core.SceneManager);
             Assert.Equal(string.Empty, core.SceneManager.LastTraceStage);
             Assert.Equal(string.Empty, core.SceneManager.LastTraceSceneId);
+            Assert.Equal(0, core.SceneManager.LastTraceSerial);
+        }
+
+        /// <summary>
+        /// Ensures core initialization rejects missing content stream sources before runtime scene services are constructed.
+        /// </summary>
+        [Fact]
+        public void Initialize_whenContentStreamSourceIsMissing_throws() {
+            CoreInitializationOptions options = new CoreInitializationOptions {
+                ContentStreamSource = null
+            };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new Core(options));
+
+            Assert.Contains("ContentStreamSource", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures scene-manager diagnostics expose a monotonic transition serial so native runtimes can distinguish repeated round-trips that end on the same visible trace snapshot.
+        /// </summary>
+        [Fact]
+        public void LoadScene_whenRoundTripReturnsToSameVisibleTraceSnapshot_stillAdvancesTraceSerial() {
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 1u);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+            int firstCompletedSerial = core.SceneManager.LastTraceSerial;
+            string firstCompletedStage = core.SceneManager.LastTraceStage;
+            string firstCompletedSceneId = core.SceneManager.LastTraceSceneId;
+            int firstCompletedLoadedSceneCount = core.SceneManager.LastTraceLoadedSceneCount;
+            int firstCompletedPendingOperationCount = core.SceneManager.LastTracePendingOperationCount;
+
+            core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+
+            Assert.Equal(firstCompletedStage, core.SceneManager.LastTraceStage);
+            Assert.Equal(firstCompletedSceneId, core.SceneManager.LastTraceSceneId);
+            Assert.Equal(firstCompletedLoadedSceneCount, core.SceneManager.LastTraceLoadedSceneCount);
+            Assert.Equal(firstCompletedPendingOperationCount, core.SceneManager.LastTracePendingOperationCount);
+            Assert.True(core.SceneManager.LastTraceSerial > firstCompletedSerial);
         }
 
         /// <summary>
@@ -270,7 +316,7 @@ namespace helengine.editor.tests.serialization.scene {
             CommitFrame(core);
 
             Entity previousRoot = Assert.Single(core.SceneManager.LoadedScenes).RootEntities[0];
-            CameraComponent previousCamera = Assert.IsType<CameraComponent>(Assert.Single(previousRoot.Components));
+            CameraComponent previousCamera = FindRequiredComponent<CameraComponent>(previousRoot);
             Assert.Single(core.ObjectManager.Cameras);
             Assert.Single(core.ObjectManager.Entities);
 
@@ -281,7 +327,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             LoadedSceneRecord loadedScene = Assert.Single(core.SceneManager.LoadedScenes);
             Entity loadedRoot = Assert.Single(loadedScene.RootEntities);
-            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedRoot.Components));
+            CameraComponent loadedCamera = FindRequiredComponent<CameraComponent>(loadedRoot);
             Assert.Equal("Scenes/TestPlayableScene.helen", loadedScene.SceneId);
             Assert.Same(loadedCamera, Assert.Single(core.ObjectManager.Cameras));
             Assert.Same(loadedRoot, Assert.Single(core.ObjectManager.Entities));
@@ -470,7 +516,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> startupRoots = sceneLoadService.Load(startupSceneAsset);
             Entity previousRoot = Assert.Single(startupRoots);
-            CameraComponent previousCamera = Assert.IsType<CameraComponent>(Assert.Single(previousRoot.Components));
+            CameraComponent previousCamera = FindRequiredComponent<CameraComponent>(previousRoot);
             Assert.Single(core.ObjectManager.Cameras);
             Assert.Single(core.ObjectManager.Entities);
             Assert.Empty(core.SceneManager.LoadedScenes);
@@ -481,7 +527,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             LoadedSceneRecord loadedScene = Assert.Single(core.SceneManager.LoadedScenes);
             Entity loadedRoot = Assert.Single(loadedScene.RootEntities);
-            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedRoot.Components));
+            CameraComponent loadedCamera = FindRequiredComponent<CameraComponent>(loadedRoot);
             Assert.Equal("Scenes/TestPlayableScene.helen", loadedScene.SceneId);
             Assert.Same(loadedCamera, Assert.Single(core.ObjectManager.Cameras));
             Assert.Same(loadedRoot, Assert.Single(core.ObjectManager.Entities));
@@ -558,7 +604,7 @@ namespace helengine.editor.tests.serialization.scene {
                 1u,
                 CreateCameraComponentRecord(0));
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath,
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath),
                 SceneCatalog = CreateSceneCatalog(new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")),
                 CommitPendingSceneOperationsDuringDraw = false
             });
@@ -756,7 +802,7 @@ namespace helengine.editor.tests.serialization.scene {
             FakeRuntimeDiagnosticsProvider runtimeDiagnosticsProvider = null,
             ISceneIdPathResolver scenePathResolver = null) {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath,
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath),
                 SceneCatalog = sceneCatalog,
                 RuntimeDiagnosticsProvider = runtimeDiagnosticsProvider,
                 ScenePathResolver = scenePathResolver
@@ -783,6 +829,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="drawOrder">Camera draw order to encode in the payload.</param>
         /// <returns>Serialized camera component record.</returns>
         SceneComponentAssetRecord CreateCameraComponentRecord(byte drawOrder) {
+            EnsureComponentSerializationCoreInitialized();
             CameraComponent cameraComponent = new CameraComponent {
                 CameraDrawOrder = drawOrder,
                 LayerMask = EditorLayerMasks.SceneObjects,
@@ -798,6 +845,34 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             return CreateRuntimeAutomaticComponentRecord(cameraComponent, 0, null);
+        }
+
+        /// <summary>
+        /// Ensures one minimal initialized core exists before component constructors that depend on core initialization options are materialized in test asset builders.
+        /// </summary>
+        void EnsureComponentSerializationCoreInitialized() {
+            if (Core.Instance != null && Core.Instance.InitializationOptions != null) {
+                return;
+            }
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+        }
+
+        /// <summary>
+        /// Finds one required component of the requested type on the supplied entity.
+        /// </summary>
+        /// <typeparam name="T">Component type that must be present exactly once.</typeparam>
+        /// <param name="entity">Entity whose component list should be inspected.</param>
+        /// <returns>Matched component instance.</returns>
+        T FindRequiredComponent<T>(Entity entity) where T : Component {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            return Assert.IsType<T>(Assert.Single(entity.Components, component => component is T));
         }
 
         /// <summary>
@@ -1035,3 +1110,4 @@ namespace helengine.editor.tests.serialization.scene {
         }
     }
 }
+

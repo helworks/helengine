@@ -362,7 +362,7 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
 
     [Fact]
     public void EditorPlatformCodeCookService_does_not_define_generated_native_module_normalizer() {
-        MethodInfo? normalizer = typeof(EditorPlatformCodeCookService).GetMethod(
+        MethodInfo normalizer = typeof(EditorPlatformCodeCookService).GetMethod(
             "NormalizeGeneratedNativeModuleSources",
             BindingFlags.Static | BindingFlags.NonPublic);
 

@@ -18,6 +18,7 @@ public class HelengineFeatureCatalogIntegrityTests {
         Assert.Contains("\"render2d\"", json, StringComparison.Ordinal);
         Assert.Contains("\"managed_metadata_only\"", json, StringComparison.Ordinal);
         Assert.Contains("\"host_file_system\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"runtime_json\"", json, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -34,6 +35,9 @@ public class HelengineFeatureCatalogIntegrityTests {
         Assert.Contains("\"typeName\": \"helengine.TextContentManagerConfiguration\", \"featureIds\": [ \"text_processing\" ]", json, StringComparison.Ordinal);
         Assert.Contains("\"typeName\": \"helengine.GeneratedRuntimeModuleManifestAttribute\", \"featureIds\": [ \"managed_metadata_only\" ]", json, StringComparison.Ordinal);
         Assert.Contains("\"typeName\": \"helengine.RuntimeFeatureRequirementAttribute\", \"featureIds\": [ \"managed_metadata_only\" ]", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"typeName\": \"helengine.core.content.RuntimeManifestJsonReader\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"typeName\": \"helengine.core.content.RuntimeStartupManifest\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"typeName\": \"helengine.core.content.RuntimeCodeModuleManifest\"", json, StringComparison.Ordinal);
     }
 
     /// <summary>

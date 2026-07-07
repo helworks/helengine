@@ -65,7 +65,8 @@ namespace helengine.directx11 {
             Target = ShaderCompileTarget.DirectX11;
             Defines = ShaderPlatformDefines.BuildDefines(Target, TargetShaderModel, Array.Empty<ShaderDefine>());
             CompileOptions = new ShaderCompileOptions(ShaderBindingPolicies.Default, false, false, false);
-            SourceContentManager = new ContentManager(includeRootPath);
+            SourceContentManager = new ContentManager(new HostFileSystemContentStreamSource(includeRootPath));
+            TextContentManagerConfiguration.Configure(SourceContentManager);
 
             ShaderFilesystemIncludeResolver includeResolver = new ShaderFilesystemIncludeResolver(includeRootPath);
             ShaderMemoryCompileCache cache = new ShaderMemoryCompileCache();

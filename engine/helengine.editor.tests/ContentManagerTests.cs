@@ -42,12 +42,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures plain content managers do not implicitly own text-processing registration.
+        /// </summary>
+        [Fact]
+        public void Load_TextContent_WithoutTextProcessingRegistration_Throws() {
+            WriteTextFile("notes.txt", "hello content");
+            ContentManager contentManager = CreateContentManager();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => contentManager.Load<TextContent>("notes.txt"));
+
+            Assert.Contains("No content processors are registered", exception.Message);
+        }
+
+        /// <summary>
         /// Ensures text content can be loaded through the built-in wildcard processor.
         /// </summary>
         [Fact]
         public void Load_TextContent_ReturnsRawUtf8Text() {
             WriteTextFile("notes.txt", "hello content");
             ContentManager contentManager = CreateContentManager();
+            TextContentManagerConfiguration.Configure(contentManager);
 
             TextContent content = contentManager.Load<TextContent>("notes.txt");
 
@@ -102,24 +116,22 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Load_WithCompoundExtension_UsesLongestRegisteredSuffix() {
-            string path = Path.Combine(ContentRootPath, "effect.dx11.shader.asset");
-            ShaderAsset shaderAsset = new ShaderAsset {
-                Id = "shader/test",
-                TargetName = "dx11",
-                Programs = Array.Empty<ShaderProgramAsset>(),
-                Binaries = Array.Empty<ShaderBinaryAsset>()
+            string path = Path.Combine(ContentRootPath, "effect.runtime.scene.hasset");
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/CompoundExtension.helen",
+                RootEntities = Array.Empty<SceneEntityAsset>()
             };
             using (FileStream stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetSerializer.Serialize(stream, shaderAsset);
+                AssetSerializer.Serialize(stream, sceneAsset);
             }
 
             ContentManager contentManager = CreateContentManager();
-            contentManager.RegisterProcessor("shader", new AssetContentProcessor<ShaderAsset>(), new[] { ".shader.asset" });
-            contentManager.RegisterProcessor("asset", new AssetContentProcessor<ShaderAsset>(), new[] { ".asset" });
+            contentManager.RegisterProcessor("scene", new AssetContentProcessor<SceneAsset>(), new[] { ".scene.hasset" });
+            contentManager.RegisterProcessor("asset", new AssetContentProcessor<SceneAsset>(), new[] { ".hasset" });
 
-            ShaderAsset loadedShader = contentManager.Load<ShaderAsset>("effect.dx11.shader.asset");
+            SceneAsset loadedScene = contentManager.Load<SceneAsset>("effect.runtime.scene.hasset");
 
-            Assert.Equal("shader/test", loadedShader.Id);
+            Assert.Equal("Scenes/CompoundExtension.helen", loadedScene.Id);
         }
 
         /// <summary>
@@ -147,6 +159,7 @@ namespace helengine.editor.tests {
                 string externalFilePath = Path.Combine(externalRootPath, "absolute.txt");
                 File.WriteAllText(externalFilePath, "absolute content", System.Text.Encoding.UTF8);
                 ContentManager contentManager = CreateContentManager();
+                TextContentManagerConfiguration.Configure(contentManager);
 
                 TextContent content = contentManager.Load<TextContent>(externalFilePath);
 
@@ -205,7 +218,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Content manager rooted at the isolated test directory.</returns>
         ContentManager CreateContentManager() {
-            return new ContentManager(ContentRootPath);
+            return new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
         }
 
         /// <summary>
@@ -253,3 +266,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

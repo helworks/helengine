@@ -23,7 +23,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempProjectRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -179,7 +179,7 @@ namespace helengine.editor.tests {
         /// <returns>Editor session configured for project-platform tests.</returns>
         EditorSession CreateSession(IReadOnlyList<string> supportedPlatforms, EditorProjectLocalSettingsService localSettingsService, string activePlatform) {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, new ContentManager(Path.Combine(TempProjectRootPath, "assets")));
+            AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets"))));
             assetImportManager.CurrentPlatformId = activePlatform;
 
             SetPrivateField(session, "projectPath", TempProjectRootPath);
@@ -340,3 +340,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

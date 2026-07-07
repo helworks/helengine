@@ -18,22 +18,17 @@ namespace helengine {
         /// </summary>
         /// <param name="renderManager3D">Shader-aware renderer that will own the runtime material.</param>
         /// <param name="assetContentManager">Content manager that can deserialize the cooked shader package.</param>
-        /// <param name="contentRootPath">Absolute packaged content root.</param>
-        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="materialAssetPath">Runtime asset path to the serialized material asset.</param>
         /// <returns>Runtime material instance.</returns>
         public static RuntimeMaterial BuildMaterialFromRawAsset(
             IShaderRenderManager3D renderManager3D,
             ContentManager assetContentManager,
-            string contentRootPath,
             string materialAssetPath) {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
-            }
-            if (string.IsNullOrWhiteSpace(contentRootPath)) {
-                throw new ArgumentException("Content root path must be provided.", nameof(contentRootPath));
             }
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
@@ -42,48 +37,40 @@ namespace helengine {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(assetContentManager);
             ShaderRuntimeContentRegistration.Register(assetContentManager);
             ShaderMaterialAsset materialAsset = assetContentManager.Load<ShaderMaterialAsset>(materialAssetPath, ShaderRuntimeContentProcessorIds.ShaderMaterialAsset);
-            string shaderPackagePath = ResolveShaderPackagePath(contentRootPath, materialAsset.ShaderAssetId, renderManager3D.ShaderCompileTarget);
+            string shaderPackagePath = ResolveShaderPackagePath(materialAsset.ShaderAssetId, renderManager3D.ShaderCompileTarget);
             ShaderAsset shaderAsset = assetContentManager.Load<ShaderAsset>(shaderPackagePath, ShaderRuntimeContentProcessorIds.ShaderAsset);
             RuntimeMaterial runtimeMaterial = renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            ApplyImportedDiffuseTexture(assetContentManager, contentRootPath, materialAsset, runtimeMaterial);
+            ApplyImportedDiffuseTexture(assetContentManager, materialAsset, runtimeMaterial);
             return runtimeMaterial;
         }
 
         /// <summary>
         /// Resolves one shader asset id into the packaged shader asset path used by shader-backed runtime builds.
         /// </summary>
-        /// <param name="contentRootPath">Absolute packaged content root.</param>
         /// <param name="shaderAssetId">Shader asset identifier stored on the packaged material asset.</param>
         /// <param name="shaderTarget">Renderer shader target used to choose the correct cooked package variant.</param>
-        /// <returns>Absolute packaged shader asset path.</returns>
-        public static string ResolveShaderPackagePath(string contentRootPath, string shaderAssetId, ShaderCompileTarget shaderTarget) {
-            if (string.IsNullOrWhiteSpace(contentRootPath)) {
-                throw new ArgumentException("Content root path must be provided.", nameof(contentRootPath));
-            }
+        /// <returns>Runtime asset path of the packaged shader asset.</returns>
+        public static string ResolveShaderPackagePath(string shaderAssetId, ShaderCompileTarget shaderTarget) {
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new InvalidOperationException("Packaged material assets must include a shader asset id.");
             }
 
             string fileName = string.Concat(shaderAssetId, ".", ShaderTargetNames.GetTargetName(shaderTarget), ShaderRuntimeContentRegistration.ShaderPackageExtension);
-            return Path.Combine(contentRootPath, ShaderDirectoryName, fileName);
+            return CanonicalPackagedAssetPath.Normalize(Path.Combine(ShaderDirectoryName, fileName));
         }
 
         /// <summary>
         /// Applies one packaged imported diffuse texture to a shader-backed runtime material when the authored material payload references one.
         /// </summary>
         /// <param name="assetContentManager">Content manager that can deserialize packaged texture assets.</param>
-        /// <param name="contentRootPath">Absolute packaged content root.</param>
         /// <param name="materialAsset">Packaged material asset that may reference an imported diffuse texture.</param>
         /// <param name="runtimeMaterial">Runtime material that should receive the diffuse texture binding.</param>
         static void ApplyImportedDiffuseTexture(
             ContentManager assetContentManager,
-            string contentRootPath,
             ShaderMaterialAsset materialAsset,
             RuntimeMaterial runtimeMaterial) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
-            } else if (string.IsNullOrWhiteSpace(contentRootPath)) {
-                throw new ArgumentException("Content root path must be provided.", nameof(contentRootPath));
             } else if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             } else if (runtimeMaterial == null) {
@@ -103,9 +90,9 @@ namespace helengine {
                 throw new InvalidOperationException("Shader-backed runtime material loading requires a 2D render manager before diffuse textures can be materialized.");
             }
 
-            string diffuseTexturePath = ResolveImportedTexturePackagePath(contentRootPath, materialAsset.DiffuseTextureAssetId);
+            string diffuseTexturePath = ResolveImportedTexturePackagePath(materialAsset.DiffuseTextureAssetId);
 #if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
-            RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromCooked(diffuseTexturePath);
+            RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromCooked(diffuseTexturePath, assetContentManager.ContentStreamSource);
 #else
             TextureAsset textureAsset = assetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
             RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromRaw(textureAsset);
@@ -116,17 +103,14 @@ namespace helengine {
         /// <summary>
         /// Resolves one imported texture asset id into the packaged texture path used by shader-backed runtime material loading.
         /// </summary>
-        /// <param name="contentRootPath">Absolute packaged content root.</param>
         /// <param name="assetId">Imported texture asset identifier stored on the packaged material asset.</param>
-        /// <returns>Absolute packaged texture asset path.</returns>
-        static string ResolveImportedTexturePackagePath(string contentRootPath, string assetId) {
-            if (string.IsNullOrWhiteSpace(contentRootPath)) {
-                throw new ArgumentException("Content root path must be provided.", nameof(contentRootPath));
-            } else if (string.IsNullOrWhiteSpace(assetId)) {
+        /// <returns>Runtime asset path of the packaged texture payload.</returns>
+        static string ResolveImportedTexturePackagePath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new InvalidOperationException("Packaged material assets must include a diffuse texture asset id before imported textures can be resolved.");
             }
 
-            return Path.Combine(contentRootPath, ImportedTextureDirectoryName, assetId);
+            return CanonicalPackagedAssetPath.Normalize(Path.Combine(ImportedTextureDirectoryName, assetId));
         }
     }
 }

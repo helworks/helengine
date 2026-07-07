@@ -25,7 +25,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
 
             CoreInstance = new TestClockDrivenCore(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
 
             CoreInstance.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
@@ -199,7 +199,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void CoreUpdateAndDraw_WhenDsPerformanceOverlayMetricsArePublished_DrawsGenericPerformanceRows() {
             TestClockDrivenCore dsCore = new TestClockDrivenCore(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             dsCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("DS", "2.0"));
 
@@ -267,7 +267,7 @@ namespace helengine.editor.tests {
             };
             FakeRuntimeDiagnosticsProvider provider = new FakeRuntimeDiagnosticsProvider(snapshot);
             TestClockDrivenCore core = new TestClockDrivenCore(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath,
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath),
                 RuntimeDiagnosticsProvider = provider
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
@@ -392,3 +392,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

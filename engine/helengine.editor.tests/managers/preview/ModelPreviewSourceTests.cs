@@ -25,7 +25,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(AssetsRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempProjectRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
@@ -401,7 +401,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(modelImporter));
             }
 
-            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", modelImporter, new[] { ".mock" }));
@@ -552,3 +552,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

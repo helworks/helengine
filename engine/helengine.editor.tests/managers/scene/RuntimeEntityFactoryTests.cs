@@ -19,7 +19,7 @@ namespace helengine.editor.tests.managers.scene {
             Directory.CreateDirectory(TempRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = TempRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
@@ -74,3 +74,4 @@ namespace helengine.editor.tests.managers.scene {
         }
     }
 }
+
