@@ -12,5 +12,10 @@ namespace helengine.baseplatform.Definitions {
         /// Stable setting identifier for the generic forced-disabled feature list consumed by csharpcodegen.
         /// </summary>
         public const string ForcedDisabledFeatures = "codegen-forced-disabled-features";
+
+        /// <summary>
+        /// Stable setting identifier for compact native exception message lowering consumed by csharpcodegen.
+        /// </summary>
+        public const string CompactNativeExceptionMessages = "codegen-compact-native-exception-messages";
     }
 }

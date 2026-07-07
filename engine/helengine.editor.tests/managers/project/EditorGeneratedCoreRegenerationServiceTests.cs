@@ -295,6 +295,30 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies the generated-core regeneration service forwards the compact native exception message toggle through the shared generic `--set` argument path.
+    /// </summary>
+    [Fact]
+    public void Build_arguments_includes_compact_native_exception_message_toggle_as_generic_set_option() {
+        PlatformDefinition platformDefinition = CreatePlatformDefinition("ds", runtimeGenerationContract: null);
+        PlatformCodegenProfileDefinition codegenProfile = CreateDefaultCodegenProfile();
+        Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase) {
+            [PlatformCodegenSettingIds.CompactNativeExceptionMessages] = "true"
+        };
+
+        IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
+            @"C:\tmp\fixture.csproj",
+            @"C:\tmp\generated",
+            platformDefinition,
+            codegenProfile,
+            values,
+            [],
+            false);
+
+        Assert.Contains("--set", arguments);
+        Assert.Contains($"{PlatformCodegenSettingIds.CompactNativeExceptionMessages}=true", arguments);
+    }
+
+    /// <summary>
     /// Verifies engine-owned generated-core regeneration disables project-defined preprocessor symbols so platform-specific symbols come only from the selected build target.
     /// </summary>
     [Fact]
