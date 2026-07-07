@@ -16,7 +16,24 @@ public class HelengineFeatureCatalogIntegrityTests {
         string json = File.ReadAllText(normalizedFilePath);
         Assert.Contains("\"shaders\"", json, StringComparison.Ordinal);
         Assert.Contains("\"render2d\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"managed_metadata_only\"", json, StringComparison.Ordinal);
         Assert.Contains("\"host_file_system\"", json, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies the core content manager remains available without forcing the text-processing feature on every filesystem build.
+    /// </summary>
+    [Fact]
+    public void HelengineFeatureCatalog_keeps_text_processing_owned_by_explicit_text_registration() {
+        string normalizedFilePath = ResolveFeatureCatalogPath();
+
+        Assert.True(File.Exists(normalizedFilePath));
+
+        string json = File.ReadAllText(normalizedFilePath);
+        Assert.Contains("\"typeName\": \"helengine.ContentManager\", \"featureIds\": [ \"host_file_system\" ]", json, StringComparison.Ordinal);
+        Assert.Contains("\"typeName\": \"helengine.TextContentManagerConfiguration\", \"featureIds\": [ \"text_processing\" ]", json, StringComparison.Ordinal);
+        Assert.Contains("\"typeName\": \"helengine.GeneratedRuntimeModuleManifestAttribute\", \"featureIds\": [ \"managed_metadata_only\" ]", json, StringComparison.Ordinal);
+        Assert.Contains("\"typeName\": \"helengine.RuntimeFeatureRequirementAttribute\", \"featureIds\": [ \"managed_metadata_only\" ]", json, StringComparison.Ordinal);
     }
 
     /// <summary>

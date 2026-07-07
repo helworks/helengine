@@ -13,4 +13,9 @@ public static class PlatformBuildSceneMetadataKeys {
     /// Metadata key that stores the compact 3D physics scene feature mask required by the cooked scene.
     /// </summary>
     public const string Physics3DSceneFeatureFlags = "physics3d-scene-feature-flags";
+
+    /// <summary>
+    /// Metadata key that stores the semicolon-delimited automatic runtime component type ids referenced by the cooked scene.
+    /// </summary>
+    public const string AutomaticRuntimeComponentTypeIds = "automatic-runtime-component-type-ids";
 }

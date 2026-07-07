@@ -41,6 +41,39 @@ public class PlatformBuildManifestTests {
     }
 
     [Fact]
+    public void PlatformBuildManifest_preserves_runtime_feature_manifest() {
+        PlatformBuildRuntimeFeatureManifest runtimeFeatureManifest = new(
+            [
+                new PlatformBuildRequiredRuntimeFeature(
+                    "physics3d.box_box_contact",
+                    RuntimeFeatureRequirementSourceKind.Scene,
+                    "Scenes/physics/test_scene_dynamic_stack_boxes.helen",
+                    "scene serialized rigid-body and box collider contact pair")
+            ]);
+
+        PlatformBuildManifest manifest = new(
+            1,
+            "sample-project",
+            "1.0.0",
+            "1.0.0-engine",
+            "gamecube",
+            "1.0.0",
+            "Scenes/MainMenuScene.helen",
+            Array.Empty<PlatformBuildScene>(),
+            Array.Empty<PlatformBuildAsset>(),
+            Array.Empty<PlatformBuildArtifact>(),
+            Array.Empty<PlatformBuildCodeModule>(),
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>(),
+            runtimeFeatureManifest);
+
+        Assert.Same(runtimeFeatureManifest, manifest.RuntimeFeatureManifest);
+        Assert.Single(manifest.RuntimeFeatureManifest.RequiredFeatures);
+        Assert.Equal("physics3d.box_box_contact", manifest.RuntimeFeatureManifest.RequiredFeatures[0].FeatureId);
+    }
+
+    [Fact]
     public void PlatformBuildManifest_preserves_artifact_placements_and_container_plan() {
         PlatformBuildManifest manifest = new(
             3,
@@ -89,5 +122,6 @@ public class PlatformBuildManifestTests {
         Assert.Equal("container-0", manifest.ArtifactPlacements[0].ContainerId);
         Assert.Equal("container-0", manifest.ContainerWritePlan.ContainerArtifacts[0].ContainerId);
         Assert.Empty(manifest.PlatformCookWorkItems);
+        Assert.Empty(manifest.RuntimeFeatureManifest.RequiredFeatures);
     }
 }

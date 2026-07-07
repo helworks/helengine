@@ -61,7 +61,8 @@ namespace helengine.editor {
             IReadOnlyList<string> targetIds,
             IPlatformAssetBuilder materialBuilder = null,
             string selectedBuildProfileId = "",
-            string selectedGraphicsProfileId = "") {
+            string selectedGraphicsProfileId = "",
+            IReadOnlyDictionary<string, string> scenePathOverrides = null) {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
             }
@@ -93,12 +94,17 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 ScriptTypeResolver);
-            List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds);
-            EditorPlatformBuildScenePackagerResult packagerResult = packager.Package(orderedScenePaths, effectiveExecutionRootPath);
+            List<string> orderedCanonicalScenePaths = ResolveOrderedScenePaths(orderedSceneIds, null);
+            List<string> orderedSceneIdentityPaths = ResolvePackagedSceneIdentityPaths(orderedSceneIds, orderedCanonicalScenePaths);
+            List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds, scenePathOverrides);
+            EditorPlatformBuildScenePackagerResult packagerResult = packager.PackagePreservingIdentityPaths(
+                orderedSceneIdentityPaths,
+                orderedScenePaths,
+                effectiveExecutionRootPath);
             PlatformCookWorkItem[] platformCookWorkItems = [.. packagerResult.PlatformCookWorkItems];
 
             Console.WriteLine("[helengine-editor] build scene entries begin");
-            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedScenePaths, effectiveCookRootPath);
+            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedSceneIdentityPaths, effectiveCookRootPath);
             Console.WriteLine("[helengine-editor] build scene entries completed");
             Console.WriteLine("[helengine-editor] build cooked artifacts begin");
             PlatformBuildArtifact[] cookedArtifacts = BuildCookedArtifacts(
@@ -199,26 +205,27 @@ namespace helengine.editor {
             return builder.Descriptor.BuilderVersion;
         }
 
-        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedScenePaths, string cookRootPath) {
+        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedSceneIdentityPaths, string cookRootPath) {
             if (orderedSceneIds == null) {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
-            if (orderedScenePaths == null) {
-                throw new ArgumentNullException(nameof(orderedScenePaths));
+            if (orderedSceneIdentityPaths == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIdentityPaths));
             }
-            if (orderedSceneIds.Count != orderedScenePaths.Count) {
-                throw new InvalidOperationException("Ordered scene ids and authored scene paths must contain the same number of entries.");
+            if (orderedSceneIds.Count != orderedSceneIdentityPaths.Count) {
+                throw new InvalidOperationException("Ordered scene ids and canonical authored scene paths must contain the same number of entries.");
             }
 
             PlatformBuildScene[] scenes = new PlatformBuildScene[orderedSceneIds.Count];
             for (int index = 0; index < orderedSceneIds.Count; index++) {
                 string sceneId = orderedSceneIds[index];
-                string authoredScenePath = orderedScenePaths[index];
-                string cookedRelativePath = BuildCookedSceneRelativePath(authoredScenePath, index);
+                string canonicalScenePath = orderedSceneIdentityPaths[index];
+                string cookedRelativePath = BuildCookedSceneRelativePath(canonicalScenePath, index);
                 uint physics3DSceneFeatureFlags = ReadCookedScenePhysics3DFeatureFlags(cookRootPath, cookedRelativePath);
+                string automaticRuntimeComponentTypeIds = ReadCookedSceneAutomaticRuntimeComponentTypeIds(cookRootPath, cookedRelativePath, ScriptTypeResolver);
                 scenes[index] = new PlatformBuildScene(
                     sceneId,
-                    SceneIdUtility.FromPath(authoredScenePath),
+                    SceneIdUtility.FromPath(canonicalScenePath),
                     cookedRelativePath,
                     [
                         new PlatformBuildPayloadReference(cookedRelativePath, cookedRelativePath)
@@ -226,7 +233,8 @@ namespace helengine.editor {
                     [
                         new KeyValuePair<string, string>("build-order-index", index.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                         new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, cookedRelativePath),
-                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags, physics3DSceneFeatureFlags.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags, physics3DSceneFeatureFlags.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.AutomaticRuntimeComponentTypeIds, automaticRuntimeComponentTypeIds)
                     ]);
             }
 
@@ -237,18 +245,68 @@ namespace helengine.editor {
         /// Resolves the authored project-relative scene paths for the supplied stable scene ids.
         /// </summary>
         /// <param name="orderedSceneIds">Stable scene ids selected for the build.</param>
+        /// <param name="scenePathOverrides">Optional per-scene authored path overrides keyed by stable scene id.</param>
         /// <returns>Project-relative authored scene paths in build order.</returns>
-        List<string> ResolveOrderedScenePaths(IReadOnlyList<string> orderedSceneIds) {
+        List<string> ResolveOrderedScenePaths(IReadOnlyList<string> orderedSceneIds, IReadOnlyDictionary<string, string> scenePathOverrides) {
             if (orderedSceneIds == null) {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
 
             List<string> orderedScenePaths = new List<string>(orderedSceneIds.Count);
             for (int index = 0; index < orderedSceneIds.Count; index++) {
-                orderedScenePaths.Add(SceneCatalogService.ResolveScenePath(orderedSceneIds[index]));
+                string sceneId = orderedSceneIds[index];
+                if (scenePathOverrides != null && scenePathOverrides.TryGetValue(sceneId, out string overriddenScenePath)) {
+                    if (string.IsNullOrWhiteSpace(overriddenScenePath)) {
+                        throw new InvalidOperationException($"Scene path override for scene '{sceneId}' must be a non-empty project-relative asset path.");
+                    }
+
+                    orderedScenePaths.Add(overriddenScenePath);
+                    continue;
+                }
+
+                orderedScenePaths.Add(SceneCatalogService.ResolveScenePath(sceneId));
             }
 
             return orderedScenePaths;
+        }
+
+        /// <summary>
+        /// Resolves the packaged scene identity paths that should control runtime cooked scene names for the supplied build order.
+        /// </summary>
+        /// <param name="orderedSceneIds">Stable scene ids selected for the build.</param>
+        /// <param name="orderedCanonicalScenePaths">Canonical authored scene paths resolved from the project catalog.</param>
+        /// <returns>Packaged scene identity paths used to derive cooked scene output names.</returns>
+        static List<string> ResolvePackagedSceneIdentityPaths(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedCanonicalScenePaths) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+            if (orderedCanonicalScenePaths == null) {
+                throw new ArgumentNullException(nameof(orderedCanonicalScenePaths));
+            }
+            if (orderedSceneIds.Count != orderedCanonicalScenePaths.Count) {
+                throw new InvalidOperationException("Ordered scene ids and canonical authored scene paths must contain the same number of entries.");
+            }
+
+            List<string> packagedSceneIdentityPaths = new List<string>(orderedSceneIds.Count);
+            for (int index = 0; index < orderedSceneIds.Count; index++) {
+                packagedSceneIdentityPaths.Add(ResolvePackagedSceneIdentityPath(orderedSceneIds[index], orderedCanonicalScenePaths[index]));
+            }
+
+            return packagedSceneIdentityPaths;
+        }
+
+        /// <summary>
+        /// Resolves the packaged scene identity path that should own one cooked scene output name.
+        /// </summary>
+        /// <param name="sceneId">Stable scene id selected for the build.</param>
+        /// <param name="canonicalScenePath">Canonical authored scene path resolved from the project catalog.</param>
+        /// <returns>Packaged scene identity path used to derive the cooked runtime asset path.</returns>
+        static string ResolvePackagedSceneIdentityPath(string sceneId, string canonicalScenePath) {
+            if (string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal)) {
+                return sceneId;
+            }
+
+            return canonicalScenePath;
         }
 
         /// <summary>
@@ -282,6 +340,41 @@ namespace helengine.editor {
             } finally {
                 EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
+        }
+
+        /// <summary>
+        /// Reads the semicolon-delimited automatic runtime component type ids referenced by one cooked scene.
+        /// </summary>
+        /// <param name="cookRootPath">Absolute cook root that owns the cooked scene payloads.</param>
+        /// <param name="cookedRelativePath">Runtime-relative cooked scene path beginning with <c>cooked/</c>.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for gameplay component discovery.</param>
+        /// <returns>Semicolon-delimited automatic runtime component type ids referenced by the cooked scene.</returns>
+        static string ReadCookedSceneAutomaticRuntimeComponentTypeIds(
+            string cookRootPath,
+            string cookedRelativePath,
+            IScriptTypeResolver scriptTypeResolver) {
+            if (string.IsNullOrWhiteSpace(cookRootPath)) {
+                throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
+                throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
+            }
+
+            string normalizedCookedRelativePath = NormalizeCookedRelativePath(cookedRelativePath);
+            string fullScenePath = Path.Combine(cookRootPath, normalizedCookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            IReadOnlyList<Type> componentTypes = EditorGeneratedCoreRegenerationService.DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
+                [fullScenePath],
+                scriptTypeResolver);
+            if (componentTypes.Count == 0) {
+                return string.Empty;
+            }
+
+            string[] componentTypeIds = new string[componentTypes.Count];
+            for (int index = 0; index < componentTypes.Count; index++) {
+                componentTypeIds[index] = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(componentTypes[index]);
+            }
+
+            return string.Join(";", componentTypeIds);
         }
 
         PlatformBuildArtifact[] BuildCookedArtifacts(

@@ -31,6 +31,7 @@ public class PlatformBuildManifest {
     /// <param name="artifactPlacements">The planned physical placements for the cooked artifacts.</param>
     /// <param name="containerWritePlan">The planned container layout for the cooked artifacts.</param>
     /// <param name="platformCookWorkItems">The builder-owned platform cook work items emitted by the build graph.</param>
+    /// <param name="runtimeFeatureManifest">The required runtime feature manifest resolved by the editor build graph.</param>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the manifest version is less than one.</exception>
     /// <exception cref="ArgumentException">Thrown when any required string value is missing.</exception>
     /// <exception cref="ArgumentNullException">Thrown when the scene or loose-asset collections are missing.</exception>
@@ -61,7 +62,8 @@ public class PlatformBuildManifest {
             codeModules,
             artifactPlacements,
             containerWritePlan,
-            Array.Empty<PlatformCookWorkItem>()) {
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty) {
     }
 
     /// <summary>
@@ -92,7 +94,59 @@ public class PlatformBuildManifest {
         PlatformBuildCodeModule[] codeModules,
         PlatformArtifactPlacement[] artifactPlacements,
         PlatformContainerWritePlan containerWritePlan,
-        PlatformCookWorkItem[] platformCookWorkItems) {
+        PlatformCookWorkItem[] platformCookWorkItems)
+        : this(
+            manifestVersion,
+            projectId,
+            projectVersion,
+            requiredEngineVersion,
+            platformName,
+            platformVersion,
+            startupSceneId,
+            scenes,
+            looseAssets,
+            cookedArtifacts,
+            codeModules,
+            artifactPlacements,
+            containerWritePlan,
+            platformCookWorkItems,
+            PlatformBuildRuntimeFeatureManifest.Empty) {
+    }
+
+    /// <summary>
+    /// Initializes a fully resolved build manifest with startup-scene metadata, explicit platform name/version values, and runtime feature requirements.
+    /// </summary>
+    /// <param name="manifestVersion">The manifest schema version.</param>
+    /// <param name="projectId">The stable project identity for the build.</param>
+    /// <param name="projectVersion">The project version being built.</param>
+    /// <param name="requiredEngineVersion">The exact engine version the cooked output targets.</param>
+    /// <param name="platformName">The stable target platform identifier stamped into the runtime output.</param>
+    /// <param name="platformVersion">The builder-stamped platform version reported by the runtime output.</param>
+    /// <param name="startupSceneId">The startup scene chosen by build order.</param>
+    /// <param name="scenes">The fully resolved scenes the builder must cook.</param>
+    /// <param name="looseAssets">The fully resolved loose assets the builder must cook.</param>
+    /// <param name="cookedArtifacts">The cooked runtime artifacts prepared by the build graph.</param>
+    /// <param name="codeModules">The authored code modules prepared by the build graph.</param>
+    /// <param name="artifactPlacements">The planned physical placements for the cooked artifacts.</param>
+    /// <param name="containerWritePlan">The planned container layout for the cooked artifacts.</param>
+    /// <param name="platformCookWorkItems">The builder-owned platform cook work items emitted by the build graph.</param>
+    /// <param name="runtimeFeatureManifest">The required runtime feature manifest resolved by the editor build graph.</param>
+    public PlatformBuildManifest(
+        int manifestVersion,
+        string projectId,
+        string projectVersion,
+        string requiredEngineVersion,
+        string platformName,
+        string platformVersion,
+        string startupSceneId,
+        PlatformBuildScene[] scenes,
+        PlatformBuildAsset[] looseAssets,
+        PlatformBuildArtifact[] cookedArtifacts,
+        PlatformBuildCodeModule[] codeModules,
+        PlatformArtifactPlacement[] artifactPlacements,
+        PlatformContainerWritePlan containerWritePlan,
+        PlatformCookWorkItem[] platformCookWorkItems,
+        PlatformBuildRuntimeFeatureManifest runtimeFeatureManifest) {
         if (manifestVersion < 1) {
             throw new ArgumentOutOfRangeException(nameof(manifestVersion), "Manifest version must be at least 1.");
         } else if (string.IsNullOrWhiteSpace(projectId)) {
@@ -133,6 +187,8 @@ public class PlatformBuildManifest {
             throw new ArgumentNullException(nameof(platformCookWorkItems), "Platform cook work item collection is required.");
         } else if (Array.Exists(platformCookWorkItems, workItem => workItem == null)) {
             throw new ArgumentException("Platform cook work item collection cannot contain null entries.", nameof(platformCookWorkItems));
+        } else if (runtimeFeatureManifest == null) {
+            throw new ArgumentNullException(nameof(runtimeFeatureManifest), "Runtime feature manifest is required.");
         }
 
         ManifestVersion = manifestVersion;
@@ -149,6 +205,7 @@ public class PlatformBuildManifest {
         ArtifactPlacements = [.. artifactPlacements];
         ContainerWritePlan = containerWritePlan;
         PlatformCookWorkItems = [.. platformCookWorkItems];
+        RuntimeFeatureManifest = runtimeFeatureManifest;
     }
 
     /// <summary>
@@ -204,7 +261,8 @@ public class PlatformBuildManifest {
             codeModules,
             artifactPlacements,
             containerWritePlan,
-            Array.Empty<PlatformCookWorkItem>()) {
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty) {
     }
 
     /// <summary>
@@ -231,7 +289,8 @@ public class PlatformBuildManifest {
             Array.Empty<PlatformBuildCodeModule>(),
             Array.Empty<PlatformArtifactPlacement>(),
             new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
-            Array.Empty<PlatformCookWorkItem>()) {
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty) {
     }
 
     /// <summary>
@@ -260,7 +319,8 @@ public class PlatformBuildManifest {
             Array.Empty<PlatformBuildCodeModule>(),
             Array.Empty<PlatformArtifactPlacement>(),
             new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
-            Array.Empty<PlatformCookWorkItem>()) {
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty) {
     }
 
     /// <summary>
@@ -332,4 +392,9 @@ public class PlatformBuildManifest {
     /// Gets the builder-owned platform cook work items emitted by the build graph.
     /// </summary>
     public PlatformCookWorkItem[] PlatformCookWorkItems { get; }
+
+    /// <summary>
+    /// Gets the required runtime feature manifest resolved by the editor build graph.
+    /// </summary>
+    public PlatformBuildRuntimeFeatureManifest RuntimeFeatureManifest { get; }
 }

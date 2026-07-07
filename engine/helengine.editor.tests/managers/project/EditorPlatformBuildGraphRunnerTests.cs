@@ -418,6 +418,160 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the runner applies aggregated runtime feature requirements to cooked manifests before later clone stages run.
+    /// </summary>
+    [Fact]
+    public void ApplyRuntimeFeatureManifest_replaces_empty_manifest_with_aggregated_requirements() {
+        EditorRuntimeFeatureManifestService runtimeFeatureManifestService = new(
+            [
+                new FakeEditorRuntimeFeatureRequirementCollector(
+                    new PlatformBuildRequiredRuntimeFeature(
+                        "physics3d.box_box_contact",
+                        RuntimeFeatureRequirementSourceKind.Scene,
+                        "Scenes/test_scene_dynamic_stack_boxes.helen",
+                        "scene serialized rigid-body box collision"))
+            ]);
+
+        EditorPlatformBuildGraphRunner runner = (EditorPlatformBuildGraphRunner)Activator.CreateInstance(
+            typeof(EditorPlatformBuildGraphRunner),
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            null,
+            [
+                Path.GetTempPath(),
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    "generated-core",
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService(),
+                null,
+                runtimeFeatureManifestService,
+                null
+            ],
+            null);
+        PlatformBuildManifest inputManifest = new(
+            1,
+            "project",
+            "1.0.0",
+            "1.0.0-engine",
+            "windows",
+            "1.0.0",
+            "Scenes/Main.helen",
+            Array.Empty<PlatformBuildScene>(),
+            Array.Empty<PlatformBuildAsset>(),
+            Array.Empty<PlatformBuildArtifact>(),
+            Array.Empty<PlatformBuildCodeModule>(),
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+        MethodInfo applyRuntimeFeatureManifestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+            "ApplyRuntimeFeatureManifest",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(applyRuntimeFeatureManifestMethod);
+
+        PlatformBuildManifest outputManifest = (PlatformBuildManifest)applyRuntimeFeatureManifestMethod.Invoke(runner, [inputManifest]);
+
+        Assert.NotSame(inputManifest, outputManifest);
+        Assert.Single(outputManifest.RuntimeFeatureManifest.RequiredFeatures);
+        Assert.Equal("physics3d.box_box_contact", outputManifest.RuntimeFeatureManifest.RequiredFeatures[0].FeatureId);
+    }
+
+    /// <summary>
+    /// Verifies the runner fails before packaging when a selected disabled runtime feature is still required by the aggregated manifest.
+    /// </summary>
+    [Fact]
+    public void ValidateAndWriteRuntimeFeatureManifest_whenDisabledRequiredFeatureIsConfigured_throws() {
+        EditorRuntimeFeatureManifestService runtimeFeatureManifestService = new(
+            [
+                new FakeEditorRuntimeFeatureRequirementCollector(
+                    new PlatformBuildRequiredRuntimeFeature(
+                        "physics3d.box_box_contact",
+                        RuntimeFeatureRequirementSourceKind.Scene,
+                        "PhysicsScene",
+                        "Scene requires box contact."))
+            ]);
+        EditorPlatformBuildGraphRunner runner = (EditorPlatformBuildGraphRunner)Activator.CreateInstance(
+            typeof(EditorPlatformBuildGraphRunner),
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            null,
+            [
+                Path.GetTempPath(),
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    "generated-core",
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService(),
+                null,
+                runtimeFeatureManifestService,
+                null
+            ],
+            null);
+        PlatformBuildManifest manifest = new(
+            1,
+            "project",
+            "1.0.0",
+            "1.0.0-engine",
+            "windows",
+            "1.0.0",
+            "Main",
+            Array.Empty<PlatformBuildScene>(),
+            Array.Empty<PlatformBuildAsset>(),
+            Array.Empty<PlatformBuildArtifact>(),
+            Array.Empty<PlatformBuildCodeModule>(),
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>(),
+            new PlatformBuildRuntimeFeatureManifest(
+                [
+                    new PlatformBuildRequiredRuntimeFeature(
+                        "physics3d.box_box_contact",
+                        RuntimeFeatureRequirementSourceKind.Scene,
+                        "PhysicsScene",
+                        "Scene requires box contact.")
+                ]));
+        EditorBuildQueueItemDocument queueItem = new() {
+            QueueItemId = "queue-item",
+            PlatformId = "windows",
+            OutputDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-runtime-feature-runner-tests", Guid.NewGuid().ToString("N")),
+            SelectedSceneIds = ["Main"],
+            SelectedCodegenOptionValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                [PlatformCodegenSettingIds.ForcedDisabledFeatures] = "physics3d.box_box_contact"
+            }
+        };
+        EditorPlatformBuildGraphWorkspace workspace = new(Path.Combine(Path.GetTempPath(), "helengine-runtime-feature-runner-workspace", Guid.NewGuid().ToString("N")));
+        MethodInfo validateMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+            "ValidateAndWriteRuntimeFeatureManifest",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(validateMethod);
+
+        TargetInvocationException exception = Assert.Throws<TargetInvocationException>(() => validateMethod.Invoke(runner, [manifest, queueItem, workspace]));
+
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+        Assert.Contains("physics3d.box_box_contact", exception.InnerException.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies scene-driven runtime component deserializer emission refreshes the generated-core unity translation unit so the emitted deserializer implementation files are compiled into native player builds.
     /// </summary>
     [Fact]

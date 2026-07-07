@@ -5,6 +5,7 @@ using helengine.baseplatform.Manifest;
 using helengine.baseplatform.Reporting;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Results;
+using helengine.directx11;
 using helengine.editor.tests.testing;
 using helengine.platforms;
 using Xunit;
@@ -25,6 +26,9 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
         Directory.CreateDirectory(Path.Combine(ProjectRootPath, "cache", "shader-cache"));
         Directory.CreateDirectory(BuildRootPath);
+        ShaderBackendRegistry shaderBackendRegistry = new();
+        shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+        EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
     }
 
     public void Dispose() {
@@ -76,6 +80,96 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.False(File.Exists(Path.Combine(BuildRootPath, "Models", "Sponza.obj")));
         Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.CookedRelativePath);
         Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags && entry.Value == "0");
+        Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.AutomaticRuntimeComponentTypeIds && entry.Value == string.Empty);
+    }
+
+    /// <summary>
+    /// Verifies cooked scene metadata records the used automatic runtime component type ids so later build phases can discover code-driven runtime feature requirements.
+    /// </summary>
+    [Fact]
+    public void Cook_scene_build_outputs_automatic_runtime_component_type_ids_metadata() {
+        string scenePath = "Scenes/ScriptedScene.helen";
+        string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(GeneratedRuntimeModuleRegistrationTestComponent));
+        DictionaryScriptTypeResolver scriptTypeResolver = new();
+        scriptTypeResolver.Register(componentTypeId, typeof(GeneratedRuntimeModuleRegistrationTestComponent));
+        WriteSceneAsset(
+            scenePath,
+            [
+                new SceneComponentAssetRecord {
+                    ComponentTypeId = componentTypeId,
+                    ComponentIndex = 0,
+                    Payload = Array.Empty<byte>()
+                }
+            ],
+            Array.Empty<SceneAssetReference>());
+
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            "1.0.0-engine",
+            "game",
+            "1.0.0",
+            Array.Empty<IAssetImporterRegistration>(),
+            PackagedFontAssetFactory.Create(),
+            scriptTypeResolver);
+        TestPlatformMaterialAssetBuilder builder = new();
+
+        PlatformBuildManifest manifest = service.Cook(
+            builder.Definition,
+            ["ScriptedScene"],
+            BuildRootPath,
+            ["windows"],
+            builder);
+
+        Assert.Contains(
+            manifest.Scenes[0].ResolvedMetadata,
+            entry => entry.Key == PlatformBuildSceneMetadataKeys.AutomaticRuntimeComponentTypeIds
+                && entry.Value == componentTypeId);
+    }
+
+    /// <summary>
+    /// Verifies generated boot scene source overrides keep the canonical packaged scene path while still loading the overridden authored scene contents.
+    /// </summary>
+    [Fact]
+    public void Cook_when_generated_boot_scene_uses_override_source_path_preserves_canonical_packaged_scene_path() {
+        const string canonicalScenePath = "Scenes/GeneratedBootScene.helen";
+        const string overrideScenePath = ".generated-build/3ds/build123/GeneratedBootScene_build123.helen";
+        WriteSceneAsset(canonicalScenePath, "CanonicalRoot", Array.Empty<SceneAssetReference>());
+        WriteSceneAsset(overrideScenePath, "OverrideRoot", Array.Empty<SceneAssetReference>());
+
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            "1.0.0-engine",
+            "game",
+            "1.0.0",
+            Array.Empty<IAssetImporterRegistration>(),
+            PackagedFontAssetFactory.Create());
+        TestPlatformMaterialAssetBuilder builder = new TestPlatformMaterialAssetBuilder();
+
+        PlatformBuildManifest manifest = service.Cook(
+            builder.Definition,
+            ["GeneratedBootScene"],
+            BuildRootPath,
+            ["3ds"],
+            builder,
+            scenePathOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                ["GeneratedBootScene"] = overrideScenePath
+            });
+
+        string cookedScenePath = Path.Combine(BuildRootPath, "cooked", "scenes", "generatedbootscene.hasset");
+        Assert.True(File.Exists(cookedScenePath));
+        Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", ".generated-build")));
+
+        using FileStream stream = File.OpenRead(cookedScenePath);
+        SceneAsset cookedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+        Assert.Equal("GeneratedBootScene", cookedScene.Id);
+        Assert.Equal("OverrideRoot", Assert.Single(cookedScene.RootEntities).Name);
+        Assert.Contains(
+            manifest.Scenes[0].ResolvedMetadata,
+            entry => entry.Key == PlatformBuildSceneMetadataKeys.CookedRelativePath
+                && entry.Value == "cooked/scenes/generatedbootscene.hasset");
+        Assert.DoesNotContain(
+            manifest.Scenes[0].ResolvedMetadata,
+            entry => entry.Value.Contains(".generated-build", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -111,6 +205,85 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             manifest.Scenes[1].ResolvedMetadata,
             entry => entry.Key == PlatformBuildSceneMetadataKeys.CookedRelativePath
                 && entry.Value == "cooked/scenes/rendering/directional_shadow_plaza.hasset");
+    }
+
+    /// <summary>
+    /// Verifies packaged animation clips are flattened for the selected target platform before they are written into the player content root.
+    /// </summary>
+    [Fact]
+    public void Cook_when_scene_references_animation_clip_resolves_platform_override_before_packaging() {
+        string scenePath = "Scenes/AnimatedLogo.helen";
+        string animationRelativePath = "Animations/DemoDiscLogoIdle.hanim";
+        WriteAnimationClipAsset(
+            animationRelativePath,
+            new AnimationClipAsset {
+                Id = animationRelativePath,
+                Duration = 1f,
+                PositionTracks = [
+                    new PositionKeyframeTrackAsset {
+                        Keyframes = [
+                            new PositionKeyframeAsset(0f, new float3(0f, 0f, 0f), AnimationInterpolationMode.Step) {
+                                FrameId = "base-000"
+                            },
+                            new PositionKeyframeAsset(1f, new float3(8f, 0f, 0f), AnimationInterpolationMode.Linear) {
+                                FrameId = "base-001"
+                            }
+                        ]
+                    }
+                ],
+                PlatformOverrides = [
+                    new AnimationClipPlatformOverrideAsset {
+                        PlatformId = "windows",
+                        Mode = AnimationClipPlatformOverrideMode.OverrideFrames,
+                        PositionTracks = [
+                            new PlatformPositionKeyframeTrackAsset {
+                                Keyframes = [
+                                    new PositionKeyframeAsset(0.5f, new float3(4f, 2f, 0f), AnimationInterpolationMode.Linear),
+                                    new PositionKeyframeAsset(1f, new float3(12f, -2f, 0f), AnimationInterpolationMode.Linear) {
+                                        FrameId = "base-001"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            });
+        WriteSceneAsset(
+            scenePath,
+            [
+                SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip(animationRelativePath)
+            ]);
+
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            "1.0.0-engine",
+            "game",
+            "1.0.0",
+            Array.Empty<IAssetImporterRegistration>(),
+            PackagedFontAssetFactory.Create());
+        TestPlatformMaterialAssetBuilder builder = new();
+
+        service.Cook(
+            builder.Definition,
+            ["AnimatedLogo"],
+            BuildRootPath,
+            ["windows"],
+            builder);
+
+        string packagedAnimationPath = Path.Combine(BuildRootPath, "Animations", "DemoDiscLogoIdle.hanim");
+        Assert.True(File.Exists(packagedAnimationPath));
+
+        using FileStream stream = new(packagedAnimationPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        AnimationClipAsset packagedClip = Assert.IsType<AnimationClipAsset>(AssetSerializer.Deserialize(stream));
+        PositionKeyframeAsset[] keyframes = Assert.Single(packagedClip.PositionTracks).Keyframes;
+        Assert.Empty(packagedClip.PlatformOverrides);
+        Assert.Collection(
+            keyframes,
+            keyframe => Assert.Equal(0f, keyframe.Time),
+            keyframe => Assert.Equal(0.5f, keyframe.Time),
+            keyframe => Assert.Equal(1f, keyframe.Time));
+        Assert.Equal(new float3(12f, -2f, 0f), keyframes[2].Value);
+        Assert.All(keyframes, keyframe => Assert.True(string.IsNullOrEmpty(keyframe.FrameId)));
     }
 
     /// <summary>
@@ -304,7 +477,43 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "imported", textureAssetId)));
     }
 
+    /// <summary>
+    /// Writes one authored scene asset that uses the default root-entity name.
+    /// </summary>
+    /// <param name="sceneId">Project-relative scene path to write beneath the temporary assets root.</param>
+    /// <param name="assetReferences">Asset references that should be serialized into the authored scene.</param>
     void WriteSceneAsset(string sceneId, SceneAssetReference[] assetReferences) {
+        WriteSceneAsset(sceneId, "Root", Array.Empty<SceneComponentAssetRecord>(), assetReferences);
+    }
+
+    /// <summary>
+    /// Writes one authored scene asset with a caller-supplied root-entity name so override-source tests can distinguish which scene payload was packaged.
+    /// </summary>
+    /// <param name="sceneId">Project-relative scene path to write beneath the temporary assets root.</param>
+    /// <param name="rootEntityName">Name assigned to the single serialized root entity.</param>
+    /// <param name="assetReferences">Asset references that should be serialized into the authored scene.</param>
+    void WriteSceneAsset(string sceneId, string rootEntityName, SceneAssetReference[] assetReferences) {
+        WriteSceneAsset(sceneId, rootEntityName, Array.Empty<SceneComponentAssetRecord>(), assetReferences);
+    }
+
+    /// <summary>
+    /// Writes one authored scene asset with caller-supplied serialized component records on the root entity.
+    /// </summary>
+    /// <param name="sceneId">Project-relative scene path to write beneath the temporary assets root.</param>
+    /// <param name="componentRecords">Serialized component records that should be written onto the root entity.</param>
+    /// <param name="assetReferences">Asset references that should be serialized into the authored scene.</param>
+    void WriteSceneAsset(string sceneId, SceneComponentAssetRecord[] componentRecords, SceneAssetReference[] assetReferences) {
+        WriteSceneAsset(sceneId, "Root", componentRecords, assetReferences);
+    }
+
+    /// <summary>
+    /// Writes one authored scene asset with caller-supplied root-entity data.
+    /// </summary>
+    /// <param name="sceneId">Project-relative scene path to write beneath the temporary assets root.</param>
+    /// <param name="rootEntityName">Name assigned to the single serialized root entity.</param>
+    /// <param name="componentRecords">Serialized component records that should be written onto the root entity.</param>
+    /// <param name="assetReferences">Asset references that should be serialized into the authored scene.</param>
+    void WriteSceneAsset(string sceneId, string rootEntityName, SceneComponentAssetRecord[] componentRecords, SceneAssetReference[] assetReferences) {
         string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
 
@@ -314,11 +523,11 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             RootEntities = new[] {
                 new SceneEntityAsset {
                     Id = 1u,
-                    Name = "Root",
+                    Name = rootEntityName,
                     LocalPosition = float3.Zero,
                     LocalScale = float3.One,
                     LocalOrientation = float4.Identity,
-                    Components = Array.Empty<SceneComponentAssetRecord>(),
+                    Components = componentRecords ?? Array.Empty<SceneComponentAssetRecord>(),
                     Children = Array.Empty<SceneEntityAsset>()
                 }
             }
@@ -437,6 +646,17 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     static void WriteSerializedAsset(string fullPath, Asset asset) {
         using FileStream stream = new(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
         AssetSerializer.Serialize(stream, asset);
+    }
+
+    /// <summary>
+    /// Writes one serialized animation clip asset into the temporary project assets tree.
+    /// </summary>
+    /// <param name="animationRelativePath">Project-relative animation clip path to write.</param>
+    /// <param name="animationClipAsset">Animation clip payload to serialize.</param>
+    void WriteAnimationClipAsset(string animationRelativePath, AnimationClipAsset animationClipAsset) {
+        string animationPath = Path.Combine(ProjectRootPath, "assets", animationRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(animationPath)!);
+        WriteSerializedAsset(animationPath, animationClipAsset);
     }
 
     /// <summary>

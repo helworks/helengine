@@ -64,17 +64,18 @@ namespace helengine.editor {
 
             PlatformDescriptor = platformDescriptor;
             BuildGraphRunner = buildGraphRunner ?? new EditorPlatformBuildGraphRunner(
-                Path.GetFullPath(projectRootPath),
-                requiredEngineVersion,
-                projectId,
-                projectVersion,
-                importers,
-                platformDescriptor,
-                defaultFontAsset,
-                new EditorPlatformAssetBuilderLoader(),
-                new EditorGeneratedCoreRegenerationService(),
-                new EditorPlatformBuildGraphWorkspaceFactory(projectRootPath),
-                scriptTypeResolver);
+                projectRootPath: Path.GetFullPath(projectRootPath),
+                requiredEngineVersion: requiredEngineVersion,
+                projectId: projectId,
+                projectVersion: projectVersion,
+                importers: importers,
+                platformDescriptor: platformDescriptor,
+                defaultFontAsset: defaultFontAsset,
+                builderLoader: new EditorPlatformAssetBuilderLoader(),
+                generatedCoreRegenerationService: new EditorGeneratedCoreRegenerationService(),
+                workspaceFactory: new EditorPlatformBuildGraphWorkspaceFactory(projectRootPath),
+                runtimeFeatureManifestService: null,
+                scriptTypeResolver: scriptTypeResolver);
         }
 
         /// <summary>

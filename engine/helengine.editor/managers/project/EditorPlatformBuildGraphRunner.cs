@@ -31,6 +31,9 @@ namespace helengine.editor {
         readonly EditorPlatformBuildGraphWorkspaceFactory WorkspaceFactory;
         readonly EditorPlatformAssetCookService AssetCookService;
         readonly EditorPhysics3DCodegenFeatureSymbolService Physics3DCodegenFeatureSymbolService;
+        readonly EditorRuntimeFeatureManifestService RuntimeFeatureManifestService;
+        readonly EditorRuntimeFeatureManifestValidationService RuntimeFeatureManifestValidationService;
+        readonly EditorRuntimeFeatureManifestReportWriter RuntimeFeatureManifestReportWriter;
         readonly EditorCodeModuleManifestService CodeModuleManifestService;
         readonly EditorPlatformCodeCookService CodeCookService;
         readonly EditorPlatformLayoutPlanService LayoutPlanService;
@@ -73,6 +76,7 @@ namespace helengine.editor {
                 builderLoader,
                 generatedCoreRegenerationService,
                 null,
+                null,
                 scriptTypeResolver) {
         }
 
@@ -87,6 +91,7 @@ namespace helengine.editor {
             EditorPlatformAssetBuilderLoader builderLoader,
             EditorGeneratedCoreRegenerationService generatedCoreRegenerationService,
             EditorPlatformBuildGraphWorkspaceFactory workspaceFactory,
+            EditorRuntimeFeatureManifestService runtimeFeatureManifestService,
             IScriptTypeResolver scriptTypeResolver = null) {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             RequiredEngineVersion = requiredEngineVersion ?? throw new ArgumentNullException(nameof(requiredEngineVersion));
@@ -108,6 +113,12 @@ namespace helengine.editor {
                 DefaultFontAsset,
                 scriptTypeResolver);
             Physics3DCodegenFeatureSymbolService = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
+            RuntimeFeatureManifestService = runtimeFeatureManifestService ?? new EditorRuntimeFeatureManifestService([
+                new EditorPhysics3DRuntimeFeatureRequirementCollector(ProjectRootPath),
+                new EditorRuntimeFeatureCodeRequirementDiscoveryService(scriptTypeResolver)
+            ]);
+            RuntimeFeatureManifestValidationService = new EditorRuntimeFeatureManifestValidationService();
+            RuntimeFeatureManifestReportWriter = new EditorRuntimeFeatureManifestReportWriter();
             CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
             CodeCookService = new EditorPlatformCodeCookService(ProjectRootPath);
             LayoutPlanService = new EditorPlatformLayoutPlanService();
@@ -145,17 +156,23 @@ namespace helengine.editor {
             Directory.CreateDirectory(workspace.LogsRootPath);
             WritePhaseMarker(workspace, "workspace-ready");
 
-            GeneratedBootScenePreparationService.EnsurePrepared(queueItem.PlatformId, queueItem.SelectedSceneIds ?? []);
+            Dictionary<string, string> temporaryGeneratedScenePathOverrides = PrepareTemporaryGeneratedScenePathOverrides(queueItem);
             WritePhaseMarker(workspace, "boot-scene-prepared");
             RunRegenerateCore(builder.Definition, selectedCodegenProfile, queueItem, workspace);
             WritePhaseMarker(workspace, "generated-core-ready");
-            PlatformBuildManifest cookedManifest = RunCookAssets(
-                builder,
-                builder.Definition,
-                selectedBuildProfileId,
-                selectedGraphicsProfileId,
-                queueItem,
-                workspace);
+            PlatformBuildManifest cookedManifest;
+            try {
+                cookedManifest = RunCookAssets(
+                    builder,
+                    builder.Definition,
+                    selectedBuildProfileId,
+                    selectedGraphicsProfileId,
+                    queueItem,
+                    workspace,
+                    temporaryGeneratedScenePathOverrides);
+            } finally {
+                DeleteTemporaryGeneratedSceneOverrides(temporaryGeneratedScenePathOverrides);
+            }
             WritePhaseMarker(workspace, "assets-cooked");
             PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
             WritePhaseMarker(workspace, "code-compiled");
@@ -163,6 +180,8 @@ namespace helengine.editor {
             EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.ExecutionRootPath, builder.Definition);
             EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(workspace.GeneratedCoreRootPath);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
+            cookedManifest = ApplyRuntimeFeatureManifest(cookedManifest);
+            ValidateAndWriteRuntimeFeatureManifest(cookedManifest, queueItem, workspace);
             WritePhaseMarker(workspace, "generated-core-finalized");
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
             WritePhaseMarker(workspace, "variants-resolved");
@@ -185,6 +204,79 @@ namespace helengine.editor {
                 selectedStorageProfileId);
             WritePhaseMarker(workspace, "platform-packaged");
             return FinalizeBuildExecution(selectionModel, queueItem, packageResult);
+        }
+
+        /// <summary>
+        /// Applies the aggregated runtime feature manifest to the supplied cooked manifest.
+        /// </summary>
+        /// <param name="manifest">Cooked manifest that should receive the aggregated runtime feature requirements.</param>
+        /// <returns>Updated manifest carrying the aggregated runtime feature requirements.</returns>
+        PlatformBuildManifest ApplyRuntimeFeatureManifest(PlatformBuildManifest manifest) {
+            if (manifest == null) {
+                throw new ArgumentNullException(nameof(manifest));
+            }
+
+            PlatformBuildRuntimeFeatureManifest runtimeFeatureManifest = RuntimeFeatureManifestService.Build(manifest);
+            PlatformBuildManifest updatedManifest = new(
+                manifest.ManifestVersion,
+                manifest.ProjectId,
+                manifest.ProjectVersion,
+                manifest.RequiredEngineVersion,
+                manifest.PlatformName,
+                manifest.PlatformVersion,
+                manifest.StartupSceneId,
+                manifest.Scenes,
+                manifest.LooseAssets,
+                manifest.CookedArtifacts,
+                manifest.CodeModules,
+                manifest.ArtifactPlacements,
+                manifest.ContainerWritePlan,
+                manifest.PlatformCookWorkItems,
+                runtimeFeatureManifest);
+            updatedManifest.StandardPlatformInputConfiguration = manifest.StandardPlatformInputConfiguration;
+            return updatedManifest;
+        }
+
+        /// <summary>
+        /// Writes the resolved runtime feature report and validates that no required feature was disabled by user settings.
+        /// </summary>
+        /// <param name="manifest">Build manifest carrying the resolved runtime feature requirements.</param>
+        /// <param name="queueItem">Queued build item that may disable runtime features through codegen settings.</param>
+        /// <param name="workspace">Workspace that owns the build logs directory.</param>
+        void ValidateAndWriteRuntimeFeatureManifest(
+            PlatformBuildManifest manifest,
+            EditorBuildQueueItemDocument queueItem,
+            EditorPlatformBuildGraphWorkspace workspace) {
+            if (manifest == null) {
+                throw new ArgumentNullException(nameof(manifest));
+            } else if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            } else if (workspace == null) {
+                throw new ArgumentNullException(nameof(workspace));
+            }
+
+            string[] disabledFeatureIds = ResolveDisabledRuntimeFeatureIds(queueItem);
+            RuntimeFeatureManifestReportWriter.Write(workspace.LogsRootPath, manifest.RuntimeFeatureManifest, disabledFeatureIds);
+            RuntimeFeatureManifestValidationService.Validate(manifest.RuntimeFeatureManifest, disabledFeatureIds);
+        }
+
+        /// <summary>
+        /// Resolves the normalized forced-disabled runtime feature identifiers from the queue item's selected codegen options.
+        /// </summary>
+        /// <param name="queueItem">Queued build item that may carry forced-disabled runtime feature settings.</param>
+        /// <returns>Normalized forced-disabled runtime feature identifiers.</returns>
+        static string[] ResolveDisabledRuntimeFeatureIds(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+
+            if (queueItem.SelectedCodegenOptionValues == null
+                || !queueItem.SelectedCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.ForcedDisabledFeatures, out string disabledFeatureValue)
+                || string.IsNullOrWhiteSpace(disabledFeatureValue)) {
+                return [];
+            }
+
+            return disabledFeatureValue.Split([';', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
 
         /// <summary>
@@ -374,7 +466,8 @@ namespace helengine.editor {
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
             EditorBuildQueueItemDocument queueItem,
-            EditorPlatformBuildGraphWorkspace workspace) {
+            EditorPlatformBuildGraphWorkspace workspace,
+            IReadOnlyDictionary<string, string> scenePathOverrides) {
             return AssetCookService.Cook(
                 builderDefinition,
                 queueItem.SelectedSceneIds,
@@ -382,7 +475,108 @@ namespace helengine.editor {
                 [PlatformDescriptor.Id],
                 builder,
                 selectedBuildProfileId,
-                selectedGraphicsProfileId);
+                selectedGraphicsProfileId,
+                scenePathOverrides);
+        }
+
+        /// <summary>
+        /// Writes any temporary generated scene assets required by the current queued build and returns the authored-path overrides that should be consumed during cooking.
+        /// </summary>
+        /// <param name="queueItem">Queued build item whose selected scenes may require generated overrides.</param>
+        /// <returns>Scene-id keyed authored path overrides for the current build.</returns>
+        Dictionary<string, string> PrepareTemporaryGeneratedScenePathOverrides(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+
+            Dictionary<string, string> scenePathOverrides = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (queueItem.SelectedSceneIds == null
+                || !queueItem.SelectedSceneIds.Contains(PlatformMenuSceneResolver.GeneratedBootSceneId)) {
+                return scenePathOverrides;
+            }
+
+            string relativeScenePath = BuildTemporaryGeneratedBootSceneRelativePath(queueItem);
+            bool wroteScene = GeneratedBootScenePreparationService.TryWritePreparedScene(
+                queueItem.PlatformId,
+                queueItem.SelectedSceneIds,
+                relativeScenePath);
+            if (wroteScene) {
+                scenePathOverrides.Add(PlatformMenuSceneResolver.GeneratedBootSceneId, relativeScenePath);
+            }
+
+            return scenePathOverrides;
+        }
+
+        /// <summary>
+        /// Deletes one temporary generated-scene override file after the cook phase has consumed it.
+        /// </summary>
+        /// <param name="scenePathOverrides">Scene-id keyed authored path overrides that were staged for the current build.</param>
+        void DeleteTemporaryGeneratedSceneOverrides(IReadOnlyDictionary<string, string> scenePathOverrides) {
+            if (scenePathOverrides == null || scenePathOverrides.Count == 0) {
+                return;
+            }
+
+            foreach (KeyValuePair<string, string> scenePathOverride in scenePathOverrides) {
+                if (string.IsNullOrWhiteSpace(scenePathOverride.Value)) {
+                    continue;
+                }
+
+                string fullPath = ResolveProjectAssetPath(scenePathOverride.Value);
+                if (File.Exists(fullPath)) {
+                    File.Delete(fullPath);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Builds the temporary project-relative asset path used to isolate the generated boot scene for one queued build.
+        /// </summary>
+        /// <param name="queueItem">Queued build item that needs the isolated generated boot scene.</param>
+        /// <returns>Project-relative asset path for the temporary generated boot scene.</returns>
+        static string BuildTemporaryGeneratedBootSceneRelativePath(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+
+            string fileName = PlatformMenuSceneResolver.GeneratedBootSceneId + "_" + queueItem.QueueItemId + ".helen";
+            return ".generated-build/" + queueItem.PlatformId + "/" + queueItem.QueueItemId + "/" + fileName;
+        }
+
+        /// <summary>
+        /// Resolves one project-relative asset path beneath the authored <c>assets</c> directory.
+        /// </summary>
+        /// <param name="relativeAssetPath">Project-relative asset path to resolve.</param>
+        /// <returns>Absolute file path beneath the project assets root.</returns>
+        string ResolveProjectAssetPath(string relativeAssetPath) {
+            if (string.IsNullOrWhiteSpace(relativeAssetPath)) {
+                throw new ArgumentException("Relative asset path must be provided.", nameof(relativeAssetPath));
+            }
+
+            string fullAssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
+            string fullPath = Path.GetFullPath(Path.Combine(fullAssetsRootPath, relativeAssetPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar)));
+            string assetsRootPrefix = EnsureTrailingDirectorySeparator(fullAssetsRootPath);
+            if (!fullPath.StartsWith(assetsRootPrefix, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Temporary generated asset paths must stay inside the project assets folder.");
+            }
+
+            return fullPath;
+        }
+
+        /// <summary>
+        /// Ensures one directory path ends with the current platform directory separator.
+        /// </summary>
+        /// <param name="path">Absolute directory path to normalize.</param>
+        /// <returns>Directory path with a trailing separator.</returns>
+        static string EnsureTrailingDirectorySeparator(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                throw new ArgumentException("Path must be provided.", nameof(path));
+            }
+
+            if (path.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)) {
+                return path;
+            }
+
+            return path + Path.DirectorySeparatorChar;
         }
 
         /// <summary>
@@ -824,7 +1018,8 @@ namespace helengine.editor {
                 cookedManifest.CodeModules,
                 cookedManifest.ArtifactPlacements,
                 cookedManifest.ContainerWritePlan,
-                cookedManifest.PlatformCookWorkItems);
+                cookedManifest.PlatformCookWorkItems,
+                cookedManifest.RuntimeFeatureManifest);
             manifest.StandardPlatformInputConfiguration = cookedManifest.StandardPlatformInputConfiguration;
             return manifest;
         }
@@ -1350,7 +1545,8 @@ namespace helengine.editor {
                 codeModules ?? [],
                 manifest.ArtifactPlacements,
                 manifest.ContainerWritePlan,
-                manifest.PlatformCookWorkItems);
+                manifest.PlatformCookWorkItems,
+                manifest.RuntimeFeatureManifest);
             updatedManifest.StandardPlatformInputConfiguration = manifest.StandardPlatformInputConfiguration;
             return updatedManifest;
         }

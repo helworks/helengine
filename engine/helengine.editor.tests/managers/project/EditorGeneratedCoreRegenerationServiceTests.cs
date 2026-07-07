@@ -69,6 +69,33 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies the merge helper excludes editor-only attribute types that should never flow into native generated-core.
+    /// </summary>
+    [Fact]
+    public void Merge_generated_source_tree_skips_editor_only_runtime_feature_attribute_files() {
+        string sourceRootPath = Path.Combine(RootPath, "source");
+        string destinationRootPath = Path.Combine(RootPath, "destination");
+        Directory.CreateDirectory(sourceRootPath);
+        Directory.CreateDirectory(destinationRootPath);
+
+        File.WriteAllText(Path.Combine(sourceRootPath, "RuntimeFeatureRequirementAttribute.cpp"), "// editor-only");
+        File.WriteAllText(Path.Combine(sourceRootPath, "RuntimeFeatureRequirementAttribute.hpp"), "// editor-only");
+        File.WriteAllText(Path.Combine(sourceRootPath, "GeneratedRuntimeModuleManifestAttribute.cpp"), "// editor-only");
+        File.WriteAllText(Path.Combine(sourceRootPath, "GeneratedRuntimeModuleManifestAttribute.hpp"), "// editor-only");
+        File.WriteAllText(Path.Combine(sourceRootPath, "InputSystem.cpp"), "// keep");
+        File.WriteAllText(Path.Combine(sourceRootPath, "InputSystem.hpp"), "// keep");
+
+        EditorGeneratedCoreRegenerationService.MergeGeneratedSourceTree(sourceRootPath, destinationRootPath);
+
+        Assert.True(File.Exists(Path.Combine(destinationRootPath, "InputSystem.cpp")));
+        Assert.True(File.Exists(Path.Combine(destinationRootPath, "InputSystem.hpp")));
+        Assert.False(File.Exists(Path.Combine(destinationRootPath, "RuntimeFeatureRequirementAttribute.cpp")));
+        Assert.False(File.Exists(Path.Combine(destinationRootPath, "RuntimeFeatureRequirementAttribute.hpp")));
+        Assert.False(File.Exists(Path.Combine(destinationRootPath, "GeneratedRuntimeModuleManifestAttribute.cpp")));
+        Assert.False(File.Exists(Path.Combine(destinationRootPath, "GeneratedRuntimeModuleManifestAttribute.hpp")));
+    }
+
+    /// <summary>
     /// Verifies merged generated-core reports promote shader feature detection from shader-only generated projects into the combined report consumed by build summaries and feature manifests.
     /// </summary>
     [Fact]

@@ -1704,9 +1704,31 @@ namespace helengine.editor {
             string fileName = Path.GetFileName(sourceFilePath);
             if (string.Equals(fileName, "helcpp_config.hpp", StringComparison.OrdinalIgnoreCase)) {
                 return false;
+            } else if (IsEditorOnlyGeneratedSourceFile(fileName)) {
+                return false;
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Returns whether one generated native source artifact represents editor-only managed metadata that should never be merged into native generated-core.
+        /// </summary>
+        /// <param name="fileName">File name of the generated source artifact being evaluated.</param>
+        /// <returns>True when the generated file models editor-only managed metadata instead of native runtime behavior.</returns>
+        static bool IsEditorOnlyGeneratedSourceFile(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("Generated source file name is required.", nameof(fileName));
+            }
+
+            if (string.Equals(fileName, "GeneratedRuntimeModuleManifestAttribute.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "GeneratedRuntimeModuleManifestAttribute.hpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "RuntimeFeatureRequirementAttribute.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "RuntimeFeatureRequirementAttribute.hpp", StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
