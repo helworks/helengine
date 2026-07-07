@@ -74,6 +74,11 @@ namespace helengine {
         public SceneComponentAssetRecord[] Components { get; set; } = Array.Empty<SceneComponentAssetRecord>();
 
         /// <summary>
+        /// Gets or sets the editor-authored per-platform entity existence overrides attached to the entity.
+        /// </summary>
+        public SceneEntityPlatformExistenceOverrideAsset[] PlatformExistenceOverrides { get; set; } = Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
+
+        /// <summary>
         /// Gets or sets the editor-authored per-platform transform overrides attached to the entity.
         /// </summary>
         public SceneEntityPlatformTransformOverrideAsset[] PlatformTransformOverrides { get; set; } = Array.Empty<SceneEntityPlatformTransformOverrideAsset>();

@@ -5,7 +5,22 @@ namespace helengine.editor {
     /// <summary>
     /// Writes generated C++ source fragments that embed runtime scene, startup, code-module, and physics feature data.
     /// </summary>
-    public sealed class EditorRuntimeNativeManifestWriter {
+public sealed class EditorRuntimeNativeManifestWriter {
+    /// <summary>
+    /// Stable scene id used by generated boot-scene startup routing.
+    /// </summary>
+    const string GeneratedBootSceneId = "GeneratedBootScene";
+
+    /// <summary>
+    /// Stable canonical Nintendo DS startup-scene path used to avoid generated-build startup paths that native NitroFS boot cannot open.
+    /// </summary>
+    const string NintendoDsGeneratedBootSceneRelativePath = "cooked/scenes/generatedbootscene.hasset";
+
+    /// <summary>
+    /// Stable canonical Nintendo 3DS startup-scene path used to avoid generated-build startup paths that native RomFS boot cannot open.
+    /// </summary>
+    const string Nintendo3DsGeneratedBootSceneRelativePath = "cooked/scenes/generatedbootscene.hasset";
+
         /// <summary>
         /// Writes the generated runtime manifest source files into the generated-core runtime folder.
         /// </summary>
@@ -183,7 +198,7 @@ namespace helengine.editor {
             builder.AppendLine("static const HERuntimeSceneCatalogEntry kRuntimeSceneCatalogEntries[] = {");
             for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
                 PlatformBuildScene scene = cookedManifest.Scenes[index];
-                string cookedRelativePath = ResolveCookedRelativePath(scene);
+                string cookedRelativePath = ResolveCookedRelativePath(cookedManifest, scene);
                 builder.Append("    { \"");
                 builder.Append(EscapeCppStringLiteral(scene.SceneId));
                 builder.Append("\", \"");
@@ -526,7 +541,7 @@ namespace helengine.editor {
                         KeyValuePair<string, string> entry = scene.ResolvedMetadata[metadataIndex];
                         if (string.Equals(entry.Key, PlatformBuildSceneMetadataKeys.CookedRelativePath, StringComparison.OrdinalIgnoreCase)
                             && !string.IsNullOrWhiteSpace(entry.Value)) {
-                            return entry.Value.Replace('\\', '/');
+                            return NormalizeRuntimeSceneRelativePath(cookedManifest, scene.SceneId, entry.Value.Replace('\\', '/'));
                         }
                     }
                 }
@@ -542,7 +557,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="scene">Built scene entry to inspect.</param>
         /// <returns>Cooked runtime-relative scene payload path.</returns>
-        static string ResolveCookedRelativePath(PlatformBuildScene scene) {
+        static string ResolveCookedRelativePath(PlatformBuildManifest cookedManifest, PlatformBuildScene scene) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
             if (scene == null) {
                 throw new ArgumentNullException(nameof(scene));
             }
@@ -554,11 +572,38 @@ namespace helengine.editor {
                 KeyValuePair<string, string> metadata = scene.ResolvedMetadata[index];
                 if (string.Equals(metadata.Key, PlatformBuildSceneMetadataKeys.CookedRelativePath, StringComparison.OrdinalIgnoreCase)
                     && !string.IsNullOrWhiteSpace(metadata.Value)) {
-                    return metadata.Value.Replace('\\', '/');
+                    return NormalizeRuntimeSceneRelativePath(cookedManifest, scene.SceneId, metadata.Value.Replace('\\', '/'));
                 }
             }
 
             throw new InvalidOperationException($"Built scene '{scene.SceneId}' did not define a cooked relative path.");
+        }
+
+        /// <summary>
+        /// Normalizes one runtime scene path for platform-specific startup-scene boot contracts.
+        /// </summary>
+        /// <param name="cookedManifest">Cooked manifest whose target platform owns the runtime contract.</param>
+        /// <param name="sceneId">Stable scene id that owns the cooked scene path.</param>
+        /// <param name="cookedRelativePath">Cooked scene path resolved from the cooked manifest.</param>
+        /// <returns>Runtime scene path that should be embedded into native manifests.</returns>
+        static string NormalizeRuntimeSceneRelativePath(PlatformBuildManifest cookedManifest, string sceneId, string cookedRelativePath) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            } else if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
+            } else if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
+                throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
+            }
+
+            if (string.Equals(sceneId, GeneratedBootSceneId, StringComparison.Ordinal)) {
+                if (string.Equals(cookedManifest.PlatformName, "ds", StringComparison.OrdinalIgnoreCase)) {
+                    return NintendoDsGeneratedBootSceneRelativePath;
+                } else if (string.Equals(cookedManifest.PlatformName, "3ds", StringComparison.OrdinalIgnoreCase)) {
+                    return Nintendo3DsGeneratedBootSceneRelativePath;
+                }
+            }
+
+            return cookedRelativePath;
         }
 
         /// <summary>

@@ -10,7 +10,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void Register_DoesNotAttachDefaultWorldUntilPhysicsSceneLoads() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             try {
                 core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
@@ -29,7 +29,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithPhysicsComponents_LoadsAndSimulatesDynamicGroundContact() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -58,7 +58,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithSpherePhysicsComponents_LoadsAndSimulatesDynamicGroundContact() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -87,7 +87,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithAutomaticSphereColliderPayload_LoadsRadiusAndSimulatesDynamicGroundContact() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -118,7 +118,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCapsulePhysicsComponents_LoadsAndSimulatesDynamicGroundContact() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -147,7 +147,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithKinematicMotionComponent_MovesThePusherAndPushesTheDynamicTarget() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -179,7 +179,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerComponent_ClimbsSlopeRamp() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -206,7 +206,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerComponent_DoesNotClimbSteepSlopeRamp() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -233,7 +233,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerComponent_ClimbsLowSteps() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -260,7 +260,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerOnMovingPlatform_RidesTheKinematicPlatform() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -289,7 +289,7 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerLiftedIntoCeiling_StopsBelowTheCeiling() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             Physics3DRuntimeComponentRegistration.Register(core);
@@ -1102,3 +1102,4 @@ namespace helengine.physics3d.tests {
         }
     }
 }
+

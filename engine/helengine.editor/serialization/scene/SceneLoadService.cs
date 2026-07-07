@@ -127,6 +127,7 @@ namespace helengine.editor {
             EntityIdAllocator.RegisterRestored(entityAsset.Id);
             if (saveComponent != null) {
                 saveComponent.EntityId = entityAsset.Id;
+                RestoreEntityExistencePlatformOverrides(entityAsset, saveComponent);
                 RestoreEntityTransformPlatformOverrides(entityAsset, saveComponent);
             }
             EntityReferenceTable.RegisterEntity(entity, entityAsset.Id);
@@ -205,6 +206,32 @@ namespace helengine.editor {
             }
 
             saveComponent.GetOrCreateComponentState(component).ComponentKey = record.ComponentKey;
+        }
+
+        /// <summary>
+        /// Restores serialized entity existence override metadata into the hidden save component after the base entity initializes.
+        /// </summary>
+        /// <param name="entityAsset">Serialized entity payload that may contain existence overrides.</param>
+        /// <param name="saveComponent">Hidden entity save component that owns the editor existence metadata.</param>
+        void RestoreEntityExistencePlatformOverrides(SceneEntityAsset entityAsset, EntitySaveComponent saveComponent) {
+            if (entityAsset == null) {
+                throw new ArgumentNullException(nameof(entityAsset));
+            } else if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+
+            SceneEntityPlatformExistenceOverrideAsset[] overrideAssets = entityAsset.PlatformExistenceOverrides ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
+            for (int index = 0; index < overrideAssets.Length; index++) {
+                SceneEntityPlatformExistenceOverrideAsset overrideAsset = overrideAssets[index];
+                if (overrideAsset == null || string.IsNullOrWhiteSpace(overrideAsset.PlatformId)) {
+                    continue;
+                }
+
+                saveComponent.SetExistencePlatformOverride(overrideAsset.PlatformId, new SceneEntityPlatformExistenceOverrideAsset {
+                    PlatformId = overrideAsset.PlatformId,
+                    Exists = overrideAsset.Exists
+                });
+            }
         }
 
         /// <summary>

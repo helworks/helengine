@@ -21,7 +21,7 @@ namespace helengine.bepu.tests {
             SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAsset(sceneAsset);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -63,7 +63,7 @@ namespace helengine.bepu.tests {
             SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAsset(cookedSceneAsset);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory,
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
                 PhysicsFixedStepSeconds = 1.0d / 60.0d
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
@@ -106,7 +106,7 @@ namespace helengine.bepu.tests {
             SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAsset(cookedSceneAsset);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory,
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
                 PhysicsFixedStepSeconds = 1.0d / 60.0d
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
@@ -148,7 +148,7 @@ namespace helengine.bepu.tests {
             SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAsset(cookedSceneAsset);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory,
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
                 PhysicsFixedStepSeconds = 1.0d / 60.0d
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
@@ -188,7 +188,7 @@ namespace helengine.bepu.tests {
             SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAssetPreservingScenarioParent(cookedSceneAsset);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory,
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
                 PhysicsFixedStepSeconds = 1.0d / 60.0d
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
@@ -228,7 +228,7 @@ namespace helengine.bepu.tests {
             SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAsset(cookedSceneAsset);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory,
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
                 PhysicsFixedStepSeconds = 1.0d / 60.0d
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
@@ -310,7 +310,7 @@ namespace helengine.bepu.tests {
             SceneAsset cookedSceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -418,7 +418,7 @@ namespace helengine.bepu.tests {
             SceneAsset physicsOnlySceneAsset = CreatePhysicsOnlyStackBoxesSceneAsset(cookedSceneAsset);
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory,
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
                 PhysicsFixedStepSeconds = 1.0d / 60.0d
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
@@ -951,3 +951,4 @@ namespace helengine.bepu.tests {
         }
     }
 }
+

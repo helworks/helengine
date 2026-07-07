@@ -747,7 +747,9 @@ namespace helengine.editor {
         /// <param name="yawFacingOrientation">Current snapped yaw orientation applied to horizontal gizmo handles.</param>
         /// <returns>Combined world-space orientation for the requested axis handle.</returns>
         float4 ResolveAxisHandleOrientation(int axisIndex, float4 yawFacingOrientation) {
-            return yawFacingOrientation * ResolveAxisBaseOrientation(axisIndex);
+            float4 axisBaseOrientation = ResolveAxisBaseOrientation(axisIndex);
+            float4.Concatenate(ref axisBaseOrientation, ref yawFacingOrientation, out float4 resolvedOrientation);
+            return resolvedOrientation;
         }
 
         /// <summary>

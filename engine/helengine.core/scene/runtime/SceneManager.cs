@@ -205,6 +205,11 @@ namespace helengine {
         public int LastTracePendingOperationCount { get; private set; }
 
         /// <summary>
+        /// Gets the monotonically increasing transition serial captured at the recorded transition stage.
+        /// </summary>
+        public int LastTraceSerial { get; private set; }
+
+        /// <summary>
         /// Loads one built scene using the requested runtime load mode.
         /// </summary>
         /// <param name="sceneId">Stable scene identifier to load.</param>
@@ -580,6 +585,18 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Releases one transient platform-specific entity existence override asset.
+        /// </summary>
+        /// <param name="asset">Transient platform existence override asset to release.</param>
+        static void ReleaseTransientSceneEntityPlatformExistenceOverrideAsset(SceneEntityPlatformExistenceOverrideAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
         /// Releases one transient serialized entity asset and all nested scene component and child-entity data.
         /// </summary>
         /// <param name="asset">Transient entity asset to release.</param>
@@ -589,16 +606,23 @@ namespace helengine {
             }
 
             SceneComponentAssetRecord[] components = asset.Components;
+            SceneEntityPlatformExistenceOverrideAsset[] platformExistenceOverrides = asset.PlatformExistenceOverrides;
             SceneEntityPlatformTransformOverrideAsset[] platformTransformOverrides = asset.PlatformTransformOverrides;
             SceneEntityPlatformComponentOverrideAsset[] platformComponentOverrides = asset.PlatformComponentOverrides;
             SceneEntityAsset[] children = asset.Children;
             asset.Components = null;
+            asset.PlatformExistenceOverrides = null;
             asset.PlatformTransformOverrides = null;
             asset.PlatformComponentOverrides = null;
             asset.Children = null;
             if (components != null) {
                 for (int index = 0; index < components.Length; index++) {
                     ReleaseTransientSceneComponentAssetRecord(components[index]);
+                }
+            }
+            if (platformExistenceOverrides != null) {
+                for (int index = 0; index < platformExistenceOverrides.Length; index++) {
+                    ReleaseTransientSceneEntityPlatformExistenceOverrideAsset(platformExistenceOverrides[index]);
                 }
             }
             if (platformTransformOverrides != null) {
@@ -618,6 +642,7 @@ namespace helengine {
             }
 
             DeleteTransientArray(components);
+            DeleteTransientArray(platformExistenceOverrides);
             DeleteTransientArray(platformTransformOverrides);
             DeleteTransientArray(platformComponentOverrides);
             DeleteTransientArray(children);
@@ -1027,6 +1052,7 @@ namespace helengine {
         /// <param name="stage">Short stage name describing the current transition boundary.</param>
         /// <param name="sceneId">Stable scene identifier associated with the current transition boundary.</param>
         void RecordTraceState(string stage, string sceneId) {
+            LastTraceSerial++;
             LastTraceStage = stage;
             LastTraceSceneId = sceneId ?? string.Empty;
             LastTraceLoadedSceneCount = LoadedSceneRecords.Count;

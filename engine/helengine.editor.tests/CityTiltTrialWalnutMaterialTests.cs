@@ -28,4 +28,19 @@ public sealed class CityTiltTrialWalnutMaterialTests {
         Assert.True(platformSettings.FieldValues.TryGetValue("texture-relative-path", out string textureRelativePath));
         Assert.Equal("cooked/imported/" + materialAsset.DiffuseTextureAssetId, textureRelativePath);
     }
+
+    /// <summary>
+    /// Ensures the authored Windows walnut material keeps the player sphere double-sided so the rolling textured mesh never presents as partially see-through from backface culling.
+    /// </summary>
+    [Fact]
+    public void Tilt_trial_walnut_material_source_uses_double_sided_windows_render_state() {
+        MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+
+        Assert.True(File.Exists(TiltTrialWalnutMaterialPath), $"Expected Tilt Trial walnut material at '{TiltTrialWalnutMaterialPath}'.");
+
+        ShaderMaterialAsset materialAsset = settingsService.LoadMaterialAsset(TiltTrialWalnutMaterialPath, "windows");
+
+        Assert.NotNull(materialAsset.RenderState);
+        Assert.Equal(MaterialCullMode.None, materialAsset.RenderState.CullMode);
+    }
 }

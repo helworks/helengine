@@ -112,6 +112,7 @@ namespace helengine.editor {
             }
 
             EnsurePlatformSelectionDefaults(platformConfig, selectionModel);
+            NormalizeSelectedScenes(sceneCatalogService, platformConfig);
             EnsureSelectedScenes(sceneCatalogService, platformConfig);
             List<string> orderedSceneIds = BuildOrderedSceneIds(sceneCatalogService, platformConfig, platformConfig.SelectedSceneIds);
             ApplyPlatformSceneExpansions(sceneCatalogService, platformConfig.PlatformId, orderedSceneIds);
@@ -214,6 +215,67 @@ namespace helengine.editor {
             for (int index = 0; index < sceneIds.Count; index++) {
                 platformConfig.SelectedSceneIds.Add(sceneIds[index]);
             }
+        }
+
+        /// <summary>
+        /// Removes stale scene selections and remaps handheld companion-scene ids back to their canonical authored scene ids.
+        /// </summary>
+        /// <param name="sceneCatalogService">Project scene catalog used to validate authored scene ids.</param>
+        /// <param name="platformConfig">Platform configuration whose persisted scene selection should be normalized.</param>
+        static void NormalizeSelectedScenes(EditorProjectSceneCatalogService sceneCatalogService, EditorBuildPlatformConfigDocument platformConfig) {
+            if (sceneCatalogService == null) {
+                throw new ArgumentNullException(nameof(sceneCatalogService));
+            }
+            if (platformConfig == null) {
+                throw new ArgumentNullException(nameof(platformConfig));
+            }
+
+            platformConfig.SelectedSceneIds ??= [];
+            platformConfig.SceneOrders ??= [];
+
+            HashSet<string> availableSceneIds = new HashSet<string>(sceneCatalogService.GetSceneIds(), StringComparer.Ordinal);
+            List<string> normalizedSelectedSceneIds = new List<string>(platformConfig.SelectedSceneIds.Count);
+            HashSet<string> selectedSceneIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < platformConfig.SelectedSceneIds.Count; index++) {
+                string normalizedSceneId = NormalizeSelectedSceneId(platformConfig.PlatformId, platformConfig.SelectedSceneIds[index], availableSceneIds);
+                if (string.IsNullOrWhiteSpace(normalizedSceneId)) {
+                    continue;
+                }
+                if (!IsKnownBuildSceneId(availableSceneIds, normalizedSceneId)) {
+                    continue;
+                }
+                if (selectedSceneIds.Add(normalizedSceneId)) {
+                    normalizedSelectedSceneIds.Add(normalizedSceneId);
+                }
+            }
+
+            List<EditorBuildSceneOrderDocument> normalizedSceneOrders = new List<EditorBuildSceneOrderDocument>(platformConfig.SceneOrders.Count);
+            HashSet<string> orderedSceneIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < platformConfig.SceneOrders.Count; index++) {
+                EditorBuildSceneOrderDocument sceneOrder = platformConfig.SceneOrders[index];
+                if (sceneOrder == null) {
+                    continue;
+                }
+
+                string normalizedSceneId = NormalizeSelectedSceneId(platformConfig.PlatformId, sceneOrder.SceneId, availableSceneIds);
+                if (string.IsNullOrWhiteSpace(normalizedSceneId)) {
+                    continue;
+                }
+                if (!selectedSceneIds.Contains(normalizedSceneId)) {
+                    continue;
+                }
+                if (!orderedSceneIds.Add(normalizedSceneId)) {
+                    continue;
+                }
+
+                normalizedSceneOrders.Add(new EditorBuildSceneOrderDocument {
+                    SceneId = normalizedSceneId,
+                    OrderNumber = sceneOrder.OrderNumber
+                });
+            }
+
+            platformConfig.SelectedSceneIds = normalizedSelectedSceneIds;
+            platformConfig.SceneOrders = normalizedSceneOrders;
         }
 
         /// <summary>
@@ -435,7 +497,79 @@ namespace helengine.editor {
             if (orderedSceneIds == null) {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
-            _ = platformId;
+
+            if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "3ds", StringComparison.OrdinalIgnoreCase)) {
+                orderedSceneIds.RemoveAll(sceneId => string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal));
+            }
+        }
+
+        /// <summary>
+        /// Resolves whether one scene id can legally appear in a queued build selection.
+        /// </summary>
+        /// <param name="availableSceneIds">Authored scene ids currently present in the project catalog.</param>
+        /// <param name="sceneId">Scene id to validate.</param>
+        /// <returns>True when the scene id is authored or is the generated boot scene helper id.</returns>
+        static bool IsKnownBuildSceneId(HashSet<string> availableSceneIds, string sceneId) {
+            if (availableSceneIds == null) {
+                throw new ArgumentNullException(nameof(availableSceneIds));
+            }
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                return false;
+            }
+
+            if (string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal)) {
+                return true;
+            }
+
+            return availableSceneIds.Contains(sceneId);
+        }
+
+        /// <summary>
+        /// Remaps one persisted scene id to the canonical authored scene id required by the active platform.
+        /// </summary>
+        /// <param name="platformId">Platform identifier selected for the queued build.</param>
+        /// <param name="sceneId">Persisted scene id to normalize.</param>
+        /// <param name="availableSceneIds">Authored scene ids currently present in the project catalog.</param>
+        /// <returns>Canonical scene id to keep, or the original scene id when no remap is required.</returns>
+        static string NormalizeSelectedSceneId(string platformId, string sceneId, HashSet<string> availableSceneIds) {
+            if (availableSceneIds == null) {
+                throw new ArgumentNullException(nameof(availableSceneIds));
+            }
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                return string.Empty;
+            }
+
+            if (!IsNintendoHandheldPlatform(platformId)) {
+                return sceneId;
+            }
+            if (string.Equals(sceneId, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId, StringComparison.Ordinal)) {
+                return PlatformMenuSceneResolver.DesktopMainMenuSceneId;
+            }
+            if (!sceneId.EndsWith("_ds", StringComparison.Ordinal)) {
+                return sceneId;
+            }
+
+            string canonicalSceneId = sceneId.Substring(0, sceneId.Length - 3);
+            if (string.IsNullOrWhiteSpace(canonicalSceneId)) {
+                return sceneId;
+            }
+            if (!availableSceneIds.Contains(canonicalSceneId)) {
+                return sceneId;
+            }
+
+            return canonicalSceneId;
+        }
+
+        /// <summary>
+        /// Resolves whether one platform now consumes canonical scenes directly instead of handheld companion-scene ids.
+        /// </summary>
+        /// <param name="platformId">Platform identifier to inspect.</param>
+        /// <returns>True when the platform should remap stale handheld companion-scene ids.</returns>
+        static bool IsNintendoHandheldPlatform(string platformId) {
+            return string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "3ds", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

@@ -9,7 +9,7 @@ namespace helengine.bepu.tests {
         [Fact]
         public void Register_WhenCalled_DoesNotAttachBepuPhysicsRuntimeUntilPhysicsSceneLoads() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
@@ -24,7 +24,7 @@ namespace helengine.bepu.tests {
         [Fact]
         public void HandleLoadedScene_WhenSceneHasNoPhysics_DoesNotAttachRuntime() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
@@ -40,7 +40,7 @@ namespace helengine.bepu.tests {
         [Fact]
         public void HandleLoadedScene_WhenSceneHasPhysics_AttachesDefaultSolveScheduleWorld() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
@@ -59,7 +59,7 @@ namespace helengine.bepu.tests {
         [Fact]
         public void HandleLoadedScene_WhenPhysicsSceneIsFollowedByNonPhysicsScene_DetachesRuntime() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
@@ -100,3 +100,4 @@ namespace helengine.bepu.tests {
         }
     }
 }
+

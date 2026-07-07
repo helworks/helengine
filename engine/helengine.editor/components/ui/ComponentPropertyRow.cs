@@ -203,5 +203,10 @@ namespace helengine.editor {
         /// Gets or sets a value indicating whether the row is currently overridden on the active platform.
         /// </summary>
         public bool IsOverrideActive { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this row edits component existence instead of a reflected component property.
+        /// </summary>
+        public bool IsExistenceToggleRow { get; set; }
     }
 }

@@ -52,22 +52,40 @@ namespace helengine.editor {
         /// <param name="platformId">Target platform identifier.</param>
         /// <param name="sceneIds">Stable scene ids selected for the build.</param>
         public void EnsurePrepared(string platformId, IReadOnlyList<string> sceneIds) {
+            TryWritePreparedScene(
+                platformId,
+                sceneIds,
+                Path.Combine("Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen"));
+        }
+
+        /// <summary>
+        /// Writes one generated boot scene beneath the project assets root at the supplied relative path.
+        /// </summary>
+        /// <param name="platformId">Target platform identifier.</param>
+        /// <param name="sceneIds">Stable scene ids selected for the build.</param>
+        /// <param name="relativeScenePath">Project-relative asset path that should receive the generated boot scene.</param>
+        /// <returns><c>true</c> when a generated boot scene was written; otherwise <c>false</c>.</returns>
+        public bool TryWritePreparedScene(string platformId, IReadOnlyList<string> sceneIds, string relativeScenePath) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
-
-            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
-            Dictionary<string, string> mappings = BuildMappings(platformId, sceneIds);
-            if (mappings == null) {
-                return;
+            if (string.IsNullOrWhiteSpace(relativeScenePath)) {
+                throw new ArgumentException("Relative scene path must be provided.", nameof(relativeScenePath));
             }
 
+            Dictionary<string, string> mappings = BuildMappings(platformId, sceneIds);
+            if (mappings == null) {
+                return false;
+            }
+
+            string normalizedRelativeScenePath = NormalizeRelativeScenePath(relativeScenePath);
+            string scenePath = ResolveProjectAssetPath(normalizedRelativeScenePath);
             string initialSceneId = ResolveInitialSceneId(sceneIds);
             SceneAsset sceneAsset = BootSceneAssetFactory.BuildSceneAsset(
-                "Scenes/" + PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen",
+                normalizedRelativeScenePath,
                 initialSceneId,
                 mappings);
             string directoryPath = Path.GetDirectoryName(scenePath)
@@ -76,6 +94,7 @@ namespace helengine.editor {
 
             using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, sceneAsset);
+            return true;
         }
 
         /// <summary>
@@ -89,13 +108,24 @@ namespace helengine.editor {
             }
 
             string overrideSceneId = Environment.GetEnvironmentVariable(GeneratedBootSceneInitialSceneIdEnvironmentVariable);
-            if (string.IsNullOrWhiteSpace(overrideSceneId)) {
-                return PlatformMenuSceneResolver.DesktopMainMenuSceneId;
-            } else if (!ContainsSceneId(sceneIds, overrideSceneId)) {
+            if (!string.IsNullOrWhiteSpace(overrideSceneId) && !ContainsSceneId(sceneIds, overrideSceneId)) {
                 throw new InvalidOperationException($"Generated boot scene startup override '{overrideSceneId}' is not present in the selected build scene set.");
             }
+            if (!string.IsNullOrWhiteSpace(overrideSceneId)) {
+                return overrideSceneId;
+            }
 
-            return overrideSceneId;
+            for (int index = 0; index < sceneIds.Count; index++) {
+                string sceneId = sceneIds[index];
+                if (string.IsNullOrWhiteSpace(sceneId)
+                    || string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                return sceneId;
+            }
+
+            throw new InvalidOperationException("Generated boot scene requires at least one selected startup scene besides GeneratedBootScene.");
         }
 
         /// <summary>
@@ -121,6 +151,53 @@ namespace helengine.editor {
             }
 
             return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        /// <summary>
+        /// Normalizes one project-relative scene path to forward slashes so generated asset metadata stays stable across hosts.
+        /// </summary>
+        /// <param name="relativeScenePath">Project-relative scene path to normalize.</param>
+        /// <returns>Normalized relative scene path.</returns>
+        static string NormalizeRelativeScenePath(string relativeScenePath) {
+            if (string.IsNullOrWhiteSpace(relativeScenePath)) {
+                throw new ArgumentException("Relative scene path must be provided.", nameof(relativeScenePath));
+            }
+
+            return relativeScenePath.Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// Resolves one project-relative asset path beneath the authored <c>assets</c> root.
+        /// </summary>
+        /// <param name="relativeScenePath">Project-relative scene path to resolve.</param>
+        /// <returns>Absolute file path beneath the project assets root.</returns>
+        string ResolveProjectAssetPath(string relativeScenePath) {
+            string normalizedRelativeScenePath = NormalizeRelativeScenePath(relativeScenePath);
+            string fullAssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
+            string fullPath = Path.GetFullPath(Path.Combine(fullAssetsRootPath, normalizedRelativeScenePath.Replace('/', Path.DirectorySeparatorChar)));
+            string assetsRootPrefix = EnsureTrailingDirectorySeparator(fullAssetsRootPath);
+            if (!fullPath.StartsWith(assetsRootPrefix, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Generated boot scene path must stay inside the project assets folder.");
+            }
+
+            return fullPath;
+        }
+
+        /// <summary>
+        /// Ensures one directory path ends with the current platform directory separator.
+        /// </summary>
+        /// <param name="path">Absolute directory path to normalize.</param>
+        /// <returns>Directory path with a trailing separator.</returns>
+        static string EnsureTrailingDirectorySeparator(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                throw new ArgumentException("Path must be provided.", nameof(path));
+            }
+
+            if (path.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)) {
+                return path;
+            }
+
+            return path + Path.DirectorySeparatorChar;
         }
 
         /// <summary>

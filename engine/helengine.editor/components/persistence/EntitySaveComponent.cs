@@ -8,6 +8,10 @@ namespace helengine {
         /// </summary>
         readonly Dictionary<Component, EntityComponentSaveState> SaveStatesByComponent;
         /// <summary>
+        /// Entity existence override payloads keyed by their owning platform id.
+        /// </summary>
+        readonly Dictionary<string, SceneEntityPlatformExistenceOverrideAsset> ExistenceOverridesByPlatformId;
+        /// <summary>
         /// Transform override payloads keyed by their owning platform id.
         /// </summary>
         readonly Dictionary<string, SceneEntityPlatformTransformOverrideAsset> TransformOverridesByPlatformId;
@@ -51,6 +55,7 @@ namespace helengine {
         /// </summary>
         public EntitySaveComponent() {
             SaveStatesByComponent = new Dictionary<Component, EntityComponentSaveState>();
+            ExistenceOverridesByPlatformId = new Dictionary<string, SceneEntityPlatformExistenceOverrideAsset>(StringComparer.OrdinalIgnoreCase);
             TransformOverridesByPlatformId = new Dictionary<string, SceneEntityPlatformTransformOverrideAsset>(StringComparer.OrdinalIgnoreCase);
             ComponentOverridesByPlatformId = new Dictionary<string, EntityPlatformComponentOverrideState>(StringComparer.OrdinalIgnoreCase);
             ActiveTransformPlatformId = string.Empty;
@@ -97,6 +102,77 @@ namespace helengine {
         public void SetAssetReference(Component component, string referenceName, SceneAssetReference reference) {
             EntityComponentSaveState saveState = GetOrCreateComponentState(component);
             saveState.SetAssetReference(referenceName, reference);
+        }
+
+        /// <summary>
+        /// Stores one platform entity existence override payload for the owning entity.
+        /// </summary>
+        /// <param name="platformId">Platform identifier that owns the override payload.</param>
+        /// <param name="overrideState">Override payload metadata to store.</param>
+        public void SetExistencePlatformOverride(string platformId, SceneEntityPlatformExistenceOverrideAsset overrideState) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (overrideState == null) {
+                throw new ArgumentNullException(nameof(overrideState));
+            }
+
+            overrideState.PlatformId = platformId;
+            ExistenceOverridesByPlatformId[platformId] = overrideState;
+        }
+
+        /// <summary>
+        /// Gets the existing platform entity existence override payload for one platform or creates a new one when needed.
+        /// </summary>
+        /// <param name="platformId">Platform identifier whose entity existence override payload should be returned.</param>
+        /// <returns>Mutable platform entity existence override payload metadata.</returns>
+        public SceneEntityPlatformExistenceOverrideAsset GetOrCreateExistencePlatformOverride(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            if (!ExistenceOverridesByPlatformId.TryGetValue(platformId, out SceneEntityPlatformExistenceOverrideAsset overrideState)) {
+                overrideState = new SceneEntityPlatformExistenceOverrideAsset {
+                    PlatformId = platformId,
+                    Exists = true
+                };
+                ExistenceOverridesByPlatformId.Add(platformId, overrideState);
+            }
+
+            return overrideState;
+        }
+
+        /// <summary>
+        /// Attempts to read one platform entity existence override payload from this entity save state.
+        /// </summary>
+        /// <param name="platformId">Platform identifier whose entity existence override payload should be resolved.</param>
+        /// <param name="overrideState">Resolved platform entity existence override payload when one exists.</param>
+        /// <returns>True when one platform entity existence override exists for the supplied platform.</returns>
+        public bool TryGetExistencePlatformOverride(string platformId, out SceneEntityPlatformExistenceOverrideAsset overrideState) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            return ExistenceOverridesByPlatformId.TryGetValue(platformId, out overrideState);
+        }
+
+        /// <summary>
+        /// Removes one stored platform entity existence override payload from this entity save state.
+        /// </summary>
+        /// <param name="platformId">Platform identifier whose entity existence override payload should be removed.</param>
+        public void RemoveExistencePlatformOverride(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            ExistenceOverridesByPlatformId.Remove(platformId);
+        }
+
+        /// <summary>
+        /// Enumerates every platform entity existence override payload stored for this entity.
+        /// </summary>
+        /// <returns>Platform entity existence override payload metadata stored for the entity.</returns>
+        public IEnumerable<SceneEntityPlatformExistenceOverrideAsset> EnumerateExistencePlatformOverrides() {
+            return ExistenceOverridesByPlatformId.Values;
         }
 
         /// <summary>

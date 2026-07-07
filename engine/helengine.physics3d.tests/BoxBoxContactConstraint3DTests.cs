@@ -9,7 +9,7 @@ namespace helengine.physics3d.tests {
         /// </summary>
         public BoxBoxContactConstraint3DTests() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
@@ -125,3 +125,4 @@ namespace helengine.physics3d.tests {
         }
     }
 }
+

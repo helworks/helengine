@@ -32,6 +32,10 @@ namespace helengine.editor {
         /// </summary>
         public const float MaximumAdaptiveMoveSpeed = 64f;
         /// <summary>
+        /// Minimum fraction of the configured baseline speed that auto mode should preserve for tiny selections.
+        /// </summary>
+        public const double MinimumAdaptiveConfiguredSpeedRatio = 0.5;
+        /// <summary>
         /// Selection-extent multiplier used to derive auto camera speed from the currently selected bounds.
         /// </summary>
         public const double AdaptiveSelectionExtentSpeedFactor = 0.005;
@@ -425,9 +429,12 @@ namespace helengine.editor {
             }
 
             double configuredMove = Math.Max(configuredMoveSpeed, MinimumAdaptiveMoveSpeed);
+            double minimumDerivedMoveSpeed = Math.Max(
+                MinimumAdaptiveMoveSpeed,
+                configuredMove * MinimumAdaptiveConfiguredSpeedRatio);
             double derivedMoveSpeed = Math.Clamp(
                 selectionExtent * (configuredMove / DefaultMoveSpeed) * AdaptiveSelectionExtentSpeedFactor,
-                MinimumAdaptiveMoveSpeed,
+                minimumDerivedMoveSpeed,
                 MaximumAdaptiveMoveSpeed);
             moveSpeed = (float)derivedMoveSpeed;
             panSpeed = derivedMoveSpeed * (configuredPanSpeed / configuredMoveSpeed);

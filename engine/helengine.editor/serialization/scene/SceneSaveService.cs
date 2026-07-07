@@ -217,6 +217,7 @@ namespace helengine.editor {
                 LocalScale = ResolveSerializedLocalScale(entity, saveComponent),
                 LocalOrientation = ResolveSerializedLocalOrientation(entity, saveComponent),
                 Components = componentRecords.ToArray(),
+                PlatformExistenceOverrides = ClonePlatformExistenceOverrides(saveComponent),
                 PlatformTransformOverrides = ClonePlatformTransformOverrides(saveComponent),
                 PlatformComponentOverrides = ClonePlatformComponentOverrides(saveComponent),
                 Children = childEntities.ToArray()
@@ -275,6 +276,32 @@ namespace helengine.editor {
             }
 
             return TransformEditingService.ResolveSerializedLocalOrientation(entity, saveComponent);
+        }
+
+        /// <summary>
+        /// <summary>
+        /// Clones the entity existence overrides stored on one hidden save component into serializable scene asset payloads.
+        /// </summary>
+        /// <param name="saveComponent">Hidden save component that owns the entity existence override metadata.</param>
+        /// <returns>Cloned scene-asset entity existence override payloads.</returns>
+        SceneEntityPlatformExistenceOverrideAsset[] ClonePlatformExistenceOverrides(EntitySaveComponent saveComponent) {
+            if (saveComponent == null) {
+                return Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
+            }
+
+            List<SceneEntityPlatformExistenceOverrideAsset> overrideAssets = new List<SceneEntityPlatformExistenceOverrideAsset>();
+            foreach (SceneEntityPlatformExistenceOverrideAsset overrideState in saveComponent.EnumerateExistencePlatformOverrides()) {
+                if (overrideState == null || string.IsNullOrWhiteSpace(overrideState.PlatformId)) {
+                    continue;
+                }
+
+                overrideAssets.Add(new SceneEntityPlatformExistenceOverrideAsset {
+                    PlatformId = overrideState.PlatformId,
+                    Exists = overrideState.Exists
+                });
+            }
+
+            return overrideAssets.ToArray();
         }
 
         /// <summary>

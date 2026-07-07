@@ -67,7 +67,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(options));
             }
 
-            ContentManagersBySource = new Dictionary<IContentStreamSource, ContentManager>(ReferenceEqualityComparer.Instance);
+            ContentManagersBySource = new Dictionary<IContentStreamSource, ContentManager>();
             ContentManagerLock = new object();
             Instance = this;
             InitializationOptions = options;

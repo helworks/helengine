@@ -25,7 +25,11 @@ namespace helengine {
             }
 
             string actualAssetTypeName = asset == null ? "<null>" : asset.GetType().Name;
-            throw new InvalidOperationException($"Serialized asset did not contain '{typeof(TAsset).Name}'. Actual asset type was '{actualAssetTypeName}'.");
+            string activeAssetPath = EngineBinaryReadContext.CurrentAssetPath;
+            string activeReadStage = EngineBinaryReadContext.CurrentReadStage;
+            string lastCheckpoint = EngineBinaryReadContext.LastCheckpoint;
+            throw new InvalidOperationException(
+                $"Serialized asset did not contain '{typeof(TAsset).Name}'. Actual asset type was '{actualAssetTypeName}'. asset_path='{activeAssetPath}' read_stage='{activeReadStage}' last_checkpoint='{lastCheckpoint}'.");
         }
 
         /// <summary>

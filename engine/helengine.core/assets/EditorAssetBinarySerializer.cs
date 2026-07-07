@@ -51,7 +51,7 @@ namespace helengine {
         /// <summary>
         /// Version marker written into scene entity payloads that include stable ids, static state, layer masks, and enabled state.
         /// </summary>
-        const byte SceneEntityPayloadVersion = 6;
+        const byte SceneEntityPayloadVersion = 7;
 
         /// <summary>
         /// First asset version that stores animation clip platform override payloads and editor-only frame identifiers.
@@ -647,6 +647,10 @@ namespace helengine {
             float4 localOrientation = reader.ReadFloat4();
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Components";
             SceneComponentAssetRecord[] components = ReadSceneComponentAssetRecordArray(reader, payloadVersion) ?? Array.Empty<SceneComponentAssetRecord>();
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:PlatformExistenceOverrides";
+            SceneEntityPlatformExistenceOverrideAsset[] platformExistenceOverrides = payloadVersion >= 7
+                ? reader.ReadArray(ReadSceneEntityPlatformExistenceOverrideAsset) ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>()
+                : Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:PlatformTransformOverrides";
             SceneEntityPlatformTransformOverrideAsset[] platformTransformOverrides = payloadVersion >= 2
                 ? reader.ReadArray(ReadSceneEntityPlatformTransformOverrideAsset) ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>()
@@ -669,6 +673,7 @@ namespace helengine {
                 LocalScale = localScale,
                 LocalOrientation = localOrientation,
                 Components = components,
+                PlatformExistenceOverrides = platformExistenceOverrides,
                 PlatformTransformOverrides = platformTransformOverrides,
                 PlatformComponentOverrides = platformComponentOverrides,
                 Children = children
@@ -692,6 +697,7 @@ namespace helengine {
                 LocalScale = reader.ReadFloat3(),
                 LocalOrientation = reader.ReadFloat4(),
                 Components = reader.ReadArray(ReadLegacySceneComponentAssetRecord) ?? Array.Empty<SceneComponentAssetRecord>(),
+                PlatformExistenceOverrides = Array.Empty<SceneEntityPlatformExistenceOverrideAsset>(),
                 PlatformTransformOverrides = Array.Empty<SceneEntityPlatformTransformOverrideAsset>(),
                 PlatformComponentOverrides = Array.Empty<SceneEntityPlatformComponentOverrideAsset>(),
                 Children = ReadLegacySceneEntityAssetArray(reader) ?? Array.Empty<SceneEntityAsset>()
@@ -736,6 +742,23 @@ namespace helengine {
                 ComponentTypeId = reader.ReadString(),
                 ComponentIndex = reader.ReadInt32(),
                 Payload = reader.ReadByteArray() ?? Array.Empty<byte>()
+            };
+        }
+
+        /// <summary>
+        /// <summary>
+        /// Reads one serialized scene entity existence override payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized scene entity existence override.</returns>
+        static SceneEntityPlatformExistenceOverrideAsset ReadSceneEntityPlatformExistenceOverrideAsset(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return new SceneEntityPlatformExistenceOverrideAsset {
+                PlatformId = reader.ReadString(),
+                Exists = reader.ReadByte() != 0
             };
         }
 

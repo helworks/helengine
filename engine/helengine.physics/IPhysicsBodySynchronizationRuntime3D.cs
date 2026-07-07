@@ -14,5 +14,11 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Authored entity whose bound dynamic body should receive the latest pose and velocity values.</param>
         void SynchronizeDynamicBody(Entity entity);
+
+        /// <summary>
+        /// Synchronizes one authored dynamic body's velocity values into the live physics runtime while preserving the current runtime pose.
+        /// </summary>
+        /// <param name="entity">Authored entity whose bound dynamic body should receive the latest authored velocity values without a pose rewrite.</param>
+        void SynchronizeDynamicBodyVelocity(Entity entity);
     }
 }

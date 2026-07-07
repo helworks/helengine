@@ -8,7 +8,7 @@ namespace helengine.bepu.tests {
         /// </summary>
         public BepuPhysicsWorld3DTests() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
@@ -318,6 +318,29 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures dynamic-body velocity synchronization preserves the live runtime pose even when authored entity transforms are stale.
+        /// </summary>
+        [Fact]
+        public void SynchronizeDynamicBodyVelocity_WithStaleEntityPose_PreservesRuntimePoseAndAppliesVelocity() {
+            Entity entity = CreateDynamicSphereEntity(new float3(0f, 2f, 0f), 0.5f);
+
+            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.BindScene(new[] { entity });
+
+            RigidBody3DComponent rigidBody = FindRequiredRigidBody(entity);
+            rigidBody.LinearVelocity = new float3(3f, 0f, -2f);
+            rigidBody.AngularVelocity = float3.Zero;
+            entity.LocalPosition = new float3(10f, 20f, 30f);
+
+            world.SynchronizeDynamicBodyVelocity(entity);
+            world.Step(1.0 / 60.0);
+
+            Assert.InRange(entity.LocalPosition.X, 0.04f, 0.06f);
+            Assert.InRange(entity.LocalPosition.Z, -0.04f, -0.02f);
+            Assert.True(entity.LocalPosition.Y < 2f);
+        }
+
+        /// <summary>
         /// Creates one static box entity for BEPU-backed world tests.
         /// </summary>
         /// <param name="position">Authored box center position.</param>
@@ -453,3 +476,4 @@ namespace helengine.bepu.tests {
         }
     }
 }
+

@@ -32,6 +32,19 @@ namespace helengine {
         public MaterialPropertyBlock Properties => PropertiesValue;
 
         /// <summary>
+        /// Resolves the primary runtime texture exposed by this shader runtime material or one of its generic parents.
+        /// </summary>
+        /// <returns>Resolved primary runtime texture when the current material chain exposes one; otherwise null.</returns>
+        public override RuntimeTexture ResolvePrimaryTexture() {
+            RuntimeTexture texture = ResolveTexture();
+            if (texture != null) {
+                return texture;
+            }
+
+            return base.ResolvePrimaryTexture();
+        }
+
+        /// <summary>
         /// Releases shader-runtime-material-owned native resources and nested containers.
         /// </summary>
         public override void Dispose() {
@@ -43,6 +56,19 @@ namespace helengine {
             NativeOwnership.DisposeAndDelete(PropertiesValue);
             PropertiesValue = null;
             base.Dispose();
+        }
+
+        /// <summary>
+        /// Assigns the primary runtime texture through the first shader texture binding when one exists.
+        /// </summary>
+        /// <param name="texture">Primary runtime texture to assign, or null to clear the local binding.</param>
+        public override void SetPrimaryTexture(RuntimeTexture texture) {
+            if (Layout == null || Layout.TextureBindings.Length == 0) {
+                base.SetPrimaryTexture(texture);
+                return;
+            }
+
+            Properties.SetTexture(0, texture);
         }
 
         /// <summary>

@@ -25,6 +25,26 @@ public sealed class InputSystem {
     /// </summary>
     readonly List<int> SeenActionIds;
     /// <summary>
+    /// Reusable scratch list that stores one stable snapshot of the previous-frame action keys during binding resolution.
+    /// </summary>
+    readonly List<int> PreviousActionKeysScratch;
+    /// <summary>
+    /// Reusable scratch list that stores one stable snapshot of the current-frame action keys during binding resolution.
+    /// </summary>
+    readonly List<int> CurrentActionKeysScratch;
+    /// <summary>
+    /// Reusable scratch dictionary that stores the strongest action values resolved for one active context during the current frame.
+    /// </summary>
+    readonly Dictionary<int, float> ContextActionValuesScratch;
+    /// <summary>
+    /// Reusable scratch list that stores the action ids resolved for one active context during the current frame.
+    /// </summary>
+    readonly List<int> ContextActionKeysScratch;
+    /// <summary>
+    /// Reusable scratch list that stores one stable snapshot of resolved action keys while pressed and released transitions are computed.
+    /// </summary>
+    readonly List<int> ResolvedActionKeysScratch;
+    /// <summary>
     /// Mouse state snapshot from the previous update.
     /// </summary>
     MouseState lastMouseState;
@@ -92,6 +112,11 @@ public sealed class InputSystem {
         CurrentActionStates = new Dictionary<int, InputActionState>();
         PreviousActionStates = new Dictionary<int, InputActionState>();
         SeenActionIds = new List<int>();
+        PreviousActionKeysScratch = new List<int>();
+        CurrentActionKeysScratch = new List<int>();
+        ContextActionValuesScratch = new Dictionary<int, float>();
+        ContextActionKeysScratch = new List<int>();
+        ResolvedActionKeysScratch = new List<int>();
         keyboardState = new KeyboardState();
         mouseState = new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
         KeyboardIsActive = true;
@@ -854,23 +879,23 @@ public sealed class InputSystem {
             return;
         }
 
-        List<int> previousActionKeys = new List<int>();
+        PreviousActionKeysScratch.Clear();
         foreach (int actionKey in PreviousActionStates.Keys) {
-            previousActionKeys.Add(actionKey);
+            PreviousActionKeysScratch.Add(actionKey);
         }
 
-        for (int index = 0; index < previousActionKeys.Count; index++) {
-            int actionKey = previousActionKeys[index];
+        for (int index = 0; index < PreviousActionKeysScratch.Count; index++) {
+            int actionKey = PreviousActionKeysScratch[index];
             PreviousActionStates.Remove(actionKey);
         }
 
-        List<int> currentActionKeys = new List<int>();
+        CurrentActionKeysScratch.Clear();
         foreach (int actionKey in CurrentActionStates.Keys) {
-            currentActionKeys.Add(actionKey);
+            CurrentActionKeysScratch.Add(actionKey);
         }
 
-        for (int index = 0; index < currentActionKeys.Count; index++) {
-            int actionKey = currentActionKeys[index];
+        for (int index = 0; index < CurrentActionKeysScratch.Count; index++) {
+            int actionKey = CurrentActionKeysScratch[index];
             PreviousActionStates[actionKey] = CurrentActionStates[actionKey];
             CurrentActionStates.Remove(actionKey);
         }
@@ -879,8 +904,8 @@ public sealed class InputSystem {
 
         for (int contextIndex = ActiveContextStack.Count - 1; contextIndex >= 0; contextIndex--) {
             int activeContextValue = ActiveContextStack[contextIndex];
-            Dictionary<int, float> contextActionValues = new Dictionary<int, float>();
-            List<int> contextActionKeys = new List<int>();
+            ContextActionValuesScratch.Clear();
+            ContextActionKeysScratch.Clear();
             for (int bindingIndex = 0; bindingIndex < Bindings.Count; bindingIndex++) {
                 InputBinding binding = Bindings[bindingIndex];
                 if (binding.ContextId.Value != activeContextValue) {
@@ -896,23 +921,23 @@ public sealed class InputSystem {
                 }
 
                 int actionKey = binding.ActionId.Value;
-                if (contextActionValues.TryGetValue(actionKey, out float currentContextValue)
+                if (ContextActionValuesScratch.TryGetValue(actionKey, out float currentContextValue)
                     && Math.Abs(value) <= Math.Abs(currentContextValue)) {
                     continue;
                 }
 
-                contextActionValues[actionKey] = value;
-                if (!contextActionKeys.Contains(actionKey)) {
-                    contextActionKeys.Add(actionKey);
+                ContextActionValuesScratch[actionKey] = value;
+                if (!ContextActionKeysScratch.Contains(actionKey)) {
+                    ContextActionKeysScratch.Add(actionKey);
                 }
             }
 
-            foreach (int actionKey in contextActionKeys) {
+            foreach (int actionKey in ContextActionKeysScratch) {
                 if (CurrentActionStates.ContainsKey(actionKey)) {
                     continue;
                 }
 
-                StoreActionValue(new InputActionId(actionKey), contextActionValues[actionKey]);
+                StoreActionValue(new InputActionId(actionKey), ContextActionValuesScratch[actionKey]);
             }
         }
 
@@ -961,12 +986,12 @@ public sealed class InputSystem {
     /// Computes pressed and released transitions for all resolved actions.
     /// </summary>
     void ApplyActionTransitions() {
-        List<int> resolvedActionKeys = new List<int>();
+        ResolvedActionKeysScratch.Clear();
         foreach (int actionKey in CurrentActionStates.Keys) {
-            resolvedActionKeys.Add(actionKey);
+            ResolvedActionKeysScratch.Add(actionKey);
         }
-        for (int i = 0; i < resolvedActionKeys.Count; i++) {
-            int actionKey = resolvedActionKeys[i];
+        for (int i = 0; i < ResolvedActionKeysScratch.Count; i++) {
+            int actionKey = ResolvedActionKeysScratch[i];
             InputActionState currentState = CurrentActionStates[actionKey];
             InputActionState previousState;
             if (!PreviousActionStates.TryGetValue(actionKey, out previousState)) {

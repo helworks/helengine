@@ -41,7 +41,7 @@ public sealed class CityTiltTrialBallDriveSourceTests {
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("UpdateOrder = 1;", source, StringComparison.Ordinal);
-        Assert.Contains("core.PredictedPhysicsStepSeconds", source, StringComparison.Ordinal);
+        Assert.Contains("core != null ? core.PredictedPhysicsStepSeconds : 0d;", source, StringComparison.Ordinal);
         Assert.Contains("ResolvePredictedOrbitCenter(", source, StringComparison.Ordinal);
         Assert.Contains("targetLinearVelocity * (float)elapsedSeconds", source, StringComparison.Ordinal);
     }

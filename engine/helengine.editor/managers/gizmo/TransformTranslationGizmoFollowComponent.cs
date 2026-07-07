@@ -249,7 +249,7 @@ namespace helengine.editor {
                 GizmoRoot.Scale = new float3(scale, scale, scale);
                 float4 yawFacingOrientation = TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedPosition, cameraEntity.Position);
                 ApplyFacingToHandles(yawFacingOrientation, scale);
-                UpdateAxisTipOffsets(scale);
+                UpdateAxisTipOffsets();
             }
 
             UpdateAxisHighlightMaterials();
@@ -431,9 +431,8 @@ namespace helengine.editor {
         /// <summary>
         /// Updates cone tip offsets so each axis tip remains aligned with its scaled shaft length.
         /// </summary>
-        /// <param name="scale">Current gizmo world scale multiplier.</param>
-        void UpdateAxisTipOffsets(float scale) {
-            float axisOffset = TransformTranslationGizmoFactory.ShaftLength * scale;
+        void UpdateAxisTipOffsets() {
+            float axisOffset = TransformTranslationGizmoFactory.ShaftLength;
             for (int axisIndex = 0; axisIndex < GizmoRoot.Children.Count; axisIndex++) {
                 if (GizmoRoot.Children[axisIndex] is not EditorEntity axisEntity || !IsHandleEntity(axisEntity)) {
                     continue;
@@ -453,7 +452,7 @@ namespace helengine.editor {
                         continue;
                     }
 
-                    axisChildEntity.Position = tipOffset;
+                    axisChildEntity.LocalPosition = tipOffset;
                     break;
                 }
             }
@@ -583,7 +582,8 @@ namespace helengine.editor {
                 }
 
                 handle.LocalPosition = float4.RotateVector(resolvedBasePosition, yawFacingOrientation);
-                handle.LocalOrientation = yawFacingOrientation * baseOrientation;
+                float4.Concatenate(ref baseOrientation, ref yawFacingOrientation, out float4 resolvedOrientation);
+                handle.LocalOrientation = resolvedOrientation;
             }
         }
 

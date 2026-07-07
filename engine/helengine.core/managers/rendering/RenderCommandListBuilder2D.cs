@@ -83,7 +83,7 @@ namespace helengine {
         /// </summary>
         /// <param name="drawable">Drawable visited from the ordered render queue.</param>
         public void Visit(IDrawable2D drawable) {
-            if (drawable == null || drawable.Parent == null || !drawable.Parent.Enabled) {
+            if (drawable == null || drawable.Parent == null || !drawable.Parent.IsHierarchyEnabled) {
                 return;
             }
 
@@ -303,10 +303,56 @@ namespace helengine {
         /// <param name="text">Text drawable to flatten.</param>
         void EmitText(ITextDrawable2D text) {
             FontAsset font = text.Font;
-            string content = text.Text ?? string.Empty;
             double fontScale = Math.Max((double)text.FontScale, 0.0001d);
             if (text.WrapText) {
-                content = TextLayoutUtils.WrapText(content, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
+                string wrappedContent = TextLayoutUtils.WrapText(text.Text ?? string.Empty, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
+                double wrappedOffsetX = 0d;
+                double wrappedOffsetY = 0d;
+                double wrappedLineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
+                double wrappedBaseX = Math.Round(text.Parent.Position.X);
+                double wrappedBaseY = Math.Round(text.Parent.Position.Y);
+
+                for (int index = 0; index < wrappedContent.Length; index++) {
+                    char character = wrappedContent[index];
+                    if (character == '\n') {
+                        wrappedOffsetY += wrappedLineHeight;
+                        wrappedOffsetX = 0d;
+                        continue;
+                    }
+
+                    if (character == ' ') {
+                        wrappedOffsetX += font.FontInfo.SpaceWidth * fontScale;
+                        continue;
+                    }
+
+                    if (!font.Characters.TryGetValue(character, out FontChar glyph)) {
+                        continue;
+                    }
+
+                    double glyphWidth = glyph.SourceRect.Z * font.AtlasWidth * fontScale;
+                    double glyphHeight = glyph.SourceRect.W * font.AtlasHeight * fontScale;
+                    double snappedLineOffsetY = Math.Round(wrappedOffsetY);
+                    CommandListValue.AddGlyphQuad(
+                        font.Texture,
+                        new float4(
+                            (float)(wrappedBaseX + wrappedOffsetX),
+                            (float)(wrappedBaseY + snappedLineOffsetY + (glyph.OffsetY * fontScale)),
+                            (float)glyphWidth,
+                            (float)glyphHeight),
+                        glyph.SourceRect,
+                        text.Color);
+
+                    double advanceWidth = glyph.AdvanceWidth > 0f
+                        ? glyph.AdvanceWidth * fontScale
+                        : glyphWidth;
+                    wrappedOffsetX += advanceWidth;
+                }
+
+                return;
+            }
+
+            if (string.IsNullOrEmpty(text.Text)) {
+                return;
             }
 
             double offsetX = 0d;
@@ -315,8 +361,8 @@ namespace helengine {
             double baseX = Math.Round(text.Parent.Position.X);
             double baseY = Math.Round(text.Parent.Position.Y);
 
-            for (int index = 0; index < content.Length; index++) {
-                char character = content[index];
+            for (int index = 0; index < text.Text.Length; index++) {
+                char character = text.Text[index];
                 if (character == '\n') {
                     offsetY += lineHeight;
                     offsetX = 0d;

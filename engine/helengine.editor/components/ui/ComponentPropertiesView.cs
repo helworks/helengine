@@ -416,6 +416,7 @@ namespace helengine.editor {
 
                     if (PlatformEditingService.IsComponentRemoved(commonComponent, saveComponent, platformId)) {
                         ComponentSectionView removedSection = AcquireSection(commonComponent, commonComponent, saveComponent, platformId, false, true);
+                        AddExistenceRow(removedSection, commonComponent, commonComponent, saveComponent, platformId);
                         ActiveSections.Add(removedSection);
                         continue;
                     }
@@ -543,6 +544,7 @@ namespace helengine.editor {
                 row.IndentLevel = 0;
                 row.IsExpanded = false;
                 row.IsOverrideActive = false;
+                row.IsExistenceToggleRow = false;
                 if (row.ActionButtonHost != null) {
                     row.ActionButtonHost.Enabled = false;
                 }
@@ -597,6 +599,7 @@ namespace helengine.editor {
             Component editableComponent,
             EntitySaveComponent saveComponent,
             string platformId) {
+            AddExistenceRow(section, commonComponent, editableComponent, saveComponent, platformId);
             List<ReflectedComponentPropertyDescriptor> descriptors = DescriptorBuilder.Build(editableComponent.GetType());
             for (int index = 0; index < descriptors.Count; index++) {
                 ReflectedComponentPropertyDescriptor descriptor = descriptors[index];
@@ -613,6 +616,84 @@ namespace helengine.editor {
             }
 
             AddPlatformComponentMemberRows(section, commonComponent, editableComponent, saveComponent, platformId);
+        }
+
+        /// <summary>
+        /// Adds the component existence row shown for one non-common platform section.
+        /// </summary>
+        /// <param name="section">Section receiving the row.</param>
+        /// <param name="commonComponent">Common live component attached to the entity when one exists.</param>
+        /// <param name="editableComponent">Effective editable component or detached platform-only component shown by the section.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
+        void AddExistenceRow(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+            if (saveComponent == null || string.IsNullOrWhiteSpace(platformId)) {
+                return;
+            }
+            if (string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Boolean);
+            BindExistenceRow(row, commonComponent, editableComponent, saveComponent, platformId);
+            UpdateRowValue(row);
+            section.Rows.Add(row);
+            ActiveRows.Add(row);
+        }
+
+        /// <summary>
+        /// Associates one boolean row with component existence editing for the active platform.
+        /// </summary>
+        /// <param name="row">Row to bind.</param>
+        /// <param name="commonComponent">Common live component attached to the entity when one exists.</param>
+        /// <param name="editableComponent">Effective editable component or detached platform-only component shown by the section.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
+        void BindExistenceRow(
+            ComponentPropertyRow row,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            row.CommonComponent = commonComponent;
+            row.TargetComponent = editableComponent;
+            row.SaveComponent = saveComponent;
+            row.EditingPlatformId = platformId;
+            row.Property = null;
+            row.ValueType = typeof(bool);
+            row.PlatformComponentMemberDescriptor = null;
+            row.CustomEditorTypeId = null;
+            row.NestedMemberName = null;
+            row.CustomEditorEntryKey = null;
+            row.IndentLevel = 0;
+            row.IsExistenceToggleRow = true;
+            row.Label.Text = "Exists";
+            row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
+            row.Entity.Enabled = true;
         }
 
         /// <summary>
@@ -1168,6 +1249,12 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(row));
             }
 
+            if (row.IsExistenceToggleRow) {
+                UpdateExistenceRow(row);
+                RefreshRowOverrideChrome(row);
+                return;
+            }
+
             switch (row.Kind) {
                 case ComponentPropertyRowKind.CustomSection:
                     UpdateCustomSectionRow(row);
@@ -1199,6 +1286,23 @@ namespace helengine.editor {
             }
 
             RefreshRowOverrideChrome(row);
+        }
+
+        /// <summary>
+        /// Updates one existence-toggle row with the effective component existence on the active platform.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        void UpdateExistenceRow(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            bool exists = true;
+            if (row.CommonComponent != null && row.SaveComponent != null && !string.IsNullOrWhiteSpace(row.EditingPlatformId)) {
+                exists = !PlatformEditingService.IsComponentRemoved(row.CommonComponent, row.SaveComponent, row.EditingPlatformId);
+            }
+
+            UpdateBooleanField(row, exists);
         }
 
         /// <summary>
@@ -1260,6 +1364,9 @@ namespace helengine.editor {
             }
             if (string.IsNullOrWhiteSpace(row.EditingPlatformId)
                 || string.Equals(row.EditingPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+            if (row.IsExistenceToggleRow) {
                 return false;
             }
             if (row.Kind == ComponentPropertyRowKind.CustomSection || row.Kind == ComponentPropertyRowKind.Header || row.Kind == ComponentPropertyRowKind.ReadOnly) {
@@ -2026,7 +2133,14 @@ namespace helengine.editor {
             }
 
             ComponentPropertyRow row = FindBooleanRow(checkBox);
-            if (row == null || row.TargetComponent == null || (row.Property == null && row.PlatformComponentMemberDescriptor == null)) {
+            if (row == null || row.TargetComponent == null) {
+                return;
+            }
+            if (row.IsExistenceToggleRow) {
+                HandleExistenceRowCheckedChanged(row, isChecked);
+                return;
+            }
+            if (row.Property == null && row.PlatformComponentMemberDescriptor == null) {
                 return;
             }
 
@@ -2038,6 +2152,34 @@ namespace helengine.editor {
 
             SetRowValue(row, isChecked);
             UpdateBooleanField(row, isChecked);
+            EditorSceneMutationService.MarkSceneMutated();
+        }
+
+        /// <summary>
+        /// Handles one component existence row checkbox change by applying the matching existence override and rebuilding the current platform view.
+        /// </summary>
+        /// <param name="row">Existence row whose checkbox changed.</param>
+        /// <param name="isChecked">New effective component existence state.</param>
+        void HandleExistenceRowCheckedChanged(ComponentPropertyRow row, bool isChecked) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.SaveComponent == null || string.IsNullOrWhiteSpace(row.EditingPlatformId)) {
+                return;
+            }
+
+            Component existenceComponent = row.CommonComponent ?? row.TargetComponent;
+            if (existenceComponent == null) {
+                return;
+            }
+
+            if (isChecked) {
+                PlatformEditingService.RevertComponentExistenceOverride(existenceComponent, row.SaveComponent, row.EditingPlatformId);
+            } else {
+                PlatformEditingService.RemoveComponent(existenceComponent, row.SaveComponent, row.EditingPlatformId);
+            }
+
+            RebuildCurrentComponentView();
             EditorSceneMutationService.MarkSceneMutated();
         }
 

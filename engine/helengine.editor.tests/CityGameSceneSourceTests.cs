@@ -63,8 +63,8 @@ public sealed class CityGameSceneSourceTests {
         string sourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneFactory.cs";
         string source = File.ReadAllText(sourcePath);
 
-        Assert.Contains("MaximumPlanarSpeed = 7.5f", source, StringComparison.Ordinal);
-        Assert.Contains("PlanarAccelerationUnitsPerSecond = 2.5f", source, StringComparison.Ordinal);
+        Assert.Contains("MaximumPlanarSpeed = 11.25f", source, StringComparison.Ordinal);
+        Assert.Contains("PlanarAccelerationUnitsPerSecond = 4.25f", source, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -80,6 +80,8 @@ public sealed class CityGameSceneSourceTests {
         string preparationSource = File.ReadAllText(preparationSourcePath);
 
         Assert.Contains("Materials.rendering.tilt_trial.PlayerSphereWalnut", gameSceneFactorySource, StringComparison.Ordinal);
+        Assert.Contains("PlayerSphereMaterialReferenceName = \"Materials[0]\"", gameSceneFactorySource, StringComparison.Ordinal);
+        Assert.Contains("CreateFileSystemMaterial(TiltTrialPlayerSphereWalnutMaterialRelativePath)", gameSceneFactorySource, StringComparison.Ordinal);
         Assert.Contains("TiltTrialPlayerSphereWalnutMaterialFactory", gameSceneGeneratorSource, StringComparison.Ordinal);
         Assert.Contains("materials/rendering/tilt_trial/PlayerSphereWalnut.hasset", preparationSource, StringComparison.Ordinal);
     }

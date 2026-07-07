@@ -159,6 +159,10 @@ namespace helengine.editor {
         /// </summary>
         readonly MaterialAssetView MaterialView;
         /// <summary>
+        /// View that renders animation clip asset options.
+        /// </summary>
+        readonly AnimationClipAssetView AnimationClipView;
+        /// <summary>
         /// Root entity hosting transform editing controls.
         /// </summary>
         readonly EditorEntity TransformRoot;
@@ -170,6 +174,10 @@ namespace helengine.editor {
         /// Projects sparse per-platform entity transform overrides into the live selected entity while the inspector tab changes.
         /// </summary>
         readonly EntityPlatformTransformEditingService TransformPlatformEditingService;
+        /// <summary>
+        /// Stores and resolves per-platform entity existence overrides for the selected entity.
+        /// </summary>
+        readonly EntityPlatformExistenceEditingService ExistencePlatformEditingService;
         /// <summary>
         /// Builds and persists component overrides, removed common components, and platform-only components for the active platform tab.
         /// </summary>
@@ -218,6 +226,22 @@ namespace helengine.editor {
         /// Shared platform tab strip shown below the selected entity name.
         /// </summary>
         readonly PlatformTabStripView ComponentPlatformTabStrip;
+        /// <summary>
+        /// Row entity for the per-platform entity existence checkbox.
+        /// </summary>
+        readonly EditorEntity ExistsRow;
+        /// <summary>
+        /// Label component for the entity existence row.
+        /// </summary>
+        readonly TextComponent ExistsLabel;
+        /// <summary>
+        /// Host entity for the entity existence checkbox.
+        /// </summary>
+        readonly EditorEntity ExistsCheckBoxHost;
+        /// <summary>
+        /// Checkbox used to toggle whether the selected entity exists on the active platform tab.
+        /// </summary>
+        readonly CheckBoxComponent ExistsCheckBox;
         /// <summary>
         /// Row entity for position fields.
         /// </summary>
@@ -518,6 +542,8 @@ namespace helengine.editor {
 
             MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent, ModalHost);
             ScrollContentRoot.AddChild(MaterialView.Root);
+            AnimationClipView = new AnimationClipAssetView(font, EditorLayerMasks.PropertiesPanelContent);
+            ScrollContentRoot.AddChild(AnimationClipView.Root);
 
             TransformRoot = new EditorEntity();
             TransformRoot.LayerMask = EditorLayerMasks.PropertiesPanelContent;
@@ -530,6 +556,7 @@ namespace helengine.editor {
                 ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.PropertiesPanelContent);
             }
             TransformPlatformEditingService = new EntityPlatformTransformEditingService();
+            ExistencePlatformEditingService = new EntityPlatformExistenceEditingService();
             ComponentPlatformEditingService = new ComponentPlatformEditingService();
             ComponentView.RemoveRequested += HandleComponentRemoveRequested;
             ScrollContentRoot.AddChild(ComponentView.Root);
@@ -557,6 +584,7 @@ namespace helengine.editor {
             ModalHost.AddChild(RemoveComponentDialog);
 
             CreateNameRow(out NameRow, out NameLabel, out NameFieldHost, out NameField);
+            CreateExistsRow(out ExistsRow, out ExistsLabel, out ExistsCheckBoxHost, out ExistsCheckBox);
             CreateTransformRow("Position", out PositionRow, out PositionLabel, out PositionFieldHosts, out PositionFields);
             CreateTransformRow("Rotation", out RotationRow, out RotationLabel, out RotationFieldHosts, out RotationFields);
             CreateTransformRow("Scale", out ScaleRow, out ScaleLabel, out ScaleFieldHosts, out ScaleFields);
@@ -583,6 +611,7 @@ namespace helengine.editor {
             CurrentPlatformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
 
             HookNameEvents(NameField);
+            HookExistsEvents(ExistsCheckBox);
             HookTransformEvents(PositionFields);
             HookTransformEvents(RotationFields);
             HookTransformEvents(ScaleFields);
@@ -635,6 +664,7 @@ namespace helengine.editor {
             HideRemoveComponentDialog();
             importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, entry.EntryKind, platformDefinitionsById);
             MaterialView.Hide();
+            AnimationClipView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
@@ -661,6 +691,7 @@ namespace helengine.editor {
             HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Hide();
+            AnimationClipView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
@@ -681,6 +712,7 @@ namespace helengine.editor {
             HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Hide();
+            AnimationClipView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
@@ -714,7 +746,39 @@ namespace helengine.editor {
             currentEntry = entry;
             HideRemoveComponentDialog();
             importSettingsView.Hide();
+            AnimationClipView.Hide();
             MaterialView.Show(entry, materialAsset, settings, supportedPlatforms, activePlatformId, selectionModelResolver);
+            ComponentPlatformTabStrip.Root.Enabled = false;
+            SetTransformVisible(false);
+            ComponentView.Hide();
+            ApplyLines(Array.Empty<string>());
+            LayoutLines();
+        }
+
+        /// <summary>
+        /// Shows animation clip options for a selected animation asset.
+        /// </summary>
+        /// <param name="entry">Selected asset entry.</param>
+        /// <param name="clipAsset">Animation clip asset to edit.</param>
+        /// <param name="supportedPlatforms">Supported project platform identifiers.</param>
+        /// <param name="activePlatformId">Currently active project platform identifier.</param>
+        public void ShowAnimationClipSettings(
+            AssetBrowserEntry entry,
+            AnimationClipAsset clipAsset,
+            IReadOnlyList<string> supportedPlatforms,
+            string activePlatformId) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            } else if (clipAsset == null) {
+                throw new ArgumentNullException(nameof(clipAsset));
+            }
+
+            DeactivateSelectedEntityTransformProjection();
+            currentEntry = entry;
+            HideRemoveComponentDialog();
+            importSettingsView.Hide();
+            MaterialView.Hide();
+            AnimationClipView.Show(entry, clipAsset, supportedPlatforms, activePlatformId);
             ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
@@ -735,6 +799,7 @@ namespace helengine.editor {
             currentEntry = null;
             importSettingsView.Hide();
             MaterialView.Hide();
+            AnimationClipView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
@@ -762,6 +827,7 @@ namespace helengine.editor {
             currentEntry = null;
             importSettingsView.Hide();
             MaterialView.Hide();
+            AnimationClipView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
@@ -815,6 +881,7 @@ namespace helengine.editor {
             HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Hide();
+            AnimationClipView.Hide();
             SelectedEntity = entity;
             CurrentComponentPlatformIds = ResolveComponentPlatformIds(supportedPlatformIds);
             CurrentPlatformDefinitionsById = platformDefinitionsById ?? new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
@@ -1241,6 +1308,47 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates the per-platform entity existence row with a label and checkbox.
+        /// </summary>
+        /// <param name="row">Created row entity.</param>
+        /// <param name="labelText">Label text component.</param>
+        /// <param name="checkBoxHost">Host entity for the checkbox.</param>
+        /// <param name="checkBox">Checkbox component.</param>
+        void CreateExistsRow(
+            out EditorEntity row,
+            out TextComponent labelText,
+            out EditorEntity checkBoxHost,
+            out CheckBoxComponent checkBox) {
+            row = new EditorEntity();
+            row.LayerMask = EditorLayerMasks.PropertiesPanelContent;
+            row.Position = float3.Zero;
+            row.Enabled = false;
+            TransformRoot.AddChild(row);
+
+            var labelHost = new EditorEntity();
+            labelHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
+            labelHost.Position = float3.Zero;
+            row.AddChild(labelHost);
+
+            labelText = new TextComponent();
+            labelText.Font = font;
+            labelText.Text = "Exists";
+            labelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            labelText.Size = new int2(TransformLabelWidth, TransformFieldHeight);
+            labelText.RenderOrder2D = textOrder;
+            labelHost.AddComponent(labelText);
+
+            checkBoxHost = new EditorEntity();
+            checkBoxHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
+            checkBoxHost.Position = float3.Zero;
+            row.AddChild(checkBoxHost);
+
+            checkBox = new CheckBoxComponent(new int2(TransformFieldHeight, TransformFieldHeight), font, true);
+            checkBox.SetRenderOrders(RenderOrder2D.PanelSurface, textOrder);
+            checkBoxHost.AddComponent(checkBox);
+        }
+
+        /// <summary>
         /// Sets whether transform controls are visible.
         /// </summary>
         /// <param name="visible">True to show transform controls.</param>
@@ -1252,6 +1360,7 @@ namespace helengine.editor {
                 ApplyTransformRequested = false;
                 AddComponentButtonRoot.Enabled = false;
                 ComponentPlatformTabStrip.Root.Enabled = false;
+                ExistsRow.Enabled = false;
             }
 
             RefreshTransformOverrideChrome();
@@ -1280,6 +1389,12 @@ namespace helengine.editor {
                 rowTop += ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
             } else {
                 ComponentPlatformTabStrip.Root.Enabled = false;
+            }
+            if (ShouldShowEntityExistenceRow()) {
+                LayoutExistsRow(labelWidth, rowTop);
+                rowTop += TransformRowHeight + rowSpacing;
+            } else {
+                ExistsRow.Enabled = false;
             }
             LayoutTransformRow(PositionRow, PositionLabel, PositionFieldHosts, PositionFields, PositionOverrideOutline, PositionRevertButtonHost, PositionRevertButtonHost.Enabled, labelWidth, rowTop);
             rowTop += TransformRowHeight + rowSpacing;
@@ -1375,6 +1490,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates layout for the platform-specific entity existence row.
+        /// </summary>
+        /// <param name="labelWidth">Width of the label region.</param>
+        /// <param name="top">Top offset within the transform root.</param>
+        void LayoutExistsRow(int labelWidth, int top) {
+            ExistsRow.Enabled = true;
+            ExistsRow.Position = new float3(ContentPadding, top, 0.2f);
+            ExistsLabel.Size = new int2(labelWidth, TransformFieldHeight);
+
+            int labelYOffset = Math.Max(0, (TransformRowHeight - TransformFieldHeight) / 2);
+            if (ExistsLabel.Parent is EditorEntity labelHost) {
+                labelHost.Position = new float3(0, labelYOffset, 0.2f);
+            }
+
+            int rowContentWidth = Math.Max(0, GetContentViewportWidthPixels() - ContentPadding * 2);
+            int checkBoxX = Math.Max(labelWidth + TransformFieldSpacing, rowContentWidth - TransformFieldHeight);
+            ExistsCheckBoxHost.Position = new float3(checkBoxX, labelYOffset, 0.2f);
+            ExistsCheckBox.Size = new int2(TransformFieldHeight, TransformFieldHeight);
+        }
+
+        /// <summary>
         /// Syncs the name and transform field text with the selected entity.
         /// </summary>
         /// <param name="entity">Entity to read transform values from.</param>
@@ -1386,6 +1522,7 @@ namespace helengine.editor {
             IsSynchronizingInputs = true;
             try {
                 SyncNameField(entity);
+                SyncExistsField();
                 float3 position = entity.Position;
                 float3 scale = entity.Scale;
                 double pitch;
@@ -1401,6 +1538,23 @@ namespace helengine.editor {
             }
 
             RefreshTransformOverrideChrome();
+        }
+
+        /// <summary>
+        /// Syncs the platform-specific entity existence checkbox with the selected entity and active platform tab.
+        /// </summary>
+        void SyncExistsField() {
+            bool exists = true;
+            if (SelectedEntity != null
+                && !string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
+                && !string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
+                if (saveComponent != null) {
+                    exists = ExistencePlatformEditingService.ResolveExists(saveComponent, SelectedComponentPlatformId);
+                }
+            }
+
+            ExistsCheckBox.IsChecked = exists;
         }
 
         /// <summary>
@@ -1743,6 +1897,47 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Hooks checked-change events for the entity existence checkbox.
+        /// </summary>
+        /// <param name="checkBox">Checkbox to subscribe to.</param>
+        void HookExistsEvents(CheckBoxComponent checkBox) {
+            if (checkBox == null) {
+                throw new ArgumentNullException(nameof(checkBox));
+            }
+
+            checkBox.CheckedChanged += HandleEntityExistsCheckedChanged;
+        }
+
+        /// <summary>
+        /// Stores one platform-specific entity existence change from the inspector checkbox.
+        /// </summary>
+        /// <param name="checkBox">Checkbox that raised the event.</param>
+        /// <param name="isChecked">New effective entity existence value for the active platform.</param>
+        void HandleEntityExistsCheckedChanged(CheckBoxComponent checkBox, bool isChecked) {
+            if (checkBox == null) {
+                throw new ArgumentNullException(nameof(checkBox));
+            }
+            if (IsSynchronizingInputs || SelectedEntity == null) {
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
+                || string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                SyncExistsField();
+                return;
+            }
+
+            EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
+            if (saveComponent == null) {
+                throw new InvalidOperationException("Platform-specific entity existence editing requires an entity save component.");
+            }
+
+            ExistencePlatformEditingService.SetExists(saveComponent, SelectedComponentPlatformId, isChecked);
+            SyncExistsField();
+            LayoutLines();
+            EditorSceneMutationService.MarkSceneMutated();
+        }
+
+        /// <summary>
         /// Marks the transform as needing validation and apply.
         /// </summary>
         /// <param name="field">Field that was submitted.</param>
@@ -1946,6 +2141,11 @@ namespace helengine.editor {
                 MaterialView.UpdateLayout(ContentPadding, viewTop, maxWidth);
                 offsetY = viewTop + MaterialView.Height + LineSpacing;
             }
+            if (AnimationClipView.IsVisible) {
+                int viewTop = (int)Math.Round(offsetY);
+                AnimationClipView.UpdateLayout(ContentPadding, viewTop, maxWidth);
+                offsetY = viewTop + AnimationClipView.Height + LineSpacing;
+            }
 
             if (ShowTransformControls) {
                 int transformTop = (int)Math.Round(offsetY);
@@ -1976,8 +2176,11 @@ namespace helengine.editor {
             if (ShouldShowComponentPlatformTabs()) {
                 tabStripHeight = ComponentPlatformTabTopSpacing + ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
             }
+            int existenceRowCount = ShouldShowEntityExistenceRow() ? 1 : 0;
+            int rowCount = 4 + existenceRowCount;
+            int spacingCount = 2 + existenceRowCount;
 
-            return (TransformRowHeight * 4) + (rowSpacing * 2) + tabStripHeight;
+            return (TransformRowHeight * rowCount) + (rowSpacing * spacingCount) + tabStripHeight;
         }
 
         /// <summary>
@@ -2002,6 +2205,17 @@ namespace helengine.editor {
             return ShowTransformControls
                 && SelectedEntity != null
                 && ComponentPlatformTabStrip.TabCount > 0;
+        }
+
+        /// <summary>
+        /// Returns whether the platform-specific entity existence row should be visible for the current inspector state.
+        /// </summary>
+        /// <returns>True when the row should be shown.</returns>
+        bool ShouldShowEntityExistenceRow() {
+            return ShowTransformControls
+                && SelectedEntity is EditorEntity
+                && !string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
+                && !string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

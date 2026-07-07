@@ -9,7 +9,7 @@ namespace helengine.physics3d.tests {
         /// </summary>
         public PhysicsWorld3DFixedStepSchedulingTests() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
@@ -56,7 +56,7 @@ namespace helengine.physics3d.tests {
             }
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory,
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
                 PhysicsFixedStepSeconds = 1.0d / 60.0d,
                 PhysicsMaxStepsPerUpdate = physicsMaxStepsPerUpdate
             });
@@ -190,3 +190,4 @@ namespace helengine.physics3d.tests {
         }
     }
 }
+

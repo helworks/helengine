@@ -51,7 +51,7 @@ namespace helengine.bepu.tests {
             };
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -122,3 +122,4 @@ namespace helengine.bepu.tests {
         }
     }
 }
+

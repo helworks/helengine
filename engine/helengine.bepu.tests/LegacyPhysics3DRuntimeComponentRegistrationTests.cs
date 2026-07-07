@@ -9,7 +9,7 @@ namespace helengine.bepu.tests {
         [Fact]
         public void Register_WhenCalledThroughLegacyEntryPoint_DoesNotAttachBepuPhysicsRuntimeUntilPhysicsSceneLoads() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = AppContext.BaseDirectory
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
@@ -19,3 +19,4 @@ namespace helengine.bepu.tests {
         }
     }
 }
+

@@ -170,6 +170,23 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Synchronizes one already-bound dynamic body's authored velocity values into the live BEPU runtime while preserving the current runtime pose.
+        /// </summary>
+        /// <param name="entity">Bound entity whose dynamic body velocity should be updated.</param>
+        public void SynchronizeDynamicBodyVelocity(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            } else if (SimulationValue == null) {
+                throw new InvalidOperationException("A BEPU simulation must exist before dynamic-body velocities can be synchronized.");
+            }
+
+            BepuBodyHandle3D handle = FindRequiredDynamicBodyHandle(entity);
+            BodyReference bodyReference = SimulationValue.Bodies[handle.BodyHandle];
+            bodyReference.Velocity = BepuEntitySynchronization3D.CreateVelocity(handle.RigidBody);
+            bodyReference.Awake = true;
+        }
+
+        /// <summary>
         /// Binds one scene hierarchy to the active BEPU simulation.
         /// </summary>
         /// <param name="rootEntities">Root entities that should be scanned for supported rigid bodies.</param>

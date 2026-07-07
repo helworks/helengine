@@ -15,6 +15,10 @@ namespace helengine {
         /// Fixed-function render state applied while drawing this material.
         /// </summary>
         MaterialRenderState RenderStateValue;
+        /// <summary>
+        /// Generic primary texture override consumed by fixed-function or platform-owned runtime material paths.
+        /// </summary>
+        RuntimeTexture PrimaryTextureValue;
 
         /// <summary>
         /// Initializes a new runtime material with default render state and conservative lighting feature flags.
@@ -68,6 +72,23 @@ namespace helengine {
         public RuntimeMaterial ParentMaterial => ParentMaterialValue;
 
         /// <summary>
+        /// Resolves the primary runtime texture that this material or one of its parents exposes to fixed-function renderers.
+        /// </summary>
+        /// <returns>Resolved primary runtime texture when one is assigned locally or inherited; otherwise null.</returns>
+        public virtual RuntimeTexture ResolvePrimaryTexture() {
+            if (PrimaryTextureValue != null) {
+                return PrimaryTextureValue;
+            }
+
+            RuntimeMaterial parentMaterial = ParentMaterialValue;
+            if (parentMaterial != null) {
+                return parentMaterial.ResolvePrimaryTexture();
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Releases runtime-material-owned native resources and nested containers.
         /// </summary>
         public virtual void Dispose() {
@@ -77,6 +98,7 @@ namespace helengine {
             }
 
             ParentMaterialValue = null;
+            PrimaryTextureValue = null;
             NativeOwnership.Delete(RenderStateValue);
             RenderStateValue = null;
             ChildMaterialsValue.Clear();
@@ -136,6 +158,14 @@ namespace helengine {
             RenderState = renderState.Clone();
             NativeOwnership.Delete(previousRenderState);
             SynchronizeChildMaterials();
+        }
+
+        /// <summary>
+        /// Assigns the generic primary runtime texture consumed by fixed-function or platform-owned renderer paths.
+        /// </summary>
+        /// <param name="texture">Primary runtime texture to assign, or null to clear the local override.</param>
+        public virtual void SetPrimaryTexture(RuntimeTexture texture) {
+            PrimaryTextureValue = texture;
         }
 
         /// <summary>
