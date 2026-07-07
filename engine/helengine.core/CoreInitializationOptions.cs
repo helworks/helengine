@@ -7,7 +7,7 @@ namespace helengine {
         /// Gets or sets the content stream source used by the core-owned content manager.
         /// This replaces the legacy content-root-path initialization seam with one explicit runtime asset source.
         /// </summary>
-        public IContentStreamSource ContentStreamSource { get; set; } = new HostFileSystemContentStreamSource(AppContext.BaseDirectory);
+        public IContentStreamSource ContentStreamSource { get; set; }
 
         /// <summary>
         /// Gets or sets the number of update order layers available for convenience helpers.

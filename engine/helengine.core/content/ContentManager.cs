@@ -153,10 +153,6 @@ namespace helengine {
                 using Stream stream = StreamSource.OpenRead(assetPath);
                 EngineBinaryReadContext.CurrentReadStage = "ContentManager:ProcessorRead";
                 return processor.Read(stream);
-            } catch (Exception exception) when (ShouldWrapContentReadFailure(exception)) {
-                throw new InvalidOperationException(
-                    $"{exception.Message} (asset_path='{EngineBinaryReadContext.CurrentAssetPath}', read_stage='{EngineBinaryReadContext.CurrentReadStage}')",
-                    exception);
             } finally {
                 EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
                 EngineBinaryReadContext.CurrentReadStage = previousReadStage;
@@ -261,17 +257,6 @@ namespace helengine {
             registrationsByExtension = new Dictionary<string, ContentProcessorRegistration>(StringComparer.OrdinalIgnoreCase);
             DefaultProcessorsByTypeAndExtension.Add(outputType, registrationsByExtension);
             return registrationsByExtension;
-        }
-
-        /// <summary>
-        /// Determines whether one read failure should be wrapped with asset-path and read-stage diagnostics.
-        /// </summary>
-        /// <param name="exception">Failure thrown during stream opening or processor execution.</param>
-        /// <returns>True when the failure should be wrapped with content-read context.</returns>
-        static bool ShouldWrapContentReadFailure(Exception exception) {
-            return exception is not OutOfMemoryException
-                && exception is not StackOverflowException
-                && exception is not AccessViolationException;
         }
 
         /// <summary>

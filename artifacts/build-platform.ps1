@@ -71,6 +71,66 @@ function Get-ProjectIsolationHash {
     return $Builder.ToString()
 }
 
+function Get-EditorArtifactsOutputPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$EditorArtifactsPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Configuration
+    )
+
+    if ([string]::IsNullOrWhiteSpace($EditorArtifactsPath)) {
+        throw "Editor artifacts path must be provided."
+    } elseif ([string]::IsNullOrWhiteSpace($Configuration)) {
+        throw "Configuration must be provided."
+    }
+
+    return Join-Path $EditorArtifactsPath ("bin\helengine.editor.app\" + $Configuration.ToLowerInvariant())
+}
+
+function Sync-EditorProjectReferenceOutputs {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$EditorArtifactsPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Configuration
+    )
+
+    if ([string]::IsNullOrWhiteSpace($EditorArtifactsPath)) {
+        throw "Editor artifacts path must be provided."
+    } elseif ([string]::IsNullOrWhiteSpace($Configuration)) {
+        throw "Configuration must be provided."
+    }
+
+    $EditorOutputPath = Get-EditorArtifactsOutputPath -EditorArtifactsPath $EditorArtifactsPath -Configuration $Configuration
+    if (-not (Test-Path -LiteralPath $EditorOutputPath -PathType Container)) {
+        throw "Editor app output was not found at '$EditorOutputPath'."
+    }
+
+    $ArtifactsBinRootPath = Join-Path $EditorArtifactsPath "bin"
+    if (-not (Test-Path -LiteralPath $ArtifactsBinRootPath -PathType Container)) {
+        throw "Editor artifacts bin root was not found at '$ArtifactsBinRootPath'."
+    }
+
+    $ProjectOutputDirectories = Get-ChildItem -LiteralPath $ArtifactsBinRootPath -Directory |
+        Where-Object { $_.Name -ne "helengine.editor.app" }
+    foreach ($ProjectOutputDirectory in $ProjectOutputDirectories) {
+        $ProjectOutputPath = Join-Path $ProjectOutputDirectory.FullName $Configuration.ToLowerInvariant()
+        if (-not (Test-Path -LiteralPath $ProjectOutputPath -PathType Container)) {
+            continue
+        }
+
+        $OutputFiles = Get-ChildItem -LiteralPath $ProjectOutputPath -File
+        foreach ($OutputFile in $OutputFiles) {
+            Copy-Item -LiteralPath $OutputFile.FullName -Destination (Join-Path $EditorOutputPath $OutputFile.Name) -Force
+        }
+    }
+
+    return $EditorOutputPath
+}
+
 if ([string]::IsNullOrWhiteSpace($Project)) { [Console]::Error.WriteLine("Project is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Platform)) { [Console]::Error.WriteLine("Platform is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Output)) { [Console]::Error.WriteLine("Output is required."); exit 2 }
@@ -104,6 +164,7 @@ try {
     $ResolvedHelEngineRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
     $EditorIsolationRootPath = Join-Path ([System.IO.Path]::GetTempPath()) ("helengine-builds\" + $ProjectIsolationHash + "\" + $PlatformIsolationSegment + "\editor-app")
     $EditorArtifactsPath = Join-Path $EditorIsolationRootPath "artifacts"
+    $EditorPublishPath = Join-Path $EditorIsolationRootPath "publish"
 
     $ResolvedOutputPath = [System.IO.Path]::GetFullPath($Output)
     if (-not (Test-Path -LiteralPath $ResolvedOutputPath -PathType Container)) {
@@ -120,15 +181,17 @@ try {
         $ResolvedEditorProject
     ) + $DotNetSharedPropertyArguments
 
-    $DotNetArguments = @(
-        "run",
-        "--no-restore",
-        "--project",
+    $DotNetPublishArguments = @(
+        "publish",
         $ResolvedEditorProject,
+        "--no-restore",
         "-c",
-        $Configuration
-    ) + $DotNetSharedPropertyArguments + @(
-        "--",
+        $Configuration,
+        "-o",
+        $EditorPublishPath
+    ) + $DotNetSharedPropertyArguments
+
+    $EditorRunArguments = @(
         "--project",
         $ResolvedProjectPath,
         "--build",
@@ -138,7 +201,7 @@ try {
     )
 
     if ($AdditionalArgs.Count -gt 0) {
-        $DotNetArguments += $AdditionalArgs
+        $EditorRunArguments += $AdditionalArgs
     }
 
     $RestoreDisplayArguments = @("dotnet")
@@ -159,8 +222,32 @@ try {
         exit $DotNetRestoreExitCode
     }
 
-    $DisplayArguments = @("dotnet")
-    foreach ($Argument in $DotNetArguments) {
+    $BuildDisplayArguments = @("dotnet")
+    foreach ($Argument in $DotNetPublishArguments) {
+        if ($Argument -match '[\s"]') {
+            $BuildDisplayArguments += '"' + $Argument.Replace('"', '\"') + '"'
+        } else {
+            $BuildDisplayArguments += $Argument
+        }
+    }
+
+    Write-Host ("Publishing: " + ($BuildDisplayArguments -join " "))
+
+    & dotnet @DotNetPublishArguments
+    $DotNetBuildExitCode = $LASTEXITCODE
+    if ($DotNetBuildExitCode -ne 0) {
+        [Console]::Error.WriteLine("Editor project publish failed with exit code $DotNetBuildExitCode.")
+        exit $DotNetBuildExitCode
+    }
+
+    $EditorAssemblyPath = Join-Path $EditorPublishPath "helengine.editor.app.dll"
+    if (-not (Test-Path -LiteralPath $EditorAssemblyPath -PathType Leaf)) {
+        [Console]::Error.WriteLine("Editor app assembly was not found at '$EditorAssemblyPath'.")
+        exit 5
+    }
+
+    $DisplayArguments = @("dotnet", $EditorAssemblyPath)
+    foreach ($Argument in $EditorRunArguments) {
         if ($Argument -match '[\s"]') {
             $DisplayArguments += '"' + $Argument.Replace('"', '\"') + '"'
         } else {
@@ -173,7 +260,7 @@ try {
     $OriginalHelEngineSourceRootPath = $env:HELENGINE_SOURCE_ROOT
     try {
         $env:HELENGINE_SOURCE_ROOT = $ResolvedHelEngineRootPath
-        & dotnet @DotNetArguments
+        & dotnet $EditorAssemblyPath @EditorRunArguments
         $DotNetExitCode = $LASTEXITCODE
         if ($DotNetExitCode -ne 0) {
             [Console]::Error.WriteLine("Editor platform build failed with exit code $DotNetExitCode.")

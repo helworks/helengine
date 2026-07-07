@@ -14,7 +14,10 @@ namespace helengine {
         /// Creates a new editor core instance for the specified project.
         /// </summary>
         /// <param name="project">The project to open in the editor.</param>
-        public EditorCore(Project project) {
+        public EditorCore(Project project)
+            : base(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            }) {
             Project = project;
         }
 

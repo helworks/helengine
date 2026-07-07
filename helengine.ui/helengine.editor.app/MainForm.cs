@@ -150,7 +150,7 @@ namespace helengine.editor.app {
             }
             IInputBackend inputBackend = new InputBackendWindows(this.Handle);
             CoreInitializationOptions initOptions = new CoreInitializationOptions {
-                ContentRootPath = projectAssetsRootPath
+                ContentStreamSource = new HostFileSystemContentStreamSource(projectAssetsRootPath)
             };
             PlatformInfo platformInfo = ResolveEditorPlatformInfo(projectPath);
             core.Initialize(renderer3D, renderer2D, inputBackend, platformInfo, initOptions);
