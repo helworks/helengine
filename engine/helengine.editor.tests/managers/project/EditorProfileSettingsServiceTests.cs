@@ -183,6 +183,52 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Nintendo DS shared profile settings rewrite the legacy single-profile id to the canonical release profile.
+        /// </summary>
+        [Fact]
+        public void Load_WhenNintendoDsProfileUsesLegacyBuildProfileId_RewritesToCanonicalReleaseProfile() {
+            Directory.CreateDirectory(Path.Combine(TempRootPath, "settings"));
+            File.WriteAllText(
+                Path.Combine(TempRootPath, "settings", "platform.ds.json"),
+                """
+                {
+                  "platformId": "ds",
+                  "build": {
+                    "selectedBuildProfileId": "ds-default",
+                    "textureScalePercent": 100,
+                    "shaderVariantPruningEnabled": true,
+                    "selectedOptionValues": {}
+                  },
+                  "graphics": {
+                    "selectedGraphicsProfileId": "ds-main-2d",
+                    "defaultWidth": 256,
+                    "defaultHeight": 192,
+                    "vSyncEnabled": true,
+                    "fullscreenEnabled": true,
+                    "rendererDepthPrepassMode": 0,
+                    "rendererShadowQualityTier": "disabled",
+                    "rendererHdrEnabled": false,
+                    "rendererPostProcessTier": 0,
+                    "selectedOptionValues": {}
+                  },
+                  "codegen": {
+                    "selectedCodegenProfileId": "default",
+                    "selectedOptionValues": {}
+                  }
+                }
+                """);
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+
+            EditorProfileSettingsDocument document = service.Load(new List<string> { "ds" });
+
+            EditorPlatformProfileSettingsDocument platform = Assert.Single(document.Platforms);
+            Assert.Equal("release", platform.Build.SelectedBuildProfileId);
+            string json = File.ReadAllText(Path.Combine(TempRootPath, "settings", "platform.ds.json"));
+            Assert.Contains("\"selectedBuildProfileId\": \"release\"", json);
+            Assert.DoesNotContain("\"selectedBuildProfileId\": \"ds-default\"", json);
+        }
+
+        /// <summary>
         /// Creates one multi-platform profile document with stable values for the supplied platforms.
         /// </summary>
         /// <param name="platformIds">Platform identifiers that should be included in the document.</param>

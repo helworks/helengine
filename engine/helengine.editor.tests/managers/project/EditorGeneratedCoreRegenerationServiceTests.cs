@@ -319,6 +319,45 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies build-profile-specific codegen default overrides can disable compact native exception messages even when the shared codegen profile defaults them on.
+    /// </summary>
+    [Fact]
+    public void UsesCompactNativeExceptionMessages_build_profile_override_wins_over_codegen_default() {
+        PlatformCodegenProfileDefinition codegenProfile = new(
+            "default",
+            "Default",
+            "Default codegen profile",
+            PlatformCodegenLanguage.Cpp,
+            PlatformSerializationEndianness.LittleEndian,
+            [
+                new PlatformSettingDefinition(
+                    PlatformCodegenSettingIds.CompactNativeExceptionMessages,
+                    "Compact Native Exception Messages",
+                    PlatformSettingKind.Boolean,
+                    "true",
+                    true,
+                    [])
+            ]);
+        PlatformBuildProfileDefinition buildProfile = new(
+            "debug",
+            "Debug",
+            "Debug player build",
+            "main-2d",
+            "default",
+            [],
+            new Dictionary<string, string>(StringComparer.Ordinal) {
+                [PlatformCodegenSettingIds.CompactNativeExceptionMessages] = "false"
+            });
+
+        bool usesCompactMessages = EditorGeneratedCoreRegenerationService.UsesCompactNativeExceptionMessages(
+            buildProfile,
+            codegenProfile,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+        Assert.False(usesCompactMessages);
+    }
+
+    /// <summary>
     /// Verifies engine-owned generated-core regeneration disables project-defined preprocessor symbols so platform-specific symbols come only from the selected build target.
     /// </summary>
     [Fact]

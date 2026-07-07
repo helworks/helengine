@@ -80,6 +80,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(document));
             }
 
+            NormalizeDocument(document);
             string buildConfigDirectoryPath = Path.GetDirectoryName(BuildConfigFilePath);
             Directory.CreateDirectory(buildConfigDirectoryPath);
 
@@ -103,12 +104,14 @@ namespace helengine.editor {
                     return null;
                 }
 
+                bool changed = false;
                 document.Platforms ??= [];
                 document.QueueItems ??= [];
                 for (int index = 0; index < document.Platforms.Count; index++) {
                     EditorBuildPlatformConfigDocument platform = document.Platforms[index];
                     if (platform == null) {
                         document.Platforms[index] = new EditorBuildPlatformConfigDocument();
+                        changed = true;
                         continue;
                     }
 
@@ -122,12 +125,14 @@ namespace helengine.editor {
                     platform.SelectedStorageProfileId ??= string.Empty;
                     platform.SelectedMediaProfileId ??= string.Empty;
                     platform.SelectedCodegenOptionValues ??= [];
+                    changed |= NormalizePlatform(platform);
                 }
 
                 for (int index = 0; index < document.QueueItems.Count; index++) {
                     EditorBuildQueueItemDocument queueItem = document.QueueItems[index];
                     if (queueItem == null) {
                         document.QueueItems[index] = new EditorBuildQueueItemDocument();
+                        changed = true;
                         continue;
                     }
 
@@ -140,7 +145,13 @@ namespace helengine.editor {
                     queueItem.SelectedStorageProfileId ??= string.Empty;
                     queueItem.SelectedMediaProfileId ??= string.Empty;
                     queueItem.SelectedCodegenOptionValues ??= [];
+                    changed |= NormalizeQueueItem(queueItem);
                 }
+
+                if (changed) {
+                    Save(document);
+                }
+
                 return document;
             } catch {
                 return null;
@@ -177,6 +188,68 @@ namespace helengine.editor {
                 changed = true;
             }
 
+            return changed;
+        }
+
+        /// <summary>
+        /// Normalizes one full local build configuration document before it is returned to callers or persisted to disk.
+        /// </summary>
+        /// <param name="document">Local build configuration document to normalize.</param>
+        void NormalizeDocument(EditorBuildConfigDocument document) {
+            if (document == null) {
+                throw new ArgumentNullException(nameof(document));
+            }
+
+            document.Platforms ??= [];
+            document.QueueItems ??= [];
+            for (int index = 0; index < document.Platforms.Count; index++) {
+                EditorBuildPlatformConfigDocument platform = document.Platforms[index];
+                if (platform != null) {
+                    NormalizePlatform(platform);
+                }
+            }
+
+            for (int index = 0; index < document.QueueItems.Count; index++) {
+                EditorBuildQueueItemDocument queueItem = document.QueueItems[index];
+                if (queueItem != null) {
+                    NormalizeQueueItem(queueItem);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Normalizes one persisted local platform configuration record.
+        /// </summary>
+        /// <param name="platform">Platform configuration record to normalize.</param>
+        static bool NormalizePlatform(EditorBuildPlatformConfigDocument platform) {
+            if (platform == null) {
+                throw new ArgumentNullException(nameof(platform));
+            }
+
+            string normalizedBuildProfileId = EditorLegacyBuildProfileIdNormalizer.NormalizeLocalBuildProfileId(
+                platform.PlatformId,
+                platform.SelectedBuildProfileId,
+                platform.DebugBuild);
+            bool changed = !string.Equals(platform.SelectedBuildProfileId, normalizedBuildProfileId, StringComparison.Ordinal);
+            platform.SelectedBuildProfileId = normalizedBuildProfileId;
+            return changed;
+        }
+
+        /// <summary>
+        /// Normalizes one persisted queued build record.
+        /// </summary>
+        /// <param name="queueItem">Queued build record to normalize.</param>
+        static bool NormalizeQueueItem(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+
+            string normalizedBuildProfileId = EditorLegacyBuildProfileIdNormalizer.NormalizeLocalBuildProfileId(
+                queueItem.PlatformId,
+                queueItem.SelectedBuildProfileId,
+                queueItem.DebugBuild);
+            bool changed = !string.Equals(queueItem.SelectedBuildProfileId, normalizedBuildProfileId, StringComparison.Ordinal);
+            queueItem.SelectedBuildProfileId = normalizedBuildProfileId;
             return changed;
         }
 

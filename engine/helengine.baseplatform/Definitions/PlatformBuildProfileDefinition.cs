@@ -13,13 +13,15 @@ public class PlatformBuildProfileDefinition {
     /// <param name="graphicsProfileId">Graphics profile selected by default for this build profile.</param>
     /// <param name="codegenProfileId">Codegen profile selected by default for this build profile.</param>
     /// <param name="settings">Platform-specific settings exposed by this build profile.</param>
+    /// <param name="codegenSettingDefaultValues">Optional codegen-setting default overrides that should apply when this build profile is active.</param>
     public PlatformBuildProfileDefinition(
         string profileId,
         string displayName,
         string description,
         string graphicsProfileId,
         string codegenProfileId,
-        PlatformSettingDefinition[] settings) {
+        PlatformSettingDefinition[] settings,
+        IReadOnlyDictionary<string, string> codegenSettingDefaultValues = null) {
         if (string.IsNullOrWhiteSpace(profileId)) {
             throw new ArgumentException("Build profile id is required.", nameof(profileId));
         } else if (string.IsNullOrWhiteSpace(displayName)) {
@@ -42,6 +44,9 @@ public class PlatformBuildProfileDefinition {
         GraphicsProfileId = graphicsProfileId;
         CodegenProfileId = codegenProfileId;
         Settings = [.. settings];
+        CodegenSettingDefaultValues = codegenSettingDefaultValues == null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : new Dictionary<string, string>(codegenSettingDefaultValues, StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -52,13 +57,15 @@ public class PlatformBuildProfileDefinition {
     /// <param name="description">Short description of the profile.</param>
     /// <param name="graphicsProfileId">Graphics profile selected by default for this build profile.</param>
     /// <param name="settings">Platform-specific settings exposed by this build profile.</param>
+    /// <param name="codegenSettingDefaultValues">Optional codegen-setting default overrides that should apply when this build profile is active.</param>
     public PlatformBuildProfileDefinition(
         string profileId,
         string displayName,
         string description,
         string graphicsProfileId,
-        PlatformSettingDefinition[] settings)
-        : this(profileId, displayName, description, graphicsProfileId, string.Empty, settings) {
+        PlatformSettingDefinition[] settings,
+        IReadOnlyDictionary<string, string> codegenSettingDefaultValues = null)
+        : this(profileId, displayName, description, graphicsProfileId, string.Empty, settings, codegenSettingDefaultValues) {
     }
 
     /// <summary>
@@ -90,4 +97,9 @@ public class PlatformBuildProfileDefinition {
     /// Gets the platform-specific settings exposed by this build profile.
     /// </summary>
     public PlatformSettingDefinition[] Settings { get; }
+
+    /// <summary>
+    /// Gets the build-profile-specific codegen-setting default overrides that apply when this build profile is active.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> CodegenSettingDefaultValues { get; }
 }

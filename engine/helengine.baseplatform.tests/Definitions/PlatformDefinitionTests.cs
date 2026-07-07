@@ -121,5 +121,66 @@ public class PlatformDefinitionTests {
         Assert.True(definition.RuntimeGenerationContract.SupportsRenderManager2DTextureReleaseFlush);
         Assert.Equal(PackagedPathPolicy.ContentRelativeOnly, definition.RuntimeGenerationContract.PackagedPathPolicy);
     }
+
+    /// <summary>
+    /// Verifies build profiles preserve codegen-setting default overrides so build-mode-specific codegen defaults can be expressed without introducing platform-specific editor logic.
+    /// </summary>
+    [Fact]
+    public void PlatformDefinition_preserves_build_profile_codegen_setting_default_overrides() {
+        PlatformDefinition definition = new(
+            "ds",
+            "Nintendo DS",
+            [
+                new PlatformBuildProfileDefinition(
+                    "release",
+                    "Release",
+                    "Release player build",
+                    "main-2d",
+                    "default",
+                    [],
+                    new Dictionary<string, string>(StringComparer.Ordinal) {
+                        ["codegen-compact-native-exception-messages"] = "true"
+                    })
+            ],
+            [
+                new PlatformGraphicsProfileDefinition(
+                    "main-2d",
+                    "Main 2D",
+                    "Default handheld renderer",
+                    [])
+            ],
+            [],
+            [],
+            [],
+            [
+                new PlatformCodegenProfileDefinition(
+                    "default",
+                    "Default",
+                    "Default codegen profile",
+                    PlatformCodegenLanguage.Cpp,
+                    PlatformSerializationEndianness.LittleEndian,
+                    [])
+            ],
+            [
+                new PlatformStorageProfileDefinition(
+                    "nitrofs",
+                    "NitroFS",
+                    PlatformStorageProfileKind.LooseFiles,
+                    "ds-nitrofs",
+                    false)
+            ],
+            [
+                new PlatformMediaProfileDefinition(
+                    "cartridge",
+                    "Cartridge",
+                    PlatformMediaLayoutKind.InstallTree,
+                    false,
+                    true)
+            ]);
+
+        PlatformBuildProfileDefinition buildProfile = Assert.Single(definition.BuildProfiles);
+
+        Assert.Equal("true", buildProfile.CodegenSettingDefaultValues["codegen-compact-native-exception-messages"]);
+    }
 }
 

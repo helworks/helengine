@@ -152,15 +152,25 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(selectionModel));
             }
 
-            PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platformConfig, selectionModel);
+            PlatformBuildProfileDefinition previousBuildProfile = selectionModel.TryResolveBuildProfileExact(platformConfig.SelectedBuildProfileId);
+            PlatformBuildProfileDefinition buildProfile = EditorBuildProfileDefaultResolver.ResolveBuildProfile(
+                selectionModel,
+                platformConfig.SelectedBuildProfileId,
+                platformConfig.DebugBuild);
             if (buildProfile != null) {
                 platformConfig.SelectedBuildProfileId = buildProfile.ProfileId;
-                if (string.IsNullOrWhiteSpace(platformConfig.SelectedGraphicsProfileId)) {
-                    platformConfig.SelectedGraphicsProfileId = buildProfile.GraphicsProfileId;
-                }
-                if (string.IsNullOrWhiteSpace(platformConfig.SelectedCodegenProfileId)) {
-                    platformConfig.SelectedCodegenProfileId = buildProfile.CodegenProfileId;
-                }
+                string selectedGraphicsProfileId = platformConfig.SelectedGraphicsProfileId;
+                EditorBuildProfileDefaultResolver.SynchronizeBoundProfileSelection(
+                    ref selectedGraphicsProfileId,
+                    previousBuildProfile?.GraphicsProfileId ?? string.Empty,
+                    buildProfile.GraphicsProfileId);
+                platformConfig.SelectedGraphicsProfileId = selectedGraphicsProfileId;
+                string selectedCodegenProfileId = platformConfig.SelectedCodegenProfileId;
+                EditorBuildProfileDefaultResolver.SynchronizeBoundProfileSelection(
+                    ref selectedCodegenProfileId,
+                    previousBuildProfile?.CodegenProfileId ?? string.Empty,
+                    buildProfile.CodegenProfileId);
+                platformConfig.SelectedCodegenProfileId = selectedCodegenProfileId;
 
                 EnsureSettingDefaults(platformConfig.SelectedBuildOptionValues, buildProfile.Settings);
             }
@@ -174,7 +184,11 @@ namespace helengine.editor {
             PlatformCodegenProfileDefinition codegenProfile = ResolveCodegenProfile(platformConfig, buildProfile, selectionModel);
             if (codegenProfile != null) {
                 platformConfig.SelectedCodegenProfileId = codegenProfile.ProfileId;
-                EnsureSettingDefaults(platformConfig.SelectedCodegenOptionValues, codegenProfile.Settings);
+                platformConfig.SelectedCodegenOptionValues = EditorBuildProfileDefaultResolver.CreateEffectiveCodegenOptionValues(
+                    platformConfig.SelectedCodegenOptionValues,
+                    codegenProfile,
+                    previousBuildProfile,
+                    buildProfile);
             }
 
             PlatformStorageProfileDefinition storageProfile = ResolveStorageProfile(platformConfig, selectionModel);
@@ -292,7 +306,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(selectionModel));
             }
 
-            PlatformBuildProfileDefinition buildProfile = selectionModel.ResolveBuildProfile(platformConfig.SelectedBuildProfileId);
+            PlatformBuildProfileDefinition buildProfile = EditorBuildProfileDefaultResolver.ResolveBuildProfile(
+                selectionModel,
+                platformConfig.SelectedBuildProfileId,
+                platformConfig.DebugBuild);
             if (buildProfile != null) {
                 return buildProfile;
             }

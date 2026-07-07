@@ -357,6 +357,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures queued builds switch to the build-mode-specific compact native exception message default when a platform exposes separate debug and release build profiles.
+        /// </summary>
+        [Fact]
+        public void Create_WhenDebugBuildUsesReleaseSeededCompactExceptionDefault_RewritesToDebugBuildDefault() {
+            WriteScene("Scenes/A.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "ds",
+                DebugBuild = true,
+                SelectedBuildProfileId = "release",
+                SelectedCodegenProfileId = "default",
+                SelectedSceneIds = [
+                    "A"
+                ],
+                SelectedCodegenOptionValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    [PlatformCodegenSettingIds.CompactNativeExceptionMessages] = "true"
+                }
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateNintendoDsDebugReleaseSelectionModel());
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal("debug", queueItem.SelectedBuildProfileId);
+            Assert.Equal("false", queueItem.SelectedCodegenOptionValues[PlatformCodegenSettingIds.CompactNativeExceptionMessages]);
+        }
+
+        /// <summary>
         /// Writes one empty scene file that the scene catalog can enumerate.
         /// </summary>
         /// <param name="sceneId">Project-relative scene identifier to create.</param>
@@ -627,6 +655,78 @@ namespace helengine.editor.tests {
                         "PS2 Install Tree",
                         PlatformMediaLayoutKind.InstallTree,
                         true,
+                        true)
+                ]);
+        }
+
+        /// <summary>
+        /// Creates one Nintendo DS builder definition with debug and release build profiles that differ only in their codegen default overrides.
+        /// </summary>
+        /// <returns>Selection model backed by the supplied Nintendo DS definition.</returns>
+        static PlatformDefinition CreateNintendoDsDebugReleaseSelectionModel() {
+            return new PlatformDefinition(
+                "ds",
+                "Nintendo DS",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "release",
+                        "Release",
+                        "Release player build",
+                        "ds-main-2d",
+                        "default",
+                        [],
+                        new Dictionary<string, string>(StringComparer.Ordinal) {
+                            [PlatformCodegenSettingIds.CompactNativeExceptionMessages] = "true"
+                        }),
+                    new PlatformBuildProfileDefinition(
+                        "debug",
+                        "Debug",
+                        "Debug player build",
+                        "ds-main-2d",
+                        "default",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "ds-main-2d",
+                        "DS Main 2D",
+                        "Nintendo DS dual-screen 2D renderer",
+                        [])
+                ],
+                [],
+                [],
+                [],
+                [
+                    new PlatformCodegenProfileDefinition(
+                        "default",
+                        "Default",
+                        "Default codegen profile",
+                        PlatformCodegenLanguage.Cpp,
+                        PlatformSerializationEndianness.LittleEndian,
+                        [
+                            new PlatformSettingDefinition(
+                                PlatformCodegenSettingIds.CompactNativeExceptionMessages,
+                                "Compact Native Exception Messages",
+                                PlatformSettingKind.Boolean,
+                                "false",
+                                true,
+                                [])
+                        ])
+                ],
+                [
+                    new PlatformStorageProfileDefinition(
+                        "nitrofs-package",
+                        "NitroFS Package",
+                        PlatformStorageProfileKind.LooseFiles,
+                        "ds-nitrofs-package",
+                        false)
+                ],
+                [
+                    new PlatformMediaProfileDefinition(
+                        "cartridge",
+                        "Cartridge",
+                        PlatformMediaLayoutKind.InstallTree,
+                        false,
                         true)
                 ]);
         }

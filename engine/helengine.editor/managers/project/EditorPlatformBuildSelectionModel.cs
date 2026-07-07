@@ -183,6 +183,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one build profile by exact identifier without falling back to the first available entry.
+        /// </summary>
+        /// <param name="profileId">Requested build profile identifier.</param>
+        /// <returns>Matching build profile, or null when the identifier is blank or unknown.</returns>
+        public PlatformBuildProfileDefinition TryResolveBuildProfileExact(string profileId) {
+            if (BuildProfiles.Length == 0 || string.IsNullOrWhiteSpace(profileId)) {
+                return null;
+            }
+
+            for (int index = 0; index < BuildProfiles.Length; index++) {
+                PlatformBuildProfileDefinition buildProfile = BuildProfiles[index];
+                if (string.Equals(buildProfile.ProfileId, profileId, StringComparison.OrdinalIgnoreCase)) {
+                    return buildProfile;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Resolves one graphics profile by id, falling back to the first available graphics profile when needed.
         /// </summary>
         /// <param name="profileId">Requested graphics profile identifier.</param>

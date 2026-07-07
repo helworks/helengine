@@ -229,6 +229,97 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures Nintendo DS local build settings rewrite the legacy single-profile selection to the canonical debug flavor when debug builds are enabled.
+    /// </summary>
+    [Fact]
+    public void TryLoadExisting_WhenNintendoDsPlatformUsesLegacyBuildProfileIdAndDebugBuild_RewritesToCanonicalDebugProfile() {
+        EditorBuildConfigService service = CreateService();
+        WriteBuildConfigFile(
+            """
+            {
+              "platforms": [
+                {
+                  "platformId": "ds",
+                  "selectedSceneIds": [],
+                  "sceneOrders": [],
+                  "outputDirectoryPath": "",
+                  "debugBuild": true,
+                  "selectedBuildProfileId": "ds-default",
+                  "selectedGraphicsProfileId": "",
+                  "selectedBuildOptionValues": {},
+                  "selectedGraphicsOptionValues": {},
+                  "selectedCodegenProfileId": "",
+                  "selectedStorageProfileId": "",
+                  "selectedMediaProfileId": "",
+                  "selectedCodegenOptionValues": {}
+                }
+              ],
+              "queueItems": [
+                {
+                  "queueItemId": "queuedsdebug",
+                  "platformId": "ds",
+                  "selectedSceneIds": [],
+                  "outputDirectoryPath": "",
+                  "status": 0,
+                  "statusMessage": "",
+                  "debugBuild": true,
+                  "executionMode": 0,
+                  "selectedBuildProfileId": "ds-default",
+                  "selectedGraphicsProfileId": "",
+                  "selectedBuildOptionValues": {},
+                  "selectedGraphicsOptionValues": {},
+                  "selectedCodegenProfileId": "",
+                  "selectedStorageProfileId": "",
+                  "selectedMediaProfileId": "",
+                  "selectedCodegenOptionValues": {}
+                }
+              ]
+            }
+            """);
+
+        EditorBuildConfigDocument document = service.TryLoadExisting();
+
+        EditorBuildPlatformConfigDocument platform = Assert.Single(document.Platforms);
+        EditorBuildQueueItemDocument queueItem = Assert.Single(document.QueueItems);
+        Assert.Equal("debug", platform.SelectedBuildProfileId);
+        Assert.Equal("debug", queueItem.SelectedBuildProfileId);
+        string json = File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "build_config.json"));
+        Assert.Contains("\"selectedBuildProfileId\": \"debug\"", json);
+        Assert.DoesNotContain("\"selectedBuildProfileId\": \"ds-default\"", json);
+    }
+
+    /// <summary>
+    /// Ensures saving Nintendo DS local build settings writes canonical release profile ids instead of the legacy single-profile identifier.
+    /// </summary>
+    [Fact]
+    public void Save_WhenNintendoDsLocalBuildSettingsUseLegacyBuildProfileId_WritesCanonicalReleaseProfileIds() {
+        EditorBuildConfigService service = CreateService();
+        EditorBuildConfigDocument document = new EditorBuildConfigDocument {
+            Platforms = [
+                new EditorBuildPlatformConfigDocument {
+                    PlatformId = "ds",
+                    DebugBuild = false,
+                    SelectedBuildProfileId = "ds-default"
+                }
+            ],
+            QueueItems = [
+                new EditorBuildQueueItemDocument {
+                    QueueItemId = "queuedsrelease",
+                    PlatformId = "ds",
+                    DebugBuild = false,
+                    SelectedBuildProfileId = "ds-default"
+                }
+            ]
+        };
+
+        service.Save(document);
+
+        string json = File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "build_config.json"));
+        Assert.Contains("\"selectedBuildProfileId\": \"release\"", json);
+        Assert.DoesNotContain("\"selectedBuildProfileId\": \"ds-default\"", json);
+    }
+
+    /// <summary>
     /// Creates the service under test for the current temporary project root.
     /// </summary>
     /// <returns>Build-config service configured for the current test project.</returns>

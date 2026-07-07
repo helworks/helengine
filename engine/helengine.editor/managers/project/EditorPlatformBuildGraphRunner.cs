@@ -137,7 +137,12 @@ namespace helengine.editor {
 
             IPlatformAssetBuilder builder = BuilderLoader.Load(PlatformDescriptor.BuilderAssemblyPath);
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builder.Definition);
-            string selectedBuildProfileId = ResolveSelectedBuildProfileId(queueItem, selectionModel);
+            PlatformBuildProfileDefinition previousBuildProfile = selectionModel.TryResolveBuildProfileExact(queueItem.SelectedBuildProfileId);
+            PlatformBuildProfileDefinition selectedBuildProfile = EditorBuildProfileDefaultResolver.ResolveBuildProfile(
+                selectionModel,
+                queueItem.SelectedBuildProfileId,
+                queueItem.DebugBuild);
+            string selectedBuildProfileId = selectedBuildProfile?.ProfileId ?? ResolveSelectedBuildProfileId(queueItem, selectionModel);
             string selectedGraphicsProfileId = ResolveSelectedGraphicsProfileId(queueItem, selectedBuildProfileId, selectionModel);
             string selectedCodegenProfileId = ResolveSelectedCodegenProfileId(queueItem, selectedBuildProfileId, selectionModel);
             string selectedStorageProfileId = ResolveSelectedStorageProfileId(queueItem, selectionModel);
@@ -145,6 +150,11 @@ namespace helengine.editor {
             PlatformStorageProfileDefinition selectedStorageProfile = selectionModel.ResolveStorageProfile(selectedStorageProfileId);
             PlatformMediaProfileDefinition selectedMediaProfile = selectionModel.ResolveMediaProfile(selectedMediaProfileId);
             PlatformCodegenProfileDefinition selectedCodegenProfile = selectionModel.ResolveCodegenProfile(selectedCodegenProfileId);
+            Dictionary<string, string> effectiveCodegenOptionValues = EditorBuildProfileDefaultResolver.CreateEffectiveCodegenOptionValues(
+                queueItem.SelectedCodegenOptionValues,
+                selectedCodegenProfile,
+                previousBuildProfile,
+                selectedBuildProfile);
             EditorPlatformBuildGraphWorkspace workspace = WorkspaceFactory.Create(PlatformDescriptor.Id, queueItem.QueueItemId);
 
             ResetExecutionDirectories(workspace.ExecutionRootPath, workspace.CookRootPath, workspace.PackageRootPath, workspace.BuilderWorkingRootPath, queueItem.OutputDirectoryPath);
@@ -158,7 +168,7 @@ namespace helengine.editor {
 
             Dictionary<string, string> temporaryGeneratedScenePathOverrides = PrepareTemporaryGeneratedScenePathOverrides(queueItem);
             WritePhaseMarker(workspace, "boot-scene-prepared");
-            RunRegenerateCore(builder.Definition, selectedCodegenProfile, queueItem, workspace);
+            RunRegenerateCore(builder.Definition, selectedCodegenProfile, effectiveCodegenOptionValues, queueItem, workspace);
             WritePhaseMarker(workspace, "generated-core-ready");
             PlatformBuildManifest cookedManifest;
             try {
@@ -174,14 +184,21 @@ namespace helengine.editor {
                 DeleteTemporaryGeneratedSceneOverrides(temporaryGeneratedScenePathOverrides);
             }
             WritePhaseMarker(workspace, "assets-cooked");
-            PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
+            PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, selectedCodegenProfile, selectedStorageProfile, effectiveCodegenOptionValues, queueItem, workspace);
             WritePhaseMarker(workspace, "code-compiled");
             CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(cookedManifest, codeModules, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.ExecutionRootPath);
-            EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.ExecutionRootPath, builder.Definition);
+            EmitGeneratedRuntimeComponentDeserializersForCookedScenes(
+                cookedManifest,
+                workspace.GeneratedCoreRootPath,
+                workspace.ExecutionRootPath,
+                builder.Definition,
+                selectedBuildProfile,
+                selectedCodegenProfile,
+                effectiveCodegenOptionValues);
             EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(workspace.GeneratedCoreRootPath);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
             cookedManifest = ApplyRuntimeFeatureManifest(cookedManifest);
-            ValidateAndWriteRuntimeFeatureManifest(cookedManifest, queueItem, workspace);
+            ValidateAndWriteRuntimeFeatureManifest(cookedManifest, effectiveCodegenOptionValues, workspace);
             WritePhaseMarker(workspace, "generated-core-finalized");
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
             WritePhaseMarker(workspace, "variants-resolved");
@@ -200,6 +217,7 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 selectedCodegenProfileId,
+                effectiveCodegenOptionValues,
                 selectedMediaProfileId,
                 selectedStorageProfileId);
             WritePhaseMarker(workspace, "platform-packaged");
@@ -241,21 +259,21 @@ namespace helengine.editor {
         /// Writes the resolved runtime feature report and validates that no required feature was disabled by user settings.
         /// </summary>
         /// <param name="manifest">Build manifest carrying the resolved runtime feature requirements.</param>
-        /// <param name="queueItem">Queued build item that may disable runtime features through codegen settings.</param>
+        /// <param name="selectedCodegenOptionValues">Effective selected codegen option values that may disable runtime features through codegen settings.</param>
         /// <param name="workspace">Workspace that owns the build logs directory.</param>
         void ValidateAndWriteRuntimeFeatureManifest(
             PlatformBuildManifest manifest,
-            EditorBuildQueueItemDocument queueItem,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             EditorPlatformBuildGraphWorkspace workspace) {
             if (manifest == null) {
                 throw new ArgumentNullException(nameof(manifest));
-            } else if (queueItem == null) {
-                throw new ArgumentNullException(nameof(queueItem));
+            } else if (selectedCodegenOptionValues == null) {
+                throw new ArgumentNullException(nameof(selectedCodegenOptionValues));
             } else if (workspace == null) {
                 throw new ArgumentNullException(nameof(workspace));
             }
 
-            string[] disabledFeatureIds = ResolveDisabledRuntimeFeatureIds(queueItem);
+            string[] disabledFeatureIds = ResolveDisabledRuntimeFeatureIds(selectedCodegenOptionValues);
             RuntimeFeatureManifestReportWriter.Write(workspace.LogsRootPath, manifest.RuntimeFeatureManifest, disabledFeatureIds);
             RuntimeFeatureManifestValidationService.Validate(manifest.RuntimeFeatureManifest, disabledFeatureIds);
         }
@@ -263,15 +281,11 @@ namespace helengine.editor {
         /// <summary>
         /// Resolves the normalized forced-disabled runtime feature identifiers from the queue item's selected codegen options.
         /// </summary>
-        /// <param name="queueItem">Queued build item that may carry forced-disabled runtime feature settings.</param>
+        /// <param name="selectedCodegenOptionValues">Effective selected codegen option values that may carry forced-disabled runtime feature settings.</param>
         /// <returns>Normalized forced-disabled runtime feature identifiers.</returns>
-        static string[] ResolveDisabledRuntimeFeatureIds(EditorBuildQueueItemDocument queueItem) {
-            if (queueItem == null) {
-                throw new ArgumentNullException(nameof(queueItem));
-            }
-
-            if (queueItem.SelectedCodegenOptionValues == null
-                || !queueItem.SelectedCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.ForcedDisabledFeatures, out string disabledFeatureValue)
+        static string[] ResolveDisabledRuntimeFeatureIds(IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
+            if (selectedCodegenOptionValues == null
+                || !selectedCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.ForcedDisabledFeatures, out string disabledFeatureValue)
                 || string.IsNullOrWhiteSpace(disabledFeatureValue)) {
                 return [];
             }
@@ -436,6 +450,7 @@ namespace helengine.editor {
         void RunRegenerateCore(
             PlatformDefinition builderDefinition,
             PlatformCodegenProfileDefinition selectedCodegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace) {
             IReadOnlyList<string> platformCodegenSymbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(builderDefinition);
@@ -449,7 +464,7 @@ namespace helengine.editor {
             GeneratedCoreRegenerationService.Regenerate(
                 builderDefinition,
                 selectedCodegenProfile,
-                queueItem.SelectedCodegenOptionValues,
+                selectedCodegenOptionValues,
                 workspace.GeneratedCoreRootPath,
                 PlatformDescriptor.CodegenToolPath,
                 PlatformDescriptor.GeneratedCoreProjectPaths,
@@ -586,6 +601,7 @@ namespace helengine.editor {
             PlatformBuildManifest cookedManifest,
             PlatformCodegenProfileDefinition selectedCodegenProfile,
             PlatformStorageProfileDefinition selectedStorageProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace) {
             EditorCodeModuleManifestDocument manifestDocument = CodeModuleManifestService.Load();
@@ -597,7 +613,7 @@ namespace helengine.editor {
                 PlatformDescriptor.CodegenToolPath,
                 selectedCodegenProfile,
                 inferredRootModuleIds,
-                queueItem.SelectedCodegenOptionValues,
+                selectedCodegenOptionValues,
                 workspace.CodeRootPath);
         }
 
@@ -704,7 +720,10 @@ namespace helengine.editor {
             PlatformBuildManifest cookedManifest,
             string generatedCoreRootPath,
             string packagedContentRootPath,
-            PlatformDefinition platformDefinition) {
+            PlatformDefinition platformDefinition,
+            PlatformBuildProfileDefinition selectedBuildProfile,
+            PlatformCodegenProfileDefinition selectedCodegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
@@ -716,6 +735,12 @@ namespace helengine.editor {
             }
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
+            }
+            if (selectedCodegenProfile == null) {
+                throw new ArgumentNullException(nameof(selectedCodegenProfile));
+            }
+            if (selectedCodegenOptionValues == null) {
+                throw new ArgumentNullException(nameof(selectedCodegenOptionValues));
             }
 
             List<string> cookedSceneAssetPaths = new List<string>(cookedManifest.Scenes.Length);
@@ -738,7 +763,11 @@ namespace helengine.editor {
                 generatedCoreRootPath,
                 cookedSceneAssetPaths,
                 ScriptTypeResolver,
-                platformDefinition);
+                platformDefinition,
+                EditorGeneratedCoreRegenerationService.UsesCompactNativeExceptionMessages(
+                    selectedBuildProfile,
+                    selectedCodegenProfile,
+                    selectedCodegenOptionValues));
             EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
         }
 
@@ -1187,6 +1216,7 @@ namespace helengine.editor {
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
             string selectedCodegenProfileId,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             string selectedMediaProfileId,
             string selectedStorageProfileId) {
             PlatformBuildRequest request = BuildRequest(
@@ -1197,6 +1227,7 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 selectedCodegenProfileId,
+                selectedCodegenOptionValues,
                 selectedMediaProfileId,
                 workspace.GeneratedCoreRootPath,
                 selectedStorageProfileId);
@@ -1268,6 +1299,7 @@ namespace helengine.editor {
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
             string selectedCodegenProfileId,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             string selectedMediaProfileId,
             string generatedCoreRootPath,
             string selectedStorageProfileId) {
@@ -1350,7 +1382,7 @@ namespace helengine.editor {
                 selectedCodegenProfileId,
                 queueItem.SelectedBuildOptionValues,
                 queueItem.SelectedGraphicsOptionValues,
-                queueItem.SelectedCodegenOptionValues,
+                selectedCodegenOptionValues,
                 generatedCoreRootPath,
                 selectedMediaProfileId,
                 selectedStorageProfileId);

@@ -1088,13 +1088,14 @@ namespace helengine.editor {
         internal static void EmitGeneratedAutomaticRuntimeComponentDeserializers(
             string generatedCoreRootPath,
             IReadOnlyList<Type> additionalComponentTypes = null,
-            PlatformDefinition platformDefinition = null) {
+            PlatformDefinition platformDefinition = null,
+            bool useCompactNativeExceptionMessages = false) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
 
             Directory.CreateDirectory(generatedCoreRootPath);
-            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator(useCompactNativeExceptionMessages);
             ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
             IReadOnlyList<ScriptComponentReflectionSchema> schemas = DiscoverAutomaticRuntimeComponentSchemas(schemaBuilder, generator, additionalComponentTypes, platformDefinition);
             if (schemas.Count == 0) {
@@ -1131,7 +1132,8 @@ namespace helengine.editor {
             string generatedCoreRootPath,
             IReadOnlyList<string> cookedSceneAssetPaths,
             IScriptTypeResolver scriptTypeResolver,
-            PlatformDefinition platformDefinition = null) {
+            PlatformDefinition platformDefinition = null,
+            bool useCompactNativeExceptionMessages = false) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
@@ -1142,7 +1144,32 @@ namespace helengine.editor {
             EmitGeneratedAutomaticRuntimeComponentDeserializers(
                 generatedCoreRootPath,
                 DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(cookedSceneAssetPaths, scriptTypeResolver),
-                platformDefinition);
+                platformDefinition,
+                useCompactNativeExceptionMessages);
+        }
+
+        /// <summary>
+        /// Resolves whether generated native runtime deserializer support should emit compact native exception throws for the selected codegen configuration.
+        /// </summary>
+        /// <param name="buildProfile">Selected build profile whose codegen-setting default overrides apply before the shared codegen profile defaults.</param>
+        /// <param name="codegenProfile">Selected codegen profile whose default setting values apply when neither the editor nor the active build profile provide an explicit override.</param>
+        /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor for the active build.</param>
+        /// <returns>True when compact native exception messages should be emitted for generated native runtime deserializer support.</returns>
+        internal static bool UsesCompactNativeExceptionMessages(
+            PlatformBuildProfileDefinition buildProfile,
+            PlatformCodegenProfileDefinition codegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
+            if (selectedCodegenOptionValues != null &&
+                selectedCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.CompactNativeExceptionMessages, out string selectedValue) &&
+                bool.TryParse(selectedValue, out bool parsedSelectedValue)) {
+                return parsedSelectedValue;
+            }
+
+            string defaultValue = EditorBuildProfileDefaultResolver.ResolveCodegenSettingDefaultValue(
+                buildProfile,
+                codegenProfile,
+                PlatformCodegenSettingIds.CompactNativeExceptionMessages);
+            return bool.TryParse(defaultValue, out bool parsedDefaultValue) && parsedDefaultValue;
         }
 
         /// <summary>
