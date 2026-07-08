@@ -15,7 +15,7 @@ public sealed class CityTiltTrialLightingSourceTests {
         Assert.Contains("CreateDirectionalLightEntity(),", source, StringComparison.Ordinal);
         Assert.Contains("CreateDirectionalFillLightEntity(),", source, StringComparison.Ordinal);
         Assert.Contains("Entity entity = Core.Instance.EntityFactory.Create(\"TiltTrialFill\");", source, StringComparison.Ordinal);
-        Assert.Contains("Intensity = 0.6f,", source, StringComparison.Ordinal);
+        Assert.Contains("Intensity = 0.7f,", source, StringComparison.Ordinal);
         Assert.Contains("ShadowsEnabled = false,", source, StringComparison.Ordinal);
     }
 }

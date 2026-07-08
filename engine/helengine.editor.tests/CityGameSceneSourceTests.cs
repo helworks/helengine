@@ -43,7 +43,7 @@ public sealed class CityGameSceneSourceTests {
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("CreateTiltTrialScene()", source, StringComparison.Ordinal);
-        Assert.Contains("entity.LocalPosition = new float3(0f, 3.675f, 1f);", source, StringComparison.Ordinal);
+        Assert.Contains("entity.LocalPosition = new float3(0f, 2.74425f, -3.08f);", source, StringComparison.Ordinal);
         Assert.Contains("\"StageRoot\"", source, StringComparison.Ordinal);
         Assert.Contains("\"StartPad\"", source, StringComparison.Ordinal);
         Assert.Contains("\"Ramp\"", source, StringComparison.Ordinal);
@@ -108,9 +108,9 @@ public sealed class CityGameSceneSourceTests {
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("\"TiltTrialSpeedText\"", source, StringComparison.Ordinal);
-        Assert.Contains("\"0 km/h\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"0\\nkm/h\"", source, StringComparison.Ordinal);
         Assert.Contains("new city.game.DemoTiltSpeedTextComponent()", source, StringComparison.Ordinal);
         Assert.Contains("ConfigureTiltTrialSpeedTextTarget(uiEntity, playerSphereEntity);", source, StringComparison.Ordinal);
-        Assert.Contains("CreateEditorUiFontReference()", source, StringComparison.Ordinal);
+        Assert.Contains("ApplyFontReference(speedTextEntity, speedTextComponent, TiltTrialSpeedHudFontRelativePath);", source, StringComparison.Ordinal);
     }
 }
