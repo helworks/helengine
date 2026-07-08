@@ -133,6 +133,38 @@ namespace helengine.editor.tests.managers.rendering {
         }
 
         /// <summary>
+        /// Ensures explicit multi-line text applies authored center alignment independently per rendered line.
+        /// </summary>
+        [Fact]
+        public void Build_WhenQueueContainsCenteredMultilineText_CentersEachRenderedLineWithinTheAuthoredBox() {
+            Entity entity = CreateEntity(new float3(10f, 20f, 0f), true);
+            TextComponent text = new TextComponent {
+                Font = CreateFont(),
+                Text = "A\nAA",
+                Size = new int2(20, 40),
+                Alignment = TextAlignment.Center,
+                Color = new byte4(9, 8, 7, 6)
+            };
+            entity.AddComponent(text);
+
+            RenderList2D queue = new RenderList2D(1);
+            queue.Add(text);
+
+            RenderCommandListBuilder2D builder = new RenderCommandListBuilder2D();
+            RenderCommandList2D commandList = builder.Build(queue);
+
+            Assert.Equal(3, commandList.Count);
+
+            int firstPayloadIndex = commandList.GetGlyphQuadPayloadIndex(0);
+            int secondPayloadIndex = commandList.GetGlyphQuadPayloadIndex(1);
+            int thirdPayloadIndex = commandList.GetGlyphQuadPayloadIndex(2);
+
+            Assert.Equal(new float4(17.5f, 21f, 5f, 5f), commandList.GetGlyphQuadBounds(firstPayloadIndex));
+            Assert.Equal(new float4(14.5f, 31f, 5f, 5f), commandList.GetGlyphQuadBounds(secondPayloadIndex));
+            Assert.Equal(new float4(20.5f, 31f, 5f, 5f), commandList.GetGlyphQuadBounds(thirdPayloadIndex));
+        }
+
+        /// <summary>
         /// Ensures a rounded rectangle becomes one rounded-rectangle command with preserved shape parameters.
         /// </summary>
         [Fact]

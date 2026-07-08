@@ -304,54 +304,12 @@ namespace helengine {
         void EmitText(ITextDrawable2D text) {
             FontAsset font = text.Font;
             double fontScale = Math.Max((double)text.FontScale, 0.0001d);
+            string content = text.Text ?? string.Empty;
             if (text.WrapText) {
-                string wrappedContent = TextLayoutUtils.WrapText(text.Text ?? string.Empty, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
-                double wrappedOffsetX = 0d;
-                double wrappedOffsetY = 0d;
-                double wrappedLineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
-                double wrappedBaseX = Math.Round(text.Parent.Position.X);
-                double wrappedBaseY = Math.Round(text.Parent.Position.Y);
-
-                for (int index = 0; index < wrappedContent.Length; index++) {
-                    char character = wrappedContent[index];
-                    if (character == '\n') {
-                        wrappedOffsetY += wrappedLineHeight;
-                        wrappedOffsetX = 0d;
-                        continue;
-                    }
-
-                    if (character == ' ') {
-                        wrappedOffsetX += font.FontInfo.SpaceWidth * fontScale;
-                        continue;
-                    }
-
-                    if (!font.Characters.TryGetValue(character, out FontChar glyph)) {
-                        continue;
-                    }
-
-                    double glyphWidth = glyph.SourceRect.Z * font.AtlasWidth * fontScale;
-                    double glyphHeight = glyph.SourceRect.W * font.AtlasHeight * fontScale;
-                    double snappedLineOffsetY = Math.Round(wrappedOffsetY);
-                    CommandListValue.AddGlyphQuad(
-                        font.Texture,
-                        new float4(
-                            (float)(wrappedBaseX + wrappedOffsetX),
-                            (float)(wrappedBaseY + snappedLineOffsetY + (glyph.OffsetY * fontScale)),
-                            (float)glyphWidth,
-                            (float)glyphHeight),
-                        glyph.SourceRect,
-                        text.Color);
-
-                    double advanceWidth = glyph.AdvanceWidth > 0f
-                        ? glyph.AdvanceWidth * fontScale
-                        : glyphWidth;
-                    wrappedOffsetX += advanceWidth;
-                }
-
-                return;
+                content = TextLayoutUtils.WrapText(content, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
             }
 
-            if (string.IsNullOrEmpty(text.Text)) {
+            if (string.IsNullOrEmpty(content)) {
                 return;
             }
 
@@ -360,12 +318,17 @@ namespace helengine {
             double lineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
             double baseX = Math.Round(text.Parent.Position.X);
             double baseY = Math.Round(text.Parent.Position.Y);
+            double[] lineOffsets = BuildTextLineOffsets(text, font, content, fontScale);
+            int lineIndex = 0;
+            double lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
 
-            for (int index = 0; index < text.Text.Length; index++) {
-                char character = text.Text[index];
+            for (int index = 0; index < content.Length; index++) {
+                char character = content[index];
                 if (character == '\n') {
                     offsetY += lineHeight;
                     offsetX = 0d;
+                    lineIndex++;
+                    lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
                     continue;
                 }
 
@@ -384,7 +347,7 @@ namespace helengine {
                 CommandListValue.AddGlyphQuad(
                     font.Texture,
                     new float4(
-                        (float)(baseX + offsetX),
+                        (float)(lineOriginX + offsetX),
                         (float)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale)),
                         (float)glyphWidth,
                         (float)glyphHeight),
@@ -396,6 +359,89 @@ namespace helengine {
                     : glyphWidth;
                 offsetX += advanceWidth;
             }
+        }
+
+        /// <summary>
+        /// Builds one horizontal offset per rendered text line so authored alignment is honored when flattening glyph quads.
+        /// </summary>
+        /// <param name="text">Text drawable that owns the authored layout box.</param>
+        /// <param name="font">Font used to render the text.</param>
+        /// <param name="content">Final rendered text content after wrapping has been applied.</param>
+        /// <param name="fontScale">Resolved glyph scale.</param>
+        /// <returns>One horizontal offset per rendered line.</returns>
+        static double[] BuildTextLineOffsets(ITextDrawable2D text, FontAsset font, string content, double fontScale) {
+            if (text == null) {
+                throw new ArgumentNullException(nameof(text));
+            } else if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            } else if (content == null) {
+                throw new ArgumentNullException(nameof(content));
+            } else if (fontScale <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(fontScale), "Font scale must be greater than zero.");
+            }
+
+            int lineCount = 1;
+            for (int index = 0; index < content.Length; index++) {
+                if (content[index] == '\n') {
+                    lineCount++;
+                }
+            }
+
+            double[] lineOffsets = new double[lineCount];
+            double visibleWidth = 0d;
+            double offsetX = 0d;
+            double spaceWidth = font.FontInfo != null
+                ? Math.Max(font.FontInfo.SpaceWidth * fontScale, 1d)
+                : Math.Max(font.LineHeight * fontScale * 0.25d, 1d);
+            int lineIndex = 0;
+
+            for (int index = 0; index < content.Length; index++) {
+                char character = content[index];
+                if (character == '\n') {
+                    lineOffsets[lineIndex] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(text.Alignment, text.Size.X, visibleWidth);
+                    lineIndex++;
+                    visibleWidth = 0d;
+                    offsetX = 0d;
+                    continue;
+                }
+
+                if (character == ' ') {
+                    offsetX += spaceWidth;
+                    visibleWidth = Math.Max(visibleWidth, offsetX);
+                    continue;
+                }
+
+                if (!font.Characters.TryGetValue(character, out FontChar glyph)) {
+                    continue;
+                }
+
+                double glyphWidth = Math.Max(1d, glyph.SourceRect.Z * font.AtlasWidth * fontScale);
+                visibleWidth = Math.Max(visibleWidth, offsetX + glyphWidth);
+                offsetX += glyph.AdvanceWidth > 0f
+                    ? glyph.AdvanceWidth * fontScale
+                    : glyphWidth;
+            }
+
+            lineOffsets[lineIndex] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(text.Alignment, text.Size.X, visibleWidth);
+            return lineOffsets;
+        }
+
+        /// <summary>
+        /// Resolves one previously measured line offset or returns zero when the requested line index is outside the rendered line array.
+        /// </summary>
+        /// <param name="lineOffsets">Per-line horizontal offsets computed for the rendered text.</param>
+        /// <param name="lineIndex">Rendered line index whose offset should be returned.</param>
+        /// <returns>Horizontal line offset in pixels.</returns>
+        static double ResolveTextLineOffset(double[] lineOffsets, int lineIndex) {
+            if (lineOffsets == null) {
+                throw new ArgumentNullException(nameof(lineOffsets));
+            }
+
+            if (lineIndex < 0 || lineIndex >= lineOffsets.Length) {
+                return 0d;
+            }
+
+            return lineOffsets[lineIndex];
         }
 
         /// <summary>
