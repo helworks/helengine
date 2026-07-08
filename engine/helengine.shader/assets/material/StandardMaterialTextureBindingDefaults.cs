@@ -9,6 +9,11 @@ namespace helengine {
         public const string DiffuseTextureBindingName = "DiffuseTexture";
 
         /// <summary>
+        /// Stable roughness-texture binding name used by the shared forward standard shader conventions.
+        /// </summary>
+        public const string RoughnessTextureBindingName = "RoughnessTexture";
+
+        /// <summary>
         /// Applies the default white albedo texture when one shader runtime material exposes the standard diffuse binding but no authored texture is assigned.
         /// </summary>
         /// <param name="material">Shader runtime material whose diffuse binding should be normalized.</param>
@@ -17,22 +22,32 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            int diffuseTextureBindingIndex = material.Layout.FindTextureBindingIndex(DiffuseTextureBindingName);
-            if (diffuseTextureBindingIndex < 0) {
-                return;
-            }
-
-            RuntimeTexture diffuseTexture = material.Properties.GetTexture(diffuseTextureBindingIndex);
-            if (diffuseTexture != null) {
-                return;
-            }
-
             Core core = Core.Instance;
             if (core == null || core.RenderManager2D == null) {
                 return;
             }
 
-            material.Properties.SetTexture(diffuseTextureBindingIndex, TextureUtils.PixelTexture);
+            ApplyDefaultTexture(material, DiffuseTextureBindingName);
+            ApplyDefaultTexture(material, RoughnessTextureBindingName);
+        }
+
+        /// <summary>
+        /// Applies the shared white pixel texture to one standard-material texture binding when it is present but currently unassigned.
+        /// </summary>
+        /// <param name="material">Shader runtime material whose binding should be normalized.</param>
+        /// <param name="bindingName">Standard-material texture binding name to normalize.</param>
+        static void ApplyDefaultTexture(ShaderRuntimeMaterial material, string bindingName) {
+            int bindingIndex = material.Layout.FindTextureBindingIndex(bindingName);
+            if (bindingIndex < 0) {
+                return;
+            }
+
+            RuntimeTexture texture = material.Properties.GetTexture(bindingIndex);
+            if (texture != null) {
+                return;
+            }
+
+            material.Properties.SetTexture(bindingIndex, TextureUtils.PixelTexture);
         }
     }
 }

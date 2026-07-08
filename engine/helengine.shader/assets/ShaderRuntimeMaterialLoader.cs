@@ -40,7 +40,16 @@ namespace helengine {
             string shaderPackagePath = ResolveShaderPackagePath(materialAsset.ShaderAssetId, renderManager3D.ShaderCompileTarget);
             ShaderAsset shaderAsset = assetContentManager.Load<ShaderAsset>(shaderPackagePath, ShaderRuntimeContentProcessorIds.ShaderAsset);
             RuntimeMaterial runtimeMaterial = renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            ApplyImportedDiffuseTexture(assetContentManager, materialAsset, runtimeMaterial);
+            ApplyImportedTexture(
+                assetContentManager,
+                materialAsset.DiffuseTextureAssetId,
+                runtimeMaterial,
+                StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+            ApplyImportedTexture(
+                assetContentManager,
+                materialAsset.RoughnessTextureAssetId,
+                runtimeMaterial,
+                StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName);
             return runtimeMaterial;
         }
 
@@ -60,44 +69,46 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Applies one packaged imported diffuse texture to a shader-backed runtime material when the authored material payload references one.
+        /// Applies one packaged imported texture to a shader-backed runtime material when the authored material payload references one.
         /// </summary>
         /// <param name="assetContentManager">Content manager that can deserialize packaged texture assets.</param>
-        /// <param name="materialAsset">Packaged material asset that may reference an imported diffuse texture.</param>
-        /// <param name="runtimeMaterial">Runtime material that should receive the diffuse texture binding.</param>
-        static void ApplyImportedDiffuseTexture(
+        /// <param name="textureAssetId">Imported texture asset id referenced by the packaged material asset.</param>
+        /// <param name="runtimeMaterial">Runtime material that should receive the resolved imported texture.</param>
+        /// <param name="bindingName">Runtime material texture binding name that should receive the imported texture.</param>
+        static void ApplyImportedTexture(
             ContentManager assetContentManager,
-            ShaderMaterialAsset materialAsset,
-            RuntimeMaterial runtimeMaterial) {
+            string textureAssetId,
+            RuntimeMaterial runtimeMaterial,
+            string bindingName) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
-            } else if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
             } else if (runtimeMaterial == null) {
                 throw new ArgumentNullException(nameof(runtimeMaterial));
-            } else if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
+            } else if (string.IsNullOrWhiteSpace(bindingName)) {
+                throw new ArgumentException("Texture binding name must be provided.", nameof(bindingName));
+            } else if (string.IsNullOrWhiteSpace(textureAssetId)) {
                 return;
             }
 
             ShaderRuntimeMaterial shaderRuntimeMaterial = ShaderRuntimeMaterialAccess.Require(runtimeMaterial);
-            int diffuseTextureBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
-            if (diffuseTextureBindingIndex < 0) {
+            int textureBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(bindingName);
+            if (textureBindingIndex < 0) {
                 return;
             }
 
             Core core = Core.Instance;
             if (core == null || core.RenderManager2D == null) {
-                throw new InvalidOperationException("Shader-backed runtime material loading requires a 2D render manager before diffuse textures can be materialized.");
+                throw new InvalidOperationException("Shader-backed runtime material loading requires a 2D render manager before imported textures can be materialized.");
             }
 
-            string diffuseTexturePath = ResolveImportedTexturePackagePath(materialAsset.DiffuseTextureAssetId);
+            string texturePath = ResolveImportedTexturePackagePath(textureAssetId);
 #if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
-            RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromCooked(diffuseTexturePath, assetContentManager.ContentStreamSource);
+            RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromCooked(texturePath, assetContentManager.ContentStreamSource);
 #else
-            TextureAsset textureAsset = assetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
+            TextureAsset textureAsset = assetContentManager.Load<TextureAsset>(texturePath, RuntimeContentProcessorIds.TextureAsset);
             RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromRaw(textureAsset);
 #endif
-            shaderRuntimeMaterial.Properties.SetTexture(diffuseTextureBindingIndex, runtimeTexture);
+            shaderRuntimeMaterial.Properties.SetTexture(textureBindingIndex, runtimeTexture);
         }
 
         /// <summary>
@@ -107,7 +118,7 @@ namespace helengine {
         /// <returns>Runtime asset path of the packaged texture payload.</returns>
         static string ResolveImportedTexturePackagePath(string assetId) {
             if (string.IsNullOrWhiteSpace(assetId)) {
-                throw new InvalidOperationException("Packaged material assets must include a diffuse texture asset id before imported textures can be resolved.");
+                throw new InvalidOperationException("Packaged material assets must include an imported texture asset id before imported textures can be resolved.");
             }
 
             return CanonicalPackagedAssetPath.Normalize(Path.Combine(ImportedTextureDirectoryName, assetId));

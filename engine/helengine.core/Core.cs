@@ -60,6 +60,7 @@ namespace helengine {
 
         /// <summary>
         /// Initializes a new core instance and registers the static singleton reference.
+        /// Hosts may continue configuring the supplied options before calling <see cref="Initialize(RenderManager3D, RenderManager2D, IInputBackend, PlatformInfo, CoreInitializationOptions)"/>.
         /// </summary>
         /// <param name="options">Initialization options that control ordering and list sizing.</param>
         public Core(CoreInitializationOptions options) {
@@ -71,8 +72,6 @@ namespace helengine {
             ContentManagerLock = new object();
             Instance = this;
             InitializationOptions = options;
-            InitializationOptions.Normalize();
-            PhysicsSchedulerValue = CreatePhysicsScheduler(InitializationOptions);
             Input = new InputSystem();
             StandardPlatformInput = new StandardPlatformInput(Input);
             PointerInteractionSystem = new PointerInteractionSystem(this, Input);

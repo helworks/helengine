@@ -396,7 +396,7 @@ namespace helengine.editor {
         /// <param name="entry">Entry to format.</param>
         /// <returns>Formatted display text.</returns>
         string FormatEntry(LogEntry entry) {
-            string timeText = entry.Timestamp.ToLocalTime().ToString("HH:mm:ss");
+            string timeText = TimeSpan.FromSeconds(Math.Max(0d, entry.TimestampSeconds)).ToString(@"hh\:mm\:ss");
             return $"[{timeText}] {entry.Level}: {entry.Message}";
         }
 

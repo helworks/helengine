@@ -59,6 +59,22 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures compact native exception message mode strips the hand-authored native deserializer version and member-count string formatting instead of bypassing the shared compact exception contract.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenCompactNativeExceptionMessagesEnabled_OmitsVersionAndMemberCountFormatting() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ClipRectComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator(useCompactNativeExceptionMessages: true);
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("throw new InvalidOperationException();", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("String::ToJoinString(version)", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("String::ToJoinString(MemberCount)", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("String::ToJoinString(memberCount)", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures native runtime deserializers release the temporary stream and reader allocated while decoding component payloads.
         /// </summary>
         [Fact]

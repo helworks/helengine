@@ -18,6 +18,7 @@ namespace helengine {
             DiffuseTextureAssetId = string.Empty;
             NormalTextureAssetId = string.Empty;
             EmissiveTextureAssetId = string.Empty;
+            RoughnessTextureAssetId = string.Empty;
         }
 
         /// <summary>
@@ -54,6 +55,11 @@ namespace helengine {
         /// Gets or sets the asset identifier for the authored emissive texture bound by this material.
         /// </summary>
         public string EmissiveTextureAssetId;
+
+        /// <summary>
+        /// Gets or sets the asset identifier for the authored roughness texture bound by this material.
+        /// </summary>
+        public string RoughnessTextureAssetId;
 
         /// <summary>
         /// Gets or sets the fixed-function render state used while drawing the material.

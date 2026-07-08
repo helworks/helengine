@@ -432,7 +432,7 @@ namespace helengine.editor.tests {
                 InvokePrivate(panel, "HandleRowPressed", 3, true, false);
 
                 for (int entryIndex = 0; entryIndex < LoggerPanel.MaxEntries - 2; entryIndex++) {
-                    InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, $"extra-{entryIndex}", DateTime.UtcNow.AddSeconds(entryIndex)));
+                    InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, $"extra-{entryIndex}", entryIndex));
                 }
 
                 Assert.Equal(1, GetPrivateField<int>(panel, "FocusedRowIndex"));
@@ -454,7 +454,7 @@ namespace helengine.editor.tests {
                 InvokePrivate(panel, "HandleRowPressed", 0, false, false);
 
                 for (int entryIndex = 0; entryIndex < LoggerPanel.MaxEntries - 1; entryIndex++) {
-                    InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, $"trim-{entryIndex}", DateTime.UtcNow.AddSeconds(entryIndex)));
+                    InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, $"trim-{entryIndex}", entryIndex));
                 }
 
                 Assert.Equal(0, GetPrivateField<int>(panel, "FocusedRowIndex"));

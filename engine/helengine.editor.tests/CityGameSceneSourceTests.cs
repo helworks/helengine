@@ -68,10 +68,10 @@ public sealed class CityGameSceneSourceTests {
     }
 
     /// <summary>
-    /// Ensures the Tilt Trial player sphere source uses the dedicated walnut material asset and generator path.
+    /// Ensures the Tilt Trial player sphere source uses the dedicated marble material asset and generator path.
     /// </summary>
     [Fact]
-    public void City_tilt_trial_player_sphere_source_uses_walnut_material() {
+    public void City_tilt_trial_player_sphere_source_uses_marble_material() {
         string gameSceneFactoryPath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneFactory.cs";
         string gameSceneFactorySource = File.ReadAllText(gameSceneFactoryPath);
         string gameSceneGeneratorPath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneGenerator.cs";
@@ -79,11 +79,11 @@ public sealed class CityGameSceneSourceTests {
         string preparationSourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\RenderingSceneAssetPreparationService.cs";
         string preparationSource = File.ReadAllText(preparationSourcePath);
 
-        Assert.Contains("Materials.rendering.tilt_trial.PlayerSphereWalnut", gameSceneFactorySource, StringComparison.Ordinal);
+        Assert.Contains("Materials.rendering.tilt_trial.PlayerSphereMarble", gameSceneFactorySource, StringComparison.Ordinal);
         Assert.Contains("PlayerSphereMaterialReferenceName = \"Materials[0]\"", gameSceneFactorySource, StringComparison.Ordinal);
-        Assert.Contains("CreateFileSystemMaterial(TiltTrialPlayerSphereWalnutMaterialRelativePath)", gameSceneFactorySource, StringComparison.Ordinal);
-        Assert.Contains("TiltTrialPlayerSphereWalnutMaterialFactory", gameSceneGeneratorSource, StringComparison.Ordinal);
-        Assert.Contains("materials/rendering/tilt_trial/PlayerSphereWalnut.hasset", preparationSource, StringComparison.Ordinal);
+        Assert.Contains("CreateFileSystemMaterial(TiltTrialPlayerSphereMarbleMaterialRelativePath)", gameSceneFactorySource, StringComparison.Ordinal);
+        Assert.Contains("TiltTrialPlayerSphereMarbleMaterialFactory", gameSceneGeneratorSource, StringComparison.Ordinal);
+        Assert.Contains("materials/rendering/tilt_trial/PlayerSphereMarble.hasset", preparationSource, StringComparison.Ordinal);
     }
 
     /// <summary>

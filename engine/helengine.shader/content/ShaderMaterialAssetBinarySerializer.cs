@@ -21,7 +21,7 @@ namespace helengine {
         /// <summary>
         /// Current serializer version for shader-owned raw material payloads.
         /// </summary>
-        public const byte CurrentVersion = 2;
+        public const byte CurrentVersion = 3;
 
         /// <summary>
         /// Serializes one shader-owned raw material asset to the supplied stream.
@@ -59,6 +59,7 @@ namespace helengine {
             writer.WriteString(asset.DiffuseTextureAssetId ?? string.Empty);
             writer.WriteString(asset.NormalTextureAssetId ?? string.Empty);
             writer.WriteString(asset.EmissiveTextureAssetId ?? string.Empty);
+            writer.WriteString(asset.RoughnessTextureAssetId ?? string.Empty);
             WriteMaterialRenderState(writer, asset.RenderState);
             writer.WriteArray(asset.ConstantBuffers, WriteMaterialConstantBufferAsset);
             writer.WriteByte(asset.CastsShadows ? (byte)1 : (byte)0);
@@ -142,6 +143,7 @@ namespace helengine {
             asset.DiffuseTextureAssetId = reader.ReadString();
             asset.NormalTextureAssetId = reader.ReadString();
             asset.EmissiveTextureAssetId = reader.ReadString();
+            asset.RoughnessTextureAssetId = version >= 3 ? reader.ReadString() : string.Empty;
             asset.RenderState = ReadMaterialRenderState(reader);
             asset.ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>();
             asset.CastsShadows = reader.ReadByte() != 0;

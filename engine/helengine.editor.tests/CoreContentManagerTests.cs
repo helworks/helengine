@@ -1,4 +1,5 @@
 using Xunit;
+using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests {
     /// <summary>
@@ -95,12 +96,26 @@ namespace helengine.editor.tests {
         /// Ensures core initialization rejects missing content stream sources.
         /// </summary>
         [Fact]
+        public void Constructor_WhenContentStreamSourceIsMissing_DoesNotThrowUntilInitialize() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = null
+            });
+
+            Assert.NotNull(core);
+        }
+
+        /// <summary>
+        /// Ensures core initialization rejects missing content stream sources.
+        /// </summary>
+        [Fact]
         public void Initialize_WhenContentStreamSourceIsMissing_Throws() {
             CoreInitializationOptions options = new CoreInitializationOptions {
                 ContentStreamSource = null
             };
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new Core(options));
+            Core core = new Core(options);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), options));
 
             Assert.Contains("ContentStreamSource", exception.Message);
         }

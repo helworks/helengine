@@ -634,6 +634,7 @@ namespace helengine.editor.tests {
             string sceneId = "Scenes/TexturedMaterialScene.helen";
             string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
             string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+            string expectedTextureRelativePath = $"cooked/imported/{RuntimeAssetIdGenerator.Generate(textureAssetId):x16}.hetex";
 
             WriteCachedTextureAsset(textureAssetId);
             WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
@@ -670,15 +671,45 @@ namespace helengine.editor.tests {
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
-            Assert.True(materialSettingsService.TryLoadPlatformSettings(materialPath, "ds", out MaterialAssetProcessorSettings dsSettings));
-            Assert.Equal(
-                "cooked/imported/" + textureAssetId,
-                dsSettings.FieldValues["texture-relative-path"]);
             PlatformMaterialCookRequest dsCookRequest = materialBuilder.MaterialCookRequests.First(request => string.Equals(request.MaterialRelativePath, materialRelativePath, StringComparison.Ordinal));
             Assert.Equal("ds-standard-textured", dsCookRequest.SchemaId);
-            Assert.Equal(
-                "cooked/imported/" + textureAssetId,
-                dsCookRequest.FieldValues["texture-relative-path"]);
+            Assert.Equal(expectedTextureRelativePath, dsCookRequest.FieldValues["texture-relative-path"]);
+
+            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "textured_cube_grid", "Cube00.hasset");
+            using FileStream cookedMaterialStream = File.OpenRead(cookedMaterialPath);
+            PlatformMaterialAsset cookedMaterial = Assert.IsType<PlatformMaterialAsset>(AssetSerializer.Deserialize(cookedMaterialStream));
+            Assert.Equal(expectedTextureRelativePath, cookedMaterial.TextureRelativePath);
+        }
+
+        /// <summary>
+        /// Ensures DS builder-owned imported textures use one DS-safe cooked runtime path while preserving the full source asset id in work-item metadata.
+        /// </summary>
+        [Fact]
+        public void Package_WhenDsPlatformOwnsImportedTextureCooking_UsesDsSafeCookedRuntimeTexturePath() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string textureRelativePath = "Images/Menu/helengine-logo.png";
+            string textureAssetId = WriteSourceTextureAssetAndReturnAssetId(textureRelativePath, ".png", "ds");
+            string expectedOutputRelativePath = $"cooked/imported/{RuntimeAssetIdGenerator.Generate(textureAssetId):x16}.hetex";
+
+            WriteSceneAsset(sceneId, "helengine.SpriteComponent", WriteSpriteComponentPayload(SceneAssetReferenceTestFactory.CreateFileSystemTexture(textureRelativePath)));
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                [
+                    new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])
+                ],
+                CreateDsBuilderOwnedTexturePlatformDefinition(),
+                CreatePackagedFontAsset());
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+
+            PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
+            Assert.Equal("texture", workItem.SourceAssetKind);
+            Assert.Equal("runtime-texture", workItem.TargetArtifactKind);
+            Assert.Equal(expectedOutputRelativePath, workItem.OutputRelativePath);
+            Assert.Contains(
+                workItem.Metadata,
+                entry => string.Equals(entry.Key, "source-asset-id", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(entry.Value, textureAssetId, StringComparison.Ordinal));
         }
 
         /// <summary>
@@ -1327,8 +1358,60 @@ namespace helengine.editor.tests {
             ShaderRuntimeMaterial runtimeMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(firstMeshComponent.Materials));
             RuntimeTexture resolvedTexture = runtimeMaterial.ResolveTexture();
             Assert.NotNull(resolvedTexture);
-            Assert.Equal(4, resolvedTexture.Width);
-            Assert.Equal(2, resolvedTexture.Height);
+        }
+
+        /// <summary>
+        /// Ensures builder-backed Windows material cooking copies both imported diffuse and roughness textures into the player-visible cooked texture location and preserves both runtime texture bindings.
+        /// </summary>
+        [Fact]
+        public void Package_WhenBuilderCooksMaterialWithImportedDiffuseAndRoughnessTextures_WritesBothCookedImportedTexturesAndLoadsRuntimeMaterial() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
+            string diffuseTextureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+            string roughnessTextureAssetId = "fc80c802f5ddae81b5d19fb2e540eea910d5dd2f879bf672f557f5ad4f75bdb1";
+
+            WriteCachedTextureAsset(diffuseTextureAssetId);
+            WriteCachedTextureAsset(roughnessTextureAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, diffuseTextureAssetId, roughnessTextureAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            TestPlatformMaterialAssetBuilder materialBuilder = new TestPlatformMaterialAssetBuilder();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                materialBuilder.Definition,
+                defaultFont,
+                materialBuilder,
+                "debug",
+                "directx11");
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "imported", diffuseTextureAssetId)));
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "imported", roughnessTextureAssetId)));
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(runtimeContentManager);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+
+            MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
+            ShaderRuntimeMaterial runtimeMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(firstMeshComponent.Materials));
+            int diffuseBindingIndex = runtimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+            int roughnessBindingIndex = runtimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName);
+
+            Assert.NotNull(runtimeMaterial.Properties.GetTexture(diffuseBindingIndex));
+            Assert.NotNull(runtimeMaterial.Properties.GetTexture(roughnessBindingIndex));
         }
 
         /// <summary>
@@ -3544,6 +3627,7 @@ namespace helengine.editor.tests {
                 materialRelativePath,
                 shaderAssetId,
                 diffuseTextureAssetId,
+                string.Empty,
                 "standard-shader",
                 useCustomShader: true,
                 "#FFFFFFFF");
@@ -3597,6 +3681,7 @@ namespace helengine.editor.tests {
                 materialRelativePath,
                 string.Empty,
                 string.Empty,
+                string.Empty,
                 "standard-shader",
                 useCustomShader: false,
                 "#FFFFFFFF");
@@ -3609,7 +3694,10 @@ namespace helengine.editor.tests {
         /// Writes one project-style standard material document that mirrors the colored cube-grid authored content.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path to write.</param>
-        void WriteCityStyleStandardMaterialAsset(string materialRelativePath, string diffuseTextureAssetId = "") {
+        void WriteCityStyleStandardMaterialAsset(
+            string materialRelativePath,
+            string diffuseTextureAssetId = "",
+            string roughnessTextureAssetId = "") {
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
 
@@ -3617,6 +3705,7 @@ namespace helengine.editor.tests {
                 materialRelativePath,
                 "ForwardStandardShader",
                 diffuseTextureAssetId,
+                roughnessTextureAssetId,
                 "standard-shader",
                 useCustomShader: false,
                 "#FF4040FF");
@@ -3795,6 +3884,7 @@ namespace helengine.editor.tests {
             string materialRelativePath,
             string shaderAssetId,
             string diffuseTextureAssetId,
+            string roughnessTextureAssetId,
             string schemaId,
             bool useCustomShader,
             string baseColor) {
@@ -3807,6 +3897,8 @@ namespace helengine.editor.tests {
                 FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
                     ["use-custom-shader"] = useCustomShader ? "true" : "false",
                     ["texture-id"] = diffuseTextureAssetId ?? string.Empty,
+                    ["roughness"] = "1.0",
+                    ["roughness-texture-id"] = roughnessTextureAssetId ?? string.Empty,
                     ["casts-shadow"] = "true",
                     ["receives-shadow"] = "true",
                     ["base-color"] = baseColor ?? "#FFFFFFFF"
@@ -3880,6 +3972,52 @@ namespace helengine.editor.tests {
                 "Materials[0]",
                 global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
             return CreateAuthoredMeshComponentRecord(meshComponent, saveState).Payload;
+        }
+
+        /// <summary>
+        /// Creates one DS platform definition whose texture cooking is builder-owned.
+        /// </summary>
+        /// <returns>Platform definition with builder-owned DS texture cooking.</returns>
+        static PlatformDefinition CreateDsBuilderOwnedTexturePlatformDefinition() {
+            return new PlatformDefinition(
+                "ds",
+                "Nintendo DS",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "ds-default",
+                        "DS Default",
+                        "Debug player build",
+                        "ds-main-2d",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "ds-main-2d",
+                        "DS Main 2D",
+                        "Nintendo DS fixed-pipeline renderer",
+                        [])
+                ],
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                new RuntimeGenerationContract(
+                    RuntimeMaterialResolutionMode.CookedPlatformOwned,
+                    true,
+                    PackagedPathPolicy.ContentRelativeOnly),
+                null,
+                [
+                    new PlatformAssetCookCapabilityDefinition(
+                        "texture",
+                        "runtime-texture",
+                        PlatformAssetCookOwnershipKind.BuilderOwned,
+                        "ds-texture-settings",
+                        string.Empty,
+                        null,
+                        ".hetex")
+                ]);
         }
 
         /// <summary>

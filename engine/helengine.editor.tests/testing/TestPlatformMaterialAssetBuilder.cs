@@ -51,6 +51,8 @@ namespace helengine.editor.tests.testing {
                             new PlatformMaterialFieldDefinition("use-custom-shader", "Use Custom Shader", PlatformMaterialFieldKind.Boolean, "false", true, []),
                             new PlatformMaterialFieldDefinition("shader-asset-id", "Shader Asset", PlatformMaterialFieldKind.AssetReference, string.Empty, true, []),
                             new PlatformMaterialFieldDefinition("texture-id", "Texture", PlatformMaterialFieldKind.AssetReference, string.Empty, true, []),
+                            new PlatformMaterialFieldDefinition("roughness", "Roughness", PlatformMaterialFieldKind.Number, "1.0", true, []),
+                            new PlatformMaterialFieldDefinition("roughness-texture-id", "Roughness Texture", PlatformMaterialFieldKind.AssetReference, string.Empty, true, []),
                             new PlatformMaterialFieldDefinition("casts-shadow", "Casts Shadow", PlatformMaterialFieldKind.Boolean, "true", true, []),
                             new PlatformMaterialFieldDefinition("receives-shadow", "Receives Shadow", PlatformMaterialFieldKind.Boolean, "true", true, []),
                             new PlatformMaterialFieldDefinition("vertex-program", "Vertex Program", PlatformMaterialFieldKind.Text, string.Empty, true, []),
@@ -94,6 +96,7 @@ namespace helengine.editor.tests.testing {
             string pixelProgram = ReadRequiredField(request.FieldValues, "pixel-program");
             string variant = ReadRequiredField(request.FieldValues, "variant");
             string textureAssetId = ReadOptionalField(request.FieldValues, "texture-id");
+            string roughnessTextureAssetId = ReadOptionalField(request.FieldValues, "roughness-texture-id");
             bool castsShadows = ReadBooleanField(request.FieldValues, "casts-shadow", true);
             bool receivesShadows = ReadBooleanField(request.FieldValues, "receives-shadow", true);
 
@@ -103,6 +106,7 @@ namespace helengine.editor.tests.testing {
                 VertexProgram = vertexProgram,
                 PixelProgram = pixelProgram,
                 DiffuseTextureAssetId = textureAssetId,
+                RoughnessTextureAssetId = roughnessTextureAssetId,
                 CastsShadows = castsShadows,
                 ReceivesShadows = receivesShadows,
                 Variant = variant,

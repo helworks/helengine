@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public static class Logger {
         /// <summary>
+        /// Measures monotonic elapsed time for log entries without depending on wall-clock DateTime runtime support.
+        /// </summary>
+        static readonly System.Diagnostics.Stopwatch TimestampStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        /// <summary>
         /// Raised whenever a log message is written.
         /// </summary>
         public static event Action<LogEntry> MessageLogged;
@@ -49,7 +54,7 @@ namespace helengine {
         /// <param name="message">Message to write.</param>
         static void Write(LogLevel level, string message) {
             string text = message ?? string.Empty;
-            var entry = new LogEntry(level, text, DateTime.UtcNow);
+            var entry = new LogEntry(level, text, TimestampStopwatch.Elapsed.TotalMilliseconds / 1000d);
 
             string output = text;
             if (level == LogLevel.Warning) {

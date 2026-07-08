@@ -31,7 +31,7 @@ namespace helengine {
         int2 size;
         bool isFocused;
         bool cursorVisible = true;
-        DateTime lastCursorBlink = DateTime.Now;
+        double cursorBlinkElapsedSeconds;
         bool hasRenderOrderOverrides;
         byte backgroundRenderOrder;
         byte textRenderOrder;
@@ -334,15 +334,21 @@ namespace helengine {
 
             if (!isFocused) return;
 
+            Core core = Core.Instance;
+            if (core == null) {
+                return;
+            }
+
             // Handle cursor blinking
-            if ((DateTime.Now - lastCursorBlink).TotalMilliseconds > 500) {
+            cursorBlinkElapsedSeconds += core.DeltaTime;
+            if (cursorBlinkElapsedSeconds >= 0.5d) {
                 cursorVisible = !cursorVisible;
-                lastCursorBlink = DateTime.Now;
+                cursorBlinkElapsedSeconds = 0d;
                 UpdateTextDisplay();
             }
 
             // Handle keyboard input
-            InputSystem inputManager = Core.Instance.Input;
+            InputSystem inputManager = core.Input;
             bool isShiftPressed = inputManager.IsKeyDown(Keys.LeftShift) || inputManager.IsKeyDown(Keys.RightShift);
             bool isControlPressed = inputManager.IsKeyDown(Keys.LeftControl) || inputManager.IsKeyDown(Keys.RightControl);
             bool isAltPressed = inputManager.IsKeyDown(Keys.LeftAlt) || inputManager.IsKeyDown(Keys.RightAlt);
@@ -775,6 +781,7 @@ namespace helengine {
             }
 
             cursorVisible = true;
+            cursorBlinkElapsedSeconds = 0d;
             UpdateTextDisplay();
             UpdateFocusVisual();
             FocusChanged?.Invoke(this, isFocused);

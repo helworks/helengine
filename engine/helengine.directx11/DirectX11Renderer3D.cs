@@ -2092,6 +2092,10 @@ namespace helengine.directx11 {
             DirectX11ShaderResource shaderResource = shaderMaterial.ShaderResource;
             var context = Device.ImmediateContext;
             if (!ReferenceEquals(ActiveMaterial, shaderMaterial)) {
+                if (ActiveMaterial != null) {
+                    ClearMaterialTextureBindings(ActiveMaterial);
+                }
+
                 context.InputAssembler.InputLayout = shaderResource.InputLayout;
                 context.VertexShader.Set(shaderResource.VertexShader);
                 context.PixelShader.Set(shaderResource.PixelShader);
@@ -2101,12 +2105,34 @@ namespace helengine.directx11 {
             ApplyMaterialRenderState(material.RenderState);
             ApplyMaterialConstantBufferBindings(material);
             if (material.Layout.TextureBindings.Length > 0) {
-                ShaderResourceView resourceView = ResolveMaterialTextureResourceView(material);
-                context.PixelShader.SetShaderResource(0, resourceView);
-                context.PixelShader.SetSampler(0, materialTextureSampler);
+                ClearMaterialTextureBindings(material);
+                List<DirectX11MaterialTextureBinding> resolvedBindings = ResolveMaterialTextureBindings(material);
+                for (int bindingIndex = 0; bindingIndex < resolvedBindings.Count; bindingIndex++) {
+                    DirectX11MaterialTextureBinding binding = resolvedBindings[bindingIndex];
+                    context.PixelShader.SetShaderResource(binding.Slot, binding.ResourceView);
+                    context.PixelShader.SetSampler(binding.Slot, materialTextureSampler);
+                }
             } else {
                 context.PixelShader.SetShaderResource(0, null);
                 context.PixelShader.SetSampler(0, null);
+            }
+        }
+
+        /// <summary>
+        /// Clears all pixel-shader texture slots declared by one material layout.
+        /// </summary>
+        /// <param name="material">Material whose declared texture slots should be cleared.</param>
+        void ClearMaterialTextureBindings(ShaderRuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            var context = Device.ImmediateContext;
+            MaterialLayoutBinding[] layoutBindings = material.Layout.TextureBindings;
+            for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
+                MaterialLayoutBinding binding = layoutBindings[bindingIndex];
+                context.PixelShader.SetShaderResource(binding.Slot, null);
+                context.PixelShader.SetSampler(binding.Slot, null);
             }
         }
 
@@ -2166,6 +2192,30 @@ namespace helengine.directx11 {
                 }
 
                 resolvedBindings.Add(new DirectX11MaterialConstantBufferBinding(binding.Name, binding.Slot, data));
+            }
+
+            return resolvedBindings;
+        }
+
+        /// <summary>
+        /// Resolves the material texture bindings that should be uploaded for one draw.
+        /// </summary>
+        /// <param name="material">Resolved runtime material instance that provides texture values.</param>
+        /// <returns>Resolved DirectX11 texture bindings keyed by their shader slots.</returns>
+        List<DirectX11MaterialTextureBinding> ResolveMaterialTextureBindings(ShaderRuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            var resolvedBindings = new List<DirectX11MaterialTextureBinding>();
+            MaterialLayoutBinding[] layoutBindings = material.Layout.TextureBindings;
+            for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
+                MaterialLayoutBinding binding = layoutBindings[bindingIndex];
+                if (!TryResolveMaterialTexture(material, binding.Name, out RuntimeTexture runtimeTexture)) {
+                    continue;
+                }
+
+                resolvedBindings.Add(new DirectX11MaterialTextureBinding(binding.Slot, ResolveTextureResourceView(runtimeTexture)));
             }
 
             return resolvedBindings;
@@ -2266,6 +2316,19 @@ namespace helengine.directx11 {
                 return null;
             }
 
+            return ResolveTextureResourceView(runtimeTexture);
+        }
+
+        /// <summary>
+        /// Resolves the shader resource view sampled by one runtime texture instance.
+        /// </summary>
+        /// <param name="runtimeTexture">Texture whose DirectX11 shader resource view should be resolved.</param>
+        /// <returns>Shader resource view to bind for the texture.</returns>
+        ShaderResourceView ResolveTextureResourceView(RuntimeTexture runtimeTexture) {
+            if (runtimeTexture == null) {
+                throw new ArgumentNullException(nameof(runtimeTexture));
+            }
+
             if (runtimeTexture is DirectX11TextureResource textureResource) {
                 if (textureResource.Resource == null) {
                     throw new InvalidOperationException("DirectX11 texture resources must expose a shader resource view.");
@@ -2281,6 +2344,38 @@ namespace helengine.directx11 {
             }
 
             throw new InvalidOperationException("3D material textures must be DirectX11 texture resources.");
+        }
+
+        /// <summary>
+        /// Resolves one named material texture from the current material or one of its shader-material parents.
+        /// </summary>
+        /// <param name="material">Material whose binding should be resolved.</param>
+        /// <param name="bindingName">Texture binding name to resolve.</param>
+        /// <param name="runtimeTexture">Resolved runtime texture when present.</param>
+        /// <returns>True when the material chain provides the requested texture binding; otherwise false.</returns>
+        bool TryResolveMaterialTexture(ShaderRuntimeMaterial material, string bindingName, out RuntimeTexture runtimeTexture) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+            if (string.IsNullOrWhiteSpace(bindingName)) {
+                runtimeTexture = null;
+                return false;
+            }
+
+            int bindingIndex = material.Layout.FindTextureBindingIndex(bindingName);
+            if (bindingIndex >= 0) {
+                runtimeTexture = material.Properties.GetTexture(bindingIndex);
+                if (runtimeTexture != null) {
+                    return true;
+                }
+            }
+
+            if (material.ParentMaterial is ShaderRuntimeMaterial parentShaderMaterial) {
+                return TryResolveMaterialTexture(parentShaderMaterial, bindingName, out runtimeTexture);
+            }
+
+            runtimeTexture = null;
+            return false;
         }
 
         /// <summary>

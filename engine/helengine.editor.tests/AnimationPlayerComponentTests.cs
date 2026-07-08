@@ -299,7 +299,9 @@ namespace helengine.editor.tests {
         /// Initializes the minimal core services required by animation-player tests.
         /// </summary>
         Core InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             return core;
         }

@@ -53,7 +53,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void Constructor_whenCreated_initializesDiagnosticStringsToEmptyValues() {
-            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(buildRootPath));
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);

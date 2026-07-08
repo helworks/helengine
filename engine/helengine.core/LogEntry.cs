@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Represents a logged message with severity and timestamp.
+    /// Represents a logged message with severity and a monotonic process-relative timestamp.
     /// </summary>
     public readonly struct LogEntry {
         /// <summary>
@@ -8,11 +8,11 @@ namespace helengine {
         /// </summary>
         /// <param name="level">Severity level for the message.</param>
         /// <param name="message">Message text.</param>
-        /// <param name="timestamp">Timestamp associated with the entry.</param>
-        public LogEntry(LogLevel level, string message, DateTime timestamp) {
+        /// <param name="timestampSeconds">Seconds elapsed on the logger monotonic clock when the entry was written.</param>
+        public LogEntry(LogLevel level, string message, double timestampSeconds) {
             Level = level;
             Message = message ?? string.Empty;
-            Timestamp = timestamp;
+            TimestampSeconds = timestampSeconds;
         }
 
         /// <summary>
@@ -26,8 +26,8 @@ namespace helengine {
         public string Message { get; }
 
         /// <summary>
-        /// Gets the timestamp for the entry.
+        /// Gets the monotonic logger timestamp for the entry in seconds since the logger clock started.
         /// </summary>
-        public DateTime Timestamp { get; }
+        public double TimestampSeconds { get; }
     }
 }

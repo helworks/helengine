@@ -26,11 +26,6 @@ namespace helengine.editor {
         const string TextureRelativePathFieldId = "texture-relative-path";
 
         /// <summary>
-        /// Packaged directory prefix used for imported cooked textures.
-        /// </summary>
-        const string ImportedTextureDirectoryPath = "cooked/imported";
-
-        /// <summary>
         /// Field id used by shader-backed schemas for the vertex program identifier.
         /// </summary>
         const string VertexProgramFieldId = "vertex-program";
@@ -614,7 +609,7 @@ namespace helengine.editor {
                 EditorPlatformBuildSelectionModel selectionModel = selectionModelResolver(platformId);
                 MaterialAssetSchemaSettingsService schemaSettingsService = new MaterialAssetSchemaSettingsService();
                 PlatformMaterialSchemaDefinition materialSchema = schemaSettingsService.EnsureSelectedSchema(platformSettings, selectionModel.MaterialSchemas);
-                NormalizeEffectivePlatformSettings(platformSettings, materialSchema, materialAsset);
+                NormalizeEffectivePlatformSettings(platformSettings, materialSchema, materialAsset, platformId);
                 settings.Processor.Platforms[platformId] = platformSettings;
             }
 
@@ -840,10 +835,12 @@ namespace helengine.editor {
         /// <param name="platformSettings">Effective platform settings payload to normalize.</param>
         /// <param name="materialSchema">Default schema published for the platform, when available.</param>
         /// <param name="materialAsset">Current material asset authored on disk.</param>
+        /// <param name="platformId">Stable platform identifier whose runtime path conventions should be applied.</param>
         void NormalizeEffectivePlatformSettings(
             MaterialAssetProcessorSettings platformSettings,
             PlatformMaterialSchemaDefinition materialSchema,
-            MaterialAsset materialAsset) {
+            MaterialAsset materialAsset,
+            string platformId) {
             if (platformSettings == null) {
                 throw new ArgumentNullException(nameof(platformSettings));
             }
@@ -858,8 +855,8 @@ namespace helengine.editor {
                 platformSettings.SchemaId = materialSchema.SchemaId;
             }
 
-            SeedFieldValues(platformSettings, materialSchema, materialAsset);
-            HydrateBuilderOwnedTextureRelativePath(platformSettings, materialAsset);
+            SeedFieldValues(platformSettings, materialSchema, materialAsset, platformId);
+            HydrateBuilderOwnedTextureRelativePath(platformSettings, materialAsset, platformId);
         }
 
         /// <summary>
@@ -868,10 +865,12 @@ namespace helengine.editor {
         /// <param name="materialSettings">Material settings payload to seed.</param>
         /// <param name="materialSchema">Schema whose fields should be present in the payload.</param>
         /// <param name="materialAsset">Current material asset authored on disk.</param>
+        /// <param name="platformId">Stable platform identifier whose runtime path conventions should be applied.</param>
         void SeedFieldValues(
             MaterialAssetProcessorSettings materialSettings,
             PlatformMaterialSchemaDefinition materialSchema,
-            MaterialAsset materialAsset) {
+            MaterialAsset materialAsset,
+            string platformId) {
             if (materialSettings == null) {
                 throw new ArgumentNullException(nameof(materialSettings));
             } else if (materialSchema == null) {
@@ -888,7 +887,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                materialSettings.FieldValues[field.FieldId] = ResolveSeedValue(field, materialAsset);
+                materialSettings.FieldValues[field.FieldId] = ResolveSeedValue(field, materialAsset, platformId);
             }
         }
 
@@ -897,8 +896,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="field">Field definition that requires a seeded value.</param>
         /// <param name="materialAsset">Current material asset authored on disk.</param>
+        /// <param name="platformId">Stable platform identifier whose runtime path conventions should be applied.</param>
         /// <returns>Seeded serialized field value.</returns>
-        string ResolveSeedValue(PlatformMaterialFieldDefinition field, MaterialAsset materialAsset) {
+        string ResolveSeedValue(PlatformMaterialFieldDefinition field, MaterialAsset materialAsset, string platformId) {
             if (field == null) {
                 throw new ArgumentNullException(nameof(field));
             }
@@ -906,7 +906,7 @@ namespace helengine.editor {
             if (string.Equals(field.FieldId, TextureRelativePathFieldId, StringComparison.OrdinalIgnoreCase) &&
                 materialAsset is ShaderMaterialAsset shaderMaterialAsset &&
                 !string.IsNullOrWhiteSpace(shaderMaterialAsset.DiffuseTextureAssetId)) {
-                return BuildImportedTextureCookedRelativePath(shaderMaterialAsset.DiffuseTextureAssetId);
+                return BuildImportedTextureCookedRelativePath(shaderMaterialAsset.DiffuseTextureAssetId, platformId);
             }
 
             return field.DefaultValue ?? string.Empty;
@@ -916,13 +916,14 @@ namespace helengine.editor {
         /// Builds the cooked runtime texture path used by builder-owned diffuse-texture schemas.
         /// </summary>
         /// <param name="assetId">Imported texture asset identifier authored on the source shader material.</param>
+        /// <param name="platformId">Stable platform identifier whose runtime path conventions should be applied.</param>
         /// <returns>Canonical cooked runtime texture path.</returns>
-        string BuildImportedTextureCookedRelativePath(string assetId) {
+        string BuildImportedTextureCookedRelativePath(string assetId, string platformId) {
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
             }
 
-            return string.Concat(ImportedTextureDirectoryPath, "/", assetId);
+            return ImportedTextureRuntimePathResolver.BuildCookedRelativePath(platformId, assetId);
         }
 
         /// <summary>
@@ -930,7 +931,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="platformSettings">Effective platform settings being normalized.</param>
         /// <param name="materialAsset">Current material asset whose authored diffuse texture should be preserved.</param>
-        void HydrateBuilderOwnedTextureRelativePath(MaterialAssetProcessorSettings platformSettings, MaterialAsset materialAsset) {
+        /// <param name="platformId">Stable platform identifier whose runtime path conventions should be applied.</param>
+        void HydrateBuilderOwnedTextureRelativePath(MaterialAssetProcessorSettings platformSettings, MaterialAsset materialAsset, string platformId) {
             if (platformSettings == null) {
                 throw new ArgumentNullException(nameof(platformSettings));
             }
@@ -944,7 +946,7 @@ namespace helengine.editor {
                 return;
             }
 
-            platformSettings.FieldValues[TextureRelativePathFieldId] = BuildImportedTextureCookedRelativePath(shaderMaterialAsset.DiffuseTextureAssetId);
+            platformSettings.FieldValues[TextureRelativePathFieldId] = BuildImportedTextureCookedRelativePath(shaderMaterialAsset.DiffuseTextureAssetId, platformId);
         }
 
         /// <summary>

@@ -33,8 +33,12 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(ContentRootPath);
             RenderManager3DValue = new TestRenderManager3D();
             RenderManager2DValue = new TestRenderManager2D();
-            CoreValue = new Core();
-            CoreValue.Initialize(RenderManager3DValue, RenderManager2DValue, new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(ContentRootPath)
+            });
+            CoreValue.Initialize(RenderManager3DValue, RenderManager2DValue, new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(ContentRootPath)
+            });
         }
 
         /// <summary>
@@ -54,7 +58,7 @@ namespace helengine.editor.tests {
         public void BuildMaterialFromRawAsset_WhenMaterialReferencesImportedDiffuseTexture_BindsRuntimeTexture() {
             string diffuseTextureAssetId = "Textures/GeneratedChecker";
             WriteShaderPackage();
-            WriteMaterialAsset(diffuseTextureAssetId);
+            WriteMaterialAsset(diffuseTextureAssetId, string.Empty);
             WriteImportedTextureAsset(diffuseTextureAssetId);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
@@ -68,6 +72,37 @@ namespace helengine.editor.tests {
             Assert.Equal(4, runtimeTexture.Width);
             Assert.Equal(2, runtimeTexture.Height);
             Assert.True(RenderManager2DValue.BuildTextureFromRawCallCount > 0);
+        }
+
+        /// <summary>
+        /// Ensures packaged shader-backed materials rebuild both diffuse and roughness imported texture bindings from the packaged imported texture asset paths.
+        /// </summary>
+        [Fact]
+        public void BuildMaterialFromRawAsset_WhenMaterialReferencesImportedDiffuseAndRoughnessTextures_BindsBothRuntimeTextures() {
+            string diffuseTextureAssetId = "Textures/GeneratedChecker";
+            string roughnessTextureAssetId = "Textures/GeneratedRoughness";
+            WriteShaderPackage();
+            WriteMaterialAsset(diffuseTextureAssetId, roughnessTextureAssetId);
+            WriteImportedTextureAsset(diffuseTextureAssetId, 4, 2);
+            WriteImportedTextureAsset(roughnessTextureAssetId, 2, 4);
+
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
+            RuntimeMaterial runtimeMaterial = RenderManager3DValue.BuildMaterialFromRawAsset(
+                contentManager,
+                Path.Combine(ContentRootPath, "cooked", "materials", "TestMaterial.hasset"));
+
+            ShaderRuntimeMaterial shaderRuntimeMaterial = ShaderRuntimeMaterialAccess.Require(runtimeMaterial);
+            int diffuseBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+            int roughnessBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName);
+            RuntimeTexture diffuseTexture = shaderRuntimeMaterial.Properties.GetTexture(diffuseBindingIndex);
+            RuntimeTexture roughnessTexture = shaderRuntimeMaterial.Properties.GetTexture(roughnessBindingIndex);
+
+            Assert.NotNull(diffuseTexture);
+            Assert.NotNull(roughnessTexture);
+            Assert.Equal(4, diffuseTexture.Width);
+            Assert.Equal(2, diffuseTexture.Height);
+            Assert.Equal(2, roughnessTexture.Width);
+            Assert.Equal(4, roughnessTexture.Height);
         }
 
         /// <summary>
@@ -89,7 +124,8 @@ namespace helengine.editor.tests {
                     CreateProgram(
                         "ForwardStandardShader.ps",
                         ShaderStage.Pixel,
-                        CreateBinding(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ShaderResourceType.Texture2D, 0, 0, 0))
+                        CreateBinding(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ShaderResourceType.Texture2D, 0, 0, 0),
+                        CreateBinding(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName, ShaderResourceType.Texture2D, 0, 6, 0))
                 ],
                 Binaries = Array.Empty<ShaderBinaryAsset>()
             };
@@ -102,7 +138,8 @@ namespace helengine.editor.tests {
         /// Writes one packaged shader-backed material asset that references the supplied imported diffuse texture asset id.
         /// </summary>
         /// <param name="diffuseTextureAssetId">Imported texture asset id that should be rebound by the runtime loader.</param>
-        void WriteMaterialAsset(string diffuseTextureAssetId) {
+        /// <param name="roughnessTextureAssetId">Imported roughness texture asset id that should be rebound by the runtime loader.</param>
+        void WriteMaterialAsset(string diffuseTextureAssetId, string roughnessTextureAssetId) {
             string materialPath = Path.Combine(ContentRootPath, "cooked", "materials", "TestMaterial.hasset");
             string materialDirectoryPath = Path.GetDirectoryName(materialPath);
             if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
@@ -117,6 +154,7 @@ namespace helengine.editor.tests {
                 PixelProgram = "ForwardStandardShader.ps",
                 Variant = "default",
                 DiffuseTextureAssetId = diffuseTextureAssetId,
+                RoughnessTextureAssetId = roughnessTextureAssetId,
                 RenderState = new MaterialRenderState(),
                 ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>(),
                 CastsShadows = true,
@@ -130,9 +168,11 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Writes one packaged imported texture asset that can be rebuilt by the runtime material loader.
         /// </summary>
-        /// <param name="diffuseTextureAssetId">Imported texture asset id that determines the packaged texture path.</param>
-        void WriteImportedTextureAsset(string diffuseTextureAssetId) {
-            string texturePath = Path.Combine(ContentRootPath, "cooked", "imported", diffuseTextureAssetId);
+        /// <param name="textureAssetId">Imported texture asset id that determines the packaged texture path.</param>
+        /// <param name="width">Authored width used by the packaged texture payload.</param>
+        /// <param name="height">Authored height used by the packaged texture payload.</param>
+        void WriteImportedTextureAsset(string textureAssetId, int width = 4, int height = 2) {
+            string texturePath = Path.Combine(ContentRootPath, "cooked", "imported", textureAssetId);
             string textureDirectoryPath = Path.GetDirectoryName(texturePath);
             if (string.IsNullOrWhiteSpace(textureDirectoryPath)) {
                 throw new InvalidOperationException("Could not resolve a texture directory path for the packaged imported texture test payload.");
@@ -140,8 +180,8 @@ namespace helengine.editor.tests {
 
             Directory.CreateDirectory(textureDirectoryPath);
             TextureAsset textureAsset = new TextureAsset {
-                Width = 4,
-                Height = 2,
+                Width = (ushort)width,
+                Height = (ushort)height,
                 Colors = new byte[] {
                     255, 0, 0, 255,
                     0, 255, 0, 255,
@@ -186,8 +226,8 @@ namespace helengine.editor.tests {
             return new ShaderBindingAsset {
                 Name = name,
                 Type = resourceType,
-                Set = set,
-                Slot = slot,
+                Set = (ushort)set,
+                Slot = (ushort)slot,
                 Size = sizeInBytes,
                 Members = Array.Empty<ShaderConstantMemberAsset>()
             };

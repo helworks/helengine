@@ -17,6 +17,19 @@ namespace helengine.editor {
         const string NativeDeserializerClassSuffix = "Deserializer";
 
         /// <summary>
+        /// Stores whether generated native deserializer validation throws should omit detailed message formatting so compact native runtime profiles can avoid pulling heavyweight standard-library exception helpers into the player binary.
+        /// </summary>
+        readonly bool UseCompactNativeExceptionMessages;
+
+        /// <summary>
+        /// Initializes one scripted-component player deserializer generator with the requested native exception emission policy.
+        /// </summary>
+        /// <param name="useCompactNativeExceptionMessages">True when generated native deserializer validation throws should omit detailed message formatting and rely on the compact native exception defaults.</param>
+        public ScriptComponentPlayerDeserializerGenerator(bool useCompactNativeExceptionMessages = false) {
+            UseCompactNativeExceptionMessages = useCompactNativeExceptionMessages;
+        }
+
+        /// <summary>
         /// Generates ordinal runtime deserializer source for the supplied reflected scripted component schema.
         /// </summary>
         /// <param name="schema">Reflected scripted component schema that should drive the generated source.</param>
@@ -224,12 +237,16 @@ namespace helengine.editor {
             builder.AppendLine("const uint8_t version = reader->ReadByte();");
             builder.AppendLine("    if (version != CurrentVersion)");
             builder.AppendLine("    {");
-            builder.AppendLine("throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload version '\") + String::ToJoinString(version) + std::string(\"'.\"));");
+            builder.AppendLine(UseCompactNativeExceptionMessages
+                ? "throw new InvalidOperationException();"
+                : "throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload version '\") + String::ToJoinString(version) + std::string(\"'.\"));");
             builder.AppendLine("    }");
             builder.AppendLine("const int32_t memberCount = reader->ReadInt32();");
             builder.AppendLine("    if (memberCount != MemberCount)");
             builder.AppendLine("    {");
-            builder.AppendLine("throw new InvalidOperationException(std::string(\"Expected \") + String::ToJoinString(MemberCount) + std::string(\" packaged scripted members but payload contained \") + String::ToJoinString(memberCount) + std::string(\".\"));");
+            builder.AppendLine(UseCompactNativeExceptionMessages
+                ? "throw new InvalidOperationException();"
+                : "throw new InvalidOperationException(std::string(\"Expected \") + String::ToJoinString(MemberCount) + std::string(\" packaged scripted members but payload contained \") + String::ToJoinString(memberCount) + std::string(\".\"));");
             builder.AppendLine("    }");
             builder.AppendLine($"::{schema.ComponentType.Name} *component = new ::{schema.ComponentType.Name}();");
             Dictionary<Type, string> nativeNestedHelperNames = BuildNativeNestedHelperMap(schema);

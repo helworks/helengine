@@ -22,6 +22,9 @@ namespace helengine.editor.tests {
 
                 Assert.Equal("Textures/GeneratedChecker", loadedMaterialAsset.DiffuseTextureAssetId);
                 Assert.Equal("Materials/TestMaterial", loadedMaterialAsset.Id);
+                Assert.NotNull(loadedMaterialAsset.RenderState);
+                Assert.Equal(MaterialBlendMode.Opaque, loadedMaterialAsset.RenderState.BlendMode);
+                Assert.Equal(MaterialCullMode.None, loadedMaterialAsset.RenderState.CullMode);
             } finally {
                 if (Directory.Exists(tempDirectoryPath)) {
                     Directory.Delete(tempDirectoryPath, true);
@@ -87,6 +90,8 @@ namespace helengine.editor.tests {
             windowsDefinition.SetFieldValue("use-custom-shader", "false");
             windowsDefinition.SetFieldValue("shader-asset-id", "ForwardStandardShader");
             windowsDefinition.SetFieldValue("texture-id", "Textures/GeneratedChecker");
+            windowsDefinition.SetFieldValue("alpha-mode", "opaque");
+            windowsDefinition.SetFieldValue("double-sided", "true");
             windowsDefinition.SetFieldValue("casts-shadow", "true");
             windowsDefinition.SetFieldValue("receives-shadow", "true");
             windowsDefinition.SetFieldValue("base-color", "#FFFFFFFF");

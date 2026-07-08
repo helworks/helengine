@@ -95,6 +95,45 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures the DirectX11 material-binding path can resolve multiple authored texture bindings instead of only the first binding slot.
+        /// </summary>
+        [Fact]
+        public void ResolveMaterialTextureBindings_WhenMaterialProvidesDiffuseAndRoughnessTextures_ReturnsBothBindingSlots() {
+            TestRuntimeMaterial material = new TestRuntimeMaterial();
+            DirectX11RenderTargetResource diffuseTexture = (DirectX11RenderTargetResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11RenderTargetResource));
+            DirectX11RenderTargetResource roughnessTexture = (DirectX11RenderTargetResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11RenderTargetResource));
+            ShaderResourceView diffuseResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
+            ShaderResourceView roughnessResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
+            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
+            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialTextureBindings", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(method);
+
+            material.SetLayout(new MaterialLayout(
+                "shader/test",
+                "VS",
+                "PS",
+                "default",
+                new MaterialRenderState(),
+                new[] {
+                    new MaterialLayoutBinding(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ShaderResourceType.Texture2D, 0, 0, 0),
+                    new MaterialLayoutBinding(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName, ShaderResourceType.Texture2D, 0, 6, 0)
+                },
+                Array.Empty<MaterialLayoutBinding>(),
+                Array.Empty<MaterialLayoutBinding>()));
+            SetAutoPropertyBackingField(diffuseTexture, "ShaderResourceView", diffuseResourceView);
+            SetAutoPropertyBackingField(roughnessTexture, "ShaderResourceView", roughnessResourceView);
+            material.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, diffuseTexture);
+            material.Properties.SetTexture(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName, roughnessTexture);
+
+            IList resolvedBindings = Assert.IsAssignableFrom<IList>(method.Invoke(renderer, new object[] { material }));
+
+            Assert.Equal(2, resolvedBindings.Count);
+            AssertResolvedTextureBinding(resolvedBindings[0], 0, diffuseResourceView);
+            AssertResolvedTextureBinding(resolvedBindings[1], 6, roughnessResourceView);
+        }
+
+        /// <summary>
         /// Ensures DirectX11 shadow-caster eligibility stays on the DirectX11 material root instead of leaking into shared material state.
         /// </summary>
         [Fact]
@@ -334,6 +373,27 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal(expectedName, Assert.IsType<string>(nameProperty.GetValue(resolvedBinding)));
             Assert.Equal(expectedSlot, Assert.IsType<int>(slotProperty.GetValue(resolvedBinding)));
             Assert.Equal(expectedData, Assert.IsType<byte[]>(dataProperty.GetValue(resolvedBinding)));
+        }
+
+        /// <summary>
+        /// Verifies one reflected resolved texture binding.
+        /// </summary>
+        /// <param name="resolvedBinding">Resolved binding object returned by the DirectX11 renderer.</param>
+        /// <param name="expectedSlot">Expected shader slot.</param>
+        /// <param name="expectedResourceView">Expected DirectX11 shader resource view.</param>
+        static void AssertResolvedTextureBinding(object resolvedBinding, int expectedSlot, ShaderResourceView expectedResourceView) {
+            if (resolvedBinding == null) {
+                throw new ArgumentNullException(nameof(resolvedBinding));
+            }
+
+            Type bindingType = resolvedBinding.GetType();
+            PropertyInfo slotProperty = bindingType.GetProperty("Slot");
+            PropertyInfo resourceViewProperty = bindingType.GetProperty("ResourceView");
+
+            Assert.NotNull(slotProperty);
+            Assert.NotNull(resourceViewProperty);
+            Assert.Equal(expectedSlot, Assert.IsType<int>(slotProperty.GetValue(resolvedBinding)));
+            Assert.Same(expectedResourceView, Assert.IsType<ShaderResourceView>(resourceViewProperty.GetValue(resolvedBinding)));
         }
 
         /// <summary>
