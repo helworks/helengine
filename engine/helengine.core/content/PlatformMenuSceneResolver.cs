@@ -9,7 +9,12 @@ namespace helengine {
         public const string DesktopMainMenuSceneId = "DemoDiscMainMenu";
 
         /// <summary>
-        /// Stable scene id used by the Nintendo DS companion main-menu scene.
+        /// Stable scene id used by the dedicated Nintendo handheld main-menu scene.
+        /// </summary>
+        public const string NintendoHandheldMainMenuSceneId = "DemoDiscMainMenuHandheld";
+
+        /// <summary>
+        /// Stable scene id used by the obsolete Nintendo DS companion main-menu scene while stale build selections are normalized.
         /// </summary>
         public const string NintendoDsMainMenuSceneId = "DemoDiscMainMenuDs";
 

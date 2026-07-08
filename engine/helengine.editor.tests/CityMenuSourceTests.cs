@@ -9,7 +9,7 @@ public sealed class CityMenuSourceTests {
     /// </summary>
     [Fact]
     public void City_demo_disc_menu_source_anchors_platform_info_overlay_to_camera_viewport() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscMainMenuSceneFactory.cs";
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscStandardMainMenuSceneFactory.cs";
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("anchorComponent.LayoutSpace = LayoutComponent.CameraViewportLayoutSpace;", source, StringComparison.Ordinal);
@@ -21,13 +21,18 @@ public sealed class CityMenuSourceTests {
     /// </summary>
     [Fact]
     public void City_demo_disc_menu_source_keeps_platform_info_runtime_updater_for_non_ds_and_nintendo_ds_paths() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscMainMenuSceneFactory.cs";
-        string source = File.ReadAllText(sourcePath);
+        string standardSourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscStandardMainMenuSceneFactory.cs";
+        string handheldSourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscHandheldMainMenuSceneFactory.cs";
+        string standardSource = File.ReadAllText(standardSourcePath);
+        string handheldSource = File.ReadAllText(handheldSourcePath);
 
-        Assert.Contains("CreateTextEntity(entity, \"DemoDiscPlatformInfoNameText\"", source, StringComparison.Ordinal);
-        Assert.Contains("CreateTextEntity(entity, \"DemoDiscPlatformInfoVersionText\"", source, StringComparison.Ordinal);
-        Assert.Contains("void CreateNintendoDsTopScreenPlatformInfoEntity(Entity topScreenRootEntity, MenuDefinition definition)", source, StringComparison.Ordinal);
-        Assert.Equal(2, CountOccurrences(source, "entity.AddComponent(new PlatformInfoTextComponent());"));
+        Assert.Contains("CreateTextEntity(entity, \"DemoDiscPlatformInfoNameText\"", standardSource, StringComparison.Ordinal);
+        Assert.Contains("CreateTextEntity(entity, \"DemoDiscPlatformInfoVersionText\"", standardSource, StringComparison.Ordinal);
+        Assert.Contains("void CreateNintendoDsTopScreenPlatformInfoEntity(Entity topScreenRootEntity, MenuDefinition definition)", handheldSource, StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            CountOccurrences(standardSource, "entity.AddComponent(new PlatformInfoTextComponent());")
+                + CountOccurrences(handheldSource, "entity.AddComponent(new PlatformInfoTextComponent());"));
     }
 
     /// <summary>
@@ -35,7 +40,7 @@ public sealed class CityMenuSourceTests {
     /// </summary>
     [Fact]
     public void City_demo_disc_menu_source_restores_non_ds_item_label_text() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscMainMenuSceneFactory.cs";
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscStandardMainMenuSceneFactory.cs";
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("item-label-{itemDefinition.ItemId}", source, StringComparison.Ordinal);
@@ -50,11 +55,17 @@ public sealed class CityMenuSourceTests {
     /// </summary>
     [Fact]
     public void City_demo_disc_menu_source_uses_scene_object_layer_for_all_menu_cameras() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscMainMenuSceneFactory.cs";
-        string source = File.ReadAllText(sourcePath);
+        string standardSourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscStandardMainMenuSceneFactory.cs";
+        string handheldSourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscHandheldMainMenuSceneFactory.cs";
+        string standardSource = File.ReadAllText(standardSourcePath);
+        string handheldSource = File.ReadAllText(handheldSourcePath);
 
-        Assert.Equal(3, CountOccurrences(source, "LayerMask = EditorLayerMasks.SceneObjects,"));
-        Assert.DoesNotContain("LayerMask = 1,", source, StringComparison.Ordinal);
+        Assert.Equal(
+            3,
+            CountOccurrences(standardSource, "LayerMask = EditorLayerMasks.SceneObjects,")
+                + CountOccurrences(handheldSource, "LayerMask = EditorLayerMasks.SceneObjects,"));
+        Assert.DoesNotContain("LayerMask = 1,", standardSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("LayerMask = 1,", handheldSource, StringComparison.Ordinal);
     }
 
     /// <summary>

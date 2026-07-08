@@ -89,7 +89,7 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
             "ds",
             [
                 PlatformMenuSceneResolver.GeneratedBootSceneId,
-                "DemoDiscMainMenuDs",
+                PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                 "cube_test_ds",
                 "axis_test_ds"
             ]);
@@ -104,8 +104,10 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         Assert.Equal("GeneratedBootSceneRoot", rootEntity.Name);
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
-        Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+        Assert.Equal(PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId, sceneMapComponent.InitialSceneId);
+        Assert.Equal(
+            PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
+            sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
         Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
         Assert.Equal("axis_test_ds", sceneMapComponent.Mappings["axis_test"]);
     }
@@ -121,7 +123,7 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
             "ds",
             [
                 PlatformMenuSceneResolver.GeneratedBootSceneId,
-                "DemoDiscMainMenuDs",
+                PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                 "cube_test_ds"
             ]);
 
@@ -133,8 +135,10 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
-        Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+        Assert.Equal(PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId, sceneMapComponent.InitialSceneId);
+        Assert.Equal(
+            PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
+            sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
         Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
     }
 
@@ -149,7 +153,7 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
             "3ds",
             [
                 PlatformMenuSceneResolver.GeneratedBootSceneId,
-                "DemoDiscMainMenuDs",
+                PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                 "cube_test_ds"
             ]);
 
@@ -161,8 +165,10 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
-        Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
-        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+        Assert.Equal(PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId, sceneMapComponent.InitialSceneId);
+        Assert.Equal(
+            PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
+            sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
         Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
     }
 
@@ -187,7 +193,7 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
             "ds",
             [
                 PlatformMenuSceneResolver.GeneratedBootSceneId,
-                "DemoDiscMainMenuDs",
+                PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                 "cube_test_ds",
                 "axis_test_ds"
             ]);
@@ -197,9 +203,11 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
 
         SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
-        Assert.Equal(PlatformMenuSceneResolver.DesktopMainMenuSceneId, sceneMapComponent.InitialSceneId);
+        Assert.Equal(PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId, sceneMapComponent.InitialSceneId);
         Assert.Equal(3, sceneMapComponent.Mappings.Count);
-        Assert.Equal("DemoDiscMainMenuDs", sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
+        Assert.Equal(
+            PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
+            sceneMapComponent.Mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId]);
         Assert.Equal("cube_test_ds", sceneMapComponent.Mappings["cube_test"]);
         Assert.Equal("axis_test_ds", sceneMapComponent.Mappings["axis_test"]);
     }

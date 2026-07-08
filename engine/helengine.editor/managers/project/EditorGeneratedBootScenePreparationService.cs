@@ -201,18 +201,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the logical-scene remap table for Nintendo DS companion-scene selections.
+        /// Builds the logical-scene remap table for Nintendo handheld scene selections.
         /// </summary>
         /// <param name="sceneIds">Stable scene ids selected for the build.</param>
-        /// <returns>Deterministic mapping from logical scene ids to Nintendo DS companion scene ids.</returns>
+        /// <returns>Deterministic mapping from logical scene ids to Nintendo handheld runtime scene ids.</returns>
         static Dictionary<string, string> BuildNintendoDsMappings(IReadOnlyList<string> sceneIds) {
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
 
             Dictionary<string, string> mappings = new Dictionary<string, string>(StringComparer.Ordinal);
-            if (ContainsSceneId(sceneIds, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId)) {
-                mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId] = PlatformMenuSceneResolver.NintendoDsMainMenuSceneId;
+            if (ContainsSceneId(sceneIds, PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId)) {
+                mappings[PlatformMenuSceneResolver.DesktopMainMenuSceneId] = PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId;
             }
 
             for (int index = 0; index < sceneIds.Count; index++) {

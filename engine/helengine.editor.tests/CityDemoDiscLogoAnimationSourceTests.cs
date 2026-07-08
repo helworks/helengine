@@ -11,7 +11,7 @@ public sealed class CityDemoDiscLogoAnimationSourceTests {
     /// </summary>
     [Fact]
     public void City_demo_disc_logo_idle_animation_source_authors_logo_animation_for_nintendo_ds() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscMainMenuSceneFactory.cs";
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscHandheldMainMenuSceneFactory.cs";
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("void CreateNintendoDsTopScreenLogoEntity(Entity topScreenRootEntity, MenuOverlayImageDefinition overlayImage)", source, StringComparison.Ordinal);
@@ -25,7 +25,7 @@ public sealed class CityDemoDiscLogoAnimationSourceTests {
     /// </summary>
     [Fact]
     public void City_demo_disc_logo_idle_animation_source_authors_logo_animation_for_desktop_menu_overlay() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscMainMenuSceneFactory.cs";
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\menu.tools\DemoDiscStandardMainMenuSceneFactory.cs";
         string source = File.ReadAllText(sourcePath);
 
         Match overlayMethodMatch = Regex.Match(

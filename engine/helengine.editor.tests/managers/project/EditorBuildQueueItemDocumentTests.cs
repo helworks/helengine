@@ -160,7 +160,7 @@ namespace helengine.editor.tests {
         [InlineData("3ds")]
         public void Create_WhenNintendoHandheldBuildIncludesGeneratedBootScene_PrunesGeneratedBootSceneFromStartupOrder(string platformId) {
             WriteScene("Scenes/GeneratedBootScene.helen");
-            WriteScene("Scenes/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/DemoDiscMainMenuHandheld.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
 
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
@@ -178,7 +178,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
-                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test"
                 ],
                 queueItem.SelectedSceneIds);
@@ -193,7 +193,7 @@ namespace helengine.editor.tests {
         [InlineData("3ds")]
         public void Create_WhenNintendoHandheldBuildUsesStaleCompanionSceneIds_RemapsSelectionBackToCanonicalSceneIds(string platformId) {
             WriteScene("Scenes/GeneratedBootScene.helen");
-            WriteScene("Scenes/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/DemoDiscMainMenuHandheld.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
             WriteScene("Scenes/rendering/colored_cube_grid.helen");
 
@@ -202,7 +202,7 @@ namespace helengine.editor.tests {
                 PlatformId = platformId,
                 SelectedSceneIds = [
                     PlatformMenuSceneResolver.GeneratedBootSceneId,
-                    PlatformMenuSceneResolver.NintendoDsMainMenuSceneId,
+                    "DemoDiscMainMenuDs",
                     "cube_test_ds",
                     "colored_cube_grid_ds"
                 ],
@@ -212,7 +212,7 @@ namespace helengine.editor.tests {
                         OrderNumber = 1
                     },
                     new EditorBuildSceneOrderDocument {
-                        SceneId = PlatformMenuSceneResolver.NintendoDsMainMenuSceneId,
+                        SceneId = "DemoDiscMainMenuDs",
                         OrderNumber = 2
                     },
                     new EditorBuildSceneOrderDocument {
@@ -231,7 +231,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
-                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test",
                     "colored_cube_grid"
                 ],
@@ -266,7 +266,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Create_WhenNintendoDsSelectionIncludesDesktopMenu_PreservesAuthoredSelectionOrder() {
-            WriteScene("Scenes/DemoDiscMainMenu.helen");
+            WriteScene("Scenes/DemoDiscMainMenuHandheld.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
             WriteScene("Scenes/rendering/ds/cube_test_ds.helen");
 
@@ -284,7 +284,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
-                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test"
                 ],
                 queueItem.SelectedSceneIds);

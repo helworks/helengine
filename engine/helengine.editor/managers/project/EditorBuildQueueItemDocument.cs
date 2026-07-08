@@ -561,8 +561,10 @@ namespace helengine.editor {
             if (!IsNintendoHandheldPlatform(platformId)) {
                 return sceneId;
             }
-            if (string.Equals(sceneId, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId, StringComparison.Ordinal)) {
-                return PlatformMenuSceneResolver.DesktopMainMenuSceneId;
+            if (string.Equals(sceneId, PlatformMenuSceneResolver.DesktopMainMenuSceneId, StringComparison.Ordinal)
+                || string.Equals(sceneId, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId, StringComparison.Ordinal)
+                || string.Equals(sceneId, PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId, StringComparison.Ordinal)) {
+                return PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId;
             }
             if (!sceneId.EndsWith("_ds", StringComparison.Ordinal)) {
                 return sceneId;
