@@ -33,6 +33,19 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures initialization fails fast when the requested starting state was never registered.
+        /// </summary>
+        [Fact]
+        public void Initialize_WhenStartingStateIsUnregistered_ThrowsInvalidOperationException() {
+            FiniteStateMachine<TestState> machine = new FiniteStateMachine<TestState>();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => machine.Initialize(TestState.Waiting));
+
+            Assert.Equal("Finite state machine states must be registered before they can be used.", exception.Message);
+        }
+
+        /// <summary>
         /// Ensures one successful transition runs exit before enter and updates previous-state tracking.
         /// </summary>
         [Fact]
@@ -82,6 +95,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures requesting the current state again is treated as one no-op transition.
+        /// </summary>
+        [Fact]
+        public void TryChangeState_WhenTargetMatchesCurrentState_ReturnsFalseWithoutRunningHooks() {
+            List<string> events = new List<string>();
+            FiniteStateMachine<TestState> machine = new FiniteStateMachine<TestState>();
+            machine.RegisterState(TestState.Waiting, new FiniteStateDefinition<TestState> {
+                OnEnter = state => events.Add($"enter:{state}"),
+                OnExit = state => events.Add($"exit:{state}")
+            });
+            machine.Initialize(TestState.Waiting);
+            events.Clear();
+
+            bool changed = machine.TryChangeState(TestState.Waiting);
+
+            Assert.False(changed);
+            Assert.Equal(TestState.Waiting, machine.CurrentState);
+            Assert.Empty(events);
+        }
+
+        /// <summary>
         /// Ensures registering one transition against an unregistered state fails fast.
         /// </summary>
         [Fact]
@@ -93,6 +127,20 @@ namespace helengine.editor.tests {
                 () => machine.RegisterTransition(TestState.Waiting, TestState.Playing, () => true));
 
             Assert.Equal("Finite state machine transitions require both endpoint states to be registered first.", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures registering one state twice fails fast instead of silently replacing the original definition.
+        /// </summary>
+        [Fact]
+        public void RegisterState_WhenStateIsAlreadyRegistered_ThrowsInvalidOperationException() {
+            FiniteStateMachine<TestState> machine = new FiniteStateMachine<TestState>();
+            machine.RegisterState(TestState.Waiting, new FiniteStateDefinition<TestState>());
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => machine.RegisterState(TestState.Waiting, new FiniteStateDefinition<TestState>()));
+
+            Assert.Equal("Finite state machine states may only be registered once.", exception.Message);
         }
 
         /// <summary>
