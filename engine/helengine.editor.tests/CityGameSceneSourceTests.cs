@@ -87,6 +87,19 @@ public sealed class CityGameSceneSourceTests {
     }
 
     /// <summary>
+    /// Ensures Tilt Trial now routes through a dedicated selector scene with five generated gameplay levels behind it.
+    /// </summary>
+    [Fact]
+    public void City_tilt_trial_source_exports_selector_scene_and_five_level_scene_ids() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneCatalog.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("public const string TiltTrialSceneId = \"scenes/games/tilt_trial.helen\";", source, StringComparison.Ordinal);
+        Assert.Contains("TiltTrialLevel01SceneId", source, StringComparison.Ordinal);
+        Assert.Contains("TiltTrialLevel05SceneId", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Ensures the Tilt Trial generated UI includes a packaged speed label that follows the player sphere target.
     /// </summary>
     [Fact]
