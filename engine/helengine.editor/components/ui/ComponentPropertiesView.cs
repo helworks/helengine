@@ -221,6 +221,18 @@ namespace helengine.editor {
         /// </summary>
         bool IsSynchronizing;
         /// <summary>
+        /// Tracks one component/platform pair whose removed placeholder should preserve the Exists row for the next rebuild only.
+        /// </summary>
+        Component PendingRemovedExistenceRowComponent;
+        /// <summary>
+        /// Platform id paired with <see cref="PendingRemovedExistenceRowComponent"/>.
+        /// </summary>
+        string PendingRemovedExistenceRowPlatformId;
+        /// <summary>
+        /// Tracks whether the current inspector session should render component data as read-only rows.
+        /// </summary>
+        bool IsReadOnlyMode;
+        /// <summary>
         /// Entity currently being inspected.
         /// </summary>
         Entity CurrentEntity;
@@ -372,7 +384,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
         public void ShowComponents(Entity entity) {
-            ShowComponents(entity, ComponentPlatformEditingService.CommonPlatformId);
+            ShowComponents(entity, ComponentPlatformEditingService.CommonPlatformId, false);
         }
 
         /// <summary>
@@ -381,6 +393,16 @@ namespace helengine.editor {
         /// <param name="entity">Entity to inspect.</param>
         /// <param name="platformId">Platform context displayed by the inspector.</param>
         public void ShowComponents(Entity entity, string platformId) {
+            ShowComponents(entity, platformId, false);
+        }
+
+        /// <summary>
+        /// Shows component properties for the specified entity in one selected platform context and optional read-only mode.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <param name="platformId">Platform context displayed by the inspector.</param>
+        /// <param name="isReadOnly">True when editable controls should be replaced by read-only rows.</param>
+        public void ShowComponents(Entity entity, string platformId, bool isReadOnly) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -389,6 +411,7 @@ namespace helengine.editor {
 
             CurrentEntity = entity;
             CurrentPlatformId = platformId;
+            IsReadOnlyMode = isReadOnly;
             ClearActiveRows();
             ClearActiveSections();
             EntitySaveComponent saveComponent = ResolveEntitySaveComponent(entity);
@@ -416,7 +439,9 @@ namespace helengine.editor {
 
                     if (PlatformEditingService.IsComponentRemoved(commonComponent, saveComponent, platformId)) {
                         ComponentSectionView removedSection = AcquireSection(commonComponent, commonComponent, saveComponent, platformId, false, true);
-                        AddExistenceRow(removedSection, commonComponent, commonComponent, saveComponent, platformId);
+                        if (ShouldPreserveRemovedExistenceRow(commonComponent, platformId)) {
+                            AddExistenceRow(removedSection, commonComponent, commonComponent, saveComponent, platformId);
+                        }
                         ActiveSections.Add(removedSection);
                         continue;
                     }
@@ -445,6 +470,9 @@ namespace helengine.editor {
                 RootEntity.Enabled = false;
                 LayoutHeightValue = 0;
             }
+
+            PendingRemovedExistenceRowComponent = null;
+            PendingRemovedExistenceRowPlatformId = null;
         }
 
         /// <summary>
@@ -457,6 +485,7 @@ namespace helengine.editor {
             LayoutHeightValue = 0;
             CurrentEntity = null;
             CurrentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
+            IsReadOnlyMode = false;
             HasLayoutState = false;
         }
 
@@ -603,6 +632,15 @@ namespace helengine.editor {
             List<ReflectedComponentPropertyDescriptor> descriptors = DescriptorBuilder.Build(editableComponent.GetType());
             for (int index = 0; index < descriptors.Count; index++) {
                 ReflectedComponentPropertyDescriptor descriptor = descriptors[index];
+                if (IsReadOnlyMode) {
+                    ComponentPropertyRow readOnlyRow = AcquireRow(ComponentPropertyRowKind.ReadOnly);
+                    BindPropertyRow(readOnlyRow, commonComponent, editableComponent, saveComponent, platformId, descriptor);
+                    UpdateRowValue(readOnlyRow);
+                    section.Rows.Add(readOnlyRow);
+                    ActiveRows.Add(readOnlyRow);
+                    continue;
+                }
+
                 if (descriptor.IsCustomEditor) {
                     AddCustomEditorRows(section, commonComponent, editableComponent, saveComponent, platformId, descriptor);
                     continue;
@@ -642,6 +680,9 @@ namespace helengine.editor {
                 return;
             }
             if (string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+            if (IsReadOnlyMode) {
                 return;
             }
 
@@ -723,6 +764,9 @@ namespace helengine.editor {
             if (string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)
                 || commonComponent == null
                 || saveComponent == null) {
+                return;
+            }
+            if (IsReadOnlyMode) {
                 return;
             }
 
@@ -1312,6 +1356,17 @@ namespace helengine.editor {
         void RefreshRowOverrideChrome(ComponentPropertyRow row) {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
+            }
+
+            if (IsReadOnlyMode) {
+                row.IsOverrideActive = false;
+                if (row.RevertButtonHost != null) {
+                    row.RevertButtonHost.Enabled = false;
+                }
+                if (row.OverrideOutline != null) {
+                    row.OverrideOutline.BorderThickness = 0f;
+                }
+                return;
             }
 
             bool isOverrideActive = false;
@@ -2175,8 +2230,12 @@ namespace helengine.editor {
 
             if (isChecked) {
                 PlatformEditingService.RevertComponentExistenceOverride(existenceComponent, row.SaveComponent, row.EditingPlatformId);
+                PendingRemovedExistenceRowComponent = null;
+                PendingRemovedExistenceRowPlatformId = null;
             } else {
                 PlatformEditingService.RemoveComponent(existenceComponent, row.SaveComponent, row.EditingPlatformId);
+                PendingRemovedExistenceRowComponent = existenceComponent;
+                PendingRemovedExistenceRowPlatformId = row.EditingPlatformId;
             }
 
             RebuildCurrentComponentView();
@@ -2298,6 +2357,21 @@ namespace helengine.editor {
 
             Component editableOverrideComponent = PlatformEditingService.EnsurePlatformOverrideComponent(row.CommonComponent, row.SaveComponent, row.EditingPlatformId);
             RetargetRowsForEditableComponent(row.CommonComponent, row.EditingPlatformId, editableOverrideComponent);
+        }
+
+        /// <summary>
+        /// Returns whether the next removed-section rebuild should keep the Exists row visible for the supplied component/platform pair.
+        /// </summary>
+        /// <param name="commonComponent">Removed common component being materialized.</param>
+        /// <param name="platformId">Active platform context.</param>
+        /// <returns>True when the removed placeholder should keep its Exists row for this rebuild.</returns>
+        bool ShouldPreserveRemovedExistenceRow(Component commonComponent, string platformId) {
+            if (commonComponent == null || string.IsNullOrWhiteSpace(platformId)) {
+                return false;
+            }
+
+            return ReferenceEquals(PendingRemovedExistenceRowComponent, commonComponent)
+                && string.Equals(PendingRemovedExistenceRowPlatformId, platformId, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -3528,6 +3602,20 @@ namespace helengine.editor {
         void RefreshSectionOverrideChrome(ComponentSectionView section) {
             if (section == null) {
                 throw new ArgumentNullException(nameof(section));
+            }
+
+            if (IsReadOnlyMode) {
+                section.IsExistenceOverrideActive = false;
+                if (section.HeaderOverrideOutline != null) {
+                    section.HeaderOverrideOutline.BorderThickness = 0f;
+                }
+                if (section.RevertButtonHost != null) {
+                    section.RevertButtonHost.Enabled = false;
+                }
+                if (section.RemoveButtonHost != null) {
+                    section.RemoveButtonHost.Enabled = false;
+                }
+                return;
             }
 
             bool isExistenceOverrideActive = CanSectionShowExistenceOverrideChrome(section);

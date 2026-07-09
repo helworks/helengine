@@ -24,6 +24,10 @@ namespace helengine.editor {
         /// </summary>
         Scene,
         /// <summary>
+        /// Represents a serialized editor blueprint file.
+        /// </summary>
+        Blueprint,
+        /// <summary>
         /// Represents an audio file.
         /// </summary>
         Audio,

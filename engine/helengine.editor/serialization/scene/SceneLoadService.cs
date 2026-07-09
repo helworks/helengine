@@ -31,6 +31,10 @@ namespace helengine.editor {
         /// Allocator that advances beyond restored numeric scene entity ids during scene load.
         /// </summary>
         readonly EditorSceneEntityIdAllocator EntityIdAllocator;
+        /// <summary>
+        /// Optional blueprint expansion service used when scene instance roots reference blueprint assets.
+        /// </summary>
+        readonly BlueprintEditorExpansionService BlueprintExpansionService;
 
         /// <summary>
         /// Initializes a new scene load service.
@@ -44,6 +48,24 @@ namespace helengine.editor {
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
             EntityFactory = ResolveEntityFactory();
             EntityIdAllocator = ResolveEntityIdAllocator();
+            BlueprintExpansionService = null;
+        }
+
+        /// <summary>
+        /// Initializes a new scene load service with blueprint instance expansion enabled for one project root.
+        /// </summary>
+        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
+        /// <param name="persistenceRegistry">Registry used to deserialize persisted components.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime assets.</param>
+        public SceneLoadService(
+            string projectRootPath,
+            ComponentPersistenceRegistry persistenceRegistry,
+            ISceneAssetReferenceResolver referenceResolver) : this(persistenceRegistry, referenceResolver) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            BlueprintExpansionService = new BlueprintEditorExpansionService(projectRootPath, persistenceRegistry, referenceResolver);
         }
 
         /// <summary>
@@ -156,6 +178,10 @@ namespace helengine.editor {
             SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
             for (int i = 0; i < children.Length; i++) {
                 entity.AddChild(LoadEntity(children[i]));
+            }
+
+            if (BlueprintExpansionService != null && FindBlueprintInstanceComponent(entity) != null) {
+                BlueprintExpansionService.ExpandInstanceRoot(entity);
             }
 
             return entity;
@@ -341,6 +367,25 @@ namespace helengine.editor {
             for (int i = 0; i < entity.Components.Count; i++) {
                 if (entity.Components[i] is EntitySaveComponent saveComponent) {
                     return saveComponent;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the blueprint instance component attached to one scene-owned entity.
+        /// </summary>
+        /// <param name="entity">Entity whose blueprint instance component should be returned.</param>
+        /// <returns>Attached blueprint instance component when present; otherwise null.</returns>
+        BlueprintInstanceComponent FindBlueprintInstanceComponent(EditorEntity entity) {
+            if (entity == null || entity.Components == null) {
+                return null;
+            }
+
+            for (int i = 0; i < entity.Components.Count; i++) {
+                if (entity.Components[i] is BlueprintInstanceComponent instanceComponent) {
+                    return instanceComponent;
                 }
             }
 

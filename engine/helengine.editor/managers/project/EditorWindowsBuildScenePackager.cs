@@ -274,11 +274,19 @@ namespace helengine.editor {
         /// Platform definition that publishes builder-owned asset cook capabilities for the current packaging target.
         /// </summary>
         readonly PlatformDefinition PlatformDefinition;
+        /// <summary>
+        /// Component persistence registry used to materialize editor-authored component payloads needed during packaging transforms.
+        /// </summary>
+        readonly ComponentPersistenceRegistry PersistenceRegistry;
 
         /// <summary>
         /// Shared transform service used when platform support rules mark a component as transformable.
         /// </summary>
         readonly SceneComponentPackagingTransformService TransformService;
+        /// <summary>
+        /// Expands blueprint instances into ordinary serialized scene entities before the packaged asset is rewritten.
+        /// </summary>
+        readonly BlueprintPackagedSceneExpansionService BlueprintExpansionService;
 
         /// <summary>
         /// Packaged editor font asset used when scenes reference the built-in editor font.
@@ -532,6 +540,8 @@ namespace helengine.editor {
             FileHasher = new AssetFileHasher();
             AnimationClipPlatformResolutionService = new AnimationClipPlatformResolutionService();
             ComponentSupportRulesByTypeId = BuildEffectiveSupportRuleLookup(platformDefinition?.ComponentSupportRules);
+            PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
+            BlueprintExpansionService = new BlueprintPackagedSceneExpansionService(ProjectRootPath, PersistenceRegistry);
             ITextComponentSpriteBakeService effectiveTextComponentSpriteBakeService = textComponentSpriteBakeService;
             if (effectiveTextComponentSpriteBakeService == null &&
                 DefaultFontAsset != null &&
@@ -612,6 +622,7 @@ namespace helengine.editor {
                 string sceneId = sceneIds[index];
                 string sceneSourcePath = sceneSourcePaths[index];
                 SceneAsset packagedSceneAsset = LoadSceneAsset(sceneId, sceneSourcePath);
+                BlueprintExpansionService.Expand(packagedSceneAsset);
                 packagedSceneAsset.Id = sceneId;
                 RewriteSceneAsset(packagedSceneAsset, fullBuildRootPath);
 

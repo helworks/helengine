@@ -27,6 +27,9 @@ namespace helengine.editor {
                 case EditorFileTemplateKind.Material:
                     CreateMaterialFile(template, directory);
                     break;
+                case EditorFileTemplateKind.Blueprint:
+                    CreateBlueprintFile(template, directory);
+                    break;
                 default:
                     throw new InvalidOperationException("Unsupported file template kind.");
             }
@@ -77,6 +80,35 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates a serialized blueprint asset with one blank root entity.
+        /// </summary>
+        /// <param name="template">Template to apply.</param>
+        /// <param name="directory">Target directory.</param>
+        static void CreateBlueprintFile(EditorFileTemplate template, string directory) {
+            string fileName = AssetCreationUtils.BuildUniqueFileName(directory, template.DefaultName, template.Extension);
+            string blueprintPath = Path.Combine(directory, fileName);
+
+            BlueprintAsset blueprintAsset = new BlueprintAsset {
+                Id = BuildBlueprintAssetId(blueprintPath),
+                RootEntity = new SceneEntityAsset {
+                    Id = 1u,
+                    Name = "Root",
+                    Enabled = true,
+                    LayerMask = 0b00000001,
+                    LocalPosition = float3.Zero,
+                    LocalScale = float3.One,
+                    LocalOrientation = float4.Identity,
+                    Components = Array.Empty<SceneComponentAssetRecord>(),
+                    Children = Array.Empty<SceneEntityAsset>()
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            };
+
+            using FileStream stream = new FileStream(blueprintPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, blueprintAsset);
+        }
+
+        /// <summary>
         /// Builds the material asset id for a material source path.
         /// </summary>
         /// <param name="materialPath">Absolute material asset path.</param>
@@ -106,6 +138,35 @@ namespace helengine.editor {
             string normalized = withoutExtension.Replace(Path.DirectorySeparatorChar, '.');
             normalized = normalized.Replace(Path.AltDirectorySeparatorChar, '.');
             return string.Concat(normalized, ".material");
+        }
+
+        /// <summary>
+        /// Builds the blueprint asset id for a blueprint source path.
+        /// </summary>
+        /// <param name="blueprintPath">Absolute blueprint asset path.</param>
+        /// <returns>Blueprint asset id derived from the path.</returns>
+        static string BuildBlueprintAssetId(string blueprintPath) {
+            if (string.IsNullOrWhiteSpace(blueprintPath)) {
+                throw new ArgumentException("Blueprint path must be provided.", nameof(blueprintPath));
+            }
+
+            string assetsRoot = EditorProjectPaths.AssetsRoot;
+            if (string.IsNullOrWhiteSpace(assetsRoot)) {
+                throw new InvalidOperationException("Assets root path has not been initialized.");
+            }
+
+            string fullBlueprintPath = Path.GetFullPath(blueprintPath);
+            string fullAssetsRoot = Path.GetFullPath(assetsRoot);
+            if (!IsPathUnderRoot(fullBlueprintPath, fullAssetsRoot)) {
+                throw new InvalidOperationException("Blueprint path must be located under the assets root.");
+            }
+
+            string relativePath = Path.GetRelativePath(fullAssetsRoot, fullBlueprintPath);
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new InvalidOperationException("Blueprint id could not be resolved from the path.");
+            }
+
+            return relativePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
         }
 
         /// <summary>

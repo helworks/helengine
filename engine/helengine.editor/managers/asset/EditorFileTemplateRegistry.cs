@@ -54,7 +54,7 @@ namespace helengine.editor {
         /// Initializes the template registry with default templates.
         /// </summary>
         static EditorFileTemplateRegistry() {
-            Templates = new List<EditorFileTemplate>(4);
+            Templates = new List<EditorFileTemplate>(5);
             RegisterDefaults();
         }
 
@@ -98,8 +98,22 @@ namespace helengine.editor {
         /// Registers the built-in shader and material templates.
         /// </summary>
         static void RegisterDefaults() {
+            Register(BuildBlueprintTemplate());
             Register(BuildMaterialTemplate());
             Register(BuildShaderTemplate());
+        }
+
+        /// <summary>
+        /// Builds the default blueprint template.
+        /// </summary>
+        /// <returns>Blueprint template definition.</returns>
+        static EditorFileTemplate BuildBlueprintTemplate() {
+            return new EditorFileTemplate(
+                "Blueprint",
+                "New Blueprint",
+                BlueprintAsset.FileExtension,
+                EditorFileTemplateKind.Blueprint,
+                string.Empty);
         }
 
         /// <summary>

@@ -33,6 +33,7 @@ namespace helengine.editor {
             return new SceneComponentAssetRecord {
                 ComponentTypeId = baseRecord.ComponentTypeId,
                 ComponentIndex = baseRecord.ComponentIndex,
+                ComponentKey = baseRecord.ComponentKey,
                 Payload = wrappedPayload
             };
         }
@@ -55,6 +56,7 @@ namespace helengine.editor {
             return new SceneComponentAssetRecord {
                 ComponentTypeId = persistedRecord.ComponentTypeId,
                 ComponentIndex = persistedRecord.ComponentIndex,
+                ComponentKey = persistedRecord.ComponentKey,
                 Payload = basePayload
             };
         }

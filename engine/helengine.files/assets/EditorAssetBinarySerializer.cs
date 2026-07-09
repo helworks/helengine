@@ -158,6 +158,8 @@ namespace helengine.files {
                 return EditorAssetBinaryValueKind.AnimationClipAsset;
             } else if (asset is SceneAsset) {
                 return EditorAssetBinaryValueKind.SceneAsset;
+            } else if (asset is BlueprintAsset) {
+                return EditorAssetBinaryValueKind.BlueprintAsset;
             }
 
             throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not supported by the editor binary serializer.");
@@ -193,6 +195,9 @@ namespace helengine.files {
             } else if (asset is SceneAsset sceneAsset) {
                 WriteSceneAsset(writer, sceneAsset);
                 return;
+            } else if (asset is BlueprintAsset blueprintAsset) {
+                WriteBlueprintAsset(writer, blueprintAsset);
+                return;
             }
 
             throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not supported by the editor binary serializer.");
@@ -222,6 +227,8 @@ namespace helengine.files {
                     return ReadAnimationClipAsset(reader, version);
                 case EditorAssetBinaryValueKind.SceneAsset:
                     return ReadSceneAsset(reader, version);
+                case EditorAssetBinaryValueKind.BlueprintAsset:
+                    return ReadBlueprintAsset(reader, version);
                 default:
                     throw new InvalidOperationException($"Unsupported asset value kind '{(ushort)valueKind}'.");
             }
@@ -812,6 +819,48 @@ namespace helengine.files {
             asset.SceneSettings = version >= 6
                 ? ReadSceneSettingsAsset(reader, version)
                 : new SceneSettingsAsset();
+            return asset;
+        }
+
+        /// <summary>
+        /// Writes a blueprint asset payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Blueprint asset to serialize.</param>
+        static void WriteBlueprintAsset(EngineBinaryWriter writer, BlueprintAsset asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            } else if (asset.RootEntity == null) {
+                throw new InvalidOperationException("Blueprint assets must define exactly one root entity.");
+            }
+
+            EnsureRuntimeAssetIdentity(asset);
+            WriteAssetIdentity(writer, asset);
+            WriteSceneEntityAsset(writer, asset.RootEntity);
+            writer.WriteArray(asset.AssetReferences, WriteSceneAssetReference);
+        }
+
+        /// <summary>
+        /// Reads a blueprint asset payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <param name="version">Serialized asset format version.</param>
+        /// <returns>Deserialized blueprint asset.</returns>
+        static BlueprintAsset ReadBlueprintAsset(EngineBinaryReader reader, byte version) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            } else if (version < LegacyVersion || version > CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported asset binary version '{version}'.");
+            }
+
+            BlueprintAsset asset = new BlueprintAsset();
+            ReadAssetIdentity(reader, asset, version);
+            asset.RootEntity = ReadSceneEntityAsset(reader, version);
+            if (asset.RootEntity == null) {
+                throw new InvalidOperationException("Blueprint assets must define exactly one root entity.");
+            }
+
+            asset.AssetReferences = ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>();
             return asset;
         }
 

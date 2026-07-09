@@ -174,6 +174,8 @@ namespace helengine {
                     return ReadPlatformMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.SceneAsset:
                     return ReadSceneAsset(reader, version);
+                case EditorAssetBinaryValueKind.BlueprintAsset:
+                    return ReadBlueprintAsset(reader, version);
                 default:
                     throw new InvalidOperationException($"Unsupported asset value kind '{(ushort)valueKind}'.");
             }
@@ -548,6 +550,33 @@ namespace helengine {
             asset.SceneSettings = version >= 6
                 ? ReadSceneSettingsAsset(reader, version)
                 : new SceneSettingsAsset();
+            return asset;
+        }
+
+        /// <summary>
+        /// Reads a blueprint asset payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <param name="version">Serialized asset format version.</param>
+        /// <returns>Deserialized blueprint asset.</returns>
+        static BlueprintAsset ReadBlueprintAsset(EngineBinaryReader reader, byte version) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            } else if (version < LegacyVersion || version > CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported asset binary version '{version}'.");
+            }
+
+            BlueprintAsset asset = new BlueprintAsset();
+            EngineBinaryReadContext.CurrentReadStage = "BlueprintAsset:Identity";
+            ReadAssetIdentity(reader, asset, version);
+            EngineBinaryReadContext.CurrentReadStage = "BlueprintAsset:RootEntity";
+            asset.RootEntity = ReadSceneEntityAsset(reader, version);
+            if (asset.RootEntity == null) {
+                throw new InvalidOperationException("Blueprint assets must define exactly one root entity.");
+            }
+
+            EngineBinaryReadContext.CurrentReadStage = "BlueprintAsset:AssetReferences";
+            asset.AssetReferences = ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>();
             return asset;
         }
 

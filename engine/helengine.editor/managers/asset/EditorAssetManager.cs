@@ -33,6 +33,12 @@ namespace helengine.editor {
         readonly HashSet<string> sceneExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
             SceneAsset.FileExtension
         };
+        /// <summary>
+        /// Extensions treated as serialized blueprint assets.
+        /// </summary>
+        readonly HashSet<string> blueprintExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            BlueprintAsset.FileExtension
+        };
 
         /// <summary>
         /// Extensions treated as audio assets.
@@ -328,6 +334,10 @@ namespace helengine.editor {
 
             if (sceneExtensions.Contains(extension)) {
                 return AssetEntryKind.Scene;
+            }
+
+            if (blueprintExtensions.Contains(extension)) {
+                return AssetEntryKind.Blueprint;
             }
 
             if (audioExtensions.Contains(extension)) {

@@ -32,6 +32,10 @@ namespace helengine.editor {
         /// </summary>
         public const string AnimationClipAsset = "editor.animation-clip-asset";
         /// <summary>
+        /// Processor id used for serialized blueprint assets.
+        /// </summary>
+        public const string BlueprintAsset = "editor.blueprint-asset";
+        /// <summary>
         /// Processor id used for serialized asset import settings sidecars.
         /// </summary>
         public const string AssetImportSettings = "editor.asset-import-settings";

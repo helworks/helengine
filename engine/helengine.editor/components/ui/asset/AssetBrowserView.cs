@@ -1004,6 +1004,11 @@ namespace helengine.editor {
                     label = "SCN";
                     textColor = ThemeManager.Colors.TextOnAccent;
                     return;
+                case AssetEntryKind.Blueprint:
+                    color = new byte4(72, 170, 255, 255);
+                    label = "BPT";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
                 case AssetEntryKind.Audio:
                     color = ThemeManager.Colors.AccentPrimary;
                     label = "SND";
@@ -1111,6 +1116,8 @@ namespace helengine.editor {
                     return EditorFileTemplateRegistry.MaterialExtension;
                 case AssetEntryKind.Scene:
                     return SceneAsset.FileExtension;
+                case AssetEntryKind.Blueprint:
+                    return BlueprintAsset.FileExtension;
                 default:
                     return string.Empty;
             }

@@ -886,14 +886,20 @@ namespace helengine.editor {
             CurrentComponentPlatformIds = ResolveComponentPlatformIds(supportedPlatformIds);
             CurrentPlatformDefinitionsById = platformDefinitionsById ?? new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
             SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
+            bool isBlueprintInherited = BlueprintEditorReadOnlyService.IsInheritedEntity(entity);
             ActivateSelectedEntityTransformPlatform();
             ComponentPlatformTabStrip.SetPlatforms(CurrentComponentPlatformIds, SelectedComponentPlatformId, HandleComponentPlatformTabChanged);
-            ComponentPlatformTabStrip.Root.Enabled = true;
-            ApplyLines(Array.Empty<string>());
+            ComponentPlatformTabStrip.Root.Enabled = !isBlueprintInherited;
+            ApplyLines(isBlueprintInherited
+                ? [
+                    "Inherited blueprint entity",
+                    "This selection is read-only. Edit the source blueprint asset to change it."
+                ]
+                : Array.Empty<string>());
             SyncTransformFields(entity);
             ComponentView.SetPlatformDefinitions(CurrentPlatformDefinitionsById);
-            ComponentView.ShowComponents(entity, SelectedComponentPlatformId);
-            SetTransformVisible(true);
+            ComponentView.ShowComponents(entity, SelectedComponentPlatformId, isBlueprintInherited);
+            SetTransformVisible(!isBlueprintInherited);
             LayoutLines();
         }
 
@@ -1356,8 +1362,10 @@ namespace helengine.editor {
             ShowTransformControls = visible;
             if (!visible) {
                 DeactivateSelectedEntityTransformProjection();
-                SelectedEntity = null;
-                ApplyTransformRequested = false;
+                if (!BlueprintEditorReadOnlyService.IsInheritedEntity(SelectedEntity)) {
+                    SelectedEntity = null;
+                    ApplyTransformRequested = false;
+                }
                 AddComponentButtonRoot.Enabled = false;
                 ComponentPlatformTabStrip.Root.Enabled = false;
                 ExistsRow.Enabled = false;
@@ -2155,6 +2163,12 @@ namespace helengine.editor {
                 int componentTop = addComponentTop + AddComponentButtonHeight + AddComponentListSpacing;
                 ComponentView.UpdateLayout(0, componentTop, rowWidth);
                 offsetY = Math.Max(addComponentTop + AddComponentButtonHeight, componentTop + ComponentView.Height);
+            } else if (BlueprintEditorReadOnlyService.IsInheritedEntity(SelectedEntity) && ComponentView.IsVisible) {
+                TransformRoot.Enabled = false;
+                AddComponentButtonRoot.Enabled = false;
+                int componentTop = (int)Math.Round(offsetY);
+                ComponentView.UpdateLayout(0, componentTop, rowWidth);
+                offsetY = componentTop + ComponentView.Height;
             } else {
                 TransformRoot.Enabled = false;
                 AddComponentButtonRoot.Enabled = false;

@@ -202,6 +202,9 @@ namespace helengine.editor {
                     if (childEntity.LayerMask != EditorLayerMasks.SceneObjects) {
                         continue;
                     }
+                    if (!BlueprintSceneSaveFilterService.ShouldSerializeEntity(childEntity)) {
+                        continue;
+                    }
 
                     childEntities.Add(SerializeEntity(childEntity, assetReferences, assetReferenceKeys));
                 }

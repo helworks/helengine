@@ -385,10 +385,15 @@ namespace helengine.editor {
                 float indent = arrowLeft + GetArrowSlotWidthPixels() + GetArrowLabelSpacingPixels();
                 row.LabelHost.Position = new float3(indent, MathF.Round((rowHeight - lineHeight) * 0.5f), 0.2f);
 
+                bool isBlueprintInherited = BlueprintEditorReadOnlyService.IsInheritedEntity(node.Entity);
                 string label = node.Entity is EditorEntity editorEntity ? editorEntity.Name : node.Entity.GetType().Name;
-                row.Label.Text = label;
+                row.Label.Text = isBlueprintInherited
+                    ? string.Concat(label, " [blueprint]")
+                    : label;
                 row.Label.Size = new int2(Math.Max(0, rowWidth - (int)indent), (int)MathF.Ceiling(lineHeight));
-                row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
+                row.Label.Color = isBlueprintInherited
+                    ? ThemeManager.Colors.InputForegroundSecondary
+                    : ThemeManager.Colors.InputForegroundPrimary;
             }
         }
 

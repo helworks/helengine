@@ -43,6 +43,11 @@ namespace helengine.editor {
                 new[] { SceneAsset.FileExtension });
             RegisterProcessorIfMissing(
                 contentManager,
+                EditorContentProcessorIds.BlueprintAsset,
+                new AssetContentProcessor<BlueprintAsset>(),
+                new[] { BlueprintAsset.FileExtension });
+            RegisterProcessorIfMissing(
+                contentManager,
                 EditorContentProcessorIds.AnimationClipAsset,
                 new AssetContentProcessor<AnimationClipAsset>());
         }

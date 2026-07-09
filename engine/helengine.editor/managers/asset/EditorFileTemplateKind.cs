@@ -14,6 +14,10 @@ namespace helengine.editor {
         /// <summary>
         /// Serialized material asset that may create companion shader sources.
         /// </summary>
-        Material
+        Material,
+        /// <summary>
+        /// Serialized blueprint asset that stores one reusable single-root hierarchy.
+        /// </summary>
+        Blueprint
     }
 }

@@ -1,24 +1,25 @@
 namespace helengine.editor {
     /// <summary>
-    /// Reads one `.helen` file from disk and materializes editor entities from it.
+    /// Reads one `.hblueprint` file from disk and materializes its editable root entity.
     /// </summary>
-    public class SceneFileLoadService {
+    public class BlueprintFileLoadService {
         /// <summary>
         /// Absolute path to the project root.
         /// </summary>
         readonly string ProjectRootPath;
-        /// <summary>
-        /// Scene-load service that reconstructs entities from scene assets.
-        /// </summary>
-        readonly SceneLoadService SceneLoadService;
 
         /// <summary>
-        /// Initializes a new scene-file load service.
+        /// Blueprint-load service that reconstructs editor entities from blueprint assets.
+        /// </summary>
+        readonly BlueprintLoadService BlueprintLoadService;
+
+        /// <summary>
+        /// Initializes a new blueprint-file load service.
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
         /// <param name="persistenceRegistry">Registry used to deserialize persisted components.</param>
         /// <param name="referenceResolver">Resolver used to rebuild runtime-backed assets.</param>
-        public SceneFileLoadService(
+        public BlueprintFileLoadService(
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
             ISceneAssetReferenceResolver referenceResolver) {
@@ -33,17 +34,17 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            SceneLoadService = new SceneLoadService(ProjectRootPath, persistenceRegistry, referenceResolver);
+            BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver);
         }
 
         /// <summary>
-        /// Loads one `.helen` scene file from disk.
+        /// Loads one `.hblueprint` blueprint file from disk.
         /// </summary>
-        /// <param name="fullPath">Absolute path to the scene file.</param>
-        /// <returns>Loaded editor scene document.</returns>
-        public LoadedEditorSceneDocument Load(string fullPath) {
+        /// <param name="fullPath">Absolute path to the blueprint file.</param>
+        /// <returns>Loaded editor blueprint document.</returns>
+        public LoadedEditorBlueprintDocument Load(string fullPath) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
-                throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
+                throw new ArgumentException("Blueprint path must be provided.", nameof(fullPath));
             }
 
             string normalizedPath = Path.GetFullPath(fullPath);
@@ -51,52 +52,33 @@ namespace helengine.editor {
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 if (!normalizedPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
-                    throw new InvalidOperationException("Scene path must be inside the current project.");
+                    throw new InvalidOperationException("Blueprint path must be inside the current project.");
                 }
 
                 EngineBinaryReadContext.CurrentAssetPath = normalizedPath;
                 using FileStream stream = new FileStream(normalizedPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 Asset deserializedAsset = AssetSerializer.Deserialize(stream);
-                if (deserializedAsset is not SceneAsset sceneAsset) {
-                    throw new InvalidOperationException("Scene file did not deserialize into a SceneAsset.");
+                if (deserializedAsset is not BlueprintAsset blueprintAsset) {
+                    throw new InvalidOperationException("Blueprint file did not deserialize into a BlueprintAsset.");
                 }
 
-                IReadOnlyList<EditorEntity> loadedRoots = SceneLoadService.Load(sceneAsset);
-                EditorEntity[] rootEntityArray = loadedRoots.ToArray();
-                SetRootsEnabled(rootEntityArray, false);
-                return new LoadedEditorSceneDocument {
-                    RootEntities = rootEntityArray,
-                    SceneSettings = sceneAsset.SceneSettings
-                };
+                LoadedEditorBlueprintDocument loadedDocument = BlueprintLoadService.Load(blueprintAsset);
+                if (loadedDocument.RootEntity == null) {
+                    throw new InvalidOperationException("Blueprint load did not materialize a root entity.");
+                }
+
+                loadedDocument.RootEntity.Enabled = false;
+                return loadedDocument;
             } catch (Exception ex) {
                 CleanupFailedLoad(existingEntities);
-                throw new InvalidOperationException($"Scene load failed: {ex.Message}", ex);
+                throw new InvalidOperationException($"Blueprint load failed: {ex.Message}", ex);
             } finally {
                 EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
             }
         }
 
         /// <summary>
-        /// Applies the enabled state to each loaded root entity.
-        /// </summary>
-        /// <param name="roots">Loaded root entities to update.</param>
-        /// <param name="enabled">Enabled state applied to every root.</param>
-        void SetRootsEnabled(IReadOnlyList<EditorEntity> roots, bool enabled) {
-            if (roots == null) {
-                throw new ArgumentNullException(nameof(roots));
-            }
-
-            for (int i = 0; i < roots.Count; i++) {
-                if (roots[i] == null) {
-                    throw new InvalidOperationException("Loaded scene contained a null root entity.");
-                }
-
-                roots[i].Enabled = enabled;
-            }
-        }
-
-        /// <summary>
-        /// Removes entities created during a failed scene load attempt.
+        /// Removes entities created during a failed blueprint load attempt.
         /// </summary>
         /// <param name="existingEntities">Entities that existed before load started.</param>
         void CleanupFailedLoad(HashSet<Entity> existingEntities) {
