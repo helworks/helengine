@@ -16,8 +16,8 @@ namespace helengine {
 
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
             try {
-                if (header.FormatId == EditorAssetBinarySerializer.FormatId) {
-                    return EditorAssetBinarySerializer.Deserialize(stream, header);
+                if (header.FormatId == PackagedAssetBinarySerializer.FormatId) {
+                    return PackagedAssetBinarySerializer.Deserialize(stream, header);
                 }
 
                 throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");

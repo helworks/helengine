@@ -373,6 +373,60 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the packaged runtime asset serializer can still deserialize cooked scene payloads emitted by the editor-side asset serializer.
+        /// </summary>
+        [Fact]
+        public void RuntimeAssetSerializer_WhenGivenPackagedScenePayload_DeserializesSceneAsset() {
+            SceneAsset asset = new SceneAsset {
+                Id = "Scenes/RuntimePackagedScene.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 5u,
+                        Name = "RuntimeRoot",
+                        LocalPosition = new float3(4f, 5f, 6f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            };
+
+            byte[] data = global::helengine.files.AssetSerializer.SerializeToBytes(asset);
+            SceneAsset deserialized = Assert.IsType<SceneAsset>(global::helengine.AssetSerializer.DeserializeFromBytes(data));
+
+            Assert.Equal(asset.Id, deserialized.Id);
+            Assert.Equal(5u, Assert.Single(deserialized.RootEntities).Id);
+            Assert.Equal("RuntimeRoot", deserialized.RootEntities[0].Name);
+        }
+
+        /// <summary>
+        /// Ensures the packaged runtime asset serializer rejects editor-only blueprint payloads instead of deserializing them at runtime.
+        /// </summary>
+        [Fact]
+        public void RuntimeAssetSerializer_WhenGivenBlueprintPayload_ThrowsUnsupportedAssetValueKind() {
+            BlueprintAsset asset = new BlueprintAsset {
+                Id = "Blueprints/RuntimeReject.blueprint",
+                RootEntity = new SceneEntityAsset {
+                    Id = 11u,
+                    Name = "BlueprintRoot",
+                    LocalPosition = float3.Zero,
+                    LocalScale = float3.One,
+                    LocalOrientation = float4.Identity,
+                    Components = Array.Empty<SceneComponentAssetRecord>(),
+                    Children = Array.Empty<SceneEntityAsset>()
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            };
+
+            byte[] data = global::helengine.files.AssetSerializer.SerializeToBytes(asset);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => global::helengine.AssetSerializer.DeserializeFromBytes(data));
+
+            Assert.Contains("Unsupported asset value kind", exception.Message);
+        }
+
+        /// <summary>
         /// Ensures texture assets round-trip through the HELE asset serializer.
         /// </summary>
         [Fact]

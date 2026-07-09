@@ -43,6 +43,24 @@ public sealed class RuntimeContentManagerConfigurationSourceTests {
     }
 
     /// <summary>
+    /// Ensures packaged runtime scene loading is bound to the packaged asset serializer seam rather than the editor asset serializer.
+    /// </summary>
+    [Fact]
+    public void RuntimeContentManagerConfiguration_source_uses_packaged_scene_asset_serializer() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "content",
+            "RuntimeContentManagerConfiguration.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("PackagedAssetBinarySerializer.DeserializeSceneAsset", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("EditorAssetBinarySerializer.DeserializeSceneAsset", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Resolves the helengine repository root from the current test assembly location.
     /// </summary>
     /// <returns>Absolute repository root path.</returns>

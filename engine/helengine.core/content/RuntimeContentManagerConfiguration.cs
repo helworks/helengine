@@ -46,7 +46,7 @@ namespace helengine {
             RegisterProcessorIfMissing(
                 contentManager,
                 RuntimeContentProcessorIds.SceneAsset,
-                new BinaryContentProcessor<SceneAsset>(EditorAssetBinarySerializer.DeserializeSceneAsset),
+                new BinaryContentProcessor<SceneAsset>(PackagedAssetBinarySerializer.DeserializeSceneAsset),
                 new[] { SceneAsset.FileExtension });
             RegisterProcessorIfMissing(
                 contentManager,

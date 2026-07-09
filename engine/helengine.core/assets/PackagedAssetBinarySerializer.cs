@@ -1,10 +1,10 @@
 namespace helengine {
     /// <summary>
-    /// Deserializes editor asset payloads using the engine's minimal HELE binary format.
+    /// Deserializes packaged runtime asset payloads using the engine's minimal HELE binary format.
     /// </summary>
-    public static class EditorAssetBinarySerializer {
+    public static class PackagedAssetBinarySerializer {
         /// <summary>
-        /// Shared format identifier for editor-authored binary files.
+        /// Shared format identifier for packaged runtime binary files.
         /// </summary>
         public const ushort FormatId = 1;
 
@@ -59,7 +59,7 @@ namespace helengine {
         const byte AnimationClipPlatformOverrideVersion = 19;
 
         /// <summary>
-        /// Deserializes an asset from the supplied stream using the editor asset format.
+        /// Deserializes an asset from the supplied stream using the packaged runtime asset format.
         /// </summary>
         /// <param name="stream">Source stream containing the asset payload.</param>
         /// <returns>Deserialized asset instance.</returns>
@@ -77,7 +77,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Deserializes one scene asset directly from the supplied stream using the editor asset format.
+        /// Deserializes one scene asset directly from the supplied stream using the packaged runtime asset format.
         /// </summary>
         /// <param name="stream">Source stream containing the scene-asset payload.</param>
         /// <returns>Deserialized scene asset.</returns>
@@ -107,10 +107,10 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(header));
             }
 
-            EngineBinaryReadContext.CurrentReadStage = "EditorAssetBinarySerializer:ValidateHeader";
+            EngineBinaryReadContext.CurrentReadStage = "PackagedAssetBinarySerializer:ValidateHeader";
             ValidateHeader(header);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
-            EngineBinaryReadContext.CurrentReadStage = "EditorAssetBinarySerializer:ReadAssetPayload";
+            EngineBinaryReadContext.CurrentReadStage = "PackagedAssetBinarySerializer:ReadAssetPayload";
             return ReadAssetPayload(reader, (EditorAssetBinaryValueKind)header.ValueKind, header.Version);
         }
 
@@ -127,19 +127,19 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(header));
             }
 
-            EngineBinaryReadContext.CurrentReadStage = "EditorAssetBinarySerializer:ValidateHeader";
+            EngineBinaryReadContext.CurrentReadStage = "PackagedAssetBinarySerializer:ValidateHeader";
             ValidateHeader(header);
             if ((EditorAssetBinaryValueKind)header.ValueKind != EditorAssetBinaryValueKind.SceneAsset) {
                 throw new InvalidOperationException($"Serialized payload value kind '{header.ValueKind}' is not supported for scene-asset deserialization.");
             }
 
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
-            EngineBinaryReadContext.CurrentReadStage = "EditorAssetBinarySerializer:ReadAssetPayload";
+            EngineBinaryReadContext.CurrentReadStage = "PackagedAssetBinarySerializer:ReadAssetPayload";
             return ReadSceneAsset(reader, header.Version);
         }
 
         /// <summary>
-        /// Validates that the provided header matches the editor asset format.
+        /// Validates that the provided header matches the packaged runtime asset format.
         /// </summary>
         /// <param name="header">Header metadata to validate.</param>
         static void ValidateHeader(EngineBinaryHeader header) {
@@ -174,8 +174,6 @@ namespace helengine {
                     return ReadPlatformMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.SceneAsset:
                     return ReadSceneAsset(reader, version);
-                case EditorAssetBinaryValueKind.BlueprintAsset:
-                    return ReadBlueprintAsset(reader, version);
                 default:
                     throw new InvalidOperationException($"Unsupported asset value kind '{(ushort)valueKind}'.");
             }
@@ -550,33 +548,6 @@ namespace helengine {
             asset.SceneSettings = version >= 6
                 ? ReadSceneSettingsAsset(reader, version)
                 : new SceneSettingsAsset();
-            return asset;
-        }
-
-        /// <summary>
-        /// Reads a blueprint asset payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the payload.</param>
-        /// <param name="version">Serialized asset format version.</param>
-        /// <returns>Deserialized blueprint asset.</returns>
-        static BlueprintAsset ReadBlueprintAsset(EngineBinaryReader reader, byte version) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            } else if (version < LegacyVersion || version > CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported asset binary version '{version}'.");
-            }
-
-            BlueprintAsset asset = new BlueprintAsset();
-            EngineBinaryReadContext.CurrentReadStage = "BlueprintAsset:Identity";
-            ReadAssetIdentity(reader, asset, version);
-            EngineBinaryReadContext.CurrentReadStage = "BlueprintAsset:RootEntity";
-            asset.RootEntity = ReadSceneEntityAsset(reader, version);
-            if (asset.RootEntity == null) {
-                throw new InvalidOperationException("Blueprint assets must define exactly one root entity.");
-            }
-
-            EngineBinaryReadContext.CurrentReadStage = "BlueprintAsset:AssetReferences";
-            asset.AssetReferences = ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>();
             return asset;
         }
 

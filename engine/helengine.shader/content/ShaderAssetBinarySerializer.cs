@@ -20,13 +20,13 @@ namespace helengine {
 
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
             try {
-                if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
+                if (header.FormatId != PackagedAssetBinarySerializer.FormatId) {
                     throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
                 }
                 if ((EditorAssetBinaryValueKind)header.ValueKind != EditorAssetBinaryValueKind.ShaderAsset) {
                     throw new InvalidOperationException($"Serialized asset value kind '{header.ValueKind}' is not a shader asset.");
                 }
-                if (header.Version > EditorAssetBinarySerializer.CurrentVersion) {
+                if (header.Version > PackagedAssetBinarySerializer.CurrentVersion) {
                     throw new InvalidOperationException($"Unsupported shader asset binary version '{header.Version}'.");
                 }
 
