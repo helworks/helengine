@@ -229,6 +229,93 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures fallback gameplay scripts and sibling .tests folders produce generated xUnit projects for both runtime and editor surfaces.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenFallbackGameplayAndSiblingTestFoldersExist_WritesGeneratedTestProjects() {
+            File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay.tests"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools.tests"));
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "RuntimePlayer.cs"), "public sealed class RuntimePlayer { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay.tests", "RuntimePlayerTests.cs"), "public sealed class RuntimePlayerTests { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools", "code.module.json"), """
+{
+  "moduleId": "rendering.tools",
+  "dependencyModuleIds": [ "gameplay" ],
+  "loadScopes": [ "always-loaded" ],
+  "moduleKind": "editor"
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools", "Factory.cs"), "public sealed class Factory { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools.tests", "FactoryTests.cs"), "public sealed class FactoryTests { }");
+
+            EditorGameSolutionService service = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+
+            string solutionPath = service.GenerateSolutionFiles();
+            string gameplayTestsProjectPath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay.tests", "gameplay.tests.csproj");
+            string renderingTestsProjectPath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "rendering.tools.tests", "rendering.tools.tests.csproj");
+            Assert.True(File.Exists(gameplayTestsProjectPath));
+            Assert.True(File.Exists(renderingTestsProjectPath));
+
+            string gameplayTestsProjectContents = File.ReadAllText(gameplayTestsProjectPath);
+            string renderingTestsProjectContents = File.ReadAllText(renderingTestsProjectPath);
+            string solutionFileContents = File.ReadAllText(solutionPath);
+            Assert.Contains("<PackageReference Include=\"Microsoft.NET.Test.Sdk\" Version=\"17.11.1\" />", gameplayTestsProjectContents, StringComparison.Ordinal);
+            Assert.Contains("<PackageReference Include=\"xunit\" Version=\"2.9.0\" />", gameplayTestsProjectContents, StringComparison.Ordinal);
+            Assert.Contains("<ProjectReference Include=\"..\\gameplay\\gameplay.csproj\" />", gameplayTestsProjectContents, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("<ProjectReference Include=\"..\\rendering.tools\\rendering.tools.csproj\" />", renderingTestsProjectContents, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("user_settings/generated_code/projects/gameplay.tests/gameplay.tests.csproj", solutionFileContents, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("user_settings/generated_code/projects/rendering.tools.tests/rendering.tools.tests.csproj", solutionFileContents, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures editor-surface generated test projects inherit the editor global using surface.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenEditorSurfaceTestFolderExists_WritesEditorAwareGlobalUsings() {
+            File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools.tests"));
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "RuntimePlayer.cs"), "public sealed class RuntimePlayer { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools", "code.module.json"), """
+{
+  "moduleId": "menu.tools",
+  "dependencyModuleIds": [ "gameplay" ],
+  "loadScopes": [ "always-loaded" ],
+  "moduleKind": "editor"
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools", "Command.cs"), "public sealed class Command { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools.tests", "CommandTests.cs"), "public sealed class CommandTests { }");
+
+            EditorGameSolutionService service = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+
+            service.GenerateSolutionFiles();
+
+            string globalUsingsPath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools.tests", "GlobalUsings.g.cs");
+            Assert.True(File.Exists(globalUsingsPath));
+            Assert.Contains("global using helengine.editor;", File.ReadAllText(globalUsingsPath), StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures sibling .tests folders without a matching production surface fail generation immediately.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenOrphanTestFolderExists_ThrowsWithFolderAndExpectedSurface() {
+            File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "audio.tools.tests"));
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "RuntimePlayer.cs"), "public sealed class RuntimePlayer { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "audio.tools.tests", "AudioTests.cs"), "public sealed class AudioTests { }");
+
+            EditorGameSolutionService service = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.GenerateSolutionFiles());
+            Assert.Contains("audio.tools.tests", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("audio.tools", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Escapes one text value for inclusion in XML text content so string assertions can match generated project values.
         /// </summary>
         /// <param name="value">Text value to escape.</param>
