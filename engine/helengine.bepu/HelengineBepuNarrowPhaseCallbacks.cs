@@ -50,7 +50,11 @@ namespace helengine {
 
             BepuCollidableProperties3D firstProperties = CollidableProperties[a];
             BepuCollidableProperties3D secondProperties = CollidableProperties[b];
-            return AreCollisionMasksCompatible(firstProperties, secondProperties);
+            if (!AreCollisionMasksCompatible(firstProperties, secondProperties)) {
+                return false;
+            }
+
+            return !firstProperties.IsTrigger && !secondProperties.IsTrigger;
         }
 
         /// <summary>

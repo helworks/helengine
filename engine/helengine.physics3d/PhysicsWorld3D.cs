@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Represents one hosted 3D physics world configured for a specific runtime profile.
     /// </summary>
-    public class PhysicsWorld3D : IPhysicsRuntime {
+    public class PhysicsWorld3D : IPhysicsRuntime, IPhysicsTriggerEventRuntime3D {
         /// <summary>
         /// Gravity applied to dynamic bodies each fixed step.
         /// </summary>

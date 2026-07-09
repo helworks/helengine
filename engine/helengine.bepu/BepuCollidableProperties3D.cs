@@ -16,6 +16,11 @@ namespace helengine {
         public ushort CollisionMask;
 
         /// <summary>
+        /// Gets whether the authored collider should emit trigger overlaps instead of solid contacts.
+        /// </summary>
+        public bool IsTrigger;
+
+        /// <summary>
         /// Dynamic friction coefficient applied to contact tangents.
         /// </summary>
         public float DynamicFriction;

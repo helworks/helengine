@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Exposes the parity-complete 3D physics world through a parameterless runtime wrapper that can be created by migration hosts.
     /// </summary>
-    public sealed class PhysicsWorld3DCompatibilityRuntime : ISceneBindablePhysicsRuntime {
+    public sealed class PhysicsWorld3DCompatibilityRuntime : ISceneBindablePhysicsRuntime, IPhysicsTriggerEventRuntime3D {
         /// <summary>
         /// Backing medium-profile world that performs the actual simulation work.
         /// </summary>
@@ -14,6 +14,11 @@ namespace helengine {
         public PhysicsWorld3DCompatibilityRuntime() {
             InnerWorld = PhysicsWorld3D.CreateMediumDefault();
         }
+
+        /// <summary>
+        /// Gets the trigger overlap events emitted during the most recent fixed step.
+        /// </summary>
+        public IReadOnlyList<TriggerEvent3D> TriggerEvents => InnerWorld.TriggerEvents;
 
         /// <summary>
         /// Gets the number of registered runtime bodies currently bound to the world.

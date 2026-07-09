@@ -113,4 +113,30 @@ public sealed class CityGameSceneSourceTests {
         Assert.Contains("ConfigureTiltTrialSpeedTextTarget(uiEntity, playerSphereEntity);", source, StringComparison.Ordinal);
         Assert.Contains("ApplyFontReference(speedTextEntity, speedTextComponent, TiltTrialSpeedHudFontRelativePath);", source, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Ensures the Tilt Trial generated UI includes a top-left collectible coin progress label.
+    /// </summary>
+    [Fact]
+    public void City_tilt_trial_scene_source_includes_coin_progress_hud() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("\"TiltTrialCoinText\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"Coins 0/0\"", source, StringComparison.Ordinal);
+        Assert.Contains("coinTextAnchorComponent.SetAnchorDistances(left: 16f, top: 16f);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the generated Tilt Trial goal pad is authored as a real trigger and targets the player sphere through the reusable gameplay observer.
+    /// </summary>
+    [Fact]
+    public void City_tilt_trial_scene_source_includes_goal_trigger_observer() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneFactory.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("new global::helengine.SceneEntityTriggerObserverComponent()", source, StringComparison.Ordinal);
+        Assert.Contains("FindRequiredBoxColliderComponent(entity).IsTrigger = true;", source, StringComparison.Ordinal);
+        Assert.Contains("ConfigureTiltTrialGoalTarget(stageRootEntity, playerSphereEntity);", source, StringComparison.Ordinal);
+    }
 }

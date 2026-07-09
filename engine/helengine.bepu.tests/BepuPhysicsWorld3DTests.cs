@@ -260,6 +260,59 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures BEPU-backed trigger colliders do not act as solid contacts and surface enter, stay, and exit events through the public 3D trigger seam.
+        /// </summary>
+        [Fact]
+        public void Step_WithTriggerOverlap_CollectsEnterStayAndExitEventsWithoutSolidResolution() {
+            Entity triggerEntity = new Entity();
+            triggerEntity.LocalPosition = float3.Zero;
+            triggerEntity.InitComponents();
+            triggerEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            BoxCollider3DComponent triggerCollider = new BoxCollider3DComponent {
+                Size = new float3(2f, 2f, 2f),
+                IsTrigger = true
+            };
+            triggerEntity.AddComponent(triggerCollider);
+
+            Entity sphereEntity = CreateDynamicSphereEntity(float3.Zero, 0.5f);
+            RigidBody3DComponent sphereRigidBody = FindRequiredRigidBody(sphereEntity);
+            sphereRigidBody.UseGravity = false;
+            sphereRigidBody.LinearVelocity = float3.Zero;
+            sphereRigidBody.AngularVelocity = float3.Zero;
+
+            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            IPhysicsTriggerEventRuntime3D triggerRuntime = Assert.IsAssignableFrom<IPhysicsTriggerEventRuntime3D>(world);
+            world.BindScene(new[] { triggerEntity, sphereEntity });
+
+            world.Step(1.0 / 60.0);
+
+            Assert.Single(triggerRuntime.TriggerEvents);
+            Assert.Equal(TriggerEventKind3D.Enter, triggerRuntime.TriggerEvents[0].Kind);
+            Assert.Same(triggerEntity, triggerRuntime.TriggerEvents[0].TriggerEntity);
+            Assert.Same(sphereEntity, triggerRuntime.TriggerEvents[0].OtherEntity);
+            Assert.InRange(sphereEntity.LocalPosition.X, -0.0001f, 0.0001f);
+            Assert.InRange(sphereEntity.LocalPosition.Y, -0.0001f, 0.0001f);
+            Assert.InRange(sphereEntity.LocalPosition.Z, -0.0001f, 0.0001f);
+
+            world.Step(1.0 / 60.0);
+
+            Assert.Single(triggerRuntime.TriggerEvents);
+            Assert.Equal(TriggerEventKind3D.Stay, triggerRuntime.TriggerEvents[0].Kind);
+
+            sphereEntity.LocalPosition = new float3(5f, 0f, 0f);
+            sphereRigidBody.LinearVelocity = float3.Zero;
+            sphereRigidBody.AngularVelocity = float3.Zero;
+            world.SynchronizeDynamicBody(sphereEntity);
+            world.Step(1.0 / 60.0);
+
+            Assert.Single(triggerRuntime.TriggerEvents);
+            Assert.Equal(TriggerEventKind3D.Exit, triggerRuntime.TriggerEvents[0].Kind);
+        }
+
+        /// <summary>
         /// Ensures one bound kinematic body can be resynchronized from an updated entity pose after scene binding.
         /// </summary>
         [Fact]
