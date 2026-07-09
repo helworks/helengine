@@ -276,13 +276,13 @@ namespace helengine {
         /// <returns>Initial simulation allocation sizes for the reduced runtime slice.</returns>
         static SimulationAllocationSizes CreateDefaultSimulationAllocationSizes() {
             return new SimulationAllocationSizes(
-                bodies: 64,
-                statics: 64,
-                islands: 32,
-                shapesPerType: 16,
-                constraints: 256,
-                constraintsPerTypeBatch: 64,
-                constraintCountPerBodyEstimate: 4);
+                bodies: 16,
+                statics: 8,
+                islands: 8,
+                shapesPerType: 8,
+                constraints: 64,
+                constraintsPerTypeBatch: 16,
+                constraintCountPerBodyEstimate: 2);
         }
 
         /// <summary>

@@ -39,6 +39,34 @@ namespace helengine.bepu.tests {
             Assert.Contains("new SphereSphereCollisionTask()", defaultTypesFileText, StringComparison.Ordinal);
             Assert.Contains("new SphereBoxCollisionTask()", defaultTypesFileText, StringComparison.Ordinal);
             Assert.Contains("new BoxBoxCollisionTask()", defaultTypesFileText, StringComparison.Ordinal);
+            Assert.Contains("new SphereTriangleCollisionTask()", defaultTypesFileText, StringComparison.Ordinal);
+            Assert.Contains("new BoxTriangleCollisionTask()", defaultTypesFileText, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the reduced default collision task registration still keeps the mesh-backed static collision handlers required by current Helengine scenes.
+        /// </summary>
+        [Fact]
+        public void MinimalDefaultTypes_RegistersSphereAndBoxStaticMeshCollisionTasks() {
+            string defaultTypesFilePath = GetMinimalDefaultTypesFilePath();
+            string defaultTypesFileText = File.ReadAllText(defaultTypesFilePath);
+
+            Assert.Contains("new ConvexCompoundCollisionTask<Sphere, Mesh", defaultTypesFileText, StringComparison.Ordinal);
+            Assert.Contains("new ConvexCompoundCollisionTask<Box, Mesh", defaultTypesFileText, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the reduced BEPU physics project keeps the mesh shape and mesh collision task sources available for static-mesh runtime support.
+        /// </summary>
+        [Fact]
+        public void MinimalBepuPhysicsProject_KeepsMeshShapeAndMeshCollisionTaskSources() {
+            string projectFilePath = GetMinimalBepuPhysicsProjectFilePath();
+            string projectFileText = File.ReadAllText(projectFilePath);
+
+            Assert.DoesNotContain(@"<Compile Remove=""Collidables\Mesh.cs"" />", projectFileText, StringComparison.Ordinal);
+            Assert.DoesNotContain(@"<Compile Remove=""CollisionDetection\MeshReduction.cs"" />", projectFileText, StringComparison.Ordinal);
+            Assert.DoesNotContain(@"<Compile Remove=""CollisionDetection\CollisionTasks\*Mesh*.cs"" />", projectFileText, StringComparison.Ordinal);
+            Assert.DoesNotContain(@"<Compile Remove=""Constraints\Contact\ContactNonconvexTypes.cs"" />", projectFileText, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -72,6 +100,23 @@ namespace helengine.bepu.tests {
                 "BepuPhysics",
                 "Minimal",
                 "DefaultTypes.Minimal.cs"));
+        }
+
+        /// <summary>
+        /// Resolves the reduced vendored BEPU physics project file path from the compiled test output location.
+        /// </summary>
+        /// <returns>Absolute project file path for the reduced vendored BEPU physics project.</returns>
+        static string GetMinimalBepuPhysicsProjectFilePath() {
+            return Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "vendor",
+                "bepuphysics2",
+                "BepuPhysics",
+                "BepuPhysics.Minimal.csproj"));
         }
     }
 }

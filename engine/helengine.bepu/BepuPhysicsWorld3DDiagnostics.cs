@@ -1,3 +1,85 @@
+#if HELENGINE_CODEGEN_FEATURE_DISABLED_PHYSICS3D_DIAGNOSTICS
+using BepuPhysics;
+using BepuUtilities;
+
+namespace helengine {
+    /// <summary>
+    /// Provides a compact no-op diagnostics surface when the generic physics-diagnostics runtime feature is disabled for code generation.
+    /// </summary>
+    public static class BepuPhysicsWorld3DDiagnostics {
+        /// <summary>
+        /// Accepts the current scene body handles without retaining any trace state when diagnostics are disabled.
+        /// </summary>
+        /// <param name="handles">Registered body handles for the active scene binding.</param>
+        public static void Reset(IReadOnlyList<BepuBodyHandle3D> handles) {
+        }
+
+        /// <summary>
+        /// Accepts diagnostics toggles without retaining any process-wide trace state when diagnostics are disabled.
+        /// </summary>
+        /// <param name="isAllowed">Ignored disabled-feature flag value.</param>
+        public static void SetDiagnosticsAllowed(bool isAllowed) {
+        }
+
+        /// <summary>
+        /// Ignores fixed-step frame notifications when diagnostics are disabled.
+        /// </summary>
+        public static void BeginPhysicsStep() {
+        }
+
+        /// <summary>
+        /// Discards managed differential trace records when diagnostics are disabled.
+        /// </summary>
+        /// <param name="record">Ignored structured trace record.</param>
+        public static void RecordManagedDifferentialTrace(BepuDifferentialTraceRecord3D record) {
+        }
+
+        /// <summary>
+        /// Returns an empty managed trace payload when diagnostics are disabled.
+        /// </summary>
+        /// <returns>Always <see cref="string.Empty"/>.</returns>
+        public static string DrainPendingManagedDifferentialTraceText() {
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Returns an empty synchronization snapshot when diagnostics are disabled.
+        /// </summary>
+        /// <param name="handles">Ignored body-handle collection.</param>
+        /// <param name="simulation">Ignored simulation reference.</param>
+        /// <returns>Always <see cref="string.Empty"/>.</returns>
+        public static string BuildSyncSnapshot(IReadOnlyList<BepuBodyHandle3D> handles, Simulation simulation) {
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Discards pose-integrator callback probes when diagnostics are disabled.
+        /// </summary>
+        /// <param name="bodyIndices">Ignored active-set indices.</param>
+        /// <param name="integrationMask">Ignored active-lane mask.</param>
+        /// <param name="bodies">Ignored body collection.</param>
+        /// <param name="gravityAccelerations">Ignored gravity values.</param>
+        /// <param name="dt">Ignored timestep values.</param>
+        /// <param name="position">Ignored position samples.</param>
+        /// <param name="orientation">Ignored orientation samples.</param>
+        /// <param name="velocity">Ignored velocity samples.</param>
+        /// <param name="linearYBefore">Ignored pre-integration Y velocity values.</param>
+        /// <param name="linearYAfter">Ignored post-integration Y velocity values.</param>
+        public static void RecordIntegrateVelocity(
+            System.Numerics.Vector<int> bodyIndices,
+            System.Numerics.Vector<int> integrationMask,
+            Bodies bodies,
+            CollidableProperty<float> gravityAccelerations,
+            System.Numerics.Vector<float> dt,
+            Vector3Wide position,
+            QuaternionWide orientation,
+            BodyVelocityWide velocity,
+            System.Numerics.Vector<float> linearYBefore,
+            System.Numerics.Vector<float> linearYAfter) {
+        }
+    }
+}
+#else
 using System.Text;
 using BepuPhysics;
 using BepuUtilities;
@@ -530,3 +612,4 @@ namespace helengine {
         }
     }
 }
+#endif

@@ -645,7 +645,9 @@ namespace helengine {
             LastSceneTransitionStage = "AfterRenderManager3DDraw";
             LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
             FPSComponent.RecordRenderFrame();
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_DEBUG_OVERLAY
             DebugComponent.RecordRenderFrame();
+#endif
             LastSceneTransitionStage = "DrawEnd";
         }
 
@@ -747,7 +749,9 @@ namespace helengine {
             }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeFpsRecordUpdateFramePhaseId);
             FPSComponent.RecordUpdateFrame();
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_DEBUG_OVERLAY
             DebugComponent.RecordUpdateFrame();
+#endif
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterFpsRecordUpdateFramePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterFpsRecordUpdateFrame");

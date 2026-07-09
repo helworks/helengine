@@ -1,3 +1,6 @@
+using BepuPhysics;
+using System.Reflection;
+
 namespace helengine.bepu.tests {
     /// <summary>
     /// Verifies the new BEPU-backed world package can be constructed by tests.
@@ -27,6 +30,27 @@ namespace helengine.bepu.tests {
             BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
 
             Assert.NotNull(world);
+        }
+
+        /// <summary>
+        /// Ensures the default BEPU world startup profile stays compact enough for small-runtime builds while still allowing the simulation to grow on demand.
+        /// </summary>
+        [Fact]
+        public void CreateDefault_UsesCompactStartupAllocationProfile() {
+            Type worldType = typeof(BepuPhysicsWorld3D);
+            MethodInfo allocationSizesMethod = worldType.GetMethod("CreateDefaultSimulationAllocationSizes", BindingFlags.NonPublic | BindingFlags.Static);
+
+            Assert.NotNull(allocationSizesMethod);
+
+            SimulationAllocationSizes allocationSizes = Assert.IsType<SimulationAllocationSizes>(allocationSizesMethod.Invoke(null, null));
+
+            Assert.Equal(16, allocationSizes.Bodies);
+            Assert.Equal(8, allocationSizes.Statics);
+            Assert.Equal(8, allocationSizes.Islands);
+            Assert.Equal(8, allocationSizes.ShapesPerType);
+            Assert.Equal(64, allocationSizes.Constraints);
+            Assert.Equal(16, allocationSizes.ConstraintsPerTypeBatch);
+            Assert.Equal(2, allocationSizes.ConstraintCountPerBodyEstimate);
         }
 
         /// <summary>
