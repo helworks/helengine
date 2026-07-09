@@ -7,6 +7,11 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorGeneratedCodeSolutionBuilder {
         /// <summary>
+        /// Discovery service used to infer generated sibling test projects from raw .tests folders.
+        /// </summary>
+        readonly EditorGeneratedCodeTestProjectDiscoveryService TestProjectDiscoveryService = new EditorGeneratedCodeTestProjectDiscoveryService();
+
+        /// <summary>
         /// Default target framework used by generated runtime script projects.
         /// </summary>
         const string RuntimeTargetFrameworkValue = "net9.0";
@@ -82,10 +87,16 @@ namespace helengine.editor {
                     targetFramework,
                     outputDirectoryPath,
                     projectGuid,
-                    module.ModuleKind));
+                    module.ModuleKind,
+                    EditorGeneratedCodeProjectKind.Production,
+                    string.Empty));
             }
 
-            return new EditorGeneratedCodeSolution(moduleProjects);
+            IReadOnlyList<EditorGeneratedCodeModuleProject> testProjects = TestProjectDiscoveryService.Discover(
+                fullProjectRootPath,
+                fullGeneratedOutputRootPath,
+                moduleProjects);
+            return new EditorGeneratedCodeSolution(moduleProjects, testProjects);
         }
 
         /// <summary>

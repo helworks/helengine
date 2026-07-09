@@ -18,6 +18,8 @@ namespace helengine.editor {
         /// <param name="outputDirectoryPath">Absolute final output directory path for the module DLL.</param>
         /// <param name="projectGuid">Stable project GUID emitted into the solution.</param>
         /// <param name="moduleKind">Declares whether the generated project is runtime or editor-only.</param>
+        /// <param name="projectKind">Distinguishes generated production projects from inferred generated test projects.</param>
+        /// <param name="referencedProductionModuleId">Matching generated production module id referenced by a generated test project.</param>
         public EditorGeneratedCodeModuleProject(
             string moduleId,
             string sourceFolderPath,
@@ -30,7 +32,9 @@ namespace helengine.editor {
             string targetFramework,
             string outputDirectoryPath,
             Guid projectGuid,
-            EditorCodeModuleKind moduleKind) {
+            EditorCodeModuleKind moduleKind,
+            EditorGeneratedCodeProjectKind projectKind,
+            string referencedProductionModuleId) {
             if (string.IsNullOrWhiteSpace(moduleId)) {
                 throw new ArgumentException("Module id must be provided.", nameof(moduleId));
             }
@@ -74,6 +78,8 @@ namespace helengine.editor {
             OutputDirectoryPath = outputDirectoryPath;
             ProjectGuid = projectGuid;
             ModuleKind = moduleKind;
+            ProjectKind = projectKind;
+            ReferencedProductionModuleId = referencedProductionModuleId ?? string.Empty;
         }
 
         /// <summary>
@@ -135,5 +141,15 @@ namespace helengine.editor {
         /// Gets whether the generated project is runtime or editor-only.
         /// </summary>
         public EditorCodeModuleKind ModuleKind { get; }
+
+        /// <summary>
+        /// Gets whether the generated project is a production project or an inferred generated test project.
+        /// </summary>
+        public EditorGeneratedCodeProjectKind ProjectKind { get; }
+
+        /// <summary>
+        /// Gets the matching generated production module id referenced by one inferred generated test project.
+        /// </summary>
+        public string ReferencedProductionModuleId { get; }
     }
 }
