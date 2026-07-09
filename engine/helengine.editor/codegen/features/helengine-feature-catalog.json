@@ -5,6 +5,7 @@
     { "id": "text2d", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "shaders", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "debug_overlay", "defaultMode": "auto", "conflictPolicy": "error" },
+    { "id": "physics3d.diagnostics", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "reflection_like_runtime", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "managed_metadata_only", "defaultMode": "disabled", "conflictPolicy": "error" },
     { "id": "host_file_system", "defaultMode": "auto", "conflictPolicy": "error" },

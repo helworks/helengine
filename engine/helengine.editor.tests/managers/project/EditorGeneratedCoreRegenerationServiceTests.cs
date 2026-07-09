@@ -850,6 +850,74 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies cooked-scene runtime deserializer emission does not drag unrelated engine-owned automatic component types into the generated registration set.
+    /// </summary>
+    [Fact]
+    public void Emit_cooked_scene_automatic_runtime_component_deserializers_excludes_unreferenced_engine_component_types() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-scene-scoped-engine-components");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        string scenePath = CreateCookedScene(
+            "scene-scoped-engine-components.hasset",
+            "helengine.FPSComponent");
+
+        EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            [scenePath],
+            null);
+
+        string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
+        Assert.Contains("GeneratedRuntimeFPSComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeDebugComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeFPSComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDebugComponentDeserializer.cpp")));
+    }
+
+    /// <summary>
+    /// Verifies explicit scene-scoped runtime component emission deletes stale generated deserializers so later narrower builds cannot keep compiling unrelated component support.
+    /// </summary>
+    [Fact]
+    public void Emit_generated_automatic_runtime_component_deserializers_with_explicit_component_types_removes_stale_generated_deserializers() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-stale-cleanup");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        EditorGeneratedCoreRegenerationService.EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDebugComponentDeserializer.cpp")));
+
+        EditorGeneratedCoreRegenerationService.EmitGeneratedAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            [typeof(FPSComponent)]);
+
+        string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
+        Assert.Contains("GeneratedRuntimeFPSComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedRuntimeDebugComponentDeserializer", registrationSource, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeFPSComponentDeserializer.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeDebugComponentDeserializer.cpp")));
+    }
+
+    /// <summary>
+    /// Verifies explicit scene-scoped runtime component emission still writes an empty generated registration surface when no automatic runtime component types are required.
+    /// </summary>
+    [Fact]
+    public void Emit_generated_automatic_runtime_component_deserializers_with_empty_component_types_writes_empty_registration() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-empty-scene-scope");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        EditorGeneratedCoreRegenerationService.EmitGeneratedAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            Array.Empty<Type>());
+
+        string registrationHeaderPath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.hpp");
+        string registrationSourcePath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp");
+        Assert.True(File.Exists(registrationHeaderPath));
+        Assert.True(File.Exists(registrationSourcePath));
+
+        string registrationSource = File.ReadAllText(registrationSourcePath);
+        Assert.Contains("RegisterGeneratedRuntimeComponentDeserializers(::RuntimeComponentRegistry* registry)", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("registry->Register(new ::", registrationSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies cooked scenes that reference the real scene-memory probe component emit generated runtime deserializers that include nested step-array support.
     /// </summary>
     [Fact]
@@ -1062,6 +1130,116 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated unity translation regeneration excludes the custom helengine.physics3d runtime sources when no emitted source references them.
+    /// </summary>
+    [Fact]
+    public void Write_generated_core_translation_unit_excludes_unused_custom_physics3d_runtime_sources() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "rewrite-unity-unused-custom-physics3d");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "BepuRuntimeComponentRegistration.cpp"), "// keep");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "PhysicsWorld3D.cpp"), "// custom physics world");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "PhysicsWorld3DCompatibilityRuntime.cpp"), "// compatibility runtime");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "PhysicsSceneFeatureAnalyzer3D.cpp"), "// custom analyzer");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "BodyState3D.cpp"), "// custom body state");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "UniformGridBroadphase3D.cpp"), "// custom broadphase");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "BoxBoxContactResolver3D.cpp"), "// custom collision");
+
+        EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
+
+        string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
+        Assert.Contains("#include \"Foo.cpp\"", unitySource);
+        Assert.Contains("#include \"BepuRuntimeComponentRegistration.cpp\"", unitySource);
+        Assert.DoesNotContain("PhysicsWorld3D.cpp", unitySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PhysicsWorld3DCompatibilityRuntime.cpp", unitySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PhysicsSceneFeatureAnalyzer3D.cpp", unitySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("BodyState3D.cpp", unitySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("UniformGridBroadphase3D.cpp", unitySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("BoxBoxContactResolver3D.cpp", unitySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies generated unity translation regeneration keeps the custom helengine.physics3d runtime sources when one emitted source still references them.
+    /// </summary>
+    [Fact]
+    public void Write_generated_core_translation_unit_keeps_custom_physics3d_runtime_sources_when_emitted_code_references_them() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "rewrite-unity-used-custom-physics3d");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "PhysicsWorld3D.cpp"), "// custom physics world");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "PhysicsSceneFeatureAnalyzer3D.cpp"), "// custom analyzer");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "BodyState3D.cpp"), "// custom body state");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "GameplayPhysicsAdapter.cpp"),
+            "#include \"PhysicsWorld3D.hpp\"\nvoid TouchCustomPhysicsWorld() { PhysicsWorld3D* world = nullptr; }\n");
+
+        EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
+
+        string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
+        Assert.Contains("#include \"GameplayPhysicsAdapter.cpp\"", unitySource);
+        Assert.Contains("#include \"PhysicsWorld3D.cpp\"", unitySource);
+        Assert.Contains("#include \"PhysicsSceneFeatureAnalyzer3D.cpp\"", unitySource);
+        Assert.Contains("#include \"BodyState3D.cpp\"", unitySource);
+    }
+
+    /// <summary>
+    /// Verifies generated unity translation regeneration excludes disabled-feature root sources when no emitted source still references them.
+    /// </summary>
+    [Fact]
+    public void Write_generated_core_translation_unit_excludes_unreferenced_disabled_feature_root_sources() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "rewrite-unity-disabled-feature-root");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "DebugComponent.cpp"), "// disabled debug component");
+        WriteGeneratedCoreFeatureReport(
+            generatedCoreRootPath,
+            false,
+            "debug_overlay",
+            "helengine.DebugComponent",
+            [
+                Path.Combine(generatedCoreRootPath, "Foo.cpp"),
+                Path.Combine(generatedCoreRootPath, "DebugComponent.cpp")
+            ]);
+
+        EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
+
+        string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
+        Assert.Contains("#include \"Foo.cpp\"", unitySource);
+        Assert.DoesNotContain("DebugComponent.cpp", unitySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies generated unity translation regeneration keeps disabled-feature root sources when emitted code still references the disabled type.
+    /// </summary>
+    [Fact]
+    public void Write_generated_core_translation_unit_keeps_disabled_feature_root_sources_when_emitted_code_references_them() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "rewrite-unity-disabled-feature-root-referenced");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "DebugComponent.cpp"), "// disabled debug component");
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "DiagnosticsScreen.cpp"),
+            "#include \"DebugComponent.hpp\"\nvoid TouchDebugComponent() { DebugComponent* value = nullptr; }\n");
+        WriteGeneratedCoreFeatureReport(
+            generatedCoreRootPath,
+            false,
+            "debug_overlay",
+            "helengine.DebugComponent",
+            [
+                Path.Combine(generatedCoreRootPath, "Foo.cpp"),
+                Path.Combine(generatedCoreRootPath, "DebugComponent.cpp"),
+                Path.Combine(generatedCoreRootPath, "DiagnosticsScreen.cpp")
+            ]);
+
+        EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
+
+        string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
+        Assert.Contains("#include \"Foo.cpp\"", unitySource);
+        Assert.Contains("#include \"DiagnosticsScreen.cpp\"", unitySource);
+        Assert.Contains("#include \"DebugComponent.cpp\"", unitySource);
+    }
+
+    /// <summary>
     /// Creates the minimal DS platform definition required by the generated runtime deserializer synthetic-member test.
     /// </summary>
     /// <returns>Minimal DS platform definition with one synthetic text member.</returns>
@@ -1086,6 +1264,57 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
                     "0",
                     0)
             ]);
+    }
+
+    /// <summary>
+    /// Writes one minimal generated conversion report that advertises one feature decision and matching detected root type.
+    /// </summary>
+    /// <param name="generatedCoreRootPath">Generated-core root that will own the conversion report.</param>
+    /// <param name="enabled">Whether the feature should be marked enabled.</param>
+    /// <param name="featureId">Stable feature id written into the report.</param>
+    /// <param name="rootId">Detected root id that maps to one generated type.</param>
+    /// <param name="emittedFiles">Generated emitted file paths recorded by the report.</param>
+    static void WriteGeneratedCoreFeatureReport(
+        string generatedCoreRootPath,
+        bool enabled,
+        string featureId,
+        string rootId,
+        IReadOnlyList<string> emittedFiles) {
+        if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+            throw new ArgumentException("Generated-core root path must be provided.", nameof(generatedCoreRootPath));
+        }
+        if (string.IsNullOrWhiteSpace(featureId)) {
+            throw new ArgumentException("Feature id must be provided.", nameof(featureId));
+        }
+        if (string.IsNullOrWhiteSpace(rootId)) {
+            throw new ArgumentException("Root id must be provided.", nameof(rootId));
+        }
+        if (emittedFiles == null) {
+            throw new ArgumentNullException(nameof(emittedFiles));
+        }
+
+        string reportPath = Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json");
+        string reportJson = JsonSerializer.Serialize(
+            new {
+                buildFeatures = new {
+                    decisions = new[] {
+                        new {
+                            feature = featureId,
+                            enabled,
+                            origin = enabled ? "AutoDetected" : "ForcedDisabled"
+                        }
+                    },
+                    detectedRoots = new[] {
+                        new {
+                            feature = featureId,
+                            rootId,
+                            sourceKind = "TypeReference"
+                        }
+                    }
+                },
+                emittedFiles
+            });
+        File.WriteAllText(reportPath, reportJson);
     }
 
     /// <summary>
@@ -1362,6 +1591,31 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
             Assert.Contains("#include \"GeneratedRuntimeModuleRegistrationTestRegistration.hpp\"", source, StringComparison.Ordinal);
             Assert.Contains("GeneratedRuntimeModuleRegistrationTestRegistration::Register(core);", source, StringComparison.Ordinal);
+        } finally {
+            DeleteDirectoryIfPresent(generatedCoreRootPath);
+        }
+    }
+
+    /// <summary>
+    /// Verifies generated-core unity emission keeps the physics3d runtime-module registration source alive when the generated module bootstrap references it.
+    /// </summary>
+    [Fact]
+    public void Write_generated_core_translation_unit_when_runtime_module_bootstrap_references_physics3d_registration_keeps_registration_source() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-modules-physics3d");
+        try {
+            Environment.SetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName, ResolveRepositoryRootPath());
+            Directory.CreateDirectory(generatedCoreRootPath);
+            File.WriteAllText(Path.Combine(generatedCoreRootPath, "Physics3DRuntimeComponentRegistration.cpp"), "// physics3d registration source");
+            File.WriteAllText(Path.Combine(generatedCoreRootPath, "Physics3DRuntimeComponentRegistration.hpp"), "class Physics3DRuntimeComponentRegistration;");
+            File.WriteAllText(
+                Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.cpp"),
+                "#include \"Physics3DRuntimeComponentRegistration.hpp\"\nvoid RegisterGeneratedRuntimeModules(Core* core)\n{\nPhysics3DRuntimeComponentRegistration::Register(core);\n}\n");
+
+            EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
+
+            string unitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
+            string unitySource = File.ReadAllText(unitySourcePath);
+            Assert.Contains("#include \"Physics3DRuntimeComponentRegistration.cpp\"", unitySource, StringComparison.Ordinal);
         } finally {
             DeleteDirectoryIfPresent(generatedCoreRootPath);
         }

@@ -104,6 +104,53 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures blueprint-root discovery does not deserialize sibling asset-backed script components before locating the blueprint marker.
+        /// </summary>
+        [Fact]
+        public void Expand_WhenBlueprintRootContainsSiblingTextureBackedScriptComponent_StillExpandsBlueprint() {
+            SceneAssetReference blueprintMaterialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineStandardMaterial();
+            WriteBlueprintAsset("Blueprints/TestBlueprint.hblueprint", blueprintMaterialReference);
+
+            BlueprintExpansionTextureProbeComponent textureProbeComponent = new BlueprintExpansionTextureProbeComponent();
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(
+                nameof(BlueprintExpansionTextureProbeComponent.Texture),
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Images/Menu/helengine-logo.png"));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/TestScene.helen",
+                RootEntities = [
+                    new SceneEntityAsset {
+                        Id = 100u,
+                        Name = "Instance Root",
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = [
+                            SerializeComponent(textureProbeComponent, saveState),
+                            SerializeComponent(new BlueprintInstanceComponent {
+                                BlueprintAssetPath = "Blueprints/TestBlueprint.hblueprint"
+                            })
+                        ],
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                ],
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            };
+
+            BlueprintPackagedSceneExpansionService service = new BlueprintPackagedSceneExpansionService(ProjectRootPath, new ComponentPersistenceRegistry());
+
+            service.Expand(sceneAsset);
+
+            SceneEntityAsset instanceRoot = Assert.Single(sceneAsset.RootEntities);
+            Assert.Single(instanceRoot.Components);
+            Assert.Contains(nameof(BlueprintExpansionTextureProbeComponent), instanceRoot.Components[0].ComponentTypeId, StringComparison.Ordinal);
+            SceneEntityAsset expandedBlueprintRoot = Assert.Single(instanceRoot.Children);
+            Assert.Equal("Blueprint Root", expandedBlueprintRoot.Name);
+        }
+
+        /// <summary>
         /// Writes one blueprint asset with a regular child subtree and one merged asset reference.
         /// </summary>
         /// <param name="relativePath">Project-relative blueprint path to write.</param>
@@ -172,8 +219,28 @@ namespace helengine.editor.tests.managers.project {
         /// <param name="component">Component instance to serialize.</param>
         /// <returns>Serialized scene component record.</returns>
         static SceneComponentAssetRecord SerializeComponent(Component component) {
-            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            return registry.GetDescriptor(component).SerializeComponent(component, 0, new EntityComponentSaveState());
+            return SerializeComponent(component, new EntityComponentSaveState());
         }
+
+        /// <summary>
+        /// Serializes one live component into a scene component record using the supplied save-state asset references.
+        /// </summary>
+        /// <param name="component">Component instance to serialize.</param>
+        /// <param name="saveState">Save-state metadata supplying authored asset references.</param>
+        /// <returns>Serialized scene component record.</returns>
+        static SceneComponentAssetRecord SerializeComponent(Component component, EntityComponentSaveState saveState) {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            return registry.GetDescriptor(component).SerializeComponent(component, 0, saveState);
+        }
+    }
+
+    /// <summary>
+    /// Minimal script component used to prove blueprint packaged-scene expansion must not deserialize sibling asset-backed metadata while scanning for blueprint markers.
+    /// </summary>
+    public sealed class BlueprintExpansionTextureProbeComponent : Component {
+        /// <summary>
+        /// Gets or sets the asset-backed runtime texture reference persisted on the probe component.
+        /// </summary>
+        public RuntimeTexture Texture { get; set; }
     }
 }

@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Profiles;
 
@@ -1098,9 +1099,7 @@ namespace helengine.editor {
             ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator(useCompactNativeExceptionMessages);
             ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
             IReadOnlyList<ScriptComponentReflectionSchema> schemas = DiscoverAutomaticRuntimeComponentSchemas(schemaBuilder, generator, additionalComponentTypes, platformDefinition);
-            if (schemas.Count == 0) {
-                return;
-            }
+            DeleteGeneratedAutomaticRuntimeComponentDeserializerFiles(generatedCoreRootPath);
 
             for (int index = 0; index < schemas.Count; index++) {
                 ScriptComponentReflectionSchema schema = schemas[index];
@@ -1208,18 +1207,18 @@ namespace helengine.editor {
                 }
             }
 
-            HashSet<Type> componentTypes = new HashSet<Type>(
-                typeof(Component).Assembly
-                .GetTypes()
-                .Where(IsEligibleAutomaticRuntimeComponentType)
-                .OrderBy(type => type.FullName, StringComparer.Ordinal));
-            foreach (Type additionalComponentType in requiredAdditionalComponentTypes) {
-                componentTypes.Add(additionalComponentType);
+            List<Type> orderedComponentTypes;
+            if (additionalComponentTypes == null) {
+                orderedComponentTypes = typeof(Component).Assembly
+                    .GetTypes()
+                    .Where(IsEligibleAutomaticRuntimeComponentType)
+                    .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                    .ToList();
+            } else {
+                orderedComponentTypes = requiredAdditionalComponentTypes
+                    .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                    .ToList();
             }
-
-            List<Type> orderedComponentTypes = componentTypes
-                .OrderBy(type => type.FullName, StringComparer.Ordinal)
-                .ToList();
             List<ScriptComponentReflectionSchema> schemas = new List<ScriptComponentReflectionSchema>(orderedComponentTypes.Count);
             for (int index = 0; index < orderedComponentTypes.Count; index++) {
                 Type componentType = orderedComponentTypes[index];
@@ -1234,6 +1233,35 @@ namespace helengine.editor {
             }
 
             return schemas;
+        }
+
+        /// <summary>
+        /// Removes previously emitted generated automatic runtime component deserializer files so reruns cannot compile stale scene-unreferenced sources.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root that owns the generated deserializer files.</param>
+        static void DeleteGeneratedAutomaticRuntimeComponentDeserializerFiles(string generatedCoreRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+
+            if (!Directory.Exists(generatedCoreRootPath)) {
+                return;
+            }
+
+            string[] filePaths = Directory.GetFiles(generatedCoreRootPath, "GeneratedRuntime*ComponentDeserializer.*", SearchOption.TopDirectoryOnly);
+            for (int index = 0; index < filePaths.Length; index++) {
+                File.Delete(filePaths[index]);
+            }
+
+            string registrationHeaderPath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.hpp");
+            if (File.Exists(registrationHeaderPath)) {
+                File.Delete(registrationHeaderPath);
+            }
+
+            string registrationSourcePath = Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp");
+            if (File.Exists(registrationSourcePath)) {
+                File.Delete(registrationSourcePath);
+            }
         }
 
         /// <summary>
@@ -1608,16 +1636,11 @@ namespace helengine.editor {
             }
 
             string unitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
-            string[] excludedSourceRelativePaths = new[] {
-                "GeneratedRuntimeModuleManifestAttribute.cpp",
-                "runtime/runtime_startup_manifest.cpp",
-                "runtime/runtime_scene_catalog_manifest.cpp",
-                "runtime/runtime_code_module_manifest.cpp"
-            };
+            HashSet<string> excludedSourceRelativePaths = CreateExcludedGeneratedCoreSourceRelativePathSet(generatedCoreRootPath);
+            string[] sourceFilePaths = Directory.GetFiles(generatedCoreRootPath, "*.cpp", SearchOption.AllDirectories);
             List<string> sourceFiles = new();
-            string[] discoveredFiles = Directory.GetFiles(generatedCoreRootPath, "*.cpp", SearchOption.AllDirectories);
-            for (int index = 0; index < discoveredFiles.Length; index++) {
-                string sourceFilePath = discoveredFiles[index];
+            for (int index = 0; index < sourceFilePaths.Length; index++) {
+                string sourceFilePath = sourceFilePaths[index];
                 if (string.Equals(Path.GetFileName(sourceFilePath), "generated_unity.cpp", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(Path.GetFileName(sourceFilePath), "helengine_core_amalgamated.cpp", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(Path.GetFileName(sourceFilePath), "helengine_core_unity.cpp", StringComparison.OrdinalIgnoreCase)) {
@@ -1634,15 +1657,7 @@ namespace helengine.editor {
             unityBuilder.AppendLine();
             for (int index = 0; index < sourceFiles.Count; index++) {
                 string relativePath = Path.GetRelativePath(generatedCoreRootPath, sourceFiles[index]).Replace('\\', '/');
-                bool excludedSource = false;
-                for (int excludeIndex = 0; excludeIndex < excludedSourceRelativePaths.Length; excludeIndex++) {
-                    if (string.Equals(relativePath, excludedSourceRelativePaths[excludeIndex], StringComparison.OrdinalIgnoreCase)) {
-                        excludedSource = true;
-                        break;
-                    }
-                }
-
-                if (excludedSource) {
+                if (excludedSourceRelativePaths.Contains(relativePath)) {
                     continue;
                 }
 
@@ -1653,6 +1668,489 @@ namespace helengine.editor {
 
             string unitySourceContents = unityBuilder.ToString();
             File.WriteAllText(unitySourcePath, unitySourceContents);
+        }
+
+        /// <summary>
+        /// Creates the full set of generated source paths that should stay out of the unity translation unit.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        /// <returns>Case-insensitive set of generated source paths that should be excluded from the unity translation unit.</returns>
+        static HashSet<string> CreateExcludedGeneratedCoreSourceRelativePathSet(string generatedCoreRootPath) {
+            HashSet<string> excludedSourceRelativePaths = new(StringComparer.OrdinalIgnoreCase) {
+                "GeneratedRuntimeModuleManifestAttribute.cpp",
+                "runtime/runtime_startup_manifest.cpp",
+                "runtime/runtime_scene_catalog_manifest.cpp",
+                "runtime/runtime_code_module_manifest.cpp"
+            };
+            AddDisabledFeatureRootSourceExclusions(generatedCoreRootPath, excludedSourceRelativePaths);
+            AddUnusedCustomPhysics3DRuntimeSourceExclusions(generatedCoreRootPath, excludedSourceRelativePaths);
+            return excludedSourceRelativePaths;
+        }
+
+        /// <summary>
+        /// Excludes generated source files that only exist to support disabled build features when no emitted source still references their root types.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        /// <param name="excludedSourceRelativePaths">Mutable exclusion set that receives the detected disabled-feature root sources.</param>
+        static void AddDisabledFeatureRootSourceExclusions(
+            string generatedCoreRootPath,
+            HashSet<string> excludedSourceRelativePaths) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (excludedSourceRelativePaths == null) {
+                throw new ArgumentNullException(nameof(excludedSourceRelativePaths));
+            }
+
+            string conversionReportPath = Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json");
+            if (!File.Exists(conversionReportPath)) {
+                return;
+            }
+
+            JsonObject reportObject = JsonNode.Parse(File.ReadAllText(conversionReportPath)) as JsonObject;
+            if (reportObject == null) {
+                return;
+            }
+
+            JsonObject buildFeatures = reportObject["buildFeatures"] as JsonObject;
+            if (buildFeatures == null) {
+                return;
+            }
+
+            HashSet<string> disabledFeatureIds = BuildDisabledGeneratedFeatureIdSet(buildFeatures);
+            if (disabledFeatureIds.Count == 0) {
+                return;
+            }
+
+            HashSet<string> disabledRootTypeNames = BuildDisabledFeatureRootTypeNameSet(buildFeatures, disabledFeatureIds);
+            if (disabledRootTypeNames.Count == 0) {
+                return;
+            }
+
+            AddUnreferencedGeneratedTypeSourceExclusions(generatedCoreRootPath, disabledRootTypeNames, excludedSourceRelativePaths);
+        }
+
+        /// <summary>
+        /// Excludes generated custom helengine.physics3d runtime sources when no emitted source outside that cluster references their types.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        /// <param name="excludedSourceRelativePaths">Mutable exclusion set that receives the detected custom-physics runtime source files.</param>
+        static void AddUnusedCustomPhysics3DRuntimeSourceExclusions(
+            string generatedCoreRootPath,
+            HashSet<string> excludedSourceRelativePaths) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (excludedSourceRelativePaths == null) {
+                throw new ArgumentNullException(nameof(excludedSourceRelativePaths));
+            }
+
+            string physics3DProjectRootPath = ResolvePhysics3DProjectRootPath();
+            if (!Directory.Exists(physics3DProjectRootPath)) {
+                return;
+            }
+
+            HashSet<string> customPhysicsTypeNames = BuildCustomPhysics3DTypeNameSet(physics3DProjectRootPath);
+            if (customPhysicsTypeNames.Count == 0) {
+                return;
+            }
+            HashSet<string> customPhysicsReferenceTypeNames = BuildCustomPhysics3DReferenceTypeNameSet();
+
+            HashSet<string> customPhysicsGeneratedSourceRelativePaths = FindGeneratedSourceRelativePaths(generatedCoreRootPath, customPhysicsTypeNames);
+            if (customPhysicsGeneratedSourceRelativePaths.Count == 0) {
+                return;
+            }
+            if (GeneratedCoreContainsExternalTypeReferences(generatedCoreRootPath, customPhysicsGeneratedSourceRelativePaths, customPhysicsReferenceTypeNames)) {
+                return;
+            }
+
+            foreach (string relativePath in customPhysicsGeneratedSourceRelativePaths) {
+                excludedSourceRelativePaths.Add(relativePath);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the helengine.physics3d project root used to discover custom runtime source basenames.
+        /// </summary>
+        /// <returns>Absolute helengine.physics3d project root path.</returns>
+        static string ResolvePhysics3DProjectRootPath() {
+            EditorSourceBuildWorkspaceLocator locator = new();
+            string helEngineRootPath = locator.ResolveHelEngineRootPath();
+            return Path.Combine(helEngineRootPath, "engine", "helengine.physics3d");
+        }
+
+        /// <summary>
+        /// Builds the emitted type-name set owned by the custom helengine.physics3d runtime implementation.
+        /// </summary>
+        /// <param name="physics3DProjectRootPath">Absolute helengine.physics3d project root path.</param>
+        /// <returns>Case-insensitive set of custom physics runtime type names derived from the project source tree.</returns>
+        static HashSet<string> BuildCustomPhysics3DTypeNameSet(string physics3DProjectRootPath) {
+            if (string.IsNullOrWhiteSpace(physics3DProjectRootPath)) {
+                throw new ArgumentException("Physics3D project root path must be provided.", nameof(physics3DProjectRootPath));
+            }
+
+            HashSet<string> typeNames = new(StringComparer.OrdinalIgnoreCase);
+            AddCustomPhysics3DTypeNamesFromFolder(Path.Combine(physics3DProjectRootPath, "broadphase"), typeNames);
+            AddCustomPhysics3DTypeNamesFromFolder(Path.Combine(physics3DProjectRootPath, "collision"), typeNames);
+            AddCustomPhysics3DTypeNamesFromFolder(Path.Combine(physics3DProjectRootPath, "runtime"), typeNames);
+            AddCustomPhysics3DTypeNameFromFile(Path.Combine(physics3DProjectRootPath, "PhysicsWorld3D.cs"), typeNames);
+            AddCustomPhysics3DTypeNameFromFile(Path.Combine(physics3DProjectRootPath, "PhysicsWorld3DCompatibilityRuntime.cs"), typeNames);
+            AddCustomPhysics3DTypeNameFromFile(Path.Combine(physics3DProjectRootPath, "PhysicsWorld3DProfile.cs"), typeNames);
+            AddCustomPhysics3DTypeNameFromFile(Path.Combine(physics3DProjectRootPath, "PhysicsWorld3DSettings.cs"), typeNames);
+            return typeNames;
+        }
+
+        /// <summary>
+        /// Builds the public/root custom-physics type-name set that should keep the custom helengine.physics3d runtime sources alive when other generated code still references them.
+        /// </summary>
+        /// <returns>Case-insensitive set of custom-physics runtime reference type names.</returns>
+        static HashSet<string> BuildCustomPhysics3DReferenceTypeNameSet() {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+                "Physics3DRuntimeComponentRegistration",
+                "PhysicsWorld3D",
+                "PhysicsWorld3DCompatibilityRuntime",
+                "PhysicsWorld3DProfile",
+                "PhysicsWorld3DSettings",
+                "PhysicsSceneFeatureAnalyzer3D",
+                "PhysicsSceneFeatureFlags3D",
+                "PhysicsSceneFeatureSymbolCatalog3D"
+            };
+        }
+
+        /// <summary>
+        /// Adds custom physics type names from one project folder into the shared candidate set.
+        /// </summary>
+        /// <param name="folderPath">Absolute source folder to enumerate.</param>
+        /// <param name="typeNames">Mutable case-insensitive type-name set.</param>
+        static void AddCustomPhysics3DTypeNamesFromFolder(string folderPath, HashSet<string> typeNames) {
+            if (string.IsNullOrWhiteSpace(folderPath)) {
+                throw new ArgumentException("Folder path must be provided.", nameof(folderPath));
+            }
+            if (typeNames == null) {
+                throw new ArgumentNullException(nameof(typeNames));
+            }
+            if (!Directory.Exists(folderPath)) {
+                return;
+            }
+
+            string[] sourceFilePaths = Directory.GetFiles(folderPath, "*.cs", SearchOption.AllDirectories);
+            for (int index = 0; index < sourceFilePaths.Length; index++) {
+                AddCustomPhysics3DTypeNameFromFile(sourceFilePaths[index], typeNames);
+            }
+        }
+
+        /// <summary>
+        /// Adds one custom physics type name into the shared candidate set when the source file exists.
+        /// </summary>
+        /// <param name="sourceFilePath">Absolute source file path that maps to one generated C++ basename.</param>
+        /// <param name="typeNames">Mutable case-insensitive type-name set.</param>
+        static void AddCustomPhysics3DTypeNameFromFile(string sourceFilePath, HashSet<string> typeNames) {
+            if (string.IsNullOrWhiteSpace(sourceFilePath)) {
+                throw new ArgumentException("Source file path must be provided.", nameof(sourceFilePath));
+            }
+            if (typeNames == null) {
+                throw new ArgumentNullException(nameof(typeNames));
+            }
+            if (!File.Exists(sourceFilePath)) {
+                return;
+            }
+
+            string typeName = Path.GetFileNameWithoutExtension(sourceFilePath);
+            if (!string.IsNullOrWhiteSpace(typeName)) {
+                typeNames.Add(typeName);
+            }
+        }
+
+        /// <summary>
+        /// Builds the set of feature ids that the merged conversion report marked disabled for the current generated-core tree.
+        /// </summary>
+        /// <param name="buildFeatures">Parsed build-features object from the merged conversion report.</param>
+        /// <returns>Case-insensitive set of disabled feature ids.</returns>
+        static HashSet<string> BuildDisabledGeneratedFeatureIdSet(JsonObject buildFeatures) {
+            if (buildFeatures == null) {
+                throw new ArgumentNullException(nameof(buildFeatures));
+            }
+
+            HashSet<string> disabledFeatureIds = new(StringComparer.OrdinalIgnoreCase);
+            JsonArray decisions = buildFeatures["decisions"] as JsonArray;
+            if (decisions == null) {
+                return disabledFeatureIds;
+            }
+
+            for (int index = 0; index < decisions.Count; index++) {
+                JsonObject decisionObject = decisions[index] as JsonObject;
+                if (decisionObject == null) {
+                    continue;
+                }
+                if (!TryReadJsonString(decisionObject, "feature", out string featureId) || string.IsNullOrWhiteSpace(featureId)) {
+                    continue;
+                }
+                if (!TryReadJsonBoolean(decisionObject, "enabled", out bool enabled) || enabled) {
+                    continue;
+                }
+
+                disabledFeatureIds.Add(featureId);
+            }
+
+            return disabledFeatureIds;
+        }
+
+        /// <summary>
+        /// Builds the generated type-name set associated with disabled build-feature roots recorded in the merged conversion report.
+        /// </summary>
+        /// <param name="buildFeatures">Parsed build-features object from the merged conversion report.</param>
+        /// <param name="disabledFeatureIds">Case-insensitive set of disabled feature ids.</param>
+        /// <returns>Case-insensitive set of generated type names rooted only by disabled features.</returns>
+        static HashSet<string> BuildDisabledFeatureRootTypeNameSet(
+            JsonObject buildFeatures,
+            HashSet<string> disabledFeatureIds) {
+            if (buildFeatures == null) {
+                throw new ArgumentNullException(nameof(buildFeatures));
+            }
+            if (disabledFeatureIds == null) {
+                throw new ArgumentNullException(nameof(disabledFeatureIds));
+            }
+
+            HashSet<string> typeNames = new(StringComparer.OrdinalIgnoreCase);
+            JsonArray detectedRoots = buildFeatures["detectedRoots"] as JsonArray;
+            if (detectedRoots == null) {
+                return typeNames;
+            }
+
+            for (int index = 0; index < detectedRoots.Count; index++) {
+                JsonObject rootObject = detectedRoots[index] as JsonObject;
+                if (rootObject == null) {
+                    continue;
+                }
+                if (!TryReadJsonString(rootObject, "feature", out string featureId) || string.IsNullOrWhiteSpace(featureId)) {
+                    continue;
+                }
+                if (!disabledFeatureIds.Contains(featureId)) {
+                    continue;
+                }
+                if (!TryReadJsonString(rootObject, "rootId", out string rootId) || string.IsNullOrWhiteSpace(rootId)) {
+                    continue;
+                }
+
+                string typeName = ExtractGeneratedTypeNameFromRootId(rootId);
+                if (!string.IsNullOrWhiteSpace(typeName)) {
+                    typeNames.Add(typeName);
+                }
+            }
+
+            return typeNames;
+        }
+
+        /// <summary>
+        /// Extracts the generated type basename from one conversion-report root id.
+        /// </summary>
+        /// <param name="rootId">Stable root id recorded by the conversion report.</param>
+        /// <returns>Generated type basename when one can be derived; otherwise an empty string.</returns>
+        static string ExtractGeneratedTypeNameFromRootId(string rootId) {
+            if (string.IsNullOrWhiteSpace(rootId)) {
+                throw new ArgumentException("Root id must be provided.", nameof(rootId));
+            }
+
+            string typeName = rootId.Trim();
+            int nestedTypeSeparatorIndex = typeName.LastIndexOf('+');
+            if (nestedTypeSeparatorIndex >= 0 && nestedTypeSeparatorIndex < typeName.Length - 1) {
+                typeName = typeName[(nestedTypeSeparatorIndex + 1)..];
+            }
+
+            int namespaceSeparatorIndex = typeName.LastIndexOf('.');
+            if (namespaceSeparatorIndex >= 0 && namespaceSeparatorIndex < typeName.Length - 1) {
+                typeName = typeName[(namespaceSeparatorIndex + 1)..];
+            }
+
+            int genericArityIndex = typeName.IndexOf('`');
+            if (genericArityIndex > 0) {
+                typeName = typeName[..genericArityIndex];
+            }
+
+            return typeName.Trim();
+        }
+
+        /// <summary>
+        /// Excludes generated sources for one candidate type set when no emitted source outside each type's own file still references that type.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        /// <param name="candidateTypeNames">Case-insensitive set of generated type names that should be pruned when unreferenced.</param>
+        /// <param name="excludedSourceRelativePaths">Mutable exclusion set that receives the unreferenced source paths.</param>
+        static void AddUnreferencedGeneratedTypeSourceExclusions(
+            string generatedCoreRootPath,
+            HashSet<string> candidateTypeNames,
+            HashSet<string> excludedSourceRelativePaths) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (candidateTypeNames == null) {
+                throw new ArgumentNullException(nameof(candidateTypeNames));
+            }
+            if (excludedSourceRelativePaths == null) {
+                throw new ArgumentNullException(nameof(excludedSourceRelativePaths));
+            }
+
+            foreach (string candidateTypeName in candidateTypeNames) {
+                if (string.IsNullOrWhiteSpace(candidateTypeName)) {
+                    continue;
+                }
+
+                HashSet<string> typeNameSet = new(StringComparer.OrdinalIgnoreCase) {
+                    candidateTypeName
+                };
+                HashSet<string> candidateSourceRelativePaths = FindGeneratedSourceRelativePaths(generatedCoreRootPath, typeNameSet);
+                if (candidateSourceRelativePaths.Count == 0) {
+                    continue;
+                }
+                if (GeneratedCoreContainsExternalTypeReferences(generatedCoreRootPath, candidateSourceRelativePaths, typeNameSet)) {
+                    continue;
+                }
+
+                foreach (string relativePath in candidateSourceRelativePaths) {
+                    excludedSourceRelativePaths.Add(relativePath);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Finds the generated custom physics runtime sources that match the discovered helengine.physics3d type-name set.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        /// <param name="customPhysicsTypeNames">Case-insensitive set of custom physics runtime type names.</param>
+        /// <returns>Case-insensitive set of generated custom physics runtime source relative paths.</returns>
+        static HashSet<string> FindGeneratedSourceRelativePaths(
+            string generatedCoreRootPath,
+            HashSet<string> candidateTypeNames) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (candidateTypeNames == null) {
+                throw new ArgumentNullException(nameof(candidateTypeNames));
+            }
+
+            HashSet<string> relativePaths = new(StringComparer.OrdinalIgnoreCase);
+            string[] sourceFilePaths = Directory.GetFiles(generatedCoreRootPath, "*.cpp", SearchOption.AllDirectories);
+            for (int index = 0; index < sourceFilePaths.Length; index++) {
+                string sourceFilePath = sourceFilePaths[index];
+                string fileName = Path.GetFileName(sourceFilePath);
+                if (string.Equals(fileName, "generated_unity.cpp", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(fileName, "helengine_core_amalgamated.cpp", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(fileName, "helengine_core_unity.cpp", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string typeName = Path.GetFileNameWithoutExtension(sourceFilePath);
+                if (!candidateTypeNames.Contains(typeName)) {
+                    continue;
+                }
+
+                relativePaths.Add(Path.GetRelativePath(generatedCoreRootPath, sourceFilePath).Replace('\\', '/'));
+            }
+
+            return relativePaths;
+        }
+
+        /// <summary>
+        /// Determines whether generated source outside the custom physics runtime cluster still references one of that cluster's types.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        /// <param name="customPhysicsGeneratedSourceRelativePaths">Case-insensitive set of generated custom physics runtime source relative paths.</param>
+        /// <param name="customPhysicsTypeNames">Case-insensitive set of custom physics runtime type names.</param>
+        /// <returns>True when one external generated source or header still references the custom physics runtime cluster.</returns>
+        static bool GeneratedCoreContainsExternalTypeReferences(
+            string generatedCoreRootPath,
+            HashSet<string> candidateGeneratedSourceRelativePaths,
+            HashSet<string> candidateTypeNames) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (candidateGeneratedSourceRelativePaths == null) {
+                throw new ArgumentNullException(nameof(candidateGeneratedSourceRelativePaths));
+            }
+            if (candidateTypeNames == null) {
+                throw new ArgumentNullException(nameof(candidateTypeNames));
+            }
+
+            string[] generatedCodePaths = Directory.GetFiles(generatedCoreRootPath, "*.*", SearchOption.AllDirectories);
+            for (int index = 0; index < generatedCodePaths.Length; index++) {
+                string generatedCodePath = generatedCodePaths[index];
+                string extension = Path.GetExtension(generatedCodePath);
+                if (!string.Equals(extension, ".cpp", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(extension, ".hpp", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string relativePath = Path.GetRelativePath(generatedCoreRootPath, generatedCodePath).Replace('\\', '/');
+                string fileName = Path.GetFileName(generatedCodePath);
+                if (candidateGeneratedSourceRelativePaths.Contains(relativePath)
+                    || candidateGeneratedSourceRelativePaths.Contains(Path.ChangeExtension(relativePath, ".cpp"))
+                    || string.Equals(fileName, "generated_unity.cpp", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(fileName, "helengine_core_amalgamated.cpp", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(fileName, "helengine_core_unity.cpp", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string contents = File.ReadAllText(generatedCodePath);
+                foreach (string typeName in candidateTypeNames) {
+                    if (Regex.IsMatch(contents, $@"\b{Regex.Escape(typeName)}\b", RegexOptions.CultureInvariant)) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to read one string property from a parsed JSON object.
+        /// </summary>
+        /// <param name="jsonObject">JSON object being read.</param>
+        /// <param name="propertyName">Property name to read.</param>
+        /// <param name="value">Read string value when available.</param>
+        /// <returns>True when the property existed and contained a string value; otherwise false.</returns>
+        static bool TryReadJsonString(JsonObject jsonObject, string propertyName, out string value) {
+            if (jsonObject == null) {
+                throw new ArgumentNullException(nameof(jsonObject));
+            }
+            if (string.IsNullOrWhiteSpace(propertyName)) {
+                throw new ArgumentException("Property name must be provided.", nameof(propertyName));
+            }
+
+            value = string.Empty;
+            JsonNode propertyNode = jsonObject[propertyName];
+            JsonValue propertyValue = propertyNode as JsonValue;
+            if (propertyValue == null || !propertyValue.TryGetValue(out string stringValue) || stringValue == null) {
+                return false;
+            }
+
+            value = stringValue;
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to read one boolean property from a parsed JSON object.
+        /// </summary>
+        /// <param name="jsonObject">JSON object being read.</param>
+        /// <param name="propertyName">Property name to read.</param>
+        /// <param name="value">Read boolean value when available.</param>
+        /// <returns>True when the property existed and contained a boolean value; otherwise false.</returns>
+        static bool TryReadJsonBoolean(JsonObject jsonObject, string propertyName, out bool value) {
+            if (jsonObject == null) {
+                throw new ArgumentNullException(nameof(jsonObject));
+            }
+            if (string.IsNullOrWhiteSpace(propertyName)) {
+                throw new ArgumentException("Property name must be provided.", nameof(propertyName));
+            }
+
+            value = false;
+            JsonNode propertyNode = jsonObject[propertyName];
+            JsonValue propertyValue = propertyNode as JsonValue;
+            if (propertyValue == null || !propertyValue.TryGetValue(out bool boolValue)) {
+                return false;
+            }
+
+            value = boolValue;
+            return true;
         }
 
         /// <summary>

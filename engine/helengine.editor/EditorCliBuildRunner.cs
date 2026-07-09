@@ -100,6 +100,10 @@ namespace helengine.editor {
                     return EditorBuildExecutionResult.Failure($"Platform '{options.PlatformId}' could not load its builder metadata: {ex}");
                 }
 
+                if (!string.IsNullOrWhiteSpace(options.BuildProfileId)) {
+                    platformConfig.SelectedBuildProfileId = options.BuildProfileId;
+                }
+
                 EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(
                     bootstrap.SceneCatalogService,
                     platformConfig,

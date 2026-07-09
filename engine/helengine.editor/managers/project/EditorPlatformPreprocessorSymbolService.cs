@@ -6,6 +6,11 @@ namespace helengine.editor {
     /// </summary>
     internal static class EditorPlatformPreprocessorSymbolService {
         /// <summary>
+        /// Prefix applied to generated-core preprocessor symbols that indicate one runtime feature was force-disabled for the active codegen build.
+        /// </summary>
+        public const string DisabledFeatureSymbolPrefix = "HELENGINE_CODEGEN_FEATURE_DISABLED_";
+
+        /// <summary>
         /// Preprocessor symbol used when generated runtimes resolve cooked platform-owned material assets.
         /// </summary>
         public const string RuntimeMaterialResolutionCookedPlatformOwnedSymbol = "HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED";
@@ -75,6 +80,55 @@ namespace helengine.editor {
             symbols.Add("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION");
             symbols.Add("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION");
             return symbols;
+        }
+
+        /// <summary>
+        /// Resolves generated-core preprocessor symbols that represent runtime features explicitly force-disabled for the active build.
+        /// </summary>
+        /// <param name="selectedCodegenOptionValues">Effective selected codegen option values that may carry one forced-disabled feature list.</param>
+        /// <returns>Ordered feature-disabled symbols derived from the configured feature ids.</returns>
+        public static IReadOnlyList<string> ResolveDisabledFeatureSymbols(IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
+            if (selectedCodegenOptionValues == null) {
+                throw new ArgumentNullException(nameof(selectedCodegenOptionValues));
+            }
+            if (!selectedCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.ForcedDisabledFeatures, out string disabledFeatureValue)
+                || string.IsNullOrWhiteSpace(disabledFeatureValue)) {
+                return [];
+            }
+
+            string[] featureIds = disabledFeatureValue.Split([';', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            List<string> symbols = [];
+            for (int index = 0; index < featureIds.Length; index++) {
+                string symbol = BuildDisabledFeatureSymbol(featureIds[index]);
+                if (!string.IsNullOrWhiteSpace(symbol) && !symbols.Contains(symbol, StringComparer.Ordinal)) {
+                    symbols.Add(symbol);
+                }
+            }
+
+            return symbols;
+        }
+
+        /// <summary>
+        /// Builds the stable generated-core preprocessor symbol used to indicate one runtime feature id was force-disabled.
+        /// </summary>
+        /// <param name="featureId">Stable runtime feature identifier.</param>
+        /// <returns>Uppercase generated-core preprocessor symbol.</returns>
+        public static string BuildDisabledFeatureSymbol(string featureId) {
+            if (string.IsNullOrWhiteSpace(featureId)) {
+                throw new ArgumentException("Feature id must be provided.", nameof(featureId));
+            }
+
+            char[] characters = featureId.Trim().ToUpperInvariant().ToCharArray();
+            for (int index = 0; index < characters.Length; index++) {
+                char character = characters[index];
+                if ((character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9')) {
+                    continue;
+                }
+
+                characters[index] = '_';
+            }
+
+            return DisabledFeatureSymbolPrefix + new string(characters);
         }
 
         /// <summary>

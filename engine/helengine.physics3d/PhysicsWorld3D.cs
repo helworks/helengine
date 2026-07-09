@@ -140,11 +140,6 @@ namespace helengine {
         public IReadOnlyList<TriggerEvent3D> TriggerEvents => TriggerEventsValue;
 
         /// <summary>
-        /// Gets the scene feature flags inferred from the currently bound authored scene hierarchy.
-        /// </summary>
-        public PhysicsSceneFeatureFlags3D RequiredSceneFeatures { get; private set; }
-
-        /// <summary>
         /// Binds one scene hierarchy to the world by discovering supported rigid-body entities.
         /// </summary>
         /// <param name="rootEntities">Root entities that own the active scene hierarchy.</param>
@@ -160,7 +155,6 @@ namespace helengine {
             ActiveTriggerPairsValue.Clear();
             CurrentTriggerPairsValue.Clear();
             BoxBoxContactConstraintsValue.Clear();
-            RequiredSceneFeatures = PhysicsSceneFeatureAnalyzer3D.Analyze(rootEntities);
             for (int index = 0; index < rootEntities.Count; index++) {
                 CollectBodyStates(rootEntities[index]);
             }

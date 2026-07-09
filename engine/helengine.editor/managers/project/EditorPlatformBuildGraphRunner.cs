@@ -458,9 +458,13 @@ namespace helengine.editor {
             IReadOnlyList<string> physics3DCodegenSymbols = physics3DFeatureFlags == PhysicsSceneFeatureFlags3D.None
                 ? []
                 : PhysicsSceneFeatureSymbolCatalog3D.BuildSymbols(physics3DFeatureFlags);
+            IReadOnlyList<string> disabledFeatureSymbols = EditorPlatformPreprocessorSymbolService.ResolveDisabledFeatureSymbols(selectedCodegenOptionValues);
             IReadOnlyList<string> additionalPreprocessorSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
                 platformCodegenSymbols,
                 physics3DCodegenSymbols);
+            additionalPreprocessorSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
+                additionalPreprocessorSymbols,
+                disabledFeatureSymbols);
             GeneratedCoreRegenerationService.Regenerate(
                 builderDefinition,
                 selectedCodegenProfile,

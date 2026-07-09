@@ -33,6 +33,7 @@ namespace helengine.editor.tests {
                 [
                     "--project=C:/dev/helengine/sample.heproj",
                     "--build=windows",
+                    "--build-profile=release",
                     "--output=C:/dev/out",
                     "--full-graph"
                 ],
@@ -43,6 +44,7 @@ namespace helengine.editor.tests {
             Assert.Equal(string.Empty, errorMessage);
             Assert.Equal("C:/dev/helengine/sample.heproj", options.ProjectPath);
             Assert.Equal("windows", options.PlatformId);
+            Assert.Equal("release", options.BuildProfileId);
             Assert.Equal("C:/dev/out", options.OutputDirectoryPath);
             Assert.True(options.UseCommonOutputDirectory);
         }

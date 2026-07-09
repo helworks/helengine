@@ -2260,6 +2260,7 @@ namespace helengine.editor {
 
             if (fieldValues.TryGetValue("texture-relative-path", out string textureRelativePath) &&
                 !string.IsNullOrWhiteSpace(textureRelativePath)) {
+                NormalizeImportedTextureCookField(fieldValues, materialAsset, textureRelativePath);
                 return;
             }
 
@@ -2269,6 +2270,40 @@ namespace helengine.editor {
             }
 
             fieldValues["texture-relative-path"] = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
+        }
+
+        /// <summary>
+        /// Rewrites one pre-existing imported texture path when it still targets the same authored asset id but no longer matches the active platform runtime path convention.
+        /// </summary>
+        /// <param name="fieldValues">Cook field-value map being prepared for the platform builder.</param>
+        /// <param name="materialAsset">Source material asset used to resolve the imported texture asset id.</param>
+        /// <param name="textureRelativePath">Current cooked texture-relative path already present on the field map.</param>
+        void NormalizeImportedTextureCookField(Dictionary<string, string> fieldValues, ShaderMaterialAsset materialAsset, string textureRelativePath) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            } else if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            } else if (string.IsNullOrWhiteSpace(textureRelativePath)) {
+                throw new ArgumentException("Texture relative path must be provided.", nameof(textureRelativePath));
+            }
+
+            string diffuseTextureAssetId = ResolveReferencedDiffuseTextureAssetId(materialAsset, fieldValues);
+            if (string.IsNullOrWhiteSpace(diffuseTextureAssetId)) {
+                return;
+            }
+
+            string normalizedTextureRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
+            if (string.Equals(textureRelativePath, normalizedTextureRelativePath, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            if (!ImportedTextureRuntimePathResolver.PathMatchesAssetId(TargetPlatformId, textureRelativePath, diffuseTextureAssetId) &&
+                (!TryResolveImportedTextureAssetIdFromCookedRelativePath(textureRelativePath, out string legacyTextureAssetId) ||
+                    !string.Equals(legacyTextureAssetId, diffuseTextureAssetId, StringComparison.OrdinalIgnoreCase))) {
+                return;
+            }
+
+            fieldValues["texture-relative-path"] = normalizedTextureRelativePath;
         }
 
         /// <summary>

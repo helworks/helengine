@@ -682,6 +682,62 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures DS builder-backed material cook requests rewrite stale legacy imported texture paths to the current `.hetex` runtime contract before cooking.
+        /// </summary>
+        [Fact]
+        public void Package_WhenDsBuilderMaterialSettingsContainLegacyImportedTexturePath_NormalizesTextureRelativePath() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
+            string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+            string expectedTextureRelativePath = $"cooked/imported/{RuntimeAssetIdGenerator.Generate(textureAssetId):x16}.hetex";
+
+            WriteCachedTextureAsset(textureAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService();
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            Assert.True(materialSettingsService.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings windowsSettings));
+            Assert.True(materialSettingsService.TryLoad(materialPath, out MaterialAssetImportSettings savedSettings));
+            savedSettings.Processor.Platforms["ds"] = new MaterialAssetProcessorSettings {
+                SchemaId = "ds-standard-textured",
+                FieldValues = new Dictionary<string, string>(windowsSettings.FieldValues, StringComparer.OrdinalIgnoreCase) {
+                    ["texture-relative-path"] = "cooked/imported/" + textureAssetId
+                }
+            };
+            materialSettingsService.Save(materialPath, savedSettings);
+
+            RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
+                CreateDsMaterialBuilderDefinition(),
+                request => new PlatformMaterialCookResult(
+                    AssetSerializer.SerializeToBytes(new PlatformMaterialAsset {
+                        RendererFamilyId = "ds-main-2d",
+                        TextureRelativePath = request.FieldValues["texture-relative-path"],
+                        DoubleSided = false,
+                        UseVertexColor = true,
+                        Lit = true,
+                        BaseColorR = 255,
+                        BaseColorG = 255,
+                        BaseColorB = 255,
+                        BaseColorA = 255
+                    }),
+                    Array.Empty<string>()));
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "ds",
+                materialBuilder,
+                "ds-default",
+                "ds-main-2d");
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            PlatformMaterialCookRequest dsCookRequest = materialBuilder.MaterialCookRequests.First(request => string.Equals(request.MaterialRelativePath, materialRelativePath, StringComparison.Ordinal));
+            Assert.Equal(expectedTextureRelativePath, dsCookRequest.FieldValues["texture-relative-path"]);
+        }
+
+        /// <summary>
         /// Ensures DS builder-owned imported textures use one DS-safe cooked runtime path while preserving the full source asset id in work-item metadata.
         /// </summary>
         [Fact]
@@ -3089,9 +3145,6 @@ namespace helengine.editor.tests {
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(loadedRoots);
             Assert.Single(world.ControllerStates);
-            Assert.Equal(
-                (uint)(PhysicsSceneFeatureFlags3D.CharacterController | PhysicsSceneFeatureFlags3D.CharacterControllerBodySupport),
-                (uint)world.RequiredSceneFeatures);
 
             SceneComponentAssetRecord packagedGroundRigidBody = Assert.Single(packagedScene.RootEntities[0].Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
             SceneComponentAssetRecord packagedGroundBoxCollider = Assert.Single(packagedScene.RootEntities[0].Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));

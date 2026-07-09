@@ -36,10 +36,5 @@ namespace helengine {
         public override bool Equals(object obj) {
             return obj is TriggerPairKey3D other && Equals(other);
         }
-
-        /// <inheritdoc />
-        public override int GetHashCode() {
-            return HashCode.Combine(TriggerEntity, OtherEntity);
-        }
     }
 }

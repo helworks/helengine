@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public sealed class BlueprintPackagedSceneExpansionService {
         /// <summary>
+        /// Stable persisted component type id used by serialized blueprint instance markers.
+        /// </summary>
+        static readonly string BlueprintInstanceComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(BlueprintInstanceComponent));
+
+        /// <summary>
         /// Absolute path to the project root.
         /// </summary>
         readonly string ProjectRootPath;
@@ -142,7 +147,7 @@ namespace helengine.editor {
             SceneComponentAssetRecord[] components = entityAsset?.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < components.Length; index++) {
                 SceneComponentAssetRecord record = components[index];
-                if (record == null || string.IsNullOrWhiteSpace(record.ComponentTypeId)) {
+                if (!IsBlueprintInstanceComponentRecord(record)) {
                     continue;
                 }
 
@@ -189,7 +194,7 @@ namespace helengine.editor {
             SceneComponentAssetRecord[] components = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < components.Length; index++) {
                 SceneComponentAssetRecord record = components[index];
-                if (record == null || string.IsNullOrWhiteSpace(record.ComponentTypeId)) {
+                if (!IsBlueprintInstanceComponentRecord(record)) {
                     continue;
                 }
 
@@ -204,6 +209,19 @@ namespace helengine.editor {
             for (int index = 0; index < children.Length; index++) {
                 ValidateNoNestedBlueprintInstances(children[index]);
             }
+        }
+
+        /// <summary>
+        /// Resolves whether one serialized component record is the persisted blueprint instance marker.
+        /// </summary>
+        /// <param name="record">Serialized component record being inspected.</param>
+        /// <returns>True when the record encodes a blueprint instance marker.</returns>
+        static bool IsBlueprintInstanceComponentRecord(SceneComponentAssetRecord record) {
+            if (record == null || string.IsNullOrWhiteSpace(record.ComponentTypeId)) {
+                return false;
+            }
+
+            return string.Equals(record.ComponentTypeId, BlueprintInstanceComponentTypeId, StringComparison.Ordinal);
         }
 
         /// <summary>

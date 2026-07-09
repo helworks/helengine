@@ -195,7 +195,17 @@ try {
         "--project",
         $ResolvedProjectPath,
         "--build",
-        $Platform,
+        $Platform
+    )
+
+    if ($Configuration -ieq "Debug" -or $Configuration -ieq "Release") {
+        $EditorRunArguments += @(
+            "--build-profile",
+            $Configuration.ToLowerInvariant()
+        )
+    }
+
+    $EditorRunArguments += @(
         "--output",
         $ResolvedOutputPath
     )

@@ -137,6 +137,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                     "ps2-default",
                     "gs-kit",
                     "default",
+                    queueItem.SelectedCodegenOptionValues,
                     "ps2-install-tree",
                     generatedCoreRootPath,
                     "disc-layout"
@@ -205,7 +206,8 @@ public class EditorPlatformBuildGraphRunnerTests {
                     "debug",
                     "directx11",
                     queueItem,
-                    workspace
+                    workspace,
+                    new Dictionary<string, string>(StringComparer.Ordinal)
                 ]);
 
             Assert.NotNull(manifest);
@@ -565,7 +567,7 @@ public class EditorPlatformBuildGraphRunnerTests {
 
         Assert.NotNull(validateMethod);
 
-        TargetInvocationException exception = Assert.Throws<TargetInvocationException>(() => validateMethod.Invoke(runner, [manifest, queueItem, workspace]));
+        TargetInvocationException exception = Assert.Throws<TargetInvocationException>(() => validateMethod.Invoke(runner, [manifest, queueItem.SelectedCodegenOptionValues, workspace]));
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
         Assert.Contains("physics3d.box_box_contact", exception.InnerException.Message, StringComparison.Ordinal);
@@ -644,7 +646,17 @@ public class EditorPlatformBuildGraphRunnerTests {
                 [
                     manifest,
                     generatedCoreRootPath,
-                    Path.Combine(rootPath, "workspace")
+                    Path.Combine(rootPath, "workspace"),
+                    new TestPlatformMaterialAssetBuilder().Definition,
+                    new PlatformBuildProfileDefinition("debug", "Debug", "Debug profile", "directx11", "default", []),
+                    new PlatformCodegenProfileDefinition(
+                        "default",
+                        "Default",
+                        "Default codegen profile",
+                        PlatformCodegenLanguage.Cpp,
+                        PlatformSerializationEndianness.LittleEndian,
+                        []),
+                    new Dictionary<string, string>(StringComparer.Ordinal)
                 ]);
 
             string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
@@ -852,6 +864,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                         ]
                     });
             }
+            Dictionary<string, string> selectedCodegenOptionValues = new Dictionary<string, string>();
             RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
             EditorPlatformBuildGraphRunner runner = new(
                 rootPath,
@@ -881,12 +894,13 @@ public class EditorPlatformBuildGraphRunnerTests {
                 [
                     CreatePlatformDefinition("windows", "Windows"),
                     CreateCodegenProfile(),
+                    selectedCodegenOptionValues,
                     new EditorBuildQueueItemDocument {
                         QueueItemId = "queue-item",
                         PlatformId = "windows",
                         OutputDirectoryPath = Path.Combine(rootPath, "output"),
                         SelectedSceneIds = ["PhysicsScene"],
-                        SelectedCodegenOptionValues = new Dictionary<string, string>()
+                        SelectedCodegenOptionValues = selectedCodegenOptionValues
                     },
                     new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
                 ]);
@@ -910,6 +924,7 @@ public class EditorPlatformBuildGraphRunnerTests {
 
         try {
             WriteSceneAssetForBuildGraphRunnerTest(rootPath, "Scenes/VisualScene.helen");
+            Dictionary<string, string> selectedCodegenOptionValues = new Dictionary<string, string>();
             RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
             EditorPlatformBuildGraphRunner runner = new(
                 rootPath,
@@ -939,18 +954,83 @@ public class EditorPlatformBuildGraphRunnerTests {
                 [
                     CreatePlatformDefinition("windows", "Windows"),
                     CreateCodegenProfile(),
+                    selectedCodegenOptionValues,
                     new EditorBuildQueueItemDocument {
                         QueueItemId = "queue-item",
                         PlatformId = "windows",
                         OutputDirectoryPath = Path.Combine(rootPath, "output"),
                         SelectedSceneIds = ["VisualScene"],
-                        SelectedCodegenOptionValues = new Dictionary<string, string>()
+                        SelectedCodegenOptionValues = selectedCodegenOptionValues
                     },
                     new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
                 ]);
 
             Assert.NotNull(regenerationService.AdditionalPreprocessorSymbols);
             Assert.DoesNotContain(PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol, regenerationService.AdditionalPreprocessorSymbols);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies forced-disabled runtime features are forwarded into generated-core regeneration as stable preprocessor symbols.
+    /// </summary>
+    [Fact]
+    public void RunRegenerateCore_WhenCodegenDisablesRuntimeFeatures_ForwardsDisabledFeatureSymbols() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(rootPath, "assets", "Scenes"));
+
+        try {
+            WriteSceneAssetForBuildGraphRunnerTest(rootPath, "Scenes/VisualScene.helen");
+            Dictionary<string, string> selectedCodegenOptionValues = new Dictionary<string, string> {
+                [PlatformCodegenSettingIds.ForcedDisabledFeatures] = "debug_overlay"
+            };
+            RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    "builder.dll",
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                regenerationService);
+
+            MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "RunRegenerateCore",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(runRegenerateCoreMethod);
+
+            runRegenerateCoreMethod.Invoke(
+                runner,
+                [
+                    CreatePlatformDefinition("windows", "Windows"),
+                    CreateCodegenProfile(),
+                    selectedCodegenOptionValues,
+                    new EditorBuildQueueItemDocument {
+                        QueueItemId = "queue-item",
+                        PlatformId = "windows",
+                        OutputDirectoryPath = Path.Combine(rootPath, "output"),
+                        SelectedSceneIds = ["VisualScene"],
+                        SelectedCodegenOptionValues = selectedCodegenOptionValues
+                    },
+                    new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
+                ]);
+
+            Assert.NotNull(regenerationService.AdditionalPreprocessorSymbols);
+            Assert.Contains(
+                EditorPlatformPreprocessorSymbolService.BuildDisabledFeatureSymbol("debug_overlay"),
+                regenerationService.AdditionalPreprocessorSymbols);
         } finally {
             if (Directory.Exists(rootPath)) {
                 Directory.Delete(rootPath, true);
@@ -985,6 +1065,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                 AssetSerializer.Serialize(sceneStream, sceneAsset);
             }
 
+            Dictionary<string, string> selectedCodegenOptionValues = new Dictionary<string, string>();
             RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
             EditorPlatformBuildGraphRunner runner = new(
                 rootPath,
@@ -1020,12 +1101,13 @@ public class EditorPlatformBuildGraphRunnerTests {
                             true,
                             PackagedPathPolicy.RootedOrContentRelative)),
                     CreateCodegenProfile(),
+                    selectedCodegenOptionValues,
                     new EditorBuildQueueItemDocument {
                         QueueItemId = "queue-item",
                         PlatformId = "wii",
                         OutputDirectoryPath = Path.Combine(rootPath, "output"),
                         SelectedSceneIds = ["VisualScene"],
-                        SelectedCodegenOptionValues = new Dictionary<string, string>()
+                        SelectedCodegenOptionValues = selectedCodegenOptionValues
                     },
                     new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
                 ]);
@@ -1075,6 +1157,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                 ?? throw new InvalidOperationException("Unable to resolve the external generated-core project directory."));
             File.WriteAllText(externalProjectPath, "<Project />");
 
+            Dictionary<string, string> selectedCodegenOptionValues = new Dictionary<string, string>();
             RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
             EditorPlatformBuildGraphRunner runner = new(
                 rootPath,
@@ -1105,12 +1188,13 @@ public class EditorPlatformBuildGraphRunnerTests {
                 [
                     CreatePlatformDefinition("ps2", "PlayStation 2"),
                     CreateCodegenProfile(),
+                    selectedCodegenOptionValues,
                     new EditorBuildQueueItemDocument {
                         QueueItemId = "queue-item",
                         PlatformId = "ps2",
                         OutputDirectoryPath = Path.Combine(rootPath, "output"),
                         SelectedSceneIds = ["VisualScene"],
-                        SelectedCodegenOptionValues = new Dictionary<string, string>()
+                        SelectedCodegenOptionValues = selectedCodegenOptionValues
                     },
                     new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
                 ]);
@@ -1138,6 +1222,9 @@ public class EditorPlatformBuildGraphRunnerTests {
 
         try {
             CopyDirectory(sourceProjectRootPath, projectRootPath);
+            using Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(projectRootPath)
+            });
             ConfigureWindowsBuildForCommittedPointShadowScene(projectRootPath, outputRootPath);
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(projectRootPath, "project.heproj"));

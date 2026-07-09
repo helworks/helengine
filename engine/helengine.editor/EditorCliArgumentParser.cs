@@ -59,6 +59,7 @@ namespace helengine.editor {
 
             string projectPath = string.Empty;
             string platformId = string.Empty;
+            string buildProfileId = string.Empty;
             string outputDirectoryPath = string.Empty;
             bool useCommonOutputDirectory = false;
 
@@ -78,6 +79,11 @@ namespace helengine.editor {
                     continue;
                 }
 
+                if (TryReadInlineValue(argument, "--build-profile", out string inlineBuildProfileId)) {
+                    buildProfileId = inlineBuildProfileId;
+                    continue;
+                }
+
                 if (TryReadInlineValue(argument, "--output", out string inlineOutputDirectoryPath)) {
                     outputDirectoryPath = inlineOutputDirectoryPath;
                     continue;
@@ -92,6 +98,13 @@ namespace helengine.editor {
 
                 if (IsSwitchMatch(argument, "--build")) {
                     if (!TryReadFollowingValue(args, ref index, out platformId, out errorMessage)) {
+                        return false;
+                    }
+                    continue;
+                }
+
+                if (IsSwitchMatch(argument, "--build-profile")) {
+                    if (!TryReadFollowingValue(args, ref index, out buildProfileId, out errorMessage)) {
                         return false;
                     }
                     continue;
@@ -130,7 +143,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            options = new EditorCliBuildOptions(projectPath, platformId, outputDirectoryPath, useCommonOutputDirectory);
+            options = new EditorCliBuildOptions(projectPath, platformId, buildProfileId, outputDirectoryPath, useCommonOutputDirectory);
             return true;
         }
 
