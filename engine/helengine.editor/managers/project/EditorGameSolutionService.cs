@@ -26,6 +26,26 @@ namespace helengine.editor {
         const string TargetFrameworkValue = "net9.0";
 
         /// <summary>
+        /// Package version used by generated xUnit test projects for the .NET test SDK.
+        /// </summary>
+        const string TestSdkPackageVersion = "17.11.1";
+
+        /// <summary>
+        /// Package version used by generated xUnit test projects for xUnit itself.
+        /// </summary>
+        const string XunitPackageVersion = "2.9.0";
+
+        /// <summary>
+        /// Package version used by generated xUnit test projects for the Visual Studio xUnit runner.
+        /// </summary>
+        const string XunitRunnerPackageVersion = "2.8.2";
+
+        /// <summary>
+        /// Package version used by generated xUnit test projects for coverage collection.
+        /// </summary>
+        const string CoverletCollectorPackageVersion = "6.0.2";
+
+        /// <summary>
         /// Legacy intermediate folder that should not remain under the assets project root.
         /// </summary>
         const string LegacyIntermediateFolderName = "obj";
@@ -222,14 +242,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the ordered generated production and test projects included in the current solution.
+        /// </summary>
+        public IReadOnlyList<EditorGeneratedCodeModuleProject> GeneratedProjects {
+            get {
+                if (GeneratedCodeSolutionValue == null) {
+                    GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
+                }
+
+                return GeneratedCodeSolutionValue.Projects;
+            }
+        }
+
+        /// <summary>
         /// Generates the solution and project files, overwriting any older copies in place.
         /// </summary>
         /// <returns>Absolute path to the generated solution file.</returns>
         public string GenerateSolutionFiles() {
             Directory.CreateDirectory(ProjectRootPath);
             GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
-            for (int index = 0; index < GeneratedCodeSolutionValue.ModuleProjects.Count; index++) {
-                EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.ModuleProjects[index];
+            for (int index = 0; index < GeneratedCodeSolutionValue.Projects.Count; index++) {
+                EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.Projects[index];
                 string projectDirectoryPath = Path.GetDirectoryName(moduleProject.ProjectFilePath);
                 if (!string.IsNullOrWhiteSpace(projectDirectoryPath)) {
                     Directory.CreateDirectory(projectDirectoryPath);
@@ -271,6 +304,9 @@ namespace helengine.editor {
             builder.AppendLine("    <OutputType>Library</OutputType>");
             builder.AppendLine("    <ImplicitUsings>enable</ImplicitUsings>");
             builder.AppendLine("    <Nullable>disable</Nullable>");
+            if (moduleProject.ProjectKind == EditorGeneratedCodeProjectKind.Test) {
+                builder.AppendLine("    <IsPackable>false</IsPackable>");
+            }
             builder.AppendLine("    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>");
             builder.AppendLine("    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>");
             builder.AppendLine("    <EnableDefaultContentItems>false</EnableDefaultContentItems>");
@@ -284,13 +320,8 @@ namespace helengine.editor {
             builder.AppendLine("  </PropertyGroup>");
             AppendProjectReferences(builder, moduleProject);
             AppendAssemblyReferences(builder, moduleProject);
-            builder.AppendLine("  <ItemGroup>");
-            builder.AppendLine("    <Compile Include=\"" + EscapeXml(moduleProject.GeneratedGlobalUsingsFilePath) + "\" />");
-            builder.AppendLine("    <Compile Include=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.SourceFolderPath), "**", "*.cs")) + "\" />");
-            for (int index = 0; index < moduleProject.NestedSourceFolderPaths.Count; index++) {
-                builder.AppendLine("    <Compile Remove=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.NestedSourceFolderPaths[index]), "**", "*.cs")) + "\" />");
-            }
-            builder.AppendLine("  </ItemGroup>");
+            AppendTestPackages(builder, moduleProject);
+            AppendCompileItems(builder, moduleProject);
             builder.AppendLine("</Project>");
             return builder.ToString();
         }
@@ -309,8 +340,8 @@ namespace helengine.editor {
             builder.AppendLine("# Visual Studio Version 17");
             builder.AppendLine("VisualStudioVersion = 17.0.31903.59");
             builder.AppendLine("MinimumVisualStudioVersion = 10.0.40219.1");
-            for (int index = 0; index < generatedCodeSolution.ModuleProjects.Count; index++) {
-                EditorGeneratedCodeModuleProject moduleProject = generatedCodeSolution.ModuleProjects[index];
+            for (int index = 0; index < generatedCodeSolution.Projects.Count; index++) {
+                EditorGeneratedCodeModuleProject moduleProject = generatedCodeSolution.Projects[index];
                 string relativeProjectFileName = Path.GetRelativePath(ProjectRootPath, moduleProject.ProjectFilePath).Replace('\\', '/');
                 string projectGuidText = moduleProject.ProjectGuid.ToString("B").ToUpperInvariant();
                 builder.AppendLine("Project(\"{" + CSharpProjectTypeGuid + "}\") = \"" + EscapeSolutionText(moduleProject.ModuleId) + "\", \"" + EscapeSolutionText(relativeProjectFileName) + "\", \"" + projectGuidText + "\"");
@@ -323,8 +354,8 @@ namespace helengine.editor {
             builder.AppendLine("\t\tRelease|Any CPU = Release|Any CPU");
             builder.AppendLine("\tEndGlobalSection");
             builder.AppendLine("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution");
-            for (int index = 0; index < generatedCodeSolution.ModuleProjects.Count; index++) {
-                string projectGuidText = generatedCodeSolution.ModuleProjects[index].ProjectGuid.ToString("B").ToUpperInvariant();
+            for (int index = 0; index < generatedCodeSolution.Projects.Count; index++) {
+                string projectGuidText = generatedCodeSolution.Projects[index].ProjectGuid.ToString("B").ToUpperInvariant();
                 builder.AppendLine("\t\t" + projectGuidText + ".Debug|Any CPU.ActiveCfg = Debug|Any CPU");
                 builder.AppendLine("\t\t" + projectGuidText + ".Debug|Any CPU.Build.0 = Debug|Any CPU");
                 builder.AppendLine("\t\t" + projectGuidText + ".Release|Any CPU.ActiveCfg = Release|Any CPU");
@@ -366,6 +397,20 @@ namespace helengine.editor {
             if (moduleProject == null) {
                 throw new ArgumentNullException(nameof(moduleProject));
             }
+            if (moduleProject.ProjectKind == EditorGeneratedCodeProjectKind.Test) {
+                if (string.IsNullOrWhiteSpace(moduleProject.ReferencedProductionModuleId)) {
+                    throw new InvalidOperationException($"Generated test project '{moduleProject.ModuleId}' is missing its referenced production module id.");
+                }
+
+                EditorGeneratedCodeModuleProject productionProject = FindGeneratedModuleProject(moduleProject.ReferencedProductionModuleId);
+                string relativeProjectPath = Path.GetRelativePath(
+                    Path.GetDirectoryName(moduleProject.ProjectFilePath) ?? ProjectRootPath,
+                    productionProject.ProjectFilePath);
+                builder.AppendLine("  <ItemGroup>");
+                builder.AppendLine("    <ProjectReference Include=\"" + EscapeXml(relativeProjectPath) + "\" />");
+                builder.AppendLine("  </ItemGroup>");
+                return;
+            }
             if (moduleProject.DependencyModuleIds.Count == 0) {
                 return;
             }
@@ -378,6 +423,33 @@ namespace helengine.editor {
                     dependencyProject.ProjectFilePath);
                 builder.AppendLine("    <ProjectReference Include=\"" + EscapeXml(relativeProjectPath) + "\" />");
             }
+            builder.AppendLine("  </ItemGroup>");
+        }
+
+        /// <summary>
+        /// Appends xUnit package references and global using imports for one generated test project.
+        /// </summary>
+        /// <param name="builder">Project file string builder being populated.</param>
+        /// <param name="moduleProject">Generated project whose test package references should be emitted.</param>
+        void AppendTestPackages(StringBuilder builder, EditorGeneratedCodeModuleProject moduleProject) {
+            if (builder == null) {
+                throw new ArgumentNullException(nameof(builder));
+            }
+            if (moduleProject == null) {
+                throw new ArgumentNullException(nameof(moduleProject));
+            }
+            if (moduleProject.ProjectKind != EditorGeneratedCodeProjectKind.Test) {
+                return;
+            }
+
+            builder.AppendLine("  <ItemGroup>");
+            builder.AppendLine("    <PackageReference Include=\"coverlet.collector\" Version=\"" + CoverletCollectorPackageVersion + "\" />");
+            builder.AppendLine("    <PackageReference Include=\"Microsoft.NET.Test.Sdk\" Version=\"" + TestSdkPackageVersion + "\" />");
+            builder.AppendLine("    <PackageReference Include=\"xunit\" Version=\"" + XunitPackageVersion + "\" />");
+            builder.AppendLine("    <PackageReference Include=\"xunit.runner.visualstudio\" Version=\"" + XunitRunnerPackageVersion + "\" />");
+            builder.AppendLine("  </ItemGroup>");
+            builder.AppendLine("  <ItemGroup>");
+            builder.AppendLine("    <Using Include=\"Xunit\" />");
             builder.AppendLine("  </ItemGroup>");
         }
 
@@ -411,6 +483,30 @@ namespace helengine.editor {
                 builder.AppendLine("    <Reference Include=\"helengine.editor\">");
                 builder.AppendLine("      <HintPath>" + EscapeXml(typeof(EditorGameSolutionService).Assembly.Location) + "</HintPath>");
                 builder.AppendLine("    </Reference>");
+            }
+            builder.AppendLine("  </ItemGroup>");
+        }
+
+        /// <summary>
+        /// Appends compile items for one generated project, keeping production nested-folder exclusions out of test projects.
+        /// </summary>
+        /// <param name="builder">Project file string builder being populated.</param>
+        /// <param name="moduleProject">Generated project whose compile items should be emitted.</param>
+        void AppendCompileItems(StringBuilder builder, EditorGeneratedCodeModuleProject moduleProject) {
+            if (builder == null) {
+                throw new ArgumentNullException(nameof(builder));
+            }
+            if (moduleProject == null) {
+                throw new ArgumentNullException(nameof(moduleProject));
+            }
+
+            builder.AppendLine("  <ItemGroup>");
+            builder.AppendLine("    <Compile Include=\"" + EscapeXml(moduleProject.GeneratedGlobalUsingsFilePath) + "\" />");
+            builder.AppendLine("    <Compile Include=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.SourceFolderPath), "**", "*.cs")) + "\" />");
+            if (moduleProject.ProjectKind == EditorGeneratedCodeProjectKind.Production) {
+                for (int index = 0; index < moduleProject.NestedSourceFolderPaths.Count; index++) {
+                    builder.AppendLine("    <Compile Remove=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.NestedSourceFolderPaths[index]), "**", "*.cs")) + "\" />");
+                }
             }
             builder.AppendLine("  </ItemGroup>");
         }
