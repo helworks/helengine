@@ -96,7 +96,36 @@ namespace helengine.editor {
                 fullProjectRootPath,
                 fullGeneratedOutputRootPath,
                 moduleProjects);
-            return new EditorGeneratedCodeSolution(moduleProjects, testProjects);
+            IReadOnlyList<EditorGeneratedCodeModuleProject> filteredModuleProjects = ApplyTestFolderExclusions(moduleProjects, testProjects);
+            return new EditorGeneratedCodeSolution(filteredModuleProjects, testProjects);
+        }
+
+        /// <summary>
+        /// Applies inferred test-folder compile exclusions to any generated production project whose source boundary owns the test folder path.
+        /// </summary>
+        /// <param name="moduleProjects">Ordered generated production projects.</param>
+        /// <param name="testProjects">Ordered inferred generated test projects.</param>
+        /// <returns>Generated production projects updated with additional compile-remove folder boundaries where required.</returns>
+        static IReadOnlyList<EditorGeneratedCodeModuleProject> ApplyTestFolderExclusions(
+            IReadOnlyList<EditorGeneratedCodeModuleProject> moduleProjects,
+            IReadOnlyList<EditorGeneratedCodeModuleProject> testProjects) {
+            List<EditorGeneratedCodeModuleProject> updatedProjects = [];
+            for (int projectIndex = 0; projectIndex < moduleProjects.Count; projectIndex++) {
+                EditorGeneratedCodeModuleProject moduleProject = moduleProjects[projectIndex];
+                List<string> nestedSourceFolderPaths = [.. moduleProject.NestedSourceFolderPaths];
+                for (int testIndex = 0; testIndex < testProjects.Count; testIndex++) {
+                    string testSourceFolderPath = testProjects[testIndex].SourceFolderPath;
+                    if (IsDescendantFolder(moduleProject.SourceFolderPath, testSourceFolderPath)
+                        && !nestedSourceFolderPaths.Contains(testSourceFolderPath, StringComparer.OrdinalIgnoreCase)) {
+                        nestedSourceFolderPaths.Add(testSourceFolderPath);
+                    }
+                }
+
+                nestedSourceFolderPaths.Sort(StringComparer.OrdinalIgnoreCase);
+                updatedProjects.Add(CloneWithNestedSourceFolderPaths(moduleProject, nestedSourceFolderPaths));
+            }
+
+            return updatedProjects;
         }
 
         /// <summary>
@@ -132,6 +161,52 @@ namespace helengine.editor {
             guidBytes[7] = (byte)((guidBytes[7] & 0x0F) | 0x50);
             guidBytes[8] = (byte)((guidBytes[8] & 0x3F) | 0x80);
             return new Guid(guidBytes);
+        }
+
+        /// <summary>
+        /// Clones one generated project description with a replacement nested-source-folder list.
+        /// </summary>
+        /// <param name="moduleProject">Original generated project description.</param>
+        /// <param name="nestedSourceFolderPaths">Replacement nested source folder path list.</param>
+        /// <returns>Cloned generated project description.</returns>
+        static EditorGeneratedCodeModuleProject CloneWithNestedSourceFolderPaths(
+            EditorGeneratedCodeModuleProject moduleProject,
+            IReadOnlyList<string> nestedSourceFolderPaths) {
+            return new EditorGeneratedCodeModuleProject(
+                moduleProject.ModuleId,
+                moduleProject.SourceFolderPath,
+                moduleProject.DependencyModuleIds,
+                nestedSourceFolderPaths,
+                moduleProject.ProjectFilePath,
+                moduleProject.GeneratedGlobalUsingsFilePath,
+                moduleProject.BaseIntermediateOutputPath,
+                moduleProject.BaseOutputPath,
+                moduleProject.TargetFramework,
+                moduleProject.OutputDirectoryPath,
+                moduleProject.ProjectGuid,
+                moduleProject.ModuleKind,
+                moduleProject.ProjectKind,
+                moduleProject.ReferencedProductionModuleId);
+        }
+
+        /// <summary>
+        /// Determines whether one project-relative folder path is nested beneath another.
+        /// </summary>
+        /// <param name="parentFolderPath">Candidate parent folder path.</param>
+        /// <param name="candidateFolderPath">Candidate nested folder path.</param>
+        /// <returns><c>true</c> when the candidate path is nested beneath the parent path.</returns>
+        static bool IsDescendantFolder(string parentFolderPath, string candidateFolderPath) {
+            if (string.IsNullOrWhiteSpace(parentFolderPath) || string.IsNullOrWhiteSpace(candidateFolderPath)) {
+                return false;
+            }
+
+            if (string.Equals(parentFolderPath, candidateFolderPath, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
+            string prefix = parentFolderPath.Replace('\\', '/').TrimEnd('/') + "/";
+            string normalizedCandidatePath = candidateFolderPath.Replace('\\', '/');
+            return normalizedCandidatePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

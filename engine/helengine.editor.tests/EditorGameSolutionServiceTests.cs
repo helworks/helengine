@@ -316,6 +316,44 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures fallback gameplay projects exclude inferred sibling .tests folders so xUnit code does not compile into production gameplay.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenFallbackGameplayAndSiblingTestFoldersExist_ExcludesTestsFromGameplayProject() {
+            File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay.tests"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools.tests"));
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "RuntimePlayer.cs"), "public sealed class RuntimePlayer { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay.tests", "RuntimePlayerTests.cs"), "public sealed class RuntimePlayerTests { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools", "code.module.json"), """
+{
+  "moduleId": "rendering.tools",
+  "dependencyModuleIds": [ "gameplay" ],
+  "loadScopes": [ "always-loaded" ],
+  "moduleKind": "editor"
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools", "Factory.cs"), "public sealed class Factory { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools.tests", "FactoryTests.cs"), "public sealed class FactoryTests { }");
+
+            EditorGameSolutionService service = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+
+            service.GenerateSolutionFiles();
+
+            string gameplayProjectPath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "gameplay.csproj");
+            string gameplayProjectContents = File.ReadAllText(gameplayProjectPath);
+            Assert.Contains(
+                "<Compile Remove=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay.tests", "**", "*.cs")) + "\" />",
+                gameplayProjectContents,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "<Compile Remove=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools.tests", "**", "*.cs")) + "\" />",
+                gameplayProjectContents,
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Escapes one text value for inclusion in XML text content so string assertions can match generated project values.
         /// </summary>
         /// <param name="value">Text value to escape.</param>
