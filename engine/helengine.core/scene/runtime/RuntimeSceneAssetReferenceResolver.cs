@@ -19,6 +19,11 @@ namespace helengine {
         List<FontAsset> ActiveOwnedFonts;
 
         /// <summary>
+        /// Tracks scene-owned audio assets resolved during the active scene materialization scope.
+        /// </summary>
+        List<AudioAsset> ActiveOwnedAudio;
+
+        /// <summary>
         /// Reuses packaged font assets resolved by absolute path during the active scene materialization scope.
         /// </summary>
         Dictionary<string, FontAsset> ActiveResolvedFontsByPath;
@@ -276,16 +281,33 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves one packaged audio reference into an audio asset instance.
+        /// </summary>
+        /// <param name="reference">Packaged scene asset reference to resolve.</param>
+        /// <returns>Audio asset loaded from packaged content.</returns>
+        public AudioAsset ResolveAudio(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            string fullPath = ResolveFileBackedAssetPath(reference);
+            AudioAsset audioAsset = AssetContentManager.Load<AudioAsset>(fullPath, RuntimeContentProcessorIds.AudioAsset);
+            TrackOwnedAudio(audioAsset);
+            return audioAsset;
+        }
+
+        /// <summary>
         /// Starts one scene-owned asset tracking scope for the next packaged scene materialization.
         /// </summary>
         public void BeginOwnedAssetTracking() {
-            if (ActiveOwnedTextures != null || ActiveOwnedFonts != null || ActiveOwnedModels != null || ActiveOwnedMaterials != null) {
+            if (ActiveOwnedTextures != null || ActiveOwnedFonts != null || ActiveOwnedAudio != null || ActiveOwnedModels != null || ActiveOwnedMaterials != null) {
                 throw new InvalidOperationException("Runtime scene asset tracking is already active.");
             }
 
             ResetGeneratedRuntimeAssetCaches();
             ActiveOwnedTextures = new List<RuntimeTexture>();
             ActiveOwnedFonts = new List<FontAsset>();
+            ActiveOwnedAudio = new List<AudioAsset>();
             ActiveResolvedFontsByPath = new Dictionary<string, FontAsset>(StringComparer.OrdinalIgnoreCase);
             ActiveOwnedModels = new List<RuntimeModel>();
             ActiveOwnedMaterials = new List<RuntimeMaterial>();
@@ -296,23 +318,25 @@ namespace helengine {
         /// </summary>
         /// <returns>Scene-owned runtime assets resolved during the active materialization scope.</returns>
         public RuntimeSceneOwnedAssetSet CompleteOwnedAssetTracking() {
-            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
+            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedAudio == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
                 throw new InvalidOperationException("Runtime scene asset tracking is not active.");
             }
 
             List<RuntimeTexture> ownedTextures = ActiveOwnedTextures;
             List<FontAsset> ownedFonts = ActiveOwnedFonts;
+            List<AudioAsset> ownedAudio = ActiveOwnedAudio;
             List<RuntimeModel> ownedModels = ActiveOwnedModels;
             List<RuntimeMaterial> ownedMaterials = ActiveOwnedMaterials;
             Dictionary<string, FontAsset> resolvedFontsByPath = ActiveResolvedFontsByPath;
             ActiveOwnedTextures = null;
             ActiveOwnedFonts = null;
+            ActiveOwnedAudio = null;
             ActiveResolvedFontsByPath = null;
             ActiveOwnedModels = null;
             ActiveOwnedMaterials = null;
             ResetGeneratedRuntimeAssetCaches();
             NativeOwnership.Delete(resolvedFontsByPath);
-            return new RuntimeSceneOwnedAssetSet(ownedTextures, ownedFonts, ownedModels, ownedMaterials);
+            return new RuntimeSceneOwnedAssetSet(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials);
         }
 
         /// <summary>
@@ -321,17 +345,20 @@ namespace helengine {
         public void CancelOwnedAssetTracking() {
             List<RuntimeTexture> activeOwnedTextures = ActiveOwnedTextures;
             List<FontAsset> activeOwnedFonts = ActiveOwnedFonts;
+            List<AudioAsset> activeOwnedAudio = ActiveOwnedAudio;
             Dictionary<string, FontAsset> activeResolvedFontsByPath = ActiveResolvedFontsByPath;
             List<RuntimeModel> activeOwnedModels = ActiveOwnedModels;
             List<RuntimeMaterial> activeOwnedMaterials = ActiveOwnedMaterials;
             ActiveOwnedTextures = null;
             ActiveOwnedFonts = null;
+            ActiveOwnedAudio = null;
             ActiveResolvedFontsByPath = null;
             ActiveOwnedModels = null;
             ActiveOwnedMaterials = null;
             ResetGeneratedRuntimeAssetCaches();
             NativeOwnership.Delete(activeOwnedTextures);
             NativeOwnership.Delete(activeOwnedFonts);
+            NativeOwnership.Delete(activeOwnedAudio);
             NativeOwnership.Delete(activeResolvedFontsByPath);
             NativeOwnership.Delete(activeOwnedModels);
             NativeOwnership.Delete(activeOwnedMaterials);
@@ -396,6 +423,55 @@ namespace helengine {
             DeleteTransientArray(indices16);
             DeleteTransientArray(indices32);
             DeleteTransientArray(submeshes);
+            NativeOwnership.Delete(asset);
+        }
+
+        /// <summary>
+        /// Releases one transient audio asset and all deserialized payload buffers used only while the scene remains loaded.
+        /// </summary>
+        /// <param name="asset">Transient audio asset to release.</param>
+        internal static void ReleaseTransientAudioAsset(AudioAsset asset) {
+            if (asset == null) {
+                return;
+            }
+
+            byte[] encodedBytes = asset.EncodedBytes;
+            AudioChunkDescriptor[] chunks = asset.Chunks;
+            AudioAssetPlatformOverrideAsset[] platformOverrides = asset.PlatformOverrides;
+            asset.EncodedBytes = null;
+            asset.Chunks = null;
+            asset.PlatformOverrides = null;
+            if (chunks != null) {
+                for (int index = 0; index < chunks.Length; index++) {
+                    NativeOwnership.Delete(chunks[index]);
+                }
+            }
+            if (platformOverrides != null) {
+                for (int index = 0; index < platformOverrides.Length; index++) {
+                    AudioAssetPlatformOverrideAsset platformOverride = platformOverrides[index];
+                    if (platformOverride == null) {
+                        continue;
+                    }
+
+                    byte[] overrideEncodedBytes = platformOverride.EncodedBytes;
+                    AudioChunkDescriptor[] overrideChunks = platformOverride.Chunks;
+                    platformOverride.EncodedBytes = null;
+                    platformOverride.Chunks = null;
+                    if (overrideChunks != null) {
+                        for (int chunkIndex = 0; chunkIndex < overrideChunks.Length; chunkIndex++) {
+                            NativeOwnership.Delete(overrideChunks[chunkIndex]);
+                        }
+                    }
+
+                    DeleteTransientArray(overrideEncodedBytes);
+                    DeleteTransientArray(overrideChunks);
+                    NativeOwnership.Delete(platformOverride);
+                }
+            }
+
+            DeleteTransientArray(encodedBytes);
+            DeleteTransientArray(chunks);
+            DeleteTransientArray(platformOverrides);
             NativeOwnership.Delete(asset);
         }
 
@@ -525,6 +601,20 @@ namespace helengine {
 
             if (!ActiveOwnedFonts.Contains(asset)) {
                 ActiveOwnedFonts.Add(asset);
+            }
+        }
+
+        /// <summary>
+        /// Tracks one scene-owned audio asset so the owning scene can release it during unload.
+        /// </summary>
+        /// <param name="asset">Audio asset resolved during scene materialization.</param>
+        void TrackOwnedAudio(AudioAsset asset) {
+            if (asset == null || ActiveOwnedAudio == null) {
+                return;
+            }
+
+            if (!ActiveOwnedAudio.Contains(asset)) {
+                ActiveOwnedAudio.Add(asset);
             }
         }
 

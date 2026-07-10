@@ -149,6 +149,183 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures runtime content-manager registration can load packaged audio assets through the shared processor-id surface.
+        /// </summary>
+        [Fact]
+        public void ConfigureSharedAssetContentManager_WhenAudioAssetFileExists_LoadsAudioAssetByProcessorId() {
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            AudioAsset asset = new AudioAsset {
+                Id = "Audio/runtime-scene-load.haudio",
+                PlaybackMode = AudioPlaybackMode.Streamed,
+                DefaultLoop = true,
+                DefaultBusId = "music",
+                Channels = 2,
+                SampleRate = 44100,
+                DurationSeconds = 4f,
+                EncodingFamilyId = "pcm-streamed",
+                EncodedBytes = [1, 2, 3, 4],
+                Chunks = [
+                    new AudioChunkDescriptor {
+                        ByteOffset = 0,
+                        ByteLength = 4
+                    }
+                ]
+            };
+
+            WriteAudioAsset("audio/runtime-scene-load.haudio", asset);
+
+            AudioAsset loadedAsset = runtimeContentManager.Load<AudioAsset>(
+                "audio/runtime-scene-load.haudio",
+                RuntimeContentProcessorIds.AudioAsset);
+
+            Assert.Equal("Audio/runtime-scene-load.haudio", loadedAsset.Id);
+            Assert.Equal(AudioPlaybackMode.Streamed, loadedAsset.PlaybackMode);
+            Assert.True(loadedAsset.DefaultLoop);
+            Assert.Equal("music", loadedAsset.DefaultBusId);
+            Assert.Equal(44100, loadedAsset.SampleRate);
+            Assert.Equal([1, 2, 3, 4], loadedAsset.EncodedBytes);
+            Assert.Single(loadedAsset.Chunks);
+        }
+
+        /// <summary>
+        /// Ensures packaged runtime audio resolution can load serialized audio assets through the shared scene-reference path.
+        /// </summary>
+        [Fact]
+        public void ResolveAudio_WhenPackagedAudioLoads_returnsMetadataAndPayload() {
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(runtimeContentManager);
+            AudioAsset asset = new AudioAsset {
+                Id = "Audio/runtime-scene-load.haudio",
+                PlaybackMode = AudioPlaybackMode.Streamed,
+                DefaultLoop = true,
+                DefaultBusId = "music",
+                Channels = 2,
+                SampleRate = 44100,
+                DurationSeconds = 4f,
+                EncodingFamilyId = "pcm-streamed",
+                EncodedBytes = [1, 2, 3, 4],
+                Chunks = [
+                    new AudioChunkDescriptor {
+                        ByteOffset = 0,
+                        ByteLength = 4
+                    }
+                ]
+            };
+
+            WriteAudioAsset("audio/runtime-scene-load.haudio", asset);
+
+            AudioAsset loadedAsset = resolver.ResolveAudio(
+                global::helengine.SceneAssetReferenceFactory.CreateFileSystemAudio("audio/runtime-scene-load.haudio"));
+
+            Assert.Equal("Audio/runtime-scene-load.haudio", loadedAsset.Id);
+            Assert.Equal(AudioPlaybackMode.Streamed, loadedAsset.PlaybackMode);
+            Assert.True(loadedAsset.DefaultLoop);
+            Assert.Equal("music", loadedAsset.DefaultBusId);
+            Assert.Equal(2, loadedAsset.Channels);
+            Assert.Equal(44100, loadedAsset.SampleRate);
+            Assert.Equal(4f, loadedAsset.DurationSeconds);
+            Assert.Equal([1, 2, 3, 4], loadedAsset.EncodedBytes);
+            Assert.Single(loadedAsset.Chunks);
+        }
+
+        /// <summary>
+        /// Ensures packaged runtime audio resolution tracks the loaded clip so scene unload can release the cooked payload.
+        /// </summary>
+        [Fact]
+        public void ResolveAudio_WhenOwnedAssetTrackingIsActive_tracksOwnedAudioAsset() {
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(runtimeContentManager);
+            AudioAsset asset = new AudioAsset {
+                Id = "Audio/runtime-scene-load.haudio",
+                PlaybackMode = AudioPlaybackMode.Streamed,
+                DefaultLoop = true,
+                DefaultBusId = "music",
+                Channels = 1,
+                SampleRate = 11025,
+                DurationSeconds = 4f,
+                EncodingFamilyId = "pcm-streamed",
+                EncodedBytes = [1, 2, 3, 4],
+                Chunks = [
+                    new AudioChunkDescriptor {
+                        ByteOffset = 0,
+                        ByteLength = 4
+                    }
+                ]
+            };
+
+            WriteAudioAsset("audio/runtime-scene-load.haudio", asset);
+
+            resolver.BeginOwnedAssetTracking();
+            AudioAsset loadedAsset = resolver.ResolveAudio(
+                global::helengine.SceneAssetReferenceFactory.CreateFileSystemAudio("audio/runtime-scene-load.haudio"));
+            RuntimeSceneOwnedAssetSet ownedAssets = resolver.CompleteOwnedAssetTracking();
+
+            Assert.Same(loadedAsset, Assert.Single(ownedAssets.OwnedAudio));
+            Assert.Equal([1, 2, 3, 4], loadedAsset.EncodedBytes);
+        }
+
+        /// <summary>
+        /// Ensures runtime scene loading resolves packaged audio references onto live audio-source components and starts playback through the configured audio manager.
+        /// </summary>
+        [Fact]
+        public void Load_WhenAudioSourceComponentReferencesAudioAsset_ResolvesAndStartsPlayback() {
+            FakeAudioBackend backend = new FakeAudioBackend();
+            Core.Instance.SetAudioBackend(backend);
+
+            AudioAsset asset = new AudioAsset {
+                Id = "audio/menu/theme.hasset",
+                PlaybackMode = AudioPlaybackMode.Streamed,
+                DefaultLoop = true,
+                DefaultBusId = "music",
+                Channels = 2,
+                SampleRate = 44100,
+                DurationSeconds = 4f,
+                EncodingFamilyId = "pcm-streamed",
+                EncodedBytes = [1, 2, 3, 4],
+                Chunks = [
+                    new AudioChunkDescriptor {
+                        ByteOffset = 0,
+                        ByteLength = 4
+                    }
+                ]
+            };
+            WriteAudioAsset("audio/menu/theme.hasset", asset);
+
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(
+                new RuntimeSceneAssetReferenceResolver(Core.Instance.ContentManager),
+                RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = [
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "AudioRoot",
+                        Components = [
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(AudioSourceComponent)),
+                                ComponentIndex = 0,
+                                Payload = WriteAudioSourceComponentPayload("audio/menu/theme.hasset")
+                            }
+                        ],
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                ]
+            };
+
+            Entity loadedRoot = Assert.Single(loadService.Load(sceneAsset));
+            AudioSourceComponent component = Assert.IsType<AudioSourceComponent>(Assert.Single(loadedRoot.Components, component => component is AudioSourceComponent));
+
+            Assert.NotNull(component.Clip);
+            Assert.Equal("music", component.BusId);
+            Assert.Single(backend.PlayRequests);
+            Assert.Same(component.Clip, backend.PlayedAssets[0]);
+            Assert.True(backend.PlayRequests[0].Loop);
+            Assert.Equal("music", backend.PlayRequests[0].BusId);
+        }
+
+        /// <summary>
         /// Ensures runtime scene loading restores the serialized static flag onto live entities.
         /// </summary>
         [Fact]
@@ -1483,6 +1660,19 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Writes one serialized audio asset at the supplied packaged content path.
+        /// </summary>
+        /// <param name="relativePath">Packaged content-relative path.</param>
+        /// <param name="audioAsset">Audio asset payload to serialize.</param>
+        void WriteAudioAsset(string relativePath, AudioAsset audioAsset) {
+            string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, audioAsset);
+        }
+
+        /// <summary>
         /// Creates one file-backed font reference for authored or packaged scene payloads.
         /// </summary>
         /// <param name="relativePath">Relative font path to encode.</param>
@@ -1526,6 +1716,27 @@ namespace helengine.editor.tests.serialization.scene {
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(textComponent, 0, saveState);
             return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one automatic runtime audio-source payload that references a packaged audio asset.
+        /// </summary>
+        /// <param name="relativePath">Packaged audio path resolved by the source component.</param>
+        /// <returns>Serialized automatic runtime component payload.</returns>
+        byte[] WriteAudioSourceComponentPayload(string relativePath) {
+            AudioSourceComponent component = new AudioSourceComponent {
+                Clip = new AudioAsset {
+                    Id = relativePath,
+                    DefaultBusId = "music"
+                },
+                PlayOnStart = true,
+                Loop = false,
+                BusId = "music",
+                Gain = 1f
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(AudioSourceComponent.Clip), SceneAssetReferenceTestFactory.CreateFileSystemAudio(relativePath));
+            return WriteAutomaticRuntimeComponentPayload(component, saveState);
         }
 
         /// <summary>
@@ -1654,6 +1865,71 @@ namespace helengine.editor.tests.serialization.scene {
             saveComponent.EntityId = NextEditorEntityId;
             NextEditorEntityId++;
             return entity;
+        }
+
+        /// <summary>
+        /// Records runtime playback calls issued by the shared audio manager.
+        /// </summary>
+        sealed class FakeAudioBackend : IAudioBackend {
+            /// <summary>
+            /// Playback requests received by the backend.
+            /// </summary>
+            public List<AudioPlaybackRequest> PlayRequests { get; } = [];
+
+            /// <summary>
+            /// Audio assets received by the backend in play order.
+            /// </summary>
+            public List<AudioAsset> PlayedAssets { get; } = [];
+
+            /// <summary>
+            /// Starts playback and records the incoming request.
+            /// </summary>
+            /// <param name="asset">Resolved audio asset to play.</param>
+            /// <param name="request">Runtime playback request.</param>
+            /// <returns>Stable fake voice identifier.</returns>
+            public int Play(AudioAsset asset, AudioPlaybackRequest request) {
+                PlayedAssets.Add(asset);
+                PlayRequests.Add(request);
+                return PlayRequests.Count;
+            }
+
+            /// <summary>
+            /// Fake backend stop is a no-op for test coverage.
+            /// </summary>
+            /// <param name="voiceId">Backend-owned voice identifier.</param>
+            public void Stop(int voiceId) {
+            }
+
+            /// <summary>
+            /// Fake backend bus gain updates are ignored by the test harness.
+            /// </summary>
+            /// <param name="busId">Stable bus identifier.</param>
+            /// <param name="gain">Linear gain multiplier.</param>
+            public void SetBusGain(string busId, float gain) {
+            }
+
+            /// <summary>
+            /// Fake backend pause-state updates are ignored by the test harness.
+            /// </summary>
+            /// <param name="busId">Stable bus identifier.</param>
+            /// <param name="paused">True to pause; false to resume.</param>
+            public void SetBusPaused(string busId, bool paused) {
+            }
+
+            /// <summary>
+            /// Fake voices remain active for the duration of the test.
+            /// </summary>
+            /// <param name="voiceId">Backend-owned voice identifier.</param>
+            /// <returns>True for all fake voices.</returns>
+            public bool IsPlaying(int voiceId) {
+                return true;
+            }
+
+            /// <summary>
+            /// Fake backend per-frame maintenance is a no-op for test coverage.
+            /// </summary>
+            public void Update() {
+            }
         }
     }
 }

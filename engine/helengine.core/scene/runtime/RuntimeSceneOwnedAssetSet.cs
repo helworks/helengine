@@ -8,15 +8,18 @@ namespace helengine {
         /// </summary>
         /// <param name="ownedTextures">Scene-owned runtime textures resolved during materialization.</param>
         /// <param name="ownedFonts">Scene-owned font assets resolved during materialization.</param>
+        /// <param name="ownedAudio">Scene-owned audio assets resolved during materialization.</param>
         /// <param name="ownedModels">Scene-owned runtime models resolved during materialization.</param>
         /// <param name="ownedMaterials">Scene-owned runtime materials resolved during materialization.</param>
         public RuntimeSceneOwnedAssetSet(
             IReadOnlyList<RuntimeTexture> ownedTextures,
             IReadOnlyList<FontAsset> ownedFonts,
+            IReadOnlyList<AudioAsset> ownedAudio,
             IReadOnlyList<RuntimeModel> ownedModels,
             IReadOnlyList<RuntimeMaterial> ownedMaterials) {
             OwnedTextures = ownedTextures ?? throw new ArgumentNullException(nameof(ownedTextures));
             OwnedFonts = ownedFonts ?? throw new ArgumentNullException(nameof(ownedFonts));
+            OwnedAudio = ownedAudio ?? throw new ArgumentNullException(nameof(ownedAudio));
             OwnedModels = ownedModels ?? throw new ArgumentNullException(nameof(ownedModels));
             OwnedMaterials = ownedMaterials ?? throw new ArgumentNullException(nameof(ownedMaterials));
         }
@@ -30,6 +33,11 @@ namespace helengine {
         /// Gets the scene-owned font assets resolved during materialization.
         /// </summary>
         public IReadOnlyList<FontAsset> OwnedFonts { get; }
+
+        /// <summary>
+        /// Gets the scene-owned audio assets resolved during materialization.
+        /// </summary>
+        public IReadOnlyList<AudioAsset> OwnedAudio { get; }
 
         /// <summary>
         /// Gets the scene-owned runtime models resolved during materialization.

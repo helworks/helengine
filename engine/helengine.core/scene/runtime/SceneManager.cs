@@ -64,6 +64,11 @@ namespace helengine {
         readonly Dictionary<FontAsset, int> ActiveOwnedFontReferenceCounts;
 
         /// <summary>
+        /// Tracks active scene-owned audio assets and how many loaded scenes still reference each instance.
+        /// </summary>
+        readonly Dictionary<AudioAsset, int> ActiveOwnedAudioReferenceCounts;
+
+        /// <summary>
         /// Tracks active scene-owned runtime models and how many loaded scenes still reference each instance.
         /// </summary>
         readonly Dictionary<RuntimeModel, int> ActiveOwnedModelReferenceCounts;
@@ -112,6 +117,7 @@ namespace helengine {
             PendingOperations = new List<PendingSceneOperation>();
             ActiveOwnedTextureReferenceCounts = new Dictionary<RuntimeTexture, int>();
             ActiveOwnedFontReferenceCounts = new Dictionary<FontAsset, int>();
+            ActiveOwnedAudioReferenceCounts = new Dictionary<AudioAsset, int>();
             ActiveOwnedModelReferenceCounts = new Dictionary<RuntimeModel, int>();
             ActiveOwnedMaterialReferenceCounts = new Dictionary<RuntimeMaterial, int>();
         }
@@ -160,6 +166,11 @@ namespace helengine {
         /// Gets the number of scene-owned font assets currently tracked across all loaded scenes.
         /// </summary>
         public int ActiveOwnedFontReferenceCount => ActiveOwnedFontReferenceCounts.Count;
+
+        /// <summary>
+        /// Gets the number of scene-owned audio assets currently tracked across all loaded scenes.
+        /// </summary>
+        public int ActiveOwnedAudioReferenceCount => ActiveOwnedAudioReferenceCounts.Count;
 
         /// <summary>
         /// Gets the number of scene-owned runtime models currently tracked across all loaded scenes.
@@ -383,6 +394,7 @@ namespace helengine {
             NativeOwnership.Delete(releasedRootEntities);
             NativeOwnership.Delete(releasedOwnedAssets.OwnedTextures);
             NativeOwnership.Delete(releasedOwnedAssets.OwnedFonts);
+            NativeOwnership.Delete(releasedOwnedAssets.OwnedAudio);
             NativeOwnership.Delete(releasedOwnedAssets.OwnedModels);
             NativeOwnership.Delete(releasedOwnedAssets.OwnedMaterials);
             NativeOwnership.Delete(releasedOwnedAssets);
@@ -718,6 +730,7 @@ namespace helengine {
 
             RegisterOwnedTextures(ownedAssets.OwnedTextures);
             RegisterOwnedFonts(ownedAssets.OwnedFonts);
+            RegisterOwnedAudio(ownedAssets.OwnedAudio);
             RegisterOwnedModels(ownedAssets.OwnedModels);
             RegisterOwnedMaterials(ownedAssets.OwnedMaterials);
         }
@@ -764,6 +777,29 @@ namespace helengine {
                     ActiveOwnedFontReferenceCounts[ownedAsset] = existingReferenceCount + 1;
                 } else {
                     ActiveOwnedFontReferenceCounts.Add(ownedAsset, 1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Registers one scene's owned audio assets against the active scene set.
+        /// </summary>
+        /// <param name="ownedAudio">Scene-owned audio assets resolved during materialization.</param>
+        void RegisterOwnedAudio(IReadOnlyList<AudioAsset> ownedAudio) {
+            if (ownedAudio == null) {
+                throw new ArgumentNullException(nameof(ownedAudio));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedAudio.Count; assetIndex++) {
+                AudioAsset ownedAsset = ownedAudio[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+
+                if (ActiveOwnedAudioReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    ActiveOwnedAudioReferenceCounts[ownedAsset] = existingReferenceCount + 1;
+                } else {
+                    ActiveOwnedAudioReferenceCounts.Add(ownedAsset, 1);
                 }
             }
         }
@@ -826,6 +862,9 @@ namespace helengine {
             RecordTraceState("ReleaseOwnedAssetsBeforeFonts", LastTraceSceneId);
             ReleaseOwnedFonts(ownedAssets.OwnedFonts);
             RecordTraceState("ReleaseOwnedAssetsAfterFonts", LastTraceSceneId);
+            RecordTraceState("ReleaseOwnedAssetsBeforeAudio", LastTraceSceneId);
+            ReleaseOwnedAudio(ownedAssets.OwnedAudio);
+            RecordTraceState("ReleaseOwnedAssetsAfterAudio", LastTraceSceneId);
             RecordTraceState("ReleaseOwnedAssetsBeforeTextures", LastTraceSceneId);
             ReleaseOwnedTextures(ownedAssets.OwnedTextures);
             RecordTraceState("ReleaseOwnedAssetsAfterTextures", LastTraceSceneId);
@@ -890,6 +929,34 @@ namespace helengine {
 
                 ActiveOwnedTextureReferenceCounts.Remove(ownedAsset);
                 ReleaseOwnedAsset(ownedAsset);
+            }
+        }
+
+        /// <summary>
+        /// Releases one scene's owned audio assets when no other loaded scene still references them.
+        /// </summary>
+        /// <param name="ownedAudio">Scene-owned audio assets resolved during materialization.</param>
+        void ReleaseOwnedAudio(IReadOnlyList<AudioAsset> ownedAudio) {
+            if (ownedAudio == null) {
+                throw new ArgumentNullException(nameof(ownedAudio));
+            }
+
+            for (int assetIndex = 0; assetIndex < ownedAudio.Count; assetIndex++) {
+                AudioAsset ownedAsset = ownedAudio[assetIndex];
+                if (ownedAsset == null) {
+                    continue;
+                }
+                if (!ActiveOwnedAudioReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
+                    throw new InvalidOperationException("Scene-owned audio asset was not tracked before release.");
+                }
+
+                if (existingReferenceCount > 1) {
+                    ActiveOwnedAudioReferenceCounts[ownedAsset] = existingReferenceCount - 1;
+                    continue;
+                }
+
+                ActiveOwnedAudioReferenceCounts.Remove(ownedAsset);
+                ReleaseOwnedAudioAsset(ownedAsset);
             }
         }
 
@@ -995,6 +1062,14 @@ namespace helengine {
             }
 
             Core.Instance.RenderManager2D.ReleaseTexture(ownedAsset);
+        }
+
+        /// <summary>
+        /// Releases one scene-owned audio asset after the final scene reference has been removed.
+        /// </summary>
+        /// <param name="ownedAsset">Scene-owned audio asset that is no longer referenced by any loaded scene.</param>
+        void ReleaseOwnedAudioAsset(AudioAsset ownedAsset) {
+            RuntimeSceneAssetReferenceResolver.ReleaseTransientAudioAsset(ownedAsset);
         }
 
         /// <summary>

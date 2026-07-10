@@ -131,6 +131,28 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
     }
 
     /// <summary>
+    /// Ensures packaged audio references are tracked as scene-owned assets and expose one explicit transient-release helper.
+    /// </summary>
+    [Fact]
+    public void RuntimeSceneAssetReferenceResolver_source_tracks_owned_audio_and_exposes_transient_release_helper() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.core",
+            "scene",
+            "runtime",
+            "RuntimeSceneAssetReferenceResolver.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("List<AudioAsset> ActiveOwnedAudio;", source, StringComparison.Ordinal);
+        Assert.Contains("TrackOwnedAudio(audioAsset);", source, StringComparison.Ordinal);
+        Assert.Contains("List<AudioAsset> ownedAudio = ActiveOwnedAudio;", source, StringComparison.Ordinal);
+        Assert.Contains("new RuntimeSceneOwnedAssetSet(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials);", source, StringComparison.Ordinal);
+        Assert.Contains("internal static void ReleaseTransientAudioAsset(AudioAsset asset)", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Resolves the helengine repository root from the current test assembly location.
     /// </summary>
     /// <returns>Absolute repository root path.</returns>
