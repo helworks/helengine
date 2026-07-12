@@ -151,11 +151,48 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures an entity cannot be parented to itself, which would otherwise create unbounded hierarchy recursion.
+        /// </summary>
+        [Fact]
+        public void AddChild_WhenEntityParentsItself_ThrowsInvalidOperationException() {
+            InitializeCore();
+
+            Entity entity = CreateEntity();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => entity.AddChild(entity));
+
+            Assert.Equal("An entity cannot be parented to itself.", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures reparenting an ancestor under its descendant is rejected instead of creating a hierarchy cycle.
+        /// </summary>
+        [Fact]
+        public void AddChild_WhenChildOwnsTheCurrentParentHierarchy_ThrowsInvalidOperationException() {
+            InitializeCore();
+
+            Entity root = CreateEntity();
+            Entity child = CreateEntity();
+            root.AddChild(child);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => child.AddChild(root));
+
+            Assert.Equal("Adding the supplied child would create a hierarchy cycle.", exception.Message);
+        }
+
+        /// <summary>
         /// Initializes the core services required for entity-registration tests.
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            core.Initialize(
+                null,
+                new TestRenderManager2D(),
+                null,
+                new PlatformInfo("test", "test-version"),
+                new CoreInitializationOptions {
+                    ContentStreamSource = new HostFileSystemContentStreamSource(Environment.CurrentDirectory)
+                });
         }
 
         /// <summary>

@@ -135,6 +135,63 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures Windows standard-shader emissive texture fields hydrate the matching runtime texture reference.
+        /// </summary>
+        [Fact]
+        public void LoadMaterialAsset_WhenWindowsStandardShaderFieldsSpecifyEmissiveTexture_HydratesEmissiveTextureReference() {
+            string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectoryPath);
+
+            try {
+                string materialAssetPath = Path.Combine(tempDirectoryPath, "GlowCoin.hasset");
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
+                settings.Processor.Platforms["windows"].FieldValues["emissive-texture-id"] = "imported-emissive-id";
+
+                service.Save(materialAssetPath, settings);
+
+                ShaderMaterialAsset materialAsset = service.LoadMaterialAsset(materialAssetPath, "windows");
+
+                Assert.Equal("imported-emissive-id", materialAsset.EmissiveTextureAssetId);
+            } finally {
+                if (Directory.Exists(tempDirectoryPath)) {
+                    Directory.Delete(tempDirectoryPath, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ensures Windows standard-shader emissive color fields hydrate the matching runtime constant-buffer payload.
+        /// </summary>
+        [Fact]
+        public void LoadMaterialAsset_WhenWindowsStandardShaderFieldsSpecifyEmissiveColor_HydratesEmissiveColorBuffer() {
+            string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectoryPath);
+
+            try {
+                string materialAssetPath = Path.Combine(tempDirectoryPath, "GlowCoin.hasset");
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
+                settings.Processor.Platforms["windows"].FieldValues["emissive-color"] = "#FFD54A33";
+
+                service.Save(materialAssetPath, settings);
+
+                ShaderMaterialAsset materialAsset = service.LoadMaterialAsset(materialAssetPath, "windows");
+                MaterialConstantBufferAsset emissiveBuffer = Assert.Single(
+                    materialAsset.ConstantBuffers,
+                    constantBuffer => constantBuffer.Name == StandardMaterialEmissiveColorDefaults.EmissiveColorBufferName);
+
+                Assert.Equal(
+                    StandardMaterialEmissiveColorDefaults.CreateConstantBufferData(new float4(1f, 213f / 255f, 74f / 255f, 51f / 255f)),
+                    emissiveBuffer.Data);
+            } finally {
+                if (Directory.Exists(tempDirectoryPath)) {
+                    Directory.Delete(tempDirectoryPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures Windows standard-shader metallic and specular fields hydrate the matching runtime constant-buffer payloads.
         /// </summary>
         [Fact]

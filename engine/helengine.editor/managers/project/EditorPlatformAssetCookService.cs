@@ -538,6 +538,9 @@ namespace helengine.editor {
                 if (asset is MaterialAsset) {
                     return "material";
                 }
+                if (asset is AudioAsset) {
+                    return "audio";
+                }
                 return string.Empty;
             } catch (Exception ex) {
                 throw new InvalidOperationException($"Cooked artifact '{relativePath}' at '{fullPath}' could not be classified from serialized content.", ex);
@@ -568,6 +571,9 @@ namespace helengine.editor {
                 }
                 if (asset is MaterialAsset) {
                     return "material";
+                }
+                if (asset is AudioAsset) {
+                    return "audio";
                 }
                 return "asset";
             } catch (Exception ex) {

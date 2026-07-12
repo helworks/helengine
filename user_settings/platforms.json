@@ -64,7 +64,7 @@
                           "builderAssemblyPath":  "../../helengine-gc/builder/bin/Debug/net9.0/helengine.gamecube.builder.dll",
                           "playerSourceRootPath":  "../../helengine-gc",
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
-                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Release/net9.0/codegen.exe"
                       },
                       {
                           "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
@@ -83,6 +83,16 @@
                           "playerSourceRootPath":  "../../helengine-wiiu",
                           "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
                           "codegenToolPath":  "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+                      },
+                      {
+                          "engineVersion":  "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+                          "platformId":  "switch",
+                          "displayName":  "Nintendo Switch",
+                          "builderAssemblyPath":  "../../helengine-switch/builder/bin/Debug/net9.0/helengine.switch.builder.dll",
+                          "playerSourceRootPath":  "../../helengine-switch",
+                          "generatedCoreCppRootPath":  "../tmp/helengine-core-cpp-regenerated",
+                          "codegenToolPath":  "../../csharpcodegen/codegen/bin/Release/net9.0/codegen.exe",
+                          "pluginManifestPath":  "../../helengine-switch/platform-plugin.json"
                       }
                   ]
 }

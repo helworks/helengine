@@ -22,6 +22,7 @@
     <Compile Remove="content\font\GDIFontProcessor.cs" />
     <Compile Remove="content\font\TempFontChar.cs" />
     <Compile Remove="content\font\TempFontItem.cs" />
+    <Compile Remove="content\audio\NAudioSourceAudioImporter.cs" />
     <Compile Remove="content\textures\GDITextureImporter.cs" />
     <Compile Remove="content\textures\PfimTextureImporter.cs" />
     <Compile Remove="content\textures\MagickTextureImporter.cs" />

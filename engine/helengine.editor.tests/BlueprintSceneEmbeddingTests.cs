@@ -74,6 +74,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures multiple blueprint instance roots can expand during the same scene load without sharing stable entity registrations across separate blueprint loads.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsTwoBlueprintInstances_ExpandsBothInheritedSubtrees() {
+            WriteBlueprintAsset("Blueprints/TestBlueprint.hblueprint");
+            string scenePath = SaveSceneWithTwoBlueprintInstances("Scenes/BlueprintInstances.helen", "Blueprints/TestBlueprint.hblueprint");
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, new ComponentPersistenceRegistry(), new TestSceneAssetReferenceResolver());
+
+            LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
+
+            Assert.Equal(2, loaded.RootEntities.Length);
+            for (int rootIndex = 0; rootIndex < loaded.RootEntities.Length; rootIndex++) {
+                EditorEntity inheritedRoot = Assert.IsType<EditorEntity>(Assert.Single(loaded.RootEntities[rootIndex].Children));
+                Assert.Equal("Blueprint Root", inheritedRoot.Name);
+                Assert.NotNull(Assert.Single(inheritedRoot.Components, component => component is BlueprintInheritedEntityComponent));
+            }
+        }
+
+        /// <summary>
         /// Ensures scene save does not serialize expanded inherited blueprint content as scene-owned child entities.
         /// </summary>
         [Fact]
@@ -155,6 +174,33 @@ namespace helengine.editor.tests {
             saveService.Save(fullScenePath);
             instanceRoot.Enabled = false;
             Core.Instance.ObjectManager.RemoveEntity(instanceRoot);
+            return fullScenePath;
+        }
+
+        /// <summary>
+        /// Saves one scene containing two blueprint instance roots that both reference the supplied blueprint asset.
+        /// </summary>
+        /// <param name="relativeScenePath">Project-relative scene path to write.</param>
+        /// <param name="blueprintAssetPath">Project-relative blueprint asset path referenced by both instance roots.</param>
+        /// <returns>Absolute path to the saved scene file.</returns>
+        string SaveSceneWithTwoBlueprintInstances(string relativeScenePath, string blueprintAssetPath) {
+            EditorEntity firstInstanceRoot = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create("Blueprint Instance A"));
+            firstInstanceRoot.AddComponent(new BlueprintInstanceComponent {
+                BlueprintAssetPath = blueprintAssetPath
+            });
+
+            EditorEntity secondInstanceRoot = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create("Blueprint Instance B"));
+            secondInstanceRoot.AddComponent(new BlueprintInstanceComponent {
+                BlueprintAssetPath = blueprintAssetPath
+            });
+
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());
+            string fullScenePath = Path.Combine(TempProjectRootPath, "assets", relativeScenePath.Replace('/', Path.DirectorySeparatorChar));
+            saveService.Save(fullScenePath);
+            firstInstanceRoot.Enabled = false;
+            secondInstanceRoot.Enabled = false;
+            Core.Instance.ObjectManager.RemoveEntity(firstInstanceRoot);
+            Core.Instance.ObjectManager.RemoveEntity(secondInstanceRoot);
             return fullScenePath;
         }
     }

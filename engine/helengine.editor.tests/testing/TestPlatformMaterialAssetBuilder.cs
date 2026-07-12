@@ -51,6 +51,8 @@ namespace helengine.editor.tests.testing {
                             new PlatformMaterialFieldDefinition("use-custom-shader", "Use Custom Shader", PlatformMaterialFieldKind.Boolean, "false", true, []),
                             new PlatformMaterialFieldDefinition("shader-asset-id", "Shader Asset", PlatformMaterialFieldKind.AssetReference, string.Empty, true, []),
                             new PlatformMaterialFieldDefinition("texture-id", "Texture", PlatformMaterialFieldKind.AssetReference, string.Empty, true, []),
+                            new PlatformMaterialFieldDefinition("emissive-color", "Emissive Color", PlatformMaterialFieldKind.Color, "#FFFFFF00", true, []),
+                            new PlatformMaterialFieldDefinition("emissive-texture-id", "Emissive Texture", PlatformMaterialFieldKind.AssetReference, string.Empty, true, []),
                             new PlatformMaterialFieldDefinition("roughness", "Roughness", PlatformMaterialFieldKind.Number, "1.0", true, []),
                             new PlatformMaterialFieldDefinition("roughness-texture-id", "Roughness Texture", PlatformMaterialFieldKind.AssetReference, string.Empty, true, []),
                             new PlatformMaterialFieldDefinition("casts-shadow", "Casts Shadow", PlatformMaterialFieldKind.Boolean, "true", true, []),
@@ -96,6 +98,7 @@ namespace helengine.editor.tests.testing {
             string pixelProgram = ReadRequiredField(request.FieldValues, "pixel-program");
             string variant = ReadRequiredField(request.FieldValues, "variant");
             string textureAssetId = ReadOptionalField(request.FieldValues, "texture-id");
+            string emissiveTextureAssetId = ReadOptionalField(request.FieldValues, "emissive-texture-id");
             string roughnessTextureAssetId = ReadOptionalField(request.FieldValues, "roughness-texture-id");
             bool castsShadows = ReadBooleanField(request.FieldValues, "casts-shadow", true);
             bool receivesShadows = ReadBooleanField(request.FieldValues, "receives-shadow", true);
@@ -106,6 +109,7 @@ namespace helengine.editor.tests.testing {
                 VertexProgram = vertexProgram,
                 PixelProgram = pixelProgram,
                 DiffuseTextureAssetId = textureAssetId,
+                EmissiveTextureAssetId = emissiveTextureAssetId,
                 RoughnessTextureAssetId = roughnessTextureAssetId,
                 CastsShadows = castsShadows,
                 ReceivesShadows = receivesShadows,

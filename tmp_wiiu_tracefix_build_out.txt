@@ -1,0 +1,39 @@
+Restoring: dotnet restore C:\dev\helworks\helengine\helengine.ui\helengine.editor.app\helengine.editor.app.csproj --artifacts-path C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+Publishing: dotnet publish C:\dev\helworks\helengine\helengine.ui\helengine.editor.app\helengine.editor.app.csproj --no-restore -c Debug -o C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\publish --artifacts-path C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts
+  helengine.core -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.core\debug\helengine.core.dll
+  BepuUtilities.Minimal -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\BepuUtilities.Minimal\debug\BepuUtilities.dll
+  helengine.platforms -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.platforms\debug\helengine.platforms.dll
+  helengine.projectfile -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.projectfile\debug\helengine.projectfile.dll
+  helengine.physics -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.physics\debug\helengine.physics.dll
+  helengine.core.windows -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.core.windows\debug\helengine.core.windows.dll
+  helengine.input -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.input\debug\helengine.input.dll
+  helengine.shader -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.shader\debug\helengine.shader.dll
+  helengine.baseplatform -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.baseplatform\debug\helengine.baseplatform.dll
+  BepuPhysics.Minimal -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\BepuPhysics.Minimal\debug\BepuPhysics.Minimal.dll
+  helengine.directx11 -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.directx11\debug\helengine.directx11.dll
+  helengine.vulkan -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.vulkan\debug\helengine.vulkan.dll
+  helengine.files -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.files\debug\helengine.files.dll
+  helengine.bepu -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.bepu\debug\helengine.bepu.dll
+  helengine.physics3d -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.physics3d\debug\helengine.physics3d.dll
+  helengine.editor -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.editor\debug\helengine.editor.dll
+  helengine.editor.assimp -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.editor.assimp\debug\helengine.editor.assimp.dll
+  helengine.editor.windows.magickimporter -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.editor.windows.magickimporter\debug\helengine.editor.windows.magickimporter.dll
+  helengine.editor.windows.gdiimporter -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.editor.windows.gdiimporter\debug\helengine.editor.windows.gdiimporter.dll
+  helengine.editor.windows -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.editor.windows\debug\helengine.editor.windows.dll
+  helengine.editor.windows.audioimporter -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.editor.windows.audioimporter\debug\helengine.editor.windows.audioimporter.dll
+  helengine.editor.windows.pfimimporter -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.editor.windows.pfimimporter\debug\helengine.editor.windows.pfimimporter.dll
+  helengine.editor.app -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\artifacts\bin\helengine.editor.app\debug\helengine.editor.app.dll
+  helengine.editor.app -> C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\publish\
+Executing: dotnet C:\Users\beatriz\AppData\Local\Temp\helengine-builds\7495adff97287b139994a0c587ed9f09\wiiu\editor-app\publish\helengine.editor.app.dll --project C:\dev\helprojs\demodisc\project.heproj --build wiiu --build-profile debug --output C:\dev\helprojs\output\wiiu
+[helengine-editor] texture settings loaded path=C:\dev\helprojs\demodisc\assets\images\menu\helengine-logo.png.hasset platformCount=5
+[helengine-editor] texture settings loaded path=C:\dev\helprojs\demodisc\assets\images\menu\helengine-logo.png.hasset platformCount=5
+[helengine-editor] texture settings loaded path=C:\dev\helprojs\demodisc\assets\images\menu\helengine-logo.png.hasset platformCount=5
+[helengine-editor] texture settings loaded path=C:\dev\helprojs\demodisc\assets\images\menu\helengine-logo.png.hasset platformCount=5
+[helengine-editor] build scene entries begin
+[helengine-editor] build scene entries completed
+[helengine-editor] build cooked artifacts begin
+[helengine-editor] build cooked artifacts completed
+Build completed for platform 'wiiu': C:\dev\helprojs\output\wiiu
+Enabled runtime features: debug_overlay (AutoDetected), render2d (AutoDetected), shaders (AutoDetected), sprites (AutoDetected), text2d (AutoDetected), text_processing (AutoDetected). Disabled runtime features: host_file_system (NotIncluded), managed_metadata_only (ForcedDisabled), physics3d.diagnostics (NotIncluded), reflection_like_runtime (NotIncluded).

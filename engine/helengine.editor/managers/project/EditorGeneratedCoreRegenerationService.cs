@@ -206,6 +206,9 @@ namespace helengine.editor {
                 AppendRegenerationLog(regenerationLogPath, "deserializer-support-start");
                 EnsureGeneratedRuntimeComponentDeserializerSupport(generatedCoreOutputRoot, platformDefinition.PlatformId);
                 AppendRegenerationLog(regenerationLogPath, "deserializer-support-complete");
+                AppendRegenerationLog(regenerationLogPath, "editor-only-generated-source-cleanup-start");
+                DeleteEditorOnlyGeneratedSourceFiles(generatedCoreOutputRoot);
+                AppendRegenerationLog(regenerationLogPath, "editor-only-generated-source-cleanup-complete");
                 AppendRegenerationLog(regenerationLogPath, "unity-translation-unit-start");
                 WriteGeneratedCoreTranslationUnit(generatedCoreOutputRoot);
                 AppendRegenerationLog(regenerationLogPath, "unity-translation-unit-complete");
@@ -1671,6 +1674,37 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Deletes generated editor-only source artifacts that should never survive into the native runtime generated-core root.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated-core root that should be scrubbed before native compilation.</param>
+        internal static void DeleteEditorOnlyGeneratedSourceFiles(string generatedCoreRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+
+            if (!Directory.Exists(generatedCoreRootPath)) {
+                return;
+            }
+
+            string[] sourceFilePaths = Directory.GetFiles(generatedCoreRootPath, "*.*", SearchOption.AllDirectories);
+            for (int index = 0; index < sourceFilePaths.Length; index++) {
+                string sourceFilePath = sourceFilePaths[index];
+                string extension = Path.GetExtension(sourceFilePath);
+                if (!string.Equals(extension, ".cpp", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(extension, ".hpp", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string fileName = Path.GetFileName(sourceFilePath);
+                if (!IsEditorOnlyGeneratedSourceFile(fileName)) {
+                    continue;
+                }
+
+                File.Delete(sourceFilePath);
+            }
+        }
+
+        /// <summary>
         /// Creates the full set of generated source paths that should stay out of the unity translation unit.
         /// </summary>
         /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
@@ -1678,6 +1712,7 @@ namespace helengine.editor {
         static HashSet<string> CreateExcludedGeneratedCoreSourceRelativePathSet(string generatedCoreRootPath) {
             HashSet<string> excludedSourceRelativePaths = new(StringComparer.OrdinalIgnoreCase) {
                 "GeneratedRuntimeModuleManifestAttribute.cpp",
+                "NativeMigrationRequiredAttribute.cpp",
                 "runtime/runtime_startup_manifest.cpp",
                 "runtime/runtime_scene_catalog_manifest.cpp",
                 "runtime/runtime_code_module_manifest.cpp"
@@ -2211,6 +2246,8 @@ namespace helengine.editor {
             if (string.Equals(fileName, "PointerCursorKind.cpp", StringComparison.OrdinalIgnoreCase)) return 32;
             if (string.Equals(fileName, "PointerInteractionSystem.cpp", StringComparison.OrdinalIgnoreCase)) return 33;
             if (string.Equals(fileName, "Core.cpp", StringComparison.OrdinalIgnoreCase)) return 34;
+            if (string.Equals(fileName, "CollisionBatcher_1.cpp", StringComparison.OrdinalIgnoreCase)) return 35;
+            if (string.Equals(fileName, "BatcherContinuations_1.cpp", StringComparison.OrdinalIgnoreCase)) return 36;
             return 1000;
         }
 
@@ -2248,6 +2285,8 @@ namespace helengine.editor {
 
             if (string.Equals(fileName, "GeneratedRuntimeModuleManifestAttribute.cpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "GeneratedRuntimeModuleManifestAttribute.hpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "NativeMigrationRequiredAttribute.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "NativeMigrationRequiredAttribute.hpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "RuntimeFeatureRequirementAttribute.cpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "RuntimeFeatureRequirementAttribute.hpp", StringComparison.OrdinalIgnoreCase)) {
                 return true;

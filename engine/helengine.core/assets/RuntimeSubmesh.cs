@@ -17,5 +17,10 @@ namespace helengine {
         /// Gets or sets the number of indices or vertices contained by the draw range.
         /// </summary>
         public int IndexCount { get; set; }
+
+        /// <summary>
+        /// Gets or sets the primitive topology used to draw the range.
+        /// </summary>
+        public ModelPrimitiveTopology PrimitiveTopology { get; set; } = ModelPrimitiveTopology.TriangleList;
     }
 }

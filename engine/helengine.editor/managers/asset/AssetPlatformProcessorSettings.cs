@@ -64,6 +64,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets or sets the processor settings that affect audio asset generation on this platform.
+        /// </summary>
+        public AudioAssetProcessorSettings Audio {
+            get {
+                return AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<AudioAssetProcessorSettings>(this, AudioAssetPlatformSettingsSectionDefinition.SectionIdValue);
+            }
+            set {
+                AssetPlatformSettingsSectionRegistry.Shared.SetSection(this, AudioAssetPlatformSettingsSectionDefinition.SectionIdValue, value ?? throw new ArgumentNullException(nameof(value)));
+            }
+        }
+
+        /// <summary>
         /// Gets or sets the processor settings that affect generated font-atlas texture cooking on this platform.
         /// </summary>
         public TextureAssetProcessorSettings FontAtlasTexture {

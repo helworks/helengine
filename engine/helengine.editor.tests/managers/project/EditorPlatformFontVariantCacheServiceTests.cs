@@ -172,7 +172,7 @@ public sealed class EditorPlatformFontVariantCacheServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Writes one per-platform font texture-settings override into the authored import settings sidecar.
+    /// Writes one per-platform font-atlas texture-settings override into the authored import settings sidecar.
     /// </summary>
     /// <param name="manager">Asset import manager that owns the source font settings.</param>
     /// <param name="sourcePath">Absolute source font path.</param>
@@ -190,7 +190,7 @@ public sealed class EditorPlatformFontVariantCacheServiceTests : IDisposable {
 
         AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
         settings.Processor.Platforms[platformId] = new AssetPlatformProcessorSettings {
-            Texture = new TextureAssetProcessorSettings {
+            FontAtlasTexture = new TextureAssetProcessorSettings {
                 MaxResolution = maxResolution,
                 ColorFormat = colorFormat,
                 AlphaPrecision = TextureAssetAlphaPrecision.A8

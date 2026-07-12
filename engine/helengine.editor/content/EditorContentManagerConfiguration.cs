@@ -50,6 +50,10 @@ namespace helengine.editor {
                 contentManager,
                 EditorContentProcessorIds.AnimationClipAsset,
                 new AssetContentProcessor<AnimationClipAsset>());
+            RegisterProcessorIfMissing(
+                contentManager,
+                EditorContentProcessorIds.AudioAsset,
+                new AssetContentProcessor<AudioAsset>());
         }
 
         /// <summary>
@@ -97,6 +101,11 @@ namespace helengine.editor {
                 contentManager,
                 EditorContentProcessorIds.MaterialAssetImportSettings,
                 new BinaryContentProcessor<MaterialAssetImportSettings>(MaterialAssetImportSettingsBinarySerializer.Deserialize),
+                new[] { AssetImportManager.SettingsExtension });
+            RegisterProcessorIfMissing(
+                contentManager,
+                EditorContentProcessorIds.AudioAssetImportSettings,
+                new BinaryContentProcessor<AudioAssetImportSettings>(AudioAssetImportSettingsBinarySerializer.Deserialize),
                 new[] { AssetImportManager.SettingsExtension });
         }
 

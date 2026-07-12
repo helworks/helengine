@@ -12,8 +12,20 @@ public sealed class CityGameSceneSourceTests {
         string sourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneCatalog.cs";
         string source = File.ReadAllText(sourcePath);
 
-        Assert.Contains("public const string TiltTrialSceneId = \"scenes/games/tilt_trial.helen\";", source, StringComparison.Ordinal);
+        Assert.Contains("public const string TiltTrialSceneId = global::city.game.TiltTrialSceneIds.LevelSelectSceneId;", source, StringComparison.Ordinal);
         Assert.Contains("TiltTrialSceneId,", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the game catalog exports the Zombislayer gameplay scene through a runtime-owned scene id.
+    /// </summary>
+    [Fact]
+    public void City_game_scene_catalog_source_exports_zombislayer_scene() {
+        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneCatalog.cs";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("public const string ZombislayerSceneId = global::city.game.ZombislayerSceneIds.GameplaySceneId;", source, StringComparison.Ordinal);
+        Assert.Contains("ZombislayerSceneId,", source, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -32,6 +44,24 @@ public sealed class CityGameSceneSourceTests {
         Assert.Contains("\"games-tilt-trial\"", sceneCatalogSource, StringComparison.Ordinal);
         Assert.Contains("\"Tilt Trial\"", sceneCatalogSource, StringComparison.Ordinal);
         Assert.Contains("\"tilt_trial\"", sceneCatalogSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the demo-disc menu exposes a Zombislayer entry inside the Games panel.
+    /// </summary>
+    [Fact]
+    public void City_demo_disc_menu_source_exposes_zombislayer_games_entry() {
+        string menuProviderPath = @"C:\dev\helprojs\city\assets\codebase\menu\DemoDiscMenuDefinitionProvider.cs";
+        string menuProviderSource = File.ReadAllText(menuProviderPath);
+        string sceneCatalogPath = @"C:\dev\helprojs\city\assets\codebase\menu\DemoDiscSceneCatalog.cs";
+        string sceneCatalogSource = File.ReadAllText(sceneCatalogPath);
+
+        Assert.Contains("\"main-games\", \"Games\"", menuProviderSource, StringComparison.Ordinal);
+        Assert.Contains("\"games-select\",", menuProviderSource, StringComparison.Ordinal);
+        Assert.Contains("sceneCatalog.CreateGameSceneItems()", menuProviderSource, StringComparison.Ordinal);
+        Assert.Contains("\"games-zombislayer\"", sceneCatalogSource, StringComparison.Ordinal);
+        Assert.Contains("\"Zombislayer\"", sceneCatalogSource, StringComparison.Ordinal);
+        Assert.Contains("\"zombislayer\"", sceneCatalogSource, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -138,5 +168,27 @@ public sealed class CityGameSceneSourceTests {
         Assert.Contains("new global::helengine.SceneEntityTriggerObserverComponent()", source, StringComparison.Ordinal);
         Assert.Contains("FindRequiredBoxColliderComponent(entity).IsTrigger = true;", source, StringComparison.Ordinal);
         Assert.Contains("ConfigureTiltTrialGoalTarget(stageRootEntity, playerSphereEntity);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the Zombislayer scene generation seam is wired through the dedicated scene factory and game-owned runtime components.
+    /// </summary>
+    [Fact]
+    public void City_zombislayer_source_uses_generated_scene_factory_and_runtime_components() {
+        string generatorSourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneGenerator.cs";
+        string generatorSource = File.ReadAllText(generatorSourcePath);
+        string factorySourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\ZombislayerSceneFactory.cs";
+        string factorySource = File.ReadAllText(factorySourcePath);
+
+        Assert.Contains("new ZombislayerAssetPreparationService()", generatorSource, StringComparison.Ordinal);
+        Assert.Contains("new ZombislayerSceneFactory(zombislayerAssets)", generatorSource, StringComparison.Ordinal);
+        Assert.Contains("CreateGameplayScene()", generatorSource, StringComparison.Ordinal);
+        Assert.Contains("sceneWriteService.WriteScene(projectRootPath, zombislayerScene);", generatorSource, StringComparison.Ordinal);
+        Assert.Contains("new city.game.ZombislayerSessionComponent()", factorySource, StringComparison.Ordinal);
+        Assert.Contains("new city.game.ZombislayerFpsControllerComponent()", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"ZombislayerWeapon\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("\"ZombislayerPauseOverlay\"", factorySource, StringComparison.Ordinal);
+        Assert.Contains("global::helengine.SceneAssetReferenceFactory.CreateFileSystemModel(ZombislayerAssetCatalog.EnvironmentModelRelativePath)", factorySource, StringComparison.Ordinal);
+        Assert.Contains("global::helengine.SceneAssetReferenceFactory.CreateFileSystemModel(ZombislayerAssetCatalog.WeaponModelRelativePath)", factorySource, StringComparison.Ordinal);
     }
 }

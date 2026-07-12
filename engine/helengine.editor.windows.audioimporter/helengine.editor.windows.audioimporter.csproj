@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\helengine.editor.windows\content\audio\NAudioSourceAudioImporter.cs" Link="content\audio\NAudioSourceAudioImporter.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+</Project>

@@ -32,5 +32,19 @@ namespace helengine.editor {
 
             return textureAsset;
         }
+
+        /// <summary>
+        /// Resolves one imported texture asset id to a cached texture asset, rebuilding the cache entry from the authored source texture when necessary.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored in serialized material data.</param>
+        /// <param name="textureAsset">Resolved imported texture asset when available.</param>
+        /// <returns>True when the imported texture asset could be loaded or rebuilt from source.</returns>
+        public bool TryLoadImportedTextureAsset(string assetId, out TextureAsset textureAsset) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            return AssetImportManager.TryLoadImportedTextureAsset(assetId, out textureAsset);
+        }
     }
 }

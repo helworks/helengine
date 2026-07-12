@@ -242,6 +242,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures serialized raw `.hasset` model files load directly without requiring one import-source registration.
+        /// </summary>
+        [Fact]
+        public void TryLoadModelAsset_WhenSourceIsSerializedModelAsset_LoadsRawAsset() {
+            string sourcePath = WriteRawModelAsset("Generated/generated_model.hasset");
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+
+            bool loaded = manager.TryLoadModelAsset(sourcePath, out ModelAsset asset);
+
+            Assert.True(loaded);
+            Assert.NotNull(asset);
+            Assert.Equal("Models.Generated.generated_model", asset.Id);
+            Assert.Equal(new ushort[] { 0, 1, 2 }, asset.Indices16);
+        }
+
+        /// <summary>
         /// Ensures changing model processor settings invalidates the cached processed model output.
         /// </summary>
         [Fact]
@@ -323,6 +340,24 @@ namespace helengine.editor.tests {
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
                 manager.TryLoadModelAsset(sourcePath, out _));
             Assert.Contains("ModelAsset", exception.Message);
+            Assert.Contains(sourcePath, exception.Message);
+            Assert.Contains(outputPath, exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures unresolved model sources report the exact file path that the resolver attempted to consume so transient workspace-copy failures can be attributed correctly.
+        /// </summary>
+        [Fact]
+        public void ResolveModelAsset_WhenImporterIsMissing_ThrowsWithSourcePathDiagnostics() {
+            string sourcePath = WriteSourceModel("missing-importer.obj");
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            EditorFileSystemModelResolver resolver = new EditorFileSystemModelResolver(manager);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                resolver.ResolveModelAsset(sourcePath));
+            Assert.Contains(sourcePath, exception.Message);
+            Assert.Contains("project-assets", exception.Message);
         }
 
         /// <summary>
@@ -457,6 +492,45 @@ namespace helengine.editor.tests {
 
             MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
             settingsService.Save(sourcePath, CreateMaterialImportSettings("Materials/Generated/Cube00.hasset", "#FFFFFFFF"));
+            return sourcePath;
+        }
+
+        /// <summary>
+        /// Writes one minimal serialized raw model asset inside the temporary assets folder.
+        /// </summary>
+        /// <param name="relativePath">Asset-relative raw model path to create.</param>
+        /// <returns>Absolute path to the serialized raw model asset.</returns>
+        string WriteRawModelAsset(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+            string sourcePath = Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(sourcePath);
+            if (!string.IsNullOrWhiteSpace(directoryPath)) {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            using FileStream stream = new FileStream(sourcePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, new ModelAsset {
+                Id = "Models.Generated.generated_model",
+                Positions = new[] {
+                    new float3(0f, 0f, 0f),
+                    new float3(1f, 0f, 0f),
+                    new float3(0f, 1f, 0f)
+                },
+                Normals = new[] {
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(0f, 1f)
+                },
+                Indices16 = new ushort[] { 0, 1, 2 }
+            });
             return sourcePath;
         }
 

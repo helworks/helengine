@@ -14,6 +14,11 @@ public sealed class CityTiltTrialPackagedSceneRuntimeTests {
     const string PackagedScenePath = @"C:\dev\helprojs\city\windows-build\cooked\scenes\games\tilt_trial.hasset";
 
     /// <summary>
+    /// Absolute packaged scene path for the first dedicated Tilt Trial gameplay level.
+    /// </summary>
+    const string PackagedLevel01ScenePath = @"C:\dev\helprojs\city\windows-build\cooked\scenes\games\tilt_trial_level_01.hasset";
+
+    /// <summary>
     /// Absolute packaged content root used to resolve cooked runtime assets.
     /// </summary>
     const string PackagedContentRootPath = @"C:\dev\helprojs\city\windows-build";
@@ -88,6 +93,36 @@ public sealed class CityTiltTrialPackagedSceneRuntimeTests {
         Assert.True(
             maximumObservedFrameTravel > 0f,
             $"Expected the Tilt Trial sphere to move while holding forward input, but the maximum observed frame travel after settling was {maximumObservedFrameTravel} on frame {maximumObservedFrameIndex}.");
+    }
+
+    /// <summary>
+    /// Ensures the packaged first Tilt Trial gameplay level can complete one real runtime update without session dependency resolution crashing.
+    /// </summary>
+    [Fact]
+    public void Windows_packaged_tilt_trial_level_01_scene_updates_without_session_dependency_resolution_crashing() {
+        Assert.True(File.Exists(PackagedLevel01ScenePath), $"Expected packaged scene asset '{PackagedLevel01ScenePath}' to exist.");
+        Assert.True(File.Exists(GameplayAssemblyPath), $"Expected gameplay assembly '{GameplayAssemblyPath}' to exist before loading Tilt Trial runtime components.");
+
+        EnsureGameplayAssemblyLoaded();
+
+        using FileStream stream = File.OpenRead(PackagedLevel01ScenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+        using Core core = new Core(new CoreInitializationOptions {
+            ContentStreamSource = new HostFileSystemContentStreamSource(PackagedContentRootPath),
+            PhysicsFixedStepSeconds = 1.0d / 60.0d
+        });
+
+        TestInputBackend inputBackend = new TestInputBackend();
+        core.Initialize(new TestRenderManager3D(ShaderCompileTarget.DirectX11), new TestRenderManager2D(), inputBackend, new PlatformInfo("test", "test-version"));
+        core.InputSystem.SetKeyboardActive(true);
+        BepuRuntimeComponentRegistration.Register(core);
+
+        RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+        IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
+        InvokeBepuLoadedSceneBinding(core, rootEntities);
+
+        Exception exception = Record.Exception(() => core.Update(1.0d / 60.0d));
+        Assert.Null(exception);
     }
 
     /// <summary>

@@ -1424,6 +1424,7 @@ namespace helengine.editor {
         /// Disposes engine resources owned by the session.
         /// </summary>
         public void Dispose() {
+            ClearSceneSelectionBeforeTeardown();
             assetBrowserPanel.AssetSelected -= HandleAssetSelected;
             assetBrowserPanel.SelectionCleared -= HandleAssetSelectionCleared;
             propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
@@ -3189,6 +3190,7 @@ namespace helengine.editor {
                 LoadedEditorSceneDocument loadedSceneDocument = SceneFileLoadService.Load(fullPath);
                 RuntimeSceneOwnedAssetSet previousOwnedAssets = CurrentSceneOwnedAssets;
                 UntrackCurrentSceneFromSceneManager();
+                ClearSceneSelectionBeforeTeardown();
                 ClearUserSceneEntities(existingSceneEntities);
                 CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
                 EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(previousOwnedAssets);
@@ -3200,7 +3202,6 @@ namespace helengine.editor {
                 TrackCurrentSceneInSceneManager(loadedSceneDocument.RootEntities, CurrentSceneSettings);
                 sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
                 MarkSceneClean();
-                EditorSelectionService.ClearSelection();
                 RefreshHierarchy();
                 IReadOnlyList<AssetBrowserPanel> assetBrowserPanels = GetAssetBrowserPanels();
                 for (int index = 0; index < assetBrowserPanels.Count; index++) {
@@ -3221,6 +3222,7 @@ namespace helengine.editor {
         /// </summary>
         void ResetToNewScene() {
             UntrackCurrentSceneFromSceneManager();
+            ClearSceneSelectionBeforeTeardown();
             ClearUserSceneEntities();
             BindSceneToPhysicsRuntime(Array.Empty<Entity>());
             ReleaseCurrentSceneOwnedAssets();
@@ -3228,7 +3230,6 @@ namespace helengine.editor {
             CurrentSceneSettings = new SceneSettingsAsset();
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
             MarkSceneClean();
-            EditorSelectionService.ClearSelection();
             RefreshHierarchy();
             if (openFileDialog != null) {
                 openFileDialog.Hide();
@@ -3391,6 +3392,13 @@ namespace helengine.editor {
 
                 NativeOwnership.DisposeAndDelete(editorEntity);
             }
+        }
+
+        /// <summary>
+        /// Clears the current editor scene selection before authored scene entities start tearing down.
+        /// </summary>
+        void ClearSceneSelectionBeforeTeardown() {
+            EditorSelectionService.ClearSelection();
         }
 
         /// <summary>

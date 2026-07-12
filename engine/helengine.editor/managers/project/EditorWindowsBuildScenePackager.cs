@@ -934,7 +934,7 @@ namespace helengine.editor {
                 string fullExtension = Path.GetExtension(fullPath);
                 if (AssetImportManager.IsModelExtension(fullExtension)) {
                     if (!AssetImportManager.TryLoadModelAsset(fullPath, out ModelAsset modelAsset) || modelAsset == null) {
-                        throw new InvalidOperationException($"Model reference '{reference.RelativePath}' could not be imported into a packaged model asset.");
+                        throw new InvalidOperationException($"Model reference '{reference.RelativePath}' could not be imported into a packaged model asset. Source={AssetImportManager.DescribeAssetPathForDiagnostics(fullPath)}");
                     }
 
                     string importedModelRelativePath = BuildImportedModelRelativePath(reference.RelativePath);
@@ -944,6 +944,10 @@ namespace helengine.editor {
 
                 if (AssetImportManager.IsFontExtension(fullExtension)) {
                     return RewriteFileSystemFontReference(reference, buildRootPath);
+                }
+
+                if (AssetImportManager.IsAudioExtension(fullExtension)) {
+                    return RewriteFileSystemAudioReference(reference, buildRootPath);
                 }
 
                 if (AssetImportManager.IsTextureExtension(fullExtension)) {
@@ -1529,6 +1533,57 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Rewrites one file-backed source-audio reference into a cooked packaged audio reference.
+        /// </summary>
+        /// <param name="reference">Serialized audio reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged file-backed audio reference.</returns>
+        SceneAssetReference RewriteFileSystemAudioReference(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
+            string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            if (!AssetImportManager.TryLoadAudioAsset(sourcePath, out AudioAsset audioAsset) || audioAsset == null) {
+                throw new InvalidOperationException($"Audio source '{reference.RelativePath}' could not be imported for packaging.");
+            }
+
+            ValidateAudioSettingsForTarget(reference.RelativePath, audioAsset);
+            string cookedRelativePath = BuildCookedAudioRelativePath(reference.RelativePath);
+            WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), audioAsset);
+            return CreateFileSystemReference(cookedRelativePath);
+        }
+
+        /// <summary>
+        /// Validates imported audio metadata against the currently supported runtime limits for constrained targets.
+        /// </summary>
+        /// <param name="relativePath">Project-relative authored audio path being packaged.</param>
+        /// <param name="audioAsset">Imported audio asset resolved for the selected platform.</param>
+        void ValidateAudioSettingsForTarget(string relativePath, AudioAsset audioAsset) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+            if (audioAsset == null) {
+                throw new ArgumentNullException(nameof(audioAsset));
+            }
+
+            if (!string.Equals(TargetPlatformId, "ds", StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            if (audioAsset.SampleRate > 22050) {
+                throw new InvalidOperationException($"Audio '{relativePath}' exceeds ds sample rate limit of 22050 Hz.");
+            }
+
+            if (audioAsset.Channels > 1) {
+                throw new InvalidOperationException($"Audio '{relativePath}' exceeds ds channel count limit of 1.");
+            }
+        }
+
+        /// <summary>
         /// Rewrites the generated editor default font into either one embedded packaged font or one packaged font plus external cooked atlas, depending on the selected platform capabilities.
         /// </summary>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
@@ -1705,6 +1760,7 @@ namespace helengine.editor {
                 RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
 
                 CopyReferencedDiffuseTextureAsset(fullPath, ResolveReferencedDiffuseTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
+                CopyReferencedEmissiveTextureAsset(fullPath, ResolveReferencedEmissiveTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 CopyReferencedRoughnessTextureAsset(fullPath, ResolveReferencedRoughnessTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 WriteBytes(Path.Combine(buildRootPath, cookedRelativePath), cookResult.CookedMaterialBytes);
                 return CreateFileSystemReference(cookedRelativePath);
@@ -1712,6 +1768,7 @@ namespace helengine.editor {
 
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
             CopyReferencedDiffuseTextureAsset(fullPath, materialAsset, buildRootPath);
+            CopyReferencedEmissiveTextureAsset(fullPath, materialAsset, buildRootPath);
             CopyReferencedRoughnessTextureAsset(fullPath, materialAsset, buildRootPath);
 
             WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), materialAsset);
@@ -1759,6 +1816,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Copies one imported emissive texture asset referenced by a material into the packaged content root.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the authored material asset whose emissive texture should be packaged.</param>
+        /// <param name="materialAsset">Material asset whose imported emissive texture should be packaged.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        void CopyReferencedEmissiveTextureAsset(string materialAssetPath, ShaderMaterialAsset materialAsset, string buildRootPath) {
+            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
+                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
+            }
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
+            CopyReferencedTextureAsset(materialAssetPath, materialAsset.EmissiveTextureAssetId, buildRootPath);
+        }
+
+        /// <summary>
         /// Copies one imported diffuse texture asset referenced by a cooked material request into the packaged content root.
         /// </summary>
         /// <param name="materialAssetPath">Absolute path to the authored material asset whose diffuse texture should be packaged.</param>
@@ -1776,6 +1853,16 @@ namespace helengine.editor {
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         void CopyReferencedRoughnessTextureAsset(string materialAssetPath, string roughnessTextureAssetId, string buildRootPath) {
             CopyReferencedTextureAsset(materialAssetPath, roughnessTextureAssetId, buildRootPath);
+        }
+
+        /// <summary>
+        /// Copies one imported emissive texture asset referenced by a cooked material request into the packaged content root.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the authored material asset whose emissive texture should be packaged.</param>
+        /// <param name="emissiveTextureAssetId">Imported emissive texture asset id that should be copied.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        void CopyReferencedEmissiveTextureAsset(string materialAssetPath, string emissiveTextureAssetId, string buildRootPath) {
+            CopyReferencedTextureAsset(materialAssetPath, emissiveTextureAssetId, buildRootPath);
         }
 
         /// <summary>
@@ -1872,6 +1959,26 @@ namespace helengine.editor {
             }
 
             return materialAsset.RoughnessTextureAssetId ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Resolves the emissive texture asset id that one builder-backed material request will require at runtime.
+        /// </summary>
+        /// <param name="materialAsset">Source material asset used as the fallback source.</param>
+        /// <param name="fieldValues">Final builder field values prepared for cooking.</param>
+        /// <returns>Imported emissive texture asset id that should be copied, or an empty string when the material has no imported emissive texture.</returns>
+        static string ResolveReferencedEmissiveTextureAssetId(ShaderMaterialAsset materialAsset, IReadOnlyDictionary<string, string> fieldValues) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            if (fieldValues != null &&
+                fieldValues.TryGetValue("emissive-texture-id", out string emissiveTextureAssetId) &&
+                !string.IsNullOrWhiteSpace(emissiveTextureAssetId)) {
+                return emissiveTextureAssetId;
+            }
+
+            return materialAsset.EmissiveTextureAssetId ?? string.Empty;
         }
 
         /// <summary>
@@ -2400,7 +2507,11 @@ namespace helengine.editor {
                     PixelProgram = StandardPixelProgramName,
                     Variant = StandardShaderVariantName,
                     ConstantBuffers = [
-                        StandardMaterialBaseColorDefaults.CreateWhiteConstantBufferAsset()
+                        StandardMaterialBaseColorDefaults.CreateWhiteConstantBufferAsset(),
+                        new MaterialConstantBufferAsset {
+                            Name = StandardMaterialEmissiveColorDefaults.EmissiveColorBufferName,
+                            Data = StandardMaterialEmissiveColorDefaults.CreateDefaultConstantBufferData()
+                        }
                     ]
                 };
                 WriteAsset(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), materialAsset);
@@ -2602,6 +2713,17 @@ namespace helengine.editor {
         string BuildCookedMaterialRelativePath(string relativePath) {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             return NormalizeRelativePath(Path.Combine("cooked", normalizedRelativePath));
+        }
+
+        /// <summary>
+        /// Builds one cooked packaged-audio relative path for an authored source-audio reference.
+        /// </summary>
+        /// <param name="relativePath">Original project-relative audio path.</param>
+        /// <returns>Cooked packaged-audio relative path.</returns>
+        string BuildCookedAudioRelativePath(string relativePath) {
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hasset");
+            return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
         }
 
         /// <summary>

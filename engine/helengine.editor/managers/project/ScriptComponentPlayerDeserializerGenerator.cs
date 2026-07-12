@@ -691,20 +691,23 @@ namespace helengine.editor {
         /// <param name="valueType">Asset-backed reflected member type under evaluation.</param>
         /// <returns>Managed resolver method name.</returns>
         static string BuildManagedAssetResolverMethodName(Type valueType) {
-            if (valueType == typeof(FontAsset)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(FontAsset))) {
                 return "ResolveFont";
             }
-            if (valueType == typeof(RuntimeTexture)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeTexture))) {
                 return "ResolveTexture";
             }
-            if (valueType == typeof(RuntimeModel)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeModel))) {
                 return "ResolveModel";
             }
-            if (valueType == typeof(RuntimeMaterial)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeMaterial))) {
                 return "ResolveMaterial";
             }
-            if (valueType == typeof(AnimationClipAsset)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(AnimationClipAsset))) {
                 return "ResolveAnimationClip";
+            }
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(AudioAsset))) {
+                return "ResolveAudio";
             }
 
             throw new InvalidOperationException($"Ordinal scripted component deserializer generation does not support asset-backed member type '{valueType?.FullName}'.");
@@ -947,20 +950,23 @@ namespace helengine.editor {
             if (valueType == typeof(byte4)) {
                 return "::byte4";
             }
-            if (valueType == typeof(FontAsset)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(FontAsset))) {
                 return "::FontAsset*";
             }
-            if (valueType == typeof(RuntimeTexture)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeTexture))) {
                 return "::RuntimeTexture*";
             }
-            if (valueType == typeof(RuntimeModel)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeModel))) {
                 return "::RuntimeModel*";
             }
-            if (valueType == typeof(RuntimeMaterial)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeMaterial))) {
                 return "::RuntimeMaterial*";
             }
-            if (valueType == typeof(AnimationClipAsset)) {
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(AnimationClipAsset))) {
                 return "::AnimationClipAsset*";
+            }
+            if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(AudioAsset))) {
+                return "::AudioAsset*";
             }
             if (valueType == typeof(SceneEntityReference)) {
                 return "::SceneEntityReference*";

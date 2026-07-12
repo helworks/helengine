@@ -54,6 +54,10 @@ namespace helengine {
                 new AssetContentProcessor<AnimationClipAsset>());
             RegisterProcessorIfMissing(
                 contentManager,
+                RuntimeContentProcessorIds.AudioAsset,
+                new AssetContentProcessor<AudioAsset>());
+            RegisterProcessorIfMissing(
+                contentManager,
                 RuntimeContentProcessorIds.FontAsset,
                 new BinaryContentProcessor<FontAsset>(FontAssetBinarySerializer.Deserialize),
                 new[] { FontAssetExtension });

@@ -96,6 +96,25 @@ namespace helengine.editor.tests.shaders {
         }
 
         /// <summary>
+        /// Ensures the built-in forward standard shader exposes one emissive texture binding and adds it after direct lighting.
+        /// </summary>
+        [Fact]
+        public void ForwardStandardShaderSource_WhenInspected_UsesEmissiveTextureInput() {
+            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
+            string shaderSource = File.ReadAllText(shaderPath);
+
+            Assert.Contains("cbuffer EmissiveColorBuffer", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("Texture2D EmissiveTexture", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("SamplerState EmissiveTextureSampler", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("float4 emissiveColorValue;", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("float3 emissiveTextureSample = EmissiveTexture.Sample(EmissiveTextureSampler, input.texCoord).rgb;", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("float hasEmissiveTexture = materialFlags.y;", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("float emissiveStrength = emissiveColorValue.a;", shaderSource, StringComparison.Ordinal);
+            Assert.Contains("color += emissiveColor;", shaderSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Compiles the built-in forward standard shader for one backend and verifies the resolved material layout.
         /// </summary>
         /// <param name="target">Shader backend that should receive the compiled built-in shader.</param>
@@ -114,14 +133,17 @@ namespace helengine.editor.tests.shaders {
 
             Assert.Contains(layout.TextureBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
             Assert.Contains(layout.TextureBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName);
+            Assert.Contains(layout.TextureBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName);
             Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "BaseColorBuffer");
             Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialRoughnessDefaults.RoughnessBufferName);
             Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialMetallicDefaults.MetallicBufferName);
             Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialSpecularDefaults.SpecularBufferName);
+            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialEmissiveColorDefaults.EmissiveColorBufferName);
             Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "ForwardLightBuffer");
             Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "ShadowBuffer");
             Assert.Contains(layout.SamplerBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName + "Sampler");
             Assert.Contains(layout.SamplerBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName + "Sampler");
+            Assert.Contains(layout.SamplerBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName + "Sampler");
         }
 
         /// <summary>

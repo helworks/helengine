@@ -46,6 +46,11 @@ namespace helengine {
         /// <summary>
         /// The payload stores a <see cref="BlueprintAsset"/>.
         /// </summary>
-        BlueprintAsset = 10
+        BlueprintAsset = 10,
+
+        /// <summary>
+        /// The payload stores an <see cref="AudioAsset"/>.
+        /// </summary>
+        AudioAsset = 11
     }
 }

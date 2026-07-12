@@ -128,7 +128,7 @@ namespace helengine.editor {
         /// <param name="entity">Entity whose components should be searched.</param>
         /// <returns>Matching component instance when present; otherwise null.</returns>
         static T FindComponent<T>(Entity entity) where T : Component {
-            if (entity == null || entity.Components == null) {
+            if (entity == null || entity.IsDisposed || entity.Components == null) {
                 return null;
             }
 

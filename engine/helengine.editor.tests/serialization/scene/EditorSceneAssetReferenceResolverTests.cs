@@ -184,6 +184,117 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures file-backed materials can rebuild one missing imported diffuse-texture cache entry from the authored source texture during editor scene loading.
+        /// </summary>
+        [Fact]
+        public void ResolveMaterial_WhenImportedDiffuseTextureCacheIsMissing_RebuildsTextureFromSource() {
+            string textureRelativePath = "Images/Menu/helengine-logo.png";
+            string textureFullPath = Path.Combine(TempProjectRootPath, "assets", textureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
+            Directory.CreateDirectory(Path.GetDirectoryName(textureFullPath));
+            File.WriteAllBytes(textureFullPath, new byte[] { 1, 2, 3, 4 });
+            AssetImportManager assetImportManager = CreateAssetImportManager();
+
+            Assert.True(assetImportManager.TryLoadTextureAsset(textureFullPath, out TextureAsset importedTextureAsset));
+            Assert.NotNull(importedTextureAsset);
+
+            string cachedTexturePath = Path.Combine(TempProjectRootPath, "cache", importedTextureAsset.Id);
+            Assert.True(File.Exists(cachedTexturePath));
+            File.Delete(cachedTexturePath);
+            Assert.False(File.Exists(cachedTexturePath));
+
+            WriteMaterialSettingsDocument(materialRelativePath, CreateCustomShaderMaterialSettings("ForwardStandardShader", importedTextureAsset.Id));
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            new EditorProjectPlatformsService(TempProjectRootPath).Save(new EditorProjectPlatformsDocument {
+                SupportedPlatforms = ["windows"]
+            });
+            new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows"]).SaveActivePlatform("windows");
+            EditorProjectPaths.Initialize(TempProjectRootPath);
+            using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
+            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
+                contentManager,
+                TempProjectRootPath,
+                new EditorFileSystemModelResolver(assetImportManager),
+                new EditorFileSystemFontResolver(assetImportManager),
+                new EditorFileSystemTextureResolver(assetImportManager));
+
+            RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
+
+            TestRenderManager2D renderManager = Assert.IsType<TestRenderManager2D>(Core.Instance.RenderManager2D);
+            Assert.NotNull(material);
+            Assert.True(File.Exists(cachedTexturePath));
+            Assert.True(renderManager.BuildTextureFromRawCallCount > 0);
+        }
+
+        /// <summary>
+        /// Ensures file-backed standard-shader materials hydrate authored diffuse, emissive, and roughness imported textures through the editor preview runtime path.
+        /// </summary>
+        [Fact]
+        public void ResolveMaterial_WhenImportedDiffuseEmissiveAndRoughnessTexturesExist_BindsAllThreeRuntimeTextures() {
+            string diffuseRelativePath = "Images/Menu/material-diffuse.png";
+            string emissiveRelativePath = "Images/Menu/material-emissive.jpg";
+            string roughnessRelativePath = "Images/Menu/material-roughness.bmp";
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
+            string diffuseFullPath = WriteTextureSource(diffuseRelativePath, 2, 2);
+            string emissiveFullPath = WriteTextureSource(emissiveRelativePath, 3, 1);
+            string roughnessFullPath = WriteTextureSource(roughnessRelativePath, 4, 1);
+            ContentManager projectContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
+            AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, projectContentManager);
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-diffuse-texture", new ConfigurableTextureImporter(2, 2, new byte[16]), new[] { ".png" }));
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-emissive-texture", new ConfigurableTextureImporter(3, 1, new byte[12]), new[] { ".jpg" }));
+            assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-roughness-texture", new ConfigurableTextureImporter(4, 1, new byte[16]), new[] { ".bmp" }));
+
+            Assert.True(assetImportManager.TryLoadTextureAsset(diffuseFullPath, out TextureAsset diffuseTextureAsset));
+            Assert.True(assetImportManager.TryLoadTextureAsset(emissiveFullPath, out TextureAsset emissiveTextureAsset));
+            Assert.True(assetImportManager.TryLoadTextureAsset(roughnessFullPath, out TextureAsset roughnessTextureAsset));
+
+            WriteMaterialSettingsDocument(
+                materialRelativePath,
+                CreateCustomShaderMaterialSettings(
+                    "ForwardStandardShader",
+                    diffuseTextureAsset.Id,
+                    emissiveTextureAsset.Id,
+                    roughnessTextureAsset.Id));
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            new EditorProjectPlatformsService(TempProjectRootPath).Save(new EditorProjectPlatformsDocument {
+                SupportedPlatforms = ["windows"]
+            });
+            new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows"]).SaveActivePlatform("windows");
+            EditorProjectPaths.Initialize(TempProjectRootPath);
+            using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
+            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
+                contentManager,
+                TempProjectRootPath,
+                new EditorFileSystemModelResolver(assetImportManager),
+                new EditorFileSystemFontResolver(assetImportManager),
+                new EditorFileSystemTextureResolver(assetImportManager));
+
+            RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
+
+            ShaderRuntimeMaterial shaderRuntimeMaterial = ShaderRuntimeMaterialAccess.Require(material);
+            int diffuseTextureBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+            int emissiveTextureBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName);
+            int roughnessTextureBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName);
+            RuntimeTexture diffuseRuntimeTexture = shaderRuntimeMaterial.Properties.GetTexture(diffuseTextureBindingIndex);
+            RuntimeTexture emissiveRuntimeTexture = shaderRuntimeMaterial.Properties.GetTexture(emissiveTextureBindingIndex);
+            RuntimeTexture roughnessRuntimeTexture = shaderRuntimeMaterial.Properties.GetTexture(roughnessTextureBindingIndex);
+
+            Assert.NotNull(diffuseRuntimeTexture);
+            Assert.NotNull(emissiveRuntimeTexture);
+            Assert.NotNull(roughnessRuntimeTexture);
+            Assert.Equal(2, diffuseRuntimeTexture.Width);
+            Assert.Equal(2, diffuseRuntimeTexture.Height);
+            Assert.Equal(3, emissiveRuntimeTexture.Width);
+            Assert.Equal(1, emissiveRuntimeTexture.Height);
+            Assert.Equal(4, roughnessRuntimeTexture.Width);
+            Assert.Equal(1, roughnessRuntimeTexture.Height);
+        }
+
+        /// <summary>
         /// Ensures file-backed schema-driven standard materials hydrate their authored base-color buffer before the runtime material is built for editor scene loading.
         /// </summary>
         [Fact]
@@ -422,7 +533,11 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <param name="shaderAssetId">Built-in shader asset identifier to reference.</param>
         /// <returns>Material settings payload for the active platform.</returns>
-        MaterialAssetImportSettings CreateCustomShaderMaterialSettings(string shaderAssetId) {
+        MaterialAssetImportSettings CreateCustomShaderMaterialSettings(
+            string shaderAssetId,
+            string diffuseTextureAssetId = "",
+            string emissiveTextureAssetId = "",
+            string roughnessTextureAssetId = "") {
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
             }
@@ -437,13 +552,67 @@ namespace helengine.editor.tests.serialization.scene {
                     ["shader-asset-id"] = shaderAssetId,
                     ["vertex-program"] = string.Concat(shaderAssetId, ".vs"),
                     ["pixel-program"] = string.Concat(shaderAssetId, ".ps"),
-                    ["texture-id"] = string.Empty,
+                    ["texture-id"] = diffuseTextureAssetId ?? string.Empty,
+                    ["emissive-texture-id"] = emissiveTextureAssetId ?? string.Empty,
+                    ["roughness-texture-id"] = roughnessTextureAssetId ?? string.Empty,
+                    ["roughness"] = "0.4",
                     ["casts-shadow"] = "true",
                     ["receives-shadow"] = "true",
                     ["base-color"] = "#ffffff"
                 }
             };
             return settings;
+        }
+
+        /// <summary>
+        /// Writes one source texture file with the requested dimensions into the temporary assets root.
+        /// </summary>
+        /// <param name="relativePath">Project-relative texture path to create.</param>
+        /// <param name="width">Source texture width in pixels.</param>
+        /// <param name="height">Source texture height in pixels.</param>
+        /// <returns>Absolute source texture path.</returns>
+        string WriteTextureSource(string relativePath, int width, int height) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+            if (width < 1) {
+                throw new ArgumentOutOfRangeException(nameof(width), "Texture width must be positive.");
+            }
+            if (height < 1) {
+                throw new ArgumentOutOfRangeException(nameof(height), "Texture height must be positive.");
+            }
+
+            string fullPath = Path.Combine(TempProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Texture directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            File.WriteAllBytes(fullPath, BuildTextureSourceBytes(width, height));
+            return fullPath;
+        }
+
+        /// <summary>
+        /// Builds deterministic placeholder source bytes whose length communicates the requested dimensions to the test texture importer.
+        /// </summary>
+        /// <param name="width">Requested texture width in pixels.</param>
+        /// <param name="height">Requested texture height in pixels.</param>
+        /// <returns>Deterministic placeholder source bytes.</returns>
+        byte[] BuildTextureSourceBytes(int width, int height) {
+            if (width < 1) {
+                throw new ArgumentOutOfRangeException(nameof(width), "Texture width must be positive.");
+            }
+            if (height < 1) {
+                throw new ArgumentOutOfRangeException(nameof(height), "Texture height must be positive.");
+            }
+
+            byte[] bytes = new byte[width * height * 4];
+            for (int index = 0; index < bytes.Length; index++) {
+                bytes[index] = (byte)((index + width + height) % 251);
+            }
+
+            return bytes;
         }
 
         /// <summary>

@@ -68,6 +68,30 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures inspector updates clear disposed selections instead of dereferencing torn-down entities.
+        /// </summary>
+        [Fact]
+        public void UpdateTransformEdits_WhenSelectedEntityWasDisposed_ClearsTheInspector() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            EditorEntity entity = new EditorEntity {
+                Name = "DisposedSelection"
+            };
+            entity.AddComponent(new CameraComponent());
+
+            panel.ShowEntityProperties(entity);
+            entity.Dispose();
+
+            SetPrivateField(panel, "ApplyTransformRequested", true);
+            InvokePrivate(panel, "UpdateTransformEdits");
+
+            ComponentPropertiesView componentView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            Entity selectedEntity = GetPrivateField<Entity>(panel, "SelectedEntity");
+
+            Assert.Null(selectedEntity);
+            Assert.False(componentView.IsVisible);
+        }
+
+        /// <summary>
         /// Ensures the first visible properties section leaves a small gap below the panel header.
         /// </summary>
         [Fact]

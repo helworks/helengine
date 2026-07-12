@@ -82,6 +82,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         File.WriteAllText(Path.Combine(sourceRootPath, "RuntimeFeatureRequirementAttribute.hpp"), "// editor-only");
         File.WriteAllText(Path.Combine(sourceRootPath, "GeneratedRuntimeModuleManifestAttribute.cpp"), "// editor-only");
         File.WriteAllText(Path.Combine(sourceRootPath, "GeneratedRuntimeModuleManifestAttribute.hpp"), "// editor-only");
+        File.WriteAllText(Path.Combine(sourceRootPath, "NativeMigrationRequiredAttribute.cpp"), "// editor-only");
+        File.WriteAllText(Path.Combine(sourceRootPath, "NativeMigrationRequiredAttribute.hpp"), "// editor-only");
         File.WriteAllText(Path.Combine(sourceRootPath, "InputSystem.cpp"), "// keep");
         File.WriteAllText(Path.Combine(sourceRootPath, "InputSystem.hpp"), "// keep");
 
@@ -93,6 +95,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.False(File.Exists(Path.Combine(destinationRootPath, "RuntimeFeatureRequirementAttribute.hpp")));
         Assert.False(File.Exists(Path.Combine(destinationRootPath, "GeneratedRuntimeModuleManifestAttribute.cpp")));
         Assert.False(File.Exists(Path.Combine(destinationRootPath, "GeneratedRuntimeModuleManifestAttribute.hpp")));
+        Assert.False(File.Exists(Path.Combine(destinationRootPath, "NativeMigrationRequiredAttribute.cpp")));
+        Assert.False(File.Exists(Path.Combine(destinationRootPath, "NativeMigrationRequiredAttribute.hpp")));
     }
 
     /// <summary>
@@ -1111,6 +1115,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "RendererBackendCapabilityProfile.cpp"), "// keep");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "ExternalPlatformMaterialAsset.cpp"), "// keep");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "NativeMigrationRequiredAttribute.cpp"), "// exclude");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "generated_unity.cpp"), "#include \"Foo.cpp\"");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_startup_manifest.cpp"), "// exclude");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_scene_catalog_manifest.cpp"), "// exclude");
@@ -1123,10 +1128,31 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("#include \"Foo.cpp\"", unitySource);
         Assert.Contains("#include \"RendererBackendCapabilityProfile.cpp\"", unitySource);
         Assert.Contains("#include \"ExternalPlatformMaterialAsset.cpp\"", unitySource);
+        Assert.DoesNotContain("NativeMigrationRequiredAttribute.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("generated_unity.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_scene_catalog_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", unitySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies generated-core finalization deletes editor-only attribute artifacts emitted directly by the root managed project before native compilation starts.
+    /// </summary>
+    [Fact]
+    public void Delete_editor_only_generated_source_files_removes_native_migration_marker_artifacts() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "delete-editor-only-generated-source-files");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "NativeMigrationRequiredAttribute.cpp"), "// exclude");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "NativeMigrationRequiredAttribute.hpp"), "// exclude");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// keep");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.hpp"), "// keep");
+
+        EditorGeneratedCoreRegenerationService.DeleteEditorOnlyGeneratedSourceFiles(generatedCoreRootPath);
+
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "NativeMigrationRequiredAttribute.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "NativeMigrationRequiredAttribute.hpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "Foo.cpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "Foo.hpp")));
     }
 
     /// <summary>
@@ -1237,6 +1263,27 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("#include \"Foo.cpp\"", unitySource);
         Assert.Contains("#include \"DiagnosticsScreen.cpp\"", unitySource);
         Assert.Contains("#include \"DebugComponent.cpp\"", unitySource);
+    }
+
+    /// <summary>
+    /// Verifies generated unity translation regeneration orders the Bepu collision batcher ahead of the continuation helper so the unity build does not hit their include cycle.
+    /// </summary>
+    [Fact]
+    public void Write_generated_core_translation_unit_orders_collision_batcher_before_batcher_continuations() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "rewrite-unity-bepu-collision-batcher-order");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "BatcherContinuations_1.cpp"), "// bepu continuation helper");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "CollisionBatcher_1.cpp"), "// bepu collision batcher");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo");
+
+        EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
+
+        string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
+        int collisionBatcherIndex = unitySource.IndexOf("#include \"CollisionBatcher_1.cpp\"", StringComparison.Ordinal);
+        int batcherContinuationsIndex = unitySource.IndexOf("#include \"BatcherContinuations_1.cpp\"", StringComparison.Ordinal);
+        Assert.True(collisionBatcherIndex >= 0, "CollisionBatcher_1.cpp should be present in the generated unity source.");
+        Assert.True(batcherContinuationsIndex >= 0, "BatcherContinuations_1.cpp should be present in the generated unity source.");
+        Assert.True(collisionBatcherIndex < batcherContinuationsIndex, "CollisionBatcher_1.cpp must appear before BatcherContinuations_1.cpp in the generated unity source.");
     }
 
     /// <summary>

@@ -47,8 +47,8 @@ namespace helengine {
         /// </summary>
         /// <returns>Combined endpoint hash code.</returns>
         public override int GetHashCode() {
-            int fromStateHashCode = EqualityComparer<TState>.Default.GetHashCode(FromState);
-            int toStateHashCode = EqualityComparer<TState>.Default.GetHashCode(ToState);
+            int fromStateHashCode = FromState.GetHashCode();
+            int toStateHashCode = ToState.GetHashCode();
             return (fromStateHashCode * 397) ^ toStateHashCode;
         }
     }

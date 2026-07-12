@@ -108,6 +108,11 @@ namespace helengine {
         public ObjectManager ObjectManager { get; private set; }
 
         /// <summary>
+        /// Gets the shared runtime audio manager when one backend has been configured by the active host.
+        /// </summary>
+        public AudioManager AudioManager { get; private set; }
+
+        /// <summary>
         /// Gets the host-owned authored entity factory exposed to scene-authoring consumers.
         /// </summary>
         public IEntityFactory EntityFactory { get; private set; }
@@ -551,6 +556,18 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Configures the shared runtime audio manager over the supplied platform backend.
+        /// </summary>
+        /// <param name="backend">Platform-owned audio backend.</param>
+        public void SetAudioBackend(IAudioBackend backend) {
+            if (backend == null) {
+                throw new ArgumentNullException(nameof(backend));
+            }
+
+            AudioManager = new AudioManager(backend);
+        }
+
+        /// <summary>
         /// Gets the default content manager configured for the current core instance.
         /// </summary>
         /// <returns>Cached content manager backed by the configured content stream source.</returns>
@@ -765,6 +782,11 @@ namespace helengine {
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterObjectManagerUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterObjectManagerUpdate");
+                RecordUpdateStage("BeforeAudioManagerUpdate");
+            }
+            AudioManager?.Update();
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("AfterAudioManagerUpdate");
             }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeUpdatePhysicsPhaseId);
             if (shouldRecordUpdateStages) {
@@ -806,7 +828,7 @@ namespace helengine {
         /// Stores one shared scene-transition stage and forwards it to hosts that render live diagnostics.
         /// </summary>
         /// <param name="stage">Short stage label describing the current runtime transition boundary.</param>
-        internal void ReportSceneTransitionStage(string stage) {
+        public void ReportSceneTransitionStage(string stage) {
             LastSceneTransitionStage = stage ?? string.Empty;
             UpdateStageDiagnosticsProviderValue?.ReportUpdateStage(LastSceneTransitionStage);
         }
@@ -887,10 +909,36 @@ namespace helengine {
                 return;
             }
 
+            bool shouldRecordUpdateStages = UpdateStageDiagnosticsProviderValue != null;
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("BeforePhysicsSchedulerAddElapsedSeconds");
+            }
             PhysicsSchedulerValue.AddElapsedSeconds(elapsedSeconds);
+            if (shouldRecordUpdateStages) {
+                RecordUpdateStage("AfterPhysicsSchedulerAddElapsedSeconds");
+            }
+
             int consumedStepCount = 0;
-            while (consumedStepCount < InitializationOptions.PhysicsMaxStepsPerUpdate && PhysicsSchedulerValue.TryConsumeStep()) {
+            while (consumedStepCount < InitializationOptions.PhysicsMaxStepsPerUpdate) {
+                if (shouldRecordUpdateStages) {
+                    RecordUpdateStage("BeforePhysicsSchedulerTryConsumeStep:" + consumedStepCount);
+                }
+
+                if (!PhysicsSchedulerValue.TryConsumeStep()) {
+                    if (shouldRecordUpdateStages) {
+                        RecordUpdateStage("NoPhysicsStepAvailable:" + consumedStepCount);
+                    }
+                    break;
+                }
+
+                if (shouldRecordUpdateStages) {
+                    RecordUpdateStage("AfterPhysicsSchedulerTryConsumeStep:" + consumedStepCount);
+                    RecordUpdateStage("BeforePhysicsRuntimeStep:" + consumedStepCount);
+                }
                 PhysicsRuntimeValue.Step(PhysicsSchedulerValue.StepSeconds);
+                if (shouldRecordUpdateStages) {
+                    RecordUpdateStage("AfterPhysicsRuntimeStep:" + consumedStepCount);
+                }
                 consumedStepCount++;
             }
 

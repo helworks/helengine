@@ -49,6 +49,15 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Creates one validated file-backed audio reference.
+        /// </summary>
+        /// <param name="relativePath">Project-relative audio path.</param>
+        /// <returns>Validated file-backed audio reference.</returns>
+        public static SceneAssetReference CreateFileSystemAudio(string relativePath) {
+            return CreateFileSystem(relativePath);
+        }
+
+        /// <summary>
         /// Reads one optional serialized scene asset reference through the sanctioned construction path.
         /// </summary>
         /// <param name="reader">Reader positioned at the optional reference payload.</param>

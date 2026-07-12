@@ -49,6 +49,15 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one file-backed audio scene asset reference.
+        /// </summary>
+        /// <param name="relativePath">Project-relative audio path.</param>
+        /// <returns>Validated file-backed audio reference.</returns>
+        public static SceneAssetReference CreateFileSystemAudio(string relativePath) {
+            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemAudio(relativePath);
+        }
+
+        /// <summary>
         /// Creates one editor-generated UI-font scene asset reference.
         /// </summary>
         /// <returns>Validated editor-generated UI-font reference.</returns>

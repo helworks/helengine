@@ -177,7 +177,11 @@ namespace helengine.editor.tests.managers.scene {
             Assert.True(visualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
-            Assert.NotNull(Assert.Single(visualComponent.Materials));
+            RuntimeMaterial material = Assert.Single(visualComponent.Materials);
+            Assert.NotNull(material);
+            Assert.True(material.RenderState.DepthTestEnabled);
+            Assert.True(material.RenderState.DepthWriteEnabled);
+            Assert.Equal(MaterialBlendMode.Opaque, material.RenderState.BlendMode);
         }
 
         /// <summary>
@@ -300,7 +304,11 @@ namespace helengine.editor.tests.managers.scene {
             Assert.True(visualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
-            Assert.NotNull(Assert.Single(visualComponent.Materials));
+            RuntimeMaterial material = Assert.Single(visualComponent.Materials);
+            Assert.NotNull(material);
+            Assert.True(material.RenderState.DepthTestEnabled);
+            Assert.True(material.RenderState.DepthWriteEnabled);
+            Assert.Equal(MaterialBlendMode.Opaque, material.RenderState.BlendMode);
         }
 
         /// <summary>
@@ -323,7 +331,11 @@ namespace helengine.editor.tests.managers.scene {
             Assert.True(visualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
-            Assert.NotNull(Assert.Single(visualComponent.Materials));
+            RuntimeMaterial material = Assert.Single(visualComponent.Materials);
+            Assert.NotNull(material);
+            Assert.True(material.RenderState.DepthTestEnabled);
+            Assert.True(material.RenderState.DepthWriteEnabled);
+            Assert.Equal(MaterialBlendMode.Opaque, material.RenderState.BlendMode);
         }
 
         /// <summary>
@@ -371,7 +383,11 @@ namespace helengine.editor.tests.managers.scene {
             Assert.True(visualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
-            Assert.NotNull(Assert.Single(visualComponent.Materials));
+            RuntimeMaterial material = Assert.Single(visualComponent.Materials);
+            Assert.NotNull(material);
+            Assert.True(material.RenderState.DepthTestEnabled);
+            Assert.True(material.RenderState.DepthWriteEnabled);
+            Assert.Equal(MaterialBlendMode.Opaque, material.RenderState.BlendMode);
         }
 
         /// <summary>

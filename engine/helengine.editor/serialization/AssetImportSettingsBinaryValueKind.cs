@@ -31,6 +31,11 @@ namespace helengine.editor {
         /// <summary>
         /// The payload stores a <see cref="MaterialAssetPlatformOverrideDocument"/> instance.
         /// </summary>
-        MaterialAssetPlatformOverrideDocument = 6
+        MaterialAssetPlatformOverrideDocument = 6,
+
+        /// <summary>
+        /// The payload stores an <see cref="AudioAssetImportSettings"/> instance.
+        /// </summary>
+        AudioAssetImportSettings = 7
     }
 }

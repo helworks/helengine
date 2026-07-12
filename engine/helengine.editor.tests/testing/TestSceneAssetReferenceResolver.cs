@@ -4,7 +4,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Resolves pre-registered scene asset references for deterministic serialization tests.
     /// </summary>
-    internal class TestSceneAssetReferenceResolver : ISceneAssetReferenceResolver {
+    internal class TestSceneAssetReferenceResolver : ISceneAssetReferenceResolver, IEditorOwnedAssetTrackingSceneAssetReferenceResolver {
         /// <summary>
         /// Runtime models keyed by their stable scene asset reference.
         /// </summary>
@@ -29,6 +29,22 @@ namespace helengine.editor.tests.testing {
         /// Animation clips keyed by their stable scene asset reference.
         /// </summary>
         readonly Dictionary<string, AnimationClipAsset> AnimationClipsByReferenceKey;
+        /// <summary>
+        /// Tracks scene-owned runtime textures resolved during the active scene-load scope.
+        /// </summary>
+        List<RuntimeTexture> ActiveOwnedTextures;
+        /// <summary>
+        /// Tracks scene-owned font assets resolved during the active scene-load scope.
+        /// </summary>
+        List<FontAsset> ActiveOwnedFonts;
+        /// <summary>
+        /// Tracks scene-owned runtime models resolved during the active scene-load scope.
+        /// </summary>
+        List<RuntimeModel> ActiveOwnedModels;
+        /// <summary>
+        /// Tracks scene-owned runtime materials resolved during the active scene-load scope.
+        /// </summary>
+        List<RuntimeMaterial> ActiveOwnedMaterials;
 
         /// <summary>
         /// Initializes empty runtime lookup tables.
@@ -136,6 +152,7 @@ namespace helengine.editor.tests.testing {
                 throw new InvalidOperationException($"Runtime model was not registered for '{key}'.");
             }
 
+            TrackOwnedModel(runtimeModel);
             return runtimeModel;
         }
 
@@ -154,6 +171,7 @@ namespace helengine.editor.tests.testing {
                 throw new InvalidOperationException($"Runtime material was not registered for '{key}'.");
             }
 
+            TrackOwnedMaterial(runtimeMaterial);
             return runtimeMaterial;
         }
 
@@ -172,6 +190,7 @@ namespace helengine.editor.tests.testing {
                 throw new InvalidOperationException($"Runtime font was not registered for '{key}'.");
             }
 
+            TrackOwnedFont(runtimeFont);
             return runtimeFont;
         }
 
@@ -190,6 +209,7 @@ namespace helengine.editor.tests.testing {
                 throw new InvalidOperationException($"Runtime texture was not registered for '{key}'.");
             }
 
+            TrackOwnedTexture(runtimeTexture);
             return runtimeTexture;
         }
 
@@ -225,6 +245,126 @@ namespace helengine.editor.tests.testing {
                 reference.ProviderId ?? string.Empty,
                 "|",
                 reference.AssetId ?? string.Empty);
+        }
+
+        /// <summary>
+        /// Starts one scene-owned asset tracking scope for the next load operation.
+        /// </summary>
+        public void BeginOwnedAssetTracking() {
+            if (ActiveOwnedTextures != null || ActiveOwnedFonts != null || ActiveOwnedModels != null || ActiveOwnedMaterials != null) {
+                throw new InvalidOperationException("Test scene asset tracking is already active.");
+            }
+
+            ActiveOwnedTextures = new List<RuntimeTexture>();
+            ActiveOwnedFonts = new List<FontAsset>();
+            ActiveOwnedModels = new List<RuntimeModel>();
+            ActiveOwnedMaterials = new List<RuntimeMaterial>();
+        }
+
+        /// <summary>
+        /// Completes the active scene-owned asset tracking scope and returns the resolved assets.
+        /// </summary>
+        /// <returns>Scene-owned runtime assets resolved during the active load scope.</returns>
+        public RuntimeSceneOwnedAssetSet CompleteOwnedAssetTracking() {
+            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
+                throw new InvalidOperationException("Test scene asset tracking is not active.");
+            }
+
+            List<RuntimeTexture> ownedTextures = ActiveOwnedTextures;
+            List<FontAsset> ownedFonts = ActiveOwnedFonts;
+            List<RuntimeModel> ownedModels = ActiveOwnedModels;
+            List<RuntimeMaterial> ownedMaterials = ActiveOwnedMaterials;
+            ActiveOwnedTextures = null;
+            ActiveOwnedFonts = null;
+            ActiveOwnedModels = null;
+            ActiveOwnedMaterials = null;
+            return new RuntimeSceneOwnedAssetSet(
+                ownedTextures,
+                ownedFonts,
+                Array.Empty<AudioAsset>(),
+                ownedModels,
+                ownedMaterials);
+        }
+
+        /// <summary>
+        /// Cancels the active scene-owned asset tracking scope and returns the resolved assets.
+        /// </summary>
+        /// <returns>Scene-owned runtime assets resolved before the load failed.</returns>
+        public RuntimeSceneOwnedAssetSet CancelOwnedAssetTracking() {
+            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
+                throw new InvalidOperationException("Test scene asset tracking is not active.");
+            }
+
+            List<RuntimeTexture> ownedTextures = ActiveOwnedTextures;
+            List<FontAsset> ownedFonts = ActiveOwnedFonts;
+            List<RuntimeModel> ownedModels = ActiveOwnedModels;
+            List<RuntimeMaterial> ownedMaterials = ActiveOwnedMaterials;
+            ActiveOwnedTextures = null;
+            ActiveOwnedFonts = null;
+            ActiveOwnedModels = null;
+            ActiveOwnedMaterials = null;
+            return new RuntimeSceneOwnedAssetSet(
+                ownedTextures,
+                ownedFonts,
+                Array.Empty<AudioAsset>(),
+                ownedModels,
+                ownedMaterials);
+        }
+
+        /// <summary>
+        /// Tracks one runtime texture in the active scene-owned asset scope.
+        /// </summary>
+        /// <param name="runtimeTexture">Runtime texture to track.</param>
+        void TrackOwnedTexture(RuntimeTexture runtimeTexture) {
+            if (runtimeTexture == null || ActiveOwnedTextures == null) {
+                return;
+            }
+
+            if (!ActiveOwnedTextures.Contains(runtimeTexture)) {
+                ActiveOwnedTextures.Add(runtimeTexture);
+            }
+        }
+
+        /// <summary>
+        /// Tracks one font asset in the active scene-owned asset scope.
+        /// </summary>
+        /// <param name="runtimeFont">Font asset to track.</param>
+        void TrackOwnedFont(FontAsset runtimeFont) {
+            if (runtimeFont == null || ActiveOwnedFonts == null) {
+                return;
+            }
+
+            if (!ActiveOwnedFonts.Contains(runtimeFont)) {
+                ActiveOwnedFonts.Add(runtimeFont);
+            }
+        }
+
+        /// <summary>
+        /// Tracks one runtime model in the active scene-owned asset scope.
+        /// </summary>
+        /// <param name="runtimeModel">Runtime model to track.</param>
+        void TrackOwnedModel(RuntimeModel runtimeModel) {
+            if (runtimeModel == null || ActiveOwnedModels == null) {
+                return;
+            }
+
+            if (!ActiveOwnedModels.Contains(runtimeModel)) {
+                ActiveOwnedModels.Add(runtimeModel);
+            }
+        }
+
+        /// <summary>
+        /// Tracks one runtime material in the active scene-owned asset scope.
+        /// </summary>
+        /// <param name="runtimeMaterial">Runtime material to track.</param>
+        void TrackOwnedMaterial(RuntimeMaterial runtimeMaterial) {
+            if (runtimeMaterial == null || ActiveOwnedMaterials == null) {
+                return;
+            }
+
+            if (!ActiveOwnedMaterials.Contains(runtimeMaterial)) {
+                ActiveOwnedMaterials.Add(runtimeMaterial);
+            }
         }
     }
 }

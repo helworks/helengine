@@ -179,6 +179,25 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures generated native scripted-component deserializers support audio asset references through the shared runtime scene asset resolver.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsAudioAssetMember_EmitsAudioReferenceResolution() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AudioSourceComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            Assert.True(generator.CanGenerateNativeDeserializer(schema));
+
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("AudioAsset", header, StringComparison.Ordinal);
+            Assert.Contains("referenceResolver->ResolveAudio(reference)", source, StringComparison.Ordinal);
+            Assert.Contains("component->set_Clip(", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("ReadAudioAsset(", header, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures primitive reflected members do not emit synthetic native headers or helper methods when generated native deserializers already read those scalar payloads directly.
         /// </summary>
         [Fact]

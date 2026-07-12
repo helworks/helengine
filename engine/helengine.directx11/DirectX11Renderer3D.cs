@@ -1787,11 +1787,19 @@ namespace helengine.directx11 {
             }
 
             var context = Device.ImmediateContext;
+            context.InputAssembler.PrimitiveTopology = ResolvePrimitiveTopology(submesh.PrimitiveTopology);
             if (model.IndexBuffer != null && model.IndexCount > 0) {
                 context.DrawIndexed(submesh.IndexCount, submesh.IndexStart, 0);
             } else {
                 context.Draw(submesh.IndexCount, submesh.IndexStart);
             }
+        }
+
+        static PrimitiveTopology ResolvePrimitiveTopology(ModelPrimitiveTopology primitiveTopology) {
+            return primitiveTopology switch {
+                ModelPrimitiveTopology.LineList => PrimitiveTopology.LineList,
+                _ => PrimitiveTopology.TriangleList
+            };
         }
 
         /// <summary>

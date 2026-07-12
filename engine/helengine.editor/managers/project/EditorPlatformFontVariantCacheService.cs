@@ -9,6 +9,11 @@ namespace helengine.editor {
         const string GeneratedFolderName = "generated";
 
         /// <summary>
+        /// Cache-format version included in the font-variant settings hash so import-pipeline fixes can invalidate stale cached atlases.
+        /// </summary>
+        const string CacheFormatVersion = "font-variant-cache-v2";
+
+        /// <summary>
         /// Folder name used for cached per-platform font variants.
         /// </summary>
         const string PlatformFontsFolderName = "platform-fonts";
@@ -104,6 +109,8 @@ namespace helengine.editor {
             }
 
             using MemoryStream stream = new MemoryStream();
+            byte[] versionBytes = System.Text.Encoding.UTF8.GetBytes(CacheFormatVersion);
+            stream.Write(versionBytes, 0, versionBytes.Length);
             AssetImportSettingsBinarySerializer.Serialize(stream, settings);
             return ComputeChecksum(stream.ToArray());
         }

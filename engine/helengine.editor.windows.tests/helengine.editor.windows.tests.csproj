@@ -16,10 +16,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\helengine.core.windows\helengine.core.windows.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.editor.windows\helengine.editor.windows.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.editor.windows.gdiimporter\helengine.editor.windows.gdiimporter.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.editor.windows.pfimimporter\helengine.editor.windows.pfimimporter.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.editor.windows.magickimporter\helengine.editor.windows.magickimporter.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.editor.windows.audioimporter\helengine.editor.windows.audioimporter.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.editor.windows.importerprobe\helengine.editor.windows.importerprobe.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\..\helengine.ui\helengine.editor.app\helengine.editor.app.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>

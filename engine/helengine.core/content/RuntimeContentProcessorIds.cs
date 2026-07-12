@@ -37,5 +37,10 @@ namespace helengine {
         /// Processor id used for serialized animation clip assets.
         /// </summary>
         public const string AnimationClipAsset = "runtime.animation-clip-asset";
+
+        /// <summary>
+        /// Processor id used for serialized audio assets.
+        /// </summary>
+        public const string AudioAsset = "runtime.audio-asset";
     }
 }

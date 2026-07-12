@@ -35,7 +35,7 @@ namespace helengine {
                 for (int submissionIndex = 0; submissionIndex < submissions.Length; submissionIndex++) {
                     RenderFrameDrawableSubmission submission = submissions[submissionIndex];
                     drawableSubmissions.Add(submission);
-                    if (!submission.IsTransparent) {
+                    if (!submission.IsTransparent && ShouldCastShadows(submission.Material) && SupportsShadowCasting(submission)) {
                         shadowCasterSubmissions.Add(new RenderFrameShadowCasterSubmission(
                             submission.Drawable,
                             submission.SubmeshIndex,
@@ -60,6 +60,34 @@ namespace helengine {
             }
 
             return new RenderFrameExtractionResult(frames, backendCapabilities);
+        }
+
+        static bool ShouldCastShadows(RuntimeMaterial material) {
+            return material == null || material.CastsShadows;
+        }
+
+        static bool SupportsShadowCasting(RenderFrameDrawableSubmission submission) {
+            if (submission == null) {
+                return true;
+            }
+
+            IDrawable3D drawable = submission.Drawable;
+            if (drawable == null) {
+                return true;
+            }
+
+            RuntimeModel model = drawable.Model;
+            if (model == null || model.Submeshes == null) {
+                return true;
+            }
+
+            RuntimeSubmesh[] submeshes = model.Submeshes;
+            if (submission.SubmeshIndex < 0 || submission.SubmeshIndex >= submeshes.Length) {
+                return true;
+            }
+
+            RuntimeSubmesh submesh = submeshes[submission.SubmeshIndex];
+            return submesh == null || submesh.PrimitiveTopology == ModelPrimitiveTopology.TriangleList;
         }
     }
 }

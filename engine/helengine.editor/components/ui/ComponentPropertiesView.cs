@@ -407,6 +407,9 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entity));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (entity.IsDisposed) {
+                Hide();
+                return;
             }
 
             CurrentEntity = entity;
@@ -1487,7 +1490,8 @@ namespace helengine.editor {
         /// Rebuilds the current component inspector view while preserving the last known layout bounds.
         /// </summary>
         void RebuildCurrentComponentView() {
-            if (CurrentEntity == null) {
+            if (CurrentEntity == null || CurrentEntity.IsDisposed) {
+                Hide();
                 return;
             }
 
@@ -3336,7 +3340,8 @@ namespace helengine.editor {
             bool nextExpanded = !row.IsExpanded;
             row.IsExpanded = nextExpanded;
             CustomEditorExpandedStates[stateKey] = nextExpanded;
-            if (CurrentEntity == null) {
+            if (CurrentEntity == null || CurrentEntity.IsDisposed) {
+                Hide();
                 return;
             }
 
@@ -3429,7 +3434,8 @@ namespace helengine.editor {
         /// Rebuilds the current inspected view while preserving the last-known layout bounds.
         /// </summary>
         void RefreshCurrentView() {
-            if (CurrentEntity == null) {
+            if (CurrentEntity == null || CurrentEntity.IsDisposed) {
+                Hide();
                 return;
             }
 
@@ -4053,7 +4059,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entity));
             }
 
-            if (entity == null || entity.Components == null) {
+            if (entity.IsDisposed || entity.Components == null) {
                 return null;
             }
 

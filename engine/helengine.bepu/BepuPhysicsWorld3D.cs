@@ -1,6 +1,7 @@
 using BepuPhysics;
 using BepuPhysics.Collidables;
 using BepuPhysics.Constraints;
+using BepuUtilities;
 using BepuUtilities.Memory;
 
 namespace helengine {
@@ -242,12 +243,33 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(stepSeconds), "Simulation step must be a finite value greater than zero.");
             }
 
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("BeforeBepuTimestep");
+            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeBepuTimestepPhaseId);
             SimulationValue.Timestep((float)stepSeconds);
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuTimestepBeforeSync");
+            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterBepuTimestepBeforeSyncPhaseId);
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("BeforeBepuSynchronizeBodies");
+            }
             SynchronizeBodiesBackToEntities();
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuSynchronizeBodiesBeforeTriggerCollection");
+            }
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("BeforeBepuCollectTriggerEvents");
+            }
             CollectTriggerEvents();
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuCollectTriggerEvents");
+            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterBepuSyncPhaseId);
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuSync");
+            }
         }
 
         /// <summary>
@@ -268,6 +290,106 @@ namespace helengine {
                 poseIntegratorCallbacks,
                 new SolveDescription(SolveVelocityIterationCountValue, SolveSubstepCountValue),
                 initialAllocationSizes: CreateDefaultSimulationAllocationSizes());
+            WireSimulationStageDiagnostics();
+        }
+
+        /// <summary>
+        /// Subscribes the active BEPU timestepper events into the shared core diagnostics stream so native crash repros can distinguish the major simulation stages inside one timestep.
+        /// </summary>
+        void WireSimulationStageDiagnostics() {
+            if (SimulationValue == null) {
+                throw new InvalidOperationException("Simulation must exist before timestep diagnostics can be wired.");
+            }
+
+            DefaultTimestepper defaultTimestepper = SimulationValue.Timestepper as DefaultTimestepper;
+            if (defaultTimestepper == null) {
+                return;
+            }
+
+            defaultTimestepper.Slept += OnSimulationSlept;
+            defaultTimestepper.BeforeCollisionDetection += OnSimulationBeforeCollisionDetection;
+            defaultTimestepper.CollisionsDetected += OnSimulationCollisionsDetected;
+            defaultTimestepper.ConstraintsSolved += OnSimulationConstraintsSolved;
+            SimulationValue.BeforeCollisionOverlapDispatch += OnSimulationBeforeCollisionOverlapDispatch;
+            SimulationValue.AfterCollisionOverlapDispatch += OnSimulationAfterCollisionOverlapDispatch;
+            SimulationValue.AfterCollisionFlush += OnSimulationAfterCollisionFlush;
+        }
+
+        /// <summary>
+        /// Reports that the BEPU sleeper completed and the timestep is about to predict body bounding boxes.
+        /// </summary>
+        /// <param name="dt">Simulation timestep in seconds.</param>
+        /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
+        void OnSimulationSlept(float dt, IThreadDispatcher threadDispatcher) {
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuSleepBeforePredictBoundingBoxes");
+            }
+        }
+
+        /// <summary>
+        /// Reports that BEPU predicted bounding boxes and is about to run collision detection.
+        /// </summary>
+        /// <param name="dt">Simulation timestep in seconds.</param>
+        /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
+        void OnSimulationBeforeCollisionDetection(float dt, IThreadDispatcher threadDispatcher) {
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuPredictBoundingBoxesBeforeCollisionDetection");
+            }
+        }
+
+        /// <summary>
+        /// Reports that BEPU completed collision detection and is about to enter the solver phase.
+        /// </summary>
+        /// <param name="dt">Simulation timestep in seconds.</param>
+        /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
+        void OnSimulationCollisionsDetected(float dt, IThreadDispatcher threadDispatcher) {
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuCollisionDetectionBeforeSolve");
+            }
+        }
+
+        /// <summary>
+        /// Reports that BEPU completed constraint solving and is about to run post-solve data-structure optimization.
+        /// </summary>
+        /// <param name="dt">Simulation timestep in seconds.</param>
+        /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
+        void OnSimulationConstraintsSolved(float dt, IThreadDispatcher threadDispatcher) {
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuSolveBeforeOptimize");
+            }
+        }
+
+        /// <summary>
+        /// Reports that BEPU completed its broad phase update and is about to dispatch potentially colliding overlaps.
+        /// </summary>
+        /// <param name="dt">Simulation timestep in seconds.</param>
+        /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
+        void OnSimulationBeforeCollisionOverlapDispatch(float dt, IThreadDispatcher threadDispatcher) {
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuBroadPhaseUpdateBeforeOverlapDispatch");
+            }
+        }
+
+        /// <summary>
+        /// Reports that BEPU completed overlap dispatch and is about to flush the narrow phase.
+        /// </summary>
+        /// <param name="dt">Simulation timestep in seconds.</param>
+        /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
+        void OnSimulationAfterCollisionOverlapDispatch(float dt, IThreadDispatcher threadDispatcher) {
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuOverlapDispatchBeforeNarrowPhaseFlush");
+            }
+        }
+
+        /// <summary>
+        /// Reports that BEPU finished its narrow phase flush and collision detection is about to return.
+        /// </summary>
+        /// <param name="dt">Simulation timestep in seconds.</param>
+        /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
+        void OnSimulationAfterCollisionFlush(float dt, IThreadDispatcher threadDispatcher) {
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage("AfterBepuNarrowPhaseFlush");
+            }
         }
 
         /// <summary>

@@ -101,6 +101,10 @@ namespace helengine.editor {
                 ValidateAnimationClipReference(reference, context);
                 return;
             }
+            if (valueType == typeof(AudioAsset)) {
+                ValidateAudioReference(reference, context);
+                return;
+            }
 
             throw new InvalidOperationException($"Unsupported asset-backed member type '{valueType.FullName}' for {context}.");
         }
@@ -163,6 +167,9 @@ namespace helengine.editor {
             } else if ((component is TextComponent || component is FPSComponent) &&
                        string.Equals(referenceName, FontAssetScenePersistenceSupport.FontReferenceName, StringComparison.Ordinal)) {
                 return typeof(FontAsset);
+            } else if (component is AudioSourceComponent &&
+                       string.Equals(referenceName, nameof(AudioSourceComponent.Clip), StringComparison.Ordinal)) {
+                return typeof(AudioAsset);
             }
 
             return null;
@@ -287,6 +294,20 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Generated animation-clip references are not supported for {context}.");
+        }
+
+        /// <summary>
+        /// Validates one audio scene asset reference.
+        /// </summary>
+        /// <param name="reference">Reference to validate.</param>
+        /// <param name="context">Human-readable owner context.</param>
+        static void ValidateAudioReference(SceneAssetReference reference, string context) {
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                ValidateFileSystemReference("audio", reference, context);
+                return;
+            }
+
+            throw new InvalidOperationException($"Generated audio references are not supported for {context}.");
         }
 
         /// <summary>

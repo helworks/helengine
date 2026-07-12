@@ -19,11 +19,12 @@ namespace helengine {
                 return false;
             }
 
-            return valueType == typeof(FontAsset)
-                || valueType == typeof(RuntimeTexture)
-                || valueType == typeof(RuntimeModel)
-                || valueType == typeof(RuntimeMaterial)
-                || valueType == typeof(AnimationClipAsset);
+            return MatchesSupportedAssetReferenceType(valueType, typeof(FontAsset))
+                || MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeTexture))
+                || MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeModel))
+                || MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeMaterial))
+                || MatchesSupportedAssetReferenceType(valueType, typeof(AnimationClipAsset))
+                || MatchesSupportedAssetReferenceType(valueType, typeof(AudioAsset));
         }
 
         /// <summary>
@@ -91,23 +92,41 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(referenceResolver));
             }
 
-            if (valueType == typeof(FontAsset)) {
+            if (MatchesSupportedAssetReferenceType(valueType, typeof(FontAsset))) {
                 return referenceResolver.ResolveFont(reference);
             }
-            if (valueType == typeof(RuntimeTexture)) {
+            if (MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeTexture))) {
                 return referenceResolver.ResolveTexture(reference);
             }
-            if (valueType == typeof(RuntimeModel)) {
+            if (MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeModel))) {
                 return referenceResolver.ResolveModel(reference);
             }
-            if (valueType == typeof(RuntimeMaterial)) {
+            if (MatchesSupportedAssetReferenceType(valueType, typeof(RuntimeMaterial))) {
                 return referenceResolver.ResolveMaterial(reference);
             }
-            if (valueType == typeof(AnimationClipAsset)) {
+            if (MatchesSupportedAssetReferenceType(valueType, typeof(AnimationClipAsset))) {
                 return referenceResolver.ResolveAnimationClip(reference);
+            }
+            if (MatchesSupportedAssetReferenceType(valueType, typeof(AudioAsset))) {
+                return referenceResolver.ResolveAudio(reference);
             }
 
             throw new InvalidOperationException(UnsupportedAssetReferenceTypeMessage);
+        }
+
+        /// <summary>
+        /// Returns whether one reflected member type matches the supplied supported engine asset type even when the member type arrives from another assembly load context.
+        /// </summary>
+        /// <param name="valueType">Reflected member type being inspected.</param>
+        /// <param name="expectedType">Canonical supported engine asset type.</param>
+        /// <returns>True when the types are identical or expose the same full name; otherwise false.</returns>
+        public static bool MatchesSupportedAssetReferenceType(Type valueType, Type expectedType) {
+            if (valueType == null || expectedType == null) {
+                return false;
+            }
+
+            return valueType == expectedType ||
+                string.Equals(valueType.FullName, expectedType.FullName, StringComparison.Ordinal);
         }
 #endif
     }

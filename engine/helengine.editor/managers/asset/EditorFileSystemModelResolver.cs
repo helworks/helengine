@@ -50,7 +50,7 @@ namespace helengine.editor {
             }
 
             if (!AssetImportManager.TryLoadModelAsset(sourcePath, out ModelAsset modelAsset) || modelAsset == null) {
-                throw new InvalidOperationException($"Unable to load processed model asset for '{sourcePath}'.");
+                throw new InvalidOperationException($"Unable to load processed model asset for '{sourcePath}'. Source={AssetImportManager.DescribeAssetPathForDiagnostics(sourcePath)}");
             }
 
             return modelAsset;

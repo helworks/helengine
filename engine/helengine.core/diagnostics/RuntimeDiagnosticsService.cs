@@ -112,6 +112,10 @@ namespace helengine {
                 AppendMetric(snapshot, "object_manager_updateables_count", (ulong)RuntimeObjectManager.Updateables.Count);
                 AppendMetric(snapshot, "object_manager_updateables_capacity", (ulong)RuntimeObjectManager.UpdateableCapacity);
                 AppendMetric(snapshot, "object_manager_updateables_estimated_bytes", EstimateReferenceListBytes(RuntimeObjectManager.UpdateableCapacity));
+                AppendMetric(snapshot, "object_manager_last_updateable_pass", (ulong)RuntimeObjectManager.LastUpdateableDiagnosticPass);
+                AppendMetric(snapshot, "object_manager_last_updateable_index", RuntimeObjectManager.LastUpdateableDiagnosticIndex < 0 ? 0u : (ulong)RuntimeObjectManager.LastUpdateableDiagnosticIndex);
+                AppendMetric(snapshot, "object_manager_last_updateable_type_hash", RuntimeObjectManager.LastUpdateableDiagnosticTypeHash);
+                AppendMetric(snapshot, "object_manager_last_updateable_owner_scene_entity_id", RuntimeObjectManager.LastUpdateableDiagnosticOwnerSceneEntityId);
                 AppendMetric(snapshot, "object_manager_pending_update_operations_count", (ulong)RuntimeObjectManager.PendingUpdateOperationCount);
                 AppendMetric(snapshot, "object_manager_pending_update_operations_capacity", (ulong)RuntimeObjectManager.PendingUpdateOperationCapacity);
                 AppendMetric(snapshot, "object_manager_pending_update_operations_estimated_bytes", EstimateReferenceListBytes(RuntimeObjectManager.PendingUpdateOperationCapacity));

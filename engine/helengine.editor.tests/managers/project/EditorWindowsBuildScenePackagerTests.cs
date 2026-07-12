@@ -1471,6 +1471,55 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures builder-backed Windows material cooking copies imported emissive textures into the player-visible cooked texture location and preserves the runtime texture binding.
+        /// </summary>
+        [Fact]
+        public void Package_WhenBuilderCooksMaterialWithImportedEmissiveTexture_WritesCookedImportedTextureAndLoadsRuntimeMaterial() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
+            string emissiveTextureAssetId = "65d54b79f6a769f7f067e4c1f8db1bcd52aef6e6d8d95cb40f6f8440ab1b3f60";
+
+            WriteCachedTextureAsset(emissiveTextureAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, string.Empty, string.Empty, emissiveTextureAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            TestPlatformMaterialAssetBuilder materialBuilder = new TestPlatformMaterialAssetBuilder();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                materialBuilder.Definition,
+                defaultFont,
+                materialBuilder,
+                "debug",
+                "directx11");
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "imported", emissiveTextureAssetId)));
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(runtimeContentManager);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+
+            MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
+            ShaderRuntimeMaterial runtimeMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(firstMeshComponent.Materials));
+            int emissiveBindingIndex = runtimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName);
+
+            Assert.NotNull(runtimeMaterial.Properties.GetTexture(emissiveBindingIndex));
+        }
+
+        /// <summary>
         /// Ensures GameCube-style builder-owned texture capabilities emit explicit platform cook work items for imported diffuse textures.
         /// </summary>
         [Fact]
@@ -3681,6 +3730,7 @@ namespace helengine.editor.tests {
                 shaderAssetId,
                 diffuseTextureAssetId,
                 string.Empty,
+                string.Empty,
                 "standard-shader",
                 useCustomShader: true,
                 "#FFFFFFFF");
@@ -3735,6 +3785,7 @@ namespace helengine.editor.tests {
                 string.Empty,
                 string.Empty,
                 string.Empty,
+                string.Empty,
                 "standard-shader",
                 useCustomShader: false,
                 "#FFFFFFFF");
@@ -3750,7 +3801,8 @@ namespace helengine.editor.tests {
         void WriteCityStyleStandardMaterialAsset(
             string materialRelativePath,
             string diffuseTextureAssetId = "",
-            string roughnessTextureAssetId = "") {
+            string roughnessTextureAssetId = "",
+            string emissiveTextureAssetId = "") {
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
 
@@ -3759,6 +3811,7 @@ namespace helengine.editor.tests {
                 "ForwardStandardShader",
                 diffuseTextureAssetId,
                 roughnessTextureAssetId,
+                emissiveTextureAssetId,
                 "standard-shader",
                 useCustomShader: false,
                 "#FF4040FF");
@@ -3938,6 +3991,7 @@ namespace helengine.editor.tests {
             string shaderAssetId,
             string diffuseTextureAssetId,
             string roughnessTextureAssetId,
+            string emissiveTextureAssetId,
             string schemaId,
             bool useCustomShader,
             string baseColor) {
@@ -3952,6 +4006,7 @@ namespace helengine.editor.tests {
                     ["texture-id"] = diffuseTextureAssetId ?? string.Empty,
                     ["roughness"] = "1.0",
                     ["roughness-texture-id"] = roughnessTextureAssetId ?? string.Empty,
+                    ["emissive-texture-id"] = emissiveTextureAssetId ?? string.Empty,
                     ["casts-shadow"] = "true",
                     ["receives-shadow"] = "true",
                     ["base-color"] = baseColor ?? "#FFFFFFFF"

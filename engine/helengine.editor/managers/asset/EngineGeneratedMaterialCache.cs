@@ -91,7 +91,11 @@ namespace helengine.editor {
                 PixelProgram = StandardPixelProgramName,
                 Variant = DefaultVariantName,
                 ConstantBuffers = [
-                    StandardMaterialBaseColorDefaults.CreateWhiteConstantBufferAsset()
+                    StandardMaterialBaseColorDefaults.CreateWhiteConstantBufferAsset(),
+                    new MaterialConstantBufferAsset {
+                        Name = StandardMaterialEmissiveColorDefaults.EmissiveColorBufferName,
+                        Data = StandardMaterialEmissiveColorDefaults.CreateDefaultConstantBufferData()
+                    }
                 ]
             };
             RuntimeMaterial runtimeMaterial = renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);

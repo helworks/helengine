@@ -64,6 +64,8 @@ namespace helengine.editor {
         /// Field id used by the standard shader schema for the authored roughness texture asset id.
         /// </summary>
         const string RoughnessTextureAssetIdFieldId = "roughness-texture-id";
+        const string EmissiveTextureAssetIdFieldId = "emissive-texture-id";
+        const string EmissiveColorFieldId = "emissive-color";
 
         /// <summary>
         /// Field id used by the standard shader schema for authored metallic.
@@ -431,6 +433,7 @@ namespace helengine.editor {
             }
 
             changed |= ApplyMirroredField(platformSettings.FieldValues, TextureAssetIdFieldId, shaderMaterialAsset.DiffuseTextureAssetId, value => shaderMaterialAsset.DiffuseTextureAssetId = value, true);
+            changed |= ApplyMirroredField(platformSettings.FieldValues, EmissiveTextureAssetIdFieldId, shaderMaterialAsset.EmissiveTextureAssetId, value => shaderMaterialAsset.EmissiveTextureAssetId = value, true);
             changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, CastsShadowFieldId, shaderMaterialAsset.CastsShadows, value => shaderMaterialAsset.CastsShadows = value);
             changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, ReceivesShadowFieldId, shaderMaterialAsset.ReceivesShadows, value => shaderMaterialAsset.ReceivesShadows = value);
             return changed;
@@ -1339,15 +1342,23 @@ namespace helengine.editor {
             byte[] roughnessData = ResolveStandardShaderRoughnessBufferData(fieldValues);
             byte[] metallicData = ResolveStandardShaderMetallicBufferData(fieldValues);
             byte[] specularData = ResolveStandardShaderSpecularBufferData(fieldValues);
+            byte[] emissiveColorData = ResolveStandardShaderEmissiveColorBufferData(fieldValues);
             changed |= UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialBaseColorDefaults.BaseColorBufferName, baseColorData);
             changed |= UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialRoughnessDefaults.RoughnessBufferName, roughnessData);
             changed |= UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialMetallicDefaults.MetallicBufferName, metallicData);
             changed |= UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialSpecularDefaults.SpecularBufferName, specularData);
+            changed |= UpsertConstantBuffer(shaderMaterialAsset, StandardMaterialEmissiveColorDefaults.EmissiveColorBufferName, emissiveColorData);
             changed |= ApplyMirroredField(
                 fieldValues,
                 RoughnessTextureAssetIdFieldId,
                 shaderMaterialAsset.RoughnessTextureAssetId,
                 value => shaderMaterialAsset.RoughnessTextureAssetId = value,
+                true);
+            changed |= ApplyMirroredField(
+                fieldValues,
+                EmissiveTextureAssetIdFieldId,
+                shaderMaterialAsset.EmissiveTextureAssetId,
+                value => shaderMaterialAsset.EmissiveTextureAssetId = value,
                 true);
             return changed;
         }
@@ -1510,6 +1521,32 @@ namespace helengine.editor {
             }
 
             return StandardMaterialSpecularDefaults.CreateConstantBufferData(specular);
+        }
+
+        /// <summary>
+        /// Resolves the packed standard-shader emissive-color constant-buffer payload from one field-value map.
+        /// </summary>
+        /// <param name="fieldValues">Field values that may contain an authored emissive color.</param>
+        /// <returns>Sixteen-byte constant-buffer payload for the standard-shader emissive color.</returns>
+        byte[] ResolveStandardShaderEmissiveColorBufferData(Dictionary<string, string> fieldValues) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            }
+
+            if (!fieldValues.TryGetValue(EmissiveColorFieldId, out string serializedColor) || string.IsNullOrWhiteSpace(serializedColor)) {
+                return StandardMaterialEmissiveColorDefaults.CreateDefaultConstantBufferData();
+            }
+
+            byte4 parsedColor;
+            if (!EditorColorUtils.TryParseHtmlColor(serializedColor, out parsedColor)) {
+                throw new InvalidOperationException("Standard material emissive color must use #RRGGBB or #RRGGBBAA.");
+            }
+
+            return StandardMaterialEmissiveColorDefaults.CreateConstantBufferData(new float4(
+                parsedColor.X / 255f,
+                parsedColor.Y / 255f,
+                parsedColor.Z / 255f,
+                parsedColor.W / 255f));
         }
 
 

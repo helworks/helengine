@@ -36,6 +36,10 @@ namespace helengine.editor {
         /// </summary>
         public const string BlueprintAsset = "editor.blueprint-asset";
         /// <summary>
+        /// Processor id used for serialized audio assets.
+        /// </summary>
+        public const string AudioAsset = "editor.audio-asset";
+        /// <summary>
         /// Processor id used for serialized asset import settings sidecars.
         /// </summary>
         public const string AssetImportSettings = "editor.asset-import-settings";
@@ -51,5 +55,9 @@ namespace helengine.editor {
         /// Processor id used for serialized material asset import settings sidecars.
         /// </summary>
         public const string MaterialAssetImportSettings = "editor.material-asset-import-settings";
+        /// <summary>
+        /// Processor id used for serialized audio asset import settings sidecars.
+        /// </summary>
+        public const string AudioAssetImportSettings = "editor.audio-asset-import-settings";
     }
 }

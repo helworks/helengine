@@ -489,7 +489,7 @@ namespace helengine.editor.tests.serialization.scene {
                 sceneId,
                 "Scenes/Persistent.hasset",
                 new[] { rootEntity },
-                new RuntimeSceneOwnedAssetSet(Array.Empty<RuntimeTexture>(), Array.Empty<FontAsset>(), Array.Empty<RuntimeModel>(), Array.Empty<RuntimeMaterial>()),
+                new RuntimeSceneOwnedAssetSet(Array.Empty<RuntimeTexture>(), Array.Empty<FontAsset>(), Array.Empty<AudioAsset>(), Array.Empty<RuntimeModel>(), Array.Empty<RuntimeMaterial>()),
                 true);
 
             FieldInfo recordsField = typeof(SceneManager).GetField("LoadedSceneRecords", BindingFlags.Instance | BindingFlags.NonPublic);

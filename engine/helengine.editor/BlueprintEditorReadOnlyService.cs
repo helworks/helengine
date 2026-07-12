@@ -9,7 +9,7 @@ namespace helengine.editor {
         /// <param name="entity">Entity to classify.</param>
         /// <returns>True when the entity carries blueprint-inherited editor state.</returns>
         public static bool IsInheritedEntity(Entity entity) {
-            if (entity?.Components == null) {
+            if (entity == null || entity.IsDisposed || entity.Components == null) {
                 return false;
             }
 

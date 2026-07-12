@@ -10,6 +10,11 @@ public class ObjectManager {
     bool updateLoopActive;
 
     /// <summary>
+    /// Tracks the number of update passes executed so early-frame crash diagnostics can be correlated with one specific pass.
+    /// </summary>
+    int diagnosticUpdatePassCount;
+
+    /// <summary>
     /// Holds update list changes requested during the active update loop.
     /// </summary>
     readonly List<PendingUpdateOperation> pendingUpdateOperations;
@@ -62,6 +67,26 @@ public class ObjectManager {
     /// Gets the current update-list capacity reserved by the manager.
     /// </summary>
     public int UpdateableCapacity => Updateables.Capacity;
+
+    /// <summary>
+    /// Gets the update-pass index associated with the most recent updateable execution breadcrumb.
+    /// </summary>
+    public int LastUpdateableDiagnosticPass { get; private set; }
+
+    /// <summary>
+    /// Gets the update-list index associated with the most recent updateable execution breadcrumb.
+    /// </summary>
+    public int LastUpdateableDiagnosticIndex { get; private set; } = -1;
+
+    /// <summary>
+    /// Gets one stable hash of the updateable type name associated with the most recent updateable execution breadcrumb.
+    /// </summary>
+    public uint LastUpdateableDiagnosticTypeHash { get; private set; }
+
+    /// <summary>
+    /// Gets the authored scene entity id of the owner associated with the most recent updateable execution breadcrumb.
+    /// </summary>
+    public uint LastUpdateableDiagnosticOwnerSceneEntityId { get; private set; }
 
     /// <summary>
     /// Gets whether the object manager is currently iterating the update list.
@@ -570,11 +595,24 @@ public class ObjectManager {
     /// Updates all registered updateables in order.
     /// </summary>
     public virtual void Update() {
+        diagnosticUpdatePassCount++;
+        LastUpdateableDiagnosticPass = diagnosticUpdatePassCount;
+        LastUpdateableDiagnosticIndex = -1;
+        LastUpdateableDiagnosticTypeHash = 0u;
+        LastUpdateableDiagnosticOwnerSceneEntityId = 0u;
+
         try {
             updateLoopActive = true;
 
             for (int i = 0; i < Updateables.Count; i++) {
                 IUpdateable item = Updateables[i];
+                LastUpdateableDiagnosticPass = diagnosticUpdatePassCount;
+                LastUpdateableDiagnosticIndex = i;
+                LastUpdateableDiagnosticTypeHash = ComputeStableTypeNameHash(item);
+                LastUpdateableDiagnosticOwnerSceneEntityId = ResolveUpdateableOwnerSceneEntityId(item);
+                if (Core.Instance != null) {
+                    Core.Instance.ReportSceneTransitionStage($"ObjectManagerUpdate:{ResolveUpdateableTypeName(item)}:{i}");
+                }
                 item.Update();
             }
         } finally {
@@ -681,6 +719,67 @@ public class ObjectManager {
         }
 
         return removed;
+    }
+
+    /// <summary>
+    /// Resolves one stable numeric hash for the current updateable type name so hard-crash diagnostics can identify the active managed object.
+    /// </summary>
+    /// <param name="item">Updateable about to execute.</param>
+    /// <returns>Stable non-cryptographic hash of the type name.</returns>
+    static uint ComputeStableTypeNameHash(IUpdateable item) {
+        string typeName = ResolveUpdateableTypeName(item);
+        uint hash = 2166136261u;
+        for (int index = 0; index < typeName.Length; index++) {
+            hash ^= typeName[index];
+            hash *= 16777619u;
+        }
+
+        return hash;
+    }
+
+    /// <summary>
+    /// Resolves the authored scene entity id of the current updateable owner when the updateable is one component.
+    /// </summary>
+    /// <param name="item">Updateable about to execute.</param>
+    /// <returns>Owner scene entity id, or <c>0</c> when unavailable.</returns>
+    static uint ResolveUpdateableOwnerSceneEntityId(IUpdateable item) {
+        if (item is Component component) {
+            return ResolveSceneEntityRuntimeIdOrZero(component.Parent);
+        }
+
+        return 0u;
+    }
+
+    /// <summary>
+    /// Resolves the concrete updateable type name when the runtime object is one component and falls back to the interface token name otherwise.
+    /// </summary>
+    /// <param name="item">Updateable about to execute.</param>
+    /// <returns>Concrete runtime type name when available.</returns>
+    static string ResolveUpdateableTypeName(IUpdateable item) {
+        if (item is Component component) {
+            return component.GetType().Name;
+        }
+
+        return item == null ? string.Empty : item.GetType().Name;
+    }
+
+    /// <summary>
+    /// Resolves the authored scene entity id attached to one runtime entity when that metadata component is present.
+    /// </summary>
+    /// <param name="entity">Entity to inspect.</param>
+    /// <returns>Authored scene entity id, or <c>0</c> when unavailable.</returns>
+    static uint ResolveSceneEntityRuntimeIdOrZero(Entity entity) {
+        if (entity == null || entity.Components == null) {
+            return 0u;
+        }
+
+        for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+            if (entity.Components[componentIndex] is SceneEntityRuntimeIdComponent runtimeIdComponent) {
+                return runtimeIdComponent.SceneEntityId;
+            }
+        }
+
+        return 0u;
     }
 
     /// <summary>

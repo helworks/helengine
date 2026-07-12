@@ -1370,7 +1370,7 @@ namespace helengine.editor {
                     new PlatformCookProfileCapabilities(
                         PlatformDescriptor.Id,
                         selectedGraphicsProfileId,
-                        "raw",
+                        ResolveAudioEncodingFamily(PlatformDescriptor.Id),
                         $"{PlatformDescriptor.Id}-scene-v1",
                         PlatformSerializationEndianness.LittleEndian))
             ];
@@ -1390,6 +1390,29 @@ namespace helengine.editor {
                 generatedCoreRootPath,
                 selectedMediaProfileId,
                 selectedStorageProfileId);
+        }
+
+        /// <summary>
+        /// Resolves the default audio encoding family produced by the selected platform's first shared cook profile.
+        /// </summary>
+        /// <param name="platformId">Stable target platform identifier.</param>
+        /// <returns>Audio encoding family identifier advertised to downstream build stages.</returns>
+        static string ResolveAudioEncodingFamily(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return "pcm-buffered";
+            }
+
+            if (string.Equals(platformId, "windows", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "wiiu", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "switch", StringComparison.OrdinalIgnoreCase)) {
+                return "pcm-streamed";
+            }
+
+            if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
+                return "adpcm-buffered";
+            }
+
+            return "pcm-buffered";
         }
 
         static string BuildFailureMessage(PlatformBuildReport report) {

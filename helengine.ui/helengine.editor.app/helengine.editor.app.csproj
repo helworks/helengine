@@ -53,6 +53,7 @@
 		<ProjectReference Include="..\..\engine\helengine.editor.windows.gdiimporter\helengine.editor.windows.gdiimporter.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.editor.windows.pfimimporter\helengine.editor.windows.pfimimporter.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.editor.windows.magickimporter\helengine.editor.windows.magickimporter.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.editor.windows.audioimporter\helengine.editor.windows.audioimporter.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.files\helengine.files.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.input\helengine.input.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.bepu\helengine.bepu.csproj" SkipGetTargetFrameworkProperties="true" />

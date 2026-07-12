@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 19;
+        public const byte CurrentVersion = 20;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -170,6 +170,8 @@ namespace helengine {
                     return ReadMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.AnimationClipAsset:
                     return ReadAnimationClipAsset(reader, version);
+                case EditorAssetBinaryValueKind.AudioAsset:
+                    return ReadAudioAsset(reader, version);
                 case EditorAssetBinaryValueKind.PlatformMaterialAsset:
                     return ReadPlatformMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.SceneAsset:
@@ -389,6 +391,59 @@ namespace helengine {
                 ? reader.ReadArray(currentReader => ReadAnimationClipPlatformOverrideAsset(currentReader, version)) ?? Array.Empty<AnimationClipPlatformOverrideAsset>()
                 : Array.Empty<AnimationClipPlatformOverrideAsset>();
             return asset;
+        }
+
+        /// <summary>
+        /// Reads an audio asset payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized audio asset.</returns>
+        static AudioAsset ReadAudioAsset(EngineBinaryReader reader, byte version) {
+            AudioAsset asset = new AudioAsset();
+            ReadAssetIdentity(reader, asset, version);
+            asset.PlaybackMode = (AudioPlaybackMode)reader.ReadByte();
+            asset.DefaultLoop = reader.ReadByte() != 0;
+            asset.DefaultBusId = reader.ReadString();
+            asset.Channels = reader.ReadInt32();
+            asset.SampleRate = reader.ReadInt32();
+            asset.DurationSeconds = reader.ReadSingle();
+            asset.EncodingFamilyId = reader.ReadString();
+            asset.EncodedBytes = reader.ReadByteArray() ?? Array.Empty<byte>();
+            asset.Chunks = reader.ReadArray(ReadAudioChunkDescriptor) ?? Array.Empty<AudioChunkDescriptor>();
+            asset.PlatformOverrides = reader.ReadArray(ReadAudioAssetPlatformOverrideAsset) ?? Array.Empty<AudioAssetPlatformOverrideAsset>();
+            return asset;
+        }
+
+        /// <summary>
+        /// Reads one audio chunk descriptor payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized audio chunk descriptor.</returns>
+        static AudioChunkDescriptor ReadAudioChunkDescriptor(EngineBinaryReader reader) {
+            return new AudioChunkDescriptor {
+                ByteOffset = reader.ReadInt32(),
+                ByteLength = reader.ReadInt32()
+            };
+        }
+
+        /// <summary>
+        /// Reads one platform-authored audio override payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized platform-authored audio override.</returns>
+        static AudioAssetPlatformOverrideAsset ReadAudioAssetPlatformOverrideAsset(EngineBinaryReader reader) {
+            return new AudioAssetPlatformOverrideAsset {
+                PlatformId = reader.ReadString(),
+                PlaybackMode = (AudioPlaybackMode)reader.ReadByte(),
+                DefaultLoop = reader.ReadByte() != 0,
+                DefaultBusId = reader.ReadString(),
+                Channels = reader.ReadInt32(),
+                SampleRate = reader.ReadInt32(),
+                DurationSeconds = reader.ReadSingle(),
+                EncodingFamilyId = reader.ReadString(),
+                EncodedBytes = reader.ReadByteArray() ?? Array.Empty<byte>(),
+                Chunks = reader.ReadArray(ReadAudioChunkDescriptor) ?? Array.Empty<AudioChunkDescriptor>()
+            };
         }
 
         /// <summary>

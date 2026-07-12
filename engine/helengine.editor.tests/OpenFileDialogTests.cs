@@ -217,6 +217,30 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures reopening the dialog keeps the Open button label registered after its background so the text remains visible.
+        /// </summary>
+        [Fact]
+        public void Show_AfterHide_RegistersOpenButtonLabelAfterItsBackground() {
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+            dialog.Hide();
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            ButtonComponent openButton = GetPrivateField<ButtonComponent>(dialog, "OpenButton");
+            TextComponent openText = GetPrivateField<TextComponent>(openButton, "textComponent");
+            RoundedRectComponent openBackground = GetPrivateField<RoundedRectComponent>(openButton, "roundedRect");
+
+            int textIndex = Core.Instance.ObjectManager.Drawables2D.IndexOf(openText);
+            int backgroundIndex = Core.Instance.ObjectManager.Drawables2D.IndexOf(openBackground);
+
+            Assert.True(backgroundIndex >= 0);
+            Assert.True(textIndex > backgroundIndex);
+        }
+
+        /// <summary>
         /// Ensures the open dialog keeps a manual resize after the next layout pass instead of snapping back to its original size.
         /// </summary>
         [Fact]

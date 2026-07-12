@@ -119,6 +119,10 @@ namespace helengine.editor {
             if (isDisposed) {
                 return;
             }
+            if (sourceEntity.IsDisposed) {
+                Dispose();
+                return;
+            }
 
             previewEntity.Position = sourceEntity.Position;
             previewEntity.Orientation = sourceEntity.Orientation;
@@ -131,6 +135,10 @@ namespace helengine.editor {
         /// <param name="contentSize">Usable panel content size in pixels.</param>
         public void Resize(int2 contentSize) {
             if (isDisposed) {
+                return;
+            }
+            if (sourceEntity.IsDisposed) {
+                Dispose();
                 return;
             }
 

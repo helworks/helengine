@@ -1001,7 +1001,7 @@ namespace helengine.editor {
                     return;
                 case AssetEntryKind.Scene:
                     color = ThemeManager.Colors.AccentPrimary;
-                    label = "SCN";
+                    label = "MAP";
                     textColor = ThemeManager.Colors.TextOnAccent;
                     return;
                 case AssetEntryKind.Blueprint:

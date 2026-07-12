@@ -9,6 +9,11 @@ namespace helengine {
         public const string DiffuseTextureBindingName = "DiffuseTexture";
 
         /// <summary>
+        /// Stable emissive-texture binding name used by the shared forward standard shader conventions.
+        /// </summary>
+        public const string EmissiveTextureBindingName = "EmissiveTexture";
+
+        /// <summary>
         /// Stable roughness-texture binding name used by the shared forward standard shader conventions.
         /// </summary>
         public const string RoughnessTextureBindingName = "RoughnessTexture";
@@ -28,6 +33,7 @@ namespace helengine {
             }
 
             ApplyDefaultTexture(material, DiffuseTextureBindingName);
+            ApplyDefaultTexture(material, EmissiveTextureBindingName, TextureUtils.BlackPixelTexture);
             ApplyDefaultTexture(material, RoughnessTextureBindingName);
         }
 
@@ -36,7 +42,7 @@ namespace helengine {
         /// </summary>
         /// <param name="material">Shader runtime material whose binding should be normalized.</param>
         /// <param name="bindingName">Standard-material texture binding name to normalize.</param>
-        static void ApplyDefaultTexture(ShaderRuntimeMaterial material, string bindingName) {
+        static void ApplyDefaultTexture(ShaderRuntimeMaterial material, string bindingName, RuntimeTexture fallbackTexture = null) {
             int bindingIndex = material.Layout.FindTextureBindingIndex(bindingName);
             if (bindingIndex < 0) {
                 return;
@@ -47,7 +53,7 @@ namespace helengine {
                 return;
             }
 
-            material.Properties.SetTexture(bindingIndex, TextureUtils.PixelTexture);
+            material.Properties.SetTexture(bindingIndex, fallbackTexture ?? TextureUtils.PixelTexture);
         }
     }
 }

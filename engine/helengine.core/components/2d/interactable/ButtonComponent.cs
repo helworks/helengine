@@ -388,7 +388,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Keeps child text entity enabled state in sync with parent.
+        /// Clears transient hover, press, and focus state when hierarchy enablement changes.
         /// </summary>
         /// <param name="newEnabled">New enabled state.</param>
         public override void ParentEnabledChange(bool newEnabled) {
@@ -398,10 +398,6 @@ namespace helengine {
                 isHovering = false;
                 isPressed = false;
                 SetTargetFocused(false);
-            }
-
-            if (textEntity != null) {
-                textEntity.Enabled = newEnabled;
             }
         }
 

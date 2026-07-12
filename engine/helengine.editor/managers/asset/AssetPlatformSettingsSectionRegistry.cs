@@ -23,6 +23,7 @@ namespace helengine.editor {
             RegisterDefinition(new ModelAssetPlatformSettingsSectionDefinition());
             RegisterDefinition(new MaterialAssetPlatformSettingsSectionDefinition());
             RegisterDefinition(new FontAssetPlatformSettingsSectionDefinition());
+            RegisterDefinition(new AudioAssetPlatformSettingsSectionDefinition());
         }
 
         /// <summary>

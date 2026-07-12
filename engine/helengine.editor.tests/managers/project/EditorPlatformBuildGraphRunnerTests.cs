@@ -153,6 +153,398 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the shared build request advertises the Windows audio family instead of the legacy placeholder value.
+    /// </summary>
+    [Fact]
+    public void BuildRequest_when_windows_platform_is_selected_uses_pcm_streamed_audio_family() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string stagingRootPath = Path.Combine(rootPath, "cooked");
+        string builderWorkingRootPath = Path.Combine(rootPath, "builder");
+        string outputRootPath = Path.Combine(rootPath, "output");
+        string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+        Directory.CreateDirectory(stagingRootPath);
+        Directory.CreateDirectory(builderWorkingRootPath);
+        Directory.CreateDirectory(outputRootPath);
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(stagingRootPath, "dummy.txt"), "payload");
+
+        try {
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+
+            EditorBuildQueueItemDocument queueItem = new() {
+                QueueItemId = "queue-item",
+                PlatformId = "windows",
+                OutputDirectoryPath = outputRootPath,
+                SelectedSceneIds = ["Scenes/Main.helen"],
+                SelectedBuildOptionValues = new Dictionary<string, string>(),
+                SelectedGraphicsOptionValues = new Dictionary<string, string>(),
+                SelectedCodegenOptionValues = new Dictionary<string, string>()
+            };
+
+            PlatformBuildManifest cookedManifest = new(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0",
+                "windows",
+                "2026.05.12",
+                "Scenes/Main.helen",
+                [
+                    new PlatformBuildScene(
+                        "Scenes/Main.helen",
+                        "Main",
+                        "cooked/scenes/Main.hasset",
+                        [],
+                        [])
+                ],
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+            MethodInfo buildRequestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "BuildRequest",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(buildRequestMethod);
+
+            PlatformBuildRequest request = (PlatformBuildRequest)buildRequestMethod.Invoke(
+                runner,
+                [
+                    queueItem,
+                    cookedManifest,
+                    stagingRootPath,
+                    builderWorkingRootPath,
+                    "debug",
+                    "directx11",
+                    "default",
+                    queueItem.SelectedCodegenOptionValues,
+                    "windows-install-tree",
+                    generatedCoreRootPath,
+                    "loose"
+                ]);
+
+            PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
+            Assert.Equal("pcm-streamed", cookProfile.Capabilities.AudioEncodingFamily);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies the shared build request advertises the Wii U streamed PCM family so native playback receives the cooked layout it expects.
+    /// </summary>
+    [Fact]
+    public void BuildRequest_when_wiiu_platform_is_selected_uses_pcm_streamed_audio_family() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string stagingRootPath = Path.Combine(rootPath, "cooked");
+        string builderWorkingRootPath = Path.Combine(rootPath, "builder");
+        string outputRootPath = Path.Combine(rootPath, "output");
+        string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+        Directory.CreateDirectory(stagingRootPath);
+        Directory.CreateDirectory(builderWorkingRootPath);
+        Directory.CreateDirectory(outputRootPath);
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(stagingRootPath, "dummy.txt"), "payload");
+
+        try {
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "wiiu",
+                    "Nintendo Wii U",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+
+            EditorBuildQueueItemDocument queueItem = new() {
+                QueueItemId = "queue-item",
+                PlatformId = "wiiu",
+                OutputDirectoryPath = outputRootPath,
+                SelectedSceneIds = ["Scenes/Main.helen"],
+                SelectedBuildOptionValues = new Dictionary<string, string>(),
+                SelectedGraphicsOptionValues = new Dictionary<string, string>(),
+                SelectedCodegenOptionValues = new Dictionary<string, string>()
+            };
+
+            PlatformBuildManifest cookedManifest = new(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0",
+                "wiiu",
+                "2026.05.12",
+                "Scenes/Main.helen",
+                [
+                    new PlatformBuildScene(
+                        "Scenes/Main.helen",
+                        "Main",
+                        "cooked/scenes/Main.hasset",
+                        [],
+                        [])
+                ],
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+            MethodInfo buildRequestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "BuildRequest",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(buildRequestMethod);
+
+            PlatformBuildRequest request = (PlatformBuildRequest)buildRequestMethod.Invoke(
+                runner,
+                [
+                    queueItem,
+                    cookedManifest,
+                    stagingRootPath,
+                    builderWorkingRootPath,
+                    "debug",
+                    "directx11",
+                    "default",
+                    queueItem.SelectedCodegenOptionValues,
+                    "wiiu-install-tree",
+                    generatedCoreRootPath,
+                    "loose"
+                ]);
+
+            PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
+            Assert.Equal("pcm-streamed", cookProfile.Capabilities.AudioEncodingFamily);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies the shared build request advertises the Switch streamed PCM family so native playback receives the cooked layout it expects.
+    /// </summary>
+    [Fact]
+    public void BuildRequest_when_switch_platform_is_selected_uses_pcm_streamed_audio_family() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string stagingRootPath = Path.Combine(rootPath, "cooked");
+        string builderWorkingRootPath = Path.Combine(rootPath, "builder");
+        string outputRootPath = Path.Combine(rootPath, "output");
+        string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+        Directory.CreateDirectory(stagingRootPath);
+        Directory.CreateDirectory(builderWorkingRootPath);
+        Directory.CreateDirectory(outputRootPath);
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(stagingRootPath, "dummy.txt"), "payload");
+
+        try {
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "switch",
+                    "Nintendo Switch",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+
+            EditorBuildQueueItemDocument queueItem = new() {
+                QueueItemId = "queue-item",
+                PlatformId = "switch",
+                OutputDirectoryPath = outputRootPath,
+                SelectedSceneIds = ["Scenes/Main.helen"],
+                SelectedBuildOptionValues = new Dictionary<string, string>(),
+                SelectedGraphicsOptionValues = new Dictionary<string, string>(),
+                SelectedCodegenOptionValues = new Dictionary<string, string>()
+            };
+
+            PlatformBuildManifest cookedManifest = new(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0",
+                "switch",
+                "2026.05.12",
+                "Scenes/Main.helen",
+                [
+                    new PlatformBuildScene(
+                        "Scenes/Main.helen",
+                        "Main",
+                        "cooked/scenes/Main.hasset",
+                        [],
+                        [])
+                ],
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+            MethodInfo buildRequestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "BuildRequest",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(buildRequestMethod);
+
+            PlatformBuildRequest request = (PlatformBuildRequest)buildRequestMethod.Invoke(
+                runner,
+                [
+                    queueItem,
+                    cookedManifest,
+                    stagingRootPath,
+                    builderWorkingRootPath,
+                    "debug",
+                    "switch-default",
+                    "default",
+                    queueItem.SelectedCodegenOptionValues,
+                    "switch-install-tree",
+                    generatedCoreRootPath,
+                    "loose"
+                ]);
+
+            PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
+            Assert.Equal("pcm-streamed", cookProfile.Capabilities.AudioEncodingFamily);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies the shared build request advertises the DS buffered ADPCM family so constrained native playback receives the cooked layout it expects.
+    /// </summary>
+    [Fact]
+    public void BuildRequest_when_ds_platform_is_selected_uses_adpcm_buffered_audio_family() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string stagingRootPath = Path.Combine(rootPath, "cooked");
+        string builderWorkingRootPath = Path.Combine(rootPath, "builder");
+        string outputRootPath = Path.Combine(rootPath, "output");
+        string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+        Directory.CreateDirectory(stagingRootPath);
+        Directory.CreateDirectory(builderWorkingRootPath);
+        Directory.CreateDirectory(outputRootPath);
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(stagingRootPath, "dummy.txt"), "payload");
+
+        try {
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "ds",
+                    "Nintendo DS",
+                    typeof(FakePlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+
+            EditorBuildQueueItemDocument queueItem = new() {
+                QueueItemId = "queue-item",
+                PlatformId = "ds",
+                OutputDirectoryPath = outputRootPath,
+                SelectedSceneIds = ["Scenes/Main.helen"],
+                SelectedBuildOptionValues = new Dictionary<string, string>(),
+                SelectedGraphicsOptionValues = new Dictionary<string, string>(),
+                SelectedCodegenOptionValues = new Dictionary<string, string>()
+            };
+
+            PlatformBuildManifest cookedManifest = new(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0",
+                "ds",
+                "2026.05.12",
+                "Scenes/Main.helen",
+                [
+                    new PlatformBuildScene(
+                        "Scenes/Main.helen",
+                        "Main",
+                        "cooked/scenes/Main.hasset",
+                        [],
+                        [])
+                ],
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+            MethodInfo buildRequestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "BuildRequest",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(buildRequestMethod);
+
+            PlatformBuildRequest request = (PlatformBuildRequest)buildRequestMethod.Invoke(
+                runner,
+                [
+                    queueItem,
+                    cookedManifest,
+                    stagingRootPath,
+                    builderWorkingRootPath,
+                    "debug",
+                    "ds-main-2d",
+                    "default",
+                    queueItem.SelectedCodegenOptionValues,
+                    "ds-cartridge",
+                    generatedCoreRootPath,
+                    "nitrofs-package"
+                ]);
+
+            PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
+            Assert.Equal("adpcm-buffered", cookProfile.Capabilities.AudioEncodingFamily);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies the cook phase targets the execution-root workspace so scene outputs land beneath the shared cooked tree without duplicating the `cooked` segment.
     /// </summary>
     [Fact]

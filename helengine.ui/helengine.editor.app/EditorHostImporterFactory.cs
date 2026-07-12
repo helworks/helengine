@@ -16,6 +16,7 @@ namespace helengine.editor.app {
             string[] modelExtensions = new[] { ".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds", ".x" };
             string[] fontExtensions = new[] { ".ttf", ".otf" };
             List<IAssetImporterRegistration> registrations = new List<IAssetImporterRegistration>(EditorHostTextureImporterFactory.CreateDefault());
+            registrations.AddRange(EditorHostAudioImporterFactory.CreateDefault());
             registrations.AddRange(new IAssetImporterRegistration[] {
                 new TextImporterRegistration("text", new TextImporter(), textExtensions),
                 new FontImporterRegistration("gdi-font", new GdiFontImporter(), fontExtensions),

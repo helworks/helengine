@@ -14,5 +14,6 @@ public sealed class CityTiltTrialRuntimeEntityLookupSourceTests {
 
         Assert.DoesNotContain("entity.Name", levelSelectSource, StringComparison.Ordinal);
         Assert.DoesNotContain("entity.Name", sessionSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("is TComponent typedComponent", sessionSource, StringComparison.Ordinal);
     }
 }

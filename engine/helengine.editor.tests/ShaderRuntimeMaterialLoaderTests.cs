@@ -58,7 +58,7 @@ namespace helengine.editor.tests {
         public void BuildMaterialFromRawAsset_WhenMaterialReferencesImportedDiffuseTexture_BindsRuntimeTexture() {
             string diffuseTextureAssetId = "Textures/GeneratedChecker";
             WriteShaderPackage();
-            WriteMaterialAsset(diffuseTextureAssetId, string.Empty);
+            WriteMaterialAsset(diffuseTextureAssetId, string.Empty, string.Empty);
             WriteImportedTextureAsset(diffuseTextureAssetId);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
@@ -82,7 +82,7 @@ namespace helengine.editor.tests {
             string diffuseTextureAssetId = "Textures/GeneratedChecker";
             string roughnessTextureAssetId = "Textures/GeneratedRoughness";
             WriteShaderPackage();
-            WriteMaterialAsset(diffuseTextureAssetId, roughnessTextureAssetId);
+            WriteMaterialAsset(diffuseTextureAssetId, string.Empty, roughnessTextureAssetId);
             WriteImportedTextureAsset(diffuseTextureAssetId, 4, 2);
             WriteImportedTextureAsset(roughnessTextureAssetId, 2, 4);
 
@@ -106,6 +106,30 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaged shader-backed materials rebuild their imported emissive texture binding from the packaged imported texture asset path.
+        /// </summary>
+        [Fact]
+        public void BuildMaterialFromRawAsset_WhenMaterialReferencesImportedEmissiveTexture_BindsRuntimeTexture() {
+            string emissiveTextureAssetId = "Textures/GeneratedEmissive";
+            WriteShaderPackage();
+            WriteMaterialAsset(string.Empty, emissiveTextureAssetId, string.Empty);
+            WriteImportedTextureAsset(emissiveTextureAssetId, 3, 5);
+
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
+            RuntimeMaterial runtimeMaterial = RenderManager3DValue.BuildMaterialFromRawAsset(
+                contentManager,
+                Path.Combine(ContentRootPath, "cooked", "materials", "TestMaterial.hasset"));
+
+            ShaderRuntimeMaterial shaderRuntimeMaterial = ShaderRuntimeMaterialAccess.Require(runtimeMaterial);
+            int emissiveBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName);
+            RuntimeTexture emissiveTexture = shaderRuntimeMaterial.Properties.GetTexture(emissiveBindingIndex);
+
+            Assert.NotNull(emissiveTexture);
+            Assert.Equal(3, emissiveTexture.Width);
+            Assert.Equal(5, emissiveTexture.Height);
+        }
+
+        /// <summary>
         /// Writes one packaged shader asset exposing the standard diffuse texture binding required by the runtime loader.
         /// </summary>
         void WriteShaderPackage() {
@@ -125,6 +149,7 @@ namespace helengine.editor.tests {
                         "ForwardStandardShader.ps",
                         ShaderStage.Pixel,
                         CreateBinding(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ShaderResourceType.Texture2D, 0, 0, 0),
+                        CreateBinding(StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName, ShaderResourceType.Texture2D, 0, 7, 0),
                         CreateBinding(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName, ShaderResourceType.Texture2D, 0, 6, 0))
                 ],
                 Binaries = Array.Empty<ShaderBinaryAsset>()
@@ -138,8 +163,9 @@ namespace helengine.editor.tests {
         /// Writes one packaged shader-backed material asset that references the supplied imported diffuse texture asset id.
         /// </summary>
         /// <param name="diffuseTextureAssetId">Imported texture asset id that should be rebound by the runtime loader.</param>
+        /// <param name="emissiveTextureAssetId">Imported emissive texture asset id that should be rebound by the runtime loader.</param>
         /// <param name="roughnessTextureAssetId">Imported roughness texture asset id that should be rebound by the runtime loader.</param>
-        void WriteMaterialAsset(string diffuseTextureAssetId, string roughnessTextureAssetId) {
+        void WriteMaterialAsset(string diffuseTextureAssetId, string emissiveTextureAssetId, string roughnessTextureAssetId) {
             string materialPath = Path.Combine(ContentRootPath, "cooked", "materials", "TestMaterial.hasset");
             string materialDirectoryPath = Path.GetDirectoryName(materialPath);
             if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
@@ -154,6 +180,7 @@ namespace helengine.editor.tests {
                 PixelProgram = "ForwardStandardShader.ps",
                 Variant = "default",
                 DiffuseTextureAssetId = diffuseTextureAssetId,
+                EmissiveTextureAssetId = emissiveTextureAssetId,
                 RoughnessTextureAssetId = roughnessTextureAssetId,
                 RenderState = new MaterialRenderState(),
                 ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>(),

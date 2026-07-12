@@ -2,6 +2,8 @@ using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Manifest;
 using helengine.editor.tests.testing;
+using System.Reflection;
+using System.Reflection.Emit;
 
 namespace helengine.editor.tests {
     /// <summary>
@@ -208,6 +210,70 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures authored automatic audio-source components rewrite their file-backed clip references into cooked packaged audio assets.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenAudioSourceComponentUsesAuthoredClipReference_RewritesAudioPayload() {
+            const string audioRelativePath = "audio/menu/theme.wav";
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            string sourcePath = WriteSourceAudio(audioRelativePath);
+            ConfigureAudioImportSettings(
+                sourcePath,
+                "windows",
+                new AudioAssetProcessorSettings {
+                    PlaybackMode = AudioPlaybackMode.Streamed,
+                    EncodingFamilyId = "pcm-streamed",
+                    DefaultBusId = "music",
+                    DefaultLoop = true,
+                    StreamChunkByteSize = 4
+                });
+            SceneComponentAssetRecord record = CreateAudioSourceRecord(audioRelativePath);
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            SceneAssetReference clipReference = ReadAutomaticComponentAssetReference<AudioSourceComponent>(transformedRecord, nameof(AudioSourceComponent.Clip));
+            Assert.NotNull(clipReference);
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, clipReference.SourceKind);
+            Assert.Equal("cooked/audio/menu/theme.hasset", clipReference.RelativePath);
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "audio", "menu", "theme.hasset")));
+        }
+
+        /// <summary>
+        /// Ensures automatic asset-reference rewriting accepts engine asset member types that arrive from another load context but keep the same full name.
+        /// </summary>
+        [Fact]
+        public void RewriteAutomaticComponentReference_WhenAudioTypeMatchesByFullName_RewritesAudioPayload() {
+            const string audioRelativePath = "audio/menu/theme.wav";
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            string sourcePath = WriteSourceAudio(audioRelativePath);
+            ConfigureAudioImportSettings(
+                sourcePath,
+                "windows",
+                new AudioAssetProcessorSettings {
+                    PlaybackMode = AudioPlaybackMode.Streamed,
+                    EncodingFamilyId = "pcm-streamed",
+                    DefaultBusId = "music",
+                    DefaultLoop = true,
+                    StreamChunkByteSize = 4
+                });
+
+            MethodInfo rewriteMethod = typeof(SceneComponentPackagingTransformService).GetMethod(
+                "RewriteAutomaticComponentReference",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(rewriteMethod);
+
+            Type foreignAudioAssetType = CreateForeignEngineType("helengine.AudioAsset");
+            SceneAssetReference sourceReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemAudio(audioRelativePath);
+
+            SceneAssetReference rewrittenReference = Assert.IsType<SceneAssetReference>(rewriteMethod.Invoke(service, [foreignAudioAssetType, sourceReference, BuildRootPath]));
+
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, rewrittenReference.SourceKind);
+            Assert.Equal("cooked/audio/menu/theme.hasset", rewrittenReference.RelativePath);
+        }
+
+        /// <summary>
         /// Ensures DS-authored generated debug-font references are rejected after the shared engine path drops the platform-specific font hook.
         /// </summary>
         [Fact]
@@ -298,6 +364,7 @@ namespace helengine.editor.tests {
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            assetImportManager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
             return new SceneComponentPackagingTransformService(
@@ -331,6 +398,7 @@ namespace helengine.editor.tests {
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            assetImportManager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             PlatformDefinition platformDefinition = CreateBigEndianStaticMeshPlatformDefinition();
 
@@ -366,6 +434,7 @@ namespace helengine.editor.tests {
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            assetImportManager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
             return new SceneComponentPackagingTransformService(
@@ -400,6 +469,7 @@ namespace helengine.editor.tests {
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            assetImportManager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
             return new SceneComponentPackagingTransformService(
@@ -434,6 +504,7 @@ namespace helengine.editor.tests {
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            assetImportManager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
             return new SceneComponentPackagingTransformService(
@@ -468,6 +539,7 @@ namespace helengine.editor.tests {
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
+            assetImportManager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"]));
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
             return new SceneComponentPackagingTransformService(
@@ -591,6 +663,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one automatic reflected audio-source component record for packaging verification.
+        /// </summary>
+        /// <param name="audioRelativePath">Project-relative authored audio path referenced by the component.</param>
+        /// <returns>Serialized audio-source component record.</returns>
+        SceneComponentAssetRecord CreateAudioSourceRecord(string audioRelativePath) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            AudioSourceComponent audioSourceComponent = new AudioSourceComponent {
+                Clip = new AudioAsset(),
+                PlayOnStart = true,
+                Loop = true,
+                BusId = "music",
+                Gain = 0.75f
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(
+                nameof(AudioSourceComponent.Clip),
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemAudio(audioRelativePath));
+
+            return descriptor.SerializeComponent(audioSourceComponent, 0, saveState);
+        }
+
+        /// <summary>
         /// Writes one minimal PNG texture source file expected by the authored sprite packaging path.
         /// </summary>
         void WriteTextureSourceFile() {
@@ -600,6 +694,42 @@ namespace helengine.editor.tests {
             string fullPath = Path.Combine(directoryPath, "helengine-logo.png");
             byte[] pngBytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=");
             File.WriteAllBytes(fullPath, pngBytes);
+        }
+
+        static Type CreateForeignEngineType(string fullTypeName) {
+            AssemblyName assemblyName = new AssemblyName("SceneComponentPackagingTransformServiceTests.Dynamic." + Guid.NewGuid().ToString("N"));
+            AssemblyBuilder assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
+            ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule("main");
+            return moduleBuilder.DefineType(fullTypeName, TypeAttributes.Public | TypeAttributes.Class).CreateType();
+        }
+
+        /// <summary>
+        /// Writes one minimal source audio file expected by the authored audio packaging path.
+        /// </summary>
+        /// <param name="relativePath">Project-relative audio path.</param>
+        /// <returns>Absolute authored audio source path.</returns>
+        string WriteSourceAudio(string relativePath) {
+            string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            File.WriteAllBytes(fullPath, [1, 2, 3, 4]);
+            return fullPath;
+        }
+
+        /// <summary>
+        /// Writes one deterministic audio import-settings sidecar for the requested platform.
+        /// </summary>
+        /// <param name="sourcePath">Absolute authored audio path whose settings should be updated.</param>
+        /// <param name="platformId">Target platform id whose processor settings should be stored.</param>
+        /// <param name="processorSettings">Processor settings that should be persisted for the target platform.</param>
+        void ConfigureAudioImportSettings(string sourcePath, string platformId, AudioAssetProcessorSettings processorSettings) {
+            ContentManager contentManager = new(new HostFileSystemContentStreamSource(ProjectRootPath));
+            AssetImportManager manager = new(ProjectRootPath, contentManager);
+            manager.CurrentPlatformId = platformId;
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"]));
+
+            AudioAssetImportSettings settings = manager.LoadOrCreateAudioImportSettings(sourcePath);
+            settings.Processor.Platforms[platformId] = processorSettings;
+            manager.SaveAudioImportSettings(sourcePath, settings);
         }
 
         /// <summary>
@@ -693,6 +823,39 @@ namespace helengine.editor.tests {
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(1, reader.ReadByte());
             SceneAssetReference reference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
+            return Assert.IsType<SceneAssetReference>(reference);
+        }
+
+        /// <summary>
+        /// Reads one automatic-component asset reference from the serialized payload without requiring one runtime asset resolver.
+        /// </summary>
+        /// <typeparam name="TComponent">Automatic component type represented by the payload.</typeparam>
+        /// <param name="record">Packaged component record being decoded.</param>
+        /// <param name="memberName">Stable reflected member name whose scene reference should be restored.</param>
+        /// <returns>Restored scene asset reference stored for the requested member.</returns>
+        static SceneAssetReference ReadAutomaticComponentAssetReference<TComponent>(SceneComponentAssetRecord record, string memberName) where TComponent : Component, new() {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Member name must be provided.", nameof(memberName));
+            }
+
+            ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            ScriptComponentReflectionSchema schema = schemaBuilder.Build(typeof(TComponent));
+            TComponent component = new TComponent();
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(schema.Members.Count, reader.ReadInt32());
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                member.SetValue(component, AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, saveComponent, null));
+            }
+
+            Assert.True(saveComponent.TryGetComponentState(component, out EntityComponentSaveState saveState));
+            Assert.True(saveState.TryGetAssetReference(memberName, out SceneAssetReference reference));
             return Assert.IsType<SceneAssetReference>(reference);
         }
 
@@ -912,6 +1075,29 @@ namespace helengine.editor.tests {
                 ],
                 Array.Empty<PlatformStorageProfileDefinition>(),
                 Array.Empty<PlatformMediaProfileDefinition>());
+        }
+
+        /// <summary>
+        /// Imports deterministic audio metadata for authored transform-service tests without relying on one real platform codec.
+        /// </summary>
+        sealed class TestAudioImporter : IAudioImporter {
+            /// <summary>
+            /// Produces one stable imported audio payload for the supplied source stream.
+            /// </summary>
+            /// <param name="stream">Source audio stream being imported.</param>
+            /// <returns>Deterministic imported audio payload.</returns>
+            public ImportedAudioSource ImportAudio(Stream stream) {
+                if (stream == null) {
+                    throw new ArgumentNullException(nameof(stream));
+                }
+
+                return new ImportedAudioSource {
+                    Channels = 2,
+                    SampleRate = 44100,
+                    DurationSeconds = 3.5f,
+                    Pcm16Bytes = [1, 2, 3, 4]
+                };
+            }
         }
 
         /// <summary>

@@ -47,6 +47,11 @@ namespace helengine {
                 StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
             ApplyImportedTexture(
                 assetContentManager,
+                materialAsset.EmissiveTextureAssetId,
+                runtimeMaterial,
+                StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName);
+            ApplyImportedTexture(
+                assetContentManager,
                 materialAsset.RoughnessTextureAssetId,
                 runtimeMaterial,
                 StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName);

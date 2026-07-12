@@ -89,6 +89,65 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures opaque drawables whose runtime material disables shadow casting do not enter the shadow-caster submission list.
+        /// </summary>
+        [Fact]
+        public void Extract_WhenOpaqueDrawableDisablesShadowCasting_ExcludesItFromShadowCasterSubmissions() {
+            Core core = new Core(new CoreInitializationOptions {
+                RenderList3DInitialCapacity = 4,
+                RenderList2DInitialCapacity = 4
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CameraComponent camera = new CameraComponent();
+            TestDrawable3D drawable = new TestDrawable3D(MaterialBlendMode.Opaque);
+            drawable.Materials[0].CastsShadows = false;
+            RenderFrameExtractionService extractionService = new RenderFrameExtractionService();
+
+            RenderFrameExtractionResult result = extractionService.Extract(
+                new[] { camera },
+                new IDrawable3D[] { drawable },
+                Array.Empty<LightComponent>(),
+                new RendererBackendCapabilityProfile(true, false, true, true, 32, 4));
+
+            RenderFrame frame = Assert.Single(result.Frames);
+            Assert.Empty(frame.ShadowCasterSubmissions);
+        }
+
+        /// <summary>
+        /// Ensures line-list submeshes stay visible in the frame but never participate in shadow submission extraction.
+        /// </summary>
+        [Fact]
+        public void Extract_WhenDrawableUsesLineListSubmesh_ExcludesItFromShadowCasterSubmissions() {
+            Core core = new Core(new CoreInitializationOptions {
+                RenderList3DInitialCapacity = 4,
+                RenderList2DInitialCapacity = 4
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CameraComponent camera = new CameraComponent();
+            TestDrawable3D drawable = new TestDrawable3D(
+                new[] { MaterialBlendMode.Opaque },
+                new[] {
+                    new RuntimeSubmesh {
+                        MaterialSlotName = "DebugLines",
+                        IndexStart = 0,
+                        IndexCount = 24,
+                        PrimitiveTopology = ModelPrimitiveTopology.LineList
+                    }
+                });
+            RenderFrameExtractionService extractionService = new RenderFrameExtractionService();
+
+            RenderFrameExtractionResult result = extractionService.Extract(
+                new[] { camera },
+                new IDrawable3D[] { drawable },
+                Array.Empty<LightComponent>(),
+                new RendererBackendCapabilityProfile(true, false, true, true, 32, 4));
+
+            RenderFrame frame = Assert.Single(result.Frames);
+            Assert.Single(frame.DrawableSubmissions);
+            Assert.Empty(frame.ShadowCasterSubmissions);
+        }
+
+        /// <summary>
         /// Ensures drawables without runtime materials are treated as opaque submissions.
         /// </summary>
         [Fact]

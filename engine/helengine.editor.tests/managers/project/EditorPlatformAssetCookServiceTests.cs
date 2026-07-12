@@ -438,6 +438,34 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies cooked audio assets classify as audio so manifests can surface runtime media correctly.
+    /// </summary>
+    [Fact]
+    public void ResolveArtifactKind_when_cooked_audio_is_supplied_returns_audio() {
+        string cookedAudioPath = Path.Combine(BuildRootPath, "cooked", "audio", "menu", "theme.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(cookedAudioPath)!);
+        WriteSerializedAsset(cookedAudioPath, new AudioAsset {
+            Id = "theme",
+            PlaybackMode = AudioPlaybackMode.Streamed,
+            EncodingFamilyId = "pcm-streamed",
+            Channels = 2,
+            SampleRate = 44100,
+            DurationSeconds = 3.5f,
+            Chunks = [
+                new AudioChunkDescriptor {
+                    ByteOffset = 0,
+                    ByteLength = 4
+                }
+            ],
+            EncodedBytes = [1, 2, 3, 4]
+        });
+
+        string artifactKind = InvokeResolveArtifactKind(cookedAudioPath, "cooked/audio/menu/theme.hasset");
+
+        Assert.Equal("audio", artifactKind);
+    }
+
+    /// <summary>
     /// Verifies builder-owned GameCube texture capabilities are emitted as manifest work items and removed from cooked artifacts.
     /// </summary>
     [Fact]

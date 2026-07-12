@@ -707,6 +707,7 @@ namespace helengine.editor {
         /// Resets the panel to its empty selection state.
         /// </summary>
         public void ShowEmpty() {
+            ClearDisposedSelectedEntity();
             DeactivateSelectedEntityTransformProjection();
             currentEntry = null;
             HideRemoveComponentDialog();
@@ -1359,6 +1360,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="visible">True to show transform controls.</param>
         void SetTransformVisible(bool visible) {
+            ClearDisposedSelectedEntity();
             ShowTransformControls = visible;
             if (!visible) {
                 DeactivateSelectedEntityTransformProjection();
@@ -1553,7 +1555,7 @@ namespace helengine.editor {
         /// </summary>
         void SyncExistsField() {
             bool exists = true;
-            if (SelectedEntity != null
+            if (HasLiveSelectedEntity()
                 && !string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
                 && !string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
                 EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
@@ -1570,7 +1572,7 @@ namespace helengine.editor {
         /// </summary>
         void RefreshTransformOverrideChrome() {
             bool canShowOverrides = ShowTransformControls
-                && SelectedEntity != null
+                && HasLiveSelectedEntity()
                 && !string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
                 && !string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase);
 
@@ -1662,6 +1664,10 @@ namespace helengine.editor {
         /// </summary>
         internal void UpdateTransformEdits() {
             if (!ShowTransformControls || SelectedEntity == null) {
+                return;
+            }
+            if (SelectedEntity.IsDisposed) {
+                ShowEmpty();
                 return;
             }
 
@@ -1758,7 +1764,7 @@ namespace helengine.editor {
         /// Activates the currently selected platform tab as the live transform projection for the selected entity.
         /// </summary>
         void ActivateSelectedEntityTransformPlatform() {
-            if (SelectedEntity == null) {
+            if (!HasLiveSelectedEntity()) {
                 return;
             }
 
@@ -1774,7 +1780,7 @@ namespace helengine.editor {
         /// Persists the currently projected transform override for the selected entity when one non-common platform is active.
         /// </summary>
         void PersistSelectedEntityTransformPlatform() {
-            if (SelectedEntity == null) {
+            if (!HasLiveSelectedEntity()) {
                 return;
             }
 
@@ -1790,7 +1796,7 @@ namespace helengine.editor {
         /// Persists and restores the selected entity back to its common transform before the inspector stops editing that entity.
         /// </summary>
         void DeactivateSelectedEntityTransformProjection() {
-            if (SelectedEntity == null) {
+            if (!HasLiveSelectedEntity()) {
                 return;
             }
 
@@ -1828,7 +1834,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldKind">Transform field that should return to common behavior.</param>
         void ClearSelectedEntityTransformOverride(TransformOverrideFieldKind fieldKind) {
-            if (SelectedEntity == null) {
+            if (!HasLiveSelectedEntity()) {
                 return;
             }
             if (string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
@@ -1860,7 +1866,7 @@ namespace helengine.editor {
         /// <param name="entity">Entity whose hidden save component should be returned.</param>
         /// <returns>Attached hidden save component when one exists; otherwise null.</returns>
         EntitySaveComponent FindEntitySaveComponent(Entity entity) {
-            if (entity == null || entity.Components == null) {
+            if (entity == null || entity.IsDisposed || entity.Components == null) {
                 return null;
             }
 
@@ -1925,7 +1931,7 @@ namespace helengine.editor {
             if (checkBox == null) {
                 throw new ArgumentNullException(nameof(checkBox));
             }
-            if (IsSynchronizingInputs || SelectedEntity == null) {
+            if (IsSynchronizingInputs || !HasLiveSelectedEntity()) {
                 return;
             }
             if (string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
@@ -2217,7 +2223,7 @@ namespace helengine.editor {
         /// <returns>True when entity transform editing is active and the strip has at least one generated tab.</returns>
         bool ShouldShowComponentPlatformTabs() {
             return ShowTransformControls
-                && SelectedEntity != null
+                && HasLiveSelectedEntity()
                 && ComponentPlatformTabStrip.TabCount > 0;
         }
 
@@ -2227,6 +2233,7 @@ namespace helengine.editor {
         /// <returns>True when the row should be shown.</returns>
         bool ShouldShowEntityExistenceRow() {
             return ShowTransformControls
+                && HasLiveSelectedEntity()
                 && SelectedEntity is EditorEntity
                 && !string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
                 && !string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase);
@@ -2244,7 +2251,7 @@ namespace helengine.editor {
         /// Handles activation of the add-component button.
         /// </summary>
         void HandleAddComponentClicked() {
-            if (SelectedEntity == null || SelectedEntity is not EditorEntity) {
+            if (!HasLiveSelectedEntity() || SelectedEntity is not EditorEntity) {
                 return;
             }
 
@@ -2267,7 +2274,7 @@ namespace helengine.editor {
             if (descriptor == null) {
                 throw new ArgumentNullException(nameof(descriptor));
             }
-            if (SelectedEntity == null) {
+            if (!HasLiveSelectedEntity()) {
                 return;
             }
 
@@ -2291,7 +2298,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="top">Top offset within the content root.</param>
         void LayoutAddComponentButton(int top, int width) {
-            if (SelectedEntity == null || SelectedEntity is not EditorEntity) {
+            if (!HasLiveSelectedEntity() || SelectedEntity is not EditorEntity) {
                 AddComponentButtonRoot.Enabled = false;
                 return;
             }
@@ -2299,6 +2306,26 @@ namespace helengine.editor {
             AddComponentButtonRoot.Enabled = true;
             AddComponentButtonRoot.Position = new float3(ContentPadding, top, 0.2f);
             AddComponentButton.SetSize(new int2(Math.Max(0, width), AddComponentButtonHeight));
+        }
+
+        /// <summary>
+        /// Clears the cached selection when teardown already disposed the backing entity.
+        /// </summary>
+        void ClearDisposedSelectedEntity() {
+            if (SelectedEntity == null || !SelectedEntity.IsDisposed) {
+                return;
+            }
+
+            SelectedEntity = null;
+            ApplyTransformRequested = false;
+        }
+
+        /// <summary>
+        /// Returns whether the inspector still owns one selected entity that can be safely dereferenced.
+        /// </summary>
+        /// <returns>True when the selected entity exists and is not disposed.</returns>
+        bool HasLiveSelectedEntity() {
+            return SelectedEntity != null && !SelectedEntity.IsDisposed;
         }
 
         /// <summary>
