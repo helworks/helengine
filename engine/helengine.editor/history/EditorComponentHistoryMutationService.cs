@@ -20,7 +20,7 @@ namespace helengine.editor {
         /// <param name="previousEntityState">Detached entity snapshot captured before the mutation when successful.</param>
         /// <returns>True when the entity snapshot was captured; otherwise false.</returns>
         public static bool TryCaptureEntityState(Component component, out SerializedEditorEntityState previousEntityState) {
-            if (component == null || component.Entity is not EditorEntity editorEntity || editorEntity.IsDisposed || CaptureEntityState == null) {
+            if (component == null || component.Parent is not EditorEntity editorEntity || editorEntity.IsDisposed || CaptureEntityState == null) {
                 previousEntityState = null;
                 return false;
             }
@@ -38,7 +38,7 @@ namespace helengine.editor {
         public static bool TryRecordComponentMutation(Component component, SerializedEditorEntityState previousEntityState) {
             if (previousEntityState == null
                 || component == null
-                || component.Entity is not EditorEntity editorEntity
+                || component.Parent is not EditorEntity editorEntity
                 || editorEntity.IsDisposed
                 || RecordComponentMutation == null) {
                 return false;
