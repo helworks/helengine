@@ -9,6 +9,16 @@ namespace helengine.editor {
         public Action SaveShortcutRequested { get; set; }
 
         /// <summary>
+        /// Callback invoked when the editor-global undo shortcut is pressed.
+        /// </summary>
+        public Action UndoShortcutRequested { get; set; }
+
+        /// <summary>
+        /// Callback invoked when the editor-global redo shortcut is pressed.
+        /// </summary>
+        public Action RedoShortcutRequested { get; set; }
+
+        /// <summary>
         /// Routes per-frame input into the shared keyboard-focus service.
         /// </summary>
         public override void Update() {
@@ -30,6 +40,18 @@ namespace helengine.editor {
                     EditorKeyboardFocusService.HandleCtrlTab(!shiftPressed);
                 } else {
                     EditorKeyboardFocusService.HandleTab(!shiftPressed);
+                }
+            } else if (controlPressed && shiftPressed && input.WasKeyPressed(Keys.Z)) {
+                if (RedoShortcutRequested != null) {
+                    RedoShortcutRequested();
+                }
+            } else if (controlPressed && input.WasKeyPressed(Keys.Z)) {
+                if (UndoShortcutRequested != null) {
+                    UndoShortcutRequested();
+                }
+            } else if (controlPressed && input.WasKeyPressed(Keys.Y)) {
+                if (RedoShortcutRequested != null) {
+                    RedoShortcutRequested();
                 }
             } else if (controlPressed && input.WasKeyPressed(Keys.S)) {
                 if (SaveShortcutRequested != null) {

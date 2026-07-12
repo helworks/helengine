@@ -288,6 +288,22 @@ namespace helengine.editor {
         /// </summary>
         readonly SceneSaveService SceneSaveService;
         /// <summary>
+        /// Captures detached entity and scene-settings history snapshots using the normal scene persistence pipeline.
+        /// </summary>
+        readonly EditorHistoryCaptureService HistoryCaptureService;
+        /// <summary>
+        /// Resolves component-scoped history adapters so custom components can register specialized undo/redo behavior.
+        /// </summary>
+        readonly ComponentHistoryAdapterRegistry ComponentHistoryAdapterRegistry;
+        /// <summary>
+        /// Owns the editor undo/redo stacks for the active session.
+        /// </summary>
+        readonly IEditorUndoRedoService UndoRedoService;
+        /// <summary>
+        /// Records user-authored mutations into the undo/redo history service.
+        /// </summary>
+        readonly EditorMutationService HistoryMutationService;
+        /// <summary>
         /// Creates new scene entities for title-bar add commands.
         /// </summary>
         readonly EditorSceneCreationService SceneCreationService;
@@ -404,6 +420,14 @@ namespace helengine.editor {
         /// </summary>
         bool IsSceneDirty;
         /// <summary>
+        /// True when one scene mutation notification originated from the tracked undo/redo recorder instead of an untracked legacy mutation path.
+        /// </summary>
+        bool IsTrackedSceneMutationNotification;
+        /// <summary>
+        /// True when at least one mutation has dirtied the scene without being represented by the undo/redo history cursor.
+        /// </summary>
+        bool HasUntrackedSceneChangesSinceSave;
+        /// <summary>
         /// Pending scene transition waiting on the unsaved-changes guard or save flow.
         /// </summary>
         SceneTransitionKind PendingSceneTransition;
@@ -455,6 +479,14 @@ namespace helengine.editor {
         /// Most recent host layout height used to relayout the session after live UI scale changes.
         /// </summary>
         int LastLayoutHeight;
+
+        /// <summary>
+        /// Gets the component history adapter registry used by this editor session.
+        /// Consumers can register specialized adapters for custom component undo/redo behavior.
+        /// </summary>
+        public ComponentHistoryAdapterRegistry ComponentHistoryAdapters {
+            get { return ComponentHistoryAdapterRegistry; }
+        }
 
         /// <summary>
         /// Initializes a new editor session and sets up cameras, docking, and starter content.
@@ -571,7 +603,9 @@ namespace helengine.editor {
             };
             var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent {
                 UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1),
-                SaveShortcutRequested = HandleGlobalSaveShortcut
+                SaveShortcutRequested = HandleGlobalSaveShortcut,
+                UndoShortcutRequested = HandleGlobalUndoShortcut,
+                RedoShortcutRequested = HandleGlobalRedoShortcut
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
 
@@ -600,6 +634,8 @@ namespace helengine.editor {
             ComponentPersistenceRegistry persistenceRegistry = CreateComponentPersistenceRegistry(scriptHotReloadService.ScriptTypeResolver);
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
+            HistoryCaptureService = new EditorHistoryCaptureService(SceneSaveService);
+            ComponentHistoryAdapterRegistry = new ComponentHistoryAdapterRegistry();
             SceneCreationService = new EditorSceneCreationService();
             ReparentService = new EditorEntityReparentService();
             SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
@@ -625,6 +661,17 @@ namespace helengine.editor {
                 this.projectPath,
                 persistenceRegistry,
                 sceneAssetReferenceResolver);
+            UndoRedoService = new EditorUndoRedoService(CreateHistoryContext());
+            HistoryMutationService = new EditorMutationService(
+                UndoRedoService,
+                HistoryCaptureService,
+                ComponentHistoryAdapterRegistry,
+                RaiseTrackedSceneMutated);
+            EditorEntityHistoryMutationService.CaptureEntityState = HistoryMutationService.CaptureEntityState;
+            EditorEntityHistoryMutationService.RecordEntityStateChange = HistoryMutationService.RecordEntityStateChange;
+            EditorComponentHistoryMutationService.CaptureEntityState = HistoryMutationService.CaptureEntityState;
+            EditorComponentHistoryMutationService.RecordComponentMutation = HistoryMutationService.RecordComponentMutation;
+            propertiesPanel.HistoryMutationService = HistoryMutationService;
             CurrentScenePath = string.Empty;
             CurrentSceneSettings = new SceneSettingsAsset();
             CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
@@ -632,7 +679,8 @@ namespace helengine.editor {
             PendingOpenScenePath = string.Empty;
             PendingSceneTransition = SceneTransitionKind.None;
             IsSceneDirty = false;
-            RefreshWindowTitle();
+            HasUntrackedSceneChangesSinceSave = false;
+            RefreshSceneDirtyState();
             EditorSelectionService.SelectionChanged += HandleSelectionChanged;
             EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
             EditorSceneMutationService.SceneMutated += HandleSceneMutated;
@@ -1431,6 +1479,8 @@ namespace helengine.editor {
             EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
             EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
             EditorSceneMutationService.SceneMutated -= HandleSceneMutated;
+            EditorEntityHistoryMutationService.Reset();
+            EditorComponentHistoryMutationService.Reset();
             sceneHierarchyPanel.ReparentRequested -= HandleSceneHierarchyReparentRequested;
             titleBar.NewMapRequested -= HandleNewMapRequested;
             titleBar.OpenMapRequested -= HandleOpenMapRequested;
@@ -1785,6 +1835,7 @@ namespace helengine.editor {
                 session.scriptHotReloadService,
                 session.CurrentUiMetrics,
                 fileSystemFontResolver);
+            panel.HistoryMutationService = session.HistoryMutationService;
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose);
         }
 
@@ -2363,7 +2414,7 @@ namespace helengine.editor {
                 EditorEntity entity = createEntity();
                 RefreshHierarchy();
                 EditorSelectionService.SetSelectedEntity(entity);
-                EditorSceneMutationService.MarkSceneMutated();
+                HistoryMutationService.RecordCreatedEntity(entity, GetSceneEntityId(previousSelection));
             } catch (Exception ex) {
                 Logger.WriteError($"Scene entity creation failed: {ex.Message}");
                 if (previousSelection == null) {
@@ -2390,51 +2441,85 @@ namespace helengine.editor {
         /// Handles the editor-global Ctrl+S shortcut by routing into the existing Save Map flow when editor-global input is not blocked.
         /// </summary>
         void HandleGlobalSaveShortcut() {
-            if (unsavedChangesDialog != null && unsavedChangesDialog.Enabled) {
-                return;
-            }
-
-            if (saveFileDialog != null && saveFileDialog.Enabled) {
-                return;
-            }
-
-            if (openFileDialog != null && openFileDialog.Enabled) {
-                return;
-            }
-
-            if (reparentEntityDialog != null && reparentEntityDialog.Enabled) {
-                return;
-            }
-
-            if (platformsDialog != null && platformsDialog.Enabled) {
-                return;
-            }
-
-            if (profilesDialog != null && profilesDialog.Enabled) {
-                return;
-            }
-
-            if (buildDialog != null && buildDialog.Enabled) {
-                return;
-            }
-
-            if (buildDialogCopySettingsDialog != null && buildDialogCopySettingsDialog.Enabled) {
-                return;
-            }
-
-            if (sceneSettingsDialog != null && sceneSettingsDialog.Enabled) {
-                return;
-            }
-
-            if (preferencesDialog != null && preferencesDialog.Enabled) {
-                return;
-            }
-
-            if (assetPickerModal != null && assetPickerModal.Enabled) {
+            if (IsEditorGlobalShortcutBlocked()) {
                 return;
             }
 
             HandleSaveMapRequested();
+        }
+
+        /// <summary>
+        /// Handles the editor-global Ctrl+Z shortcut when editor-global input is not blocked.
+        /// </summary>
+        void HandleGlobalUndoShortcut() {
+            if (IsEditorGlobalShortcutBlocked()) {
+                return;
+            }
+
+            UndoRedoService.Undo();
+        }
+
+        /// <summary>
+        /// Handles the editor-global Ctrl+Y shortcut when editor-global input is not blocked.
+        /// </summary>
+        void HandleGlobalRedoShortcut() {
+            if (IsEditorGlobalShortcutBlocked()) {
+                return;
+            }
+
+            UndoRedoService.Redo();
+        }
+
+        /// <summary>
+        /// Returns true when one modal editor workflow should block global keyboard shortcuts.
+        /// </summary>
+        /// <returns>True when editor-global shortcuts should be ignored for the current frame.</returns>
+        bool IsEditorGlobalShortcutBlocked() {
+            if (unsavedChangesDialog != null && unsavedChangesDialog.Enabled) {
+                return true;
+            }
+
+            if (saveFileDialog != null && saveFileDialog.Enabled) {
+                return true;
+            }
+
+            if (openFileDialog != null && openFileDialog.Enabled) {
+                return true;
+            }
+
+            if (reparentEntityDialog != null && reparentEntityDialog.Enabled) {
+                return true;
+            }
+
+            if (platformsDialog != null && platformsDialog.Enabled) {
+                return true;
+            }
+
+            if (profilesDialog != null && profilesDialog.Enabled) {
+                return true;
+            }
+
+            if (buildDialog != null && buildDialog.Enabled) {
+                return true;
+            }
+
+            if (buildDialogCopySettingsDialog != null && buildDialogCopySettingsDialog.Enabled) {
+                return true;
+            }
+
+            if (sceneSettingsDialog != null && sceneSettingsDialog.Enabled) {
+                return true;
+            }
+
+            if (preferencesDialog != null && preferencesDialog.Enabled) {
+                return true;
+            }
+
+            if (assetPickerModal != null && assetPickerModal.Enabled) {
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -2496,12 +2581,13 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(sceneSettings));
             }
 
+            SceneSettingsAsset previousSceneSettings = HistoryCaptureService.CloneSceneSettings(CurrentSceneSettings);
             bool settingsChanged = !AreSceneSettingsEquivalent(CurrentSceneSettings, sceneSettings);
-            CurrentSceneSettings = sceneSettings;
+            CurrentSceneSettings = HistoryCaptureService.CloneSceneSettings(sceneSettings);
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
             sceneSettingsDialog.Hide();
             if (settingsChanged) {
-                EditorSceneMutationService.MarkSceneMutated();
+                HistoryMutationService.RecordSceneSettingsChange(previousSceneSettings, CurrentSceneSettings);
             }
         }
 
@@ -3201,6 +3287,7 @@ namespace helengine.editor {
                 CurrentSceneSettings = loadedSceneDocument.SceneSettings;
                 TrackCurrentSceneInSceneManager(loadedSceneDocument.RootEntities, CurrentSceneSettings);
                 sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
+                UndoRedoService.Reset();
                 MarkSceneClean();
                 RefreshHierarchy();
                 IReadOnlyList<AssetBrowserPanel> assetBrowserPanels = GetAssetBrowserPanels();
@@ -3229,6 +3316,7 @@ namespace helengine.editor {
             CurrentScenePath = string.Empty;
             CurrentSceneSettings = new SceneSettingsAsset();
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
+            UndoRedoService.Reset();
             MarkSceneClean();
             RefreshHierarchy();
             if (openFileDialog != null) {
@@ -3260,13 +3348,17 @@ namespace helengine.editor {
             if (selection == null) {
                 throw new ArgumentNullException(nameof(selection));
             }
+            if (selection.TargetEntity is not EditorEntity targetEditorEntity) {
+                throw new InvalidOperationException("Editor reparent history requires one authored editor entity target.");
+            }
 
             try {
-                bool changed = ReparentService.Reparent(selection.TargetEntity, selection.ParentEntity);
+                EditorEntity previousParent = targetEditorEntity.Parent as EditorEntity;
+                bool changed = ReparentService.Reparent(targetEditorEntity, selection.ParentEntity);
                 RefreshHierarchy();
-                EditorSelectionService.SetSelectedEntity(selection.TargetEntity);
+                EditorSelectionService.SetSelectedEntity(targetEditorEntity);
                 if (changed) {
-                    EditorSceneMutationService.MarkSceneMutated();
+                    HistoryMutationService.RecordEntityReparent(targetEditorEntity, previousParent, selection.ParentEntity);
                 }
 
                 reparentEntityDialog.Hide();
@@ -3320,15 +3412,27 @@ namespace helengine.editor {
         /// Marks the current scene as dirty after one user-authored mutation.
         /// </summary>
         void HandleSceneMutated() {
-            IsSceneDirty = true;
-            RefreshWindowTitle();
+            if (!IsTrackedSceneMutationNotification && (UndoRedoService == null || !UndoRedoService.IsApplyingHistory)) {
+                HasUntrackedSceneChangesSinceSave = true;
+            }
+
+            RefreshSceneDirtyState();
         }
 
         /// <summary>
         /// Marks the current scene as clean after one successful save, load, or reset.
         /// </summary>
         void MarkSceneClean() {
-            IsSceneDirty = false;
+            HasUntrackedSceneChangesSinceSave = false;
+            UndoRedoService.MarkSaved();
+            RefreshSceneDirtyState();
+        }
+
+        /// <summary>
+        /// Recomputes the dirty state from tracked undo/redo revisions plus any untracked legacy mutations.
+        /// </summary>
+        void RefreshSceneDirtyState() {
+            IsSceneDirty = HasUntrackedSceneChangesSinceSave || !UndoRedoService.IsAtSavedState;
             RefreshWindowTitle();
         }
 
@@ -3447,6 +3551,18 @@ namespace helengine.editor {
             RuntimeSceneOwnedAssetSet ownedAssets = CurrentSceneOwnedAssets;
             CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
             EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets);
+        }
+
+        /// <summary>
+        /// Raises one tracked scene mutation notification so dirty-state can distinguish history-backed mutations from legacy untracked ones.
+        /// </summary>
+        void RaiseTrackedSceneMutated() {
+            IsTrackedSceneMutationNotification = true;
+            try {
+                EditorSceneMutationService.MarkSceneMutated();
+            } finally {
+                IsTrackedSceneMutationNotification = false;
+            }
         }
 
         /// <summary>
@@ -4065,6 +4181,290 @@ namespace helengine.editor {
             }
 
             RefreshPreviewSource();
+        }
+
+        /// <summary>
+        /// Creates one history context that binds undo/redo operations to this live editor session.
+        /// </summary>
+        /// <returns>History context bound to this editor session.</returns>
+        EditorHistoryContext CreateHistoryContext() {
+            return new EditorHistoryContext {
+                ResolveEntityById = ResolveSceneEntityById,
+                CaptureEntity = CaptureSerializedEntity,
+                RestoreEntity = RestoreSerializedEntity,
+                DeleteEntityById = DeleteSceneEntityById,
+                ReparentEntity = ReparentSceneEntity,
+                CaptureSceneSettings = CaptureCurrentSceneSettings,
+                ApplySceneSettings = ApplySceneSettingsFromHistory,
+                RestoreSelectionByEntityId = RestoreSceneSelectionByEntityId,
+                ClearSelection = EditorSelectionService.ClearSelection,
+                RefreshEditorState = RefreshEditorStateAfterHistoryMutation
+            };
+        }
+
+        /// <summary>
+        /// Resolves one stable scene entity id into the corresponding live editor entity.
+        /// </summary>
+        /// <param name="entityId">Stable scene entity id that should be resolved.</param>
+        /// <returns>Live editor entity associated with the supplied id.</returns>
+        EditorEntity ResolveSceneEntityById(uint entityId) {
+            if (entityId == 0u) {
+                throw new ArgumentOutOfRangeException(nameof(entityId), "Scene history requires a non-zero entity id.");
+            }
+
+            List<Entity> entities = helengine.Core.Instance.ObjectManager.Entities;
+            for (int index = 0; index < entities.Count; index++) {
+                if (entities[index] is not EditorEntity editorEntity) {
+                    continue;
+                }
+
+                if (GetSceneEntityId(editorEntity) == entityId) {
+                    return editorEntity;
+                }
+            }
+
+            throw new InvalidOperationException($"No live editor entity is registered for scene entity id '{entityId}'.");
+        }
+
+        /// <summary>
+        /// Captures one live editor entity into one detached serialized history snapshot.
+        /// </summary>
+        /// <param name="entity">Live editor entity that should be serialized.</param>
+        /// <returns>Detached serialized entity snapshot.</returns>
+        SerializedEditorEntityState CaptureSerializedEntity(EditorEntity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            return HistoryCaptureService.CaptureEntity(entity);
+        }
+
+        /// <summary>
+        /// Restores one detached serialized entity snapshot back into the live editor scene.
+        /// </summary>
+        /// <param name="state">Detached serialized entity snapshot that should be restored.</param>
+        /// <returns>Live restored editor entity.</returns>
+        EditorEntity RestoreSerializedEntity(SerializedEditorEntityState state) {
+            if (state == null) {
+                throw new ArgumentNullException(nameof(state));
+            }
+            if (state.EntityAsset == null) {
+                throw new InvalidOperationException("Serialized entity history state must include one entity asset payload.");
+            }
+
+            LoadedEditorSceneDocument loadedSceneDocument = CreateHistoryLoadedSceneDocument(state);
+            if (loadedSceneDocument.RootEntities == null || loadedSceneDocument.RootEntities.Length != 1) {
+                throw new InvalidOperationException("History entity restore expected exactly one root entity.");
+            }
+
+            AttachLoadedRoots(loadedSceneDocument.RootEntities);
+            CurrentSceneOwnedAssets = MergeOwnedAssets(CurrentSceneOwnedAssets, loadedSceneDocument.OwnedAssets);
+            EditorEntity restoredEntity = loadedSceneDocument.RootEntities[0];
+            if (state.ParentEntityId != 0u) {
+                EditorEntity parentEntity = ResolveSceneEntityById(state.ParentEntityId);
+                ReparentService.Reparent(restoredEntity, parentEntity);
+                restoredEntity.LocalPosition = state.EntityAsset.LocalPosition;
+                restoredEntity.LocalScale = state.EntityAsset.LocalScale;
+                restoredEntity.LocalOrientation = state.EntityAsset.LocalOrientation;
+            }
+
+            return restoredEntity;
+        }
+
+        /// <summary>
+        /// Deletes one live scene entity by stable scene entity id.
+        /// </summary>
+        /// <param name="entityId">Stable scene entity id that should be deleted.</param>
+        void DeleteSceneEntityById(uint entityId) {
+            EditorEntity entity = ResolveSceneEntityById(entityId);
+            if (SelectedSceneEntity != null && IsDescendantOf(SelectedSceneEntity, entity)) {
+                EditorSelectionService.ClearSelection();
+            }
+
+            if (entity.Parent != null) {
+                entity.Parent.RemoveChild(entity);
+            }
+
+            NativeOwnership.DisposeAndDelete(entity);
+        }
+
+        /// <summary>
+        /// Reparents one live scene entity to the supplied parent id, or to the scene root when the parent id is zero.
+        /// </summary>
+        /// <param name="entityId">Stable scene entity id of the entity that should be reparented.</param>
+        /// <param name="parentEntityId">Stable scene entity id of the new parent, or zero for the scene root.</param>
+        void ReparentSceneEntity(uint entityId, uint parentEntityId) {
+            EditorEntity entity = ResolveSceneEntityById(entityId);
+            EditorEntity parentEntity = parentEntityId == 0u
+                ? null
+                : ResolveSceneEntityById(parentEntityId);
+            ReparentService.Reparent(entity, parentEntity);
+        }
+
+        /// <summary>
+        /// Captures the current live scene settings into one detached history snapshot.
+        /// </summary>
+        /// <returns>Detached scene settings snapshot.</returns>
+        SceneSettingsAsset CaptureCurrentSceneSettings() {
+            return HistoryCaptureService.CloneSceneSettings(CurrentSceneSettings);
+        }
+
+        /// <summary>
+        /// Applies one detached scene settings snapshot to the live editor scene.
+        /// </summary>
+        /// <param name="sceneSettings">Detached scene settings snapshot that should be applied.</param>
+        void ApplySceneSettingsFromHistory(SceneSettingsAsset sceneSettings) {
+            if (sceneSettings == null) {
+                throw new ArgumentNullException(nameof(sceneSettings));
+            }
+
+            CurrentSceneSettings = HistoryCaptureService.CloneSceneSettings(sceneSettings);
+            sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
+        }
+
+        /// <summary>
+        /// Selects one live scene entity by stable scene entity id.
+        /// </summary>
+        /// <param name="entityId">Stable scene entity id that should become selected.</param>
+        void RestoreSceneSelectionByEntityId(uint entityId) {
+            EditorSelectionService.SetSelectedEntity(ResolveSceneEntityById(entityId));
+        }
+
+        /// <summary>
+        /// Refreshes editor UI and derived dirty-state after one history mutation applies.
+        /// </summary>
+        void RefreshEditorStateAfterHistoryMutation() {
+            RefreshHierarchy();
+            RefreshPreviewSource();
+            RefreshSceneDirtyState();
+        }
+
+        /// <summary>
+        /// Creates one synthetic loaded-scene document used to restore one serialized history entity through the normal scene load pipeline.
+        /// </summary>
+        /// <param name="state">Detached serialized entity snapshot that should be materialized.</param>
+        /// <returns>Loaded scene document containing exactly one restored root entity.</returns>
+        LoadedEditorSceneDocument CreateHistoryLoadedSceneDocument(SerializedEditorEntityState state) {
+            if (state == null) {
+                throw new ArgumentNullException(nameof(state));
+            }
+            if (state.EntityAsset == null) {
+                throw new InvalidOperationException("Serialized entity history state must include one entity asset payload.");
+            }
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "editor-history",
+                RootEntities = new[] { state.EntityAsset },
+                AssetReferences = state.AssetReferences ?? Array.Empty<SceneAssetReference>(),
+                SceneSettings = HistoryCaptureService.CloneSceneSettings(CurrentSceneSettings)
+            };
+            return SceneFileLoadService.Load(sceneAsset, ResolveHistoryAssetPath());
+        }
+
+        /// <summary>
+        /// Resolves the synthetic asset path used while history materializes serialized scene entities.
+        /// </summary>
+        /// <returns>Project-local synthetic scene path used for history asset loading.</returns>
+        string ResolveHistoryAssetPath() {
+            if (!string.IsNullOrWhiteSpace(CurrentScenePath)) {
+                return CurrentScenePath;
+            }
+
+            return Path.Combine(projectPath, "assets", "__editor_history.helen");
+        }
+
+        /// <summary>
+        /// Merges one newly loaded owned-asset set into the current scene-owned asset tracking state.
+        /// </summary>
+        /// <param name="existingOwnedAssets">Currently tracked scene-owned assets.</param>
+        /// <param name="additionalOwnedAssets">Newly loaded scene-owned assets that should be retained with the current scene.</param>
+        /// <returns>Merged scene-owned asset tracking set.</returns>
+        RuntimeSceneOwnedAssetSet MergeOwnedAssets(RuntimeSceneOwnedAssetSet existingOwnedAssets, RuntimeSceneOwnedAssetSet additionalOwnedAssets) {
+            if (existingOwnedAssets == null) {
+                throw new ArgumentNullException(nameof(existingOwnedAssets));
+            }
+            if (additionalOwnedAssets == null) {
+                throw new ArgumentNullException(nameof(additionalOwnedAssets));
+            }
+
+            List<RuntimeTexture> ownedTextures = new List<RuntimeTexture>(existingOwnedAssets.OwnedTextures.Count + additionalOwnedAssets.OwnedTextures.Count);
+            AppendUnique(ownedTextures, existingOwnedAssets.OwnedTextures);
+            AppendUnique(ownedTextures, additionalOwnedAssets.OwnedTextures);
+            List<FontAsset> ownedFonts = new List<FontAsset>(existingOwnedAssets.OwnedFonts.Count + additionalOwnedAssets.OwnedFonts.Count);
+            AppendUnique(ownedFonts, existingOwnedAssets.OwnedFonts);
+            AppendUnique(ownedFonts, additionalOwnedAssets.OwnedFonts);
+            List<AudioAsset> ownedAudio = new List<AudioAsset>(existingOwnedAssets.OwnedAudio.Count + additionalOwnedAssets.OwnedAudio.Count);
+            AppendUnique(ownedAudio, existingOwnedAssets.OwnedAudio);
+            AppendUnique(ownedAudio, additionalOwnedAssets.OwnedAudio);
+            List<RuntimeModel> ownedModels = new List<RuntimeModel>(existingOwnedAssets.OwnedModels.Count + additionalOwnedAssets.OwnedModels.Count);
+            AppendUnique(ownedModels, existingOwnedAssets.OwnedModels);
+            AppendUnique(ownedModels, additionalOwnedAssets.OwnedModels);
+            List<RuntimeMaterial> ownedMaterials = new List<RuntimeMaterial>(existingOwnedAssets.OwnedMaterials.Count + additionalOwnedAssets.OwnedMaterials.Count);
+            AppendUnique(ownedMaterials, existingOwnedAssets.OwnedMaterials);
+            AppendUnique(ownedMaterials, additionalOwnedAssets.OwnedMaterials);
+            return new RuntimeSceneOwnedAssetSet(
+                ownedTextures,
+                ownedFonts,
+                ownedAudio,
+                ownedModels,
+                ownedMaterials);
+        }
+
+        /// <summary>
+        /// Appends every non-null item from the source collection to the target list while preventing duplicate object references.
+        /// </summary>
+        /// <typeparam name="T">Reference type stored in the target list.</typeparam>
+        /// <param name="target">List that should receive unique items.</param>
+        /// <param name="source">Items that should be appended.</param>
+        static void AppendUnique<T>(List<T> target, IReadOnlyList<T> source) where T : class {
+            if (target == null) {
+                throw new ArgumentNullException(nameof(target));
+            }
+            if (source == null) {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            for (int index = 0; index < source.Count; index++) {
+                T item = source[index];
+                if (item == null || target.Contains(item)) {
+                    continue;
+                }
+
+                target.Add(item);
+            }
+        }
+
+        /// <summary>
+        /// Returns the stable scene entity id for the supplied entity, or zero when the entity does not participate in authored scene history.
+        /// </summary>
+        /// <param name="entity">Entity whose stable scene id should be resolved.</param>
+        /// <returns>Stable scene entity id, or zero when none exists.</returns>
+        uint GetSceneEntityId(Entity entity) {
+            EntitySaveComponent saveComponent = FindEntitySaveComponent(entity);
+            if (saveComponent == null) {
+                return 0u;
+            }
+
+            return saveComponent.EntityId;
+        }
+
+        /// <summary>
+        /// Returns true when the supplied entity matches the ancestor or belongs somewhere within the ancestor's child hierarchy.
+        /// </summary>
+        /// <param name="entity">Entity that should be tested.</param>
+        /// <param name="ancestor">Ancestor entity that defines the hierarchy boundary.</param>
+        /// <returns>True when the entity matches the ancestor or is one of its descendants.</returns>
+        static bool IsDescendantOf(Entity entity, Entity ancestor) {
+            Entity current = entity;
+            while (current != null) {
+                if (ReferenceEquals(current, ancestor)) {
+                    return true;
+                }
+
+                current = current.Parent;
+            }
+
+            return false;
         }
 
         /// <summary>

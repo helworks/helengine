@@ -53,16 +53,11 @@ namespace helengine.editor {
 
             string normalizedPath = Path.GetFullPath(fullPath);
             HashSet<Entity> existingEntities = new HashSet<Entity>(Core.Instance.ObjectManager.Entities);
-            IEditorOwnedAssetTrackingSceneAssetReferenceResolver ownedAssetTrackingResolver = ReferenceResolver as IEditorOwnedAssetTrackingSceneAssetReferenceResolver;
-            bool ownedAssetTrackingStarted = false;
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 if (!normalizedPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
                     throw new InvalidOperationException("Scene path must be inside the current project.");
                 }
-
-                ownedAssetTrackingResolver?.BeginOwnedAssetTracking();
-                ownedAssetTrackingStarted = ownedAssetTrackingResolver != null;
 
                 EngineBinaryReadContext.CurrentAssetPath = normalizedPath;
                 using FileStream stream = new FileStream(normalizedPath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -71,23 +66,40 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Scene file did not deserialize into a SceneAsset.");
                 }
 
-                IReadOnlyList<EditorEntity> loadedRoots = SceneLoadService.Load(sceneAsset);
-                EditorEntity[] rootEntityArray = loadedRoots.ToArray();
-                SetRootsEnabled(rootEntityArray, false);
-                RuntimeSceneOwnedAssetSet ownedAssets = ownedAssetTrackingResolver != null
-                    ? ownedAssetTrackingResolver.CompleteOwnedAssetTracking()
-                    : CreateEmptyOwnedAssetSet();
-                return new LoadedEditorSceneDocument {
-                    RootEntities = rootEntityArray,
-                    SceneSettings = sceneAsset.SceneSettings,
-                    OwnedAssets = ownedAssets
-                };
+                return LoadSceneAsset(sceneAsset, normalizedPath, existingEntities);
             } catch (Exception ex) {
                 CleanupFailedLoad(existingEntities);
-                if (ownedAssetTrackingStarted) {
-                    RuntimeSceneOwnedAssetSet ownedAssets = ownedAssetTrackingResolver.CancelOwnedAssetTracking();
-                    EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets);
-                }
+                throw new InvalidOperationException($"Scene load failed: {ex.Message}", ex);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
+            }
+        }
+
+        /// <summary>
+        /// Loads one already materialized scene asset into editor entities using the same asset-resolution pipeline as on-disk scene files.
+        /// </summary>
+        /// <param name="sceneAsset">Scene asset payload that should be materialized.</param>
+        /// <param name="assetPath">Synthetic or on-disk path used as the active read context while the scene materializes.</param>
+        /// <returns>Loaded editor scene document.</returns>
+        public LoadedEditorSceneDocument Load(SceneAsset sceneAsset, string assetPath) {
+            if (sceneAsset == null) {
+                throw new ArgumentNullException(nameof(sceneAsset));
+            }
+            if (string.IsNullOrWhiteSpace(assetPath)) {
+                throw new ArgumentException("Asset path must be provided.", nameof(assetPath));
+            }
+
+            string normalizedPath = Path.GetFullPath(assetPath);
+            if (!normalizedPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("History scene materialization must stay inside the current project.");
+            }
+
+            HashSet<Entity> existingEntities = new HashSet<Entity>(Core.Instance.ObjectManager.Entities);
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
+            try {
+                return LoadSceneAsset(sceneAsset, normalizedPath, existingEntities);
+            } catch (Exception ex) {
+                CleanupFailedLoad(existingEntities);
                 throw new InvalidOperationException($"Scene load failed: {ex.Message}", ex);
             } finally {
                 EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
@@ -157,6 +169,51 @@ namespace helengine.editor {
                 Array.Empty<AudioAsset>(),
                 Array.Empty<RuntimeModel>(),
                 Array.Empty<RuntimeMaterial>());
+        }
+
+        /// <summary>
+        /// Materializes one scene asset payload into editor entities while tracking any runtime assets owned by the loaded scene.
+        /// </summary>
+        /// <param name="sceneAsset">Scene asset payload that should be materialized.</param>
+        /// <param name="assetPath">Active asset path used for the read context while the scene loads.</param>
+        /// <param name="existingEntities">Snapshot of entities that existed before load started.</param>
+        /// <returns>Loaded editor scene document.</returns>
+        LoadedEditorSceneDocument LoadSceneAsset(SceneAsset sceneAsset, string assetPath, HashSet<Entity> existingEntities) {
+            if (sceneAsset == null) {
+                throw new ArgumentNullException(nameof(sceneAsset));
+            }
+            if (string.IsNullOrWhiteSpace(assetPath)) {
+                throw new ArgumentException("Asset path must be provided.", nameof(assetPath));
+            }
+            if (existingEntities == null) {
+                throw new ArgumentNullException(nameof(existingEntities));
+            }
+
+            IEditorOwnedAssetTrackingSceneAssetReferenceResolver ownedAssetTrackingResolver = ReferenceResolver as IEditorOwnedAssetTrackingSceneAssetReferenceResolver;
+            bool ownedAssetTrackingStarted = false;
+            try {
+                ownedAssetTrackingResolver?.BeginOwnedAssetTracking();
+                ownedAssetTrackingStarted = ownedAssetTrackingResolver != null;
+                EngineBinaryReadContext.CurrentAssetPath = assetPath;
+                IReadOnlyList<EditorEntity> loadedRoots = SceneLoadService.Load(sceneAsset);
+                EditorEntity[] rootEntityArray = loadedRoots.ToArray();
+                SetRootsEnabled(rootEntityArray, false);
+                RuntimeSceneOwnedAssetSet ownedAssets = ownedAssetTrackingResolver != null
+                    ? ownedAssetTrackingResolver.CompleteOwnedAssetTracking()
+                    : CreateEmptyOwnedAssetSet();
+                return new LoadedEditorSceneDocument {
+                    RootEntities = rootEntityArray,
+                    SceneSettings = sceneAsset.SceneSettings,
+                    OwnedAssets = ownedAssets
+                };
+            } catch {
+                if (ownedAssetTrackingStarted) {
+                    RuntimeSceneOwnedAssetSet ownedAssets = ownedAssetTrackingResolver.CancelOwnedAssetTracking();
+                    EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets);
+                }
+
+                throw;
+            }
         }
     }
 }

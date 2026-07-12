@@ -99,6 +99,50 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Captures one live editor entity into one detached serialized history snapshot using the normal scene persistence pipeline.
+        /// </summary>
+        /// <param name="entity">Live editor entity that should be serialized.</param>
+        /// <returns>Detached serialized entity snapshot.</returns>
+        public SerializedEditorEntityState CaptureEntityState(EditorEntity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (entity.InternalEntity) {
+                throw new InvalidOperationException("Internal editor entities cannot be captured into undo/redo history.");
+            }
+            if (entity.LayerMask != EditorLayerMasks.SceneObjects) {
+                throw new InvalidOperationException("Only authored scene entities can be captured into undo/redo history.");
+            }
+
+            uint entityId = EntityReferenceTable.GetRequiredEntityId(entity);
+            uint parentEntityId = entity.Parent != null
+                ? EntityReferenceTable.GetRequiredEntityId(entity.Parent)
+                : 0u;
+            List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
+            HashSet<string> assetReferenceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            SceneEntityAsset entityAsset = SerializeEntity(entity, assetReferences, assetReferenceKeys);
+            return new SerializedEditorEntityState {
+                EntityId = entityId,
+                ParentEntityId = parentEntityId,
+                EntityAsset = entityAsset,
+                AssetReferences = assetReferences.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates one detached copy of the supplied scene settings payload for history storage.
+        /// </summary>
+        /// <param name="sceneSettings">Scene settings that should be copied.</param>
+        /// <returns>Detached scene settings copy.</returns>
+        public SceneSettingsAsset CloneSceneSettingsAsset(SceneSettingsAsset sceneSettings) {
+            if (sceneSettings == null) {
+                throw new ArgumentNullException(nameof(sceneSettings));
+            }
+
+            return CloneSceneSettings(sceneSettings);
+        }
+
+        /// <summary>
         /// Builds a scene asset payload for the current editor scene.
         /// </summary>
         /// <param name="fullPath">Absolute path where the scene will be stored.</param>

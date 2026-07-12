@@ -81,6 +81,10 @@ namespace helengine.editor {
         /// Border thickness used to mark overridden transform rows.
         /// </summary>
         const float TransformOverrideOutlineThickness = 1f;
+        /// <summary>
+        /// Stores the editor-owned mutation service used to record undo/redo history for inspector-authored entity edits.
+        /// </summary>
+        EditorMutationService HistoryMutationServiceValue;
 
         /// <summary>
         /// Font used for property text.
@@ -387,6 +391,18 @@ namespace helengine.editor {
         /// </summary>
         readonly int AddComponentButtonWidth;
         /// <summary>
+        /// Gets or sets the editor-owned mutation service used to record undo/redo history for inspector-authored entity edits.
+        /// </summary>
+        public EditorMutationService HistoryMutationService {
+            get { return HistoryMutationServiceValue; }
+            set {
+                HistoryMutationServiceValue = value;
+                if (ComponentView != null) {
+                    ComponentView.HistoryMutationService = value;
+                }
+            }
+        }
+        /// <summary>
         /// Currently selected asset entry, if any.
         /// </summary>
         AssetBrowserEntry currentEntry;
@@ -555,6 +571,7 @@ namespace helengine.editor {
             } else {
                 ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.PropertiesPanelContent);
             }
+            ComponentView.HistoryMutationService = HistoryMutationServiceValue;
             TransformPlatformEditingService = new EntityPlatformTransformEditingService();
             ExistencePlatformEditingService = new EntityPlatformExistenceEditingService();
             ComponentPlatformEditingService = new ComponentPlatformEditingService();
@@ -947,6 +964,7 @@ namespace helengine.editor {
             }
 
             Component pendingComponent = PendingRemovalSection.TargetComponent;
+            SerializedEditorEntityState previousEntityState = CaptureSelectedEntityHistoryState();
             if (string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
                 if (SelectedEntity.Components == null || !SelectedEntity.Components.Contains(pendingComponent)) {
                     HideRemoveComponentDialog();
@@ -963,7 +981,7 @@ namespace helengine.editor {
                 ComponentPlatformEditingService.RemoveComponent(pendingComponent, saveComponent, SelectedComponentPlatformId);
             }
 
-            EditorSceneMutationService.MarkSceneMutated();
+            RecordSelectedEntityStateChange(previousEntityState);
             HideRemoveComponentDialog();
             ShowEntityProperties(SelectedEntity);
         }
@@ -1681,6 +1699,7 @@ namespace helengine.editor {
 
             ApplyTransformRequested = false;
             bool sceneMutated = false;
+            SerializedEditorEntityState previousEntityState = CaptureSelectedEntityHistoryState();
 
             bool nameChanged = CacheFieldText(NameField, ref NameTextCache);
             bool positionChanged = CacheFieldText(PositionFields, PositionTextCache);
@@ -1756,7 +1775,7 @@ namespace helengine.editor {
             }
 
             if (sceneMutated) {
-                EditorSceneMutationService.MarkSceneMutated();
+                RecordSelectedEntityStateChange(previousEntityState);
             }
         }
 
@@ -1847,6 +1866,7 @@ namespace helengine.editor {
                 return;
             }
 
+            SerializedEditorEntityState previousEntityState = CaptureSelectedEntityHistoryState();
             if (fieldKind == TransformOverrideFieldKind.Position) {
                 TransformPlatformEditingService.ClearPositionOverride(SelectedEntity, saveComponent, SelectedComponentPlatformId);
             } else if (fieldKind == TransformOverrideFieldKind.Rotation) {
@@ -1857,7 +1877,7 @@ namespace helengine.editor {
 
             SyncTransformFields(SelectedEntity);
             LayoutLines();
-            EditorSceneMutationService.MarkSceneMutated();
+            RecordSelectedEntityStateChange(previousEntityState);
         }
 
         /// <summary>
@@ -1945,10 +1965,11 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Platform-specific entity existence editing requires an entity save component.");
             }
 
+            SerializedEditorEntityState previousEntityState = CaptureSelectedEntityHistoryState();
             ExistencePlatformEditingService.SetExists(saveComponent, SelectedComponentPlatformId, isChecked);
             SyncExistsField();
             LayoutLines();
-            EditorSceneMutationService.MarkSceneMutated();
+            RecordSelectedEntityStateChange(previousEntityState);
         }
 
         /// <summary>
@@ -2278,6 +2299,7 @@ namespace helengine.editor {
                 return;
             }
 
+            SerializedEditorEntityState previousEntityState = CaptureSelectedEntityHistoryState();
             if (string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
                 descriptor.AddAction(SelectedEntity);
             } else {
@@ -2289,8 +2311,33 @@ namespace helengine.editor {
                 ComponentPlatformEditingService.AddPlatformOnlyComponent(descriptor, saveComponent, SelectedComponentPlatformId);
             }
 
-            EditorSceneMutationService.MarkSceneMutated();
+            RecordSelectedEntityStateChange(previousEntityState);
             ShowEntityProperties(SelectedEntity);
+        }
+
+        /// <summary>
+        /// Captures one detached history snapshot of the currently selected editor entity when history recording is available.
+        /// </summary>
+        /// <returns>Detached selected-entity snapshot when history recording is available; otherwise null.</returns>
+        SerializedEditorEntityState CaptureSelectedEntityHistoryState() {
+            if (HistoryMutationService == null || SelectedEntity is not EditorEntity editorEntity || editorEntity.IsDisposed) {
+                return null;
+            }
+
+            return HistoryMutationService.CaptureEntityState(editorEntity);
+        }
+
+        /// <summary>
+        /// Records one selected-entity mutation into undo/redo history when available, or falls back to the legacy scene-mutation marker.
+        /// </summary>
+        /// <param name="previousEntityState">Detached snapshot captured before the mutation.</param>
+        void RecordSelectedEntityStateChange(SerializedEditorEntityState previousEntityState) {
+            if (previousEntityState == null || HistoryMutationService == null || SelectedEntity is not EditorEntity editorEntity || editorEntity.IsDisposed) {
+                EditorSceneMutationService.MarkSceneMutated();
+                return;
+            }
+
+            HistoryMutationService.RecordEntityStateChange(editorEntity, previousEntityState);
         }
 
         /// <summary>

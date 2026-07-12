@@ -20,6 +20,7 @@ namespace helengine.editor.tests {
         public PropertiesPanelMutationTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-properties-panel-mutation-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
+            Directory.CreateDirectory(Path.Combine(TempRootPath, "assets"));
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
@@ -65,6 +66,34 @@ namespace helengine.editor.tests {
                 EditorSceneMutationService.SceneMutated -= handleSceneMutated;
                 EditorSceneMutationService.Reset();
             }
+        }
+
+        /// <summary>
+        /// Ensures renaming an entity through the properties panel records one undoable entity-state operation when history recording is available.
+        /// </summary>
+        [Fact]
+        public void UpdateTransformEdits_WhenHistoryRecordingIsAvailable_RecordsOneUndoableEntityStateOperation() {
+            RecordingUndoRedoService undoRedoService = new RecordingUndoRedoService();
+            int mutationNotificationCount = 0;
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
+                HistoryMutationService = CreateHistoryMutationService(undoRedoService, () => mutationNotificationCount++)
+            };
+            EditorEntity entity = new EditorEntity {
+                Name = "Original"
+            };
+            GetSaveComponent(entity).EntityId = 1u;
+
+            panel.ShowEntityProperties(entity);
+
+            TextBoxComponent nameField = GetPrivateField<TextBoxComponent>(panel, "NameField");
+            nameField.Text = "Renamed";
+            SetPrivateField(panel, "ApplyTransformRequested", true);
+            InvokePrivate(panel, "UpdateTransformEdits");
+
+            Assert.Equal("Renamed", entity.Name);
+            Assert.Single(undoRedoService.RecordedOperations);
+            Assert.IsType<EntityStateChangeHistoryOperation>(undoRedoService.RecordedOperations[0]);
+            Assert.Equal(1, mutationNotificationCount);
         }
 
         /// <summary>
@@ -557,6 +586,18 @@ namespace helengine.editor.tests {
         /// <returns>Attached hidden save component.</returns>
         EntitySaveComponent GetSaveComponent(EditorEntity entity) {
             return Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
+        }
+
+        /// <summary>
+        /// Creates one editor mutation service backed by the current temporary content root.
+        /// </summary>
+        /// <param name="undoRedoService">Undo/redo service that should capture recorded operations.</param>
+        /// <param name="markSceneMutated">Callback invoked when the mutation service records one tracked scene mutation.</param>
+        /// <returns>Configured mutation service for inspector tests.</returns>
+        EditorMutationService CreateHistoryMutationService(RecordingUndoRedoService undoRedoService, Action markSceneMutated) {
+            SceneSaveService saveService = new SceneSaveService(TempRootPath, new ComponentPersistenceRegistry());
+            EditorHistoryCaptureService captureService = new EditorHistoryCaptureService(saveService);
+            return new EditorMutationService(undoRedoService, captureService, new ComponentHistoryAdapterRegistry(), markSceneMutated);
         }
 
         /// <summary>

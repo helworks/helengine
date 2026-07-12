@@ -56,6 +56,10 @@ namespace helengine.editor {
         /// Tracks whether the active drag produced an actual rotation change.
         /// </summary>
         bool DragChanged;
+        /// <summary>
+        /// Detached entity snapshot captured when the active drag started so the completed drag can be recorded into undo/redo history.
+        /// </summary>
+        SerializedEditorEntityState DragStartEntityState;
 
         /// <summary>
         /// Initializes a new rotation gizmo drag controller.
@@ -155,6 +159,8 @@ namespace helengine.editor {
             DragStartRotationAngle = ResolveAxisTwistAngle(DragStartEntityOrientation, DragRotationAxis);
             DragAccumulatedAngle = 0.0;
             DragPreviousVector = dragVector;
+            EditorEntityHistoryMutationService.TryCaptureEntityState(selectedEntity, out SerializedEditorEntityState dragStartEntityState);
+            DragStartEntityState = dragStartEntityState;
             EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
             EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredHandle);
         }
@@ -218,7 +224,9 @@ namespace helengine.editor {
         /// </summary>
         void EndDrag() {
             if (DragChanged) {
-                EditorSceneMutationService.MarkSceneMutated();
+                if (!EditorEntityHistoryMutationService.TryRecordEntityStateChange(DraggedEntity, DragStartEntityState)) {
+                    EditorSceneMutationService.MarkSceneMutated();
+                }
             }
 
             EditorGizmoDragService.EndDrag(SceneCamera);
@@ -232,6 +240,7 @@ namespace helengine.editor {
             DragStartRotationAngle = 0.0;
             DragAccumulatedAngle = 0.0;
             DragPreviousVector = float3.Zero;
+            DragStartEntityState = null;
         }
 
         /// <summary>
