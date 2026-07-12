@@ -16,7 +16,15 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the currently selected entity.
         /// </summary>
-        public static Entity SelectedEntity => SelectedEntityValue;
+        public static Entity SelectedEntity {
+            get {
+                if (SelectedEntityValue != null && SelectedEntityValue.IsDisposed) {
+                    SelectedEntityValue = null;
+                }
+
+                return SelectedEntityValue;
+            }
+        }
 
         /// <summary>
         /// Sets the selected entity and raises a change event.
@@ -25,6 +33,9 @@ namespace helengine.editor {
         public static void SetSelectedEntity(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
+            }
+            if (entity.IsDisposed) {
+                throw new InvalidOperationException("Disposed entities cannot be selected.");
             }
 
             SelectedEntityValue = entity;

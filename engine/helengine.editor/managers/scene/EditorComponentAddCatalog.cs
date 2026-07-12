@@ -175,7 +175,7 @@ namespace helengine.editor {
             if (type == typeof(InteractableComponent)) {
                 return false;
             }
-            if (typeof(IEditorHiddenComponent).IsAssignableFrom(type)) {
+            if (EditorHiddenComponentPolicy.IsHidden(type)) {
                 return false;
             }
 

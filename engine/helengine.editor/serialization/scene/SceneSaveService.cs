@@ -165,7 +165,7 @@ namespace helengine.editor {
             if (entity.Components != null) {
                 for (int i = 0; i < entity.Components.Count; i++) {
                     Component component = entity.Components[i];
-                    if (component == null || component is IEditorHiddenComponent) {
+                    if (component == null || EditorHiddenComponentPolicy.IsHidden(component)) {
                         continue;
                     }
 

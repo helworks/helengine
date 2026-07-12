@@ -282,7 +282,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="scale">Current gizmo world scale multiplier.</param>
         void UpdateAxisTipOffsets(float scale) {
-            float axisOffset = TransformScaleGizmoFactory.ShaftLength * scale;
+            float axisOffset = TransformScaleGizmoFactory.ShaftLength;
             for (int handleIndex = 0; handleIndex < GizmoRoot.Children.Count; handleIndex++) {
                 if (GizmoRoot.Children[handleIndex] is not EditorEntity handleEntity) {
                     continue;
@@ -302,7 +302,7 @@ namespace helengine.editor {
                         continue;
                     }
 
-                    childEntity.Position = tipOffset;
+                    childEntity.LocalPosition = tipOffset;
                     break;
                 }
             }
@@ -394,9 +394,8 @@ namespace helengine.editor {
                     continue;
                 }
 
-                float3 baseLocalPosition = handleEntity.Position - GizmoRoot.Position;
-                BaseHandlePositions[handleEntity] = baseLocalPosition;
-                BaseHandleOrientations[handleEntity] = handleEntity.Orientation;
+                BaseHandlePositions[handleEntity] = handleEntity.LocalPosition;
+                BaseHandleOrientations[handleEntity] = handleEntity.LocalOrientation;
             }
 
             HandleBaseTransformsCached = true;
@@ -424,8 +423,9 @@ namespace helengine.editor {
                     continue;
                 }
 
-                handleEntity.Position = float4.RotateVector(basePosition, yawFacingOrientation);
-                handleEntity.Orientation = yawFacingOrientation * baseOrientation;
+                handleEntity.LocalPosition = float4.RotateVector(basePosition, yawFacingOrientation);
+                float4.Concatenate(ref baseOrientation, ref yawFacingOrientation, out float4 resolvedOrientation);
+                handleEntity.LocalOrientation = resolvedOrientation;
             }
         }
 

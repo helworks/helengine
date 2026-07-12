@@ -183,7 +183,7 @@ namespace helengine.editor {
             DragPrimaryDirection = primaryDirection;
             DragSecondaryDirection = secondaryDirection;
             DragPlaneNormal = planeNormal;
-            DragStartEntityScale = selectedEntity.Scale;
+            DragStartEntityScale = selectedEntity.LocalScale;
             DragStartEntityPosition = selectionStartPosition;
             EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
             EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredHandle);
@@ -222,8 +222,8 @@ namespace helengine.editor {
 
                 double deltaParameter = currentAxisParameter - DragStartAxisParameter;
                 float3 newScale = ResolveAxisDragScale(deltaParameter, input);
-                if (DraggedEntity.Scale != newScale) {
-                    DraggedEntity.Scale = newScale;
+                if (DraggedEntity.LocalScale != newScale) {
+                    DraggedEntity.LocalScale = newScale;
                 }
                 DragChanged = DragChanged || newScale != DragStartEntityScale;
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
@@ -234,8 +234,8 @@ namespace helengine.editor {
 
                 float3 planeDelta = ProjectVectorOntoPlane(currentPlanePoint - DragStartPlanePoint, DragPlaneNormal);
                 float3 newScale = ResolvePlaneDragScale(planeDelta, input);
-                if (DraggedEntity.Scale != newScale) {
-                    DraggedEntity.Scale = newScale;
+                if (DraggedEntity.LocalScale != newScale) {
+                    DraggedEntity.LocalScale = newScale;
                 }
                 DragChanged = DragChanged || newScale != DragStartEntityScale;
             } else {

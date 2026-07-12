@@ -15,7 +15,15 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the currently hovered gizmo handle entity.
         /// </summary>
-        public static Entity HoveredHandleEntity => HoveredHandleEntityValue;
+        public static Entity HoveredHandleEntity {
+            get {
+                if (HoveredHandleEntityValue != null && HoveredHandleEntityValue.IsDisposed) {
+                    ClearHoveredHandle();
+                }
+
+                return HoveredHandleEntityValue;
+            }
+        }
         /// <summary>
         /// Gets the viewport camera that owns the current hovered handle.
         /// </summary>
@@ -24,18 +32,19 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the currently hovered gizmo axis entity.
         /// </summary>
-        public static Entity HoveredAxisEntity => HoveredHandleEntityValue;
+        public static Entity HoveredAxisEntity => HoveredHandleEntity;
         /// <summary>
         /// Gets the hovered gizmo handle when it belongs to the specified camera or is not camera-scoped.
         /// </summary>
         /// <param name="camera">Viewport camera requesting hover state.</param>
         /// <returns>Hovered handle that is visible to the specified camera; otherwise null.</returns>
         public static Entity GetHoveredHandle(CameraComponent camera) {
-            if (HoveredHandleEntityValue == null) {
+            Entity hoveredHandle = HoveredHandleEntity;
+            if (hoveredHandle == null) {
                 return null;
             }
             if (HoveredHandleCameraValue == null || ReferenceEquals(HoveredHandleCameraValue, camera)) {
-                return HoveredHandleEntityValue;
+                return hoveredHandle;
             }
 
             return null;
@@ -55,6 +64,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="handleEntity">Handle entity to set, or null to clear hover.</param>
         public static void SetHoveredHandle(Entity handleEntity) {
+            if (handleEntity != null && handleEntity.IsDisposed) {
+                throw new InvalidOperationException("Disposed entities cannot be hovered.");
+            }
+
             HoveredHandleEntityValue = handleEntity;
             HoveredHandleCameraValue = null;
         }
@@ -65,6 +78,10 @@ namespace helengine.editor {
         /// <param name="camera">Viewport camera that owns the hovered handle.</param>
         /// <param name="handleEntity">Handle entity to set, or null to clear hover.</param>
         public static void SetHoveredHandle(CameraComponent camera, Entity handleEntity) {
+            if (handleEntity != null && handleEntity.IsDisposed) {
+                throw new InvalidOperationException("Disposed entities cannot be hovered.");
+            }
+
             HoveredHandleEntityValue = handleEntity;
             HoveredHandleCameraValue = handleEntity == null ? null : camera;
         }

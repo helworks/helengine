@@ -184,6 +184,8 @@ namespace helengine.editor {
         /// </summary>
         public void Dispose() {
             State.Viewport.ClearInputBlockers();
+            EditorGizmoHoverService.ClearHoveredHandle(State.SceneCamera);
+            EditorGizmoDragService.EndDrag(State.SceneCamera);
             EditorViewportToolService.ClearToolMode(State.SceneCamera);
             TransformGizmoSnapSettingsService.ClearState(State.SceneCamera);
             State.TranslationGizmoRoot.Dispose();

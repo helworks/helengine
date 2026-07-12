@@ -433,7 +433,7 @@ namespace helengine.editor {
                     if (commonComponent == null) {
                         continue;
                     }
-                    if (commonComponent is IEditorHiddenComponent) {
+                    if (EditorHiddenComponentPolicy.IsHidden(commonComponent)) {
                         continue;
                     }
 

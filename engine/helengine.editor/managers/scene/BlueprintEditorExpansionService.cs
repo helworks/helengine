@@ -119,7 +119,7 @@ namespace helengine.editor {
                 List<Component> visibleComponents = new List<Component>();
                 for (int i = 0; i < entity.Components.Count; i++) {
                     Component component = entity.Components[i];
-                    if (component == null || component is IEditorHiddenComponent) {
+                    if (component == null || EditorHiddenComponentPolicy.IsHidden(component)) {
                         continue;
                     }
                     if (component is BlueprintInheritedEntityComponent || component is BlueprintInheritedComponentMarker) {

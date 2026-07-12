@@ -260,7 +260,10 @@ namespace helengine {
         /// <summary>
         /// Gets whether disposal completed and the entity should reject further public use.
         /// </summary>
-        internal bool IsDisposed => isDisposed;
+        /// <summary>
+        /// Gets whether disposal completed and the entity should reject further public use.
+        /// </summary>
+        public bool IsDisposed => isDisposed;
 
         /// <summary>
         /// Gets or sets a value indicating whether the entity is static.
@@ -301,8 +304,14 @@ namespace helengine {
             if (children == null) {
                 throw new InvalidOperationException("Children collection has not been initialized.");
             }
+            if (ReferenceEquals(entity, this)) {
+                throw new InvalidOperationException("An entity cannot be parented to itself.");
+            }
             if (entity.Parent != null) {
-                throw new Exception("Parent is not empty");
+                throw new InvalidOperationException("Entity already has a parent.");
+            }
+            if (WouldCreateHierarchyCycle(entity)) {
+                throw new InvalidOperationException("Adding the supplied child would create a hierarchy cycle.");
             }
 
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
@@ -318,6 +327,24 @@ namespace helengine {
             if (wasHierarchyEnabled != isHierarchyEnabled) {
                 entity.ParentEnabledChange(isHierarchyEnabled);
             }
+        }
+
+        /// <summary>
+        /// Returns whether attaching the supplied entity as a direct child would create a parent-cycle in the current hierarchy.
+        /// </summary>
+        /// <param name="entity">Prospective child entity to validate.</param>
+        /// <returns>True when the supplied child already owns this entity somewhere in its ancestor chain; otherwise false.</returns>
+        bool WouldCreateHierarchyCycle(Entity entity) {
+            Entity current = this;
+            while (current != null) {
+                if (ReferenceEquals(current, entity)) {
+                    return true;
+                }
+
+                current = current.Parent;
+            }
+
+            return false;
         }
 
         /// <summary>

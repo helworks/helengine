@@ -56,6 +56,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures runtime scene-id metadata stays hidden even when it is attached to one selected entity.
+        /// </summary>
+        [Fact]
+        public void ShowComponents_WhenEntityHasRuntimeSceneIdComponent_HidesItFromSections() {
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(new MeshComponent());
+            entity.AddComponent(new SceneEntityRuntimeIdComponent {
+                SceneEntityId = 42u
+            });
+
+            view.ShowComponents(entity);
+
+            List<ComponentSectionView> sections = GetPrivateField<List<ComponentSectionView>>(view, "ActiveSections");
+
+            ComponentSectionView section = Assert.Single(sections);
+            Assert.Equal("Mesh Component", section.TitleText.Text);
+        }
+
+        /// <summary>
         /// Ensures clicking a component header collapses only that section body.
         /// </summary>
         [Fact]

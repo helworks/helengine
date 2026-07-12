@@ -152,6 +152,30 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures axis tip local offsets remain in unscaled gizmo space so root scaling alone controls the rendered world-space axis length.
+        /// </summary>
+        [Fact]
+        public void Update_WhenScaleToolIsActive_DoesNotDoubleScaleAxisTipLocalOffsets() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -40f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
+            gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
+
+            EditorSelectionService.SetSelectedEntity(new EditorEntity());
+
+            UpdateFollowComponent(gizmoRoot);
+
+            Assert.True(gizmoRoot.Scale.X > 1f);
+            float3 expectedTipLocalPosition = new float3(0f, TransformScaleGizmoFactory.ShaftLength, 0f);
+            Assert.Equal(expectedTipLocalPosition, FindAxisTipEntity(gizmoRoot, "Transform Scale Gizmo X").LocalPosition);
+            Assert.Equal(expectedTipLocalPosition, FindAxisTipEntity(gizmoRoot, "Transform Scale Gizmo Y").LocalPosition);
+            Assert.Equal(expectedTipLocalPosition, FindAxisTipEntity(gizmoRoot, "Transform Scale Gizmo Z").LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures drag-time updates keep the existing gizmo scale even when camera distance changes.
         /// </summary>
         [Fact]
@@ -188,7 +212,9 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Initializes a fresh core with an object manager for entity-based tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
@@ -334,6 +360,41 @@ namespace helengine.editor.tests.managers.gizmo {
             }
 
             throw new InvalidOperationException("Expected a mesh component on the scale gizmo entity.");
+        }
+
+        /// <summary>
+        /// Finds the tip child entity for one named axis handle.
+        /// </summary>
+        /// <param name="gizmoRoot">Scale gizmo root containing the axis handles.</param>
+        /// <param name="axisName">Axis-handle entity name.</param>
+        /// <returns>Tip child entity for the requested axis.</returns>
+        Entity FindAxisTipEntity(EditorEntity gizmoRoot, string axisName) {
+            if (gizmoRoot == null) {
+                throw new ArgumentNullException(nameof(gizmoRoot));
+            }
+            if (string.IsNullOrWhiteSpace(axisName)) {
+                throw new ArgumentException("Axis name must be provided.", nameof(axisName));
+            }
+
+            for (int childIndex = 0; childIndex < gizmoRoot.Children.Count; childIndex++) {
+                if (gizmoRoot.Children[childIndex] is not EditorEntity axisEntity) {
+                    continue;
+                }
+                if (!string.Equals(axisEntity.Name, axisName, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                for (int axisChildIndex = 0; axisChildIndex < axisEntity.Children.Count; axisChildIndex++) {
+                    if (axisEntity.Children[axisChildIndex] is not EditorEntity axisChildEntity) {
+                        continue;
+                    }
+                    if (axisChildEntity.Name.EndsWith(" Tip", StringComparison.Ordinal)) {
+                        return axisChildEntity;
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("Expected an axis tip entity on the scale gizmo.");
         }
 
         /// <summary>

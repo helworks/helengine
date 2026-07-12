@@ -67,6 +67,18 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures runtime scene-id metadata is never exposed as an addable authoring component.
+        /// </summary>
+        [Fact]
+        public void GetAvailableComponents_WhenEntityHasNoComponents_DoesNotIncludeRuntimeSceneIdDescriptor() {
+            EditorEntity entity = new EditorEntity();
+
+            IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
+
+            Assert.DoesNotContain(components, component => string.Equals(component.ComponentType.FullName, typeof(SceneEntityRuntimeIdComponent).FullName, StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Ensures the default component catalog does not expose the camera component as an addable option.
         /// </summary>
         [Fact]
