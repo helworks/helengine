@@ -150,11 +150,15 @@ namespace helengine.editor.app {
             }
             IInputBackend inputBackend = new InputBackendWindows(this.Handle);
             CoreInitializationOptions initOptions = new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(projectAssetsRootPath)
+                ContentStreamSource = new HostFileSystemContentStreamSource(projectAssetsRootPath),
+                ScenePathResolver = bootstrap.SceneCatalogService
             };
             PlatformInfo platformInfo = ResolveEditorPlatformInfo(projectPath);
             core.Initialize(renderer3D, renderer2D, inputBackend, platformInfo, initOptions);
             core.SetTextClipboardService(new SystemTextClipboardService());
+            BepuRuntimeComponentRegistration.Register(core);
+            BepuPhysicsWorld3D physicsWorld = BepuRuntimeComponentRegistration.CreateRuntimeWorld(core);
+            BepuRuntimeComponentRegistration.AttachRuntimeWorld(core, physicsWorld);
 
             int renderWidth = Math.Max(1, ClientSize.Width);
             int renderHeight = Math.Max(1, ClientSize.Height);

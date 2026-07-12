@@ -7,68 +7,68 @@ namespace helengine.directx11 {
     [StructLayout(LayoutKind.Sequential)]
     public struct DirectX11ShadowShaderData {
         /// <summary>
-        /// Gets or sets packed shadow metadata where X stores whether an atlas is available and W stores the shadowed slot count.
+        /// Packed shadow metadata where X stores whether an atlas is available and W stores the shadowed slot count.
         /// </summary>
-        public float4 ShadowMetadata { get; set; }
+        public float4 ShadowMetadata;
 
         /// <summary>
-        /// Gets or sets the first packed shadow slot atlas rectangle.
+        /// First packed shadow slot atlas rectangle.
         /// </summary>
-        public float4 Light0AtlasRect { get; set; }
+        public float4 Light0AtlasRect;
 
         /// <summary>
-        /// Gets or sets the first packed shadow slot metadata.
+        /// First packed shadow slot metadata.
         /// </summary>
-        public float4 Light0Metadata { get; set; }
+        public float4 Light0Metadata;
 
         /// <summary>
-        /// Gets or sets the first packed shadow slot transform.
+        /// First packed shadow slot transform.
         /// </summary>
-        public float4x4 Light0WorldToShadowClip { get; set; }
+        public float4x4 Light0WorldToShadowClip;
 
         /// <summary>
-        /// Gets or sets the second packed shadow slot atlas rectangle.
+        /// Second packed shadow slot atlas rectangle.
         /// </summary>
-        public float4 Light1AtlasRect { get; set; }
+        public float4 Light1AtlasRect;
 
         /// <summary>
-        /// Gets or sets the second packed shadow slot metadata.
+        /// Second packed shadow slot metadata.
         /// </summary>
-        public float4 Light1Metadata { get; set; }
+        public float4 Light1Metadata;
 
         /// <summary>
-        /// Gets or sets the second packed shadow slot transform.
+        /// Second packed shadow slot transform.
         /// </summary>
-        public float4x4 Light1WorldToShadowClip { get; set; }
+        public float4x4 Light1WorldToShadowClip;
 
         /// <summary>
-        /// Gets or sets the third packed shadow slot atlas rectangle.
+        /// Third packed shadow slot atlas rectangle.
         /// </summary>
-        public float4 Light2AtlasRect { get; set; }
+        public float4 Light2AtlasRect;
 
         /// <summary>
-        /// Gets or sets the third packed shadow slot metadata.
+        /// Third packed shadow slot metadata.
         /// </summary>
-        public float4 Light2Metadata { get; set; }
+        public float4 Light2Metadata;
 
         /// <summary>
-        /// Gets or sets the third packed shadow slot transform.
+        /// Third packed shadow slot transform.
         /// </summary>
-        public float4x4 Light2WorldToShadowClip { get; set; }
+        public float4x4 Light2WorldToShadowClip;
 
         /// <summary>
-        /// Gets or sets the fourth packed shadow slot atlas rectangle.
+        /// Fourth packed shadow slot atlas rectangle.
         /// </summary>
-        public float4 Light3AtlasRect { get; set; }
+        public float4 Light3AtlasRect;
 
         /// <summary>
-        /// Gets or sets the fourth packed shadow slot metadata.
+        /// Fourth packed shadow slot metadata.
         /// </summary>
-        public float4 Light3Metadata { get; set; }
+        public float4 Light3Metadata;
 
         /// <summary>
-        /// Gets or sets the fourth packed shadow slot transform.
+        /// Fourth packed shadow slot transform.
         /// </summary>
-        public float4x4 Light3WorldToShadowClip { get; set; }
+        public float4x4 Light3WorldToShadowClip;
     }
 }

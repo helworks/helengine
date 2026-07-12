@@ -59,6 +59,11 @@ namespace helengine.editor {
         readonly Dictionary<string, IFontImporter> fontImportersById;
 
         /// <summary>
+        /// Registered audio importers keyed by identifier.
+        /// </summary>
+        readonly Dictionary<string, IAudioImporter> audioImportersById;
+
+        /// <summary>
         /// Default text importer identifiers keyed by extension.
         /// </summary>
         readonly Dictionary<string, string> defaultTextImportersByExtension;
@@ -67,6 +72,16 @@ namespace helengine.editor {
         /// Default font importer identifiers keyed by extension.
         /// </summary>
         readonly Dictionary<string, string> defaultFontImportersByExtension;
+
+        /// <summary>
+        /// Default audio importer identifiers keyed by extension.
+        /// </summary>
+        readonly Dictionary<string, string> defaultAudioImportersByExtension;
+
+        /// <summary>
+        /// Audio importer identifiers keyed by extension.
+        /// </summary>
+        readonly Dictionary<string, List<string>> audioImporterIdsByExtension;
 
         /// <summary>
         /// Registered model importers keyed by identifier.
@@ -120,8 +135,11 @@ namespace helengine.editor {
             textureImporterIdsByExtension = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             textImportersById = new Dictionary<string, ITextImporter>(StringComparer.OrdinalIgnoreCase);
             fontImportersById = new Dictionary<string, IFontImporter>(StringComparer.OrdinalIgnoreCase);
+            audioImportersById = new Dictionary<string, IAudioImporter>(StringComparer.OrdinalIgnoreCase);
             defaultTextImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             defaultFontImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            defaultAudioImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            audioImporterIdsByExtension = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             ModelImportersById = new Dictionary<string, IModelImporter>(StringComparer.OrdinalIgnoreCase);
             DefaultModelImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             fileHasher = new AssetFileHasher();
@@ -310,6 +328,62 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Registers an audio importer and records its supported extensions.
+        /// </summary>
+        /// <param name="registration">Importer registration data.</param>
+        public void RegisterAudioImporter(AudioImporterRegistration registration) {
+            if (registration == null) {
+                throw new ArgumentNullException(nameof(registration));
+            }
+
+            if (audioImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Audio importer '{registration.ImporterId}' is already registered.");
+            }
+
+            if (textureImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
+            }
+
+            if (textImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
+            }
+
+            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
+            }
+
+            if (ModelImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
+            }
+
+            audioImportersById.Add(registration.ImporterId, registration.Importer);
+            string[] extensions = registration.Extensions;
+            for (int index = 0; index < extensions.Length; index++) {
+                string extension = NormalizeExtension(extensions[index]);
+                if (defaultTextureImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
+                }
+
+                if (defaultTextImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
+                }
+
+                if (defaultFontImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
+                }
+
+                if (DefaultModelImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
+                }
+
+                RegisterAudioImporterExtension(extension, registration.ImporterId);
+                if (!defaultAudioImportersByExtension.ContainsKey(extension)) {
+                    defaultAudioImportersByExtension[extension] = registration.ImporterId;
+                }
+            }
+        }
+
+        /// <summary>
         /// Registers a model importer and records its supported extensions.
         /// </summary>
         /// <param name="registration">Importer registration data.</param>
@@ -403,6 +477,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the identifiers of all registered audio importers.
+        /// </summary>
+        /// <returns>Ordered list of importer identifiers.</returns>
+        public IReadOnlyList<string> GetAudioImporterIds() {
+            List<string> ids = new List<string>(audioImportersById.Count);
+            foreach (string importerId in audioImportersById.Keys) {
+                ids.Add(importerId);
+            }
+
+            ids.Sort(StringComparer.OrdinalIgnoreCase);
+            return ids;
+        }
+
+        /// <summary>
         /// Gets the identifiers of all registered model importers.
         /// </summary>
         /// <returns>Ordered list of importer identifiers.</returns>
@@ -437,6 +525,10 @@ namespace helengine.editor {
 
             if (defaultFontImportersByExtension.ContainsKey(normalized)) {
                 return GetFontImporterIds();
+            }
+
+            if (audioImporterIdsByExtension.TryGetValue(normalized, out List<string> audioImporterIds)) {
+                return new List<string>(audioImporterIds);
             }
 
             if (DefaultModelImportersByExtension.ContainsKey(normalized)) {
@@ -489,6 +581,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Checks whether the extension maps to an audio importer.
+        /// </summary>
+        /// <param name="extension">File extension to evaluate.</param>
+        /// <returns>True when the extension maps to an audio importer.</returns>
+        public bool IsAudioExtension(string extension) {
+            if (string.IsNullOrWhiteSpace(extension)) {
+                return false;
+            }
+
+            string normalized = NormalizeExtension(extension);
+            return audioImporterIdsByExtension.ContainsKey(normalized);
+        }
+
+        /// <summary>
         /// Checks whether the extension maps to a model importer.
         /// </summary>
         /// <param name="extension">File extension to evaluate.</param>
@@ -530,6 +636,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
             }
 
+            if (defaultAudioImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to an audio importer.");
+            }
+
             EnsureTextureImporterSupportsExtension(normalized, importerId);
             defaultTextureImportersByExtension[normalized] = importerId;
         }
@@ -562,7 +672,47 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
             }
 
+            if (defaultAudioImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to an audio importer.");
+            }
+
             defaultTextImportersByExtension[normalized] = importerId;
+        }
+
+        /// <summary>
+        /// Sets the default audio importer for a specific extension.
+        /// </summary>
+        /// <param name="extension">File extension to associate with the importer.</param>
+        /// <param name="importerId">Identifier of the importer to use.</param>
+        public void SetDefaultAudioImporter(string extension, string importerId) {
+            if (string.IsNullOrWhiteSpace(extension)) {
+                throw new ArgumentException("Extension must be provided.", nameof(extension));
+            }
+
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            }
+
+            EnsureAudioImporterExists(importerId);
+            string normalized = NormalizeExtension(extension);
+            if (defaultTextureImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a texture importer.");
+            }
+
+            if (defaultTextImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a text importer.");
+            }
+
+            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
+            }
+
+            if (DefaultModelImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
+            }
+
+            EnsureAudioImporterSupportsExtension(normalized, importerId);
+            defaultAudioImportersByExtension[normalized] = importerId;
         }
 
         /// <summary>
@@ -591,6 +741,10 @@ namespace helengine.editor {
 
             if (defaultTextImportersByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a text importer.");
+            }
+
+            if (defaultAudioImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to an audio importer.");
             }
 
             DefaultModelImportersByExtension[normalized] = importerId;
@@ -704,6 +858,47 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Imports an audio asset from a source file and writes it to disk.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the audio source file.</param>
+        /// <returns>Imported <see cref="AudioAsset"/> instance.</returns>
+        public AudioAsset ImportAudio(string sourcePath) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            if (!File.Exists(sourcePath)) {
+                throw new FileNotFoundException("Audio source file was not found.", sourcePath);
+            }
+
+            AudioAssetImportSettings settings = LoadOrCreateAudioImportSettings(sourcePath);
+            EnsureAudioImportSettingsValid(settings);
+
+            EnsureAudioImporterExists(settings.Importer.ImporterId);
+            IAudioImporter importer = GetAudioImporter(settings.Importer.ImporterId);
+            ImportedAudioSource importedAudio;
+            using (FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                importedAudio = importer.ImportAudio(stream);
+            }
+
+            if (importedAudio == null) {
+                throw new InvalidOperationException($"Audio importer '{settings.Importer.ImporterId}' did not return an asset.");
+            }
+
+            AudioAssetProcessorSettings processorSettings = GetCurrentPlatformAudioProcessorSettings(settings);
+            AudioAsset asset = BuildImportedAudioAsset(importedAudio, processorSettings, settings.Importer.AssetId);
+
+            string outputPath = GetAudioAssetPath(settings.Importer.AssetId);
+            EnsureDirectoryForFile(outputPath);
+            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, asset);
+            }
+
+            SaveAudioImportSettings(sourcePath, settings);
+            return asset;
+        }
+
+        /// <summary>
         /// Builds one font asset for an explicit platform texture-settings context without writing the canonical font cache file.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the font source file.</param>
@@ -759,9 +954,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Font importers must provide one source atlas texture.");
             }
 
-            TextureAssetProcessorSettings textureProcessorSettings = GetTextureProcessorSettings(settings, platformId);
-            if (textureProcessorSettings.UsesGenericColorFormat()) {
-                TextureAsset processedSourceTextureAsset = TextureAssetProcessor.Apply(asset.SourceTextureAsset, textureProcessorSettings);
+            TextureAssetProcessorSettings fontAtlasTextureProcessorSettings = GetFontAtlasTextureProcessorSettings(settings, platformId);
+            if (fontAtlasTextureProcessorSettings.UsesGenericColorFormat()) {
+                TextureAsset processedSourceTextureAsset = TextureAssetProcessor.Apply(asset.SourceTextureAsset, fontAtlasTextureProcessorSettings);
                 asset.ApplyProcessedSourceTextureAsset(processedSourceTextureAsset);
             }
 
@@ -885,6 +1080,7 @@ namespace helengine.editor {
                 ? "false"
                 : "true";
             settings.FieldValues["texture-id"] = materialAsset.DiffuseTextureAssetId ?? string.Empty;
+            settings.FieldValues["emissive-texture-id"] = materialAsset.EmissiveTextureAssetId ?? string.Empty;
             settings.FieldValues["casts-shadow"] = "true";
             settings.FieldValues["receives-shadow"] = "true";
             settings.FieldValues["base-color"] = "#FFFFFFFF";
@@ -1042,6 +1238,42 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Imports audio assets that are missing cache files.
+        /// </summary>
+        /// <returns>Paths to cached assets created during the scan.</returns>
+        public List<string> ImportAudiosMissingCache() {
+            List<string> importedAssets = new List<string>();
+            foreach (string sourcePath in EnumerateAssetSourceFiles()) {
+                if (!IsAudioExtension(Path.GetExtension(sourcePath))) {
+                    continue;
+                }
+
+                AudioAssetImportSettings settings;
+                if (!TryLoadOrCreateAudioImportSettings(sourcePath, out settings)) {
+                    continue;
+                }
+
+                if (!IsAudioImporterRegistered(settings.Importer.ImporterId)) {
+                    continue;
+                }
+
+                string outputPath = GetAudioAssetPath(settings.Importer.AssetId);
+                if (File.Exists(outputPath) && TryLoadCachedAudioAsset(outputPath, out _)) {
+                    continue;
+                }
+
+                try {
+                    ImportAudio(sourcePath);
+                    importedAssets.Add(outputPath);
+                } catch (Exception ex) {
+                    Logger.WriteError($"Audio import failed for '{sourcePath}': {ex.Message}");
+                }
+            }
+
+            return importedAssets;
+        }
+
+        /// <summary>
         /// Loads a texture asset for a source file, importing it when needed.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the texture source file.</param>
@@ -1094,11 +1326,6 @@ namespace helengine.editor {
 
             asset = null;
             string outputPath = GetTextureAssetPath(assetId);
-            if (TryLoadCachedTextureAsset(outputPath, out asset)) {
-                return true;
-            }
-
-            ImportTexturesMissingCache();
             if (TryLoadCachedTextureAsset(outputPath, out asset)) {
                 return true;
             }
@@ -1388,6 +1615,46 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Loads an audio asset for a source file, importing it when needed.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the audio source file.</param>
+        /// <param name="asset">Loaded audio asset when available.</param>
+        /// <returns>True when the source can be resolved to an audio asset.</returns>
+        public bool TryLoadAudioAsset(string sourcePath, out AudioAsset asset) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            if (!File.Exists(sourcePath)) {
+                throw new FileNotFoundException("Audio source file was not found.", sourcePath);
+            }
+
+            AudioAssetImportSettings settings;
+            if (!TryLoadOrCreateAudioImportSettings(sourcePath, out settings)) {
+                asset = null;
+                return false;
+            }
+
+            if (!IsAudioImporterRegistered(settings.Importer.ImporterId)) {
+                asset = null;
+                return false;
+            }
+
+            string outputPath = GetAudioAssetPath(settings.Importer.AssetId);
+            if (!File.Exists(outputPath)) {
+                asset = ImportAudio(sourcePath);
+                return true;
+            }
+
+            if (TryLoadCachedAudioAsset(outputPath, out asset)) {
+                return true;
+            }
+
+            asset = ImportAudio(sourcePath);
+            return true;
+        }
+
+        /// <summary>
         /// Loads a model asset for a source file, importing it when needed.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the model source file.</param>
@@ -1402,29 +1669,177 @@ namespace helengine.editor {
                 throw new FileNotFoundException("Model source file was not found.", sourcePath);
             }
 
-            ModelAssetImportSettings settings;
-            if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings)) {
-                asset = null;
-                return false;
-            }
+            string outputPath = null;
+            try {
+                if (string.Equals(Path.GetExtension(sourcePath), SettingsExtension, StringComparison.OrdinalIgnoreCase)) {
+                    return TryLoadSerializedModelAsset(sourcePath, out asset);
+                }
 
-            if (!IsModelImporterRegistered(settings.Importer.ImporterId)) {
-                asset = null;
-                return false;
-            }
+                ModelAssetImportSettings settings;
+                if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings)) {
+                    asset = null;
+                    return false;
+                }
 
-            string outputPath = GetModelAssetPath(settings.Importer.AssetId);
-            if (!File.Exists(outputPath)) {
+                if (!IsModelImporterRegistered(settings.Importer.ImporterId)) {
+                    asset = null;
+                    return false;
+                }
+
+                outputPath = GetModelAssetPath(settings.Importer.AssetId);
+                if (!File.Exists(outputPath)) {
+                    asset = ImportModel(sourcePath);
+                    return true;
+                }
+
+                if (TryLoadCachedModelAsset(outputPath, out asset)) {
+                    return true;
+                }
+
                 asset = ImportModel(sourcePath);
                 return true;
+            } catch (Exception exception) {
+                throw CreateModelLoadFailureException(sourcePath, outputPath, exception);
+            }
+        }
+
+        /// <summary>
+        /// Describes one asset path with absolute-location provenance and file metadata so higher-level build failures can report which concrete copy was consumed.
+        /// </summary>
+        /// <param name="path">Asset path to describe.</param>
+        /// <returns>Stable human-readable path diagnostics for exception messages.</returns>
+        public string DescribeAssetPathForDiagnostics(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                throw new ArgumentException("Path must be provided.", nameof(path));
             }
 
-            if (TryLoadCachedModelAsset(outputPath, out asset)) {
-                return true;
+            return BuildAssetPathDiagnostics(path);
+        }
+
+        /// <summary>
+        /// Attempts to load an authored serialized model asset directly from disk.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the serialized model asset file.</param>
+        /// <param name="asset">Loaded model asset when the file contains the expected payload type.</param>
+        /// <returns>True when the serialized model asset was loaded successfully.</returns>
+        bool TryLoadSerializedModelAsset(string sourcePath, out ModelAsset asset) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             }
 
-            asset = ImportModel(sourcePath);
-            return true;
+            asset = null;
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
+            try {
+                EngineBinaryReadContext.CurrentAssetPath = sourcePath;
+                using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                Asset serializedAsset = AssetSerializer.Deserialize(stream);
+                if (serializedAsset is ModelAsset modelAsset) {
+                    asset = modelAsset;
+                    return true;
+                }
+
+                throw new InvalidOperationException($"Model asset file '{sourcePath}' did not contain a ModelAsset payload.");
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
+            }
+        }
+
+        /// <summary>
+        /// Creates one model-load failure exception that preserves the original error as an inner exception and annotates the concrete source and cache paths that were consumed.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source model file that was being resolved.</param>
+        /// <param name="outputPath">Absolute path to the cached model asset when one had already been resolved.</param>
+        /// <param name="innerException">Original exception thrown by the importer, serializer, or cache loader.</param>
+        /// <returns>Exception enriched with source provenance and file metadata.</returns>
+        InvalidOperationException CreateModelLoadFailureException(string sourcePath, string outputPath, Exception innerException) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (innerException == null) {
+                throw new ArgumentNullException(nameof(innerException));
+            }
+
+            string message = "Model asset load failed."
+                + " Source=" + BuildAssetPathDiagnostics(sourcePath)
+                + (string.IsNullOrWhiteSpace(outputPath) ? string.Empty : " Cache=" + BuildAssetPathDiagnostics(outputPath))
+                + " Reason=" + innerException.Message;
+            return new InvalidOperationException(message, innerException);
+        }
+
+        /// <summary>
+        /// Builds one diagnostic string that identifies where a path lives relative to the project roots and records stable file metadata for transient-build investigation.
+        /// </summary>
+        /// <param name="path">Filesystem path to describe.</param>
+        /// <returns>Human-readable path provenance and file metadata.</returns>
+        string BuildAssetPathDiagnostics(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                throw new ArgumentException("Path must be provided.", nameof(path));
+            }
+
+            string fullPath = Path.GetFullPath(path);
+            string scope = ResolvePathScopeForDiagnostics(fullPath);
+            if (!File.Exists(fullPath)) {
+                return "{ FullPath=" + fullPath + ", Scope=" + scope + ", Exists=false }";
+            }
+
+            FileInfo fileInfo = new FileInfo(fullPath);
+            string checksum;
+            try {
+                checksum = fileHasher.ComputeHash(fullPath);
+            } catch (Exception exception) {
+                checksum = "unavailable:" + exception.GetType().Name;
+            }
+
+            return "{ FullPath=" + fullPath
+                + ", Scope=" + scope
+                + ", Exists=true"
+                + ", Length=" + fileInfo.Length
+                + ", LastWriteTimeUtc=" + fileInfo.LastWriteTimeUtc.ToString("O")
+                + ", Sha256=" + checksum
+                + " }";
+        }
+
+        /// <summary>
+        /// Resolves the most specific project-root bucket that contains the supplied path so failures can distinguish project-tree reads from cache or external-workspace copies.
+        /// </summary>
+        /// <param name="fullPath">Absolute filesystem path to classify.</param>
+        /// <returns>Short scope label used by exception diagnostics.</returns>
+        string ResolvePathScopeForDiagnostics(string fullPath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Full path must be provided.", nameof(fullPath));
+            }
+
+            string normalizedProjectRootPath = EnsureTrailingDirectorySeparator(projectRootPath);
+            string normalizedAssetsRootPath = EnsureTrailingDirectorySeparator(assetsRootPath);
+            string normalizedImportRootPath = EnsureTrailingDirectorySeparator(importRootPath);
+            string normalizedFullPath = Path.GetFullPath(fullPath);
+            if (string.Equals(normalizedFullPath, assetsRootPath, StringComparison.OrdinalIgnoreCase) || normalizedFullPath.StartsWith(normalizedAssetsRootPath, StringComparison.OrdinalIgnoreCase)) {
+                return "project-assets";
+            }
+
+            if (string.Equals(normalizedFullPath, importRootPath, StringComparison.OrdinalIgnoreCase) || normalizedFullPath.StartsWith(normalizedImportRootPath, StringComparison.OrdinalIgnoreCase)) {
+                return "project-cache";
+            }
+
+            if (string.Equals(normalizedFullPath, projectRootPath, StringComparison.OrdinalIgnoreCase) || normalizedFullPath.StartsWith(normalizedProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
+                return "project-root";
+            }
+
+            return "external";
+        }
+
+        /// <summary>
+        /// Ensures one directory path ends with the current platform separator so prefix checks do not confuse sibling directories for ancestors.
+        /// </summary>
+        /// <param name="path">Directory path to normalize for prefix comparisons.</param>
+        /// <returns>Directory path with one trailing separator.</returns>
+        string EnsureTrailingDirectorySeparator(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                throw new ArgumentException("Path must be provided.", nameof(path));
+            }
+
+            return path.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+                ? path
+                : path + Path.DirectorySeparatorChar;
         }
 
         /// <summary>
@@ -1475,6 +1890,31 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Text cache file '{outputPath}' did not contain a TextAsset payload.");
+        }
+
+        /// <summary>
+        /// Attempts to load a cached audio asset.
+        /// </summary>
+        /// <param name="outputPath">Absolute path to the cached audio asset.</param>
+        /// <param name="asset">Loaded audio asset when the cache file exists and contains the expected payload type.</param>
+        /// <returns>True when the cached asset was loaded successfully.</returns>
+        bool TryLoadCachedAudioAsset(string outputPath, out AudioAsset asset) {
+            if (string.IsNullOrWhiteSpace(outputPath)) {
+                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
+            }
+
+            asset = null;
+            Asset cachedAsset;
+            if (!TryLoadCachedAsset(outputPath, "AudioAsset", out cachedAsset)) {
+                return false;
+            }
+
+            if (cachedAsset is AudioAsset audioAsset) {
+                asset = audioAsset;
+                return true;
+            }
+
+            throw new InvalidOperationException($"Audio cache file '{outputPath}' did not contain an AudioAsset payload.");
         }
 
         /// <summary>
@@ -1805,10 +2245,7 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 settings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
-            } catch (Exception ex) {
-                if (settingsPath.Contains("helengine-logo.png.hasset", StringComparison.OrdinalIgnoreCase)) {
-                    Console.WriteLine($"[helengine-editor] texture settings load failed path={settingsPath} error={ex.GetType().Name}: {ex.Message}");
-                }
+            } catch {
                 settings = null;
             }
 
@@ -1850,6 +2287,32 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attempts to load typed audio import settings from a settings file.
+        /// </summary>
+        /// <param name="settingsPath">Absolute path to the settings file.</param>
+        /// <param name="settings">Deserialized settings when the file exists.</param>
+        /// <returns>True when the settings file was loaded successfully.</returns>
+        bool TryLoadAudioImportSettings(string settingsPath, out AudioAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(settingsPath)) {
+                throw new ArgumentException("Settings path must be provided.", nameof(settingsPath));
+            }
+
+            settings = null;
+            if (!File.Exists(settingsPath)) {
+                return false;
+            }
+
+            try {
+                using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                settings = AudioAssetImportSettingsBinarySerializer.Deserialize(stream);
+                return true;
+            } catch {
+                settings = null;
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Creates new typed texture import settings based on the source file extension.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the source file.</param>
@@ -1873,6 +2336,21 @@ namespace helengine.editor {
             string extension = Path.GetExtension(sourcePath);
             string importerId = ResolveDefaultImporter(extension);
             return new ModelAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = importerId
+                }
+            };
+        }
+
+        /// <summary>
+        /// Creates new typed audio import settings based on the source file extension.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <returns>Newly created settings.</returns>
+        AudioAssetImportSettings CreateDefaultAudioImportSettings(string sourcePath) {
+            string extension = Path.GetExtension(sourcePath);
+            string importerId = ResolveDefaultImporter(extension);
+            return new AudioAssetImportSettings {
                 Importer = new AssetImporterSettings {
                     ImporterId = importerId
                 }
@@ -1932,6 +2410,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attempts to create default typed audio import settings for a source file.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Created settings when defaults are available.</param>
+        /// <returns>True when settings were created from a registered default.</returns>
+        bool TryCreateDefaultAudioImportSettings(string sourcePath, out AudioAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string extension = Path.GetExtension(sourcePath);
+            if (!TryResolveDefaultImporter(extension, out string importerId)) {
+                settings = null;
+                return false;
+            }
+
+            settings = new AudioAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = importerId
+                }
+            };
+            return true;
+        }
+
+        /// <summary>
         /// Repairs loaded typed texture import settings when the importer id is missing or no longer valid for the source extension.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the source file.</param>
@@ -1954,6 +2457,22 @@ namespace helengine.editor {
         /// <param name="settings">Loaded settings that may need importer normalization.</param>
         /// <returns>True when the importer id was replaced with the registered default importer.</returns>
         bool RepairModelImporterId(string sourcePath, ModelAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            return RepairImporterSettings(sourcePath, settings.Importer);
+        }
+
+        /// <summary>
+        /// Repairs loaded typed audio import settings when the importer id is missing or no longer valid for the source extension.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Loaded settings that may need importer normalization.</param>
+        /// <returns>True when the importer id was replaced with the registered default importer.</returns>
+        bool RepairAudioImporterId(string sourcePath, AudioAssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             } else if (settings == null) {
@@ -2095,9 +2614,6 @@ namespace helengine.editor {
             if (settingsFileExists && TryLoadTextureImportSettings(settingsPath, out settings, out requiresRewrite, out preserveLegacyAssetId)) {
                 bool repaired = RepairTextureImporterId(sourcePath, settings);
                 UpdateTextureImportSettingsChecksum(settings, sourcePath, preserveLegacyAssetId);
-                if (sourcePath.Contains("helengine-logo.png", StringComparison.OrdinalIgnoreCase)) {
-                    Console.WriteLine($"[helengine-editor] texture settings loaded path={settingsPath} platformCount={(settings.Processor?.Platforms == null ? -1 : settings.Processor.Platforms.Count)}");
-                }
                 if (repaired || requiresRewrite) {
                     SaveTextureImportSettings(sourcePath, settings);
                 }
@@ -2109,9 +2625,6 @@ namespace helengine.editor {
             }
 
             UpdateTextureImportSettingsChecksum(settings, sourcePath);
-            if (sourcePath.Contains("helengine-logo.png", StringComparison.OrdinalIgnoreCase)) {
-                Console.WriteLine($"[helengine-editor] texture settings defaulted path={settingsPath} platformCount={(settings.Processor?.Platforms == null ? -1 : settings.Processor.Platforms.Count)} settingsFileExists={settingsFileExists}");
-            }
             if (settingsFileExists) {
                 SaveTextureImportSettings(sourcePath, settings);
             }
@@ -2208,6 +2721,44 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Loads typed audio import settings for a source file or creates defaults if missing.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <returns>Resolved typed audio import settings.</returns>
+        public AudioAssetImportSettings LoadOrCreateAudioImportSettings(string sourcePath) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string settingsPath = GetSettingsPath(sourcePath);
+            bool settingsFileExists = File.Exists(settingsPath);
+            AudioAssetImportSettings settings = null;
+            bool loadedFromDisk = false;
+            try {
+                loadedFromDisk = settingsFileExists && TryLoadAudioImportSettings(settingsPath, out settings);
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Failed to load audio import settings for source '{sourcePath}'.", ex);
+            }
+            bool repaired = false;
+            if (!loadedFromDisk) {
+                try {
+                    settings = CreateDefaultAudioImportSettings(sourcePath);
+                } catch {
+                    settings = new AudioAssetImportSettings();
+                }
+            } else {
+                repaired = RepairAudioImporterId(sourcePath, settings);
+            }
+
+            UpdateAudioImportSettingsChecksum(settings, sourcePath);
+            if (settingsFileExists && (!loadedFromDisk || repaired)) {
+                SaveAudioImportSettings(sourcePath, settings);
+            }
+
+            return settings;
+        }
+
+        /// <summary>
         /// Saves typed model import settings next to the specified source file.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the source file.</param>
@@ -2223,6 +2774,24 @@ namespace helengine.editor {
             EnsureDirectoryForFile(settingsPath);
             using FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
             ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+        }
+
+        /// <summary>
+        /// Saves typed audio import settings next to the specified source file.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Settings to serialize.</param>
+        public void SaveAudioImportSettings(string sourcePath, AudioAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string settingsPath = GetSettingsPath(sourcePath);
+            EnsureDirectoryForFile(settingsPath);
+            using FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AudioAssetImportSettingsBinarySerializer.Serialize(stream, settings);
         }
 
         /// <summary>
@@ -2258,6 +2827,44 @@ namespace helengine.editor {
             UpdateModelImportSettingsChecksum(settings, sourcePath);
             if (settingsFileExists) {
                 SaveModelImportSettings(sourcePath, settings);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to load typed audio import settings or create defaults when missing.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Resolved settings when available.</param>
+        /// <returns>True when settings could be resolved for the source file.</returns>
+        public bool TryLoadOrCreateAudioImportSettings(string sourcePath, out AudioAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string settingsPath = GetSettingsPath(sourcePath);
+            bool settingsFileExists = File.Exists(settingsPath);
+            try {
+                if (settingsFileExists && TryLoadAudioImportSettings(settingsPath, out settings)) {
+                    bool repaired = RepairAudioImporterId(sourcePath, settings);
+                    UpdateAudioImportSettingsChecksum(settings, sourcePath);
+                    if (repaired) {
+                        SaveAudioImportSettings(sourcePath, settings);
+                    }
+                    return true;
+                }
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Failed to load audio import settings for source '{sourcePath}'.", ex);
+            }
+
+            if (!TryCreateDefaultAudioImportSettings(sourcePath, out settings)) {
+                settings = new AudioAssetImportSettings();
+            }
+
+            UpdateAudioImportSettingsChecksum(settings, sourcePath);
+            if (settingsFileExists) {
+                SaveAudioImportSettings(sourcePath, settings);
             }
 
             return true;
@@ -2300,6 +2907,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures required typed audio settings fields are populated.
+        /// </summary>
+        /// <param name="settings">Settings to validate.</param>
+        void EnsureAudioImportSettingsValid(AudioAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (settings.Importer == null) {
+                throw new InvalidOperationException("Audio import settings must include importer settings.");
+            } else if (settings.Processor == null || settings.Processor.Platforms == null) {
+                throw new InvalidOperationException("Audio import settings must include processor platform settings.");
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
+                throw new InvalidOperationException("Audio import settings must specify an importer id.");
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+                throw new InvalidOperationException("Audio import settings must specify an asset id.");
+            }
+        }
+
+        /// <summary>
         /// Resolves the default importer identifier for an extension.
         /// </summary>
         /// <param name="extension">File extension to match.</param>
@@ -2309,10 +2934,12 @@ namespace helengine.editor {
             string textureImporterId;
             string textImporterId;
             string fontImporterId;
+            string audioImporterId;
             string modelImporterId;
             bool hasTexture = defaultTextureImportersByExtension.TryGetValue(normalized, out textureImporterId);
             bool hasText = defaultTextImportersByExtension.TryGetValue(normalized, out textImporterId);
             bool hasFont = defaultFontImportersByExtension.TryGetValue(normalized, out fontImporterId);
+            bool hasAudio = defaultAudioImportersByExtension.TryGetValue(normalized, out audioImporterId);
             bool hasModel = DefaultModelImportersByExtension.TryGetValue(normalized, out modelImporterId);
 
             int typeCount = 0;
@@ -2323,6 +2950,9 @@ namespace helengine.editor {
                 typeCount++;
             }
             if (hasFont) {
+                typeCount++;
+            }
+            if (hasAudio) {
                 typeCount++;
             }
             if (hasModel) {
@@ -2343,6 +2973,10 @@ namespace helengine.editor {
 
             if (hasFont) {
                 return fontImporterId;
+            }
+
+            if (hasAudio) {
+                return audioImporterId;
             }
 
             if (hasModel) {
@@ -2368,10 +3002,12 @@ namespace helengine.editor {
             string textureImporterId;
             string textImporterId;
             string fontImporterId;
+            string audioImporterId;
             string modelImporterId;
             bool hasTexture = defaultTextureImportersByExtension.TryGetValue(normalized, out textureImporterId);
             bool hasText = defaultTextImportersByExtension.TryGetValue(normalized, out textImporterId);
             bool hasFont = defaultFontImportersByExtension.TryGetValue(normalized, out fontImporterId);
+            bool hasAudio = defaultAudioImportersByExtension.TryGetValue(normalized, out audioImporterId);
             bool hasModel = DefaultModelImportersByExtension.TryGetValue(normalized, out modelImporterId);
 
             int typeCount = 0;
@@ -2382,6 +3018,9 @@ namespace helengine.editor {
                 typeCount++;
             }
             if (hasFont) {
+                typeCount++;
+            }
+            if (hasAudio) {
                 typeCount++;
             }
             if (hasModel) {
@@ -2404,6 +3043,11 @@ namespace helengine.editor {
 
             if (hasFont) {
                 importerId = fontImporterId;
+                return true;
+            }
+
+            if (hasAudio) {
+                importerId = audioImporterId;
                 return true;
             }
 
@@ -2581,6 +3225,91 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Retrieves an audio importer by identifier.
+        /// </summary>
+        /// <param name="importerId">Identifier of the importer.</param>
+        /// <returns>Importer implementation.</returns>
+        IAudioImporter GetAudioImporter(string importerId) {
+            if (audioImportersById.TryGetValue(importerId, out IAudioImporter importer)) {
+                return importer;
+            }
+
+            throw new InvalidOperationException($"Audio importer '{importerId}' is not registered.");
+        }
+
+        /// <summary>
+        /// Ensures an audio importer is registered.
+        /// </summary>
+        /// <param name="importerId">Identifier to verify.</param>
+        void EnsureAudioImporterExists(string importerId) {
+            if (!audioImportersById.ContainsKey(importerId)) {
+                throw new InvalidOperationException($"Audio importer '{importerId}' is not registered.");
+            }
+        }
+
+        /// <summary>
+        /// Checks whether an audio importer is registered.
+        /// </summary>
+        /// <param name="importerId">Identifier to verify.</param>
+        /// <returns>True when a matching importer is registered.</returns>
+        bool IsAudioImporterRegistered(string importerId) {
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                return false;
+            }
+
+            return audioImportersById.ContainsKey(importerId);
+        }
+
+        /// <summary>
+        /// Records that one audio importer supports one file extension.
+        /// </summary>
+        /// <param name="extension">Normalized file extension.</param>
+        /// <param name="importerId">Importer identifier that supports the extension.</param>
+        void RegisterAudioImporterExtension(string extension, string importerId) {
+            if (string.IsNullOrWhiteSpace(extension)) {
+                throw new ArgumentException("Extension must be provided.", nameof(extension));
+            }
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            }
+
+            if (!audioImporterIdsByExtension.TryGetValue(extension, out List<string> importerIds)) {
+                importerIds = new List<string>();
+                audioImporterIdsByExtension.Add(extension, importerIds);
+            }
+
+            if (!importerIds.Contains(importerId, StringComparer.OrdinalIgnoreCase)) {
+                importerIds.Add(importerId);
+            }
+        }
+
+        /// <summary>
+        /// Ensures the supplied audio importer has been registered for the requested file extension.
+        /// </summary>
+        /// <param name="extension">Normalized file extension.</param>
+        /// <param name="importerId">Importer identifier to validate.</param>
+        void EnsureAudioImporterSupportsExtension(string extension, string importerId) {
+            if (string.IsNullOrWhiteSpace(extension)) {
+                throw new ArgumentException("Extension must be provided.", nameof(extension));
+            }
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            }
+
+            if (!audioImporterIdsByExtension.TryGetValue(extension, out List<string> importerIds)) {
+                throw new InvalidOperationException($"No audio importers are registered for '{extension}'.");
+            }
+
+            for (int index = 0; index < importerIds.Count; index++) {
+                if (string.Equals(importerIds[index], importerId, StringComparison.OrdinalIgnoreCase)) {
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException($"Audio importer '{importerId}' does not support '{extension}'.");
+        }
+
+        /// <summary>
         /// Retrieves a model importer by identifier.
         /// </summary>
         /// <param name="importerId">Identifier of the importer.</param>
@@ -2680,6 +3409,23 @@ namespace helengine.editor {
             string checksum = fileHasher.ComputeHash(sourcePath);
             settings.Importer.SourceChecksum = checksum;
             settings.Importer.AssetId = BuildModelAssetId(settings, checksum);
+        }
+
+        /// <summary>
+        /// Updates typed audio import settings to store the current source checksum.
+        /// </summary>
+        /// <param name="settings">Settings to update.</param>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        void UpdateAudioImportSettingsChecksum(AudioAssetImportSettings settings, string sourcePath) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string checksum = fileHasher.ComputeHash(sourcePath);
+            settings.Importer.SourceChecksum = checksum;
+            settings.Importer.AssetId = BuildAudioAssetId(settings, checksum);
         }
 
         /// <summary>
@@ -2815,6 +3561,466 @@ namespace helengine.editor {
             byte[] fontIdentityBytes = System.Text.Encoding.UTF8.GetBytes(fontIdentity);
             byte[] fontHashBytes = System.Security.Cryptography.SHA256.HashData(fontIdentityBytes);
             return Convert.ToHexString(fontHashBytes).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Builds the processed audio asset identifier for the current typed settings.
+        /// </summary>
+        /// <param name="settings">Resolved typed audio import settings for the source file.</param>
+        /// <param name="sourceChecksum">Checksum of the source file contents.</param>
+        /// <returns>Processed asset identifier for the current configuration.</returns>
+        string BuildAudioAssetId(AudioAssetImportSettings settings, string sourceChecksum) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(sourceChecksum)) {
+                throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
+            }
+
+            string platformId = ResolveAudioProcessorPlatformId(settings);
+            AudioAssetProcessorSettings processorSettings = GetCurrentPlatformAudioProcessorSettings(settings);
+            string identity = string.Concat(
+                "audio", "\n",
+                sourceChecksum, "\n",
+                settings.Importer?.ImporterId ?? string.Empty, "\n",
+                platformId, "\n",
+                processorSettings.EncodingFamilyId ?? string.Empty, "\n",
+                ((int)processorSettings.PlaybackMode).ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
+                processorSettings.TargetChannels.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
+                processorSettings.TargetSampleRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
+                processorSettings.StreamChunkByteSize.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
+                processorSettings.DefaultLoop ? "1" : "0", "\n",
+                processorSettings.DefaultBusId ?? string.Empty);
+            byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
+            byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Builds one imported audio asset from decoded audio metadata and processor settings.
+        /// </summary>
+        /// <param name="importedAudio">Decoded audio metadata returned by the importer.</param>
+        /// <param name="processorSettings">Platform processor settings that drive asset generation.</param>
+        /// <param name="assetId">Processed asset identifier to publish.</param>
+        /// <returns>Imported audio asset ready for serialization.</returns>
+        AudioAsset BuildImportedAudioAsset(ImportedAudioSource importedAudio, AudioAssetProcessorSettings processorSettings, string assetId) {
+            if (importedAudio == null) {
+                throw new ArgumentNullException(nameof(importedAudio));
+            } else if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            } else if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Audio asset id must be provided.", nameof(assetId));
+            }
+
+            if (importedAudio.Channels == 0) {
+                throw new InvalidOperationException("Audio importers must provide a non-zero channel count.");
+            }
+            if (importedAudio.SampleRate <= 0) {
+                throw new InvalidOperationException("Audio importers must provide a positive sample rate.");
+            }
+            if (importedAudio.DurationSeconds < 0f) {
+                throw new InvalidOperationException("Audio importers must provide a non-negative duration.");
+            }
+            if (importedAudio.Pcm16Bytes == null) {
+                throw new InvalidOperationException("Audio importers must provide a PCM payload.");
+            }
+            if (string.IsNullOrWhiteSpace(processorSettings.EncodingFamilyId)) {
+                throw new InvalidOperationException("Audio processor settings must provide an encoding family id.");
+            }
+            if (string.IsNullOrWhiteSpace(processorSettings.DefaultBusId)) {
+                throw new InvalidOperationException("Audio processor settings must provide a default bus id.");
+            }
+            if (processorSettings.PlaybackMode == AudioPlaybackMode.Streamed && processorSettings.StreamChunkByteSize <= 0) {
+                throw new InvalidOperationException("Streamed audio assets require a positive stream chunk size.");
+            }
+
+            byte[] encodedBytes = BuildProcessedAudioPayload(importedAudio, processorSettings, out ushort targetChannels, out int targetSampleRate, out float targetDurationSeconds);
+            return new AudioAsset {
+                Id = assetId,
+                RuntimeAssetId = RuntimeAssetIdGenerator.Generate(assetId),
+                PlaybackMode = processorSettings.PlaybackMode,
+                DefaultLoop = processorSettings.DefaultLoop,
+                DefaultBusId = processorSettings.DefaultBusId,
+                Channels = targetChannels,
+                SampleRate = targetSampleRate,
+                DurationSeconds = targetDurationSeconds,
+                EncodingFamilyId = processorSettings.EncodingFamilyId,
+                EncodedBytes = encodedBytes,
+                Chunks = BuildAudioChunks(encodedBytes, processorSettings)
+            };
+        }
+
+        /// <summary>
+        /// Builds the processed PCM16 payload published to one imported audio asset after applying requested platform channel and sample-rate conversion.
+        /// </summary>
+        /// <param name="importedAudio">Decoded audio metadata returned by the importer.</param>
+        /// <param name="processorSettings">Platform processor settings that drive asset generation.</param>
+        /// <param name="targetChannels">Resolved output channel count.</param>
+        /// <param name="targetSampleRate">Resolved output sample rate.</param>
+        /// <param name="targetDurationSeconds">Resolved output duration in seconds.</param>
+        /// <returns>Processed audio payload bytes ready for serialization.</returns>
+        byte[] BuildProcessedAudioPayload(
+            ImportedAudioSource importedAudio,
+            AudioAssetProcessorSettings processorSettings,
+            out ushort targetChannels,
+            out int targetSampleRate,
+            out float targetDurationSeconds) {
+            if (importedAudio == null) {
+                throw new ArgumentNullException(nameof(importedAudio));
+            } else if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            }
+
+            targetChannels = processorSettings.TargetChannels != 0 ? processorSettings.TargetChannels : importedAudio.Channels;
+            targetSampleRate = processorSettings.TargetSampleRate > 0 ? processorSettings.TargetSampleRate : importedAudio.SampleRate;
+            if (targetChannels == 0) {
+                throw new InvalidOperationException("Audio processor settings resolved to zero output channels.");
+            } else if (targetSampleRate <= 0) {
+                throw new InvalidOperationException("Audio processor settings resolved to a non-positive output sample rate.");
+            }
+
+            short[] samples = DecodePcm16Samples(importedAudio.Pcm16Bytes, importedAudio.Channels);
+            if (samples.Length == 0) {
+                targetDurationSeconds = 0f;
+                return Array.Empty<byte>();
+            }
+
+            short[] channelAdjustedSamples = ConvertAudioChannels(samples, importedAudio.Channels, targetChannels);
+            short[] resampledSamples = ResampleAudioSamples(channelAdjustedSamples, targetChannels, importedAudio.SampleRate, targetSampleRate);
+            int frameCount = resampledSamples.Length / targetChannels;
+            targetDurationSeconds = importedAudio.DurationSeconds > 0f
+                ? importedAudio.DurationSeconds
+                : frameCount > 0 && targetSampleRate > 0
+                    ? (float)(frameCount / (double)targetSampleRate)
+                    : 0f;
+            return EncodeProcessedAudioPayload(resampledSamples, processorSettings.EncodingFamilyId);
+        }
+
+        /// <summary>
+        /// Encodes one processed sample buffer into the runtime payload expected by the selected encoding family.
+        /// </summary>
+        /// <param name="samples">Processed PCM16 sample values.</param>
+        /// <param name="encodingFamilyId">Encoding family that should own the serialized payload.</param>
+        /// <returns>Encoded payload bytes ready for serialization.</returns>
+        byte[] EncodeProcessedAudioPayload(short[] samples, string encodingFamilyId) {
+            if (samples == null) {
+                throw new ArgumentNullException(nameof(samples));
+            }
+
+            if (string.Equals(encodingFamilyId, "adpcm-buffered", StringComparison.OrdinalIgnoreCase)) {
+                return EncodeNintendoDsImaAdpcmSamples(samples);
+            }
+
+            return EncodePcm16Samples(samples);
+        }
+
+        /// <summary>
+        /// Decodes one PCM16 byte payload into signed sample values while validating the expected source channel layout.
+        /// </summary>
+        /// <param name="pcm16Bytes">PCM16 payload bytes emitted by the importer.</param>
+        /// <param name="sourceChannels">Expected source channel count.</param>
+        /// <returns>Decoded PCM16 sample values.</returns>
+        short[] DecodePcm16Samples(byte[] pcm16Bytes, ushort sourceChannels) {
+            if (pcm16Bytes == null) {
+                throw new ArgumentNullException(nameof(pcm16Bytes));
+            } else if (sourceChannels == 0) {
+                throw new ArgumentOutOfRangeException(nameof(sourceChannels), "Source channel count must be positive.");
+            } else if ((pcm16Bytes.Length % sizeof(short)) != 0) {
+                throw new InvalidOperationException("Audio importers must provide a PCM16 payload aligned to 16-bit sample boundaries.");
+            }
+
+            int sampleCount = pcm16Bytes.Length / sizeof(short);
+            if ((sampleCount % sourceChannels) != 0) {
+                throw new InvalidOperationException("Audio importers must provide full PCM16 frames for the declared channel count.");
+            }
+
+            short[] samples = new short[sampleCount];
+            Buffer.BlockCopy(pcm16Bytes, 0, samples, 0, pcm16Bytes.Length);
+            return samples;
+        }
+
+        /// <summary>
+        /// Converts one PCM16 sample buffer between channel layouts for platform cook output.
+        /// </summary>
+        /// <param name="sourceSamples">Decoded PCM16 sample values.</param>
+        /// <param name="sourceChannels">Source channel count.</param>
+        /// <param name="targetChannels">Requested output channel count.</param>
+        /// <returns>Channel-adjusted PCM16 sample values.</returns>
+        short[] ConvertAudioChannels(short[] sourceSamples, ushort sourceChannels, ushort targetChannels) {
+            if (sourceSamples == null) {
+                throw new ArgumentNullException(nameof(sourceSamples));
+            } else if (sourceChannels == 0) {
+                throw new ArgumentOutOfRangeException(nameof(sourceChannels), "Source channel count must be positive.");
+            } else if (targetChannels == 0) {
+                throw new ArgumentOutOfRangeException(nameof(targetChannels), "Target channel count must be positive.");
+            }
+
+            if (sourceChannels == targetChannels) {
+                return sourceSamples;
+            }
+
+            int sourceFrameCount = sourceSamples.Length / sourceChannels;
+            short[] convertedSamples = new short[sourceFrameCount * targetChannels];
+            if (targetChannels == 1) {
+                for (int frameIndex = 0; frameIndex < sourceFrameCount; frameIndex++) {
+                    int sourceFrameOffset = frameIndex * sourceChannels;
+                    int summedSample = 0;
+                    for (int channelIndex = 0; channelIndex < sourceChannels; channelIndex++) {
+                        summedSample += sourceSamples[sourceFrameOffset + channelIndex];
+                    }
+
+                    convertedSamples[frameIndex] = ClampToInt16(Math.Round(summedSample / (double)sourceChannels));
+                }
+
+                return convertedSamples;
+            }
+
+            if (sourceChannels == 1) {
+                for (int frameIndex = 0; frameIndex < sourceFrameCount; frameIndex++) {
+                    short sample = sourceSamples[frameIndex];
+                    int targetFrameOffset = frameIndex * targetChannels;
+                    for (int channelIndex = 0; channelIndex < targetChannels; channelIndex++) {
+                        convertedSamples[targetFrameOffset + channelIndex] = sample;
+                    }
+                }
+
+                return convertedSamples;
+            }
+
+            throw new InvalidOperationException($"Audio channel conversion from {sourceChannels} to {targetChannels} is not implemented.");
+        }
+
+        /// <summary>
+        /// Resamples one PCM16 sample buffer to the requested output sample rate using linear interpolation per channel.
+        /// </summary>
+        /// <param name="sourceSamples">Decoded PCM16 sample values after channel conversion.</param>
+        /// <param name="channelCount">Channel count carried by the sample buffer.</param>
+        /// <param name="sourceSampleRate">Source sample rate.</param>
+        /// <param name="targetSampleRate">Requested output sample rate.</param>
+        /// <returns>Resampled PCM16 sample values.</returns>
+        short[] ResampleAudioSamples(short[] sourceSamples, ushort channelCount, int sourceSampleRate, int targetSampleRate) {
+            if (sourceSamples == null) {
+                throw new ArgumentNullException(nameof(sourceSamples));
+            } else if (channelCount == 0) {
+                throw new ArgumentOutOfRangeException(nameof(channelCount), "Channel count must be positive.");
+            } else if (sourceSampleRate <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(sourceSampleRate), "Source sample rate must be positive.");
+            } else if (targetSampleRate <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(targetSampleRate), "Target sample rate must be positive.");
+            }
+
+            if (sourceSampleRate == targetSampleRate || sourceSamples.Length == 0) {
+                return sourceSamples;
+            }
+
+            int sourceFrameCount = sourceSamples.Length / channelCount;
+            if (sourceFrameCount == 0) {
+                return Array.Empty<short>();
+            }
+
+            int targetFrameCount = (int)Math.Round(sourceFrameCount * (double)targetSampleRate / sourceSampleRate);
+            if (targetFrameCount <= 0) {
+                targetFrameCount = 1;
+            }
+
+            short[] resampledSamples = new short[targetFrameCount * channelCount];
+            for (int targetFrameIndex = 0; targetFrameIndex < targetFrameCount; targetFrameIndex++) {
+                double sourceFramePosition = targetFrameIndex * (double)sourceSampleRate / targetSampleRate;
+                int leftFrameIndex = (int)Math.Floor(sourceFramePosition);
+                if (leftFrameIndex >= sourceFrameCount) {
+                    leftFrameIndex = sourceFrameCount - 1;
+                }
+
+                int rightFrameIndex = leftFrameIndex + 1;
+                if (rightFrameIndex >= sourceFrameCount) {
+                    rightFrameIndex = sourceFrameCount - 1;
+                }
+
+                double blend = sourceFramePosition - leftFrameIndex;
+                int targetFrameOffset = targetFrameIndex * channelCount;
+                int leftFrameOffset = leftFrameIndex * channelCount;
+                int rightFrameOffset = rightFrameIndex * channelCount;
+                for (int channelIndex = 0; channelIndex < channelCount; channelIndex++) {
+                    double leftSample = sourceSamples[leftFrameOffset + channelIndex];
+                    double rightSample = sourceSamples[rightFrameOffset + channelIndex];
+                    double interpolatedSample = leftSample + ((rightSample - leftSample) * blend);
+                    resampledSamples[targetFrameOffset + channelIndex] = ClampToInt16(Math.Round(interpolatedSample));
+                }
+            }
+
+            return resampledSamples;
+        }
+
+        /// <summary>
+        /// Encodes one PCM16 sample buffer back into its serialized byte payload form.
+        /// </summary>
+        /// <param name="samples">PCM16 sample values to encode.</param>
+        /// <returns>PCM16 payload bytes.</returns>
+        byte[] EncodePcm16Samples(short[] samples) {
+            if (samples == null) {
+                throw new ArgumentNullException(nameof(samples));
+            }
+
+            if (samples.Length == 0) {
+                return Array.Empty<byte>();
+            }
+
+            byte[] encodedBytes = new byte[samples.Length * sizeof(short)];
+            Buffer.BlockCopy(samples, 0, encodedBytes, 0, encodedBytes.Length);
+            return encodedBytes;
+        }
+
+        /// <summary>
+        /// Encodes one mono PCM16 sample buffer into the Nintendo DS IMA ADPCM framing consumed by libnds.
+        /// </summary>
+        /// <param name="samples">PCM16 sample values to encode.</param>
+        /// <returns>IMA ADPCM payload bytes prefixed with the native 4-byte predictor header.</returns>
+        byte[] EncodeNintendoDsImaAdpcmSamples(short[] samples) {
+            if (samples == null) {
+                throw new ArgumentNullException(nameof(samples));
+            }
+
+            if (samples.Length == 0) {
+                return Array.Empty<byte>();
+            }
+
+            int nibbleCount = Math.Max(0, samples.Length - 1);
+            byte[] encodedBytes = new byte[4 + ((nibbleCount + 1) / 2)];
+            short predictor = samples[0];
+            int stepIndex = 0;
+            encodedBytes[0] = (byte)(predictor & 0xFF);
+            encodedBytes[1] = (byte)((predictor >> 8) & 0xFF);
+            encodedBytes[2] = (byte)stepIndex;
+            encodedBytes[3] = 0;
+
+            for (int sampleIndex = 1; sampleIndex < samples.Length; sampleIndex++) {
+                byte adpcmNibble = EncodeNintendoDsImaAdpcmNibble(samples[sampleIndex], ref predictor, ref stepIndex);
+                int payloadByteIndex = 4 + ((sampleIndex - 1) / 2);
+                if (((sampleIndex - 1) & 1) == 0) {
+                    encodedBytes[payloadByteIndex] = adpcmNibble;
+                } else {
+                    encodedBytes[payloadByteIndex] |= (byte)(adpcmNibble << 4);
+                }
+            }
+
+            return encodedBytes;
+        }
+
+        /// <summary>
+        /// Encodes one PCM16 sample into one Nintendo DS IMA ADPCM nibble while updating predictor state.
+        /// </summary>
+        /// <param name="sample">PCM16 sample value to encode.</param>
+        /// <param name="predictor">Current ADPCM predictor updated in-place.</param>
+        /// <param name="stepIndex">Current ADPCM step-table index updated in-place.</param>
+        /// <returns>Encoded 4-bit IMA ADPCM nibble.</returns>
+        byte EncodeNintendoDsImaAdpcmNibble(short sample, ref short predictor, ref int stepIndex) {
+            int step = NintendoDsImaAdpcmStepTable[stepIndex];
+            int delta = sample - predictor;
+            int nibble = 0;
+            if (delta < 0) {
+                nibble = 8;
+                delta = -delta;
+            }
+
+            int diff = step >> 3;
+            if (delta >= step) {
+                nibble |= 4;
+                delta -= step;
+                diff += step;
+            }
+
+            step >>= 1;
+            if (delta >= step) {
+                nibble |= 2;
+                delta -= step;
+                diff += step;
+            }
+
+            step >>= 1;
+            if (delta >= step) {
+                nibble |= 1;
+                diff += step;
+            }
+
+            int predictorValue = predictor;
+            predictorValue += (nibble & 8) != 0 ? -diff : diff;
+            predictor = ClampToInt16(predictorValue);
+
+            stepIndex = Math.Clamp(stepIndex + NintendoDsImaAdpcmIndexTable[nibble], 0, NintendoDsImaAdpcmStepTable.Length - 1);
+            return (byte)nibble;
+        }
+
+        /// <summary>
+        /// Clamps one floating-point sample value into the signed 16-bit PCM range.
+        /// </summary>
+        /// <param name="value">Floating-point sample value.</param>
+        /// <returns>Clamped PCM16 sample value.</returns>
+        short ClampToInt16(double value) {
+            if (value < short.MinValue) {
+                return short.MinValue;
+            }
+            if (value > short.MaxValue) {
+                return short.MaxValue;
+            }
+
+            return (short)value;
+        }
+
+        static readonly int[] NintendoDsImaAdpcmIndexTable = [
+            -1, -1, -1, -1,
+             2,  4,  6,  8,
+            -1, -1, -1, -1,
+             2,  4,  6,  8
+        ];
+
+        static readonly int[] NintendoDsImaAdpcmStepTable = [
+                7,     8,     9,    10,    11,    12,    13,    14,
+               16,    17,    19,    21,    23,    25,    28,    31,
+               34,    37,    41,    45,    50,    55,    60,    66,
+               73,    80,    88,    97,   107,   118,   130,   143,
+              157,   173,   190,   209,   230,   253,   279,   307,
+              337,   371,   408,   449,   494,   544,   598,   658,
+              724,   796,   876,   963,  1060,  1166,  1282,  1411,
+             1552,  1707,  1878,  2066,  2272,  2499,  2749,  3024,
+             3327,  3660,  4026,  4428,  4871,  5358,  5894,  6484,
+             7132,  7845,  8630,  9493, 10442, 11487, 12635, 13899,
+            15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794,
+            32767
+        ];
+
+        /// <summary>
+        /// Builds the chunk table published on one imported audio asset.
+        /// </summary>
+        /// <param name="encodedBytes">Encoded PCM payload bytes.</param>
+        /// <param name="processorSettings">Processor settings that drive chunking behavior.</param>
+        /// <returns>Chunk table for the imported audio asset.</returns>
+        AudioChunkDescriptor[] BuildAudioChunks(byte[] encodedBytes, AudioAssetProcessorSettings processorSettings) {
+            if (encodedBytes == null) {
+                throw new ArgumentNullException(nameof(encodedBytes));
+            } else if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            }
+
+            if (encodedBytes.Length == 0) {
+                return Array.Empty<AudioChunkDescriptor>();
+            }
+
+            int chunkSize = processorSettings.PlaybackMode == AudioPlaybackMode.Streamed
+                ? processorSettings.StreamChunkByteSize
+                : encodedBytes.Length;
+            if (chunkSize <= 0) {
+                chunkSize = encodedBytes.Length;
+            }
+
+            List<AudioChunkDescriptor> chunks = new List<AudioChunkDescriptor>();
+            for (int offset = 0; offset < encodedBytes.Length; offset += chunkSize) {
+                int byteLength = Math.Min(chunkSize, encodedBytes.Length - offset);
+                chunks.Add(new AudioChunkDescriptor {
+                    ByteOffset = offset,
+                    ByteLength = byteLength
+                });
+            }
+
+            return chunks.ToArray();
         }
 
         /// <summary>
@@ -3082,6 +4288,29 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the processor-settings platform key that should drive audio processing for the current manager state.
+        /// </summary>
+        /// <param name="settings">Resolved typed audio settings for the source file.</param>
+        /// <returns>Platform identifier used for audio processor settings, or an empty string when no platform context exists.</returns>
+        string ResolveAudioProcessorPlatformId(AudioAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (!string.IsNullOrWhiteSpace(CurrentPlatformId)) {
+                return CurrentPlatformId;
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null || settings.Processor.Platforms.Count == 0) {
+                return string.Empty;
+            }
+
+            List<string> platformIds = new List<string>(settings.Processor.Platforms.Keys);
+            platformIds.Sort(StringComparer.OrdinalIgnoreCase);
+            return platformIds[0];
+        }
+
+        /// <summary>
         /// Resolves the model processor settings for the active processing platform, returning defaults when none were saved yet.
         /// </summary>
         /// <param name="settings">Resolved import settings for the source file.</param>
@@ -3190,6 +4419,59 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the audio processor settings for the active processing platform, returning defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved typed audio settings for the source file.</param>
+        /// <returns>Audio processor settings for the current platform context.</returns>
+        AudioAssetProcessorSettings GetCurrentPlatformAudioProcessorSettings(AudioAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string platformId = ResolveAudioProcessorPlatformId(settings);
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return CreateDefaultAudioProcessorSettings(platformId);
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return CreateDefaultAudioProcessorSettings(platformId);
+            }
+
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out AudioAssetProcessorSettings platformSettings) || platformSettings == null) {
+                return CreateDefaultAudioProcessorSettings(platformId);
+            }
+
+            return platformSettings;
+        }
+
+        /// <summary>
+        /// Resolves the audio processor settings for one explicit platform id, returning defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved typed audio settings for the source file.</param>
+        /// <param name="platformId">Platform audio-settings key that should drive the returned processor settings.</param>
+        /// <returns>Audio processor settings for the requested platform context.</returns>
+        AudioAssetProcessorSettings GetAudioProcessorSettings(AudioAssetImportSettings settings, string platformId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string normalizedPlatformId = platformId ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalizedPlatformId)) {
+                return CreateDefaultAudioProcessorSettings(normalizedPlatformId);
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return CreateDefaultAudioProcessorSettings(normalizedPlatformId);
+            }
+
+            if (!settings.Processor.Platforms.TryGetValue(normalizedPlatformId, out AudioAssetProcessorSettings platformSettings) || platformSettings == null) {
+                return CreateDefaultAudioProcessorSettings(normalizedPlatformId);
+            }
+
+            return platformSettings;
+        }
+
+        /// <summary>
         /// Resolves the font processor settings for the requested platform, returning defaults when none were saved yet.
         /// </summary>
         /// <param name="settings">Resolved import settings for the source file.</param>
@@ -3212,6 +4494,43 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the generated font-atlas texture settings for the requested platform, returning platform-aware defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <param name="platformId">Target platform identifier whose font-atlas texture settings should be applied.</param>
+        /// <returns>Texture processor settings for the generated font atlas.</returns>
+        TextureAssetProcessorSettings GetFontAtlasTextureProcessorSettings(AssetImportSettings settings, string platformId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string normalizedPlatformId = platformId ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalizedPlatformId)) {
+                return CreateDefaultFontAtlasTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return CreateDefaultFontAtlasTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            if (!settings.Processor.Platforms.TryGetValue(normalizedPlatformId, out AssetPlatformProcessorSettings platformSettings)
+                || platformSettings == null
+                || platformSettings.Sections == null
+                || !platformSettings.Sections.TryGetValue(FontAtlasTextureAssetPlatformSettingsSectionDefinition.SectionIdValue, out AssetPlatformSettingsSection section)
+                || section == null
+                || section.Settings == null) {
+                return CreateDefaultFontAtlasTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            if (section.Settings is not TextureAssetProcessorSettings textureSettings) {
+                throw new InvalidOperationException(
+                    $"Platform font-atlas texture settings for '{normalizedPlatformId}' must use one {nameof(TextureAssetProcessorSettings)} payload.");
+            }
+
+            return textureSettings;
+        }
+
+        /// <summary>
         /// Creates the default texture processor settings used when a source asset has not authored an explicit override for the active platform yet.
         /// </summary>
         /// <param name="platformId">Active processing platform identifier.</param>
@@ -3225,6 +4544,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates the default generated font-atlas texture settings used when a source font has not authored an explicit override for the active platform yet.
+        /// </summary>
+        /// <param name="platformId">Active processing platform identifier.</param>
+        /// <returns>Default font-atlas texture processor settings for the requested platform.</returns>
+        TextureAssetProcessorSettings CreateDefaultFontAtlasTextureProcessorSettings(string platformId) {
+            if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
+                return new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormatId = TextureAssetColorFormat.Indexed4.ToString(),
+                    AlphaPrecision = TextureAssetAlphaPrecision.Binary
+                };
+            }
+
+            return CreateDefaultTextureProcessorSettings(platformId);
+        }
+
+        /// <summary>
         /// Creates the default font processor settings used when a source asset has not authored an explicit override yet.
         /// </summary>
         /// <returns>Default font processor settings.</returns>
@@ -3232,6 +4568,35 @@ namespace helengine.editor {
             return new FontAssetProcessorSettings {
                 PixelSize = FontAssetProcessorSettings.DefaultPixelSize
             };
+        }
+
+        /// <summary>
+        /// Creates the default audio processor settings used when a source asset has not authored an explicit override yet.
+        /// </summary>
+        /// <returns>Default audio processor settings.</returns>
+        AudioAssetProcessorSettings CreateDefaultAudioProcessorSettings(string platformId) {
+            AudioAssetProcessorSettings settings = new AudioAssetProcessorSettings();
+            if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
+                settings.EncodingFamilyId = "adpcm-buffered";
+                settings.PlaybackMode = AudioPlaybackMode.Predecoded;
+                settings.TargetChannels = 1;
+                // DS audio is cooked to a smaller mono payload so buffered playback fits the runtime memory budget.
+                settings.TargetSampleRate = 11025;
+            } else if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
+                settings.TargetChannels = 1;
+                // PS2 playback still deserializes the cooked PCM payload into EE memory, so long music tracks need a more aggressive mono low-rate cook to fit.
+                settings.TargetSampleRate = 4000;
+                settings.StreamChunkByteSize = 4096;
+            } else if (string.Equals(platformId, "psp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "gamecube", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "wii", StringComparison.OrdinalIgnoreCase)) {
+                settings.TargetChannels = 1;
+                // Constrained platforms need a smaller cook footprint for long looping music tracks than the generic preset.
+                settings.TargetSampleRate = 11025;
+                settings.StreamChunkByteSize = 4096;
+            }
+
+            return settings;
         }
 
         /// <summary>
@@ -3313,6 +4678,19 @@ namespace helengine.editor {
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
         string GetTextAssetPath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Asset id must be provided.", nameof(assetId));
+            }
+
+            return Path.Combine(importRootPath, assetId);
+        }
+
+        /// <summary>
+        /// Builds the output path for an imported audio asset.
+        /// </summary>
+        /// <param name="assetId">Asset identifier used in the file name.</param>
+        /// <returns>Absolute path to the serialized asset file.</returns>
+        string GetAudioAssetPath(string assetId) {
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Asset id must be provided.", nameof(assetId));
             }

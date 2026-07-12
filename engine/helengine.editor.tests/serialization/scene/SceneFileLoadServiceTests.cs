@@ -65,6 +65,45 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures owned runtime assets resolved during scene loading are returned on the loaded scene document.
+        /// </summary>
+        [Fact]
+        public void Load_WhenResolverTracksOwnedAssets_ReturnsOwnedAssets() {
+            SceneAssetReference modelReference = CreateGeneratedModelReference();
+            SceneAssetReference materialReference = CreateGeneratedMaterialReference();
+            string scenePath = SaveSceneAsset("OwnedAssets.helen", "Owned Root", modelReference, materialReference);
+            TestRuntimeModel runtimeModel = new TestRuntimeModel();
+            TestRuntimeMaterial runtimeMaterial = new TestRuntimeMaterial();
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            resolver.RegisterModel(modelReference, runtimeModel);
+            resolver.RegisterMaterial(materialReference, runtimeMaterial);
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), resolver);
+
+            LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
+
+            Assert.Same(runtimeModel, Assert.Single(loaded.OwnedAssets.OwnedModels));
+            Assert.Same(runtimeMaterial, Assert.Single(loaded.OwnedAssets.OwnedMaterials));
+        }
+
+        /// <summary>
+        /// Ensures editor scene loading attaches the runtime-facing stable scene-entity id component required by gameplay scripts that resolve scene references during preview.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneEntityIdsExist_AttachesSceneEntityRuntimeIdComponent() {
+            SceneAssetReference modelReference = CreateGeneratedModelReference();
+            SceneAssetReference materialReference = CreateGeneratedMaterialReference();
+            string scenePath = SaveSceneAsset("RuntimeIds.helen", "Runtime Id Root", modelReference, materialReference);
+            SceneFileLoadService loadService = CreateLoadService(modelReference, materialReference);
+
+            LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
+
+            EditorEntity root = Assert.Single(loaded.RootEntities);
+            SceneEntityRuntimeIdComponent runtimeIdComponent = Assert.IsType<SceneEntityRuntimeIdComponent>(
+                Assert.Single(root.Components, component => component is SceneEntityRuntimeIdComponent));
+            Assert.True(runtimeIdComponent.SceneEntityId > 0u);
+        }
+
+        /// <summary>
         /// Ensures a generic reflected camera payload loads into a live camera that still holds the authored values directly.
         /// </summary>
         [Fact]
@@ -172,6 +211,24 @@ namespace helengine.editor.tests.serialization.scene {
             LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
 
             Assert.True(loaded.SceneSettings.DontUnload);
+        }
+
+        /// <summary>
+        /// Ensures one scene-file load service can load two authored scenes sequentially without carrying stable entity ids across load sessions.
+        /// </summary>
+        [Fact]
+        public void Load_WhenCalledSequentiallyForDifferentScenes_DoesNotReuseEntityRegistrationsFromPreviousLoad() {
+            SceneAssetReference modelReference = CreateGeneratedModelReference();
+            SceneAssetReference materialReference = CreateGeneratedMaterialReference();
+            string firstScenePath = SaveSceneAsset("First.helen", "First Root", modelReference, materialReference);
+            string secondScenePath = SaveSceneAsset("Second.helen", "Second Root", modelReference, materialReference);
+            SceneFileLoadService loadService = CreateLoadService(modelReference, materialReference);
+
+            LoadedEditorSceneDocument firstLoaded = loadService.Load(firstScenePath);
+            LoadedEditorSceneDocument secondLoaded = loadService.Load(secondScenePath);
+
+            Assert.Equal("First Root", Assert.Single(firstLoaded.RootEntities).Name);
+            Assert.Equal("Second Root", Assert.Single(secondLoaded.RootEntities).Name);
         }
 
         /// <summary>

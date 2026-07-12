@@ -7,33 +7,33 @@ namespace helengine.directx11 {
     [StructLayout(LayoutKind.Sequential)]
     public struct DirectX11ForwardLightShaderData {
         /// <summary>
-        /// Gets or sets the accumulated ambient-light radiance stacked from every selected ambient light.
+        /// Accumulated ambient-light radiance stacked from every selected ambient light.
         /// </summary>
-        public float4 AmbientLightColor { get; set; }
+        public float4 AmbientLightColor;
 
         /// <summary>
-        /// Gets or sets packed shader metadata where X stores the active light count.
+        /// Packed shader metadata where X stores the active light count.
         /// </summary>
-        public float4 LightMetadata { get; set; }
+        public float4 LightMetadata;
 
         /// <summary>
-        /// Gets or sets the first packed forward-light slot.
+        /// First packed forward-light slot.
         /// </summary>
-        public DirectX11ForwardLightSlotShaderData Light0 { get; set; }
+        public DirectX11ForwardLightSlotShaderData Light0;
 
         /// <summary>
-        /// Gets or sets the second packed forward-light slot.
+        /// Second packed forward-light slot.
         /// </summary>
-        public DirectX11ForwardLightSlotShaderData Light1 { get; set; }
+        public DirectX11ForwardLightSlotShaderData Light1;
 
         /// <summary>
-        /// Gets or sets the third packed forward-light slot.
+        /// Third packed forward-light slot.
         /// </summary>
-        public DirectX11ForwardLightSlotShaderData Light2 { get; set; }
+        public DirectX11ForwardLightSlotShaderData Light2;
 
         /// <summary>
-        /// Gets or sets the fourth packed forward-light slot.
+        /// Fourth packed forward-light slot.
         /// </summary>
-        public DirectX11ForwardLightSlotShaderData Light3 { get; set; }
+        public DirectX11ForwardLightSlotShaderData Light3;
     }
 }

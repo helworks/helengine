@@ -82,6 +82,9 @@ namespace helengine.editor {
             if (string.Equals(property.Name, nameof(Component.IsEditorUpdateExecutionSuppressionMarker), StringComparison.Ordinal)) {
                 return false;
             }
+            if (string.Equals(property.Name, nameof(Component.IsEditorSceneCameraSuppressionMarker), StringComparison.Ordinal)) {
+                return false;
+            }
 
             return true;
         }

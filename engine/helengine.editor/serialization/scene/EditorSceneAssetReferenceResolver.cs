@@ -5,7 +5,7 @@ namespace helengine.editor {
     /// <summary>
     /// Resolves persisted scene asset references back into runtime assets for editor scene loading.
     /// </summary>
-    public class EditorSceneAssetReferenceResolver : ISceneAssetReferenceResolver {
+    public class EditorSceneAssetReferenceResolver : ISceneAssetReferenceResolver, IEditorOwnedAssetTrackingSceneAssetReferenceResolver {
         /// <summary>
         /// Preferred preview platform used when file-backed materials need one shader-backed editor runtime path.
         /// </summary>
@@ -58,6 +58,22 @@ namespace helengine.editor {
         /// Loads per-platform material settings sidecars for file-backed scene materials.
         /// </summary>
         readonly MaterialAssetSettingsService MaterialSettingsService;
+        /// <summary>
+        /// Tracks scene-owned runtime textures resolved during the active editor scene-load scope.
+        /// </summary>
+        List<RuntimeTexture> ActiveOwnedTextures;
+        /// <summary>
+        /// Tracks scene-owned font assets resolved during the active editor scene-load scope.
+        /// </summary>
+        List<FontAsset> ActiveOwnedFonts;
+        /// <summary>
+        /// Tracks scene-owned runtime models resolved during the active editor scene-load scope.
+        /// </summary>
+        List<RuntimeModel> ActiveOwnedModels;
+        /// <summary>
+        /// Tracks scene-owned runtime materials resolved during the active editor scene-load scope.
+        /// </summary>
+        List<RuntimeMaterial> ActiveOwnedMaterials;
 
         /// <summary>
         /// Initializes a new runtime asset resolver for scene loading.
@@ -254,7 +270,73 @@ namespace helengine.editor {
             }
 
             TextureAsset textureAsset = ResolveFileSystemTexture(reference);
-            return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+            TrackOwnedTexture(runtimeTexture);
+            return runtimeTexture;
+        }
+
+        /// <summary>
+        /// Starts one editor scene-owned asset tracking scope for the next scene materialization.
+        /// </summary>
+        public void BeginOwnedAssetTracking() {
+            if (ActiveOwnedTextures != null || ActiveOwnedFonts != null || ActiveOwnedModels != null || ActiveOwnedMaterials != null) {
+                throw new InvalidOperationException("Editor scene asset tracking is already active.");
+            }
+
+            ActiveOwnedTextures = new List<RuntimeTexture>();
+            ActiveOwnedFonts = new List<FontAsset>();
+            ActiveOwnedModels = new List<RuntimeModel>();
+            ActiveOwnedMaterials = new List<RuntimeMaterial>();
+        }
+
+        /// <summary>
+        /// Completes the active editor scene-owned asset tracking scope and returns the materialized runtime assets.
+        /// </summary>
+        /// <returns>Scene-owned runtime assets resolved during the active editor scene-load scope.</returns>
+        public RuntimeSceneOwnedAssetSet CompleteOwnedAssetTracking() {
+            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
+                throw new InvalidOperationException("Editor scene asset tracking is not active.");
+            }
+
+            List<RuntimeTexture> ownedTextures = ActiveOwnedTextures;
+            List<FontAsset> ownedFonts = ActiveOwnedFonts;
+            List<RuntimeModel> ownedModels = ActiveOwnedModels;
+            List<RuntimeMaterial> ownedMaterials = ActiveOwnedMaterials;
+            ActiveOwnedTextures = null;
+            ActiveOwnedFonts = null;
+            ActiveOwnedModels = null;
+            ActiveOwnedMaterials = null;
+            return new RuntimeSceneOwnedAssetSet(
+                ownedTextures,
+                ownedFonts,
+                Array.Empty<AudioAsset>(),
+                ownedModels,
+                ownedMaterials);
+        }
+
+        /// <summary>
+        /// Cancels the active editor scene-owned asset tracking scope and returns the materialized runtime assets.
+        /// </summary>
+        /// <returns>Scene-owned runtime assets resolved before the editor scene load failed.</returns>
+        public RuntimeSceneOwnedAssetSet CancelOwnedAssetTracking() {
+            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
+                throw new InvalidOperationException("Editor scene asset tracking is not active.");
+            }
+
+            List<RuntimeTexture> ownedTextures = ActiveOwnedTextures;
+            List<FontAsset> ownedFonts = ActiveOwnedFonts;
+            List<RuntimeModel> ownedModels = ActiveOwnedModels;
+            List<RuntimeMaterial> ownedMaterials = ActiveOwnedMaterials;
+            ActiveOwnedTextures = null;
+            ActiveOwnedFonts = null;
+            ActiveOwnedModels = null;
+            ActiveOwnedMaterials = null;
+            return new RuntimeSceneOwnedAssetSet(
+                ownedTextures,
+                ownedFonts,
+                Array.Empty<AudioAsset>(),
+                ownedModels,
+                ownedMaterials);
         }
 
         /// <summary>
@@ -293,10 +375,14 @@ namespace helengine.editor {
             string fullPath = ResolveFileSystemAssetPath(reference);
             if (FileSystemModelResolver == null) {
                 ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, EditorContentProcessorIds.ModelAsset);
-                return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+                RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+                TrackOwnedModel(runtimeModel);
+                return runtimeModel;
             }
 
-            return FileSystemModelResolver.ResolveRuntimeModel(fullPath);
+            RuntimeModel resolvedRuntimeModel = FileSystemModelResolver.ResolveRuntimeModel(fullPath);
+            TrackOwnedModel(resolvedRuntimeModel);
+            return resolvedRuntimeModel;
         }
 
         /// <summary>
@@ -322,18 +408,36 @@ namespace helengine.editor {
             }
 
             ShaderMaterialAsset materialAsset = LoadPreviewMaterialAsset(fullPath, platformId);
+            RuntimeMaterial runtimeMaterial;
             if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
                 MaterialAssetProcessorSettings platformSettings;
                 if (MaterialSettingsService.TryLoadPlatformSettings(fullPath, platformId, out platformSettings) && platformSettings != null) {
-                    return BuildPreviewRuntimeMaterial(materialAsset, platformSettings);
+                    runtimeMaterial = BuildPreviewRuntimeMaterial(materialAsset, platformSettings);
+                    TrackOwnedMaterial(runtimeMaterial);
+                    return runtimeMaterial;
                 }
 
                 throw new InvalidOperationException("Material asset did not provide a shader asset id.");
             }
 
             ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAsset(materialAsset.ShaderAssetId);
-            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);
+            runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            ApplyMaterialImportedTexture(
+                runtimeMaterial,
+                materialAsset.DiffuseTextureAssetId,
+                StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName,
+                fullPath);
+            ApplyMaterialImportedTexture(
+                runtimeMaterial,
+                materialAsset.EmissiveTextureAssetId,
+                StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName,
+                fullPath);
+            ApplyMaterialImportedTexture(
+                runtimeMaterial,
+                materialAsset.RoughnessTextureAssetId,
+                StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName,
+                fullPath);
+            TrackOwnedMaterial(runtimeMaterial);
             return runtimeMaterial;
         }
 
@@ -464,6 +568,10 @@ namespace helengine.editor {
                     new MaterialConstantBufferAsset {
                         Name = StandardMaterialSpecularDefaults.SpecularBufferName,
                         Data = StandardMaterialSpecularDefaults.CreateDefaultConstantBufferData()
+                    },
+                    new MaterialConstantBufferAsset {
+                        Name = StandardMaterialEmissiveColorDefaults.EmissiveColorBufferName,
+                        Data = StandardMaterialEmissiveColorDefaults.CreateDefaultConstantBufferData()
                     }
                 },
                 CastsShadows = materialAsset.CastsShadows,
@@ -616,29 +724,42 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies one authored diffuse texture to the resolved runtime material when the material asset references one.
+        /// Applies one authored imported texture to the resolved runtime material when the material asset references one and the resolved shader layout exposes the requested binding.
         /// </summary>
-        /// <param name="runtimeMaterial">Runtime material that should receive the diffuse texture.</param>
-        /// <param name="materialAsset">Serialized material asset that declares the authored diffuse texture asset id.</param>
+        /// <param name="runtimeMaterial">Runtime material that should receive the imported texture.</param>
+        /// <param name="textureAssetId">Imported texture asset identifier stored on the serialized material asset.</param>
+        /// <param name="bindingName">Shader runtime texture binding name that should receive the imported texture.</param>
         /// <param name="materialPath">Absolute path to the serialized material asset.</param>
-        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, ShaderMaterialAsset materialAsset, string materialPath) {
+        void ApplyMaterialImportedTexture(RuntimeMaterial runtimeMaterial, string textureAssetId, string bindingName, string materialPath) {
             if (runtimeMaterial == null) {
                 throw new ArgumentNullException(nameof(runtimeMaterial));
             }
-            if (materialAsset == null) {
-                throw new ArgumentNullException(nameof(materialAsset));
+            if (string.IsNullOrWhiteSpace(bindingName)) {
+                throw new ArgumentException("Texture binding name must be provided.", nameof(bindingName));
             }
             if (string.IsNullOrWhiteSpace(materialPath)) {
                 throw new ArgumentException("Material path must be provided.", nameof(materialPath));
             }
-            if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
+
+            ShaderRuntimeMaterial shaderRuntimeMaterial = ShaderRuntimeMaterialAccess.Require(runtimeMaterial);
+            int textureBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(bindingName);
+            if (textureBindingIndex < 0 || string.IsNullOrWhiteSpace(textureAssetId)) {
                 return;
             }
 
-            string diffuseTexturePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
-            TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
+            string diffuseTexturePath = ResolveImportedTextureAssetPath(textureAssetId);
+            TextureAsset textureAsset;
+            if (File.Exists(diffuseTexturePath)) {
+                textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
+            } else if (FileSystemTextureResolver != null &&
+                FileSystemTextureResolver.TryLoadImportedTextureAsset(textureAssetId, out textureAsset)) {
+            } else {
+                textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
+            }
+
             RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
-            ShaderRuntimeMaterialAccess.Require(runtimeMaterial).Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
+            TrackOwnedTexture(runtimeTexture);
+            shaderRuntimeMaterial.Properties.SetTexture(textureBindingIndex, runtimeTexture);
         }
 
         /// <summary>
@@ -686,10 +807,14 @@ namespace helengine.editor {
         FontAsset ResolveFileSystemFont(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference);
             if (FileSystemFontResolver != null) {
-                return FileSystemFontResolver.ResolveFontAsset(fullPath);
+                FontAsset resolvedFont = FileSystemFontResolver.ResolveFontAsset(fullPath);
+                TrackOwnedFont(resolvedFont);
+                return resolvedFont;
             }
 
-            return AssetContentManager.Load<FontAsset>(fullPath, RuntimeContentProcessorIds.FontAsset);
+            FontAsset loadedFont = AssetContentManager.Load<FontAsset>(fullPath, RuntimeContentProcessorIds.FontAsset);
+            TrackOwnedFont(loadedFont);
+            return loadedFont;
         }
 
         /// <summary>
@@ -777,6 +902,62 @@ namespace helengine.editor {
             }
 
             return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Tracks one scene-owned runtime texture so the editor can release it when the scene is replaced.
+        /// </summary>
+        /// <param name="asset">Runtime texture resolved during editor scene materialization.</param>
+        void TrackOwnedTexture(RuntimeTexture asset) {
+            if (asset == null || ActiveOwnedTextures == null) {
+                return;
+            }
+
+            if (!ActiveOwnedTextures.Contains(asset)) {
+                ActiveOwnedTextures.Add(asset);
+            }
+        }
+
+        /// <summary>
+        /// Tracks one scene-owned font asset so the editor can release it when the scene is replaced.
+        /// </summary>
+        /// <param name="asset">Font asset resolved during editor scene materialization.</param>
+        void TrackOwnedFont(FontAsset asset) {
+            if (asset == null || ActiveOwnedFonts == null) {
+                return;
+            }
+
+            if (!ActiveOwnedFonts.Contains(asset)) {
+                ActiveOwnedFonts.Add(asset);
+            }
+        }
+
+        /// <summary>
+        /// Tracks one scene-owned runtime model so the editor can release it when the scene is replaced.
+        /// </summary>
+        /// <param name="asset">Runtime model resolved during editor scene materialization.</param>
+        void TrackOwnedModel(RuntimeModel asset) {
+            if (asset == null || ActiveOwnedModels == null) {
+                return;
+            }
+
+            if (!ActiveOwnedModels.Contains(asset)) {
+                ActiveOwnedModels.Add(asset);
+            }
+        }
+
+        /// <summary>
+        /// Tracks one scene-owned runtime material so the editor can release it when the scene is replaced.
+        /// </summary>
+        /// <param name="asset">Runtime material resolved during editor scene materialization.</param>
+        void TrackOwnedMaterial(RuntimeMaterial asset) {
+            if (asset == null || ActiveOwnedMaterials == null) {
+                return;
+            }
+
+            if (!ActiveOwnedMaterials.Contains(asset)) {
+                ActiveOwnedMaterials.Add(asset);
+            }
         }
 
         /// <summary>

@@ -74,7 +74,7 @@ namespace helengine {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
                         Core.Instance.ObjectManager.RemoveCamera(this);
                         cameraDrawOrder = value;
-                        Core.Instance.ObjectManager.RegisterCamera(this);
+                        RegisterWithObjectManagerIfNeeded();
                     } else {
                         cameraDrawOrder = value;
                     }
@@ -173,7 +173,7 @@ namespace helengine {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
                         Core.Instance.ObjectManager.RemoveCamera(this);
                         layerMask = value;
-                        Core.Instance.ObjectManager.RegisterCamera(this);
+                        RegisterWithObjectManagerIfNeeded();
                     } else {
                         layerMask = value;
                     }
@@ -203,9 +203,7 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (entity.IsHierarchyEnabled) {
-                Core.Instance.ObjectManager.RegisterCamera(this);
-            }
+            RegisterWithObjectManagerIfNeeded();
         }
 
         /// <summary>
@@ -216,7 +214,7 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (newEnabled) {
-                Core.Instance.ObjectManager.RegisterCamera(this);
+                RegisterWithObjectManagerIfNeeded();
             } else {
                 Core.Instance.ObjectManager.RemoveCamera(this);
             }
@@ -238,6 +236,39 @@ namespace helengine {
             if (ViewportChanged != null) {
                 ViewportChanged();
             }
+        }
+
+        /// <summary>
+        /// Registers this camera with the object manager when the owning entity is enabled and no editor suppression marker is attached.
+        /// </summary>
+        void RegisterWithObjectManagerIfNeeded() {
+            if (Parent == null || !Parent.IsHierarchyEnabled) {
+                return;
+            }
+            if (HasEditorSceneCameraSuppressionMarker()) {
+                return;
+            }
+
+            Core.Instance.ObjectManager.RegisterCamera(this);
+        }
+
+        /// <summary>
+        /// Returns whether the owning entity currently carries one editor scene-camera suppression marker.
+        /// </summary>
+        /// <returns>True when the camera should stay out of the runtime camera list during editor authoring; otherwise false.</returns>
+        bool HasEditorSceneCameraSuppressionMarker() {
+            if (Parent == null || Parent.Components == null) {
+                return false;
+            }
+
+            for (int componentIndex = 0; componentIndex < Parent.Components.Count; componentIndex++) {
+                Component component = Parent.Components[componentIndex];
+                if (component != null && component.IsEditorSceneCameraSuppressionMarker) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

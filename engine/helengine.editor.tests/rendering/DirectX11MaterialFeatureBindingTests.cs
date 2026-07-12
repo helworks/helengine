@@ -134,6 +134,45 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures the DirectX11 material-binding path maps unified cross-API texture slots back to native DirectX11 registers before binding shader resources.
+        /// </summary>
+        [Fact]
+        public void ResolveMaterialTextureBindings_WhenLayoutUsesUnifiedTextureSlots_MapsBackToNativeDirectX11Registers() {
+            TestRuntimeMaterial material = new TestRuntimeMaterial();
+            DirectX11RenderTargetResource diffuseTexture = (DirectX11RenderTargetResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11RenderTargetResource));
+            DirectX11RenderTargetResource roughnessTexture = (DirectX11RenderTargetResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11RenderTargetResource));
+            ShaderResourceView diffuseResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
+            ShaderResourceView roughnessResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
+            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
+            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialTextureBindings", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(method);
+
+            material.SetLayout(new MaterialLayout(
+                "shader/test",
+                "VS",
+                "PS",
+                "default",
+                new MaterialRenderState(),
+                new[] {
+                    new MaterialLayoutBinding(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ShaderResourceType.Texture2D, 0, 100, 0),
+                    new MaterialLayoutBinding(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName, ShaderResourceType.Texture2D, 0, 106, 0)
+                },
+                Array.Empty<MaterialLayoutBinding>(),
+                Array.Empty<MaterialLayoutBinding>()));
+            SetAutoPropertyBackingField(diffuseTexture, "ShaderResourceView", diffuseResourceView);
+            SetAutoPropertyBackingField(roughnessTexture, "ShaderResourceView", roughnessResourceView);
+            material.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, diffuseTexture);
+            material.Properties.SetTexture(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName, roughnessTexture);
+
+            IList resolvedBindings = Assert.IsAssignableFrom<IList>(method.Invoke(renderer, new object[] { material }));
+
+            Assert.Equal(2, resolvedBindings.Count);
+            AssertResolvedTextureBinding(resolvedBindings[0], 0, diffuseResourceView);
+            AssertResolvedTextureBinding(resolvedBindings[1], 6, roughnessResourceView);
+        }
+
+        /// <summary>
         /// Ensures DirectX11 shadow-caster eligibility stays on the DirectX11 material root instead of leaking into shared material state.
         /// </summary>
         [Fact]
@@ -239,6 +278,32 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures the DirectX11 draw-submission path falls back to the missing-material resource instead of crashing when one drawable submesh has no runtime material.
+        /// </summary>
+        [Fact]
+        public void Visit_WhenSubmissionMaterialIsNull_DoesNotThrow() {
+            Core core = CreateInitializedCore();
+            using TestVisitDirectX11Renderer3D renderer = new TestVisitDirectX11Renderer3D();
+            Entity parent = new Entity();
+            RuntimeModel model = renderer.BuildModelFromRaw(CreateTriangleModelAsset());
+            TestDrawable3D drawable = new TestDrawable3D(parent, model, new RuntimeMaterial[] { null });
+            var submission = new RenderFrameDrawableSubmission(
+                drawable,
+                0,
+                null,
+                false,
+                new RenderFrameBatchingMetadata(false, false, false));
+
+            SetPrivateFieldValue(renderer, "currentViewProjection", float4x4.Identity);
+            SetPrivateFieldValue(renderer, "currentCameraPosition", float3.Zero);
+
+            Exception exception = Record.Exception(() => renderer.VisitSubmission(submission));
+
+            Assert.NotNull(core);
+            Assert.Null(exception);
+        }
+
+        /// <summary>
         /// Ensures the DirectX11 standard-mesh shader data transposes the inverse-transpose matrix before upload so HLSL row-vector normal transforms match the uploaded world-matrix convention.
         /// </summary>
         [Fact]
@@ -273,6 +338,52 @@ namespace helengine.editor.tests.rendering {
                 Array.Empty<MaterialLayoutBinding>(),
                 Array.Empty<MaterialLayoutBinding>()));
             return material;
+        }
+
+        /// <summary>
+        /// Creates one minimal triangle model asset suitable for DirectX11 draw-path tests.
+        /// </summary>
+        /// <returns>Triangle model asset with one authored submesh.</returns>
+        static ModelAsset CreateTriangleModelAsset() {
+            return new ModelAsset {
+                Positions = new[] {
+                    new float3(0f, 0f, 0f),
+                    new float3(1f, 0f, 0f),
+                    new float3(0f, 1f, 0f)
+                },
+                Normals = new[] {
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(0f, 1f)
+                },
+                Indices16 = new ushort[] { 0, 1, 2 },
+                Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        MaterialSlotName = "Default",
+                        IndexStart = 0,
+                        IndexCount = 3
+                    }
+                }
+            };
+        }
+
+        /// <summary>
+        /// Creates one initialized core so entity registration succeeds during renderer draw-path tests.
+        /// </summary>
+        /// <returns>Initialized core instance.</returns>
+        static Core CreateInitializedCore() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource(),
+                RenderList3DInitialCapacity = 4,
+                RenderList2DInitialCapacity = 4
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            return core;
         }
 
         /// <summary>
@@ -397,6 +508,17 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Sets one private instance field on the supplied object.
+        /// </summary>
+        /// <param name="instance">Object that owns the requested field.</param>
+        /// <param name="fieldName">Private field name to write.</param>
+        /// <param name="value">Value to assign to the field.</param>
+        static void SetPrivateFieldValue(object instance, string fieldName, object value) {
+            FieldInfo field = GetRequiredInstanceField(instance, fieldName);
+            field.SetValue(instance, value);
+        }
+
+        /// <summary>
         /// Reads one private instance field from the supplied object.
         /// </summary>
         /// <typeparam name="TValue">Expected field value type.</typeparam>
@@ -404,6 +526,17 @@ namespace helengine.editor.tests.rendering {
         /// <param name="fieldName">Private field name to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         static TValue GetPrivateFieldValue<TValue>(object instance, string fieldName) {
+            FieldInfo field = GetRequiredInstanceField(instance, fieldName);
+            return (TValue)field.GetValue(instance);
+        }
+
+        /// <summary>
+        /// Resolves one private instance field declared on the supplied type or one of its base types.
+        /// </summary>
+        /// <param name="instance">Object that owns the requested field.</param>
+        /// <param name="fieldName">Private field name to resolve.</param>
+        /// <returns>Resolved reflection field metadata.</returns>
+        static FieldInfo GetRequiredInstanceField(object instance, string fieldName) {
             if (instance == null) {
                 throw new ArgumentNullException(nameof(instance));
             }
@@ -411,12 +544,17 @@ namespace helengine.editor.tests.rendering {
                 throw new ArgumentException("Field name must be provided.", nameof(fieldName));
             }
 
-            FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            if (field == null) {
-                throw new InvalidOperationException($"Could not find private field '{fieldName}'.");
+            Type currentType = instance.GetType();
+            while (currentType != null) {
+                FieldInfo field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+                if (field != null) {
+                    return field;
+                }
+
+                currentType = currentType.BaseType;
             }
 
-            return (TValue)field.GetValue(instance);
+            throw new InvalidOperationException($"Could not find private field '{fieldName}'.");
         }
 
         /// <summary>
@@ -478,6 +616,64 @@ namespace helengine.editor.tests.rendering {
             }
 
             field.SetValue(instance, value);
+        }
+
+        /// <summary>
+        /// Provides one minimal drawable implementation for DirectX11 draw-path tests.
+        /// </summary>
+        sealed class TestDrawable3D : IDrawable3D {
+            /// <summary>
+            /// Initializes one test drawable with the supplied runtime resources.
+            /// </summary>
+            /// <param name="parent">Entity that owns the drawable.</param>
+            /// <param name="model">Runtime model to render.</param>
+            /// <param name="materials">Runtime materials bound to the drawable.</param>
+            public TestDrawable3D(Entity parent, RuntimeModel model, RuntimeMaterial[] materials) {
+                Parent = parent ?? throw new ArgumentNullException(nameof(parent));
+                Model = model ?? throw new ArgumentNullException(nameof(model));
+                Materials = materials ?? throw new ArgumentNullException(nameof(materials));
+            }
+
+            /// <summary>
+            /// Gets the parent entity that owns the drawable.
+            /// </summary>
+            public Entity Parent { get; }
+
+            /// <summary>
+            /// Gets or sets the render order for 3D drawing.
+            /// </summary>
+            public byte RenderOrder3D { get; set; }
+
+            /// <summary>
+            /// Gets the runtime model associated with this drawable.
+            /// </summary>
+            public RuntimeModel Model { get; }
+
+            /// <summary>
+            /// Gets or sets the runtime materials bound to each drawable submesh slot.
+            /// </summary>
+            public RuntimeMaterial[] Materials { get; set; }
+        }
+
+        /// <summary>
+        /// Exposes the protected DirectX11 draw-submission path and suppresses the final draw call so tests can isolate submission setup behavior.
+        /// </summary>
+        sealed class TestVisitDirectX11Renderer3D : DirectX11Renderer3D {
+            /// <summary>
+            /// Executes the base DirectX11 draw-submission path for one extracted render-frame submission.
+            /// </summary>
+            /// <param name="submission">Submission to process.</param>
+            public void VisitSubmission(RenderFrameDrawableSubmission submission) {
+                Visit(submission);
+            }
+
+            /// <summary>
+            /// Suppresses the native draw call because this test only verifies material fallback setup.
+            /// </summary>
+            /// <param name="model">Model resource currently bound to the input assembler.</param>
+            /// <param name="submesh">Resolved runtime submesh.</param>
+            protected override void DrawSubmesh(DirectX11ModelResource model, RuntimeSubmesh submesh) {
+            }
         }
     }
 }

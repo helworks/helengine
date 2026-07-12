@@ -35,6 +35,11 @@ namespace helengine {
         public virtual bool IsEditorUpdateExecutionSuppressionMarker => false;
 
         /// <summary>
+        /// Gets whether this component is the editor-owned suppression marker that keeps one authored scene camera out of the runtime camera list during scene authoring.
+        /// </summary>
+        public virtual bool IsEditorSceneCameraSuppressionMarker => false;
+
+        /// <summary>
         /// Gets the raw attached parent entity for internal lifecycle flows that must complete during disposal.
         /// </summary>
         internal Entity ParentUnsafe => Parent;

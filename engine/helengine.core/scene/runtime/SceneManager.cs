@@ -196,6 +196,63 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Tracks one externally materialized scene so editor-hosted authored scenes appear in runtime scene queries.
+        /// </summary>
+        /// <param name="sceneId">Stable scene identifier that should be tracked as loaded.</param>
+        /// <param name="rootEntities">Live root entities that currently represent the loaded scene.</param>
+        /// <param name="dontUnload">True when the externally tracked scene should survive single-scene runtime transitions.</param>
+        public void TrackExternallyLoadedScene(string sceneId, IReadOnlyList<Entity> rootEntities, bool dontUnload) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id is required.", nameof(sceneId));
+            }
+            if (rootEntities == null) {
+                throw new ArgumentNullException(nameof(rootEntities));
+            }
+            if (LoadedSceneRecordsById.ContainsKey(sceneId)) {
+                throw new InvalidOperationException($"Runtime scene '{sceneId}' is already tracked as loaded.");
+            }
+
+            string sceneContentPath = ResolveSceneContentPath(sceneId);
+            LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(
+                sceneId,
+                sceneContentPath,
+                rootEntities,
+                CreateEmptyOwnedAssetSet(),
+                dontUnload);
+            RecordTraceState("TrackExternallyLoadedSceneBeforeTrack", sceneId);
+            LoadedSceneRecords.Add(loadedSceneRecord);
+            LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
+            RecordTraceState("TrackExternallyLoadedSceneAfterTrack", sceneId);
+        }
+
+        /// <summary>
+        /// Stops tracking one externally materialized scene without disposing its entities or releasing externally owned assets.
+        /// </summary>
+        /// <param name="sceneId">Stable scene identifier that should no longer be tracked as loaded.</param>
+        /// <returns>True when one tracked external scene record was removed; otherwise false.</returns>
+        public bool TryUntrackExternallyLoadedScene(string sceneId) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id is required.", nameof(sceneId));
+            }
+            if (!LoadedSceneRecordsById.TryGetValue(sceneId, out LoadedSceneRecord loadedSceneRecord)) {
+                return false;
+            }
+
+            RecordTraceState("TryUntrackExternallyLoadedSceneBeforeRemove", sceneId);
+            LoadedSceneRecordsById.Remove(loadedSceneRecord.SceneId);
+            LoadedSceneRecords.Remove(loadedSceneRecord);
+            RecordTraceState("TryUntrackExternallyLoadedSceneAfterRemove", sceneId);
+            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedTextures);
+            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedFonts);
+            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedAudio);
+            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedModels);
+            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedMaterials);
+            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets);
+            NativeOwnership.Delete(loadedSceneRecord);
+            return true;
+        }
+
+        /// <summary>
         /// Gets the most recent scene-manager transition stage recorded for runtime diagnostics.
         /// </summary>
         public string LastTraceStage { get; private set; } = string.Empty;
@@ -1102,6 +1159,19 @@ namespace helengine {
             RecordTraceState("MatBeforeRM3D", LastTraceSceneId);
             Core.Instance.RenderManager3D.ReleaseMaterial(ownedAsset);
             RecordTraceState("MatAfterRM3D", LastTraceSceneId);
+        }
+
+        /// <summary>
+        /// Creates one empty owned-asset set for externally tracked scenes whose lifetime remains managed by another host.
+        /// </summary>
+        /// <returns>Empty owned-asset set.</returns>
+        static RuntimeSceneOwnedAssetSet CreateEmptyOwnedAssetSet() {
+            return new RuntimeSceneOwnedAssetSet(
+                Array.Empty<RuntimeTexture>(),
+                Array.Empty<FontAsset>(),
+                Array.Empty<AudioAsset>(),
+                Array.Empty<RuntimeModel>(),
+                Array.Empty<RuntimeMaterial>());
         }
 
         /// <summary>

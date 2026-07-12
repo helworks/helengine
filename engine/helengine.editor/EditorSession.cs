@@ -44,6 +44,10 @@ namespace helengine.editor {
         /// </summary>
         const string PreviewPanelTypeId = "preview";
         /// <summary>
+        /// Initial capacity reserved for pending shader-build notifications that must be applied on the editor frame thread.
+        /// </summary>
+        const int PendingShaderBuildNotificationInitialCapacity = 8;
+        /// <summary>
         /// Built-in runtime shader variant.
         /// </summary>
         const string DefaultRuntimeShaderVariant = "default";
@@ -179,6 +183,14 @@ namespace helengine.editor {
         /// Preview dock panel for texture assets.
         /// </summary>
         readonly PreviewPanel previewPanel;
+        /// <summary>
+        /// Synchronizes background shader-build notifications before they are applied on the editor frame thread.
+        /// </summary>
+        readonly object PendingShaderBuildNotificationLock;
+        /// <summary>
+        /// Background shader-build notifications waiting to refresh runtime renderer shader resources on the editor frame thread.
+        /// </summary>
+        readonly Queue<KeyValuePair<string, string>> PendingShaderBuildNotifications;
         /// <summary>
         /// Resolves the active preview source for the current selection snapshot.
         /// </summary>
@@ -384,6 +396,10 @@ namespace helengine.editor {
         /// </summary>
         SceneSettingsAsset CurrentSceneSettings;
         /// <summary>
+        /// Runtime assets owned by the currently loaded editor scene and released when the scene is replaced.
+        /// </summary>
+        RuntimeSceneOwnedAssetSet CurrentSceneOwnedAssets;
+        /// <summary>
         /// True when the current scene contains unsaved editor changes.
         /// </summary>
         bool IsSceneDirty;
@@ -516,6 +532,8 @@ namespace helengine.editor {
             materialAssetSettingsService = new MaterialAssetSettingsService();
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             sceneCanvasProfileState = new EditorSceneCanvasProfileState();
+            PendingShaderBuildNotificationLock = new object();
+            PendingShaderBuildNotifications = new Queue<KeyValuePair<string, string>>(PendingShaderBuildNotificationInitialCapacity);
             previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D, sceneCanvasProfileState);
 
             uiCameraEntity = new EditorEntity();
@@ -609,6 +627,7 @@ namespace helengine.editor {
                 sceneAssetReferenceResolver);
             CurrentScenePath = string.Empty;
             CurrentSceneSettings = new SceneSettingsAsset();
+            CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
             PendingOpenScenePath = string.Empty;
             PendingSceneTransition = SceneTransitionKind.None;
@@ -979,6 +998,7 @@ namespace helengine.editor {
         /// <param name="renderWidth">Current render width.</param>
         /// <param name="renderHeight">Current render height.</param>
         public void UpdateFrame(int renderWidth, int renderHeight) {
+            ProcessPendingShaderBuildNotifications();
             Update();
             UpdateLayout(renderWidth, renderHeight);
             bool layoutDirty = UpdateDocking(renderWidth, renderHeight);
@@ -1443,6 +1463,9 @@ namespace helengine.editor {
             shaderModuleManager.Dispose();
             DetachTrackedWorkspacePanelsForDispose();
             EditorKeyboardFocusService.Reset();
+            UntrackCurrentSceneFromSceneManager();
+            ClearUserSceneEntities();
+            ReleaseCurrentSceneOwnedAssets();
             core.Dispose();
         }
 
@@ -3164,10 +3187,17 @@ namespace helengine.editor {
             List<EditorEntity> existingSceneEntities = CaptureUserSceneEntities();
             try {
                 LoadedEditorSceneDocument loadedSceneDocument = SceneFileLoadService.Load(fullPath);
+                RuntimeSceneOwnedAssetSet previousOwnedAssets = CurrentSceneOwnedAssets;
+                UntrackCurrentSceneFromSceneManager();
                 ClearUserSceneEntities(existingSceneEntities);
+                CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
+                EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(previousOwnedAssets);
                 AttachLoadedRoots(loadedSceneDocument.RootEntities);
+                BindSceneToPhysicsRuntime(loadedSceneDocument.RootEntities);
+                CurrentSceneOwnedAssets = loadedSceneDocument.OwnedAssets ?? throw new InvalidOperationException("Loaded editor scenes must provide an owned-asset set.");
                 CurrentScenePath = Path.GetFullPath(fullPath);
                 CurrentSceneSettings = loadedSceneDocument.SceneSettings;
+                TrackCurrentSceneInSceneManager(loadedSceneDocument.RootEntities, CurrentSceneSettings);
                 sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
                 MarkSceneClean();
                 EditorSelectionService.ClearSelection();
@@ -3190,7 +3220,10 @@ namespace helengine.editor {
         /// Resets the session to one new empty scene.
         /// </summary>
         void ResetToNewScene() {
+            UntrackCurrentSceneFromSceneManager();
             ClearUserSceneEntities();
+            BindSceneToPhysicsRuntime(Array.Empty<Entity>());
+            ReleaseCurrentSceneOwnedAssets();
             CurrentScenePath = string.Empty;
             CurrentSceneSettings = new SceneSettingsAsset();
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
@@ -3318,9 +3351,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Captures the current user-authored scene entities so they can be removed later without touching newly loaded entities.
+        /// Captures the current user-authored scene root entities so they can be disposed later without touching newly loaded entities.
         /// </summary>
-        /// <returns>Snapshot of the current user-authored scene entities.</returns>
+        /// <returns>Snapshot of the current user-authored scene root entities.</returns>
         List<EditorEntity> CaptureUserSceneEntities() {
             List<Entity> liveEntities = new List<Entity>(helengine.Core.Instance.ObjectManager.Entities);
             List<EditorEntity> capturedEntities = new List<EditorEntity>(liveEntities.Count);
@@ -3328,7 +3361,7 @@ namespace helengine.editor {
                 if (liveEntities[i] is not EditorEntity editorEntity) {
                     continue;
                 }
-                if (!IsUserSceneEntity(editorEntity)) {
+                if (!IsUserSceneRootEntity(editorEntity)) {
                     continue;
                 }
 
@@ -3339,9 +3372,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Removes the provided user-authored scene entities from the live session.
+        /// Disposes the provided user-authored scene root entities from the live session.
         /// </summary>
-        /// <param name="entities">Previously captured user-authored scene entities to remove.</param>
+        /// <param name="entities">Previously captured user-authored scene root entities to dispose.</param>
         void ClearUserSceneEntities(IReadOnlyList<EditorEntity> entities) {
             if (entities == null) {
                 throw new ArgumentNullException(nameof(entities));
@@ -3352,12 +3385,11 @@ namespace helengine.editor {
                 if (editorEntity == null) {
                     continue;
                 }
-                if (!IsUserSceneEntity(editorEntity)) {
+                if (!IsUserSceneRootEntity(editorEntity)) {
                     continue;
                 }
 
-                editorEntity.Enabled = false;
-                helengine.Core.Instance.ObjectManager.RemoveEntity(editorEntity);
+                NativeOwnership.DisposeAndDelete(editorEntity);
             }
         }
 
@@ -3378,6 +3410,109 @@ namespace helengine.editor {
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Determines whether one editor entity is a root of the user-authored scene and can be disposed without double-tearing down child entities.
+        /// </summary>
+        /// <param name="editorEntity">Editor entity to evaluate.</param>
+        /// <returns>True when the entity is a user-authored scene root.</returns>
+        bool IsUserSceneRootEntity(EditorEntity editorEntity) {
+            if (!IsUserSceneEntity(editorEntity)) {
+                return false;
+            }
+            if (editorEntity.Parent is not EditorEntity parentEditorEntity) {
+                return true;
+            }
+
+            return !IsUserSceneEntity(parentEditorEntity);
+        }
+
+        /// <summary>
+        /// Releases the runtime assets owned by the current editor scene and resets the tracked owned-asset set.
+        /// </summary>
+        void ReleaseCurrentSceneOwnedAssets() {
+            if (CurrentSceneOwnedAssets == null) {
+                throw new InvalidOperationException("The current editor scene did not initialize its owned-asset tracking state.");
+            }
+
+            RuntimeSceneOwnedAssetSet ownedAssets = CurrentSceneOwnedAssets;
+            CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
+            EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets);
+        }
+
+        /// <summary>
+        /// Creates one empty scene-owned asset set used before any user scene has been loaded.
+        /// </summary>
+        /// <returns>Empty scene-owned asset set.</returns>
+        static RuntimeSceneOwnedAssetSet CreateEmptyOwnedAssetSet() {
+            return new RuntimeSceneOwnedAssetSet(
+                Array.Empty<RuntimeTexture>(),
+                Array.Empty<FontAsset>(),
+                Array.Empty<AudioAsset>(),
+                Array.Empty<RuntimeModel>(),
+                Array.Empty<RuntimeMaterial>());
+        }
+
+        /// <summary>
+        /// Tracks the current editor-authored scene in the runtime scene manager so gameplay systems can resolve loaded-scene ids and roots.
+        /// </summary>
+        /// <param name="rootEntities">Root entities that represent the current editor-authored scene.</param>
+        /// <param name="sceneSettings">Scene settings restored from the authored scene file.</param>
+        void TrackCurrentSceneInSceneManager(IReadOnlyList<Entity> rootEntities, SceneSettingsAsset sceneSettings) {
+            if (rootEntities == null) {
+                throw new ArgumentNullException(nameof(rootEntities));
+            }
+            if (core.SceneManager == null) {
+                throw new InvalidOperationException("Editor scene tracking requires one initialized runtime scene manager.");
+            }
+            if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
+                throw new InvalidOperationException("Editor scene tracking requires one current scene path.");
+            }
+
+            string sceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new InvalidOperationException($"Editor scene '{CurrentScenePath}' does not resolve to one stable project scene id.");
+            }
+
+            bool dontUnload = sceneSettings != null && sceneSettings.DontUnload;
+            core.SceneManager.TrackExternallyLoadedScene(sceneId, rootEntities, dontUnload);
+        }
+
+        /// <summary>
+        /// Removes the current editor-authored scene from runtime scene-manager tracking before the editor replaces or clears the scene.
+        /// </summary>
+        void UntrackCurrentSceneFromSceneManager() {
+            if (core.SceneManager == null || string.IsNullOrWhiteSpace(CurrentScenePath)) {
+                return;
+            }
+
+            string sceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                return;
+            }
+
+            core.SceneManager.TryUntrackExternallyLoadedScene(sceneId);
+        }
+
+        /// <summary>
+        /// Binds the current live editor scene hierarchy to the active physics runtime when the runtime supports scene binding.
+        /// </summary>
+        /// <param name="rootEntities">Current scene root entities that should define the active bound physics scene.</param>
+        void BindSceneToPhysicsRuntime(IReadOnlyList<Entity> rootEntities) {
+            if (rootEntities == null) {
+                throw new ArgumentNullException(nameof(rootEntities));
+            }
+            if (helengine.Core.Instance == null) {
+                throw new InvalidOperationException("An active core instance must exist before binding editor scenes to the physics runtime.");
+            }
+
+            ISceneBindablePhysicsRuntime sceneBindablePhysicsRuntime = helengine.Core.Instance.PhysicsRuntime as ISceneBindablePhysicsRuntime;
+            if (sceneBindablePhysicsRuntime == null) {
+                return;
+            }
+
+            sceneBindablePhysicsRuntime.BindScene(rootEntities);
         }
 
         /// <summary>
@@ -3646,12 +3781,34 @@ namespace helengine.editor {
                 return;
             }
 
-            try {
-                ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAssetFromPackage(packagePath);
-                string shaderAssetId = string.IsNullOrWhiteSpace(shaderAsset.Id) ? shaderName : shaderAsset.Id;
-                core.RenderManager3D.InvalidateShaderResources(shaderAssetId, shaderAsset);
-            } catch (Exception ex) {
-                Logger.WriteError($"Shader reload failed for '{shaderName}': {ex.Message}");
+            lock (PendingShaderBuildNotificationLock) {
+                PendingShaderBuildNotifications.Enqueue(new KeyValuePair<string, string>(shaderName ?? string.Empty, packagePath));
+            }
+        }
+
+        /// <summary>
+        /// Applies queued shader-build notifications on the editor frame thread so runtime renderer shader state is never mutated from a background watcher thread.
+        /// </summary>
+        void ProcessPendingShaderBuildNotifications() {
+            while (true) {
+                KeyValuePair<string, string> notification;
+                lock (PendingShaderBuildNotificationLock) {
+                    if (PendingShaderBuildNotifications.Count == 0) {
+                        return;
+                    }
+
+                    notification = PendingShaderBuildNotifications.Dequeue();
+                }
+
+                try {
+                    string shaderName = notification.Key;
+                    string packagePath = notification.Value;
+                    ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAssetFromPackage(packagePath);
+                    string shaderAssetId = string.IsNullOrWhiteSpace(shaderAsset.Id) ? shaderName : shaderAsset.Id;
+                    core.RenderManager3D.InvalidateShaderResources(shaderAssetId, shaderAsset);
+                } catch (Exception ex) {
+                    Logger.WriteError($"Shader reload failed for '{notification.Key}': {ex.Message}");
+                }
             }
         }
 

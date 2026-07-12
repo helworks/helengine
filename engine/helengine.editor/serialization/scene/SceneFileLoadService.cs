@@ -8,6 +8,10 @@ namespace helengine.editor {
         /// </summary>
         readonly string ProjectRootPath;
         /// <summary>
+        /// Scene asset resolver used to rebuild runtime-backed asset references.
+        /// </summary>
+        readonly ISceneAssetReferenceResolver ReferenceResolver;
+        /// <summary>
         /// Scene-load service that reconstructs entities from scene assets.
         /// </summary>
         readonly SceneLoadService SceneLoadService;
@@ -33,6 +37,7 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
+            ReferenceResolver = referenceResolver;
             SceneLoadService = new SceneLoadService(ProjectRootPath, persistenceRegistry, referenceResolver);
         }
 
@@ -48,11 +53,16 @@ namespace helengine.editor {
 
             string normalizedPath = Path.GetFullPath(fullPath);
             HashSet<Entity> existingEntities = new HashSet<Entity>(Core.Instance.ObjectManager.Entities);
+            IEditorOwnedAssetTrackingSceneAssetReferenceResolver ownedAssetTrackingResolver = ReferenceResolver as IEditorOwnedAssetTrackingSceneAssetReferenceResolver;
+            bool ownedAssetTrackingStarted = false;
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 if (!normalizedPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
                     throw new InvalidOperationException("Scene path must be inside the current project.");
                 }
+
+                ownedAssetTrackingResolver?.BeginOwnedAssetTracking();
+                ownedAssetTrackingStarted = ownedAssetTrackingResolver != null;
 
                 EngineBinaryReadContext.CurrentAssetPath = normalizedPath;
                 using FileStream stream = new FileStream(normalizedPath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -64,12 +74,20 @@ namespace helengine.editor {
                 IReadOnlyList<EditorEntity> loadedRoots = SceneLoadService.Load(sceneAsset);
                 EditorEntity[] rootEntityArray = loadedRoots.ToArray();
                 SetRootsEnabled(rootEntityArray, false);
+                RuntimeSceneOwnedAssetSet ownedAssets = ownedAssetTrackingResolver != null
+                    ? ownedAssetTrackingResolver.CompleteOwnedAssetTracking()
+                    : CreateEmptyOwnedAssetSet();
                 return new LoadedEditorSceneDocument {
                     RootEntities = rootEntityArray,
-                    SceneSettings = sceneAsset.SceneSettings
+                    SceneSettings = sceneAsset.SceneSettings,
+                    OwnedAssets = ownedAssets
                 };
             } catch (Exception ex) {
                 CleanupFailedLoad(existingEntities);
+                if (ownedAssetTrackingStarted) {
+                    RuntimeSceneOwnedAssetSet ownedAssets = ownedAssetTrackingResolver.CancelOwnedAssetTracking();
+                    EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets);
+                }
                 throw new InvalidOperationException($"Scene load failed: {ex.Message}", ex);
             } finally {
                 EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
@@ -104,22 +122,41 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(existingEntities));
             }
 
+            List<EditorEntity> newRootEntities = new List<EditorEntity>();
             List<Entity> liveEntities = new List<Entity>(Core.Instance.ObjectManager.Entities);
             for (int i = 0; i < liveEntities.Count; i++) {
-                Entity entity = liveEntities[i];
-                if (existingEntities.Contains(entity)) {
+                if (liveEntities[i] is not EditorEntity editorEntity) {
                     continue;
                 }
-                if (entity is not EditorEntity editorEntity) {
+                if (existingEntities.Contains(editorEntity)) {
                     continue;
                 }
                 if (editorEntity.InternalEntity) {
                     continue;
                 }
+                if (editorEntity.Parent != null) {
+                    continue;
+                }
 
-                editorEntity.Enabled = false;
-                Core.Instance.ObjectManager.RemoveEntity(editorEntity);
+                newRootEntities.Add(editorEntity);
             }
+
+            for (int index = newRootEntities.Count - 1; index >= 0; index--) {
+                NativeOwnership.DisposeAndDelete(newRootEntities[index]);
+            }
+        }
+
+        /// <summary>
+        /// Creates one empty scene-owned asset set for resolvers that do not track materialized runtime assets.
+        /// </summary>
+        /// <returns>Empty scene-owned asset set.</returns>
+        static RuntimeSceneOwnedAssetSet CreateEmptyOwnedAssetSet() {
+            return new RuntimeSceneOwnedAssetSet(
+                Array.Empty<RuntimeTexture>(),
+                Array.Empty<FontAsset>(),
+                Array.Empty<AudioAsset>(),
+                Array.Empty<RuntimeModel>(),
+                Array.Empty<RuntimeMaterial>());
         }
     }
 }

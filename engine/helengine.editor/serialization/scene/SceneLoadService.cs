@@ -14,9 +14,9 @@ namespace helengine.editor {
         readonly ISceneAssetReferenceResolver ReferenceResolver;
 
         /// <summary>
-        /// Tracks stable entity ids for the current load session.
+        /// Tracks stable entity ids for the active load invocation.
         /// </summary>
-        readonly SceneEntityReferenceTable EntityReferenceTable;
+        SceneEntityReferenceTable EntityReferenceTable;
 
         /// <summary>
         /// Service that unwraps editor-only component platform override metadata from serialized component payloads.
@@ -106,6 +106,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(sceneAsset));
             }
 
+            EntityReferenceTable = new SceneEntityReferenceTable();
             ComponentExecutionContext.EnterEditor();
             try {
                 SceneEntityAsset[] rootEntities = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
@@ -153,6 +154,7 @@ namespace helengine.editor {
                 RestoreEntityTransformPlatformOverrides(entityAsset, saveComponent);
             }
             EntityReferenceTable.RegisterEntity(entity, entityAsset.Id);
+            AttachSceneEntityRuntimeId(entity, entityAsset.Id);
 
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int i = 0; i < componentRecords.Length; i++) {
@@ -185,6 +187,24 @@ namespace helengine.editor {
             }
 
             return entity;
+        }
+
+        /// <summary>
+        /// Attaches the runtime-facing stable scene-entity id component required by gameplay systems that resolve authored scene references during editor scene preview.
+        /// </summary>
+        /// <param name="entity">Loaded editor entity that should expose the authored scene id.</param>
+        /// <param name="sceneEntityId">Stable serialized scene entity id restored from the scene asset.</param>
+        static void AttachSceneEntityRuntimeId(EditorEntity entity, uint sceneEntityId) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (sceneEntityId == 0u) {
+                throw new ArgumentOutOfRangeException(nameof(sceneEntityId), "Loaded editor entities must expose a non-zero serialized scene entity id.");
+            }
+
+            entity.AddComponent(new SceneEntityRuntimeIdComponent {
+                SceneEntityId = sceneEntityId
+            });
         }
 
         /// <summary>

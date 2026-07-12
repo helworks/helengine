@@ -31,6 +31,9 @@ namespace helengine.directx11 {
     /// <summary>
     /// DirectX11-backed renderer responsible for 2D sprites, text, and UI shapes.
     /// </summary>
+    [NativeMigrationRequired(
+        "windows.native_directx_renderer",
+        "Changes to this managed DirectX11 renderer must be migrated to the Windows native DirectX renderer implementation as well.")]
     internal class DirectX11Renderer2D : RenderManager2D, IRenderVisitor2D {
         const int InitialGeometryVertexCapacity = 1024;
 
@@ -77,6 +80,10 @@ namespace helengine.directx11 {
         /// </summary>
         readonly List<float4> ActiveClipRects;
         /// <summary>
+        /// Pixel-shader texture slots currently populated by the 2D renderer.
+        /// </summary>
+        readonly List<int> ActiveTextureSlots;
+        /// <summary>
         /// Left edge of the current camera scissor rectangle.
         /// </summary>
         int currentScissorLeft;
@@ -104,6 +111,7 @@ namespace helengine.directx11 {
             ActiveClipChain = new List<IClipRegion2D>();
             NextClipChain = new List<IClipRegion2D>();
             ActiveClipRects = new List<float4>();
+            ActiveTextureSlots = new List<int>();
 
             InitializeSpritePipeline();
 
@@ -235,6 +243,7 @@ namespace helengine.directx11 {
 
             context.PixelShader.SetShaderResource(0, resourceView);
             context.PixelShader.SetSampler(0, spriteSampler);
+            TrackActiveTextureSlot(0);
 
             int2 size = drawable.Size;
             if (size.X <= 0 || size.Y <= 0) {
@@ -281,6 +290,7 @@ namespace helengine.directx11 {
 
             context.PixelShader.SetShaderResource(0, data.Resource);
             context.PixelShader.SetSampler(0, spriteSampler);
+            TrackActiveTextureSlot(0);
 
             float3 pos = drawable.Parent.Position;
             byte4 color = drawable.Color;
@@ -562,6 +572,38 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Clears every pixel-shader texture slot that was populated by 2D drawing so later passes cannot sample stale resources.
+        /// </summary>
+        [NativeMigrationRequired(
+            "windows.native_directx_renderer",
+            "Changes to DirectX11 2D texture-slot cleanup must be migrated to the Windows native DirectX renderer implementation as well.")]
+        internal void ClearActiveTextureBindings() {
+            var context = Device.ImmediateContext;
+            for (int bindingIndex = 0; bindingIndex < ActiveTextureSlots.Count; bindingIndex++) {
+                int slot = ActiveTextureSlots[bindingIndex];
+                context.PixelShader.SetShaderResource(slot, null);
+                context.PixelShader.SetSampler(slot, null);
+            }
+
+            ActiveTextureSlots.Clear();
+        }
+
+        /// <summary>
+        /// Records one 2D pixel-shader texture slot as active so it can be cleared before the next render-target transition.
+        /// </summary>
+        /// <param name="slot">Texture slot that was populated for one 2D draw.</param>
+        void TrackActiveTextureSlot(int slot) {
+            if (slot < 0) {
+                throw new ArgumentOutOfRangeException(nameof(slot), "Texture slot indices must be non-negative.");
+            }
+            if (ActiveTextureSlots.Contains(slot)) {
+                return;
+            }
+
+            ActiveTextureSlots.Add(slot);
+        }
+
+        /// <summary>
         /// Synchronizes the active clip stack with the drawable currently being visited and applies the resulting scissor rectangle.
         /// </summary>
         void SyncClipTransitions() {
@@ -830,6 +872,7 @@ namespace helengine.directx11 {
             var sdata = (DirectX11TextureResource)atlas.Texture;
             context.PixelShader.SetShaderResource(0, sdata.Resource);
             context.PixelShader.SetSampler(0, spriteSampler);
+            TrackActiveTextureSlot(0);
 
             ConfigureSpritePipeline(spriteInputLayout);
 

@@ -15,7 +15,9 @@ namespace helengine.editor.tests.managers.scene {
         /// Initializes the engine core with a DirectX11-shaped renderer so editor visual materials can be created.
         /// </summary>
         public EditorVisualMaterialFactoryTests() {
-            CoreValue = new Core();
+            CoreValue = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
             CoreValue.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 

@@ -16,6 +16,9 @@ namespace helengine.directx11 {
     /// <summary>
     /// DirectX11-backed renderer responsible for 3D rendering and swap chain management.
     /// </summary>
+    [NativeMigrationRequired(
+        "windows.native_directx_renderer",
+        "Changes to this managed DirectX11 renderer must be migrated to the Windows native DirectX renderer implementation as well.")]
     public class DirectX11Renderer3D : RenderManager3D, IShaderRenderManager3D, IRenderVisitor3D, IDirectX11RenderPassExecutor {
         /// <summary>
         /// Number of buffers used by each swap chain.
@@ -29,10 +32,6 @@ namespace helengine.directx11 {
         /// Default up axis for cameras before rotation.
         /// </summary>
         static readonly float3 DefaultUp = new float3(0f, 1f, 0f);
-        /// <summary>
-        /// Temporary trace file used while comparing directional-shadow plaza face lighting between DirectX11 and one external console renderer.
-        /// </summary>
-        static readonly string PlazaFaceTracePath = Path.Combine(Path.GetTempPath(), "helengine_windows_plaza_trace.log");
         /// <summary>
         /// Shader filename used for missing-material rendering.
         /// </summary>
@@ -154,6 +153,10 @@ namespace helengine.directx11 {
         /// </summary>
         DirectX11MaterialResource ActiveMaterial;
         /// <summary>
+        /// Tracks the pixel-shader texture slots most recently assigned by material bindings so stale shader-resource views can be cleared deterministically.
+        /// </summary>
+        List<int> ActiveMaterialTextureSlots;
+        /// <summary>
         /// World-space camera position for the active 3D camera pass.
         /// </summary>
         float3 currentCameraPosition;
@@ -201,14 +204,6 @@ namespace helengine.directx11 {
         /// Cached view-projection matrix for the active camera render pass.
         /// </summary>
         float4x4 currentViewProjection;
-        /// <summary>
-        /// Throttles plaza face trace writes so diagnostics stay bounded during renderer investigation.
-        /// </summary>
-        int plazaFaceTraceCounter;
-        /// <summary>
-        /// Limits unconditional plaza drawable trace writes so the parity log stays bounded.
-        /// </summary>
-        int plazaDrawableTraceCounter;
         /// <summary>
         /// Shared extraction service used to build backend-neutral render frames.
         /// </summary>
@@ -280,13 +275,10 @@ namespace helengine.directx11 {
             RenderQueueSnapshotVisitorValue = new DirectX11RenderQueueSnapshotVisitor();
             LightSelectionServiceValue = new DirectX11LightSelectionService();
             ShadowResourcePlannerValue = new DirectX11ShadowResourcePlanner();
-            PointShadowCubeResourcesValue = new List<DirectX11PointShadowCubeResources>();
-            MaterialConstantBuffersBySlot = new Dictionary<int, Buffer>();
-            if (File.Exists(PlazaFaceTracePath)) {
-                File.Delete(PlazaFaceTracePath);
-            }
-
-            WindowResized += OnWindowResized;
+        PointShadowCubeResourcesValue = new List<DirectX11PointShadowCubeResources>();
+        MaterialConstantBuffersBySlot = new Dictionary<int, Buffer>();
+        ActiveMaterialTextureSlots = new List<int>();
+        WindowResized += OnWindowResized;
 
             using (var factory = new DxgiFactory1()) {
                 Adapter = factory.GetAdapter1(0);
@@ -302,6 +294,7 @@ namespace helengine.directx11 {
                 FeatureLevel.Level_9_2,
                 FeatureLevel.Level_9_1,
             });
+            EnableImmediateContextMultithreadProtection();
 
             constantBuffer = new Buffer(Device, Utilities.SizeOf<StandardMeshShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
@@ -359,6 +352,16 @@ namespace helengine.directx11 {
         /// Gets the 2D renderer used for overlay/UI rendering.
         /// </summary>
         public RenderManager2D Render2D => renderer2D;
+
+        /// <summary>
+        /// Enables Direct3D11 immediate-context multithread protection so cross-thread renderer access is serialized by the runtime.
+        /// </summary>
+        void EnableImmediateContextMultithreadProtection() {
+            using Multithread multithread = Device.ImmediateContext.QueryInterface<Multithread>();
+            if (!multithread.GetMultithreadProtected()) {
+                multithread.SetMultithreadProtected(true);
+            }
+        }
 
         /// <summary>
         /// Gets the capability profile published by the DirectX11 backend.
@@ -651,6 +654,26 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Releases one runtime material and removes it from shader hot-reload tracking before the shared renderer contract disposes it.
+        /// </summary>
+        /// <param name="material">Runtime material to release.</param>
+        public override void ReleaseMaterial(RuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            if (material is DirectX11MaterialResource directX11Material) {
+                UnregisterMaterial(directX11Material);
+                if (ReferenceEquals(ActiveMaterial, directX11Material)) {
+                    ClearActiveMaterialTextureBindings();
+                    ActiveMaterial = null;
+                }
+            }
+
+            base.ReleaseMaterial(material);
+        }
+
+        /// <summary>
         /// Invalidates cached shader resources and updates materials for the specified shader asset.
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
@@ -686,6 +709,7 @@ namespace helengine.directx11 {
                 material.SetLayout(layout);
             }
 
+            ClearActiveMaterialTextureBindings();
             ActiveMaterial = null;
         }
 
@@ -787,6 +811,7 @@ namespace helengine.directx11 {
             bool clearStencil = clearSettings.ClearStencilEnabled;
             byte clearStencilValue = clearSettings.ClearStencil;
 
+            ClearShaderResourceBindingsForRenderTargetChange();
             context.OutputMerger.SetTargets(depthStencilView, renderTargetView);
             if (clearColor) {
                 context.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
@@ -917,6 +942,7 @@ namespace helengine.directx11 {
                 depthStencilView = directX11Target.DepthStencilView;
             }
 
+            ClearShaderResourceBindingsForRenderTargetChange();
             deviceContext.OutputMerger.SetTargets(depthStencilView, renderTargetView);
             ApplyCameraClear(deviceContext, camera, context.Surface, renderTarget, renderTargetView, depthStencilView);
 
@@ -943,6 +969,7 @@ namespace helengine.directx11 {
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             isCustomPassActive = false;
             customColorProvider = null;
+            ClearActiveMaterialTextureBindings();
             ActiveMaterial = null;
             deviceContext.OutputMerger.SetBlendState(null);
             ActiveBlendState = null;
@@ -952,6 +979,17 @@ namespace helengine.directx11 {
             UpdateShadowAtlasBindings(false);
             UpdatePointShadowBindings(0);
             PrepareForwardLightState(context);
+        }
+
+        /// <summary>
+        /// Clears shader-resource bindings that can alias a render target before that target is rebound for output.
+        /// </summary>
+        [NativeMigrationRequired(
+            "windows.native_directx_renderer",
+            "Changes to DirectX11 render-target transition cleanup must be migrated to the Windows native DirectX renderer implementation as well.")]
+        void ClearShaderResourceBindingsForRenderTargetChange() {
+            renderer2D.ClearActiveTextureBindings();
+            ClearActiveMaterialTextureBindings();
         }
 
         /// <summary>
@@ -1567,108 +1605,6 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Returns whether one value is within a small tolerance of an expected authored showcase value.
-        /// </summary>
-        /// <param name="value">Actual value to compare.</param>
-        /// <param name="expectedValue">Expected authored showcase value.</param>
-        /// <param name="tolerance">Maximum absolute difference allowed.</param>
-        /// <returns>True when the value matches within the requested tolerance; otherwise false.</returns>
-        bool IsApproximately(float value, float expectedValue, float tolerance) {
-            return Math.Abs(value - expectedValue) <= tolerance;
-        }
-
-        /// <summary>
-        /// Returns whether one entity matches the authored central directional-shadow plaza tower used for parity tracing.
-        /// </summary>
-        /// <param name="entity">Entity under inspection.</param>
-        /// <returns>True when the entity transform is approximately equal to the central plaza tower; otherwise false.</returns>
-        bool IsDirectionalShadowCentralTower(Entity entity) {
-            if (entity == null) {
-                return false;
-            }
-
-            float3 position = entity.Position;
-            float3 scale = entity.Scale;
-            return IsApproximately(position.X, 0f, 0.5f)
-                && IsApproximately(position.Y, 9f, 0.5f)
-                && IsApproximately(position.Z, -12f, 0.5f)
-                && IsApproximately(scale.X, 7f, 0.5f)
-                && IsApproximately(scale.Y, 18f, 0.5f)
-                && IsApproximately(scale.Z, 7f, 0.5f);
-        }
-
-        /// <summary>
-        /// Resolves the first active directional light currently registered in the object manager.
-        /// </summary>
-        /// <returns>First enabled directional light with an enabled parent entity, or null when none is active.</returns>
-        DirectionalLightComponent ResolveActiveDirectionalLight() {
-            if (Core.Instance?.ObjectManager?.DirectionalLights == null) {
-                return null;
-            }
-
-            for (int index = 0; index < Core.Instance.ObjectManager.DirectionalLights.Count; index++) {
-                DirectionalLightComponent directionalLight = Core.Instance.ObjectManager.DirectionalLights[index];
-                if (directionalLight?.Parent == null || !directionalLight.Parent.IsHierarchyEnabled) {
-                    continue;
-                }
-
-                return directionalLight;
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Appends one parity trace line for the authored central plaza tower so DirectX11 face lighting can be compared against one external console renderer.
-        /// </summary>
-        /// <param name="entity">Tower entity currently being rendered.</param>
-        void WritePlazaTowerFaceDebugTrace(Entity entity) {
-            float3 entityPosition = entity.Position;
-            float3 entityScale = entity.Scale;
-            if (plazaDrawableTraceCounter < 40) {
-                plazaDrawableTraceCounter++;
-                string drawableLine =
-                    $"PlazaDrawableTrace position={entityPosition.X},{entityPosition.Y},{entityPosition.Z}" +
-                    $" scale={entityScale.X},{entityScale.Y},{entityScale.Z}";
-                File.AppendAllText(PlazaFaceTracePath, drawableLine + Environment.NewLine);
-            }
-
-            if (!IsDirectionalShadowCentralTower(entity)) {
-                return;
-            }
-
-            DirectionalLightComponent directionalLight = ResolveActiveDirectionalLight();
-            if (directionalLight?.Parent == null) {
-                return;
-            }
-
-            plazaFaceTraceCounter++;
-            if ((plazaFaceTraceCounter % 1) != 0) {
-                return;
-            }
-
-            float3 cameraToTower = float3.Normalize(currentCameraPosition - entityPosition);
-            float3 lightDirection = float3.Normalize(LightDirectionUtility.GetEntityForwardDirection(directionalLight.Parent)) * -1f;
-            float4 entityOrientation = entity.Orientation;
-
-            float3 positiveX = float4.RotateVector(new float3(1f, 0f, 0f), entityOrientation);
-            float3 negativeX = float4.RotateVector(new float3(-1f, 0f, 0f), entityOrientation);
-            float3 positiveZ = float4.RotateVector(new float3(0f, 0f, 1f), entityOrientation);
-            float3 negativeZ = float4.RotateVector(new float3(0f, 0f, -1f), entityOrientation);
-
-            string line =
-                $"PlazaTowerFaceDebug position={entityPosition.X},{entityPosition.Y},{entityPosition.Z}" +
-                $" scale={entityScale.X},{entityScale.Y},{entityScale.Z}" +
-                $" cameraToTower={cameraToTower.X},{cameraToTower.Y},{cameraToTower.Z}" +
-                $" light={lightDirection.X},{lightDirection.Y},{lightDirection.Z}" +
-                $" pxView={float3.Dot(positiveX, cameraToTower)} pxLight={float3.Dot(positiveX, lightDirection)}" +
-                $" nxView={float3.Dot(negativeX, cameraToTower)} nxLight={float3.Dot(negativeX, lightDirection)}" +
-                $" pzView={float3.Dot(positiveZ, cameraToTower)} pzLight={float3.Dot(positiveZ, lightDirection)}" +
-                $" nzView={float3.Dot(negativeZ, cameraToTower)} nzLight={float3.Dot(negativeZ, lightDirection)}";
-            File.AppendAllText(PlazaFaceTracePath, line + Environment.NewLine);
-        }
-
-        /// <summary>
         /// Uploads the packed forward-light shader data to the DirectX11 pixel-shader constant-buffer slot.
         /// </summary>
         /// <param name="data">Packed forward-light shader data prepared for the current frame.</param>
@@ -1728,19 +1664,20 @@ namespace helengine.directx11 {
             var context = Device.ImmediateContext;
             IDrawable3D drawable = submission.Drawable;
             RuntimeMaterial runtimeMaterial = submission.Material;
+            ShaderRuntimeMaterial effectiveRuntimeMaterial = null;
             if (!isCustomPassActive) {
                 if (runtimeMaterial == null) {
                     DirectX11MaterialResource missingMaterial = GetMissingMaterial();
+                    effectiveRuntimeMaterial = missingMaterial;
                     ApplyMaterial(missingMaterial, missingMaterial);
                 } else {
-                    ShaderRuntimeMaterial shaderRuntimeMaterial = RequireShaderRuntimeMaterial(runtimeMaterial);
-                    DirectX11MaterialResource directX11Material = ResolveDirectX11Material(shaderRuntimeMaterial);
-                    ApplyMaterial(directX11Material, shaderRuntimeMaterial);
+                    effectiveRuntimeMaterial = RequireShaderRuntimeMaterial(runtimeMaterial);
+                    DirectX11MaterialResource directX11Material = ResolveDirectX11Material(effectiveRuntimeMaterial);
+                    ApplyMaterial(directX11Material, effectiveRuntimeMaterial);
                 }
             }
 
             Entity parent = drawable.Parent;
-            WritePlazaTowerFaceDebugTrace(parent);
             var data = (DirectX11ModelResource)drawable.Model;
 
             context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));
@@ -1771,13 +1708,14 @@ namespace helengine.directx11 {
                 };
                 context.UpdateSubresource(ref customData, customPassConstantBuffer);
             } else {
-                ShaderRuntimeMaterial rootMaterial = RequireShaderRuntimeMaterial(runtimeMaterial.ResolveRootMaterial());
+                effectiveRuntimeMaterial ??= RequireShaderRuntimeMaterial(runtimeMaterial);
+                ShaderRuntimeMaterial rootMaterial = RequireShaderRuntimeMaterial(effectiveRuntimeMaterial.ResolveRootMaterial());
                 if (BuiltInMaterialIds.UsesStandardMeshTransform(
                     rootMaterial.Id,
                     rootMaterial.Layout.ShaderAssetId,
                     rootMaterial.Layout.VertexProgram,
                     rootMaterial.Layout.PixelProgram)) {
-                    StandardMeshShaderData standardData = BuildStandardMeshShaderData(world, currentCameraPosition, runtimeMaterial.ReceivesShadows);
+                    StandardMeshShaderData standardData = BuildStandardMeshShaderData(world, currentCameraPosition, effectiveRuntimeMaterial.ReceivesShadows, effectiveRuntimeMaterial.SupportsEmissive);
                     standardData.World = worldTransposed;
                     standardData.WorldViewProj = worldViewProjTransposed;
                     context.UpdateSubresource(ref standardData, constantBuffer);
@@ -1795,8 +1733,9 @@ namespace helengine.directx11 {
         /// <param name="world">World transform for the current draw.</param>
         /// <param name="cameraPosition">World-space camera position for the current draw.</param>
         /// <param name="receivesShadows">Whether the current material should sample forward shadows.</param>
+        /// <param name="hasEmissiveTexture">Whether the current material should sample an authored emissive texture.</param>
         /// <returns>Standard-mesh shader data configured for one draw.</returns>
-        static StandardMeshShaderData BuildStandardMeshShaderData(float4x4 world, float3 cameraPosition, bool receivesShadows) {
+        static StandardMeshShaderData BuildStandardMeshShaderData(float4x4 world, float3 cameraPosition, bool receivesShadows, bool hasEmissiveTexture) {
             float4x4.InverseTranspose(ref world, out float4x4 inverseTransposeNormalMatrix);
             float4x4.Transpose(ref inverseTransposeNormalMatrix, out float4x4 normalMatrixTransposed);
 
@@ -1805,7 +1744,7 @@ namespace helengine.directx11 {
                 WorldViewProj = default,
                 NormalMatrix = normalMatrixTransposed,
                 CameraPosition = new float4(cameraPosition.X, cameraPosition.Y, cameraPosition.Z, 0f),
-                MaterialFlags = new float4(receivesShadows ? 1f : 0f, 0f, 0f, 0f)
+                MaterialFlags = new float4(receivesShadows ? 1f : 0f, hasEmissiveTexture ? 1f : 0f, 0f, 0f)
             };
         }
 
@@ -1855,7 +1794,8 @@ namespace helengine.directx11 {
             }
         }
 
-
+        /// <summary>
+        /// Gets whether DirectX11 repro trace logging is enabled for the current process.
         /// <summary>
         /// Sets the rounded-rectangle rendering backend for UI shapes.
         /// </summary>
@@ -2092,9 +2032,7 @@ namespace helengine.directx11 {
             DirectX11ShaderResource shaderResource = shaderMaterial.ShaderResource;
             var context = Device.ImmediateContext;
             if (!ReferenceEquals(ActiveMaterial, shaderMaterial)) {
-                if (ActiveMaterial != null) {
-                    ClearMaterialTextureBindings(ActiveMaterial);
-                }
+                ClearActiveMaterialTextureBindings();
 
                 context.InputAssembler.InputLayout = shaderResource.InputLayout;
                 context.VertexShader.Set(shaderResource.VertexShader);
@@ -2104,36 +2042,45 @@ namespace helengine.directx11 {
 
             ApplyMaterialRenderState(material.RenderState);
             ApplyMaterialConstantBufferBindings(material);
+            ClearActiveMaterialTextureBindings();
             if (material.Layout.TextureBindings.Length > 0) {
-                ClearMaterialTextureBindings(material);
                 List<DirectX11MaterialTextureBinding> resolvedBindings = ResolveMaterialTextureBindings(material);
                 for (int bindingIndex = 0; bindingIndex < resolvedBindings.Count; bindingIndex++) {
                     DirectX11MaterialTextureBinding binding = resolvedBindings[bindingIndex];
                     context.PixelShader.SetShaderResource(binding.Slot, binding.ResourceView);
                     context.PixelShader.SetSampler(binding.Slot, materialTextureSampler);
+                    TrackActiveMaterialTextureSlot(binding.Slot);
                 }
-            } else {
-                context.PixelShader.SetShaderResource(0, null);
-                context.PixelShader.SetSampler(0, null);
             }
         }
 
         /// <summary>
-        /// Clears all pixel-shader texture slots declared by one material layout.
+        /// Clears every pixel-shader texture slot that was populated by the previously applied material bindings.
         /// </summary>
-        /// <param name="material">Material whose declared texture slots should be cleared.</param>
-        void ClearMaterialTextureBindings(ShaderRuntimeMaterial material) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
+        void ClearActiveMaterialTextureBindings() {
+            var context = Device.ImmediateContext;
+            for (int bindingIndex = 0; bindingIndex < ActiveMaterialTextureSlots.Count; bindingIndex++) {
+                int slot = ActiveMaterialTextureSlots[bindingIndex];
+                context.PixelShader.SetShaderResource(slot, null);
+                context.PixelShader.SetSampler(slot, null);
             }
 
-            var context = Device.ImmediateContext;
-            MaterialLayoutBinding[] layoutBindings = material.Layout.TextureBindings;
-            for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
-                MaterialLayoutBinding binding = layoutBindings[bindingIndex];
-                context.PixelShader.SetShaderResource(binding.Slot, null);
-                context.PixelShader.SetSampler(binding.Slot, null);
+            ActiveMaterialTextureSlots.Clear();
+        }
+
+        /// <summary>
+        /// Records one pixel-shader texture slot that is now owned by the active material bindings.
+        /// </summary>
+        /// <param name="slot">Pixel-shader texture slot that was populated for the current draw.</param>
+        void TrackActiveMaterialTextureSlot(int slot) {
+            if (slot < 0) {
+                throw new ArgumentOutOfRangeException(nameof(slot), "Material texture slots cannot be negative.");
             }
+            if (ActiveMaterialTextureSlots.Contains(slot)) {
+                return;
+            }
+
+            ActiveMaterialTextureSlots.Add(slot);
         }
 
         /// <summary>
@@ -2215,10 +2162,58 @@ namespace helengine.directx11 {
                     continue;
                 }
 
-                resolvedBindings.Add(new DirectX11MaterialTextureBinding(binding.Slot, ResolveTextureResourceView(runtimeTexture)));
+                resolvedBindings.Add(new DirectX11MaterialTextureBinding(ResolveDirectX11BindingSlot(binding), ResolveTextureResourceView(runtimeTexture)));
             }
 
             return resolvedBindings;
+        }
+
+        /// <summary>
+        /// Resolves the native DirectX11 register slot for one unified material-layout binding.
+        /// </summary>
+        /// <param name="binding">Material-layout binding whose slot should be mapped for the DirectX11 backend.</param>
+        /// <returns>Native DirectX11 register slot used when binding the resource.</returns>
+        [NativeMigrationRequired(
+            "windows.native_directx_renderer",
+            "Changes to managed DirectX11 material-slot remapping must be migrated to the Windows native DirectX renderer implementation as well.")]
+        static int ResolveDirectX11BindingSlot(MaterialLayoutBinding binding) {
+            if (binding == null) {
+                throw new ArgumentNullException(nameof(binding));
+            }
+
+            ShaderBindingPolicy policy = ShaderBindingPolicies.Default;
+            int shift = GetBindingShift(policy, binding.ResourceType);
+            if (shift <= 0 || binding.Slot < shift) {
+                return binding.Slot;
+            }
+
+            return binding.Slot - shift;
+        }
+
+        /// <summary>
+        /// Gets the unified-slot shift used by the shared shader binding policy for one resource class.
+        /// </summary>
+        /// <param name="policy">Binding policy that defines unified resource-class shifts.</param>
+        /// <param name="resourceType">Resource class whose shift should be resolved.</param>
+        /// <returns>Unified-slot shift for the resource class.</returns>
+        static int GetBindingShift(ShaderBindingPolicy policy, ShaderResourceType resourceType) {
+            if (policy == null) {
+                throw new ArgumentNullException(nameof(policy));
+            }
+
+            switch (resourceType) {
+                case ShaderResourceType.Texture2D:
+                case ShaderResourceType.TextureCube:
+                    return policy.TextureShift;
+                case ShaderResourceType.Sampler:
+                    return policy.SamplerShift;
+                case ShaderResourceType.Buffer:
+                case ShaderResourceType.StorageBuffer:
+                case ShaderResourceType.StorageTexture2D:
+                    return policy.StorageShift;
+                default:
+                    return policy.ConstantBufferShift;
+            }
         }
 
         /// <summary>
@@ -2834,6 +2829,29 @@ namespace helengine.directx11 {
             }
 
             materials.Add(material);
+        }
+
+        /// <summary>
+        /// Removes one runtime material from shader hot-reload tracking.
+        /// </summary>
+        /// <param name="material">Material to unregister.</param>
+        void UnregisterMaterial(DirectX11MaterialResource material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            string shaderAssetId = material.ShaderAssetId;
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                return;
+            }
+            if (!MaterialsByShaderAssetId.TryGetValue(shaderAssetId, out List<DirectX11MaterialResource> materials)) {
+                return;
+            }
+
+            materials.Remove(material);
+            if (materials.Count == 0) {
+                MaterialsByShaderAssetId.Remove(shaderAssetId);
+            }
         }
 
         /// <summary>

@@ -7,23 +7,23 @@ namespace helengine.directx11 {
     [StructLayout(LayoutKind.Sequential)]
     public struct DirectX11ForwardLightSlotShaderData {
         /// <summary>
-        /// Gets or sets the light color scaled by intensity in XYZ and the packed light type in W.
+        /// Light color scaled by intensity in XYZ and the packed light type in W.
         /// </summary>
-        public float4 ColorAndType { get; set; }
+        public float4 ColorAndType;
 
         /// <summary>
-        /// Gets or sets the normalized light forward direction in XYZ and auxiliary shadow data in W.
+        /// Normalized light forward direction in XYZ and auxiliary shadow data in W.
         /// </summary>
-        public float4 DirectionAndShadow { get; set; }
+        public float4 DirectionAndShadow;
 
         /// <summary>
-        /// Gets or sets the light position in XYZ and the effective range in W.
+        /// Light position in XYZ and the effective range in W.
         /// </summary>
-        public float4 PositionAndRange { get; set; }
+        public float4 PositionAndRange;
 
         /// <summary>
-        /// Gets or sets the packed spot-light cone parameters.
+        /// Packed spot-light cone parameters.
         /// </summary>
-        public float4 SpotAngles { get; set; }
+        public float4 SpotAngles;
     }
 }
