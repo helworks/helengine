@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace helengine.editor {
     /// <summary>
     /// Expands blueprint instance roots inside serialized scene assets before platform packaging rewrites them.
@@ -22,6 +24,11 @@ namespace helengine.editor {
         /// Resolver used while deserializing blueprint instance component payloads. Blueprint instance metadata should not depend on runtime assets.
         /// </summary>
         readonly ISceneAssetReferenceResolver ComponentReferenceResolver;
+
+        /// <summary>
+        /// Next scene entity id assigned to a cloned Blueprint subtree during the current scene expansion.
+        /// </summary>
+        uint NextClonedEntityId;
 
         /// <summary>
         /// Initializes a new packaged-scene blueprint expansion service.
@@ -57,6 +64,7 @@ namespace helengine.editor {
             }
 
             SceneEntityAsset[] rootEntities = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
+            NextClonedEntityId = FindMaximumEntityId(rootEntities);
             for (int index = 0; index < rootEntities.Length; index++) {
                 ExpandEntityRecursive(rootEntities[index], mergedReferences, mergedReferenceKeys);
             }
@@ -124,7 +132,10 @@ namespace helengine.editor {
             RemoveComponentAt(instanceRoot, componentIndex);
 
             List<SceneEntityAsset> expandedChildren = new List<SceneEntityAsset>(instanceRoot.Children ?? Array.Empty<SceneEntityAsset>());
-            expandedChildren.Add(CloneEntity(blueprintAsset.RootEntity));
+            SceneEntityAsset clonedBlueprintRoot = CloneEntity(blueprintAsset.RootEntity);
+            ApplyEntityReferenceOverrides(clonedBlueprintRoot, instanceComponent.EntityReferenceOverrides);
+            AssignFreshEntityIds(clonedBlueprintRoot);
+            expandedChildren.Add(clonedBlueprintRoot);
             instanceRoot.Children = expandedChildren.ToArray();
 
             SceneAssetReference[] blueprintReferences = blueprintAsset.AssetReferences ?? Array.Empty<SceneAssetReference>();
@@ -134,6 +145,117 @@ namespace helengine.editor {
                     mergedReferences.Add(CloneReference(blueprintReferences[index]));
                 }
             }
+        }
+
+        /// <summary>
+        /// Applies scene-owned entity-reference overrides to one detached blueprint clone before its entity ids are remapped.
+        /// </summary>
+        /// <param name="blueprintRoot">Detached blueprint root receiving scene-owned component property values.</param>
+        /// <param name="overrides">Scene-owned entity-reference overrides to apply.</param>
+        void ApplyEntityReferenceOverrides(SceneEntityAsset blueprintRoot, BlueprintEntityReferenceOverrideAsset[] overrides) {
+            if (blueprintRoot == null) {
+                throw new ArgumentNullException(nameof(blueprintRoot));
+            }
+
+            BlueprintEntityReferenceOverrideAsset[] effectiveOverrides = overrides ?? Array.Empty<BlueprintEntityReferenceOverrideAsset>();
+            for (int overrideIndex = 0; overrideIndex < effectiveOverrides.Length; overrideIndex++) {
+                BlueprintEntityReferenceOverrideAsset referenceOverride = effectiveOverrides[overrideIndex];
+                if (referenceOverride == null) {
+                    throw new InvalidOperationException("Blueprint entity-reference overrides cannot contain null entries.");
+                } else if (referenceOverride.SourceEntityId == 0u) {
+                    throw new InvalidOperationException("Blueprint entity-reference overrides must identify a non-zero source entity id.");
+                } else if (string.IsNullOrWhiteSpace(referenceOverride.ComponentKey)) {
+                    throw new InvalidOperationException("Blueprint entity-reference overrides must identify a source component key.");
+                } else if (string.IsNullOrWhiteSpace(referenceOverride.PropertyName)) {
+                    throw new InvalidOperationException("Blueprint entity-reference overrides must identify a component property name.");
+                } else if (referenceOverride.TargetEntityId == 0u) {
+                    throw new InvalidOperationException("Blueprint entity-reference overrides must identify a non-zero target entity id.");
+                }
+
+                SceneEntityAsset sourceEntity = FindEntityById(blueprintRoot, referenceOverride.SourceEntityId);
+                if (sourceEntity == null) {
+                    throw new InvalidOperationException($"Blueprint entity-reference override source entity id '{referenceOverride.SourceEntityId}' was not found.");
+                }
+
+                SceneComponentAssetRecord sourceComponent = FindComponentRecord(sourceEntity, referenceOverride.ComponentKey);
+                if (sourceComponent == null) {
+                    throw new InvalidOperationException($"Blueprint entity-reference override component '{referenceOverride.ComponentKey}' was not found on source entity id '{referenceOverride.SourceEntityId}'.");
+                }
+
+                ApplyEntityReferenceOverride(sourceComponent, referenceOverride);
+            }
+        }
+
+        /// <summary>
+        /// Rewrites one serialized component property with the scene-owned entity reference supplied by an instance override.
+        /// </summary>
+        /// <param name="componentRecord">Serialized component record to rewrite.</param>
+        /// <param name="referenceOverride">Override describing the target property and scene entity id.</param>
+        void ApplyEntityReferenceOverride(SceneComponentAssetRecord componentRecord, BlueprintEntityReferenceOverrideAsset referenceOverride) {
+            IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(componentRecord.ComponentTypeId);
+            Component component = descriptor.DeserializeComponent(componentRecord, null, ComponentReferenceResolver);
+            Type componentType = component.GetType();
+            PropertyInfo property = componentType.GetProperty(referenceOverride.PropertyName);
+            if (property == null || !property.CanWrite) {
+                throw new InvalidOperationException($"Blueprint entity-reference override property '{referenceOverride.PropertyName}' is not writable on component type '{componentType.FullName}'.");
+            } else if (property.PropertyType != typeof(SceneEntityReference)) {
+                throw new InvalidOperationException($"Blueprint entity-reference override property '{referenceOverride.PropertyName}' on component type '{componentType.FullName}' must be a SceneEntityReference.");
+            }
+
+            property.SetValue(component, new SceneEntityReference {
+                EntityId = referenceOverride.TargetEntityId
+            });
+
+            EntityComponentSaveState saveState = new EntityComponentSaveState {
+                ComponentKey = componentRecord.ComponentKey
+            };
+            SceneComponentAssetRecord rewrittenRecord = descriptor.SerializeComponent(component, componentRecord.ComponentIndex, saveState);
+            rewrittenRecord.ComponentTypeId = componentRecord.ComponentTypeId;
+            rewrittenRecord.ComponentIndex = componentRecord.ComponentIndex;
+            rewrittenRecord.ComponentKey = componentRecord.ComponentKey;
+            componentRecord.Payload = rewrittenRecord.Payload;
+        }
+
+        /// <summary>
+        /// Finds one serialized entity by its source blueprint id.
+        /// </summary>
+        /// <param name="entityAsset">Current serialized entity subtree.</param>
+        /// <param name="entityId">Source blueprint entity id to locate.</param>
+        /// <returns>Matching entity, or null when the subtree does not contain the id.</returns>
+        static SceneEntityAsset FindEntityById(SceneEntityAsset entityAsset, uint entityId) {
+            if (entityAsset == null) {
+                return null;
+            } else if (entityAsset.Id == entityId) {
+                return entityAsset;
+            }
+
+            SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
+            for (int childIndex = 0; childIndex < children.Length; childIndex++) {
+                SceneEntityAsset match = FindEntityById(children[childIndex], entityId);
+                if (match != null) {
+                    return match;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Finds one serialized component by its stable persisted key.
+        /// </summary>
+        /// <param name="entityAsset">Entity whose component records should be inspected.</param>
+        /// <param name="componentKey">Stable component key to locate.</param>
+        /// <returns>Matching component record, or null when the entity does not contain the key.</returns>
+        static SceneComponentAssetRecord FindComponentRecord(SceneEntityAsset entityAsset, string componentKey) {
+            SceneComponentAssetRecord[] components = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
+            for (int componentIndex = 0; componentIndex < components.Length; componentIndex++) {
+                SceneComponentAssetRecord component = components[componentIndex];
+                if (component != null && string.Equals(component.ComponentKey, componentKey, StringComparison.Ordinal)) {
+                    return component;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -310,6 +432,59 @@ namespace helengine.editor {
                 PlatformComponentOverrides = componentOverrides.Select(CloneComponentOverride).ToArray(),
                 Children = children.Select(CloneEntity).ToArray()
             };
+        }
+
+        /// <summary>
+        /// Finds the largest id currently present in a scene before Blueprint content is merged.
+        /// </summary>
+        /// <param name="rootEntities">Scene roots being scanned.</param>
+        /// <returns>Largest existing id, or zero for an empty scene.</returns>
+        static uint FindMaximumEntityId(SceneEntityAsset[] rootEntities) {
+            uint maximumId = 0u;
+            SceneEntityAsset[] roots = rootEntities ?? Array.Empty<SceneEntityAsset>();
+            for (int index = 0; index < roots.Length; index++) {
+                maximumId = Math.Max(maximumId, FindMaximumEntityId(roots[index]));
+            }
+
+            return maximumId;
+        }
+
+        /// <summary>
+        /// Finds the largest id in one serialized entity hierarchy.
+        /// </summary>
+        /// <param name="entityAsset">Entity hierarchy being scanned.</param>
+        /// <returns>Largest id in the hierarchy, or zero for a null entity.</returns>
+        static uint FindMaximumEntityId(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                return 0u;
+            }
+
+            uint maximumId = entityAsset.Id;
+            SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
+            for (int index = 0; index < children.Length; index++) {
+                maximumId = Math.Max(maximumId, FindMaximumEntityId(children[index]));
+            }
+
+            return maximumId;
+        }
+
+        /// <summary>
+        /// Reassigns every entity in one cloned Blueprint subtree to unique ids after the authored scene ids.
+        /// </summary>
+        /// <param name="entityAsset">Cloned Blueprint entity hierarchy.</param>
+        void AssignFreshEntityIds(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                throw new ArgumentNullException(nameof(entityAsset));
+            }
+            if (NextClonedEntityId == uint.MaxValue) {
+                throw new InvalidOperationException("Blueprint expansion exhausted the serialized scene entity id range.");
+            }
+
+            entityAsset.Id = ++NextClonedEntityId;
+            SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
+            for (int index = 0; index < children.Length; index++) {
+                AssignFreshEntityIds(children[index]);
+            }
         }
 
         static SceneComponentAssetRecord CloneComponentRecord(SceneComponentAssetRecord record) {

@@ -151,17 +151,104 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
-        /// Writes one blueprint asset with a regular child subtree and one merged asset reference.
+        /// Ensures a scene-owned blueprint instance override writes a scene entity id into a cloned blueprint component during packaging.
         /// </summary>
-        /// <param name="relativePath">Project-relative blueprint path to write.</param>
-        /// <param name="materialReference">Scene asset reference merged from the blueprint dependency list.</param>
-        void WriteBlueprintAsset(string relativePath, SceneAssetReference materialReference) {
-            string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Blueprint directory could not be resolved."));
+        [Fact]
+        public void Expand_WhenBlueprintInstanceOverridesEntityReference_SerializesSceneTargetIdIntoClonedComponent() {
+            string blueprintPath = "Blueprints/ReferenceBlueprint.hblueprint";
+            SceneEntityTriggerObserverComponent sourceComponent = new SceneEntityTriggerObserverComponent {
+                TargetEntityReference = null
+            };
+            EntityComponentSaveState sourceSaveState = new EntityComponentSaveState {
+                ComponentKey = "follow-target"
+            };
+            WriteBlueprintAsset(blueprintPath, null, new SceneEntityAsset {
+                Id = 1u,
+                Name = "Blueprint Root",
+                LayerMask = EditorLayerMasks.SceneObjects,
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Children = [
+                    new SceneEntityAsset {
+                        Id = 2u,
+                        Name = "Blueprint Camera",
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = [SerializeComponent(sourceComponent, sourceSaveState)],
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                ]
+                });
 
-            using FileStream stream = File.Create(fullPath);
-            AssetSerializer.Serialize(stream, new BlueprintAsset {
-                Id = relativePath,
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/ReferenceScene.helen",
+                RootEntities = [
+                    new SceneEntityAsset {
+                        Id = 300u,
+                        Name = "PlayerSphere",
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = 100u,
+                        Name = "PresentationInstance",
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = [
+                            SerializeComponent(new BlueprintInstanceComponent {
+                                BlueprintAssetPath = blueprintPath,
+                                EntityReferenceOverrides = [
+                                    new BlueprintEntityReferenceOverrideAsset {
+                                        SourceEntityId = 2u,
+                                        ComponentKey = "follow-target",
+                                        PropertyName = nameof(SceneEntityTriggerObserverComponent.TargetEntityReference),
+                                        TargetEntityId = 300u
+                                    }
+                                ]
+                            })
+                        ],
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                ],
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            };
+
+            BlueprintPackagedSceneExpansionService service = new BlueprintPackagedSceneExpansionService(ProjectRootPath, new ComponentPersistenceRegistry());
+
+            service.Expand(sceneAsset);
+
+            SceneEntityAsset instanceRoot = sceneAsset.RootEntities[1];
+            SceneEntityAsset expandedBlueprintRoot = Assert.Single(instanceRoot.Children);
+            SceneEntityAsset expandedCamera = Assert.Single(expandedBlueprintRoot.Children);
+            SceneComponentAssetRecord componentRecord = Assert.Single(expandedCamera.Components);
+            IComponentPersistenceDescriptor descriptor = new ComponentPersistenceRegistry().GetDescriptor(componentRecord.ComponentTypeId);
+            SceneEntityTriggerObserverComponent expandedComponent = Assert.IsType<SceneEntityTriggerObserverComponent>(
+                descriptor.DeserializeComponent(componentRecord, null, null));
+
+            Assert.NotNull(expandedComponent.TargetEntityReference);
+            Assert.Equal(300u, expandedComponent.TargetEntityReference.EntityId);
+        }
+
+        /// <summary>
+        /// Ensures authoring code can bind every scene-entity reference in a blueprint without knowing persisted component keys.
+        /// </summary>
+        [Fact]
+        public void OverrideService_BindsAllBlueprintEntityReferencesWithoutProjectReflection() {
+            SceneEntityTriggerObserverComponent sourceComponent = new SceneEntityTriggerObserverComponent {
+                TargetEntityReference = null
+            };
+            EntityComponentSaveState sourceSaveState = new EntityComponentSaveState {
+                ComponentKey = "follow-target"
+            };
+            BlueprintAsset blueprintAsset = new BlueprintAsset {
                 RootEntity = new SceneEntityAsset {
                     Id = 1u,
                     Name = "Blueprint Root",
@@ -172,16 +259,73 @@ namespace helengine.editor.tests.managers.project {
                     Children = [
                         new SceneEntityAsset {
                             Id = 2u,
-                            Name = "Blueprint Child",
+                            Name = "Blueprint Camera",
                             LayerMask = EditorLayerMasks.SceneObjects,
                             LocalPosition = float3.Zero,
                             LocalScale = float3.One,
                             LocalOrientation = float4.Identity,
+                            Components = [SerializeComponent(sourceComponent, sourceSaveState)],
                             Children = Array.Empty<SceneEntityAsset>()
                         }
                     ]
-                },
-                AssetReferences = [materialReference]
+                }
+            };
+            BlueprintInstanceComponent instanceComponent = new BlueprintInstanceComponent();
+            BlueprintEntityReferenceOverrideService service = new BlueprintEntityReferenceOverrideService(new ComponentPersistenceRegistry());
+
+            service.BindAllEntityReferences(instanceComponent, blueprintAsset, 300u);
+
+            BlueprintEntityReferenceOverrideAsset referenceOverride = Assert.Single(instanceComponent.EntityReferenceOverrides);
+            Assert.Equal(2u, referenceOverride.SourceEntityId);
+            Assert.Equal("follow-target", referenceOverride.ComponentKey);
+            Assert.Equal(nameof(SceneEntityTriggerObserverComponent.TargetEntityReference), referenceOverride.PropertyName);
+            Assert.Equal(300u, referenceOverride.TargetEntityId);
+        }
+
+        /// <summary>
+        /// Writes one blueprint asset with a regular child subtree and one merged asset reference.
+        /// </summary>
+        /// <param name="relativePath">Project-relative blueprint path to write.</param>
+        /// <param name="materialReference">Scene asset reference merged from the blueprint dependency list.</param>
+        void WriteBlueprintAsset(string relativePath, SceneAssetReference materialReference) {
+            WriteBlueprintAsset(relativePath, materialReference, new SceneEntityAsset {
+                Id = 1u,
+                Name = "Blueprint Root",
+                LayerMask = EditorLayerMasks.SceneObjects,
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Children = [
+                    new SceneEntityAsset {
+                        Id = 2u,
+                        Name = "Blueprint Child",
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                ]
+            });
+        }
+
+        /// <summary>
+        /// Writes one blueprint asset with the supplied serialized root and dependency list.
+        /// </summary>
+        /// <param name="relativePath">Project-relative blueprint path to write.</param>
+        /// <param name="materialReference">Scene asset reference merged from the blueprint dependency list.</param>
+        /// <param name="rootEntity">Blueprint root entity to serialize.</param>
+        void WriteBlueprintAsset(string relativePath, SceneAssetReference materialReference, SceneEntityAsset rootEntity) {
+            string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Blueprint directory could not be resolved."));
+
+            using FileStream stream = File.Create(fullPath);
+            AssetSerializer.Serialize(stream, new BlueprintAsset {
+                Id = relativePath,
+                RootEntity = rootEntity,
+                AssetReferences = materialReference == null
+                    ? Array.Empty<SceneAssetReference>()
+                    : [materialReference]
             });
         }
 
@@ -230,7 +374,9 @@ namespace helengine.editor.tests.managers.project {
         /// <returns>Serialized scene component record.</returns>
         static SceneComponentAssetRecord SerializeComponent(Component component, EntityComponentSaveState saveState) {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            return registry.GetDescriptor(component).SerializeComponent(component, 0, saveState);
+            SceneComponentAssetRecord record = registry.GetDescriptor(component).SerializeComponent(component, 0, saveState);
+            record.ComponentKey = saveState.ComponentKey;
+            return record;
         }
     }
 
