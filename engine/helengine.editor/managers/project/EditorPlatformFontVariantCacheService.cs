@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Cache-format version included in the font-variant settings hash so import-pipeline fixes can invalidate stale cached atlases.
         /// </summary>
-        const string CacheFormatVersion = "font-variant-cache-v2";
+        const string CacheFormatVersion = "font-variant-cache-v4";
 
         /// <summary>
         /// Folder name used for cached per-platform font variants.

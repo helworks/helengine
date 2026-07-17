@@ -20,7 +20,14 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             SpriteComponent component = new SpriteComponent();
             entity.AddComponent(component);
-            SerializedEditorEntityState expectedState = new SerializedEditorEntityState(7u, "Sprite Entity", 0u, Array.Empty<byte>());
+            SerializedEditorEntityState expectedState = new SerializedEditorEntityState {
+                EntityId = 7u,
+                ParentEntityId = 0u,
+                EntityAsset = new SceneEntityAsset {
+                    Id = 7u,
+                    Name = "Sprite Entity"
+                }
+            };
             int captureCount = 0;
             EditorComponentHistoryMutationService.CaptureEntityState = editorEntity => {
                 captureCount++;
@@ -43,7 +50,14 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             SpriteComponent component = new SpriteComponent();
             entity.AddComponent(component);
-            SerializedEditorEntityState previousEntityState = new SerializedEditorEntityState(3u, "Before", 0u, Array.Empty<byte>());
+            SerializedEditorEntityState previousEntityState = new SerializedEditorEntityState {
+                EntityId = 3u,
+                ParentEntityId = 0u,
+                EntityAsset = new SceneEntityAsset {
+                    Id = 3u,
+                    Name = "Before"
+                }
+            };
             int recordCount = 0;
             EditorComponentHistoryMutationService.RecordComponentMutation = (editorEntity, historyComponent, historyState) => {
                 recordCount++;
@@ -64,7 +78,14 @@ namespace helengine.editor.tests {
         [Fact]
         public void Try_record_component_mutation_when_component_is_not_owned_by_a_live_editor_entity_returns_false() {
             SpriteComponent component = new SpriteComponent();
-            SerializedEditorEntityState previousEntityState = new SerializedEditorEntityState(5u, "Detached", 0u, Array.Empty<byte>());
+            SerializedEditorEntityState previousEntityState = new SerializedEditorEntityState {
+                EntityId = 5u,
+                ParentEntityId = 0u,
+                EntityAsset = new SceneEntityAsset {
+                    Id = 5u,
+                    Name = "Detached"
+                }
+            };
             int recordCount = 0;
             EditorComponentHistoryMutationService.RecordComponentMutation = (editorEntity, historyComponent, historyState) => recordCount++;
 

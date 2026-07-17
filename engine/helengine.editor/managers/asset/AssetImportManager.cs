@@ -4551,7 +4551,7 @@ namespace helengine.editor {
         TextureAssetProcessorSettings CreateDefaultFontAtlasTextureProcessorSettings(string platformId) {
             if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)) {
                 return new TextureAssetProcessorSettings {
-                    MaxResolution = 128,
+                    MaxResolution = 0,
                     ColorFormatId = TextureAssetColorFormat.Indexed4.ToString(),
                     AlphaPrecision = TextureAssetAlphaPrecision.Binary
                 };

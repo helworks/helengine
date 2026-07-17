@@ -9,6 +9,11 @@ namespace helengine {
         static readonly List<FPSComponent> ActiveComponents = new List<FPSComponent>();
 
         /// <summary>
+        /// Runtime scale multiplier used to keep the performance overlay legible on the Nintendo 3DS screen.
+        /// </summary>
+        const float Nintendo3DsPerformanceOverlayScale = 0.5f;
+
+        /// <summary>
         /// Font used by both overlay lines.
         /// </summary>
         FontAsset font;
@@ -339,7 +344,7 @@ namespace helengine {
             UpdateTextComponent = new TextComponent();
             UpdateTextComponent.Color = new byte4(255, 255, 255, 255);
             UpdateTextComponent.Font = Font;
-            UpdateTextComponent.FontScale = FontScale;
+            UpdateTextComponent.FontScale = ResolveEffectiveFontScale();
             UpdateRowHost.AddComponent(UpdateTextComponent);
 
             RenderRowHost = new Entity();
@@ -351,7 +356,7 @@ namespace helengine {
             RenderTextComponent = new TextComponent();
             RenderTextComponent.Color = new byte4(255, 255, 255, 255);
             RenderTextComponent.Font = Font;
-            RenderTextComponent.FontScale = FontScale;
+            RenderTextComponent.FontScale = ResolveEffectiveFontScale();
             RenderRowHost.AddComponent(RenderTextComponent);
 
             Initialized = true;
@@ -475,12 +480,12 @@ namespace helengine {
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Font = Font;
-                UpdateTextComponent.FontScale = FontScale;
+                UpdateTextComponent.FontScale = ResolveEffectiveFontScale();
             }
 
             if (RenderTextComponent != null) {
                 RenderTextComponent.Font = Font;
-                RenderTextComponent.FontScale = FontScale;
+                RenderTextComponent.FontScale = ResolveEffectiveFontScale();
             }
 
             ApplyRowLayout();
@@ -622,7 +627,7 @@ namespace helengine {
 
             core.SetResolvedPerformanceOverlayPresentation(
                 Font,
-                FontScale,
+                ResolveEffectiveFontScale(),
                 Padding,
                 UpdateFpsText,
                 RenderFpsText,
@@ -688,7 +693,7 @@ namespace helengine {
 
                 TextComponent textComponent = AdditionalLineTextComponents[lineIndex];
                 textComponent.Font = Font;
-                textComponent.FontScale = FontScale;
+                textComponent.FontScale = ResolveEffectiveFontScale();
                 textComponent.Text = lineText;
             }
 
@@ -761,12 +766,29 @@ namespace helengine {
             TextComponent textComponent = new TextComponent();
             textComponent.Color = new byte4(255, 255, 255, 255);
             textComponent.Font = Font;
-            textComponent.FontScale = FontScale;
+            textComponent.FontScale = ResolveEffectiveFontScale();
             textComponent.Text = lineText;
             rowHost.AddComponent(textComponent);
 
             AdditionalLineRowHosts.Add(rowHost);
             AdditionalLineTextComponents.Add(textComponent);
+        }
+
+        /// <summary>
+        /// Resolves the runtime text scale while preserving the authored component value for serialization and editor inspection.
+        /// </summary>
+        /// <returns>Effective scale used by the generated FPS text drawables.</returns>
+        float ResolveEffectiveFontScale() {
+            Core core = Core.Instance;
+            if (core == null || core.PlatformInfo == null) {
+                return FontScale;
+            }
+
+            if (string.Equals(core.PlatformInfo.Name, "3ds", StringComparison.OrdinalIgnoreCase)) {
+                return FontScale * Nintendo3DsPerformanceOverlayScale;
+            }
+
+            return FontScale;
         }
 
         /// <summary>
@@ -777,7 +799,7 @@ namespace helengine {
                 return;
             }
 
-            float rowHeight = Font.LineHeight * FontScale;
+            float rowHeight = Font.LineHeight * ResolveEffectiveFontScale();
             if (RenderRowHost != null) {
                 RenderRowHost.LocalPosition = new float3(0f, rowHeight, 0.1f);
             }
@@ -840,11 +862,11 @@ namespace helengine {
                     return core.PerformanceOverlayUpdateText;
                 }
 
-                return "Upd " + FormatFpsValue(updateFps);
+                return "Update FPS: " + FormatFpsValue(updateFps);
             }
 
             if (ShouldUsePerformanceOverlayRows(core)) {
-                return "Upd " + FormatFpsValue(updateFps)
+                return "Update FPS: " + FormatFpsValue(updateFps)
                     + " Set " + FormatFpsValue(core.PerformanceOverlayTriangleSetupMilliseconds)
                     + " Prep " + FormatFpsValue(core.PerformanceOverlayTrianglePrepMilliseconds)
                     + " Emit " + FormatFpsValue(core.PerformanceOverlayTriangleEmitMilliseconds);
@@ -866,11 +888,11 @@ namespace helengine {
                     return core.PerformanceOverlayRenderText;
                 }
 
-                return "Rdr " + FormatFpsValue(renderFps) + " Drw " + FormatFpsValue(drawMilliseconds);
+                return "Render FPS: " + FormatFpsValue(renderFps) + " Drw " + FormatFpsValue(drawMilliseconds);
             }
 
             if (ShouldUsePerformanceOverlayRows(core)) {
-                return "Rdr " + FormatFpsValue(renderFps)
+                return "Render FPS: " + FormatFpsValue(renderFps)
                     + " Drw " + FormatFpsValue(drawMilliseconds)
                     + " Enc " + FormatFpsValue(core.PerformanceOverlayPacketEncodeMilliseconds)
                     + " Lgt " + FormatFpsValue(core.PerformanceOverlaySubmitMilliseconds);

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Profiles;
 
@@ -569,7 +570,6 @@ namespace helengine.editor {
         /// <param name="cancellationToken">Cancellation token that can stop the process wait loop.</param>
         static void RunProcess(string fileName, IReadOnlyList<string> arguments, string workingDirectory, StringBuilder logBuilder, CancellationToken cancellationToken) {
             string displayArguments = string.Join(" ", arguments.Select(QuoteArgument));
-            object logSync = new();
             ProcessStartInfo startInfo = new ProcessStartInfo {
                 FileName = fileName,
                 WorkingDirectory = workingDirectory,
@@ -582,33 +582,12 @@ namespace helengine.editor {
                 startInfo.ArgumentList.Add(arguments[index]);
             }
 
-            using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Failed to start '{fileName}'.");
-            process.OutputDataReceived += (_, eventArgs) => {
-                if (!string.IsNullOrEmpty(eventArgs.Data)) {
-                    lock (logSync) {
-                        logBuilder.AppendLine(eventArgs.Data);
-                    }
-                }
-            };
-            process.ErrorDataReceived += (_, eventArgs) => {
-                if (!string.IsNullOrEmpty(eventArgs.Data)) {
-                    lock (logSync) {
-                        logBuilder.AppendLine(eventArgs.Data);
-                    }
-                }
-            };
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            while (!process.HasExited) {
-                cancellationToken.ThrowIfCancellationRequested();
-                process.WaitForExit(100);
-            }
-
-            process.WaitForExit();
-
-            if (process.ExitCode != 0) {
-                throw new InvalidOperationException($"Process '{fileName} {displayArguments}' failed with exit code {process.ExitCode}.");
+            NativeProcessRunResult result = new NativeProcessRunner().Run(
+                startInfo,
+                cancellationToken,
+                (line, _) => logBuilder.AppendLine(line));
+            if (result.ExitCode != 0) {
+                throw new InvalidOperationException($"Process '{fileName} {displayArguments}' failed with exit code {result.ExitCode}.");
             }
         }
 

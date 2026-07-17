@@ -36,7 +36,7 @@ namespace helengine.bepu.tests {
         /// Ensures the default BEPU world startup profile stays compact enough for small-runtime builds while still allowing the simulation to grow on demand.
         /// </summary>
         [Fact]
-        public void CreateDefault_UsesCompactStartupAllocationProfile() {
+    public void CreateDefault_UsesCompactStartupAllocationProfile() {
             Type worldType = typeof(BepuPhysicsWorld3D);
             MethodInfo allocationSizesMethod = worldType.GetMethod("CreateDefaultSimulationAllocationSizes", BindingFlags.NonPublic | BindingFlags.Static);
 
@@ -50,8 +50,24 @@ namespace helengine.bepu.tests {
             Assert.Equal(8, allocationSizes.ShapesPerType);
             Assert.Equal(64, allocationSizes.Constraints);
             Assert.Equal(16, allocationSizes.ConstraintsPerTypeBatch);
-            Assert.Equal(2, allocationSizes.ConstraintCountPerBodyEstimate);
-        }
+        Assert.Equal(2, allocationSizes.ConstraintCountPerBodyEstimate);
+    }
+
+    /// <summary>
+    /// Verifies resetting a BEPU scene returns the property stores that own pooled collidable data before replacing them.
+    /// </summary>
+    [Fact]
+    public void ResetSimulation_DisposesPreviousCollidablePropertyStores() {
+        string sourcePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "helengine.bepu", "BepuPhysicsWorld3D.cs"));
+        string sourceCode = File.ReadAllText(sourcePath);
+
+        int resetSimulationStart = sourceCode.IndexOf("void ResetSimulation()", StringComparison.Ordinal);
+        int wireDiagnosticsStart = sourceCode.IndexOf("void WireSimulationStageDiagnostics()", resetSimulationStart, StringComparison.Ordinal);
+        string resetSimulationBody = sourceCode[resetSimulationStart..wireDiagnosticsStart];
+
+        Assert.Contains("CollidablePropertiesValue.Dispose();", resetSimulationBody, StringComparison.Ordinal);
+        Assert.Contains("GravityAccelerationsValue.Dispose();", resetSimulationBody, StringComparison.Ordinal);
+    }
 
         /// <summary>
         /// Ensures box collider components can be translated into supported runtime shapes.

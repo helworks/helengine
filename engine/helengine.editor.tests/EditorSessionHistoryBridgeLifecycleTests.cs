@@ -1,6 +1,7 @@
 using helengine.directx11;
 using helengine.editor.tests.testing;
 using helengine.projectfile;
+using helengine.ui;
 using helengine.vulkan;
 using Xunit;
 

@@ -200,6 +200,32 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures repeated history captures can reuse one stable scene entity id after undo-style disposal recreates the authored entity instance.
+        /// </summary>
+        [Fact]
+        public void CaptureEntityState_WhenReplacementEntityReusesStableId_DoesNotKeepDisposedEntityRegistration() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            EditorEntity originalEntity = CreateUserEntity("Original", float3.Zero, float3.One, float4.Identity);
+            GetSaveComponent(originalEntity).EntityId = 56u;
+
+            SerializedEditorEntityState originalState = saveService.CaptureEntityState(originalEntity);
+
+            Assert.Equal(56u, originalState.EntityId);
+
+            originalEntity.Dispose();
+
+            EditorEntity replacementEntity = CreateUserEntity("Replacement", new float3(4f, 5f, 6f), float3.One, float4.Identity);
+            GetSaveComponent(replacementEntity).EntityId = 56u;
+
+            SerializedEditorEntityState replacementState = saveService.CaptureEntityState(replacementEntity);
+
+            Assert.Equal(56u, replacementState.EntityId);
+            Assert.Equal("Replacement", replacementState.EntityAsset.Name);
+            Assert.Equal(new float3(4f, 5f, 6f), replacementState.EntityAsset.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures scene save can infer generated mesh asset references from the live runtime assignments without requiring user-authored save metadata.
         /// </summary>
         [Fact]

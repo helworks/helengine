@@ -5,9 +5,6 @@ using helengine.projectfile;
 using helengine.ui;
 using helengine.vulkan;
 using Xunit;
-using Font = System.Drawing.Font;
-using FontStyle = System.Drawing.FontStyle;
-using GraphicsUnit = System.Drawing.GraphicsUnit;
 
 namespace helengine.editor.tests;
 
@@ -170,7 +167,26 @@ public sealed class DemodiscTiltTrialEditorSessionCloseTests : IDisposable {
     /// </summary>
     /// <returns>Minimal runtime font asset backed by one placeholder atlas.</returns>
     static FontAsset CreateDefaultFontAsset() {
-        return GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
+        TextureAsset sourceTexture = new TextureAsset {
+            Width = 1,
+            Height = 1,
+            Colors = new byte[] { 255, 255, 255, 255 }
+        };
+
+        FontAsset font = new FontAsset(
+            new FontInfo("EditorTest", 16, 4f),
+            new TestRuntimeTexture {
+                Width = 1,
+                Height = 1
+            },
+            new Dictionary<char, FontChar>(),
+            16f,
+            1,
+            1) {
+            SourceTextureAsset = sourceTexture
+        };
+
+        return font;
     }
 
     /// <summary>

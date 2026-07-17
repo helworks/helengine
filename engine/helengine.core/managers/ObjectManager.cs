@@ -610,9 +610,6 @@ public class ObjectManager {
                 LastUpdateableDiagnosticIndex = i;
                 LastUpdateableDiagnosticTypeHash = ComputeStableTypeNameHash(item);
                 LastUpdateableDiagnosticOwnerSceneEntityId = ResolveUpdateableOwnerSceneEntityId(item);
-                if (Core.Instance != null) {
-                    Core.Instance.ReportSceneTransitionStage($"ObjectManagerUpdate:{ResolveUpdateableTypeName(item)}:{i}");
-                }
                 item.Update();
             }
         } finally {

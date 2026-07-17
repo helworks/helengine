@@ -279,6 +279,12 @@ namespace helengine {
             if (SimulationValue != null) {
                 SimulationValue.Dispose();
             }
+            if (CollidablePropertiesValue != null) {
+                CollidablePropertiesValue.Dispose();
+            }
+            if (GravityAccelerationsValue != null) {
+                GravityAccelerationsValue.Dispose();
+            }
 
             CollidablePropertiesValue = new CollidableProperty<BepuCollidableProperties3D>(BufferPoolValue);
             GravityAccelerationsValue = new CollidableProperty<float>(BufferPoolValue);

@@ -24,7 +24,9 @@ namespace helengine.editor.tests {
             shaderBackendRegistry.Register(new VulkanShaderBackend());
             EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
 
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
+            });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 

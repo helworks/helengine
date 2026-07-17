@@ -22,10 +22,10 @@ public sealed class CityColoredCubeGridSceneSourceTests {
     }
 
     /// <summary>
-    /// Ensures the Nintendo DS colored cube-grid companion scene stays a raw 3D perf variant without authored UI or bottom overlay roots.
+    /// Ensures the Nintendo DS colored cube-grid scene uses the same shared bottom overlay as the other rendering scenes.
     /// </summary>
     [Fact]
-    public void City_colored_cube_grid_source_uses_ui_free_ds_perf_scene() {
+    public void City_colored_cube_grid_source_uses_shared_ds_bottom_overlay() {
         string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\ColoredCubeGridSceneFactory.cs";
         string source = File.ReadAllText(sourcePath);
 
@@ -35,7 +35,7 @@ public sealed class CityColoredCubeGridSceneSourceTests {
         Assert.Contains("nintendoDsRootEntities[2] = directionalLightEntity;", source, StringComparison.Ordinal);
         Assert.Contains("Array.Copy(cubeEntities, 0, nintendoDsRootEntities, 3, cubeEntities.Length);", source, StringComparison.Ordinal);
         Assert.Contains("RootEntities = nintendoDsRootEntities,", source, StringComparison.Ordinal);
-        Assert.Contains("UseDefaultBottomOverlay = false,", source, StringComparison.Ordinal);
+        Assert.Contains("UseDefaultBottomOverlay = true,", source, StringComparison.Ordinal);
         Assert.Contains("BottomScreenRootEntities = Array.Empty<Entity>()", source, StringComparison.Ordinal);
         Assert.Contains("rootEntities[2] = CreateUiEntity();", source, StringComparison.Ordinal);
         Assert.Contains("Entity CreateNintendoDsPerfUiEntity()", source, StringComparison.Ordinal);

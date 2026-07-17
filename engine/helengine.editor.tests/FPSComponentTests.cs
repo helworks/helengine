@@ -131,6 +131,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the Nintendo 3DS runtime halves the effective FPS row size without changing the authored component scale.
+        /// </summary>
+        [Fact]
+        public void ThreeDsPlatform_WhenOverlayIsBuilt_HalvesEffectiveFontScaleForBothRows() {
+            using Core threeDsCore = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
+            });
+            threeDsCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("3ds", "test-version"));
+
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FontAsset font = CreateFont(24f);
+            FPSComponent fps = new FPSComponent {
+                Font = font,
+                FontScale = 1f
+            };
+
+            entity.AddComponent(fps);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            TextComponent updateText = Assert.Single(overlayHost.Children[0].Components.OfType<TextComponent>());
+            TextComponent renderText = Assert.Single(overlayHost.Children[1].Components.OfType<TextComponent>());
+
+            Assert.Equal(1f, fps.FontScale);
+            Assert.Equal(0.5f, updateText.FontScale);
+            Assert.Equal(0.5f, renderText.FontScale);
+            Assert.Equal(font.LineHeight * 0.5f, overlayHost.Children[1].LocalPosition.Y);
+        }
+
+        /// <summary>
         /// Ensures authored extra overlay text stays stored for compatibility without generating visible extra rows.
         /// </summary>
         [Fact]
@@ -325,8 +357,8 @@ namespace helengine.editor.tests {
             Core.Instance.Draw();
             Core.Instance.Update(0.25d);
 
-            Assert.Equal("Upd 4.0 Set 7.0 Prep 1.5 Emit 0.5", fps.UpdateFpsText);
-            Assert.Equal("Rdr 4.0 Drw 0.0 Enc 8.0 Lgt 0.8", fps.RenderFpsText);
+            Assert.Equal("Update FPS: 4.0 Set 7.0 Prep 1.5 Emit 0.5", fps.UpdateFpsText);
+            Assert.Equal("Render FPS: 4.0 Drw 0.0 Enc 8.0 Lgt 0.8", fps.RenderFpsText);
             Assert.Equal(string.Empty, fps.DetailFpsText);
         }
 
@@ -393,8 +425,8 @@ namespace helengine.editor.tests {
             Core.Instance.Draw();
             Core.Instance.Update(0.25d);
 
-            Assert.Equal("Upd 4.0", fps.UpdateFpsText);
-            Assert.Equal("Rdr 4.0 Drw 15.8", fps.RenderFpsText);
+            Assert.Equal("Update FPS: 4.0", fps.UpdateFpsText);
+            Assert.Equal("Render FPS: 4.0 Drw 15.8", fps.RenderFpsText);
             Assert.Equal(string.Empty, fps.DetailFpsText);
 
             Entity overlayHost = Assert.Single(entity.Children);
@@ -433,8 +465,8 @@ namespace helengine.editor.tests {
 
             Entity overlayHost = Assert.Single(entity.Children);
             Assert.False(overlayHost.Enabled);
-            Assert.Equal("Upd 4.0", Core.Instance.ResolvedPerformanceOverlayUpdateText);
-            Assert.Equal("Rdr 4.0 Drw 15.8", Core.Instance.ResolvedPerformanceOverlayRenderText);
+            Assert.Equal("Update FPS: 4.0", Core.Instance.ResolvedPerformanceOverlayUpdateText);
+            Assert.Equal("Render FPS: 4.0 Drw 15.8", Core.Instance.ResolvedPerformanceOverlayRenderText);
             Assert.Equal(string.Empty, Core.Instance.ResolvedPerformanceOverlayDetailText);
             Assert.Equal(string.Empty, Core.Instance.ResolvedPerformanceOverlayAdditionalText);
             Assert.Same(fps.Font, Core.Instance.ResolvedPerformanceOverlayFont);
@@ -459,8 +491,8 @@ namespace helengine.editor.tests {
 
             entity.AddComponent(fps);
 
-            Assert.Equal("Upd 0.0 Set 0.0 Prep 0.0 Emit 0.0", fps.UpdateFpsText);
-            Assert.Equal("Rdr 0.0 Drw 0.0 Enc 0.0 Lgt 0.0", fps.RenderFpsText);
+            Assert.Equal("Update FPS: 0.0 Set 0.0 Prep 0.0 Emit 0.0", fps.UpdateFpsText);
+            Assert.Equal("Render FPS: 0.0 Drw 0.0 Enc 0.0 Lgt 0.0", fps.RenderFpsText);
             Assert.Equal(string.Empty, fps.DetailFpsText);
         }
 

@@ -605,7 +605,8 @@ namespace helengine.editor {
                 UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1),
                 SaveShortcutRequested = HandleGlobalSaveShortcut,
                 UndoShortcutRequested = HandleGlobalUndoShortcut,
-                RedoShortcutRequested = HandleGlobalRedoShortcut
+                RedoShortcutRequested = HandleGlobalRedoShortcut,
+                DeleteShortcutRequested = HandleGlobalDeleteShortcut
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
 
@@ -2471,6 +2472,30 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Handles the editor-global Delete shortcut when editor-global input is not blocked.
+        /// </summary>
+        void HandleGlobalDeleteShortcut() {
+            if (IsEditorGlobalShortcutBlocked()) {
+                return;
+            }
+
+            EditorEntity entity = ResolveSelectedDeletableSceneEntity();
+            if (entity == null) {
+                return;
+            }
+
+            uint entityId = GetSceneEntityId(entity);
+            if (entityId == 0u) {
+                throw new InvalidOperationException("Delete history requires the selected scene entity to have one stable scene id.");
+            }
+
+            HistoryMutationService.RecordDeletedEntity(entity);
+            EditorSelectionService.ClearSelection();
+            DeleteSceneEntityById(entityId);
+            RefreshEditorStateAfterHistoryMutation();
+        }
+
+        /// <summary>
         /// Returns true when one modal editor workflow should block global keyboard shortcuts.
         /// </summary>
         /// <returns>True when editor-global shortcuts should be ignored for the current frame.</returns>
@@ -2520,6 +2545,24 @@ namespace helengine.editor {
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Resolves the currently selected authored scene entity that can be deleted through editor-global shortcuts.
+        /// </summary>
+        /// <returns>Selected authored scene entity when deletion should proceed; otherwise null.</returns>
+        EditorEntity ResolveSelectedDeletableSceneEntity() {
+            if (EditorSelectionService.SelectedEntity is not EditorEntity editorEntity) {
+                return null;
+            }
+            if (editorEntity.IsDisposed || editorEntity.InternalEntity) {
+                return null;
+            }
+            if (editorEntity.LayerMask != EditorLayerMasks.SceneObjects) {
+                return null;
+            }
+
+            return editorEntity;
         }
 
         /// <summary>

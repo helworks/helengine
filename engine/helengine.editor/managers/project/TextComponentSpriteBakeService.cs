@@ -1,7 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Reflection;
-
 namespace helengine.editor {
     /// <summary>
     /// Bakes authored text components into generated sprite textures using the editor's exact 2D preview capture path.

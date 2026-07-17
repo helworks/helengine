@@ -489,7 +489,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
             _ = sceneCatalogService;
-            _ = platformId;
+            if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "3ds", StringComparison.OrdinalIgnoreCase)) {
+                orderedSceneIds.RemoveAll(sceneId => string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal));
+                orderedSceneIds.Insert(0, PlatformMenuSceneResolver.GeneratedBootSceneId);
+            }
         }
 
         /// <summary>
@@ -515,9 +519,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
 
-            if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(platformId, "3ds", StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
                 orderedSceneIds.RemoveAll(sceneId => string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal));
             }
         }
@@ -544,7 +546,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Remaps one persisted scene id to the canonical authored scene id required by the active platform.
+        /// Remaps one stale persisted scene id to its canonical authored scene id while preserving authored platform-specific scenes.
         /// </summary>
         /// <param name="platformId">Platform identifier selected for the queued build.</param>
         /// <param name="sceneId">Persisted scene id to normalize.</param>
@@ -565,6 +567,9 @@ namespace helengine.editor {
                 || string.Equals(sceneId, PlatformMenuSceneResolver.NintendoDsMainMenuSceneId, StringComparison.Ordinal)
                 || string.Equals(sceneId, PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId, StringComparison.Ordinal)) {
                 return PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId;
+            }
+            if (availableSceneIds.Contains(sceneId)) {
+                return sceneId;
             }
             if (!sceneId.EndsWith("_ds", StringComparison.Ordinal)) {
                 return sceneId;

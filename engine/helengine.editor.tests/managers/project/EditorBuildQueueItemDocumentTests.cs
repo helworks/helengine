@@ -152,13 +152,13 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures Nintendo handheld queued builds drop the generated boot scene so startup targets the canonical authored scenes directly.
+        /// Ensures Nintendo handheld queued builds retain the generated boot scene so runtime scene-map remapping is active.
         /// </summary>
         /// <param name="platformId">Nintendo handheld platform identifier under test.</param>
         [Theory]
         [InlineData("ds")]
         [InlineData("3ds")]
-        public void Create_WhenNintendoHandheldBuildIncludesGeneratedBootScene_PrunesGeneratedBootSceneFromStartupOrder(string platformId) {
+        public void Create_WhenNintendoHandheldBuildIncludesGeneratedBootScene_PreservesGeneratedBootSceneAsStartup(string platformId) {
             WriteScene("Scenes/GeneratedBootScene.helen");
             WriteScene("Scenes/DemoDiscMainMenuHandheld.helen");
             WriteScene("Scenes/rendering/cube_test.helen");
@@ -178,6 +178,38 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
+                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
+                    "cube_test"
+                ],
+                queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
+        /// Ensures Nintendo handheld queued builds add the generated boot scene when persisted settings omit it.
+        /// </summary>
+        [Theory]
+        [InlineData("ds")]
+        [InlineData("3ds")]
+        public void Create_WhenNintendoHandheldBuildOmitsGeneratedBootScene_AddsItBeforeStartup(string platformId) {
+            WriteScene("Scenes/DemoDiscMainMenuHandheld.helen");
+            WriteScene("Scenes/rendering/cube_test.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = platformId,
+                SelectedSceneIds = [
+                    PlatformMenuSceneResolver.DesktopMainMenuSceneId,
+                    "cube_test"
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal(
+                [
+                    PlatformMenuSceneResolver.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test"
                 ],
@@ -231,11 +263,36 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
+                    PlatformMenuSceneResolver.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test",
                     "colored_cube_grid"
                 ],
                 queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
+        /// Ensures Nintendo handheld builds preserve an authored suffixed scene instead of treating it as a stale companion id.
+        /// </summary>
+        [Theory]
+        [InlineData("ds")]
+        [InlineData("3ds")]
+        public void Create_WhenNintendoHandheldBuildUsesAuthoredHandheldScene_PreservesHandheldSceneId(string platformId) {
+            WriteScene("Scenes/tilt_trial.helen");
+            WriteScene("Scenes/tilt_trial_ds.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = platformId,
+                SelectedSceneIds = [
+                    "tilt_trial_ds"
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal([PlatformMenuSceneResolver.GeneratedBootSceneId, "tilt_trial_ds"], queueItem.SelectedSceneIds);
         }
 
         /// <summary>
@@ -284,6 +341,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
+                    PlatformMenuSceneResolver.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test"
                 ],

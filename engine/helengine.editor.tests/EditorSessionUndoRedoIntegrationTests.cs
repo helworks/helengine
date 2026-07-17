@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor.tests.testing;
+using helengine.projectfile;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -104,7 +106,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(1, CountUserSceneEntities());
 
-            openFileDialog.Show();
+            openFileDialog.Show(string.Empty);
             InvokePrivate(session, "HandleGlobalUndoShortcut");
 
             Assert.Equal(1, CountUserSceneEntities());
@@ -209,6 +211,100 @@ namespace helengine.editor.tests {
             component.Update();
 
             Assert.Equal(1, CountUserSceneEntities());
+        }
+
+        /// <summary>
+        /// Ensures the global delete shortcut removes the currently selected authored scene entity and clears selection.
+        /// </summary>
+        [Fact]
+        public void Handle_global_delete_shortcut_deletes_the_selected_scene_entity() {
+            EditorSession session = CreateSessionForUndoRedo();
+            EditorEntity selectedEntity = CreateUserSceneEntity(300u, "Delete Me");
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+
+            InvokePrivate(session, "HandleGlobalDeleteShortcut");
+
+            Assert.Equal(0, CountUserSceneEntities());
+            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.True(GetPrivateField<bool>(session, "IsSceneDirty"));
+        }
+
+        /// <summary>
+        /// Ensures one deleted scene entity can be restored through undo and deleted again through redo.
+        /// </summary>
+        [Fact]
+        public void Handle_global_delete_shortcut_can_be_undone_and_redone() {
+            EditorSession session = CreateSessionForUndoRedo();
+            EditorEntity selectedEntity = CreateUserSceneEntity(301u, "Delete Undo");
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+
+            InvokePrivate(session, "HandleGlobalDeleteShortcut");
+
+            Assert.Equal(0, CountUserSceneEntities());
+            Assert.Null(EditorSelectionService.SelectedEntity);
+
+            InvokePrivate(session, "HandleGlobalUndoShortcut");
+
+            EditorEntity restoredEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            Assert.Equal(1, CountUserSceneEntities());
+            Assert.Equal("Delete Undo", restoredEntity.Name);
+
+            InvokePrivate(session, "HandleGlobalRedoShortcut");
+
+            Assert.Equal(0, CountUserSceneEntities());
+            Assert.Null(EditorSelectionService.SelectedEntity);
+        }
+
+        /// <summary>
+        /// Ensures modal editor workflows block the global delete shortcut so scene entities are not removed behind open dialogs.
+        /// </summary>
+        [Fact]
+        public void Handle_global_delete_shortcut_when_open_map_dialog_is_visible_does_not_delete_the_selected_entity() {
+            EditorSession session = CreateSessionForUndoRedo();
+            OpenFileDialog openFileDialog = GetPrivateField<OpenFileDialog>(session, "openFileDialog");
+            EditorEntity selectedEntity = CreateUserSceneEntity(302u, "Blocked Delete");
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+
+            openFileDialog.Show(string.Empty);
+            InvokePrivate(session, "HandleGlobalDeleteShortcut");
+
+            Assert.Equal(1, CountUserSceneEntities());
+            Assert.Same(selectedEntity, EditorSelectionService.SelectedEntity);
+        }
+
+        /// <summary>
+        /// Ensures one delete key press routes through the keyboard-focus update component into the session delete handler.
+        /// </summary>
+        [Fact]
+        public void Keyboard_focus_update_component_routes_delete_into_the_session_handler() {
+            EditorSession session = CreateSessionForUndoRedo();
+            EditorEntity selectedEntity = CreateUserSceneEntity(303u, "Delete Key");
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent {
+                DeleteShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalDeleteShortcut")
+            };
+
+            AdvanceToNeutralFrame();
+            InputBackend.SetKeyboardState(new KeyboardState(Keys.Delete));
+            InputBackend.EarlyUpdate();
+            component.Update();
+
+            Assert.Equal(0, CountUserSceneEntities());
+            Assert.Null(EditorSelectionService.SelectedEntity);
+        }
+
+        /// <summary>
+        /// Ensures the global delete shortcut ignores empty selections instead of mutating scene state.
+        /// </summary>
+        [Fact]
+        public void Handle_global_delete_shortcut_when_nothing_is_selected_does_nothing() {
+            EditorSession session = CreateSessionForUndoRedo();
+
+            InvokePrivate(session, "HandleGlobalDeleteShortcut");
+
+            Assert.Equal(0, CountUserSceneEntities());
+            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.False(GetPrivateField<bool>(session, "IsSceneDirty"));
         }
 
         /// <summary>

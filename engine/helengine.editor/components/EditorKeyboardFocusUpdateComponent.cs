@@ -19,6 +19,11 @@ namespace helengine.editor {
         public Action RedoShortcutRequested { get; set; }
 
         /// <summary>
+        /// Callback invoked when the editor-global delete shortcut is pressed.
+        /// </summary>
+        public Action DeleteShortcutRequested { get; set; }
+
+        /// <summary>
         /// Routes per-frame input into the shared keyboard-focus service.
         /// </summary>
         public override void Update() {
@@ -56,6 +61,10 @@ namespace helengine.editor {
             } else if (controlPressed && input.WasKeyPressed(Keys.S)) {
                 if (SaveShortcutRequested != null) {
                     SaveShortcutRequested();
+                }
+            } else if (input.WasKeyPressed(Keys.Delete)) {
+                if (DeleteShortcutRequested != null) {
+                    DeleteShortcutRequested();
                 }
             } else if (input.WasKeyPressed(Keys.Enter)) {
                 EditorKeyboardFocusService.HandleActivationKey(Keys.Enter);

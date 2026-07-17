@@ -91,6 +91,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaging selects a complete automatic-component payload from the target platform instead of silently reverting to common values.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenTargetPlatformHasTextOverride_UsesTargetPlatformFontScale() {
+            PlatformDefinition platformDefinition = CreateDsSyntheticTextPlatformDefinition();
+            SceneComponentPackagingTransformService service = CreateDsSyntheticTextService(platformDefinition);
+            SceneComponentAssetRecord record = CreateWrappedTextRecordWithFontScaleOverride(0.5f);
+
+            bool transformed = service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord);
+
+            Assert.True(transformed);
+            Assert.NotNull(transformedRecord);
+            TextComponent restored = DeserializePlatformExtendedAutomaticComponent<TextComponent>(transformedRecord, platformDefinition);
+            Assert.Equal(0.5f, restored.FontScale, 3);
+        }
+
+        /// <summary>
         /// Ensures flagged text remains a runtime text payload and does not call the bake service.
         /// </summary>
         [Fact]
@@ -274,15 +291,12 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures DS-authored generated debug-font references are rejected after the shared engine path drops the platform-specific font hook.
+        /// Ensures DS-authored generated debug-font references are rejected before packaging can materialize one runtime payload.
         /// </summary>
         [Fact]
-        public void TryTransform_WhenDebugComponentUsesRemovedNintendoDsGeneratedFont_ThrowsUnsupportedGeneratedReference() {
-            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
-            SceneComponentAssetRecord record = CreateDebugRecord(CreateNintendoDsDebugFontReference());
-
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.TryTransform(record, BuildRootPath, out _));
-            Assert.Contains("Unsupported generated", exception.Message);
+        public void SerializeDebugRecord_WhenDebugComponentUsesRemovedNintendoDsGeneratedFont_ThrowsUnsupportedGeneratedReference() {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => CreateDebugRecord(CreateNintendoDsDebugFontReference()));
+            Assert.Contains("Unsupported generated font asset id", exception.Message);
         }
 
         /// <summary>
@@ -617,6 +631,53 @@ namespace helengine.editor.tests {
             overrideState.Payload = baseRecord.Payload;
             overrideState.SetPropertyOverride("BGLayer");
             overrideState.SetMemberValue("BGLayer", bgLayerValue);
+            return new ComponentPlatformOverridePayloadService().Wrap(baseRecord, saveState);
+        }
+
+        /// <summary>
+        /// Creates one wrapped text-component record whose DS override contains a smaller font scale than the common component.
+        /// </summary>
+        /// <param name="fontScale">Target-platform font scale stored in the override payload.</param>
+        /// <returns>Wrapped text-component record with a target-platform font override.</returns>
+        SceneComponentAssetRecord CreateWrappedTextRecordWithFontScaleOverride(float fontScale) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TextComponent commonTextComponent = new TextComponent {
+                Font = CreatePackagedFontAsset(),
+                Text = "Hello world",
+                WrapText = true,
+                Size = new int2(128, 32),
+                Color = new byte4(12, 34, 56, 255),
+                SourceRect = new float4(0f, 0f, 1f, 1f),
+                Rotation = 0.25f,
+                FontScale = 2f,
+                RenderOrder2D = 19,
+                LayerMask = 7,
+                SelectionEnabled = true,
+                Alignment = TextAlignment.Center
+            };
+            TextComponent targetTextComponent = new TextComponent {
+                Font = CreatePackagedFontAsset(),
+                Text = "Hello world",
+                WrapText = true,
+                Size = new int2(128, 32),
+                Color = new byte4(12, 34, 56, 255),
+                SourceRect = new float4(0f, 0f, 1f, 1f),
+                Rotation = 0.25f,
+                FontScale = fontScale,
+                RenderOrder2D = 19,
+                LayerMask = 7,
+                SelectionEnabled = true,
+                Alignment = TextAlignment.Center
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(TextComponent.Font), CreateEditorFontReference());
+            SceneComponentAssetRecord baseRecord = descriptor.SerializeComponent(commonTextComponent, 0, saveState);
+            EntityComponentSaveState targetSaveState = new EntityComponentSaveState();
+            targetSaveState.SetAssetReference(nameof(TextComponent.Font), CreateEditorFontReference());
+            SceneComponentAssetRecord targetRecord = descriptor.SerializeComponent(targetTextComponent, 0, targetSaveState);
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride("ds");
+            overrideState.Payload = targetRecord.Payload;
+            overrideState.SetPropertyOverride(nameof(TextComponent.FontScale));
             return new ComponentPlatformOverridePayloadService().Wrap(baseRecord, saveState);
         }
 

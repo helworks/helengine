@@ -68,6 +68,29 @@ namespace helengine.editor.tests.managers.asset {
         }
 
         /// <summary>
+        /// Ensures the DS default font-atlas settings preserve the imported atlas dimensions instead of shrinking glyphs before the hardware tile conversion.
+        /// </summary>
+        [Fact]
+        public void BuildFontAssetForPlatform_WhenDsFontAtlasSettingsAreMissing_PreservesImportedAtlasDimensions() {
+            string sourcePath = Path.Combine(AssetsRootPath, "Fonts", "DemoBody.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourcePath) ?? throw new InvalidOperationException("Font directory path could not be resolved."));
+            File.WriteAllBytes(sourcePath, [0x01, 0x02, 0x03]);
+
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterFontImporter(new FontImporterRegistration(
+                "test-font",
+                new ConfigurableFontImporter(256, 128, new byte[256 * 128 * 4]),
+                [".ttf"]));
+
+            FontAsset fontAsset = manager.BuildFontAssetForPlatform(sourcePath, "ds");
+
+            Assert.NotNull(fontAsset.SourceTextureAsset);
+            Assert.Equal((ushort)256, fontAsset.SourceTextureAsset.Width);
+            Assert.Equal((ushort)128, fontAsset.SourceTextureAsset.Height);
+        }
+
+        /// <summary>
         /// Ensures platform-specific font-atlas texture settings are used instead of the generic texture section.
         /// </summary>
         [Fact]

@@ -70,6 +70,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Records one authored entity deletion.
+        /// </summary>
+        /// <param name="entity">Live editor entity that is about to be deleted.</param>
+        public void RecordDeletedEntity(EditorEntity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            UndoRedoService.Record(new EntityDeletionHistoryOperation(
+                HistoryCaptureService.CaptureEntity(entity)));
+            MarkSceneMutated();
+        }
+
+        /// <summary>
         /// Records one authored entity reparent mutation.
         /// </summary>
         /// <param name="entity">Reparented live editor entity.</param>
