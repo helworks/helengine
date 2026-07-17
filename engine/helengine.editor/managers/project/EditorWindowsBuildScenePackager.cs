@@ -622,6 +622,7 @@ namespace helengine.editor {
                 string sceneId = sceneIds[index];
                 string sceneSourcePath = sceneSourcePaths[index];
                 SceneAsset packagedSceneAsset = LoadSceneAsset(sceneId, sceneSourcePath);
+                PruneEntitySubtreesForTargetPlatform(packagedSceneAsset);
                 BlueprintExpansionService.Expand(packagedSceneAsset);
                 packagedSceneAsset.Id = sceneId;
                 RewriteSceneAsset(packagedSceneAsset, fullBuildRootPath);
@@ -631,6 +632,54 @@ namespace helengine.editor {
             }
 
             return new EditorPlatformBuildScenePackagerResult(ReferencedShaderAssetIds, PlatformCookWorkItems);
+        }
+
+        /// <summary>
+        /// Removes scene entity subtrees excluded from the selected platform before Blueprint expansion and dependency collection.
+        /// </summary>
+        /// <param name="sceneAsset">Loaded authored scene to prune in place.</param>
+        void PruneEntitySubtreesForTargetPlatform(SceneAsset sceneAsset) {
+            if (sceneAsset == null) {
+                throw new ArgumentNullException(nameof(sceneAsset));
+            }
+
+            SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
+            List<SceneEntityAsset> retainedRootEntities = new List<SceneEntityAsset>(rootEntityAssets.Length);
+            for (int index = 0; index < rootEntityAssets.Length; index++) {
+                SceneEntityAsset rootEntityAsset = rootEntityAssets[index];
+                if (rootEntityAsset == null || !ShouldEntityExistOnTargetPlatform(rootEntityAsset)) {
+                    continue;
+                }
+
+                PruneEntityChildrenForTargetPlatform(rootEntityAsset);
+                retainedRootEntities.Add(rootEntityAsset);
+            }
+
+            sceneAsset.RootEntities = retainedRootEntities.ToArray();
+        }
+
+        /// <summary>
+        /// Removes excluded descendants from one retained scene entity subtree.
+        /// </summary>
+        /// <param name="entityAsset">Retained entity whose descendants should be pruned.</param>
+        void PruneEntityChildrenForTargetPlatform(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                throw new ArgumentNullException(nameof(entityAsset));
+            }
+
+            SceneEntityAsset[] childEntityAssets = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
+            List<SceneEntityAsset> retainedChildren = new List<SceneEntityAsset>(childEntityAssets.Length);
+            for (int index = 0; index < childEntityAssets.Length; index++) {
+                SceneEntityAsset childEntityAsset = childEntityAssets[index];
+                if (childEntityAsset == null || !ShouldEntityExistOnTargetPlatform(childEntityAsset)) {
+                    continue;
+                }
+
+                PruneEntityChildrenForTargetPlatform(childEntityAsset);
+                retainedChildren.Add(childEntityAsset);
+            }
+
+            entityAsset.Children = retainedChildren.ToArray();
         }
 
         /// <summary>
@@ -682,7 +731,7 @@ namespace helengine.editor {
             List<SceneEntityAsset> rewrittenRootEntities = new List<SceneEntityAsset>(rootEntityAssets.Length);
             for (int index = 0; index < rootEntityAssets.Length; index++) {
                 SceneEntityAsset rootEntityAsset = rootEntityAssets[index];
-                if (rootEntityAsset == null || !ShouldEntityExistOnTargetPlatform(rootEntityAsset)) {
+                if (rootEntityAsset == null) {
                     continue;
                 }
 
@@ -724,7 +773,7 @@ namespace helengine.editor {
             List<SceneEntityAsset> rewrittenChildEntityAssets = new List<SceneEntityAsset>(childEntityAssets.Length);
             for (int index = 0; index < childEntityAssets.Length; index++) {
                 SceneEntityAsset childEntityAsset = childEntityAssets[index];
-                if (childEntityAsset == null || !ShouldEntityExistOnTargetPlatform(childEntityAsset)) {
+                if (childEntityAsset == null) {
                     continue;
                 }
 

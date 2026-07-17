@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
 
@@ -384,13 +385,10 @@ namespace helengine.editor {
                 startInfo.ArgumentList.Add(arguments[index]);
             }
 
-            using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Failed to start codegen tool '{toolPath}'.");
-            string standardOutput = process.StandardOutput.ReadToEnd();
-            string standardError = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-            if (process.ExitCode != 0) {
+            NativeProcessRunResult result = new NativeProcessRunner().Run(startInfo, CancellationToken.None);
+            if (result.ExitCode != 0) {
                 throw new InvalidOperationException(
-                    $"Codegen tool '{toolPath}' failed with exit code {process.ExitCode}.{Environment.NewLine}{standardOutput}{Environment.NewLine}{standardError}".Trim());
+                    $"Codegen tool '{toolPath}' failed with exit code {result.ExitCode}.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}".Trim());
             }
         }
     }

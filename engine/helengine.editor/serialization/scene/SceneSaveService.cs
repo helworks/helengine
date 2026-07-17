@@ -87,6 +87,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Scene settings must include a canvas profile.");
             }
 
+            EntityReferenceTable.Clear();
             SceneAsset asset = BuildSceneAsset(fullPath, sceneSettings);
             string directoryPath = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
@@ -114,6 +115,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Only authored scene entities can be captured into undo/redo history.");
             }
 
+            EntityReferenceTable.Clear();
             uint entityId = EntityReferenceTable.GetRequiredEntityId(entity);
             uint parentEntityId = entity.Parent != null
                 ? EntityReferenceTable.GetRequiredEntityId(entity.Parent)

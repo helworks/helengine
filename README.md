@@ -4,12 +4,12 @@ helengine is the shared engine and editor workspace used to build platform packa
 
 ## Editor CLI Platform Builds
 
-Use the shared PowerShell wrapper at [artifacts/build-platform.ps1](artifacts/build-platform.ps1) to run platform builds through the editor CLI with `dotnet run`.
+Use the shared PowerShell wrapper at [scripts/build-platform.ps1](scripts/build-platform.ps1) to run platform builds through the editor CLI with `dotnet run`.
 
 Example:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File C:\dev\helworks\helengine\artifacts\build-platform.ps1 `
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\dev\helworks\helengine\scripts\build-platform.ps1 `
   -Project C:\dev\helprojs\city\project.heproj `
   -Platform ds `
   -Output C:\dev\helprojs\city\ds-build

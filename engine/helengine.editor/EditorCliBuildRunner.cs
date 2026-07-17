@@ -93,6 +93,14 @@ namespace helengine.editor {
                     return EditorBuildExecutionResult.Failure($"No build settings exist for platform '{options.PlatformId}'.");
                 }
 
+                EditorProfileSettingsDocument sharedProfileSettings = bootstrap.ProfileSettingsService.TryLoadExisting();
+                EditorPlatformProfileSettingsDocument sharedPlatformSettings = EditorCliBuildPlatformConfigOverlayService.FindPlatformSettings(
+                    sharedProfileSettings,
+                    options.PlatformId);
+                if (sharedPlatformSettings != null) {
+                    EditorCliBuildPlatformConfigOverlayService.ApplySharedProfileSettings(platformConfig, sharedPlatformSettings);
+                }
+
                 EditorPlatformBuildSelectionModel selectionModel;
                 try {
                     selectionModel = bootstrap.ResolveSelectionModel(options.PlatformId);

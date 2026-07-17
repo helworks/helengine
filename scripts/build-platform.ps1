@@ -131,6 +131,85 @@ function Sync-EditorProjectReferenceOutputs {
     return $EditorOutputPath
 }
 
+function ConvertTo-NativeProcessArgument {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    if ($Value.Length -eq 0) {
+        return '""'
+    }
+
+    if ($Value -notmatch '[\s"]') {
+        return $Value
+    }
+
+    $EscapedValue = $Value -replace '(\\*)"', '$1$1\"'
+    $EscapedValue = $EscapedValue -replace '(\\+)$', '$1$1'
+    return '"' + $EscapedValue + '"'
+}
+
+function Invoke-StreamingNativeProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ArgumentList
+    )
+
+    if ([string]::IsNullOrWhiteSpace($FilePath)) {
+        throw "Native process path must be provided."
+    }
+
+    $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $StartInfo.FileName = $FilePath
+    $StartInfo.Arguments = (($ArgumentList | ForEach-Object { ConvertTo-NativeProcessArgument -Value $_ }) -join " ")
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.CreateNoWindow = $true
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $true
+
+    $Process = New-Object System.Diagnostics.Process
+    $Process.StartInfo = $StartInfo
+    $OutputSubscription = $null
+    $ErrorSubscription = $null
+    try {
+        $OutputSubscription = Register-ObjectEvent -InputObject $Process -EventName OutputDataReceived -Action {
+            if ($null -ne $EventArgs.Data) {
+                [Console]::Out.WriteLine($EventArgs.Data)
+                [Console]::Out.Flush()
+            }
+        }
+        $ErrorSubscription = Register-ObjectEvent -InputObject $Process -EventName ErrorDataReceived -Action {
+            if ($null -ne $EventArgs.Data) {
+                [Console]::Error.WriteLine($EventArgs.Data)
+                [Console]::Error.Flush()
+            }
+        }
+
+        if (-not $Process.Start()) {
+            throw "Native process '$FilePath' failed to start."
+        }
+
+        $Process.BeginOutputReadLine()
+        $Process.BeginErrorReadLine()
+        $Process.WaitForExit()
+        $Process.WaitForExit()
+        return $Process.ExitCode
+    } finally {
+        if ($null -ne $OutputSubscription) {
+            Unregister-Event -SubscriptionId $OutputSubscription.Id -ErrorAction SilentlyContinue
+        }
+        if ($null -ne $ErrorSubscription) {
+            Unregister-Event -SubscriptionId $ErrorSubscription.Id -ErrorAction SilentlyContinue
+        }
+        $Process.Dispose()
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($Project)) { [Console]::Error.WriteLine("Project is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Platform)) { [Console]::Error.WriteLine("Platform is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Output)) { [Console]::Error.WriteLine("Output is required."); exit 2 }
@@ -225,8 +304,7 @@ try {
 
     Write-Host ("Restoring: " + ($RestoreDisplayArguments -join " "))
 
-    & dotnet @DotNetRestoreArguments
-    $DotNetRestoreExitCode = $LASTEXITCODE
+    $DotNetRestoreExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $DotNetRestoreArguments
     if ($DotNetRestoreExitCode -ne 0) {
         [Console]::Error.WriteLine("Editor project restore failed with exit code $DotNetRestoreExitCode.")
         exit $DotNetRestoreExitCode
@@ -243,8 +321,7 @@ try {
 
     Write-Host ("Publishing: " + ($BuildDisplayArguments -join " "))
 
-    & dotnet @DotNetPublishArguments
-    $DotNetBuildExitCode = $LASTEXITCODE
+    $DotNetBuildExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $DotNetPublishArguments
     if ($DotNetBuildExitCode -ne 0) {
         [Console]::Error.WriteLine("Editor project publish failed with exit code $DotNetBuildExitCode.")
         exit $DotNetBuildExitCode
@@ -270,8 +347,38 @@ try {
     $OriginalHelEngineSourceRootPath = $env:HELENGINE_SOURCE_ROOT
     try {
         $env:HELENGINE_SOURCE_ROOT = $ResolvedHelEngineRootPath
-        & dotnet $EditorAssemblyPath @EditorRunArguments
-        $DotNetExitCode = $LASTEXITCODE
+
+        if ($Platform -ieq "ps2" -or $Platform -ieq "windows") {
+            $SceneGenerationArguments = @(
+                $EditorAssemblyPath,
+                "--project",
+                $ResolvedProjectPath,
+                "--editor-command",
+                "menu.generate-game-scenes"
+            )
+            Write-Host ("Regenerating generated game scenes: dotnet " + ($SceneGenerationArguments -join " "))
+            $SceneGenerationExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $SceneGenerationArguments
+            if ($SceneGenerationExitCode -ne 0) {
+                [Console]::Error.WriteLine("Generated game scene refresh failed with exit code $SceneGenerationExitCode.")
+                exit $SceneGenerationExitCode
+            }
+
+            $PresentationAttachmentArguments = @(
+                $EditorAssemblyPath,
+                "--project",
+                $ResolvedProjectPath,
+                "--editor-command",
+                "menu.attach-tilt-trial-presentation-blueprints"
+            )
+            Write-Host ("Refreshing Tilt Trial presentation bindings: dotnet " + ($PresentationAttachmentArguments -join " "))
+            $PresentationAttachmentExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $PresentationAttachmentArguments
+            if ($PresentationAttachmentExitCode -ne 0) {
+                [Console]::Error.WriteLine("Tilt Trial presentation binding refresh failed with exit code $PresentationAttachmentExitCode.")
+                exit $PresentationAttachmentExitCode
+            }
+        }
+
+        $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
         if ($DotNetExitCode -ne 0) {
             [Console]::Error.WriteLine("Editor platform build failed with exit code $DotNetExitCode.")
             exit $DotNetExitCode

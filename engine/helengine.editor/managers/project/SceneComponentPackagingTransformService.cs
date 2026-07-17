@@ -437,7 +437,7 @@ namespace helengine.editor {
             }
 
             EntitySaveComponent saveComponent = new EntitySaveComponent();
-            SceneComponentAssetRecord baseRecord = PlatformOverridePayloadService.UnwrapBaseRecord(record);
+            SceneComponentAssetRecord baseRecord = ResolveTargetPlatformComponentRecord(record);
             Component component = DeserializeAutomaticComponentForPackaging(baseRecord, descriptor, saveComponent);
             NormalizeAutomaticComponentForRuntimePackaging(component);
             ApplyStaticMeshCookedRuntimeData(component);
@@ -449,6 +449,37 @@ namespace helengine.editor {
                 record,
                 buildRootPath);
             return true;
+        }
+
+        /// <summary>
+        /// Selects the complete automatic-component payload authored for the current packaging platform, falling back to the common payload when no override exists.
+        /// </summary>
+        /// <param name="persistedRecord">Persisted component record that may contain platform override payloads.</param>
+        /// <returns>Component record whose payload should be deserialized for the target platform.</returns>
+        SceneComponentAssetRecord ResolveTargetPlatformComponentRecord(SceneComponentAssetRecord persistedRecord) {
+            if (persistedRecord == null) {
+                throw new ArgumentNullException(nameof(persistedRecord));
+            }
+
+            IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = PlatformOverridePayloadService.ReadOverrideStates(persistedRecord);
+            if (!string.IsNullOrWhiteSpace(TargetPlatformId) &&
+                !string.Equals(TargetPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                for (int index = 0; index < overrideStates.Count; index++) {
+                    EntityComponentPlatformOverrideState overrideState = overrideStates[index];
+                    if (overrideState == null || !string.Equals(overrideState.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+
+                    return new SceneComponentAssetRecord {
+                        ComponentTypeId = persistedRecord.ComponentTypeId,
+                        ComponentIndex = persistedRecord.ComponentIndex,
+                        ComponentKey = persistedRecord.ComponentKey,
+                        Payload = overrideState.Payload ?? Array.Empty<byte>()
+                    };
+                }
+            }
+
+            return PlatformOverridePayloadService.UnwrapBaseRecord(persistedRecord);
         }
 
         /// <summary>

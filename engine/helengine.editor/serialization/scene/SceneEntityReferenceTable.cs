@@ -22,6 +22,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Clears all cached live-entity registrations so one new save or history-capture session starts from the current scene graph.
+        /// </summary>
+        public void Clear() {
+            EntityIdsByEntity.Clear();
+            EntitiesById.Clear();
+        }
+
+        /// <summary>
         /// Returns the existing stable id for one entity.
         /// </summary>
         /// <param name="entity">Live entity to identify.</param>
