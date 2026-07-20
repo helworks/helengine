@@ -282,7 +282,7 @@ namespace Nucleus.Web {
                 next_char = stream.ReadByte();
                 if (next_char == '\n') { break; }
                 if (next_char == '\r') { continue; }
-                if (next_char == -1) { Thread.Sleep(1); continue; };
+                if (next_char == -1) { throw new EndOfStreamException("The HTTP request ended before a complete line was received."); }
                 data += Convert.ToChar(next_char);
             }
 
@@ -339,7 +339,11 @@ namespace Nucleus.Web {
                 while (bytesLeft > 0) {
                     byte[] buffer = new byte[bytesLeft > 1024 ? 1024 : bytesLeft];
                     int n = inputStream.Read(buffer, 0, buffer.Length);
-                    buffer.CopyTo(bytes, totalBytes - bytesLeft);
+                    if (n <= 0) {
+                        throw new EndOfStreamException("The HTTP request ended before the declared body length was received.");
+                    }
+
+                    Buffer.BlockCopy(buffer, 0, bytes, totalBytes - bytesLeft, n);
 
                     bytesLeft -= n;
                 }

@@ -348,34 +348,32 @@ try {
     try {
         $env:HELENGINE_SOURCE_ROOT = $ResolvedHelEngineRootPath
 
-        if ($Platform -ieq "ps2" -or $Platform -ieq "windows") {
-            $SceneGenerationArguments = @(
-                $EditorAssemblyPath,
-                "--project",
-                $ResolvedProjectPath,
-                "--editor-command",
-                "menu.generate-game-scenes"
-            )
-            Write-Host ("Regenerating generated game scenes: dotnet " + ($SceneGenerationArguments -join " "))
-            $SceneGenerationExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $SceneGenerationArguments
-            if ($SceneGenerationExitCode -ne 0) {
-                [Console]::Error.WriteLine("Generated game scene refresh failed with exit code $SceneGenerationExitCode.")
-                exit $SceneGenerationExitCode
-            }
+        $SceneGenerationArguments = @(
+            $EditorAssemblyPath,
+            "--project",
+            $ResolvedProjectPath,
+            "--editor-command",
+            "menu.generate-game-scenes"
+        )
+        Write-Host ("Regenerating generated game scenes: dotnet " + ($SceneGenerationArguments -join " "))
+        $SceneGenerationExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $SceneGenerationArguments
+        if ($SceneGenerationExitCode -ne 0) {
+            [Console]::Error.WriteLine("Generated game scene refresh failed with exit code $SceneGenerationExitCode.")
+            exit $SceneGenerationExitCode
+        }
 
-            $PresentationAttachmentArguments = @(
-                $EditorAssemblyPath,
-                "--project",
-                $ResolvedProjectPath,
-                "--editor-command",
-                "menu.attach-tilt-trial-presentation-blueprints"
-            )
-            Write-Host ("Refreshing Tilt Trial presentation bindings: dotnet " + ($PresentationAttachmentArguments -join " "))
-            $PresentationAttachmentExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $PresentationAttachmentArguments
-            if ($PresentationAttachmentExitCode -ne 0) {
-                [Console]::Error.WriteLine("Tilt Trial presentation binding refresh failed with exit code $PresentationAttachmentExitCode.")
-                exit $PresentationAttachmentExitCode
-            }
+        $PresentationAttachmentArguments = @(
+            $EditorAssemblyPath,
+            "--project",
+            $ResolvedProjectPath,
+            "--editor-command",
+            "menu.attach-tilt-trial-presentation-blueprints"
+        )
+        Write-Host ("Refreshing Tilt Trial presentation bindings: dotnet " + ($PresentationAttachmentArguments -join " "))
+        $PresentationAttachmentExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $PresentationAttachmentArguments
+        if ($PresentationAttachmentExitCode -ne 0) {
+            [Console]::Error.WriteLine("Tilt Trial presentation binding refresh failed with exit code $PresentationAttachmentExitCode.")
+            exit $PresentationAttachmentExitCode
         }
 
         $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)

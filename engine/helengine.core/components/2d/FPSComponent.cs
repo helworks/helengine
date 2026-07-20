@@ -847,7 +847,9 @@ namespace helengine {
         /// <param name="core">Active core instance that may publish performance overlay metrics.</param>
         /// <returns><c>true</c> when the active runtime should render performance-overlay rows.</returns>
         bool ShouldUsePerformanceOverlayRows(Core core) {
-            return core != null && core.UsesPerformanceOverlayMetrics;
+            return core != null
+                && core.UsesPerformanceOverlayMetrics
+                && !core.UsesPlatformOwnedPerformanceOverlayPresentation;
         }
 
         /// <summary>

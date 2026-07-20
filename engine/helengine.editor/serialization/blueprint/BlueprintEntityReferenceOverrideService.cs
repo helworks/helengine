@@ -11,6 +11,11 @@ namespace helengine.editor {
         readonly ComponentPersistenceRegistry PersistenceRegistry;
 
         /// <summary>
+        /// Unwraps editor-only platform metadata before blueprint components are materialized for reference inspection.
+        /// </summary>
+        readonly ComponentPlatformOverridePayloadService PlatformOverridePayloadService = new ComponentPlatformOverridePayloadService();
+
+        /// <summary>
         /// Initializes one blueprint entity-reference override service.
         /// </summary>
         /// <param name="persistenceRegistry">Registry that knows how blueprint components are persisted.</param>
@@ -70,10 +75,11 @@ namespace helengine.editor {
                     continue;
                 }
 
-                IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(componentRecord.ComponentTypeId);
+                SceneComponentAssetRecord baseComponentRecord = PlatformOverridePayloadService.UnwrapBaseRecord(componentRecord);
+                IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(baseComponentRecord.ComponentTypeId);
                 Type componentType = descriptor.ComponentType;
                 if (componentType == typeof(Component)) {
-                    Component component = descriptor.DeserializeComponent(componentRecord, null, null);
+                    Component component = descriptor.DeserializeComponent(baseComponentRecord, null, null);
                     componentType = component.GetType();
                 }
 

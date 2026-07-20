@@ -23,8 +23,8 @@ foreach ($RequiredToken in @(
     }
 }
 
-if (-not $Source.Contains('$Platform -ieq "ps2" -or $Platform -ieq "windows"')) {
-    throw "The build wrapper must regenerate shared game scenes for Windows builds as well as PS2 builds."
+if ($Source.Contains('$Platform -ieq "ps2" -or $Platform -ieq "windows"')) {
+    throw "The build wrapper must regenerate shared game scenes for every target platform, not a PS2/Windows subset."
 }
 
 foreach ($ForbiddenToken in @(

@@ -83,7 +83,7 @@ namespace helengine.editor {
 
             string normalizedRelativeScenePath = NormalizeRelativeScenePath(relativeScenePath);
             string scenePath = ResolveProjectAssetPath(normalizedRelativeScenePath);
-            string initialSceneId = ResolveInitialSceneId(sceneIds);
+            string initialSceneId = ResolveInitialSceneId(platformId, sceneIds);
             SceneAsset sceneAsset = BootSceneAssetFactory.BuildSceneAsset(
                 normalizedRelativeScenePath,
                 initialSceneId,
@@ -100,9 +100,13 @@ namespace helengine.editor {
         /// <summary>
         /// Resolves the startup scene id that should be written into the generated boot scene for the current build.
         /// </summary>
+        /// <param name="platformId">Target platform identifier.</param>
         /// <param name="sceneIds">Stable scene ids selected for the build.</param>
         /// <returns>Startup scene id that should be requested after the generated boot scene loads.</returns>
-        static string ResolveInitialSceneId(IReadOnlyList<string> sceneIds) {
+        static string ResolveInitialSceneId(string platformId, IReadOnlyList<string> sceneIds) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
@@ -113,6 +117,12 @@ namespace helengine.editor {
             }
             if (!string.IsNullOrWhiteSpace(overrideSceneId)) {
                 return overrideSceneId;
+            }
+
+            if ((string.Equals(platformId, NintendoDsPlatformId, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(platformId, Nintendo3DsPlatformId, StringComparison.OrdinalIgnoreCase))
+                && ContainsSceneId(sceneIds, PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId)) {
+                return PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId;
             }
 
             for (int index = 0; index < sceneIds.Count; index++) {

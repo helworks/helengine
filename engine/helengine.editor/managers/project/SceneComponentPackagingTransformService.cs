@@ -437,8 +437,9 @@ namespace helengine.editor {
             }
 
             EntitySaveComponent saveComponent = new EntitySaveComponent();
-            SceneComponentAssetRecord baseRecord = ResolveTargetPlatformComponentRecord(record);
+            SceneComponentAssetRecord baseRecord = ResolveTargetPlatformComponentRecord(record, out EntityComponentPlatformOverrideState targetPlatformOverride);
             Component component = DeserializeAutomaticComponentForPackaging(baseRecord, descriptor, saveComponent);
+            RestoreTargetPlatformAssetReferences(saveComponent, component, targetPlatformOverride);
             NormalizeAutomaticComponentForRuntimePackaging(component);
             ApplyStaticMeshCookedRuntimeData(component);
             transformedRecord = BuildAutomaticRuntimeComponentRecord(
@@ -456,12 +457,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="persistedRecord">Persisted component record that may contain platform override payloads.</param>
         /// <returns>Component record whose payload should be deserialized for the target platform.</returns>
-        SceneComponentAssetRecord ResolveTargetPlatformComponentRecord(SceneComponentAssetRecord persistedRecord) {
+        SceneComponentAssetRecord ResolveTargetPlatformComponentRecord(
+            SceneComponentAssetRecord persistedRecord,
+            out EntityComponentPlatformOverrideState targetPlatformOverride) {
             if (persistedRecord == null) {
                 throw new ArgumentNullException(nameof(persistedRecord));
             }
 
             IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = PlatformOverridePayloadService.ReadOverrideStates(persistedRecord);
+            targetPlatformOverride = null;
             if (!string.IsNullOrWhiteSpace(TargetPlatformId) &&
                 !string.Equals(TargetPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
                 for (int index = 0; index < overrideStates.Count; index++) {
@@ -470,16 +474,46 @@ namespace helengine.editor {
                         continue;
                     }
 
+                    targetPlatformOverride = overrideState;
+                    byte[] overridePayload = overrideState.Payload ?? Array.Empty<byte>();
+                    if (overridePayload.Length == 0) {
+                        return PlatformOverridePayloadService.UnwrapBaseRecord(persistedRecord);
+                    }
+
                     return new SceneComponentAssetRecord {
                         ComponentTypeId = persistedRecord.ComponentTypeId,
                         ComponentIndex = persistedRecord.ComponentIndex,
                         ComponentKey = persistedRecord.ComponentKey,
-                        Payload = overrideState.Payload ?? Array.Empty<byte>()
+                        Payload = overridePayload
                     };
                 }
             }
 
             return PlatformOverridePayloadService.UnwrapBaseRecord(persistedRecord);
+        }
+
+        /// <summary>
+        /// Restores named asset references from the selected platform override into the temporary save state used by automatic component packaging.
+        /// </summary>
+        /// <param name="saveComponent">Temporary save component receiving the reconstructed reference state.</param>
+        /// <param name="component">Deserialized component that owns the references.</param>
+        /// <param name="targetPlatformOverride">Selected platform override, or null when the common component payload is used.</param>
+        void RestoreTargetPlatformAssetReferences(
+            EntitySaveComponent saveComponent,
+            Component component,
+            EntityComponentPlatformOverrideState targetPlatformOverride) {
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (targetPlatformOverride == null) {
+                return;
+            }
+
+            EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(component);
+            foreach (KeyValuePair<string, SceneAssetReference> namedReference in targetPlatformOverride.EnumerateNamedAssetReferences()) {
+                saveState.SetAssetReference(namedReference.Key, namedReference.Value);
+            }
         }
 
         /// <summary>

@@ -24,6 +24,11 @@ namespace helengine {
         readonly List<IClipRegion2D> NextClipChain;
 
         /// <summary>
+        /// Reusable horizontal text offsets for the lines currently being emitted.
+        /// </summary>
+        readonly List<double> TextLineOffsets;
+
+        /// <summary>
         /// Tracks whether the native reusable builder state was already released.
         /// </summary>
         bool IsDisposedValue;
@@ -35,6 +40,7 @@ namespace helengine {
             ClipRegionStackBuilder = new ClipRegionStackBuilder2D();
             ActiveClipChain = new List<IClipRegion2D>();
             NextClipChain = new List<IClipRegion2D>();
+            TextLineOffsets = new List<double>();
         }
 
         /// <summary>
@@ -74,6 +80,7 @@ namespace helengine {
             NativeOwnership.Delete(ClipRegionStackBuilder);
             NativeOwnership.Delete(ActiveClipChain);
             NativeOwnership.Delete(NextClipChain);
+            NativeOwnership.Delete(TextLineOffsets);
             CommandListValue = null;
             IsDisposedValue = true;
         }
@@ -318,7 +325,7 @@ namespace helengine {
             double lineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
             double baseX = Math.Round(text.Parent.Position.X);
             double baseY = Math.Round(text.Parent.Position.Y);
-            double[] lineOffsets = BuildTextLineOffsets(text, font, content, fontScale);
+            IReadOnlyList<double> lineOffsets = BuildTextLineOffsets(text, font, content, fontScale);
             int lineIndex = 0;
             double lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
 
@@ -369,7 +376,7 @@ namespace helengine {
         /// <param name="content">Final rendered text content after wrapping has been applied.</param>
         /// <param name="fontScale">Resolved glyph scale.</param>
         /// <returns>One horizontal offset per rendered line.</returns>
-        static double[] BuildTextLineOffsets(ITextDrawable2D text, FontAsset font, string content, double fontScale) {
+        IReadOnlyList<double> BuildTextLineOffsets(ITextDrawable2D text, FontAsset font, string content, double fontScale) {
             if (text == null) {
                 throw new ArgumentNullException(nameof(text));
             } else if (font == null) {
@@ -387,7 +394,11 @@ namespace helengine {
                 }
             }
 
-            double[] lineOffsets = new double[lineCount];
+            TextLineOffsets.Clear();
+            for (int index = 0; index < lineCount; index++) {
+                TextLineOffsets.Add(0d);
+            }
+
             double visibleWidth = 0d;
             double offsetX = 0d;
             double spaceWidth = font.FontInfo != null
@@ -398,7 +409,7 @@ namespace helengine {
             for (int index = 0; index < content.Length; index++) {
                 char character = content[index];
                 if (character == '\n') {
-                    lineOffsets[lineIndex] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(text.Alignment, text.Size.X, visibleWidth);
+                    TextLineOffsets[lineIndex] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(text.Alignment, text.Size.X, visibleWidth);
                     lineIndex++;
                     visibleWidth = 0d;
                     offsetX = 0d;
@@ -422,8 +433,8 @@ namespace helengine {
                     : glyphWidth;
             }
 
-            lineOffsets[lineIndex] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(text.Alignment, text.Size.X, visibleWidth);
-            return lineOffsets;
+            TextLineOffsets[lineIndex] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(text.Alignment, text.Size.X, visibleWidth);
+            return TextLineOffsets;
         }
 
         /// <summary>
@@ -432,12 +443,12 @@ namespace helengine {
         /// <param name="lineOffsets">Per-line horizontal offsets computed for the rendered text.</param>
         /// <param name="lineIndex">Rendered line index whose offset should be returned.</param>
         /// <returns>Horizontal line offset in pixels.</returns>
-        static double ResolveTextLineOffset(double[] lineOffsets, int lineIndex) {
+        static double ResolveTextLineOffset(IReadOnlyList<double> lineOffsets, int lineIndex) {
             if (lineOffsets == null) {
                 throw new ArgumentNullException(nameof(lineOffsets));
             }
 
-            if (lineIndex < 0 || lineIndex >= lineOffsets.Length) {
+            if (lineIndex < 0 || lineIndex >= lineOffsets.Count) {
                 return 0d;
             }
 

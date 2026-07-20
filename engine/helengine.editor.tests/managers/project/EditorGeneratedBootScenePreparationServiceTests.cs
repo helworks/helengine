@@ -143,6 +143,32 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
     }
 
     /// <summary>
+    /// Ensures Nintendo handheld boot scenes choose the handheld main menu even when a gameplay selector appears first in the selected scene order.
+    /// </summary>
+    [Theory]
+    [InlineData("ds")]
+    [InlineData("3ds")]
+    public void EnsurePrepared_WhenHandheldMainMenuIsNotFirst_StillStartsAtHandheldMainMenu(string platformId) {
+        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+        service.EnsurePrepared(
+            platformId,
+            [
+                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                "tilt_trial_ds",
+                PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId
+            ]);
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        using FileStream stream = File.OpenRead(scenePath);
+        SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+        SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
+
+        SceneMapComponent sceneMapComponent = DeserializeSceneMapComponent(rootEntity.Components[0]);
+        Assert.Equal(PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId, sceneMapComponent.InitialSceneId);
+    }
+
+    /// <summary>
     /// Ensures Nintendo 3DS boot-scene preparation reuses the Nintendo DS companion-scene remap behavior.
     /// </summary>
     [Fact]

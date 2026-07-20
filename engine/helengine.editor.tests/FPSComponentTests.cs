@@ -363,6 +363,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures platform-owned overlays never fall back to generic triangle timing suffixes.
+        /// </summary>
+        [Fact]
+        public void CoreUpdateAndDraw_WhenPlatformOwnsOverlayPresentation_HidesGenericPerformanceRows() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont(),
+                RefreshIntervalSeconds = 0d
+            };
+
+            entity.AddComponent(fps);
+            Core.Instance.SetPlatformOwnedPerformanceOverlayPresentation(true);
+            Core.Instance.SetPerformanceOverlayMetrics(true, 7.0d, 1.5d, 0.5d, 8.0d, 0.8d, 0.2d, 12, 3);
+
+            Core.Instance.Update(0.25d);
+            Core.Instance.Draw();
+            Core.Instance.Update(0.25d);
+
+            Assert.DoesNotContain("Set", fps.UpdateFpsText, StringComparison.Ordinal);
+            Assert.DoesNotContain("Prep", fps.UpdateFpsText, StringComparison.Ordinal);
+            Assert.DoesNotContain("Emit", fps.UpdateFpsText, StringComparison.Ordinal);
+            Assert.DoesNotContain("Enc", fps.RenderFpsText, StringComparison.Ordinal);
+            Assert.DoesNotContain("Lgt", fps.RenderFpsText, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures platform-published overlay text rows only replace the two visible summary rows.
         /// </summary>
         [Fact]

@@ -165,6 +165,34 @@ namespace helengine.editor.tests.managers.rendering {
         }
 
         /// <summary>
+        /// Ensures rebuilding static multiline text reuses its alignment workspace instead of allocating managed memory every frame.
+        /// </summary>
+        [Fact]
+        public void Build_WhenRebuildingMultilineText_DoesNotAllocateAlignmentWorkspacePerFrame() {
+            Entity entity = CreateEntity(new float3(10f, 20f, 0f), true);
+            TextComponent text = new TextComponent {
+                Font = CreateFont(),
+                Text = "A\nAA",
+                Size = new int2(20, 40),
+                Alignment = TextAlignment.Center,
+                Color = new byte4(9, 8, 7, 6)
+            };
+            entity.AddComponent(text);
+
+            RenderList2D queue = new RenderList2D(1);
+            queue.Add(text);
+
+            RenderCommandListBuilder2D builder = new RenderCommandListBuilder2D();
+            builder.Build(queue);
+
+            long allocatedBytesBeforeBuild = GC.GetAllocatedBytesForCurrentThread();
+            builder.Build(queue);
+            long allocatedBytesAfterBuild = GC.GetAllocatedBytesForCurrentThread();
+
+            Assert.Equal(allocatedBytesBeforeBuild, allocatedBytesAfterBuild);
+        }
+
+        /// <summary>
         /// Ensures a rounded rectangle becomes one rounded-rectangle command with preserved shape parameters.
         /// </summary>
         [Fact]
