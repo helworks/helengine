@@ -23,6 +23,10 @@ namespace helengine.editor {
                 SourceRect = sourceComponent.SourceRect,
                 Size = sourceComponent.Size,
                 Color = sourceComponent.Color,
+                OutlineScale = sourceComponent.OutlineScale,
+                OutlineColor = sourceComponent.OutlineColor,
+                ShadowOffset = sourceComponent.ShadowOffset,
+                ShadowColor = sourceComponent.ShadowColor,
                 WrapText = sourceComponent.WrapText,
                 FontScale = sourceComponent.FontScale,
                 Alignment = sourceComponent.Alignment,
@@ -82,6 +86,14 @@ namespace helengine.editor {
             } else if (!previousState.Size.Equals(nextState.Size)) {
                 return true;
             } else if (!previousState.Color.Equals(nextState.Color)) {
+                return true;
+            } else if (previousState.OutlineScale != nextState.OutlineScale) {
+                return true;
+            } else if (!previousState.OutlineColor.Equals(nextState.OutlineColor)) {
+                return true;
+            } else if (!previousState.ShadowOffset.Equals(nextState.ShadowOffset)) {
+                return true;
+            } else if (!previousState.ShadowColor.Equals(nextState.ShadowColor)) {
                 return true;
             } else if (previousState.WrapText != nextState.WrapText) {
                 return true;

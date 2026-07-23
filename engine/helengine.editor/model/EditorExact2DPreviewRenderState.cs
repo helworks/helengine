@@ -52,6 +52,26 @@ namespace helengine.editor {
         public byte4 Color { get; set; }
 
         /// <summary>
+        /// Gets or sets the cardinal outline width used during text preview rendering.
+        /// </summary>
+        public float OutlineScale { get; set; }
+
+        /// <summary>
+        /// Gets or sets the color used for cardinal outline copies during text preview rendering.
+        /// </summary>
+        public byte4 OutlineColor { get; set; }
+
+        /// <summary>
+        /// Gets or sets the pixel-space shadow offset used during text preview rendering.
+        /// </summary>
+        public float2 ShadowOffset { get; set; }
+
+        /// <summary>
+        /// Gets or sets the color used for the shadow copy during text preview rendering.
+        /// </summary>
+        public byte4 ShadowColor { get; set; }
+
+        /// <summary>
         /// Gets or sets whether text wrapping participates in preview generation.
         /// </summary>
         public bool WrapText { get; set; }

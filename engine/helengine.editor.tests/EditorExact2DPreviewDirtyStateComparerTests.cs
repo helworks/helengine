@@ -10,7 +10,9 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by exact 2D preview dirty-state tests.
         /// </summary>
         public EditorExact2DPreviewDirtyStateComparerTests() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
@@ -100,6 +102,32 @@ namespace helengine.editor.tests {
 
             EditorExact2DPreviewRenderState previousState = EditorExact2DPreviewDirtyStateComparer.CaptureTextState(sourceEntity, sourceComponent);
             alignmentProperty.SetValue(sourceComponent, Enum.Parse(alignmentProperty.PropertyType, "Right"));
+            EditorExact2DPreviewRenderState nextState = EditorExact2DPreviewDirtyStateComparer.CaptureTextState(sourceEntity, sourceComponent);
+
+            Assert.True(EditorExact2DPreviewDirtyStateComparer.RequiresRecapture(previousState, nextState));
+        }
+
+        /// <summary>
+        /// Ensures changing any authored text effect marks the exact preview dirty.
+        /// </summary>
+        [Fact]
+        public void IsTextPreviewDirty_WhenTextEffectsChange_ReturnsTrue() {
+            Entity sourceEntity = new Entity();
+            sourceEntity.InitComponents();
+            sourceEntity.InitChildren();
+
+            TextComponent sourceComponent = new TextComponent {
+                Size = new int2(200, 32),
+                Text = "Preview",
+                OutlineScale = 1f,
+                OutlineColor = new byte4(0, 0, 0, 255),
+                ShadowOffset = new float2(2f, 3f),
+                ShadowColor = new byte4(10, 20, 30, 200)
+            };
+            sourceEntity.AddComponent(sourceComponent);
+
+            EditorExact2DPreviewRenderState previousState = EditorExact2DPreviewDirtyStateComparer.CaptureTextState(sourceEntity, sourceComponent);
+            sourceComponent.OutlineScale = 2f;
             EditorExact2DPreviewRenderState nextState = EditorExact2DPreviewDirtyStateComparer.CaptureTextState(sourceEntity, sourceComponent);
 
             Assert.True(EditorExact2DPreviewDirtyStateComparer.RequiresRecapture(previousState, nextState));

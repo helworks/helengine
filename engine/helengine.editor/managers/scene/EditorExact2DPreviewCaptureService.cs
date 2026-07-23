@@ -259,6 +259,10 @@ namespace helengine.editor {
             PreviewTextComponentValue.SourceRect = sourceComponent.SourceRect;
             PreviewTextComponentValue.Size = sourceComponent.Size;
             PreviewTextComponentValue.Color = sourceComponent.Color;
+            PreviewTextComponentValue.OutlineScale = sourceComponent.OutlineScale;
+            PreviewTextComponentValue.OutlineColor = sourceComponent.OutlineColor;
+            PreviewTextComponentValue.ShadowOffset = sourceComponent.ShadowOffset;
+            PreviewTextComponentValue.ShadowColor = sourceComponent.ShadowColor;
             PreviewTextComponentValue.Text = sourceComponent.Text;
             PreviewTextComponentValue.WrapText = sourceComponent.WrapText;
             PreviewTextComponentValue.Font = sourceComponent.Font;
