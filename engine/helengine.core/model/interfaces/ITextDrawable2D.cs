@@ -9,6 +9,26 @@ namespace helengine {
         byte4 Color { get; set; }
 
         /// <summary>
+        /// Gets or sets the non-negative pixel-space width of the cardinal outline copies.
+        /// </summary>
+        float OutlineScale { get; set; }
+
+        /// <summary>
+        /// Gets or sets the color applied to the cardinal outline copies.
+        /// </summary>
+        byte4 OutlineColor { get; set; }
+
+        /// <summary>
+        /// Gets or sets the pixel-space offset applied to the shadow copy.
+        /// </summary>
+        float2 ShadowOffset { get; set; }
+
+        /// <summary>
+        /// Gets or sets the color applied to the shadow copy.
+        /// </summary>
+        byte4 ShadowColor { get; set; }
+
+        /// <summary>
         /// Gets or sets the source rectangle into the font atlas.
         /// </summary>
         float4 SourceRect { get; set; }

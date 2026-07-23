@@ -6,6 +6,50 @@ namespace helengine.editor.tests {
     /// </summary>
     public sealed class TextComponentRenderStateVersionTests {
         /// <summary>
+        /// Ensures newly created text effects are disabled and visually transparent.
+        /// </summary>
+        [Fact]
+        public void Constructor_InitializesTextEffectsDisabledWithTransparentColors() {
+            TextComponent component = new TextComponent();
+
+            Assert.Equal(0f, component.OutlineScale);
+            Assert.Equal(new float2(0f, 0f), component.ShadowOffset);
+            Assert.Equal(new byte4(0, 0, 0, 0), component.OutlineColor);
+            Assert.Equal(new byte4(0, 0, 0, 0), component.ShadowColor);
+        }
+
+        /// <summary>
+        /// Ensures negative outline widths are rejected instead of producing ambiguous effect geometry.
+        /// </summary>
+        [Fact]
+        public void OutlineScale_WhenNegative_ThrowsArgumentOutOfRangeException() {
+            TextComponent component = new TextComponent();
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => component.OutlineScale = -1f);
+        }
+
+        /// <summary>
+        /// Ensures changing effect properties advances the render-state version only for actual changes.
+        /// </summary>
+        [Fact]
+        public void TextEffectProperties_ChangeTextRenderStateVersionOnlyWhenValuesChange() {
+            TextComponent component = new TextComponent();
+            int initialVersion = component.TextRenderStateVersion;
+
+            component.OutlineScale = 2f;
+            int afterOutlineScale = component.TextRenderStateVersion;
+            component.OutlineScale = 2f;
+
+            Assert.Equal(afterOutlineScale, component.TextRenderStateVersion);
+
+            component.OutlineColor = new byte4(1, 2, 3, 4);
+            component.ShadowOffset = new float2(3f, 4f);
+            component.ShadowColor = new byte4(5, 6, 7, 8);
+
+            Assert.True(component.TextRenderStateVersion > initialVersion);
+        }
+
+        /// <summary>
         /// Ensures changing visible text data advances the render-state version.
         /// </summary>
         [Fact]

@@ -60,6 +60,22 @@ namespace helengine {
         /// </summary>
         byte4 ColorValue;
         /// <summary>
+        /// Stores the cardinal outline width applied around each rendered glyph.
+        /// </summary>
+        float OutlineScaleValue;
+        /// <summary>
+        /// Stores the color used for the crisp cardinal outline glyph copies.
+        /// </summary>
+        byte4 OutlineColorValue;
+        /// <summary>
+        /// Stores the pixel-space offset applied to the shadow glyph copy.
+        /// </summary>
+        float2 ShadowOffsetValue;
+        /// <summary>
+        /// Stores the color used for the shadow glyph copy.
+        /// </summary>
+        byte4 ShadowColorValue;
+        /// <summary>
         /// Stores whether the text renderer should wrap glyphs within the authored width.
         /// </summary>
         bool WrapTextValue;
@@ -167,6 +183,76 @@ namespace helengine {
                 }
 
                 ColorValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the non-negative pixel-space width of the four crisp cardinal outline copies.
+        /// </summary>
+        public float OutlineScale {
+            get { return OutlineScaleValue; }
+            set {
+                if (value < 0f) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Outline scale cannot be negative.");
+                }
+
+                if (OutlineScaleValue == value) {
+                    return;
+                }
+
+                OutlineScaleValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the color used by the crisp cardinal outline copies.
+        /// </summary>
+        public byte4 OutlineColor {
+            get { return OutlineColorValue; }
+            set {
+                if (OutlineColorValue.X == value.X
+                    && OutlineColorValue.Y == value.Y
+                    && OutlineColorValue.Z == value.Z
+                    && OutlineColorValue.W == value.W) {
+                    return;
+                }
+
+                OutlineColorValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the pixel-space offset applied to the single crisp shadow copy.
+        /// </summary>
+        public float2 ShadowOffset {
+            get { return ShadowOffsetValue; }
+            set {
+                if (ShadowOffsetValue.X == value.X && ShadowOffsetValue.Y == value.Y) {
+                    return;
+                }
+
+                ShadowOffsetValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the color used by the crisp shadow copy.
+        /// </summary>
+        public byte4 ShadowColor {
+            get { return ShadowColorValue; }
+            set {
+                if (ShadowColorValue.X == value.X
+                    && ShadowColorValue.Y == value.Y
+                    && ShadowColorValue.Z == value.Z
+                    && ShadowColorValue.W == value.W) {
+                    return;
+                }
+
+                ShadowColorValue = value;
                 MarkTextRenderStateDirty();
             }
         }
@@ -336,6 +422,10 @@ namespace helengine {
             CursorPositionValue = 0;
             TextRenderStateVersionValue = 1;
             Color = new byte4(255, 255, 255, 255);
+            OutlineScaleValue = 0f;
+            OutlineColorValue = new byte4(0, 0, 0, 0);
+            ShadowOffsetValue = new float2(0f, 0f);
+            ShadowColorValue = new byte4(0, 0, 0, 0);
             SourceRect = new float4(0, 0, 1, 1);
             WrapText = false;
             FontScaleValue = 1f;
