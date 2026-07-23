@@ -293,7 +293,7 @@ namespace helengine.directx11 {
             TrackActiveTextureSlot(0);
 
             float3 pos = drawable.Parent.Position;
-            byte4 color = drawable.Color;
+            List<TextRenderEffectPass> effectPasses = TextRenderEffectPassBuilder.Build(drawable);
 
             float4x4 transposedWorld;
             float4x4.Transpose(ref projectionMatrix2D, out transposedWorld);
@@ -302,8 +302,7 @@ namespace helengine.directx11 {
             context.PixelShader.SetConstantBuffer(0, spriteConstantBuffer);
 
             var shaderData = new SpriteShaderData {
-                worldViewProj = transposedWorld,
-                color = new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f)
+                worldViewProj = transposedWorld
             };
 
             string text = drawable.Text ?? string.Empty;
@@ -347,21 +346,30 @@ namespace helengine.directx11 {
                 double pixelH = shaderData.sourceRect.W * data.Height * fontScale;
 
                 double snappedLineOffsetY = Math.Round(offsetY);
-                shaderData.destRect = new float4(
-                    (float)(lineOriginX + offsetX),
-                    (float)(baseY + snappedLineOffsetY + (info.OffsetY * fontScale)),
-                    (float)pixelW,
-                    (float)pixelH
-                );
-
                 double advance = info.AdvanceWidth > 0
                     ? info.AdvanceWidth * fontScale
                     : pixelW;
                 offsetX += advance;
 
-                context.UpdateSubresource(ref shaderData, spriteConstantBuffer);
-                context.Draw(4, 0);
-                parentRenderer.IncrementDrawCalls(1);
+                for (int passIndex = 0; passIndex < effectPasses.Count; passIndex++) {
+                    TextRenderEffectPass pass = effectPasses[passIndex];
+                    byte4 passColor = pass.Color;
+                    shaderData.color = new float4(
+                        passColor.X / 255.0f,
+                        passColor.Y / 255.0f,
+                        passColor.Z / 255.0f,
+                        passColor.W / 255.0f);
+                    shaderData.destRect = new float4(
+                        (float)(lineOriginX + offsetX - advance + pass.Offset.X),
+                        (float)(baseY + snappedLineOffsetY + (info.OffsetY * fontScale) + pass.Offset.Y),
+                        (float)pixelW,
+                        (float)pixelH
+                    );
+
+                    context.UpdateSubresource(ref shaderData, spriteConstantBuffer);
+                    context.Draw(4, 0);
+                    parentRenderer.IncrementDrawCalls(1);
+                }
             }
         }
 

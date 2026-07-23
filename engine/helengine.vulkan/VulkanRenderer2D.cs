@@ -383,7 +383,7 @@ namespace helengine.vulkan {
             }
 
             float3 position = text.Parent.Position;
-            byte4 color = text.Color;
+            List<TextRenderEffectPass> effectPasses = TextRenderEffectPassBuilder.Build(text);
             string content = text.Text ?? string.Empty;
             double fontScale = Math.Max((double)text.FontScale, 0.0001d);
             if (text.WrapText) {
@@ -423,14 +423,25 @@ namespace helengine.vulkan {
                 double pixelH = info.SourceRect.W * texture.Height * fontScale;
                 double snappedLineOffsetY = Math.Round(offsetY);
 
-                double drawX = lineOriginX + offsetX;
-                double drawY = baseY + snappedLineOffsetY + (info.OffsetY * fontScale);
-
-                DrawQuad(texture, drawX, drawY, pixelW, pixelH, info.SourceRect, color, 0f);
-
                 double advance = info.AdvanceWidth > 0
                     ? info.AdvanceWidth * fontScale
                     : pixelW;
+
+                double drawX = lineOriginX + offsetX;
+                double drawY = baseY + snappedLineOffsetY + (info.OffsetY * fontScale);
+                for (int passIndex = 0; passIndex < effectPasses.Count; passIndex++) {
+                    TextRenderEffectPass pass = effectPasses[passIndex];
+                    DrawQuad(
+                        texture,
+                        drawX + pass.Offset.X,
+                        drawY + pass.Offset.Y,
+                        pixelW,
+                        pixelH,
+                        info.SourceRect,
+                        pass.Color,
+                        0f);
+                }
+
                 offsetX += advance;
             }
         }
