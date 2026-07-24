@@ -29,6 +29,21 @@ namespace helengine {
         public const string StandardForwardPixelProgramName = "ForwardStandardShader.ps";
 
         /// <summary>
+        /// Stable unshadowed Standard Shader variant selected by materials.
+        /// </summary>
+        public const string StandardForwardVariantName = "ForwardStandard";
+
+        /// <summary>
+        /// Stable Standard Shader variant selected by renderers for shadow-receiving draws.
+        /// </summary>
+        public const string StandardForwardShadowedVariantName = "ForwardStandardShadowed";
+
+        /// <summary>
+        /// Stable Standard Shader variant selected by renderers for depth-only shadow caster draws.
+        /// </summary>
+        public const string StandardShadowDepthVariantName = "ShadowDepth";
+
+        /// <summary>
         /// Determines whether a runtime material id should receive the shared standard-mesh transform payload.
         /// </summary>
         /// <param name="materialId">Runtime material asset id to evaluate.</param>
