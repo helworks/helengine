@@ -31,3 +31,21 @@ Exit codes:
 - `3`: editor project `.csproj` path was not found
 - `4`: project `.heproj` path was not found
 - any other non-zero value: propagated editor or platform build failure exit code
+
+## Verified Build Waiting
+
+Use `tools/build-waiter` whenever a build needs an automatically verified completion result. It launches the child build, forwards its diagnostics, and succeeds only after the child exits with code `0` and every required artifact is fresh and non-empty.
+
+Example PS2 build:
+
+```powershell
+dotnet run --project C:\dev\helworks\helengine\tools\build-waiter\helengine.buildwaiter.csproj -- `
+  --output C:\dev\helprojs\output\ps2 `
+  --require game.iso `
+  --require disc/SYSTEM.CNF `
+  --require disc/HELENGIN.ELF `
+  -- powershell -NoProfile -ExecutionPolicy Bypass -File C:\dev\helworks\helengine\scripts\build-platform.ps1 `
+  -Project C:\dev\helprojs\demodisc\project.heproj `
+  -Platform ps2 `
+  -Output C:\dev\helprojs\output\ps2
+```
