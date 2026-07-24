@@ -73,6 +73,26 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures a BEPU world detaches before a physics scene releases its entity hierarchy.
+        /// </summary>
+        [Fact]
+        public void HandleUnloadingScene_WhenSceneHasPhysics_DetachesRuntimeBeforeEntityDisposal() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+
+            BepuRuntimeComponentRegistration.Register(core);
+            Entity physicsEntity = CreateStaticBoxPhysicsEntity();
+            BepuRuntimeComponentRegistration.HandleLoadedScene(core, [physicsEntity]);
+            Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+
+            BepuRuntimeComponentRegistration.HandleUnloadingScene(core, [physicsEntity]);
+
+            Assert.Null(core.PhysicsRuntime);
+        }
+
+        /// <summary>
         /// Creates one root entity without any authored physics components.
         /// </summary>
         /// <returns>Entity that should not require physics runtime attachment.</returns>

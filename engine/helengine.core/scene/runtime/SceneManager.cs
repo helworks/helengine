@@ -84,6 +84,36 @@ namespace helengine {
         bool IsCommittingPendingOperations;
 
         /// <summary>
+        /// Tracks whether an engine-owned single-scene transition is currently in progress.
+        /// </summary>
+        bool IsSceneTransitionActiveValue;
+
+        /// <summary>
+        /// Stores the stable identifier of the scene currently requested through the transition path.
+        /// </summary>
+        string TransitionTargetSceneIdValue = string.Empty;
+
+        /// <summary>
+        /// Stores the normalized progress reported by the active or most recently completed scene transition.
+        /// </summary>
+        float SceneTransitionProgressValue = 1f;
+
+        /// <summary>
+        /// Stores the transient packaged scene payload currently being materialized by an active transition.
+        /// </summary>
+        SceneAsset TransitionSceneAsset;
+
+        /// <summary>
+        /// Stores the resumable runtime load operation currently advanced by an active transition.
+        /// </summary>
+        RuntimeSceneLoadOperation TransitionLoadOperation;
+
+        /// <summary>
+        /// Stores the cooked content path resolved for the active transition target.
+        /// </summary>
+        string TransitionSceneContentPath = string.Empty;
+
+        /// <summary>
         /// Initializes one runtime scene manager.
         /// </summary>
         /// <param name="sceneCatalog">Catalog used to resolve built scenes by stable identifier.</param>
@@ -146,6 +176,21 @@ namespace helengine {
         /// Gets the loaded scene records in load order.
         /// </summary>
         public IReadOnlyList<LoadedSceneRecord> LoadedScenes => LoadedSceneRecords;
+
+        /// <summary>
+        /// Gets whether an engine-owned single-scene transition is active.
+        /// </summary>
+        public bool IsSceneTransitionActive => IsSceneTransitionActiveValue;
+
+        /// <summary>
+        /// Gets the stable identifier of the target scene requested through the transition path.
+        /// </summary>
+        public string TransitionTargetSceneId => TransitionTargetSceneIdValue;
+
+        /// <summary>
+        /// Gets the normalized progress of the active or most recently completed transition.
+        /// </summary>
+        public float SceneTransitionProgress => SceneTransitionProgressValue;
 
         /// <summary>
         /// Gets the current loaded-scene-record list capacity reserved by the manager.
@@ -286,16 +331,58 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
+            if (loadMode == SceneLoadMode.Single) {
+                DiscardPendingLoadOperationsForSingleLoad();
+            }
+
             RecordTraceState("LoadSceneRequest", sceneId);
             PendingOperations.Add(PendingSceneOperation.CreateLoad(sceneId, loadMode));
             RecordTraceState("LoadSceneDeferred", sceneId);
         }
 
         /// <summary>
+        /// Requests one normal single-scene transition and exposes its loading state to persistent presentation scenes while preserving an already active transition.
+        /// </summary>
+        /// <param name="sceneId">Stable identifier of the scene that should replace non-persistent loaded scenes.</param>
+        public void RequestSceneTransition(string sceneId) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id is required.", nameof(sceneId));
+            } else if (IsSceneTransitionActiveValue) {
+                RecordTraceState("RequestSceneTransitionIgnored", sceneId);
+                return;
+            }
+
+            RecordTraceState("RequestSceneTransitionAccepted", sceneId);
+            IsSceneTransitionActiveValue = true;
+            TransitionTargetSceneIdValue = sceneId;
+            SceneTransitionProgressValue = 0f;
+        }
+
+        /// <summary>
+        /// Removes queued scene-load operations superseded by a newly requested single-scene transition while preserving explicit unload operations.
+        /// </summary>
+        void DiscardPendingLoadOperationsForSingleLoad() {
+            for (int operationIndex = PendingOperations.Count - 1; operationIndex >= 0; operationIndex--) {
+                PendingSceneOperation operation = PendingOperations[operationIndex];
+                if (operation.OperationKind != PendingSceneOperationKind.Load) {
+                    continue;
+                }
+
+                PendingOperations.RemoveAt(operationIndex);
+                NativeOwnership.Delete(operation);
+            }
+        }
+
+        /// <summary>
         /// Commits any runtime scene operations that were deferred for the frame boundary.
         /// </summary>
         public void CommitPendingOperationsAtFrameBoundary() {
-            if (PendingOperations.Count == 0) {
+            if (PendingOperations.Count == 0 && !IsSceneTransitionActiveValue) {
+                return;
+            }
+
+            if (IsSceneTransitionActiveValue) {
+                AdvanceSceneTransition();
                 return;
             }
 
@@ -314,6 +401,12 @@ namespace helengine {
                     }
                     if (operation.OperationKind == PendingSceneOperationKind.Load) {
                         LoadSceneImmediate(operation.SceneId, operation.LoadMode);
+                        if (IsSceneTransitionActiveValue
+                            && operation.LoadMode == SceneLoadMode.Single
+                            && string.Equals(operation.SceneId, TransitionTargetSceneIdValue, StringComparison.OrdinalIgnoreCase)) {
+                            SceneTransitionProgressValue = 1f;
+                            IsSceneTransitionActiveValue = false;
+                        }
                     } else {
                         UnloadSceneImmediate(operation.SceneId);
                         shouldFlushReleasedAssetsAtFrameBoundary = true;
@@ -376,8 +469,11 @@ namespace helengine {
                     LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(sceneId, sceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets, dontUnload);
                     RecordTraceState("LoadSceneImmediateBeforeLoadedSceneRecordTrack", sceneId);
                     LoadedSceneRecords.Add(loadedSceneRecord);
+                    RecordTraceState("LoadSceneImmediateAfterLoadedSceneRecordListAdd", sceneId);
                     LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
-                    RegisterOwnedAssets(loadedSceneRecord.OwnedAssets);
+                    RecordTraceState("LoadSceneImmediateAfterLoadedSceneRecordDictionaryAdd", sceneId);
+                    RegisterOwnedAssets(loadedSceneRecord.OwnedAssets, sceneId);
+                    RecordTraceState("LoadSceneImmediateBeforeSceneLoadedEvent", sceneId);
                     SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(
                         loadedSceneRecord.SceneId,
                         loadedSceneRecord.CookedRelativePath,
@@ -387,6 +483,7 @@ namespace helengine {
                     } finally {
                         NativeOwnership.Delete(sceneLoadedEventArgs);
                     }
+                    RecordTraceState("LoadSceneImmediateAfterSceneLoadedEvent", sceneId);
                     RecordTraceState("LoadSceneImmediateEnd", sceneId);
                 } finally {
                     NativeOwnership.Delete(loadResult);
@@ -406,6 +503,55 @@ namespace helengine {
             }
             PendingOperations.Add(PendingSceneOperation.CreateUnload(sceneId));
             RecordTraceState("UnloadSceneDeferred", sceneId);
+        }
+
+        /// <summary>
+        /// Advances the active engine-owned scene transition by its next observable loading stage.
+        /// </summary>
+        void AdvanceSceneTransition() {
+            if (TransitionLoadOperation == null) {
+                TransitionSceneContentPath = ResolveSceneContentPath(TransitionTargetSceneIdValue);
+                UnloadScenesForSingleLoad();
+                FlushReleasedAssets();
+                ResetPhysicsTimingForSingleLoad();
+                SceneLoadingEventArgs sceneLoadingEventArgs = new SceneLoadingEventArgs(TransitionTargetSceneIdValue, TransitionSceneContentPath);
+                try {
+                    SceneLoading?.Invoke(this, sceneLoadingEventArgs);
+                } finally {
+                    NativeOwnership.Delete(sceneLoadingEventArgs);
+                }
+
+                TransitionSceneAsset = ContentManager.Load<SceneAsset>(TransitionSceneContentPath, RuntimeContentProcessorIds.SceneAsset);
+                TransitionLoadOperation = SceneLoadService.CreateTrackedLoadOperation(TransitionSceneAsset);
+                SceneTransitionProgressValue = 0.2f;
+                return;
+            }
+
+            TransitionLoadOperation.Advance();
+            SceneTransitionProgressValue = 0.2f + (0.75f * TransitionLoadOperation.Progress);
+            if (!TransitionLoadOperation.IsCompleted) {
+                return;
+            }
+
+            RuntimeSceneLoadResult loadResult = TransitionLoadOperation.Result;
+            bool dontUnload = TransitionSceneAsset.SceneSettings != null && TransitionSceneAsset.SceneSettings.DontUnload;
+            LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(TransitionTargetSceneIdValue, TransitionSceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets, dontUnload);
+            LoadedSceneRecords.Add(loadedSceneRecord);
+            LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
+            RegisterOwnedAssets(loadedSceneRecord.OwnedAssets, TransitionTargetSceneIdValue);
+            SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(loadedSceneRecord.SceneId, loadedSceneRecord.CookedRelativePath, loadedSceneRecord.RootEntities);
+            try {
+                SceneLoaded?.Invoke(this, sceneLoadedEventArgs);
+            } finally {
+                NativeOwnership.Delete(sceneLoadedEventArgs);
+            }
+
+            ReleaseTransientSceneAsset(TransitionSceneAsset);
+            TransitionSceneAsset = null;
+            TransitionLoadOperation = null;
+            TransitionSceneContentPath = string.Empty;
+            SceneTransitionProgressValue = 1f;
+            IsSceneTransitionActiveValue = false;
         }
 
         /// <summary>
@@ -500,16 +646,14 @@ namespace helengine {
         /// Unloads only the currently tracked scenes that should not survive a single-scene transition.
         /// </summary>
         void UnloadScenesForSingleLoad() {
-            List<string> sceneIdsToUnload = new List<string>();
-            for (int index = 0; index < LoadedSceneRecords.Count; index++) {
+            int index = 0;
+            while (index < LoadedSceneRecords.Count) {
                 LoadedSceneRecord loadedSceneRecord = LoadedSceneRecords[index];
-                if (!loadedSceneRecord.DontUnload) {
-                    sceneIdsToUnload.Add(loadedSceneRecord.SceneId);
+                if (loadedSceneRecord.DontUnload) {
+                    index++;
+                } else {
+                    UnloadSceneImmediate(loadedSceneRecord.SceneId);
                 }
-            }
-
-            for (int index = 0; index < sceneIdsToUnload.Count; index++) {
-                UnloadSceneImmediate(sceneIdsToUnload[index]);
             }
         }
 
@@ -780,16 +924,23 @@ namespace helengine {
         /// Registers one scene's owned runtime assets against the active scene set.
         /// </summary>
         /// <param name="ownedAssets">Scene-owned runtime assets resolved during materialization.</param>
-        void RegisterOwnedAssets(RuntimeSceneOwnedAssetSet ownedAssets) {
+        /// <param name="sceneId">Stable identifier of the scene that owns the assets being registered.</param>
+        void RegisterOwnedAssets(RuntimeSceneOwnedAssetSet ownedAssets, string sceneId) {
             if (ownedAssets == null) {
                 throw new ArgumentNullException(nameof(ownedAssets));
             }
 
+            RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedTextures", sceneId);
             RegisterOwnedTextures(ownedAssets.OwnedTextures);
+            RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedFonts", sceneId);
             RegisterOwnedFonts(ownedAssets.OwnedFonts);
+            RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedAudio", sceneId);
             RegisterOwnedAudio(ownedAssets.OwnedAudio);
+            RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedModels", sceneId);
             RegisterOwnedModels(ownedAssets.OwnedModels);
+            RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedMaterials", sceneId);
             RegisterOwnedMaterials(ownedAssets.OwnedMaterials);
+            RecordTraceState("LoadSceneImmediateAfterRegisterOwnedAssets", sceneId);
         }
 
         /// <summary>
@@ -916,21 +1067,11 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(ownedAssets));
             }
 
-            RecordTraceState("ReleaseOwnedAssetsBeforeFonts", LastTraceSceneId);
             ReleaseOwnedFonts(ownedAssets.OwnedFonts);
-            RecordTraceState("ReleaseOwnedAssetsAfterFonts", LastTraceSceneId);
-            RecordTraceState("ReleaseOwnedAssetsBeforeAudio", LastTraceSceneId);
             ReleaseOwnedAudio(ownedAssets.OwnedAudio);
-            RecordTraceState("ReleaseOwnedAssetsAfterAudio", LastTraceSceneId);
-            RecordTraceState("ReleaseOwnedAssetsBeforeTextures", LastTraceSceneId);
             ReleaseOwnedTextures(ownedAssets.OwnedTextures);
-            RecordTraceState("ReleaseOwnedAssetsAfterTextures", LastTraceSceneId);
-            RecordTraceState("ReleaseOwnedAssetsBeforeModels", LastTraceSceneId);
             ReleaseOwnedModels(ownedAssets.OwnedModels);
-            RecordTraceState("ReleaseOwnedAssetsAfterModels", LastTraceSceneId);
-            RecordTraceState("ReleaseOwnedAssetsBeforeMaterials", LastTraceSceneId);
             ReleaseOwnedMaterials(ownedAssets.OwnedMaterials);
-            RecordTraceState("ReleaseOwnedAssetsAfterMaterials", LastTraceSceneId);
         }
 
         /// <summary>
@@ -1050,39 +1191,27 @@ namespace helengine {
         /// </summary>
         /// <param name="ownedMaterials">Scene-owned runtime materials resolved during materialization.</param>
         void ReleaseOwnedMaterials(IReadOnlyList<RuntimeMaterial> ownedMaterials) {
-            RecordTraceState("MatBegin", LastTraceSceneId);
             if (ownedMaterials == null) {
                 throw new ArgumentNullException(nameof(ownedMaterials));
             }
 
             for (int assetIndex = 0; assetIndex < ownedMaterials.Count; assetIndex++) {
-                RecordTraceState("MatLoop", LastTraceSceneId);
                 RuntimeMaterial ownedAsset = ownedMaterials[assetIndex];
                 if (ownedAsset == null) {
-                    RecordTraceState("MatNullSkip", LastTraceSceneId);
                     continue;
                 }
-                RecordTraceState("MatBeforeRef", LastTraceSceneId);
                 if (!ActiveOwnedMaterialReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
                     throw new InvalidOperationException("Scene-owned runtime material was not tracked before release.");
                 }
-                RecordTraceState("MatAfterRef", LastTraceSceneId);
 
                 if (existingReferenceCount > 1) {
-                    RecordTraceState("MatBeforeDec", LastTraceSceneId);
                     ActiveOwnedMaterialReferenceCounts[ownedAsset] = existingReferenceCount - 1;
-                    RecordTraceState("MatAfterDec", LastTraceSceneId);
                     continue;
                 }
 
-                RecordTraceState("MatBeforeRemove", LastTraceSceneId);
                 ActiveOwnedMaterialReferenceCounts.Remove(ownedAsset);
-                RecordTraceState("MatAfterRemove", LastTraceSceneId);
-                RecordTraceState("MatBeforeRelease", LastTraceSceneId);
                 ReleaseOwnedMaterial(ownedAsset);
-                RecordTraceState("MatAfterRelease", LastTraceSceneId);
             }
-            RecordTraceState("MatEnd", LastTraceSceneId);
         }
 
         /// <summary>
@@ -1156,9 +1285,7 @@ namespace helengine {
                 throw new InvalidOperationException("Runtime material release requires an initialized 3D render manager.");
             }
 
-            RecordTraceState("MatBeforeRM3D", LastTraceSceneId);
             Core.Instance.RenderManager3D.ReleaseMaterial(ownedAsset);
-            RecordTraceState("MatAfterRM3D", LastTraceSceneId);
         }
 
         /// <summary>

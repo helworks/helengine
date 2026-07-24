@@ -56,6 +56,7 @@ namespace helengine {
 
             if (core.SceneManager != null) {
                 core.SceneManager.SceneLoaded += BindLoadedScene;
+                core.SceneManager.SceneUnloading += DetachUnloadingScene;
             }
         }
 
@@ -102,6 +103,25 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Detaches the active BEPU world before a physics scene disposes its entities so the next core update cannot step stale body and collider references.
+        /// </summary>
+        /// <param name="sceneManager">Scene manager that emitted the unloading notification.</param>
+        /// <param name="eventArgs">Scene unload payload containing the still-live root entities.</param>
+        static void DetachUnloadingScene(SceneManager sceneManager, SceneUnloadingEventArgs eventArgs) {
+            if (sceneManager == null) {
+                throw new ArgumentNullException(nameof(sceneManager));
+            }
+            if (eventArgs == null) {
+                throw new ArgumentNullException(nameof(eventArgs));
+            }
+            if (Core.Instance == null) {
+                throw new InvalidOperationException("A core instance is required before detaching an unloading scene from the BEPU-backed 3D physics runtime.");
+            }
+
+            HandleUnloadingScene(Core.Instance, eventArgs.RootEntities);
+        }
+
+        /// <summary>
         /// Applies lazy runtime attachment and scene binding for one loaded scene hierarchy.
         /// </summary>
         /// <param name="core">Initialized core that owns the runtime scene loader.</param>
@@ -118,6 +138,23 @@ namespace helengine {
 
             BepuPhysicsWorld3D world = EnsureRuntimeWorldAttached(core);
             world.BindScene(rootEntities);
+        }
+
+        /// <summary>
+        /// Detaches the attached BEPU world when a scene containing supported physics components begins unloading.
+        /// </summary>
+        /// <param name="core">Initialized core that currently owns the runtime attachment.</param>
+        /// <param name="rootEntities">Still-live scene roots that are about to be disposed.</param>
+        internal static void HandleUnloadingScene(Core core, IReadOnlyList<Entity> rootEntities) {
+            ValidateCore(core);
+            ValidateRootEntities(rootEntities);
+
+            if (RuntimeWorld == null || !SceneRequiresRuntime(rootEntities)) {
+                return;
+            }
+            if (ReferenceEquals(core.PhysicsRuntime, RuntimeWorld)) {
+                core.DetachPhysicsRuntime();
+            }
         }
 
         /// <summary>

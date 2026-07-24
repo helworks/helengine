@@ -91,6 +91,50 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures a requested scene transition exposes normalized loading state until the target scene becomes active.
+        /// </summary>
+        [Fact]
+        public void RequestSceneTransition_whenTargetIsQueued_exposesProgressAndCompletesAfterActivation() {
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 1u);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
+
+            core.SceneManager.RequestSceneTransition("Scenes/TestPlayableScene.helen");
+
+            Assert.True(core.SceneManager.IsSceneTransitionActive);
+            Assert.Equal("Scenes/TestPlayableScene.helen", core.SceneManager.TransitionTargetSceneId);
+            Assert.Equal(0f, core.SceneManager.SceneTransitionProgress);
+
+            CommitFrame(core);
+
+            Assert.True(core.SceneManager.IsSceneTransitionActive);
+            Assert.Equal(0.2f, core.SceneManager.SceneTransitionProgress);
+
+            CommitFrame(core);
+
+            Assert.False(core.SceneManager.IsSceneTransitionActive);
+            Assert.Equal(1f, core.SceneManager.SceneTransitionProgress);
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+        }
+
+        /// <summary>
+        /// Ensures a second transition request cannot interrupt an already active transition or crash the runtime.
+        /// </summary>
+        [Fact]
+        public void RequestSceneTransition_whenTransitionIsAlreadyActive_ignoresTheLaterRequest() {
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/FirstTarget.helen", "cooked/scenes/firsttarget.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/LaterTarget.helen", "cooked/scenes/latertarget.hasset")));
+
+            core.SceneManager.RequestSceneTransition("Scenes/FirstTarget.helen");
+            core.SceneManager.RequestSceneTransition("Scenes/LaterTarget.helen");
+
+            Assert.True(core.SceneManager.IsSceneTransitionActive);
+            Assert.Equal("Scenes/FirstTarget.helen", core.SceneManager.TransitionTargetSceneId);
+            Assert.Equal(0f, core.SceneManager.SceneTransitionProgress);
+        }
+
+        /// <summary>
         /// Ensures core bootstrap initializes the runtime scene manager when packaged scene metadata is injected.
         /// </summary>
         [Fact]
@@ -267,6 +311,34 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Single(core.SceneManager.LoadedScenes);
             Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+        }
+
+        /// <summary>
+        /// Ensures multiple single-scene requests made before one frame boundary load only the final requested scene.
+        /// </summary>
+        [Fact]
+        public void LoadScene_whenMultipleSingleRequestsAreQueuedBeforeOneFrameBoundary_loadsOnlyTheLastRequestedScene() {
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/FirstRequested.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/LastRequested.hasset", 1u);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/FirstRequested.helen", "cooked/scenes/firstrequested.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/LastRequested.helen", "cooked/scenes/lastrequested.hasset")));
+            List<string> loadedSceneIds = new List<string>();
+            core.SceneManager.SceneLoaded += (_, eventArgs) => loadedSceneIds.Add(eventArgs.SceneId);
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+            loadedSceneIds.Clear();
+
+            core.SceneManager.LoadScene("Scenes/FirstRequested.helen", SceneLoadMode.Single);
+            core.SceneManager.LoadScene("Scenes/LastRequested.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+
+            LoadedSceneRecord loadedScene = Assert.Single(core.SceneManager.LoadedScenes);
+            Assert.Equal("Scenes/LastRequested.helen", loadedScene.SceneId);
+            Assert.Equal(["Scenes/LastRequested.helen"], loadedSceneIds);
         }
 
         /// <summary>
@@ -679,6 +751,39 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures a single-scene load removes every unloadable additive scene in load order while retaining persistent scenes.
+        /// </summary>
+        [Fact]
+        public void LoadScene_WhenSingleLoadReplacesMultipleAdditiveScenes_UnloadsEachSceneInLoadOrder() {
+            WriteSceneAsset("cooked/scenes/Persistent.hasset", 1u, true);
+            WriteSceneAsset("cooked/scenes/First.hasset", 2u);
+            WriteSceneAsset("cooked/scenes/Second.hasset", 3u);
+            WriteSceneAsset("cooked/scenes/Target.hasset", 4u);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Persistent.helen", "cooked/scenes/persistent.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/First.helen", "cooked/scenes/first.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/Second.helen", "cooked/scenes/second.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/Target.helen", "cooked/scenes/target.hasset")));
+            List<string> unloadedSceneIds = new List<string>();
+            core.SceneManager.SceneUnloaded += (_, eventArgs) => unloadedSceneIds.Add(eventArgs.SceneId);
+
+            core.SceneManager.LoadScene("Scenes/Persistent.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+            core.SceneManager.LoadScene("Scenes/First.helen", SceneLoadMode.Additive);
+            CommitFrame(core);
+            core.SceneManager.LoadScene("Scenes/Second.helen", SceneLoadMode.Additive);
+            CommitFrame(core);
+            core.SceneManager.LoadScene("Scenes/Target.helen", SceneLoadMode.Single);
+            CommitFrame(core);
+
+            Assert.Equal(new[] { "Scenes/First.helen", "Scenes/Second.helen" }, unloadedSceneIds);
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Persistent.helen"));
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Target.helen"));
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/First.helen"));
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/Second.helen"));
+        }
+
+        /// <summary>
         /// Ensures explicit unload requests still unload scenes marked dont-unload.
         /// </summary>
         [Fact]
@@ -933,7 +1038,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 FontScale = 0.25f,
                 RenderOrder2D = 19,
-                LayerMask = 7,
                 SelectionEnabled = false
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
