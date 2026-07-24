@@ -315,3 +315,9 @@ float4 PS(PS_IN input) : SV_Target
     color += emissiveColor;
     return float4(saturate(color), sampledBaseColor.a);
 }
+
+float4 ShadowDepthPS(PS_IN input) : SV_Target
+{
+    float depth = input.pos.z / max(input.pos.w, 0.0001f);
+    return float4(depth, depth, depth, 1.0f);
+}

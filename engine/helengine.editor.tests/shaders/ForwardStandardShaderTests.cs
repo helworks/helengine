@@ -30,9 +30,24 @@ namespace helengine.editor.tests.shaders {
         /// Ensures the built-in forward standard shader compiles for Vulkan and exposes the expected standard-material bindings.
         /// </summary>
         [Fact]
-        public void LoadShaderAsset_WhenCompilingForVulkan_ExposesExpectedStandardMaterialBindings() {
-            AssertShaderAssetLayout(ShaderCompileTarget.Vulkan);
-        }
+    public void LoadShaderAsset_WhenCompilingForVulkan_ExposesExpectedStandardMaterialBindings() {
+        AssertShaderAssetLayout(ShaderCompileTarget.Vulkan);
+    }
+
+    /// <summary>
+    /// Ensures every shader-capable Windows backend compiles the complete shared Standard Shader variant contract.
+    /// </summary>
+    /// <param name="target">Backend target that should compile the shared variant catalog.</param>
+    [Theory]
+    [InlineData(ShaderCompileTarget.DirectX11)]
+    [InlineData(ShaderCompileTarget.Vulkan)]
+    public void LoadShaderAsset_WhenStandardShaderIsLoaded_CompilesEverySharedVariant(ShaderCompileTarget target) {
+        ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, "ForwardStandardShader.hlsl");
+
+        Assert.Equal(10, shaderAsset.Binaries.Length);
+        Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Pixel && binary.Variant == "ForwardStandardShadowed");
+        Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Pixel && binary.Variant == "ShadowDepth" && binary.ProgramName == "ForwardStandardShader.ps");
+    }
 
         /// <summary>
         /// Ensures the built-in forward standard shader reads ambient lighting from the shared forward-light buffer instead of a hardcoded fallback color.
@@ -123,10 +138,14 @@ namespace helengine.editor.tests.shaders {
 
             Assert.Equal("ForwardStandardShader", shaderAsset.Id);
             Assert.Equal(ShaderTargetNames.GetTargetName(target), shaderAsset.TargetName);
-            Assert.Equal(4, shaderAsset.Binaries.Length);
+            Assert.Equal(10, shaderAsset.Binaries.Length);
+            Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Vertex && binary.ProgramName == "ForwardStandardShader.vs" && binary.Variant == "ForwardStandard");
+            Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Pixel && binary.ProgramName == "ForwardStandardShader.ps" && binary.Variant == "ForwardStandard");
+            Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Vertex && binary.ProgramName == "ForwardStandardShader.vs" && binary.Variant == "ForwardStandardShadowed");
+            Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Pixel && binary.ProgramName == "ForwardStandardShader.ps" && binary.Variant == "ForwardStandardShadowed");
+            Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Vertex && binary.ProgramName == "ForwardStandardShader.vs" && binary.Variant == "ShadowDepth");
+            Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Pixel && binary.ProgramName == "ForwardStandardShader.ps" && binary.Variant == "ShadowDepth");
             Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Vertex && binary.ProgramName == "ForwardStandardShader.vs" && binary.Variant == "default");
-            Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Pixel && binary.ProgramName == "ForwardStandardShader.ps" && binary.Variant == "default");
-            Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Vertex && binary.ProgramName == "ForwardStandardShader.vs" && binary.Variant == "Mesh");
             Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Pixel && binary.ProgramName == "ForwardStandardShader.ps" && binary.Variant == "Mesh");
 
             MaterialLayout layout = MaterialLayoutBuilder.Build(CreateMaterialAsset(shaderAsset.Id), shaderAsset);
@@ -161,7 +180,7 @@ namespace helengine.editor.tests.shaders {
                 ShaderAssetId = shaderAssetId,
                 VertexProgram = "ForwardStandardShader.vs",
                 PixelProgram = "ForwardStandardShader.ps",
-                Variant = "default",
+                Variant = "ForwardStandard",
                 RenderState = new MaterialRenderState()
             };
         }

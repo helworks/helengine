@@ -192,21 +192,33 @@ namespace helengine.editor {
                 true,
                 false,
                 false);
-            ShaderDefine[] defines = ShaderPlatformDefines.BuildDefines(target, ShaderModelValue, Array.Empty<ShaderDefine>());
             string targetName = ShaderTargetNames.GetTargetName(target);
             string[] variants = GetSupportedVariants(shaderName);
+            bool usesSharedStandardShaderVariants = string.Equals(shaderName, "ForwardStandardShader", StringComparison.Ordinal);
+            IReadOnlyList<StandardShaderVariant> standardShaderVariants = usesSharedStandardShaderVariants
+                ? StandardShaderVariants.All
+                : Array.Empty<StandardShaderVariant>();
+            int variantCount = usesSharedStandardShaderVariants ? standardShaderVariants.Count + variants.Length : variants.Length;
             List<ShaderProgramBinary> binaries = new List<ShaderProgramBinary>();
             ShaderProgramDefinition vertexProgram = null;
             ShaderProgramDefinition pixelProgram = null;
-            for (int variantIndex = 0; variantIndex < variants.Length; variantIndex++) {
-                string variantName = variants[variantIndex];
+            for (int variantIndex = 0; variantIndex < variantCount; variantIndex++) {
+                StandardShaderVariant standardShaderVariant = usesSharedStandardShaderVariants && variantIndex < standardShaderVariants.Count
+                    ? standardShaderVariants[variantIndex]
+                    : null;
+                int legacyVariantIndex = variantIndex - standardShaderVariants.Count;
+                string variantName = standardShaderVariant == null ? variants[usesSharedStandardShaderVariants ? legacyVariantIndex : variantIndex] : standardShaderVariant.Name;
+                string vertexEntryPoint = standardShaderVariant == null ? DefaultVertexEntryPoint : standardShaderVariant.VertexEntryPoint;
+                string pixelEntryPoint = standardShaderVariant == null ? DefaultPixelEntryPoint : standardShaderVariant.PixelEntryPoint;
+                ShaderDefine[] defines = ShaderPlatformDefines.BuildDefines(target, ShaderModelValue, BuildVariantDefines(standardShaderVariant));
                 ShaderCompileResult vertexResult = CompileStage(
                     compileService,
                     sourceInfo,
                     target,
                     ShaderStage.Vertex,
                     BuildProgramName(shaderName, ShaderStage.Vertex),
-                    DefaultVertexEntryPoint,
+                    vertexEntryPoint,
+                    variantName,
                     compileOptions,
                     defines);
                 ShaderCompileResult pixelResult = CompileStage(
@@ -215,7 +227,8 @@ namespace helengine.editor {
                     target,
                     ShaderStage.Pixel,
                     BuildProgramName(shaderName, ShaderStage.Pixel),
-                    DefaultPixelEntryPoint,
+                    pixelEntryPoint,
+                    variantName,
                     compileOptions,
                     defines);
 
@@ -265,6 +278,30 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Converts one optional shared Standard Shader variant definition into compiler define values.
+        /// </summary>
+        /// <param name="variant">Shared Standard Shader variant, or <c>null</c> for an unrelated built-in shader.</param>
+        /// <returns>Independent compiler define values.</returns>
+        static ShaderDefine[] BuildVariantDefines(StandardShaderVariant variant) {
+            if (variant == null) {
+                return Array.Empty<ShaderDefine>();
+            }
+
+            ShaderDefine[] defines = new ShaderDefine[variant.Defines.Count];
+            for (int index = 0; index < variant.Defines.Count; index++) {
+                string define = variant.Defines[index];
+                int separatorIndex = define.IndexOf('=');
+                if (separatorIndex < 0) {
+                    defines[index] = new ShaderDefine(define, "1");
+                } else {
+                    defines[index] = new ShaderDefine(define.Substring(0, separatorIndex), define.Substring(separatorIndex + 1));
+                }
+            }
+
+            return defines;
+        }
+
+        /// <summary>
         /// Creates a shader compile service configured for the requested backend target.
         /// </summary>
         /// <param name="target">Backend target that should consume compiled shader bytecode.</param>
@@ -301,6 +338,7 @@ namespace helengine.editor {
             ShaderStage stage,
             string programName,
             string entryPoint,
+            string variantName,
             ShaderCompileOptions compileOptions,
             IReadOnlyList<ShaderDefine> defines) {
             if (compileService == null) {
@@ -317,6 +355,8 @@ namespace helengine.editor {
 
             if (string.IsNullOrWhiteSpace(entryPoint)) {
                 throw new ArgumentException("Entry point must be provided.", nameof(entryPoint));
+            } else if (string.IsNullOrWhiteSpace(variantName)) {
+                throw new ArgumentException("Variant name must be provided.", nameof(variantName));
             }
 
             if (compileOptions == null) {
@@ -334,7 +374,7 @@ namespace helengine.editor {
                 stage,
                 target,
                 ShaderModelValue,
-                DefaultVariantName,
+                variantName,
                 defines,
                 compileOptions);
             return compileService.Compile(request);
