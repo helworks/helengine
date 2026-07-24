@@ -74,12 +74,30 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the generated managed-code output root used by headless platform builds for the supplied platform.
+        /// Resolves a unique execution root for one invocation of a queued build item.
         /// </summary>
         /// <param name="platformId">Stable target platform identifier.</param>
-        /// <returns>Absolute isolated generated managed-code output root path.</returns>
-        public string ResolveGeneratedCodeOutputRootPath(string platformId) {
-            return Path.Combine(ResolvePlatformRootPath(platformId), "generated-dotnet");
+        /// <param name="queueItemId">Stable queued build item identifier.</param>
+        /// <param name="executionId">Unique identifier for this invocation of the queued build item.</param>
+        /// <returns>Absolute isolated execution root path for this build invocation.</returns>
+        public string ResolveWorkspaceExecutionRootPath(string platformId, string queueItemId, string executionId) {
+            if (string.IsNullOrWhiteSpace(executionId)) {
+                throw new ArgumentException("Execution id must be provided.", nameof(executionId));
+            }
+
+            return Path.Combine(
+                ResolveWorkspaceExecutionRootPath(platformId, queueItemId),
+                SanitizePathSegment(executionId));
+        }
+
+        /// <summary>
+        /// Resolves the generated managed-code output root used by one headless platform build invocation.
+        /// </summary>
+        /// <param name="platformId">Stable target platform identifier.</param>
+        /// <param name="executionId">Unique identifier for the build invocation.</param>
+        /// <returns>Absolute invocation-isolated generated managed-code output root path.</returns>
+        public string ResolveGeneratedCodeOutputRootPath(string platformId, string executionId) {
+            return Path.Combine(ResolveWorkspaceExecutionRootPath(platformId, executionId), "generated-dotnet");
         }
 
         /// <summary>

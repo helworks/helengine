@@ -39,15 +39,18 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
-        /// Ensures generated script builds can resolve a platform-specific output root outside the authored project tree.
+        /// Ensures generated script builds receive distinct invocation-scoped output roots outside the authored project tree.
         /// </summary>
         [Fact]
-        public void ResolveGeneratedCodeOutputRootPath_WhenPlatformIsProvided_ReturnsPlatformScopedOutputRoot() {
+        public void ResolveGeneratedCodeOutputRootPath_WhenInvocationsDiffer_ReturnsDistinctInvocationScopedOutputRoots() {
             EditorBuildIsolationPathResolver resolver = new(Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "code-project"));
 
-            string outputRootPath = resolver.ResolveGeneratedCodeOutputRootPath("vita");
+            string firstOutputRootPath = resolver.ResolveGeneratedCodeOutputRootPath("vita", "cli-build-a");
+            string secondOutputRootPath = resolver.ResolveGeneratedCodeOutputRootPath("vita", "cli-build-b");
 
-            Assert.EndsWith(Path.Combine("vita", "generated-dotnet"), outputRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.NotEqual(firstOutputRootPath, secondOutputRootPath);
+            Assert.EndsWith(Path.Combine("vita", "workspace", "cli-build-a", "generated-dotnet"), firstOutputRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("vita", "workspace", "cli-build-b", "generated-dotnet"), secondOutputRootPath, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

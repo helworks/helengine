@@ -31,7 +31,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Queue item id must be provided.", nameof(queueItemId));
             }
 
-            string executionRootPath = IsolationPathResolver.ResolveWorkspaceExecutionRootPath(platformId, queueItemId);
+            string executionRootPath = IsolationPathResolver.ResolveWorkspaceExecutionRootPath(platformId, queueItemId, Guid.NewGuid().ToString("N"));
             return new EditorPlatformBuildGraphWorkspace(executionRootPath);
         }
     }
