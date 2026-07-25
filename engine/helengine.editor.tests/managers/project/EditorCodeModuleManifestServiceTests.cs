@@ -132,6 +132,51 @@ public sealed class EditorCodeModuleManifestServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures duplicate module identifiers report both authored manifest locations.
+    /// </summary>
+    [Fact]
+    public void Load_WhenDuplicateModuleIdExists_ReportsBothManifestPaths() {
+        WriteManifest(
+            Path.Combine(ProjectRootPath, "assets", "Scripts", "duplicate", "code.module.json"),
+            """
+            {
+              "moduleId": "gameplay",
+              "dependencyModuleIds": [],
+              "loadScopes": [ "always-loaded" ]
+            }
+            """);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => new EditorCodeModuleManifestService(ProjectRootPath).Load());
+
+        Assert.Contains("gameplay", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("gameplay/code.module.json", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("duplicate/code.module.json", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Ensures every declared module dependency resolves to an authored module identifier.
+    /// </summary>
+    [Fact]
+    public void Load_WhenDependencyModuleIsMissing_ReportsOwningAndMissingModuleIds() {
+        WriteManifest(
+            Path.Combine(ProjectRootPath, "assets", "Scripts", "gameplay", "ui", "code.module.json"),
+            """
+            {
+              "moduleId": "gameplay.ui",
+              "dependencyModuleIds": [ "missing.module" ],
+              "loadScopes": [ "scene-loaded" ]
+            }
+            """);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => new EditorCodeModuleManifestService(ProjectRootPath).Load());
+
+        Assert.Contains("gameplay.ui", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("missing.module", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Writes one manifest file beneath the temporary project root.
     /// </summary>
     /// <param name="manifestPath">Absolute manifest file path to write.</param>

@@ -64,7 +64,7 @@ namespace helengine.editor {
                     finalModules = BuildRootFallbackManifestEntries(discoveredModules);
                 }
 
-                ValidateDependencyKinds(finalModules);
+                ValidateDependencies(finalModules);
                 return new EditorCodeModuleManifestDocument(finalModules);
             }
 
@@ -76,7 +76,7 @@ namespace helengine.editor {
                         [],
                         [DefaultLoadScope])
                 ];
-                ValidateDependencyKinds(defaultModules);
+                ValidateDependencies(defaultModules);
                 return new EditorCodeModuleManifestDocument(defaultModules);
             }
 
@@ -90,15 +90,17 @@ namespace helengine.editor {
         /// <returns>Resolved authored module entries ordered by folder depth.</returns>
         EditorCodeModuleManifestEntry[] LoadFolderScopedManifests(string assetsRootPath) {
             List<EditorCodeModuleManifestEntry> discoveredEntries = [];
-            HashSet<string> discoveredModuleIds = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> manifestPathByModuleId = new(StringComparer.OrdinalIgnoreCase);
             HashSet<string> discoveredFolderPaths = new(StringComparer.OrdinalIgnoreCase);
             foreach (string manifestFilePath in Directory.EnumerateFiles(assetsRootPath, ManifestFileName, SearchOption.AllDirectories)) {
                 string manifestFolderPath = Path.GetDirectoryName(manifestFilePath) ?? assetsRootPath;
                 string folderPath = NormalizeRelativePath(Path.GetRelativePath(ProjectRootPath, manifestFolderPath));
                 EditorCodeModuleManifestFileRecord manifestRecord = ReadManifestFile(manifestFilePath);
-                if (!discoveredModuleIds.Add(manifestRecord.ModuleId)) {
-                    throw new InvalidOperationException($"Duplicate code module id '{manifestRecord.ModuleId}' was discovered.");
+                if (manifestPathByModuleId.TryGetValue(manifestRecord.ModuleId, out string existingManifestFilePath)) {
+                    throw new InvalidOperationException(
+                        $"Duplicate code module id '{manifestRecord.ModuleId}' was declared by both '{NormalizeRelativePath(existingManifestFilePath)}' and '{NormalizeRelativePath(manifestFilePath)}'.");
                 }
+                manifestPathByModuleId.Add(manifestRecord.ModuleId, manifestFilePath);
                 if (!discoveredFolderPaths.Add(folderPath)) {
                     throw new InvalidOperationException($"Duplicate code module folder boundary '{folderPath}' was discovered.");
                 }
@@ -275,10 +277,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Validates that runtime modules do not depend on editor-only modules.
+        /// Validates that every dependency is declared and runtime modules do not depend on editor-only modules.
         /// </summary>
         /// <param name="modules">Resolved module entries to validate.</param>
-        static void ValidateDependencyKinds(EditorCodeModuleManifestEntry[] modules) {
+        static void ValidateDependencies(EditorCodeModuleManifestEntry[] modules) {
             Dictionary<string, EditorCodeModuleManifestEntry> modulesById = new(StringComparer.OrdinalIgnoreCase);
             for (int index = 0; index < modules.Length; index++) {
                 modulesById[modules[index].ModuleId] = modules[index];
@@ -286,17 +288,16 @@ namespace helengine.editor {
 
             for (int moduleIndex = 0; moduleIndex < modules.Length; moduleIndex++) {
                 EditorCodeModuleManifestEntry module = modules[moduleIndex];
-                if (module.ModuleKind != EditorCodeModuleKind.Runtime) {
-                    continue;
-                }
-
                 for (int dependencyIndex = 0; dependencyIndex < module.DependencyModuleIds.Length; dependencyIndex++) {
                     string dependencyModuleId = module.DependencyModuleIds[dependencyIndex];
                     if (string.IsNullOrWhiteSpace(dependencyModuleId)) {
                         continue;
                     }
 
-                    if (modulesById.TryGetValue(dependencyModuleId, out EditorCodeModuleManifestEntry dependencyModule)
+                    if (!modulesById.TryGetValue(dependencyModuleId, out EditorCodeModuleManifestEntry dependencyModule)) {
+                        throw new InvalidOperationException($"Code module '{module.ModuleId}' declares missing dependency module '{dependencyModuleId}'.");
+                    }
+                    if (module.ModuleKind == EditorCodeModuleKind.Runtime
                         && dependencyModule.ModuleKind == EditorCodeModuleKind.Editor) {
                         throw new InvalidOperationException($"Runtime code module '{module.ModuleId}' cannot depend on editor code module '{dependencyModule.ModuleId}'.");
                     }
