@@ -47,6 +47,50 @@ namespace helengine.editor {
         /// <param name="generatedOutputRootPath">Absolute output root used by generated module projects.</param>
         /// <returns>Generated code solution description.</returns>
         public EditorGeneratedCodeSolution Build(string projectRootPath, EditorCodeModuleManifestDocument manifestDocument, string generatedOutputRootPath) {
+            return Build(
+                projectRootPath,
+                manifestDocument,
+                generatedOutputRootPath,
+                ResolveGeneratedWorkspaceRootPath(Path.GetFullPath(projectRootPath)),
+                EditorScriptCompilationMode.EditorFull);
+        }
+
+        /// <summary>
+        /// Builds the generated code solution description with independent roots for generated project files and compiler outputs.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute game project root path.</param>
+        /// <param name="manifestDocument">Discovered authored code-module manifest document.</param>
+        /// <param name="generatedOutputRootPath">Absolute output root used by generated module projects.</param>
+        /// <param name="generatedWorkspaceRootPath">Absolute workspace root used for generated solution, project, and global-using files.</param>
+        /// <returns>Generated code solution description.</returns>
+        public EditorGeneratedCodeSolution Build(
+            string projectRootPath,
+            EditorCodeModuleManifestDocument manifestDocument,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath) {
+            return Build(
+                projectRootPath,
+                manifestDocument,
+                generatedOutputRootPath,
+                generatedWorkspaceRootPath,
+                EditorScriptCompilationMode.EditorFull);
+        }
+
+        /// <summary>
+        /// Builds the generated code solution with independent roots and an explicit script-compilation mode.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute game project root path.</param>
+        /// <param name="manifestDocument">Discovered authored code-module manifest document.</param>
+        /// <param name="generatedOutputRootPath">Absolute output root used by generated module projects.</param>
+        /// <param name="generatedWorkspaceRootPath">Absolute workspace root used for generated solution, project, and global-using files.</param>
+        /// <param name="compilationMode">Authored script surfaces included in the generated solution.</param>
+        /// <returns>Generated code solution description.</returns>
+        public EditorGeneratedCodeSolution Build(
+            string projectRootPath,
+            EditorCodeModuleManifestDocument manifestDocument,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath,
+            EditorScriptCompilationMode compilationMode) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -56,16 +100,24 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(generatedOutputRootPath)) {
                 throw new ArgumentException("Generated output root path must be provided.", nameof(generatedOutputRootPath));
             }
+            if (string.IsNullOrWhiteSpace(generatedWorkspaceRootPath)) {
+                throw new ArgumentException("Generated workspace root path must be provided.", nameof(generatedWorkspaceRootPath));
+            }
             if (manifestDocument.Modules.Length == 0) {
                 throw new InvalidOperationException("At least one code module must exist before generating script projects.");
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
             string fullGeneratedOutputRootPath = Path.GetFullPath(generatedOutputRootPath);
+            string fullGeneratedWorkspaceRootPath = Path.GetFullPath(generatedWorkspaceRootPath);
+            EditorCodeModuleManifestEntry[] selectedModules = SelectModules(manifestDocument.Modules, compilationMode);
+            if (selectedModules.Length == 0) {
+                throw new InvalidOperationException($"Script compilation mode '{compilationMode}' did not select any authored code modules.");
+            }
             List<EditorGeneratedCodeModuleProject> moduleProjects = [];
-            for (int index = 0; index < manifestDocument.Modules.Length; index++) {
-                EditorCodeModuleManifestEntry module = manifestDocument.Modules[index];
-                string projectDirectoryPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "projects", module.ModuleId);
+            for (int index = 0; index < selectedModules.Length; index++) {
+                EditorCodeModuleManifestEntry module = selectedModules[index];
+                string projectDirectoryPath = Path.Combine(fullGeneratedWorkspaceRootPath, "projects", module.ModuleId);
                 string projectFilePath = Path.Combine(projectDirectoryPath, module.ModuleId + ".csproj");
                 string generatedGlobalUsingsFilePath = Path.Combine(projectDirectoryPath, "GlobalUsings.g.cs");
                 string baseIntermediateOutputPath = Path.Combine(fullGeneratedOutputRootPath, "generated_code", "obj", module.ModuleId);
@@ -92,12 +144,40 @@ namespace helengine.editor {
                     string.Empty));
             }
 
-            IReadOnlyList<EditorGeneratedCodeModuleProject> testProjects = TestProjectDiscoveryService.Discover(
-                fullProjectRootPath,
-                fullGeneratedOutputRootPath,
-                moduleProjects);
-            IReadOnlyList<EditorGeneratedCodeModuleProject> filteredModuleProjects = ApplyTestFolderExclusions(moduleProjects, testProjects);
+            IReadOnlyList<EditorGeneratedCodeModuleProject> testProjects = [];
+            IReadOnlyList<EditorGeneratedCodeModuleProject> filteredModuleProjects = moduleProjects;
+            if (compilationMode == EditorScriptCompilationMode.EditorFull) {
+                testProjects = TestProjectDiscoveryService.Discover(
+                    fullProjectRootPath,
+                    fullGeneratedOutputRootPath,
+                    moduleProjects);
+                filteredModuleProjects = ApplyTestFolderExclusions(moduleProjects, testProjects);
+            }
+
             return new EditorGeneratedCodeSolution(filteredModuleProjects, testProjects);
+        }
+
+        /// <summary>
+        /// Selects production module manifests applicable to one script-compilation mode.
+        /// </summary>
+        /// <param name="modules">All discovered authored module manifests.</param>
+        /// <param name="compilationMode">Requested generated-code compilation mode.</param>
+        /// <returns>Ordered manifests included in the generated solution.</returns>
+        static EditorCodeModuleManifestEntry[] SelectModules(
+            IReadOnlyList<EditorCodeModuleManifestEntry> modules,
+            EditorScriptCompilationMode compilationMode) {
+            if (modules == null) {
+                throw new ArgumentNullException(nameof(modules));
+            }
+
+            if (compilationMode == EditorScriptCompilationMode.EditorFull) {
+                return [.. modules];
+            }
+            if (compilationMode == EditorScriptCompilationMode.RuntimeOnly) {
+                return [.. modules.Where(static module => module.ModuleKind == EditorCodeModuleKind.Runtime)];
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(compilationMode), compilationMode, "The script compilation mode is not supported.");
         }
 
         /// <summary>
@@ -147,6 +227,15 @@ namespace helengine.editor {
             }
 
             return Path.Combine(parentDirectory.FullName, "output", projectFolderName);
+        }
+
+        /// <summary>
+        /// Resolves the default authored-project location for generated solution workspace files.
+        /// </summary>
+        /// <param name="fullProjectRootPath">Absolute game project root path.</param>
+        /// <returns>Absolute generated workspace root path.</returns>
+        static string ResolveGeneratedWorkspaceRootPath(string fullProjectRootPath) {
+            return Path.Combine(fullProjectRootPath, "user_settings", "generated_code");
         }
 
         /// <summary>

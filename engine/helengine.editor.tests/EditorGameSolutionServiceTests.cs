@@ -229,6 +229,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a headless invocation can place every generated solution artifact outside the authored project tree.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenGeneratedWorkspaceRootIsOverridden_WritesNoGeneratedFilesIntoTheAuthoredProject() {
+            string isolatedOutputRootPath = Path.Combine(Path.GetTempPath(), "helengine-builds", Guid.NewGuid().ToString("N"), "ps2", "generated-dotnet");
+            string isolatedWorkspaceRootPath = Path.Combine(isolatedOutputRootPath, "workspace");
+
+            try {
+                EditorGameSolutionService service = new EditorGameSolutionService(
+                    TempProjectRootPath,
+                    "SkyRider",
+                    new TestIdeLauncher(),
+                    isolatedOutputRootPath,
+                    isolatedWorkspaceRootPath);
+
+                string solutionPath = service.GenerateSolutionFiles();
+
+                string projectFilePath = Path.Combine(isolatedWorkspaceRootPath, "projects", "gameplay", "gameplay.csproj");
+                string globalUsingsFilePath = Path.Combine(isolatedWorkspaceRootPath, "projects", "gameplay", "GlobalUsings.g.cs");
+                Assert.Equal(Path.Combine(isolatedWorkspaceRootPath, "SkyRider.sln"), solutionPath);
+                Assert.True(File.Exists(projectFilePath));
+                Assert.True(File.Exists(globalUsingsFilePath));
+                Assert.True(File.Exists(solutionPath));
+                Assert.False(Directory.Exists(Path.Combine(TempProjectRootPath, "user_settings", "generated_code")));
+            } finally {
+                if (Directory.Exists(isolatedOutputRootPath)) {
+                    Directory.Delete(isolatedOutputRootPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures fallback gameplay scripts and sibling .tests folders produce generated xUnit projects for both runtime and editor surfaces.
         /// </summary>
         [Fact]
@@ -296,6 +328,58 @@ namespace helengine.editor.tests {
             string globalUsingsPath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools.tests", "GlobalUsings.g.cs");
             Assert.True(File.Exists(globalUsingsPath));
             Assert.Contains("global using helengine.editor;", File.ReadAllText(globalUsingsPath), StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures runtime-only solution generation excludes editor and test surfaces without discovering an orphan test folder.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenRuntimeOnlyAndOrphanTestFolderExists_WritesOnlyRuntimeProjects() {
+            File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "audio.tools.tests"));
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "RuntimePlayer.cs"), "public sealed class RuntimePlayer { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools", "code.module.json"), """
+{
+  "moduleId": "menu.tools",
+  "dependencyModuleIds": [ "gameplay" ],
+  "loadScopes": [ "always-loaded" ],
+  "moduleKind": "editor"
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools", "MenuCommand.cs"), "public sealed class MenuCommand { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "audio.tools.tests", "AudioTests.cs"), "public sealed class AudioTests { }");
+            string isolatedOutputRootPath = Path.Combine(Path.GetTempPath(), "helengine-builds", Guid.NewGuid().ToString("N"), "ps2", "generated-dotnet");
+            string isolatedWorkspaceRootPath = Path.Combine(isolatedOutputRootPath, "workspace");
+
+            try {
+                EditorGameSolutionService service = new EditorGameSolutionService(
+                    TempProjectRootPath,
+                    "SkyRider",
+                    new TestIdeLauncher(),
+                    new TestSolutionDetector(false),
+                    isolatedOutputRootPath,
+                    isolatedWorkspaceRootPath,
+                    EditorScriptCompilationMode.RuntimeOnly);
+
+                string solutionPath = service.GenerateSolutionFiles();
+
+                EditorGeneratedCodeModuleProject runtimeProject = Assert.Single(service.GeneratedModuleProjects);
+                Assert.Equal("gameplay", runtimeProject.ModuleId);
+                Assert.Single(service.GeneratedProjects);
+                Assert.True(File.Exists(Path.Combine(isolatedWorkspaceRootPath, "projects", "gameplay", "gameplay.csproj")));
+                Assert.False(File.Exists(Path.Combine(isolatedWorkspaceRootPath, "projects", "menu.tools", "menu.tools.csproj")));
+                Assert.False(File.Exists(Path.Combine(isolatedWorkspaceRootPath, "projects", "audio.tools.tests", "audio.tools.tests.csproj")));
+                Assert.True(File.Exists(solutionPath));
+                Assert.Contains(
+                    "<Compile Remove=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "assets", "**", "*.tests", "**", "*.cs")) + "\" />",
+                    File.ReadAllText(Path.Combine(isolatedWorkspaceRootPath, "projects", "gameplay", "gameplay.csproj")),
+                    StringComparison.Ordinal);
+            } finally {
+                if (Directory.Exists(isolatedOutputRootPath)) {
+                    Directory.Delete(isolatedOutputRootPath, true);
+                }
+            }
         }
 
         /// <summary>

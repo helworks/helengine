@@ -101,6 +101,16 @@ namespace helengine.editor {
         readonly string GeneratedOutputRootPath;
 
         /// <summary>
+        /// Optional explicit workspace root used for generated solution, project, and global-using files during isolated headless builds.
+        /// </summary>
+        readonly string GeneratedWorkspaceRootPath;
+
+        /// <summary>
+        /// Authored script surfaces included in the generated solution.
+        /// </summary>
+        readonly EditorScriptCompilationMode CompilationMode;
+
+        /// <summary>
         /// Initializes one solution generator for the supplied game project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative game project root path.</param>
@@ -154,6 +164,8 @@ namespace helengine.editor {
             CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
             GeneratedCodeSolutionBuilder = new EditorGeneratedCodeSolutionBuilder();
             GeneratedOutputRootPath = string.Empty;
+            GeneratedWorkspaceRootPath = string.Empty;
+            CompilationMode = EditorScriptCompilationMode.EditorFull;
         }
 
         /// <summary>
@@ -197,6 +209,110 @@ namespace helengine.editor {
             GeneratedOutputRootPath = string.IsNullOrWhiteSpace(generatedOutputRootPath)
                 ? string.Empty
                 : Path.GetFullPath(generatedOutputRootPath);
+            GeneratedWorkspaceRootPath = string.Empty;
+            CompilationMode = EditorScriptCompilationMode.EditorFull;
+        }
+
+        /// <summary>
+        /// Initializes one solution generator with isolated compiler-output and generated-workspace roots.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative game project root path.</param>
+        /// <param name="projectName">Display name of the game project.</param>
+        /// <param name="ideLauncher">Launcher used to open the generated solution.</param>
+        /// <param name="generatedOutputRootPath">Explicit generated compiler-output root used by generated projects.</param>
+        /// <param name="generatedWorkspaceRootPath">Explicit generated workspace root used by solution and project files.</param>
+        public EditorGameSolutionService(
+            string projectRootPath,
+            string projectName,
+            IEditorIdeLauncher ideLauncher,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath)
+            : this(
+                projectRootPath,
+                projectName,
+                ideLauncher,
+                new EditorVisualStudioLauncher(),
+                generatedOutputRootPath,
+                generatedWorkspaceRootPath) {
+        }
+
+        /// <summary>
+        /// Initializes one solution generator with isolated compiler-output and generated-workspace roots.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative game project root path.</param>
+        /// <param name="projectName">Display name of the game project.</param>
+        /// <param name="ideLauncher">Launcher used to open the generated solution.</param>
+        /// <param name="solutionDetector">Detector used to skip reopening an already-open solution.</param>
+        /// <param name="generatedOutputRootPath">Explicit generated compiler-output root used by generated projects.</param>
+        /// <param name="generatedWorkspaceRootPath">Explicit generated workspace root used by solution and project files.</param>
+        public EditorGameSolutionService(
+            string projectRootPath,
+            string projectName,
+            IEditorIdeLauncher ideLauncher,
+            IEditorIdeSolutionDetector solutionDetector,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath)
+            : this(
+                projectRootPath,
+                projectName,
+                ideLauncher,
+                solutionDetector,
+                generatedOutputRootPath,
+                generatedWorkspaceRootPath,
+                EditorScriptCompilationMode.EditorFull) {
+        }
+
+        /// <summary>
+        /// Initializes one solution generator with isolated compiler-output and generated-workspace roots for an explicit script-compilation mode.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative game project root path.</param>
+        /// <param name="projectName">Display name of the game project.</param>
+        /// <param name="ideLauncher">Launcher used to open the generated solution.</param>
+        /// <param name="solutionDetector">Detector used to skip reopening an already-open solution.</param>
+        /// <param name="generatedOutputRootPath">Explicit generated compiler-output root used by generated projects.</param>
+        /// <param name="generatedWorkspaceRootPath">Explicit generated workspace root used by solution and project files.</param>
+        /// <param name="compilationMode">Authored script surfaces included in the generated solution.</param>
+        public EditorGameSolutionService(
+            string projectRootPath,
+            string projectName,
+            IEditorIdeLauncher ideLauncher,
+            IEditorIdeSolutionDetector solutionDetector,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath,
+            EditorScriptCompilationMode compilationMode) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(projectName)) {
+                throw new ArgumentException("Project name must be provided.", nameof(projectName));
+            }
+            if (ideLauncher == null) {
+                throw new ArgumentNullException(nameof(ideLauncher));
+            }
+            if (solutionDetector == null) {
+                throw new ArgumentNullException(nameof(solutionDetector));
+            }
+            if (string.IsNullOrWhiteSpace(generatedOutputRootPath)) {
+                throw new ArgumentException("Generated output root path must be provided.", nameof(generatedOutputRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(generatedWorkspaceRootPath)) {
+                throw new ArgumentException("Generated workspace root path must be provided.", nameof(generatedWorkspaceRootPath));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            ProjectIdentifier = SanitizeIdentifier(projectName);
+            if (string.IsNullOrWhiteSpace(ProjectIdentifier)) {
+                ProjectIdentifier = "Game";
+            }
+
+            IdeLauncher = ideLauncher;
+            SolutionDetector = solutionDetector;
+            CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
+            GeneratedCodeSolutionBuilder = new EditorGeneratedCodeSolutionBuilder();
+            GeneratedOutputRootPath = Path.GetFullPath(generatedOutputRootPath);
+            GeneratedWorkspaceRootPath = Path.GetFullPath(generatedWorkspaceRootPath);
+            SolutionFilePath = Path.Combine(GeneratedWorkspaceRootPath, ProjectIdentifier + SolutionFileExtension);
+            CompilationMode = compilationMode;
         }
 
         /// <summary>
@@ -260,6 +376,10 @@ namespace helengine.editor {
         /// <returns>Absolute path to the generated solution file.</returns>
         public string GenerateSolutionFiles() {
             Directory.CreateDirectory(ProjectRootPath);
+            string solutionDirectoryPath = Path.GetDirectoryName(SolutionFilePath);
+            if (!string.IsNullOrWhiteSpace(solutionDirectoryPath)) {
+                Directory.CreateDirectory(solutionDirectoryPath);
+            }
             GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
             for (int index = 0; index < GeneratedCodeSolutionValue.Projects.Count; index++) {
                 EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.Projects[index];
@@ -342,7 +462,8 @@ namespace helengine.editor {
             builder.AppendLine("MinimumVisualStudioVersion = 10.0.40219.1");
             for (int index = 0; index < generatedCodeSolution.Projects.Count; index++) {
                 EditorGeneratedCodeModuleProject moduleProject = generatedCodeSolution.Projects[index];
-                string relativeProjectFileName = Path.GetRelativePath(ProjectRootPath, moduleProject.ProjectFilePath).Replace('\\', '/');
+                string solutionDirectoryPath = Path.GetDirectoryName(SolutionFilePath) ?? ProjectRootPath;
+                string relativeProjectFileName = Path.GetRelativePath(solutionDirectoryPath, moduleProject.ProjectFilePath).Replace('\\', '/');
                 string projectGuidText = moduleProject.ProjectGuid.ToString("B").ToUpperInvariant();
                 builder.AppendLine("Project(\"{" + CSharpProjectTypeGuid + "}\") = \"" + EscapeSolutionText(moduleProject.ModuleId) + "\", \"" + EscapeSolutionText(relativeProjectFileName) + "\", \"" + projectGuidText + "\"");
                 builder.AppendLine("EndProject");
@@ -507,6 +628,9 @@ namespace helengine.editor {
                 for (int index = 0; index < moduleProject.NestedSourceFolderPaths.Count; index++) {
                     builder.AppendLine("    <Compile Remove=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.NestedSourceFolderPaths[index]), "**", "*.cs")) + "\" />");
                 }
+                if (CompilationMode == EditorScriptCompilationMode.RuntimeOnly) {
+                    builder.AppendLine("    <Compile Remove=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.SourceFolderPath), "**", "*.tests", "**", "*.cs")) + "\" />");
+                }
             }
             builder.AppendLine("  </ItemGroup>");
         }
@@ -521,8 +645,16 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(GeneratedOutputRootPath)) {
                 return GeneratedCodeSolutionBuilder.Build(ProjectRootPath, manifestDocument);
             }
+            if (string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)) {
+                return GeneratedCodeSolutionBuilder.Build(ProjectRootPath, manifestDocument, GeneratedOutputRootPath);
+            }
 
-            return GeneratedCodeSolutionBuilder.Build(ProjectRootPath, manifestDocument, GeneratedOutputRootPath);
+            return GeneratedCodeSolutionBuilder.Build(
+                ProjectRootPath,
+                manifestDocument,
+                GeneratedOutputRootPath,
+                GeneratedWorkspaceRootPath,
+                CompilationMode);
         }
 
         /// <summary>
