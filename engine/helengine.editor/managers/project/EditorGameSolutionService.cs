@@ -237,6 +237,32 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Initializes one solution generator with isolated compiler-output and generated-workspace roots for an explicit script-compilation mode.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative game project root path.</param>
+        /// <param name="projectName">Display name of the game project.</param>
+        /// <param name="ideLauncher">Launcher used to open the generated solution.</param>
+        /// <param name="generatedOutputRootPath">Explicit generated compiler-output root used by generated projects.</param>
+        /// <param name="generatedWorkspaceRootPath">Explicit generated workspace root used by solution and project files.</param>
+        /// <param name="compilationMode">Authored script surfaces included in the generated solution.</param>
+        public EditorGameSolutionService(
+            string projectRootPath,
+            string projectName,
+            IEditorIdeLauncher ideLauncher,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath,
+            EditorScriptCompilationMode compilationMode)
+            : this(
+                projectRootPath,
+                projectName,
+                ideLauncher,
+                new EditorVisualStudioLauncher(),
+                generatedOutputRootPath,
+                generatedWorkspaceRootPath,
+                compilationMode) {
+        }
+
+        /// <summary>
         /// Initializes one solution generator with isolated compiler-output and generated-workspace roots.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative game project root path.</param>

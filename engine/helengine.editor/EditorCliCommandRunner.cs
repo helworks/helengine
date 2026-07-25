@@ -63,10 +63,17 @@ namespace helengine.editor {
             EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget, core.ContentManager);
             shaderModuleManager.Start();
 
+            EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(bootstrap.ProjectRootPath);
+            string commandExecutionId = Guid.NewGuid().ToString("N");
+            string generatedOutputRootPath = isolationPathResolver.ResolveGeneratedCodeOutputRootPath("editor-command", commandExecutionId);
+            string generatedWorkspaceRootPath = isolationPathResolver.ResolveGeneratedCodeWorkspaceRootPath("editor-command", commandExecutionId);
             EditorGameSolutionService solutionService = new EditorGameSolutionService(
                 bootstrap.ProjectRootPath,
                 bootstrap.ProjectName,
-                new EditorVisualStudioLauncher());
+                new EditorVisualStudioLauncher(),
+                generatedOutputRootPath,
+                generatedWorkspaceRootPath,
+                EditorScriptCompilationMode.EditorFull);
             EditorDotNetScriptBuildTool buildTool = new EditorDotNetScriptBuildTool();
             using EditorGameScriptAssemblyHost assemblyHost = new EditorGameScriptAssemblyHost(bootstrap.ProjectRootPath);
             using EditorGameScriptHotReloadService hotReloadService = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);

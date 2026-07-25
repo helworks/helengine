@@ -53,7 +53,7 @@ namespace helengine.editor {
             EditorProjectPaths.Initialize(bootstrap.ProjectRootPath);
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService, options.PlatformId);
             EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
-            ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
+            ShaderCompileTarget runtimeTarget = ResolveShaderCompileTarget(options.PlatformId);
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
             ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(
                 new[] { targetOptions },
@@ -72,6 +72,7 @@ namespace helengine.editor {
             EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget, core.ContentManager);
             shaderModuleManager.Start();
 
+            Console.WriteLine($"[build] building project scripts for '{options.PlatformId}'");
             EditorBuildExecutionResult scriptLoadResult = BuildAndLoadProjectScripts(
                 bootstrap,
                 options.PlatformId,
@@ -82,6 +83,8 @@ namespace helengine.editor {
                 if (!scriptLoadResult.Succeeded) {
                     return scriptLoadResult;
                 }
+
+                Console.WriteLine($"[build] project scripts loaded for '{options.PlatformId}'");
 
                 EditorBuildConfigDocument buildConfig = bootstrap.BuildConfigService.TryLoadExisting();
                 if (buildConfig == null) {
@@ -164,11 +167,14 @@ namespace helengine.editor {
             }
 
             EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(bootstrap.ProjectRootPath);
+            string buildExecutionId = Guid.NewGuid().ToString("N");
             EditorGameSolutionService solutionService = new EditorGameSolutionService(
                 bootstrap.ProjectRootPath,
                 bootstrap.ProjectName,
                 new EditorVisualStudioLauncher(),
-                isolationPathResolver.ResolveGeneratedCodeOutputRootPath(platformId, Guid.NewGuid().ToString("N")));
+                isolationPathResolver.ResolveGeneratedCodeOutputRootPath(platformId, buildExecutionId),
+                isolationPathResolver.ResolveGeneratedCodeWorkspaceRootPath(platformId, buildExecutionId),
+                ResolveProjectScriptCompilationMode());
             EditorDotNetScriptBuildTool buildTool = new EditorDotNetScriptBuildTool();
             assemblyHost = new EditorGameScriptAssemblyHost(bootstrap.ProjectRootPath);
             hotReloadService = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);
@@ -216,6 +222,25 @@ namespace helengine.editor {
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             platformCatalogService.RegisterShaderBackends(shaderBackendRegistry, platformId);
             return shaderBackendRegistry;
+        }
+
+        /// <summary>
+        /// Resolves the shader compiler target required by one editor build platform.
+        /// </summary>
+        /// <param name="platformId">Stable platform identifier supplied by the editor build request.</param>
+        /// <returns>PS Vita for a PS Vita build; otherwise the existing DirectX 11 target.</returns>
+        internal static ShaderCompileTarget ResolveShaderCompileTarget(string platformId) {
+            return string.Equals(platformId, "psvita", StringComparison.OrdinalIgnoreCase)
+                ? ShaderCompileTarget.PsVita
+                : ShaderCompileTarget.DirectX11;
+        }
+
+        /// <summary>
+        /// Resolves the script-compilation mode required by a native platform cook.
+        /// </summary>
+        /// <returns>Runtime-only compilation because platform cooks must not require editor tools or tests.</returns>
+        internal static EditorScriptCompilationMode ResolveProjectScriptCompilationMode() {
+            return EditorScriptCompilationMode.RuntimeOnly;
         }
     }
 }
