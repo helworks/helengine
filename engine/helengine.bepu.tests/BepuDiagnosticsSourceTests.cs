@@ -23,7 +23,7 @@ namespace helengine.bepu.tests {
         /// Ensures the vendor-side BEPU native-conversion diagnostics source also respects the same generic disabled-feature guard.
         /// </summary>
         [Fact]
-        public void BepuNativeConversionDiagnostics_source_uses_generic_disabled_feature_guard() {
+    public void BepuNativeConversionDiagnostics_source_uses_generic_disabled_feature_guard() {
             string sourcePath = Path.Combine(
                 ResolveRepositoryRootPath(),
                 "engine",
@@ -34,10 +34,141 @@ namespace helengine.bepu.tests {
 
             string source = File.ReadAllText(sourcePath);
 
-            Assert.Contains("#if HELENGINE_CODEGEN_FEATURE_DISABLED_PHYSICS3D_DIAGNOSTICS", source, StringComparison.Ordinal);
-        }
+        Assert.Contains("#if HELENGINE_CODEGEN_FEATURE_DISABLED_PHYSICS3D_DIAGNOSTICS", source, StringComparison.Ordinal);
+    }
 
-        /// <summary>
+    /// <summary>
+    /// Ensures narrow-phase callback diagnostics distinguish callback entry from each collidable-property lookup during native hardware crash investigation.
+    /// </summary>
+    [Fact]
+    public void HelengineBepuNarrowPhaseCallbacks_source_reports_collidable_property_lookup_stages() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.bepu",
+            "HelengineBepuNarrowPhaseCallbacks.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("BeforeBepuAllowContactGenerationFirstProperty", source, StringComparison.Ordinal);
+        Assert.Contains("AfterBepuAllowContactGenerationFirstProperty", source, StringComparison.Ordinal);
+        Assert.Contains("AfterBepuAllowContactGenerationSecondProperty", source, StringComparison.Ordinal);
+        Assert.Contains("a.RawHandleValue", source, StringComparison.Ordinal);
+        Assert.Contains("b.RawHandleValue", source, StringComparison.Ordinal);
+        Assert.Contains("aBodyExists=", source, StringComparison.Ordinal);
+        Assert.Contains("BodyDataLength", source, StringComparison.Ordinal);
+        Assert.Contains("GetCollidableProperties", source, StringComparison.Ordinal);
+        Assert.Contains("CollidableProperties[collidable.BodyHandle]", source, StringComparison.Ordinal);
+        Assert.Contains("ref BepuCollidableProperties3D firstProperties", source, StringComparison.Ordinal);
+        Assert.Contains("ref BepuCollidableProperties3D bodyProperties = ref CollidableProperties[collidable.BodyHandle]", source, StringComparison.Ordinal);
+        Assert.Contains("BepuPropertyReadBeforeBodyIndexer", source, StringComparison.Ordinal);
+        Assert.Contains("BepuPropertyReadAfterBodyIndexer", source, StringComparison.Ordinal);
+        Assert.Contains("BepuFilterAfterMasks", source, StringComparison.Ordinal);
+        Assert.Contains("BepuManifoldAfterSecondProperty", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the BEPU narrow phase exposes its native overlap-to-batch stages through the world diagnostic bridge.
+    /// </summary>
+    [Fact]
+    public void BepuNarrowPhase_source_reports_static_pair_batch_entry_stages() {
+        string repositoryRootPath = ResolveRepositoryRootPath();
+        string narrowPhaseSource = File.ReadAllText(Path.Combine(
+            repositoryRootPath,
+            "engine",
+            "vendor",
+            "bepuphysics2",
+            "BepuPhysics",
+            "CollisionDetection",
+            "NarrowPhase.cs"));
+        string worldSource = File.ReadAllText(Path.Combine(
+            repositoryRootPath,
+            "engine",
+            "helengine.bepu",
+            "BepuPhysicsWorld3D.cs"));
+
+        Assert.Contains("BepuNarrowPhaseHandleOverlapBeforeStaticDirectReference", narrowPhaseSource, StringComparison.Ordinal);
+        Assert.Contains("BepuNarrowPhaseAddBatchBeforeDiscreteContinuation", narrowPhaseSource, StringComparison.Ordinal);
+        Assert.Contains("BepuNarrowPhaseAddBatchAfterDiscreteBatcherAdd", narrowPhaseSource, StringComparison.Ordinal);
+        Assert.Contains("SimulationValue.NarrowPhase.StageReported += OnNarrowPhaseStageReported", worldSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures collision-batcher execution diagnostics expose the transition from an enqueued overlap into task execution and contact-result forwarding.
+    /// </summary>
+    [Fact]
+    public void CollisionBatcher_source_reports_task_execution_and_contact_result_stages() {
+        string collisionBatcherSource = File.ReadAllText(Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "vendor",
+            "bepuphysics2",
+            "BepuPhysics",
+            "CollisionDetection",
+            "CollisionBatcher.cs"));
+        string narrowPhaseSource = File.ReadAllText(Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "vendor",
+            "bepuphysics2",
+            "BepuPhysics",
+            "CollisionDetection",
+            "NarrowPhase.cs"));
+        string boxBoxTaskSource = File.ReadAllText(Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "vendor",
+            "bepuphysics2",
+            "BepuPhysics",
+            "CollisionDetection",
+            "CollisionTasks",
+            "BoxBoxCollisionTask.cs"));
+        string boxPairTesterSource = File.ReadAllText(Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "vendor",
+            "bepuphysics2",
+            "BepuPhysics",
+            "CollisionDetection",
+            "CollisionTasks",
+            "BoxPairTester.cs"));
+
+        Assert.Contains("BepuCollisionBatcherBeforeFlush", collisionBatcherSource, StringComparison.Ordinal);
+        Assert.Contains("BepuCollisionBatcherBeforeExecuteBatch", collisionBatcherSource, StringComparison.Ordinal);
+        Assert.Contains("BepuCollisionBatcherAfterExecuteBatch", collisionBatcherSource, StringComparison.Ordinal);
+        Assert.Contains("BepuCollisionBatcherBeforeProcessConvexResult", collisionBatcherSource, StringComparison.Ordinal);
+        Assert.Contains("BepuCollisionBatcherAfterDirectPairCompleted", collisionBatcherSource, StringComparison.Ordinal);
+        Assert.Contains("narrowPhase.ReportStage", narrowPhaseSource, StringComparison.Ordinal);
+        Assert.Contains("BepuBoxBoxBeforePairTester", boxBoxTaskSource, StringComparison.Ordinal);
+        Assert.Contains("BepuBoxBoxAfterPairTester", boxBoxTaskSource, StringComparison.Ordinal);
+        Assert.Contains("BepuBoxBoxBeforeProcessConvexResult", boxBoxTaskSource, StringComparison.Ordinal);
+        Assert.Contains("BepuBoxBoxAfterProcessConvexResult", boxBoxTaskSource, StringComparison.Ordinal);
+        Assert.Contains("BepuBoxPairTesterAfterWorldRotationA", boxPairTesterSource, StringComparison.Ordinal);
+        Assert.Contains("BepuBoxPairTesterBeforeEdgeTestX", boxPairTesterSource, StringComparison.Ordinal);
+        Assert.Contains("AfterSquaredDirection", boxPairTesterSource, StringComparison.Ordinal);
+        Assert.Contains("BeforeAxisXSquareRoot", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("AfterAxisXInverseLength", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("Vector<float>.One / length", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("Vector<float>.One / normalDot", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("Vector<float>.One / velocity", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("AfterAxisXExtremes", boxPairTesterSource, StringComparison.Ordinal);
+        Assert.Contains("AfterAxisX", boxPairTesterSource, StringComparison.Ordinal);
+        Assert.Contains("BepuBoxPairTesterAfterEdgeTestX", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("BepuBoxPairTesterAfterFaceAxesB", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("BepuBoxPairTesterAfterFaceNormalDotsA", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("BepuBoxPairTesterAfterFaceNormalBasisA", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("BepuBoxPairTesterAfterFaceAxisIdsB", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("BepuBoxPairTesterAfterFaceNormalCalibrationB", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("BepuBoxPairTesterAfterCandidateStackAllocation", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("BepuBoxPairTesterAfterEdgeIds", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("ClipBoxBEdgeAgainstBoxAFace(stageReporter", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("BeforeClipEdgeVelocityDivision", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("AfterClipEdgeDistances", boxPairTesterSource, StringComparison.Ordinal);
+            Assert.Contains("BepuBoxPairTesterBeforeCandidateReduction", boxPairTesterSource, StringComparison.Ordinal);
+        Assert.Contains("batcher.StageReporter", boxBoxTaskSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
         /// Resolves the repository root for source-audit assertions.
         /// </summary>
         /// <returns>Absolute HelEngine repository root path.</returns>

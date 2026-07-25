@@ -159,6 +159,11 @@ namespace helengine {
         public int SolveSubstepCount => SolveSubstepCountValue;
 
         /// <summary>
+        /// Gets or sets the optional sink that receives synchronous scene-binding records at each supported body-registration boundary.
+        /// </summary>
+        public Action<string> SceneBindingDiagnosticSink { get; set; }
+
+        /// <summary>
         /// Synchronizes one already-bound kinematic body from the current authored entity transform and rigid-body velocity values.
         /// </summary>
         /// <param name="entity">Bound entity whose kinematic body should be updated.</param>
@@ -227,11 +232,13 @@ namespace helengine {
             ActiveTriggerPairsValue.Clear();
             CurrentTriggerPairsValue.Clear();
             ResetSimulation();
+            WriteSceneBindingDiagnostic("PhysicsBind begin roots=" + rootEntities.Count);
             for (int index = 0; index < rootEntities.Count; index++) {
                 RegisterEntityHierarchy(rootEntities[index]);
             }
 
             BepuPhysicsWorld3DDiagnostics.Reset(BodyRegistryValue.Handles);
+            WriteSceneBindingDiagnostic("PhysicsBind end bodies=" + RegisteredBodyCount);
         }
 
         /// <summary>
@@ -319,6 +326,17 @@ namespace helengine {
             SimulationValue.BeforeCollisionOverlapDispatch += OnSimulationBeforeCollisionOverlapDispatch;
             SimulationValue.AfterCollisionOverlapDispatch += OnSimulationAfterCollisionOverlapDispatch;
             SimulationValue.AfterCollisionFlush += OnSimulationAfterCollisionFlush;
+            SimulationValue.NarrowPhase.StageReported += OnNarrowPhaseStageReported;
+        }
+
+        /// <summary>
+        /// Forwards fine-grained BEPU narrow-phase transitions into the shared runtime diagnostics stream.
+        /// </summary>
+        /// <param name="stageName">Stable native narrow-phase transition name.</param>
+        void OnNarrowPhaseStageReported(string stageName) {
+            if (Core.Instance != null) {
+                Core.Instance.ReportSceneTransitionStage(stageName);
+            }
         }
 
         /// <summary>
@@ -462,17 +480,68 @@ namespace helengine {
                 throw new NotSupportedException("Entities with more than one supported collider are not supported by helengine.bepu.");
             }
 
+            int bindingIndex = RegisteredBodyCount + 1;
+            string colliderKind = ResolveColliderKind(boxCollider, sphereCollider, staticMeshCollider);
+            WriteBodyBindingDiagnostic("before", bindingIndex, rigidBody, colliderKind);
             if (staticMeshCollider != null) {
                 RegisterStaticMeshBody(entity, rigidBody, staticMeshCollider);
+                WriteBodyBindingDiagnostic("after", bindingIndex, rigidBody, colliderKind);
                 return;
-            }
-
-            if (boxCollider != null) {
+            } else if (boxCollider != null) {
                 RegisterBoxBody(entity, rigidBody, boxCollider);
+                WriteBodyBindingDiagnostic("after", bindingIndex, rigidBody, colliderKind);
                 return;
             }
 
             RegisterSphereBody(entity, rigidBody, sphereCollider);
+            WriteBodyBindingDiagnostic("after", bindingIndex, rigidBody, colliderKind);
+        }
+
+        /// <summary>
+        /// Writes one diagnostic record when a caller configured a scene-binding diagnostic sink.
+        /// </summary>
+        /// <param name="message">Diagnostic message describing one binding boundary.</param>
+        void WriteSceneBindingDiagnostic(string message) {
+            Action<string> diagnosticSink = SceneBindingDiagnosticSink;
+            if (diagnosticSink != null) {
+                diagnosticSink(message);
+            }
+        }
+
+        /// <summary>
+        /// Writes one body-registration boundary record with the deterministic bind index and supported physics types.
+        /// </summary>
+        /// <param name="phase">Registration phase, either before or after the body enters the BEPU world.</param>
+        /// <param name="bindingIndex">One-based index assigned in deterministic scene traversal order.</param>
+        /// <param name="rigidBody">Rigid-body settings that identify the runtime body kind.</param>
+        /// <param name="colliderKind">Supported collider type selected for the body.</param>
+        void WriteBodyBindingDiagnostic(string phase, int bindingIndex, RigidBody3DComponent rigidBody, string colliderKind) {
+            WriteSceneBindingDiagnostic(
+                "PhysicsBind " + phase
+                + " index=" + bindingIndex
+                + " body=" + rigidBody.BodyKind
+                + " collider=" + colliderKind
+                + (phase == "after" ? " bodies=" + RegisteredBodyCount : string.Empty));
+        }
+
+        /// <summary>
+        /// Resolves the single supported collider kind selected for one rigid-body entity.
+        /// </summary>
+        /// <param name="boxCollider">Resolved box collider, when present.</param>
+        /// <param name="sphereCollider">Resolved sphere collider, when present.</param>
+        /// <param name="staticMeshCollider">Resolved static mesh collider, when present.</param>
+        /// <returns>Stable supported-collider type label for diagnostics.</returns>
+        string ResolveColliderKind(
+            BoxCollider3DComponent boxCollider,
+            SphereCollider3DComponent sphereCollider,
+            StaticMeshCollider3DComponent staticMeshCollider) {
+            if (boxCollider != null) {
+                return "Box";
+            } else if (sphereCollider != null) {
+                return "Sphere";
+            }
+
+            return "StaticMesh";
         }
 
         /// <summary>
