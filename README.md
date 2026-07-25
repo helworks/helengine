@@ -24,6 +24,16 @@ Parameters:
 - `-EditorProject`: optional override for the editor app `.csproj` path
 - `-AdditionalArgs`: optional extra editor CLI arguments appended after `--`
 
+### Script Module Build Modes
+
+Project code uses explicit `code.module.json` declarations. Runtime modules may depend only on runtime modules; editor-only modules use `"moduleKind": "editor"` and may depend on runtime modules. A sibling test folder must be named `<module-id>.tests` and has to match a declared production module id.
+
+Interactive editor sessions and project-authored editor commands use `EditorFull`, which includes runtime modules, editor modules, and sibling test projects. Platform cook/package builds use `RuntimeOnly`, which includes runtime production modules only and never discovers test folders or loads editor commands.
+
+Platform build profiles can declare ordered editor prebuild commands in `user_settings/build_config.json` through `editorPrebuildCommandIdsByBuildProfileId`. These run under `EditorFull` before cooking; an omitted profile declaration runs no commands. The generic wrapper contains no project-specific command ids.
+
+Every wrapper invocation uses an isolated copied project, generated-code workspace, editor publish directory, and output path, so concurrent platform builds do not share generated artifacts.
+
 Exit codes:
 
 - `0`: build completed successfully
