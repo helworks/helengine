@@ -41,6 +41,11 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
+            EditorBuildExecutionResult prebuildResult = ExecuteEditorPrebuildCommands(bootstrap, options);
+            if (!prebuildResult.Succeeded) {
+                return prebuildResult;
+            }
+
             using DirectX11Renderer3D renderer3D = new DirectX11Renderer3D();
             using EditorCore core = new EditorCore(null);
             CoreInitializationOptions initializationOptions = new CoreInitializationOptions {
@@ -179,6 +184,53 @@ namespace helengine.editor {
             assemblyHost = new EditorGameScriptAssemblyHost(bootstrap.ProjectRootPath);
             hotReloadService = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);
             return hotReloadService.BuildAndReload();
+        }
+
+        /// <summary>
+        /// Executes the selected profile's ordered editor authoring commands before the runtime-only platform cook begins.
+        /// </summary>
+        /// <param name="bootstrap">Bootstrap context for the active project.</param>
+        /// <param name="options">Parsed native platform build request.</param>
+        /// <returns>Success when all declared prebuild commands complete; otherwise the first command failure.</returns>
+        EditorBuildExecutionResult ExecuteEditorPrebuildCommands(EditorProjectBootstrapContext bootstrap, EditorCliBuildOptions options) {
+            if (bootstrap == null) {
+                throw new ArgumentNullException(nameof(bootstrap));
+            }
+            if (options == null) {
+                throw new ArgumentNullException(nameof(options));
+            }
+
+            EditorBuildConfigDocument buildConfig = bootstrap.BuildConfigService.TryLoadExisting();
+            if (buildConfig == null) {
+                return EditorBuildExecutionResult.Failure($"No existing build settings were found for project '{bootstrap.ProjectDisplayName}'. Open the editor and configure a build first.");
+            }
+
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(buildConfig, options.PlatformId);
+            if (platformConfig == null) {
+                return EditorBuildExecutionResult.Failure($"No build settings exist for platform '{options.PlatformId}'.");
+            }
+
+            string buildProfileId = string.IsNullOrWhiteSpace(options.BuildProfileId)
+                ? platformConfig.SelectedBuildProfileId
+                : options.BuildProfileId;
+            IReadOnlyList<string> commandIds;
+            try {
+                commandIds = new EditorBuildPrebuildCommandResolver().Resolve(platformConfig, buildProfileId);
+            } catch (Exception exception) {
+                return EditorBuildExecutionResult.Failure($"Build profile '{buildProfileId}' could not resolve editor prebuild commands: {exception.Message}");
+            }
+
+            for (int index = 0; index < commandIds.Count; index++) {
+                string commandId = commandIds[index];
+                Console.WriteLine($"[build] executing editor prebuild command '{commandId}' for profile '{buildProfileId}'");
+                EditorBuildExecutionResult commandResult = new EditorCliCommandRunner(DefaultFontAsset).Run(
+                    new EditorCliCommandOptions(bootstrap.ProjectRootPath, commandId));
+                if (!commandResult.Succeeded) {
+                    return EditorBuildExecutionResult.Failure($"Editor prebuild command '{commandId}' for profile '{buildProfileId}' failed: {commandResult.Message}");
+                }
+            }
+
+            return EditorBuildExecutionResult.Success($"Editor prebuild completed for profile '{buildProfileId}'.");
         }
 
         /// <summary>

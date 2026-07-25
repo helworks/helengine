@@ -118,6 +118,7 @@ namespace helengine.editor {
                     platform.SelectedSceneIds ??= [];
                     platform.SceneOrders ??= [];
                     platform.SelectedBuildProfileId ??= string.Empty;
+                    platform.EditorPrebuildCommandIdsByBuildProfileId ??= [];
                     platform.SelectedGraphicsProfileId ??= string.Empty;
                     platform.SelectedBuildOptionValues ??= [];
                     platform.SelectedGraphicsOptionValues ??= [];

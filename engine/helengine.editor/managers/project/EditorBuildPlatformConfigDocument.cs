@@ -34,6 +34,11 @@ namespace helengine.editor {
         public string SelectedBuildProfileId { get; set; } = string.Empty;
 
         /// <summary>
+        /// Gets or sets ordered editor command identifiers keyed by the build profile that requires them before cooking.
+        /// </summary>
+        public Dictionary<string, List<string>> EditorPrebuildCommandIdsByBuildProfileId { get; set; } = [];
+
+        /// <summary>
         /// Gets or sets the selected builder-provided graphics profile id.
         /// </summary>
         public string SelectedGraphicsProfileId { get; set; } = string.Empty;
