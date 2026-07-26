@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -86,7 +86,6 @@ namespace helengine.editor {
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
             string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
-            StringBuilder logBuilder = new();
             bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
 
             if (!File.Exists(helengineCoreProjectPath)) {
@@ -124,7 +123,6 @@ namespace helengine.editor {
                     selectedCodegenOptionValues,
                     combinedPreprocessorSymbols,
                     false,
-                    logBuilder,
                     regenerationLogPath,
                     cancellationToken);
                 AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineCoreProjectPath}");
@@ -138,7 +136,6 @@ namespace helengine.editor {
                     selectedCodegenOptionValues,
                     combinedPreprocessorSymbols,
                     false,
-                    logBuilder,
                     regenerationLogPath,
                     cancellationToken);
                 AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineShaderProjectPath}");
@@ -152,7 +149,6 @@ namespace helengine.editor {
                     selectedCodegenOptionValues,
                     combinedPreprocessorSymbols,
                     false,
-                    logBuilder,
                     regenerationLogPath,
                     cancellationToken);
                 AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineInputProjectPath}");
@@ -175,7 +171,6 @@ namespace helengine.editor {
                         selectedCodegenOptionValues,
                         combinedPreprocessorSymbols,
                         false,
-                        logBuilder,
                         regenerationLogPath,
                         cancellationToken);
                     AppendRegenerationLog(regenerationLogPath, $"project-complete path={helenginePhysics3DProjectPath}");
@@ -194,7 +189,6 @@ namespace helengine.editor {
                     codegenProfile,
                     selectedCodegenOptionValues,
                     combinedPreprocessorSymbols,
-                    logBuilder,
                     regenerationLogPath,
                     cancellationToken);
                 AppendRegenerationLog(regenerationLogPath, "external-projects-complete");
@@ -244,7 +238,6 @@ namespace helengine.editor {
         /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor.</param>
         /// <param name="additionalPreprocessorSymbols">Feature symbols injected for portable-input compilation.</param>
         /// <param name="includeProjectDefinedPreprocessorSymbols">Whether project-defined preprocessor symbols should be included for the converted project.</param>
-        /// <param name="logBuilder">Shared log buffer that records process output for the combined regeneration run.</param>
         /// <param name="regenerationLogPath">Persistent diagnostic log file that should receive the launched codegen command.</param>
         /// <param name="cancellationToken">Cancellation token that can stop regeneration cooperatively.</param>
         static void RegenerateProject(
@@ -256,7 +249,6 @@ namespace helengine.editor {
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             IReadOnlyList<string> additionalPreprocessorSymbols,
             bool includeProjectDefinedPreprocessorSymbols,
-            StringBuilder logBuilder,
             string regenerationLogPath,
             CancellationToken cancellationToken) {
             if (string.IsNullOrWhiteSpace(fileName)) {
@@ -280,9 +272,6 @@ namespace helengine.editor {
             if (additionalPreprocessorSymbols == null) {
                 throw new ArgumentNullException(nameof(additionalPreprocessorSymbols));
             }
-            if (logBuilder == null) {
-                throw new ArgumentNullException(nameof(logBuilder));
-            }
             if (string.IsNullOrWhiteSpace(regenerationLogPath)) {
                 throw new ArgumentException("Regeneration log path must be provided.", nameof(regenerationLogPath));
             }
@@ -298,8 +287,7 @@ namespace helengine.editor {
 
             string commandLine = $"{fileName} {string.Join(" ", arguments.Select(QuoteArgument))}";
             AppendRegenerationLog(regenerationLogPath, $"process-command {commandLine}");
-            logBuilder.AppendLine($"COMMAND: {commandLine}");
-            RunProcess(fileName, arguments, Path.GetDirectoryName(fileName) ?? Directory.GetCurrentDirectory(), logBuilder, cancellationToken);
+            RunProcess(fileName, arguments, Path.GetDirectoryName(fileName) ?? Directory.GetCurrentDirectory(), projectPath, regenerationLogPath, cancellationToken);
         }
 
         /// <summary>
@@ -313,7 +301,6 @@ namespace helengine.editor {
         /// <param name="codegenProfile">Selected codegen profile metadata.</param>
         /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor.</param>
         /// <param name="additionalPreprocessorSymbols">Feature symbols injected for conversion.</param>
-        /// <param name="logBuilder">Shared log buffer that records process output for the combined regeneration run.</param>
         /// <param name="regenerationLogPath">Persistent diagnostic log file that should receive the launched codegen commands.</param>
         /// <param name="cancellationToken">Cancellation token that can stop regeneration cooperatively.</param>
         static void RegenerateAdditionalGeneratedCoreProjects(
@@ -325,7 +312,6 @@ namespace helengine.editor {
             PlatformCodegenProfileDefinition codegenProfile,
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             IReadOnlyList<string> additionalPreprocessorSymbols,
-            StringBuilder logBuilder,
             string regenerationLogPath,
             CancellationToken cancellationToken) {
             if (generatedCoreProjectPaths == null) {
@@ -354,7 +340,6 @@ namespace helengine.editor {
                     selectedCodegenOptionValues,
                     additionalPreprocessorSymbols,
                     true,
-                    logBuilder,
                     regenerationLogPath,
                     cancellationToken);
                 MergeExternalGeneratedProjectSourceTree(projectPath, projectOutputRoot, generatedCoreOutputRoot);
@@ -568,7 +553,13 @@ namespace helengine.editor {
         /// <param name="workingDirectory">Current working directory for the process.</param>
         /// <param name="logBuilder">Shared log buffer that receives process output.</param>
         /// <param name="cancellationToken">Cancellation token that can stop the process wait loop.</param>
-        static void RunProcess(string fileName, IReadOnlyList<string> arguments, string workingDirectory, StringBuilder logBuilder, CancellationToken cancellationToken) {
+        static void RunProcess(
+            string fileName,
+            IReadOnlyList<string> arguments,
+            string workingDirectory,
+            string projectPath,
+            string regenerationLogPath,
+            CancellationToken cancellationToken) {
             string displayArguments = string.Join(" ", arguments.Select(QuoteArgument));
             ProcessStartInfo startInfo = new ProcessStartInfo {
                 FileName = fileName,
@@ -582,10 +573,17 @@ namespace helengine.editor {
                 startInfo.ArgumentList.Add(arguments[index]);
             }
 
+            using CodegenProcessDiagnosticReporter reporter = new(
+                projectPath,
+                regenerationLogPath,
+                Console.WriteLine,
+                Console.Error.WriteLine);
             NativeProcessRunResult result = new NativeProcessRunner().Run(
                 startInfo,
                 cancellationToken,
-                (line, _) => logBuilder.AppendLine(line));
+                reporter.ReportOutputLine,
+                reporter.ReportProcessStarted,
+                captureOutput: false);
             if (result.ExitCode != 0) {
                 throw new InvalidOperationException($"Process '{fileName} {displayArguments}' failed with exit code {result.ExitCode}.");
             }
@@ -623,7 +621,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="logPath">Absolute regeneration log path.</param>
         /// <param name="message">Diagnostic message to append.</param>
-        static void AppendRegenerationLog(string logPath, string message) {
+        internal static void AppendRegenerationLog(string logPath, string message) {
             if (string.IsNullOrWhiteSpace(logPath)) {
                 throw new ArgumentException("Log path must be provided.", nameof(logPath));
             }

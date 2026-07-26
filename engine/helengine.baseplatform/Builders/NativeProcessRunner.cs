@@ -13,11 +13,15 @@ public sealed class NativeProcessRunner {
     /// <param name="startInfo">Configured process start information.</param>
     /// <param name="cancellationToken">Cancellation token that terminates the process tree when requested.</param>
     /// <param name="outputHandler">Optional handler that receives each output line and its stream designation.</param>
+    /// <param name="processStartedHandler">Optional handler that receives the started child-process identifier.</param>
+    /// <param name="captureOutput">Whether completed child-process output should be retained in the returned result.</param>
     /// <returns>The process exit code and all output lines received before completion.</returns>
     public NativeProcessRunResult Run(
         ProcessStartInfo startInfo,
         CancellationToken cancellationToken,
-        Action<string, bool> outputHandler = null) {
+        Action<string, bool> outputHandler = null,
+        Action<int> processStartedHandler = null,
+        bool captureOutput = true) {
         if (startInfo == null) {
             throw new ArgumentNullException(nameof(startInfo));
         }
@@ -29,6 +33,7 @@ public sealed class NativeProcessRunner {
 
         using Process process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("The native process could not be started.");
+        processStartedHandler?.Invoke(process.Id);
         StringBuilder standardOutputBuilder = new();
         StringBuilder standardErrorBuilder = new();
         object outputLock = new();
@@ -39,12 +44,14 @@ public sealed class NativeProcessRunner {
             false,
             standardOutputBuilder,
             outputHandler,
+            captureOutput,
             outputLock);
         process.ErrorDataReceived += (_, eventArgs) => CaptureOutputLine(
             eventArgs.Data,
             true,
             standardErrorBuilder,
             outputHandler,
+            captureOutput,
             outputLock);
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
@@ -64,19 +71,23 @@ public sealed class NativeProcessRunner {
     /// <param name="isError">Whether the line came from standard error.</param>
     /// <param name="streamBuilder">Builder for the selected output stream.</param>
     /// <param name="outputHandler">Optional custom output sink.</param>
+    /// <param name="captureOutput">Whether this line should be retained in the completed process result.</param>
     /// <param name="outputLock">Lock shared by both process output callbacks.</param>
     static void CaptureOutputLine(
         string line,
         bool isError,
         StringBuilder streamBuilder,
         Action<string, bool> outputHandler,
+        bool captureOutput,
         object outputLock) {
         if (line == null) {
             return;
         }
 
         lock (outputLock) {
-            streamBuilder.AppendLine(line);
+            if (captureOutput) {
+                streamBuilder.AppendLine(line);
+            }
             if (outputHandler == null) {
                 if (isError) {
                     Console.Error.WriteLine(line);

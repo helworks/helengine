@@ -44,4 +44,34 @@ public sealed class NativeProcessRunnerTests {
             Console.SetError(originalError);
         }
     }
+
+    /// <summary>
+    /// Ensures one caller can stream child-process diagnostics without retaining a second in-memory copy of either stream.
+    /// </summary>
+    [Fact]
+    public void Run_WhenOutputCaptureIsDisabled_ForwardsEachStreamWithoutRetainingIt() {
+        if (!OperatingSystem.IsWindows()) {
+            return;
+        }
+
+        ProcessStartInfo startInfo = new() {
+            FileName = "cmd.exe",
+            UseShellExecute = false
+        };
+        startInfo.ArgumentList.Add("/c");
+        startInfo.ArgumentList.Add("echo live-output && echo live-error 1>&2");
+        List<string> receivedLines = [];
+
+        NativeProcessRunResult result = new NativeProcessRunner().Run(
+            startInfo,
+            CancellationToken.None,
+            (line, _) => receivedLines.Add(line),
+            captureOutput: false);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(result.StandardOutput);
+        Assert.Empty(result.StandardError);
+        Assert.Contains(receivedLines, line => line.Contains("live-output", StringComparison.Ordinal));
+        Assert.Contains(receivedLines, line => line.Contains("live-error", StringComparison.Ordinal));
+    }
 }
