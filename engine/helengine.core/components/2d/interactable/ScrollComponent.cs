@@ -250,6 +250,7 @@ namespace helengine {
         /// </summary>
         /// <returns>True when the scroll offset changed.</returns>
         public bool TryApplyWheelInput() {
+#if DESKTOP_PLATFORM
             if (Parent == null) {
                 return false;
             }
@@ -275,6 +276,9 @@ namespace helengine {
             scrollSteps *= ScrollStepCountValue;
             int nextOffset = ScrollOffset - scrollSteps;
             return SetScrollOffset(nextOffset, true);
+#else
+            return false;
+#endif
         }
 
         /// <summary>

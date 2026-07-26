@@ -502,6 +502,43 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures platform MeshComponent tessellation rows persist detached values without adding runtime properties to the component.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenPlatformMeshTessellationIsEdited_PersistsPerPlatformDetachedValues() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            EditorEntity entity = new EditorEntity {
+                Name = "Mesh Entity"
+            };
+            MeshComponent mesh = new MeshComponent();
+            entity.AddComponent(mesh);
+
+            panel.ShowEntityProperties(entity, new[] { "ps2", "windows" });
+            SelectInspectorPlatform(panel, "ps2");
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow tessellateRow = GetSingleRow(view, "Tessellate");
+            ComponentPropertyRow edgeLengthRow = GetSingleRow(view, "Tessellation Max Edge Length");
+            InvokePrivate(view, "HandleBooleanCheckedChanged", tessellateRow.CheckBoxField, true);
+            edgeLengthRow.ScalarField.Text = "0.25";
+            InvokePrivate(view, "HandleScalarSubmitted", edgeLengthRow.ScalarField);
+
+            EntityComponentSaveState saveState = GetSaveComponent(entity).GetOrCreateComponentState(mesh);
+            Assert.True(saveState.TryGetPlatformOverride("ps2", out EntityComponentPlatformOverrideState ps2Override));
+            Assert.True(ps2Override.HasPropertyOverride(MeshComponentTessellationSettingsService.TessellateMemberName));
+            Assert.True(ps2Override.TryGetMemberValue(MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, out string ps2EdgeLength));
+            Assert.Equal("0.25", ps2EdgeLength);
+
+            SelectInspectorPlatform(panel, "windows");
+            view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            tessellateRow = GetSingleRow(view, "Tessellate");
+            edgeLengthRow = GetSingleRow(view, "Tessellation Max Edge Length");
+            Assert.False(tessellateRow.CheckBoxField.IsChecked);
+            Assert.Equal("1", edgeLengthRow.ScalarField.Text);
+            Assert.Null(typeof(MeshComponent).GetProperty("Tessellate"));
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>

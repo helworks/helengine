@@ -197,6 +197,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPlatformEditingService PlatformEditingService;
         /// <summary>
+        /// Reads and writes editor-only MeshComponent tessellation metadata for the active target platform.
+        /// </summary>
+        readonly MeshComponentTessellationSettingsService MeshComponentTessellationSettingsService;
+        /// <summary>
         /// Resolves builder-owned synthetic component members for the active platform inspector context.
         /// </summary>
         readonly PlatformComponentMemberDescriptorResolver PlatformComponentMemberDescriptorResolver;
@@ -356,6 +360,7 @@ namespace helengine.editor {
             FontLabels = new Dictionary<FontAsset, string>();
             DescriptorBuilder = new ReflectedComponentPropertyDescriptorBuilder();
             PlatformEditingService = new ComponentPlatformEditingService();
+            MeshComponentTessellationSettingsService = new MeshComponentTessellationSettingsService();
             PlatformComponentMemberDescriptorResolver = new PlatformComponentMemberDescriptorResolver();
             CollapsedStates = new Dictionary<Component, bool>();
             CustomEditorExpandedStates = new Dictionary<string, bool>();
@@ -581,6 +586,7 @@ namespace helengine.editor {
                 row.Property = null;
                 row.ValueType = null;
                 row.PlatformComponentMemberDescriptor = null;
+                row.EditorOnlyMemberName = null;
                 row.CustomEditorTypeId = null;
                 row.NestedMemberName = null;
                 row.CustomEditorEntryKey = null;
@@ -668,6 +674,173 @@ namespace helengine.editor {
             }
 
             AddPlatformComponentMemberRows(section, commonComponent, editableComponent, saveComponent, platformId);
+            AddMeshComponentTessellationRows(section, commonComponent, editableComponent, saveComponent, platformId);
+        }
+
+        /// <summary>
+        /// Adds editor-only per-platform tessellation rows for one MeshComponent without extending the runtime component schema.
+        /// </summary>
+        /// <param name="section">Section receiving the tessellation subsection.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
+        void AddMeshComponentTessellationRows(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+            if (string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)
+                || commonComponent is not MeshComponent
+                || saveComponent == null
+                || IsReadOnlyMode) {
+                return;
+            }
+
+            ComponentPropertyRow headerRow = AcquireRow(ComponentPropertyRowKind.Header);
+            BindEditorOnlyHeaderRow(headerRow, commonComponent, editableComponent, saveComponent, platformId, "Mesh Tessellation");
+            section.Rows.Add(headerRow);
+            ActiveRows.Add(headerRow);
+
+            ComponentPropertyRow tessellateRow = AcquireRow(ComponentPropertyRowKind.Boolean);
+            BindMeshComponentTessellationRow(
+                tessellateRow,
+                commonComponent,
+                editableComponent,
+                saveComponent,
+                platformId,
+                MeshComponentTessellationSettingsService.TessellateMemberName,
+                "Tessellate",
+                typeof(bool));
+            UpdateRowValue(tessellateRow);
+            section.Rows.Add(tessellateRow);
+            ActiveRows.Add(tessellateRow);
+
+            ComponentPropertyRow edgeLengthRow = AcquireRow(ComponentPropertyRowKind.Scalar);
+            BindMeshComponentTessellationRow(
+                edgeLengthRow,
+                commonComponent,
+                editableComponent,
+                saveComponent,
+                platformId,
+                MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName,
+                "Tessellation Max Edge Length",
+                typeof(double));
+            UpdateRowValue(edgeLengthRow);
+            section.Rows.Add(edgeLengthRow);
+            ActiveRows.Add(edgeLengthRow);
+        }
+
+        /// <summary>
+        /// Associates one header row with an editor-only inspector subsection.
+        /// </summary>
+        /// <param name="row">Header row to bind.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
+        /// <param name="label">Visible subsection label.</param>
+        void BindEditorOnlyHeaderRow(
+            ComponentPropertyRow row,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            string label) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (string.IsNullOrWhiteSpace(label)) {
+                throw new ArgumentException("Label must be provided.", nameof(label));
+            }
+
+            row.CommonComponent = commonComponent;
+            row.TargetComponent = editableComponent;
+            row.SaveComponent = saveComponent;
+            row.EditingPlatformId = platformId;
+            row.Property = null;
+            row.ValueType = null;
+            row.PlatformComponentMemberDescriptor = null;
+            row.EditorOnlyMemberName = null;
+            row.CustomEditorTypeId = null;
+            row.NestedMemberName = null;
+            row.CustomEditorEntryKey = null;
+            row.IndentLevel = 0;
+            row.Label.Text = label;
+            row.Label.Color = ThemeManager.Colors.InputForegroundSecondary;
+            row.Entity.Enabled = true;
+        }
+
+        /// <summary>
+        /// Associates one regular row with detached MeshComponent tessellation metadata stored only by the editor.
+        /// </summary>
+        /// <param name="row">Row to bind.</param>
+        /// <param name="commonComponent">Common live MeshComponent attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
+        /// <param name="memberName">Stable detached override member name.</param>
+        /// <param name="label">Visible row label.</param>
+        /// <param name="valueType">Value type accepted by the row.</param>
+        void BindMeshComponentTessellationRow(
+            ComponentPropertyRow row,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            string memberName,
+            string label,
+            Type valueType) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (commonComponent is not MeshComponent) {
+                throw new ArgumentException("MeshComponent tessellation rows require a MeshComponent.", nameof(commonComponent));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Member name must be provided.", nameof(memberName));
+            }
+            if (string.IsNullOrWhiteSpace(label)) {
+                throw new ArgumentException("Label must be provided.", nameof(label));
+            }
+            if (valueType == null) {
+                throw new ArgumentNullException(nameof(valueType));
+            }
+
+            row.CommonComponent = commonComponent;
+            row.TargetComponent = editableComponent;
+            row.SaveComponent = saveComponent;
+            row.EditingPlatformId = platformId;
+            row.Property = null;
+            row.ValueType = valueType;
+            row.PlatformComponentMemberDescriptor = null;
+            row.EditorOnlyMemberName = memberName;
+            row.CustomEditorTypeId = null;
+            row.NestedMemberName = null;
+            row.CustomEditorEntryKey = null;
+            row.IndentLevel = 0;
+            row.Label.Text = label;
+            row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
+            row.Entity.Enabled = true;
         }
 
         /// <summary>
@@ -741,6 +914,7 @@ namespace helengine.editor {
             row.Property = null;
             row.ValueType = typeof(bool);
             row.PlatformComponentMemberDescriptor = null;
+            row.EditorOnlyMemberName = null;
             row.CustomEditorTypeId = null;
             row.NestedMemberName = null;
             row.CustomEditorEntryKey = null;
@@ -878,6 +1052,7 @@ namespace helengine.editor {
             row.Property = descriptor.Property;
             row.ValueType = descriptor.Property.PropertyType;
             row.PlatformComponentMemberDescriptor = null;
+            row.EditorOnlyMemberName = null;
             row.Label.Text = descriptor.DisplayName;
             row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
             row.Entity.Enabled = true;
@@ -911,6 +1086,7 @@ namespace helengine.editor {
             row.Property = null;
             row.ValueType = null;
             row.PlatformComponentMemberDescriptor = null;
+            row.EditorOnlyMemberName = null;
             row.CustomEditorTypeId = null;
             row.NestedMemberName = null;
             row.CustomEditorEntryKey = null;
@@ -959,6 +1135,7 @@ namespace helengine.editor {
             row.Property = null;
             row.ValueType = descriptor.ValueType;
             row.PlatformComponentMemberDescriptor = descriptor;
+            row.EditorOnlyMemberName = null;
             row.CustomEditorTypeId = null;
             row.NestedMemberName = null;
             row.CustomEditorEntryKey = null;
@@ -1007,6 +1184,7 @@ namespace helengine.editor {
             row.Property = descriptor.Property;
             row.ValueType = descriptor.Property.PropertyType;
             row.PlatformComponentMemberDescriptor = null;
+            row.EditorOnlyMemberName = null;
             row.CustomEditorTypeId = descriptor.CustomEditor.EditorTypeId;
             row.NestedMemberName = null;
             row.IndentLevel = 0;
@@ -1171,6 +1349,7 @@ namespace helengine.editor {
             row.Property = descriptor.Property;
             row.ValueType = typeof(string);
             row.PlatformComponentMemberDescriptor = null;
+            row.EditorOnlyMemberName = null;
             row.CustomEditorTypeId = sectionRow.CustomEditorTypeId;
             row.NestedMemberName = nestedMemberName;
             row.CustomEditorEntryKey = entryKey ?? string.Empty;
@@ -1290,6 +1469,7 @@ namespace helengine.editor {
             row.Property = descriptor.Property;
             row.ValueType = valueType;
             row.PlatformComponentMemberDescriptor = null;
+            row.EditorOnlyMemberName = null;
             row.CustomEditorTypeId = sectionRow.CustomEditorTypeId;
             row.NestedMemberName = nestedMemberName;
             row.IndentLevel = 1;
@@ -1442,7 +1622,9 @@ namespace helengine.editor {
                 return false;
             }
 
-            return row.Property != null || row.PlatformComponentMemberDescriptor != null;
+            return row.Property != null
+                || row.PlatformComponentMemberDescriptor != null
+                || IsMeshComponentTessellationRow(row);
         }
 
         /// <summary>
@@ -1456,6 +1638,9 @@ namespace helengine.editor {
             }
             if (row.PlatformComponentMemberDescriptor != null) {
                 return row.PlatformComponentMemberDescriptor.Definition.MemberName;
+            }
+            if (IsMeshComponentTessellationRow(row)) {
+                return row.EditorOnlyMemberName;
             }
             if (row.Property == null) {
                 return null;
@@ -1546,6 +1731,27 @@ namespace helengine.editor {
             object rawValue = GetRowValue(row);
             string text = FormatScalarValue(rawValue);
             UpdateScalarField(row, text);
+            UpdateMeshComponentTessellationEdgeLengthEnabledState(row);
+        }
+
+        /// <summary>
+        /// Enables the MeshComponent tessellation edge-length field only when target-platform tessellation is enabled.
+        /// </summary>
+        /// <param name="row">Scalar row whose enabled state should be refreshed.</param>
+        void UpdateMeshComponentTessellationEdgeLengthEnabledState(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.ScalarField == null || row.ScalarField.Parent == null) {
+                return;
+            }
+
+            bool isEnabled = true;
+            if (string.Equals(row.EditorOnlyMemberName, MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, StringComparison.Ordinal)) {
+                isEnabled = ReadMeshComponentTessellationSettings(row).Tessellate;
+            }
+
+            row.ScalarField.Parent.Enabled = isEnabled;
         }
 
         /// <summary>
@@ -1674,6 +1880,9 @@ namespace helengine.editor {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
             }
+            if (IsMeshComponentTessellationRow(row)) {
+                return ReadMeshComponentTessellationRowValue(row);
+            }
             if (row.PlatformComponentMemberDescriptor != null) {
                 return ReadPlatformComponentMemberRowValue(row);
             }
@@ -1716,6 +1925,40 @@ namespace helengine.editor {
             }
 
             return PlatformComponentMemberValueUtility.ParseValue(definition, serializedValue);
+        }
+
+        /// <summary>
+        /// Reads the effective typed value represented by one editor-only MeshComponent tessellation row.
+        /// </summary>
+        /// <param name="row">Row being queried.</param>
+        /// <returns>The current target-platform tessellation value.</returns>
+        object ReadMeshComponentTessellationRowValue(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (!IsMeshComponentTessellationRow(row)) {
+                throw new InvalidOperationException("MeshComponent tessellation rows require editor-only member metadata.");
+            }
+            if (row.CommonComponent is not MeshComponent) {
+                throw new InvalidOperationException("MeshComponent tessellation rows require a common MeshComponent.");
+            }
+            if (row.SaveComponent == null) {
+                throw new InvalidOperationException("MeshComponent tessellation rows require an entity save component.");
+            }
+
+            MeshComponentTessellationSettings settings = new MeshComponentTessellationSettings();
+            if (row.SaveComponent.TryGetComponentState(row.CommonComponent, out EntityComponentSaveState saveState)) {
+                settings = MeshComponentTessellationSettingsService.GetForPlatform(saveState, row.EditingPlatformId);
+            }
+
+            if (string.Equals(row.EditorOnlyMemberName, MeshComponentTessellationSettingsService.TessellateMemberName, StringComparison.Ordinal)) {
+                return settings.Tessellate;
+            }
+            if (string.Equals(row.EditorOnlyMemberName, MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, StringComparison.Ordinal)) {
+                return settings.TessellationMaxEdgeLength;
+            }
+
+            throw new InvalidOperationException("MeshComponent tessellation row member name is not recognized.");
         }
 
         /// <summary>
@@ -2091,7 +2334,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (row.TargetComponent == null || (row.Property == null && row.PlatformComponentMemberDescriptor == null)) {
+            if (row.TargetComponent == null || (row.Property == null && row.PlatformComponentMemberDescriptor == null && !IsMeshComponentTessellationRow(row))) {
                 return;
             }
             if (string.Equals(row.CustomEditorTypeId, SceneMapPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
@@ -2105,6 +2348,15 @@ namespace helengine.editor {
                 return;
             }
             if (!TryParseScalar(field.Text, targetType, out object parsed)) {
+                UpdateScalarField(row, row.ScalarCache);
+                return;
+            }
+            if (IsMeshComponentTessellationEdgeLengthRow(row)
+                && (parsed is not double parsedEdgeLength || !double.IsFinite(parsedEdgeLength) || parsedEdgeLength <= 0d)) {
+                UpdateScalarField(row, row.ScalarCache);
+                return;
+            }
+            if (IsMeshComponentTessellationEdgeLengthRow(row) && !ReadMeshComponentTessellationSettings(row).Tessellate) {
                 UpdateScalarField(row, row.ScalarCache);
                 return;
             }
@@ -2216,7 +2468,7 @@ namespace helengine.editor {
                 HandleExistenceRowCheckedChanged(row, isChecked);
                 return;
             }
-            if (row.Property == null && row.PlatformComponentMemberDescriptor == null) {
+            if (row.Property == null && row.PlatformComponentMemberDescriptor == null && !IsMeshComponentTessellationRow(row)) {
                 return;
             }
 
@@ -2229,6 +2481,7 @@ namespace helengine.editor {
             SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
             SetRowValue(row, isChecked);
             UpdateBooleanField(row, isChecked);
+            UpdateMeshComponentTessellationRows(row.CommonComponent, row.EditingPlatformId);
             RecordRowMutation(row, previousEntityState);
         }
 
@@ -2436,6 +2689,10 @@ namespace helengine.editor {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
             }
+            if (IsMeshComponentTessellationRow(row)) {
+                SetMeshComponentTessellationRowValue(row, value);
+                return;
+            }
             if (row.PlatformComponentMemberDescriptor != null) {
                 SetPlatformComponentMemberRowValue(row, value);
                 return;
@@ -2459,6 +2716,122 @@ namespace helengine.editor {
             row.Property.SetValue(row.TargetComponent, value);
             RefreshSuppressedCameraRuntimeState(row);
             PersistPlatformOverrideIfNeeded(row);
+        }
+
+        /// <summary>
+        /// Persists one editor-only MeshComponent tessellation value without serializing it into the runtime component payload.
+        /// </summary>
+        /// <param name="row">Row being updated.</param>
+        /// <param name="value">Typed value to persist.</param>
+        void SetMeshComponentTessellationRowValue(ComponentPropertyRow row, object value) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (!IsMeshComponentTessellationRow(row)) {
+                throw new InvalidOperationException("MeshComponent tessellation rows require editor-only member metadata.");
+            }
+            if (row.CommonComponent is not MeshComponent) {
+                throw new InvalidOperationException("MeshComponent tessellation rows require a common MeshComponent.");
+            }
+            if (row.SaveComponent == null) {
+                throw new InvalidOperationException("MeshComponent tessellation rows require an entity save component.");
+            }
+            if (string.IsNullOrWhiteSpace(row.EditingPlatformId)
+                || string.Equals(row.EditingPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("MeshComponent tessellation rows require a non-common platform context.");
+            }
+
+            MeshComponentTessellationSettings currentSettings = ReadMeshComponentTessellationSettings(row);
+            MeshComponentTessellationSettings updatedSettings;
+            if (string.Equals(row.EditorOnlyMemberName, MeshComponentTessellationSettingsService.TessellateMemberName, StringComparison.Ordinal)) {
+                if (value is not bool tessellate) {
+                    throw new ArgumentException("MeshComponent tessellation enabled values must be boolean.", nameof(value));
+                }
+
+                updatedSettings = new MeshComponentTessellationSettings(tessellate, currentSettings.TessellationMaxEdgeLength);
+            } else if (string.Equals(row.EditorOnlyMemberName, MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, StringComparison.Ordinal)) {
+                if (value is not double tessellationMaxEdgeLength) {
+                    throw new ArgumentException("MeshComponent tessellation maximum edge length values must be double.", nameof(value));
+                }
+
+                updatedSettings = new MeshComponentTessellationSettings(currentSettings.Tessellate, tessellationMaxEdgeLength);
+            } else {
+                throw new InvalidOperationException("MeshComponent tessellation row member name is not recognized.");
+            }
+
+            EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
+            MeshComponentTessellationSettingsService.SetForPlatform(saveState, row.EditingPlatformId, updatedSettings);
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride(row.EditingPlatformId);
+            overrideState.SetPropertyOverride(row.EditorOnlyMemberName);
+            RefreshRowOverrideChrome(row);
+        }
+
+        /// <summary>
+        /// Returns whether one row edits detached MeshComponent tessellation metadata.
+        /// </summary>
+        /// <param name="row">Row to classify.</param>
+        /// <returns>True when the row is bound to one supported MeshComponent tessellation member.</returns>
+        bool IsMeshComponentTessellationRow(ComponentPropertyRow row) {
+            if (row == null || row.CommonComponent is not MeshComponent) {
+                return false;
+            }
+
+            return string.Equals(row.EditorOnlyMemberName, MeshComponentTessellationSettingsService.TessellateMemberName, StringComparison.Ordinal)
+                || string.Equals(row.EditorOnlyMemberName, MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Returns whether one row edits the MeshComponent tessellation maximum edge length.
+        /// </summary>
+        /// <param name="row">Row to classify.</param>
+        /// <returns>True when the row edits the detached maximum edge length member.</returns>
+        bool IsMeshComponentTessellationEdgeLengthRow(ComponentPropertyRow row) {
+            return IsMeshComponentTessellationRow(row)
+                && string.Equals(row.EditorOnlyMemberName, MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Reads the complete editor-only MeshComponent tessellation settings for one bound row.
+        /// </summary>
+        /// <param name="row">Bound MeshComponent tessellation row.</param>
+        /// <returns>Current immutable target-platform tessellation settings.</returns>
+        MeshComponentTessellationSettings ReadMeshComponentTessellationSettings(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (!IsMeshComponentTessellationRow(row)) {
+                throw new InvalidOperationException("MeshComponent tessellation settings require a bound tessellation row.");
+            }
+            if (row.SaveComponent == null) {
+                throw new InvalidOperationException("MeshComponent tessellation settings require an entity save component.");
+            }
+            if (!row.SaveComponent.TryGetComponentState(row.CommonComponent, out EntityComponentSaveState saveState)) {
+                return new MeshComponentTessellationSettings();
+            }
+
+            return MeshComponentTessellationSettingsService.GetForPlatform(saveState, row.EditingPlatformId);
+        }
+
+        /// <summary>
+        /// Refreshes visible MeshComponent tessellation rows after the enabled value changes.
+        /// </summary>
+        /// <param name="commonComponent">Common MeshComponent whose rows should be refreshed.</param>
+        /// <param name="platformId">Target platform context whose rows should be refreshed.</param>
+        void UpdateMeshComponentTessellationRows(Component commonComponent, string platformId) {
+            if (commonComponent is not MeshComponent || string.IsNullOrWhiteSpace(platformId)) {
+                return;
+            }
+
+            for (int index = 0; index < ActiveRows.Count; index++) {
+                ComponentPropertyRow activeRow = ActiveRows[index];
+                if (!ReferenceEquals(activeRow.CommonComponent, commonComponent)
+                    || !string.Equals(activeRow.EditingPlatformId, platformId, StringComparison.OrdinalIgnoreCase)
+                    || !IsMeshComponentTessellationEdgeLengthRow(activeRow)) {
+                    continue;
+                }
+
+                UpdateMeshComponentTessellationEdgeLengthEnabledState(activeRow);
+            }
         }
 
         /// <summary>

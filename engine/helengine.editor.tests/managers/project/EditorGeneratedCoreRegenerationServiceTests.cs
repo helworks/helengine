@@ -100,6 +100,30 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies keyboard and mouse source definitions are explicitly gated by the shared desktop capability symbol before portable input is converted into native generated-core.
+    /// </summary>
+    [Fact]
+    public void Portable_input_desktop_state_source_units_are_gated_by_desktop_platform() {
+        string inputRootPath = Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.input");
+        string inputFrameStateSource = File.ReadAllText(Path.Combine(inputRootPath, "InputFrameState.cs"));
+        string keyboardStateSource = File.ReadAllText(Path.Combine(inputRootPath, "KeyboardState.cs"));
+        string mouseStateSource = File.ReadAllText(Path.Combine(inputRootPath, "MouseState.cs"));
+        string keysSource = File.ReadAllText(Path.Combine(inputRootPath, "Keys.cs"));
+        string buttonStateSource = File.ReadAllText(Path.Combine(inputRootPath, "ButtonState.cs"));
+        string keyStateSource = File.ReadAllText(Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.core", "managers", "input", "KeyState.cs"));
+        string typeForwardersSource = File.ReadAllText(Path.Combine(inputRootPath, "TypeForwarders.cs"));
+
+        Assert.Contains("#if DESKTOP_PLATFORM\n    /// <summary>\n    /// Gets or sets the captured keyboard state", inputFrameStateSource, StringComparison.Ordinal);
+        Assert.Contains("#if DESKTOP_PLATFORM", keyboardStateSource, StringComparison.Ordinal);
+        Assert.Contains("#if DESKTOP_PLATFORM", mouseStateSource, StringComparison.Ordinal);
+        Assert.Contains("#if DESKTOP_PLATFORM", keysSource, StringComparison.Ordinal);
+        Assert.Contains("#if DESKTOP_PLATFORM", buttonStateSource, StringComparison.Ordinal);
+        Assert.Contains("#if DESKTOP_PLATFORM", keyStateSource, StringComparison.Ordinal);
+        Assert.Contains("#if DESKTOP_PLATFORM\n[assembly: TypeForwardedTo(typeof(helengine.ButtonState))]", typeForwardersSource, StringComparison.Ordinal);
+        Assert.Contains("[assembly: TypeForwardedTo(typeof(helengine.MouseState))]\n#endif", typeForwardersSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies merged generated-core reports promote shader feature detection from shader-only generated projects into the combined report consumed by build summaries and feature manifests.
     /// </summary>
     [Fact]
@@ -540,6 +564,19 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             "HELENGINE_INPUT_KEYBOARD",
             "DESKTOP_PLATFORM"
         ]));
+    }
+
+    /// <summary>
+    /// Ensures shaderless console runtimes exclude the shader project while shader-capable platforms retain the existing generation behavior.
+    /// </summary>
+    [Fact]
+    public void Should_regenerate_shader_project_excludes_shaderless_console_runtimes() {
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegenerateShaderProject(
+            CreatePlatformDefinition("ps2", runtimeGenerationContract: null)));
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegenerateShaderProject(
+            CreatePlatformDefinition("psp", runtimeGenerationContract: null)));
+        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegenerateShaderProject(
+            CreatePlatformDefinition("psvita", runtimeGenerationContract: null)));
     }
 
     /// <summary>

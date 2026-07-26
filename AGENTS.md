@@ -22,6 +22,7 @@
 - Do not take screenshots of Helena's screen or any windows unless she specifically states that screenshots are allowed for the task.
 - Ask before any major implementations.
 - Run the smallest validation necessary for the scope of the change.
+- Never write agent-owned build outputs, generated sources, build logs, ISOs, or build scripts to `%TEMP%` / `AppData\\Local\\Temp`. Use a visible workspace-owned build directory such as `C:\\dev\\helworks\\builds\\<repository>\\<platform>\\<build-id>` instead. Third-party tools may use their own temporary storage internally, but do not direct outputs there.
 ## Command Output
 Protect context usage. **Any command with unknown or potentially large output must be byte-capped.**
 Default pattern:

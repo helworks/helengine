@@ -126,10 +126,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reader">Reader positioned at the payload body.</param>
         /// <param name="sectionId">Registered section identifier.</param>
+        /// <param name="assetImportSettingsFormatVersion">Version of the enclosing asset import settings payload.</param>
         /// <returns>Deserialized payload instance.</returns>
-        public object DeserializeSection(EngineBinaryReader reader, string sectionId) {
+        public object DeserializeSection(EngineBinaryReader reader, string sectionId, byte assetImportSettingsFormatVersion) {
             IAssetPlatformSettingsSectionDefinition definition = GetDefinition(sectionId);
-            return definition.Deserialize(reader);
+            return definition.Deserialize(reader, assetImportSettingsFormatVersion);
         }
 
         /// <summary>

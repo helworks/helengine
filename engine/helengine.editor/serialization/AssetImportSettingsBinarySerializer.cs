@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 9;
+        public const byte CurrentVersion = 10;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -123,7 +123,7 @@ namespace helengine.editor {
                         throw new InvalidOperationException($"Asset import settings cannot contain duplicate processor section id '{sectionId}' for platform '{platformId}'.");
                     }
 
-                    object sectionSettings = AssetPlatformSettingsSectionRegistry.Shared.DeserializeSection(reader, sectionId);
+                    object sectionSettings = AssetPlatformSettingsSectionRegistry.Shared.DeserializeSection(reader, sectionId, header.Version);
                     platformSettings.Sections.Add(sectionId, new AssetPlatformSettingsSection(sectionId, sectionSettings));
                 }
 
@@ -146,7 +146,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected asset import settings record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)ValueKind) {
                 throw new InvalidOperationException($"Unexpected asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
+            } else if (header.Version < 9 || header.Version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset import settings binary version '{header.Version}'.");
             }
         }

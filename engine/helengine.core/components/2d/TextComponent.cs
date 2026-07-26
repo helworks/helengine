@@ -352,11 +352,6 @@ namespace helengine {
         public bool ConvertTextToSprite { get; set; }
 
         /// <summary>
-        /// Gets or sets the layer mask used to filter cameras.
-        /// </summary>
-        public byte LayerMask { get; set; }
-
-        /// <summary>
         /// Gets or sets a value indicating whether mouse and keyboard selection is enabled for this text component.
         /// </summary>
         public bool SelectionEnabled {
@@ -801,6 +796,7 @@ namespace helengine {
         /// Processes keyboard input for caret movement and selection shortcuts.
         /// </summary>
         void HandleSelectionKeyboardInput() {
+#if DESKTOP_PLATFORM
             if (!SelectionEnabled || !IsFocusedValue) {
                 return;
             }
@@ -827,6 +823,7 @@ namespace helengine {
                     MoveCursorToEnd(isShiftPressed);
                 }
             }
+#endif
         }
 
         /// <summary>
@@ -1046,6 +1043,7 @@ namespace helengine {
         /// Polls the active input state and forwards any selection interaction to this text component.
         /// </summary>
         internal void UpdateSelectionInput() {
+#if DESKTOP_PLATFORM
             if (!SelectionEnabled || Parent == null || Font == null || !Parent.IsHierarchyEnabled) {
                 return;
             }
@@ -1066,6 +1064,7 @@ namespace helengine {
             } else {
                 HandleSelectionKeyboardInput();
             }
+#endif
         }
 
         /// <summary>

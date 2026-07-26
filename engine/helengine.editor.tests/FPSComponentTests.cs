@@ -392,10 +392,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures platform-published overlay text rows only replace the two visible summary rows.
+        /// Ensures platform-published overlay text rows create visible detail and additional rows beneath the summary rows.
         /// </summary>
         [Fact]
-        public void CoreUpdateAndDraw_WhenPlatformPublishesOverlayTextRows_UsesPublishedTextAndAdditionalRows() {
+        public void CoreUpdateAndDraw_WhenPlatformPublishesOverlayTextRows_UsesAllPublishedVisibleRows() {
             Entity entity = new Entity();
             entity.InitComponents();
             entity.InitChildren();
@@ -413,17 +413,17 @@ namespace helengine.editor.tests {
                 "Rdr 4.0 Drw 15.8 2D 0.4",
                 "Set 0.1 Geo 0.2 Fl 15.1",
                 "Xf 0.0 Mat 0.0 DL 0.1\nPre 0.0 Kck 0.1 Pst 0.0");
-
-            Core.Instance.Update(0.25d);
-            Core.Instance.Draw();
-            Core.Instance.Update(0.25d);
+            fps.Update();
 
             Assert.Equal("Upd 4.0 Q3D 1 Sub 1", fps.UpdateFpsText);
             Assert.Equal("Rdr 4.0 Drw 15.8 2D 0.4", fps.RenderFpsText);
-            Assert.Equal(string.Empty, fps.DetailFpsText);
+            Assert.Equal("Set 0.1 Geo 0.2 Fl 15.1", fps.DetailFpsText);
 
             Entity overlayHost = Assert.Single(entity.Children);
-            Assert.Equal(2, overlayHost.Children.Count);
+            Assert.Equal(5, overlayHost.Children.Count);
+            Assert.Equal("Set 0.1 Geo 0.2 Fl 15.1", Assert.Single(overlayHost.Children[2].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("Xf 0.0 Mat 0.0 DL 0.1", Assert.Single(overlayHost.Children[3].Components.OfType<TextComponent>()).Text);
+            Assert.Equal("Pre 0.0 Kck 0.1 Pst 0.0", Assert.Single(overlayHost.Children[4].Components.OfType<TextComponent>()).Text);
         }
 
         /// <summary>

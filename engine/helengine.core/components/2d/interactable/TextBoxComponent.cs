@@ -348,6 +348,7 @@ namespace helengine {
             }
 
             // Handle keyboard input
+#if DESKTOP_PLATFORM
             InputSystem inputManager = core.Input;
             bool isShiftPressed = inputManager.IsKeyDown(Keys.LeftShift) || inputManager.IsKeyDown(Keys.RightShift);
             bool isControlPressed = inputManager.IsKeyDown(Keys.LeftControl) || inputManager.IsKeyDown(Keys.RightControl);
@@ -360,6 +361,7 @@ namespace helengine {
                     HandleKeyPress(key, isShiftPressed, isControlPressed, isAltPressed);
                 }
             }
+#endif
         }
 
         /// <summary>
@@ -390,6 +392,7 @@ namespace helengine {
                 shakeBaseLocalPosition.Z);
         }
 
+#if DESKTOP_PLATFORM
         /// <summary>
         /// Processes a key press to modify text, move the cursor, or delete characters.
         /// </summary>
@@ -581,6 +584,7 @@ namespace helengine {
                 default: return '\0';
             }
         }
+#endif
 
         /// <summary>
         /// Updates displayed text, placeholder coloring, and cursor.
@@ -738,6 +742,7 @@ namespace helengine {
         /// </summary>
         /// <param name="key">Activation key to evaluate.</param>
         /// <returns>True when Enter should commit the text box.</returns>
+#if DESKTOP_PLATFORM
         public bool CanActivateWithKey(Keys key) {
             return key == Keys.Enter;
         }
@@ -753,6 +758,7 @@ namespace helengine {
 
             IsFocused = false;
         }
+#endif
 
         /// <summary>
         /// Applies one focus-state transition and optionally submits the current value on blur.
@@ -901,6 +907,7 @@ namespace helengine {
         public override void Update() {
             textBox.Update();
 
+#if DESKTOP_PLATFORM
             if (!textBox.IsFocused) {
                 return;
             }
@@ -915,6 +922,7 @@ namespace helengine {
             if (!textBox.ContainsScreenPoint(pointerX, pointerY)) {
                 textBox.IsFocused = false;
             }
+#endif
         }
     }
 }

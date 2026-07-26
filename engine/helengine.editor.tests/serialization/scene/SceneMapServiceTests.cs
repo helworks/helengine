@@ -585,7 +585,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 Rotation = 0.25f,
                 RenderOrder2D = 19,
-                LayerMask = 7
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(nameof(TextComponent.Font), CreateFileReference(fontRelativePath));

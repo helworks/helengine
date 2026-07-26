@@ -528,6 +528,7 @@ namespace helengine {
         /// Updates input handling for the combo box when open.
         /// </summary>
         public void Update() {
+#if DESKTOP_PLATFORM
             if (!isOpen || Parent == null || listRoot == null) {
                 return;
             }
@@ -544,6 +545,7 @@ namespace helengine {
             }
 
             IsOpen = false;
+#endif
         }
 
         /// <summary>
@@ -582,6 +584,7 @@ namespace helengine {
         /// </summary>
         /// <param name="key">Activation key to evaluate.</param>
         /// <returns>True when Enter or Space should toggle the drop-down.</returns>
+#if DESKTOP_PLATFORM
         public bool CanActivateWithKey(Keys key) {
             return key == Keys.Enter || key == Keys.Space;
         }
@@ -597,6 +600,7 @@ namespace helengine {
 
             IsOpen = !isOpen;
         }
+#endif
 
         /// <summary>
         /// Rebuilds layout for the main control and drop-down list.

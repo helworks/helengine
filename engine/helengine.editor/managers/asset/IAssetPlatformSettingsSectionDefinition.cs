@@ -45,7 +45,8 @@ namespace helengine.editor {
         /// Deserializes one payload from the asset import settings stream.
         /// </summary>
         /// <param name="reader">Reader positioned at the payload body.</param>
+        /// <param name="assetImportSettingsFormatVersion">Version of the enclosing asset import settings payload.</param>
         /// <returns>Deserialized payload instance.</returns>
-        object Deserialize(EngineBinaryReader reader);
+        object Deserialize(EngineBinaryReader reader, byte assetImportSettingsFormatVersion);
     }
 }

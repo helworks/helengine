@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current model asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 1;
+        public const byte CurrentVersion = 2;
 
         /// <summary>
         /// Payload endianness used by the current model asset import settings format.
@@ -56,6 +56,9 @@ namespace helengine.editor {
 
                 writer.WriteString(entry.Key);
                 writer.WriteByte(entry.Value.FlipWinding ? (byte)1 : (byte)0);
+                writer.WriteByte(entry.Value.Tessellate ? (byte)1 : (byte)0);
+                ValidateTessellationMaxEdgeLength(entry.Value.TessellationMaxEdgeLength);
+                writer.WriteDouble(entry.Value.TessellationMaxEdgeLength);
             }
         }
 
@@ -88,9 +91,16 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Model asset import settings cannot contain a blank processor platform id.");
                 }
 
-                settings.Processor.Platforms.Add(platformId, new ModelAssetProcessorSettings {
+                ModelAssetProcessorSettings platformSettings = new ModelAssetProcessorSettings {
                     FlipWinding = ReadBooleanByte(reader)
-                });
+                };
+                if (header.Version >= 2) {
+                    platformSettings.Tessellate = ReadBooleanByte(reader);
+                    platformSettings.TessellationMaxEdgeLength = reader.ReadDouble();
+                    ValidateTessellationMaxEdgeLength(platformSettings.TessellationMaxEdgeLength);
+                }
+
+                settings.Processor.Platforms.Add(platformId, platformSettings);
             }
 
             return settings;
@@ -109,8 +119,18 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected model asset import settings record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings) {
                 throw new InvalidOperationException($"Unexpected model asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
+            } else if (header.Version < 1 || header.Version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported model asset import settings binary version '{header.Version}'.");
+            }
+        }
+
+        /// <summary>
+        /// Validates one persisted tessellation edge-length setting.
+        /// </summary>
+        /// <param name="tessellationMaxEdgeLength">Configured maximum edge length.</param>
+        static void ValidateTessellationMaxEdgeLength(double tessellationMaxEdgeLength) {
+            if (double.IsNaN(tessellationMaxEdgeLength) || double.IsInfinity(tessellationMaxEdgeLength) || tessellationMaxEdgeLength <= 0d) {
+                throw new InvalidOperationException("Model tessellation maximum edge length must be finite and greater than zero.");
             }
         }
 

@@ -34,7 +34,9 @@ namespace helengine.editor {
         public object CloneSettings(object settings) {
             ModelAssetProcessorSettings source = RequireSettings(settings);
             return new ModelAssetProcessorSettings {
-                FlipWinding = source.FlipWinding
+                FlipWinding = source.FlipWinding,
+                Tessellate = source.Tessellate,
+                TessellationMaxEdgeLength = source.TessellationMaxEdgeLength
             };
         }
 
@@ -47,7 +49,9 @@ namespace helengine.editor {
         public bool SettingsEqual(object left, object right) {
             ModelAssetProcessorSettings leftSettings = RequireSettings(left);
             ModelAssetProcessorSettings rightSettings = RequireSettings(right);
-            return leftSettings.FlipWinding == rightSettings.FlipWinding;
+            return leftSettings.FlipWinding == rightSettings.FlipWinding
+                && leftSettings.Tessellate == rightSettings.Tessellate
+                && leftSettings.TessellationMaxEdgeLength == rightSettings.TessellationMaxEdgeLength;
         }
 
         /// <summary>
@@ -62,30 +66,66 @@ namespace helengine.editor {
 
             ModelAssetProcessorSettings modelSettings = RequireSettings(settings);
             writer.WriteByte(modelSettings.FlipWinding ? (byte)1 : (byte)0);
+            writer.WriteByte(modelSettings.Tessellate ? (byte)1 : (byte)0);
+            ValidateTessellationMaxEdgeLength(modelSettings.TessellationMaxEdgeLength);
+            writer.WriteDouble(modelSettings.TessellationMaxEdgeLength);
         }
 
         /// <summary>
         /// Deserializes one model settings payload.
         /// </summary>
         /// <param name="reader">Reader positioned at the payload body.</param>
+        /// <param name="assetImportSettingsFormatVersion">Version of the enclosing asset import settings payload.</param>
         /// <returns>Deserialized model settings payload.</returns>
-        public object Deserialize(EngineBinaryReader reader) {
+        public object Deserialize(EngineBinaryReader reader, byte assetImportSettingsFormatVersion) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
 
             byte value = reader.ReadByte();
+            ModelAssetProcessorSettings modelSettings = new ModelAssetProcessorSettings();
             if (value == 0) {
-                return new ModelAssetProcessorSettings {
-                    FlipWinding = false
-                };
+                modelSettings.FlipWinding = false;
             } else if (value == 1) {
-                return new ModelAssetProcessorSettings {
-                    FlipWinding = true
-                };
+                modelSettings.FlipWinding = true;
+            } else {
+                throw new InvalidOperationException($"Unsupported model flip-winding value '{value}'.");
             }
 
-            throw new InvalidOperationException($"Unsupported model flip-winding value '{value}'.");
+            if (assetImportSettingsFormatVersion >= 10) {
+                modelSettings.Tessellate = ReadBooleanByte(reader, "tessellate");
+                modelSettings.TessellationMaxEdgeLength = reader.ReadDouble();
+                ValidateTessellationMaxEdgeLength(modelSettings.TessellationMaxEdgeLength);
+            }
+
+            return modelSettings;
+        }
+
+        /// <summary>
+        /// Reads one boolean byte from the model processor settings payload.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the encoded boolean value.</param>
+        /// <param name="settingName">Name of the setting represented by the byte.</param>
+        /// <returns>Decoded boolean setting value.</returns>
+        static bool ReadBooleanByte(EngineBinaryReader reader, string settingName) {
+            byte value = reader.ReadByte();
+            if (value == 0) {
+                return false;
+            } else if (value == 1) {
+                return true;
+            }
+
+            throw new InvalidOperationException($"Unsupported model {settingName} value '{value}'.");
+        }
+
+        /// <summary>
+        /// Validates one model tessellation edge-length setting.
+        /// </summary>
+        /// <param name="tessellationMaxEdgeLength">Configured maximum edge length.</param>
+        static void ValidateTessellationMaxEdgeLength(double tessellationMaxEdgeLength) {
+            if (double.IsNaN(tessellationMaxEdgeLength) || double.IsInfinity(tessellationMaxEdgeLength) || tessellationMaxEdgeLength <= 0d) {
+                throw new InvalidOperationException("Model tessellation maximum edge length must be finite and greater than zero.");
+            }
         }
 
         /// <summary>

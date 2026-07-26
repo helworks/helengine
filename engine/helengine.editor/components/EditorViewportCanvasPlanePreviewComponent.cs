@@ -254,7 +254,7 @@ namespace helengine.editor {
         /// Determines whether one 2D drawable belongs to authored scene content that must render only through the viewport canvas preview.
         /// </summary>
         /// <param name="drawable">2D drawable candidate.</param>
-        /// <returns>True when the drawable belongs to non-internal scene content on the authored scene layer.</returns>
+        /// <returns>True when the drawable belongs to non-internal authored scene content.</returns>
         bool ShouldRouteDrawableThroughPreview(IDrawable2D drawable) {
             if (drawable == null) {
                 return false;
@@ -262,7 +262,7 @@ namespace helengine.editor {
             if (drawable.Parent == null) {
                 return false;
             }
-            if ((drawable.Parent.LayerMask & EditorLayerMasks.SceneObjects) == 0) {
+            if (drawable.Parent is not EditorEntity editorEntity || !editorEntity.IsSceneOwned) {
                 return false;
             }
 

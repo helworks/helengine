@@ -25,6 +25,12 @@ namespace helengine {
         public bool InternalEntity { get; set; }
 
         /// <summary>
+        /// Gets or sets whether this entity belongs to the authored scene and participates in editor persistence and scene lifecycle operations.
+        /// This editor-only state is intentionally independent from the runtime render layer mask.
+        /// </summary>
+        public bool IsSceneOwned { get; set; }
+
+        /// <summary>
         /// Gets or sets the display name for the entity.
         /// </summary>
         public string Name { get; set; }

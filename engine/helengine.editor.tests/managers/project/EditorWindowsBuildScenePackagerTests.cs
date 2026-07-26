@@ -1294,6 +1294,59 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures explicitly authored runtime camera and entity layers remain matched after Windows scene packaging.
+        /// </summary>
+        [Fact]
+        public void Package_WhenCameraAndEntityUseOverlayLayer_PreservesOverlayLayerMask() {
+            const ushort overlayLayerMask = 0b0000000000000010;
+            string sceneId = "Scenes/OverlayLayerCamera.helen";
+            InitializeRuntimeCore(BuildRootPath);
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "OverlayCamera",
+                        LayerMask = overlayLayerMask,
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            CreateCameraComponentRecord(overlayLayerMask)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "windows");
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+            Assert.Equal(overlayLayerMask, packagedRoot.LayerMask);
+
+            InitializeRuntimeCore(BuildRootPath);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath)));
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            Entity loadedRoot = Assert.Single(loadService.Load(packagedScene));
+            CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
+                Assert.Single(loadedRoot.Components, component => component is CameraComponent));
+
+            Assert.Equal(overlayLayerMask, loadedRoot.LayerMask);
+            Assert.Equal(overlayLayerMask, cameraComponent.LayerMask);
+        }
+
+        /// <summary>
         /// Ensures a project-style standard-shader material packages with a shader contract the player can resolve.
         /// </summary>
         [Fact]
@@ -2355,7 +2408,6 @@ namespace helengine.editor.tests {
             Assert.Equal(new int2(32, 14), loadedSpriteComponent.Size);
             Assert.Equal(new byte4(249, 243, 255, 255), loadedSpriteComponent.Color);
             Assert.Equal(34, loadedSpriteComponent.RenderOrder2D);
-            Assert.Equal(1, loadedSpriteComponent.LayerMask);
         }
 
         /// <summary>
@@ -4321,11 +4373,12 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Creates one authored camera component record that matches the current reflected persistence contract.
         /// </summary>
+        /// <param name="layerMask">Authored runtime layer mask assigned to the camera.</param>
         /// <returns>Serialized authored camera component record.</returns>
-        SceneComponentAssetRecord CreateCameraComponentRecord() {
+        SceneComponentAssetRecord CreateCameraComponentRecord(ushort layerMask = EditorLayerMasks.SceneObjects) {
             CameraComponent cameraComponent = new CameraComponent {
                 CameraDrawOrder = 17,
-                LayerMask = EditorLayerMasks.SceneObjects,
+                LayerMask = layerMask,
                 Viewport = new float4(12f, 24f, 640f, 360f),
                 NearPlaneDistance = 0.42f,
                 FarPlaneDistance = 128f,
@@ -4366,7 +4419,6 @@ namespace helengine.editor.tests {
                 Rotation = 0.25f,
                 FontScale = 2f,
                 RenderOrder2D = 19,
-                LayerMask = 7,
                 SelectionEnabled = true
             };
             System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
@@ -4397,7 +4449,6 @@ namespace helengine.editor.tests {
                 Rotation = 0.25f,
                 FontScale = 2f,
                 RenderOrder2D = 19,
-                LayerMask = 7,
                 SelectionEnabled = true,
                 ConvertTextToSprite = convertTextToSprite
             };
@@ -4423,7 +4474,6 @@ namespace helengine.editor.tests {
                 Size = new int2(32, 14),
                 Color = new byte4(249, 243, 255, 255),
                 RenderOrder2D = 34,
-                LayerMask = 1
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference("Texture", textureReference);
@@ -4614,7 +4664,6 @@ namespace helengine.editor.tests {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             RoundedRectComponent roundedRectComponent = new RoundedRectComponent {
                 RenderOrder2D = 8,
-                LayerMask = 3,
                 Corners = RoundedRectCorners.All,
                 Rotation = 0.45f,
                 Color = new byte4(1, 2, 3, 4),

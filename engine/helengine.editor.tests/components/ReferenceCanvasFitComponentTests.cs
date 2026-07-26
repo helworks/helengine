@@ -11,7 +11,8 @@ namespace helengine.editor.tests.components {
         public ReferenceCanvasFitComponentTests() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new HostFileSystemContentStreamSource(Path.GetTempPath())
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
@@ -57,7 +58,9 @@ namespace helengine.editor.tests.components {
                 Font = CreateFont(),
                 Text = "Heading",
                 Size = new int2(420, 36),
-                FontScale = 1f
+                FontScale = 1f,
+                OutlineScale = 2f,
+                ShadowOffset = new float2(4f, 6f)
             };
             headingEntity.AddComponent(headingText);
             panelEntity.AddChild(headingEntity);
@@ -95,6 +98,8 @@ namespace helengine.editor.tests.components {
             Assert.Equal(new float3(16f, 15f, 0.1f), headingEntity.LocalPosition);
             Assert.Equal(new int2(210, 18), headingText.Size);
             Assert.Equal(0.5f, headingText.FontScale);
+            Assert.Equal(1f, headingText.OutlineScale);
+            Assert.Equal(new float2(2f, 3f), headingText.ShadowOffset);
             Assert.Equal(new int2(248, 136), clipRectComponent.Size);
             Assert.Equal(new int2(248, 136), scrollComponent.Size);
             Assert.Equal(28, scrollComponent.ItemExtent);
@@ -345,6 +350,58 @@ namespace helengine.editor.tests.components {
 
             Assert.Same(initialAnchorSpace, fitComponent.AnchorSpace);
             Assert.Equal(new int2(640, 360), fitComponent.AnchorSpace.Size);
+        }
+
+        /// <summary>
+        /// Ensures the canvas exposes the independently resolved horizontal and vertical fit scales.
+        /// </summary>
+        [Fact]
+        public void CalculateScale_WhenPspViewportFitsReferenceCanvas_ReturnsBothAxisScales() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            menuRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            ReferenceCanvasFitComponent fitComponent = new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            menuRoot.AddComponent(fitComponent);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 480, 272);
+            Core.Instance.Update();
+
+            Assert.Equal(new float2(0.375f, 0.375f), fitComponent.CalculateScale());
+        }
+
+        /// <summary>
+        /// Ensures the canvas converts authored reference-canvas positions into the active fitted viewport.
+        /// </summary>
+        [Fact]
+        public void CalculatePosition_WhenPspViewportFitsReferenceCanvas_ReturnsFittedCoordinates() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            menuRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            ReferenceCanvasFitComponent fitComponent = new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            menuRoot.AddComponent(fitComponent);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 480, 272);
+            Core.Instance.Update();
+
+            Assert.Equal(new float3(480f, 0.75f, 0.2f), fitComponent.CalculatePosition(new float3(1280f, 2f, 0.2f)));
         }
 
         /// <summary>

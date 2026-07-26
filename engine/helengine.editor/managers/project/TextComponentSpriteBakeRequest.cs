@@ -17,7 +17,6 @@ namespace helengine.editor {
         /// <param name="alignment">Authored horizontal alignment that must be preserved by the bake.</param>
         /// <param name="rotation">Authored rotation that should carry into the replacement sprite.</param>
         /// <param name="renderOrder2D">Authored 2D render order.</param>
-        /// <param name="layerMask">Authored layer mask.</param>
         public TextComponentSpriteBakeRequest(
             int componentIndex,
             string targetPlatformId,
@@ -29,8 +28,7 @@ namespace helengine.editor {
             float fontScale,
             TextAlignment alignment,
             float rotation,
-            byte renderOrder2D,
-            byte layerMask) {
+            byte renderOrder2D) {
             if (fontReference == null) {
                 throw new ArgumentNullException(nameof(fontReference));
             }
@@ -49,7 +47,6 @@ namespace helengine.editor {
             Alignment = alignment;
             Rotation = rotation;
             RenderOrder2D = renderOrder2D;
-            LayerMask = layerMask;
         }
 
         /// <summary>
@@ -107,9 +104,5 @@ namespace helengine.editor {
         /// </summary>
         public byte RenderOrder2D { get; }
 
-        /// <summary>
-        /// Gets the authored layer mask.
-        /// </summary>
-        public byte LayerMask { get; }
     }
 }

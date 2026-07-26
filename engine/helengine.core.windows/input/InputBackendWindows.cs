@@ -110,8 +110,10 @@ namespace helengine {
                 return frame;
             }
 
+#if DESKTOP_PLATFORM
             frame.Mouse = CaptureMouseState();
             frame.Keyboard = CaptureKeyboardState();
+#endif
             return frame;
         }
 

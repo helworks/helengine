@@ -1,6 +1,7 @@
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Descriptors;
+using helengine.baseplatform.Builders;
 using helengine.baseplatform.Manifest;
 using helengine.baseplatform.Reporting;
 using helengine.baseplatform.Requests;
@@ -81,6 +82,29 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.CookedRelativePath);
         Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags && entry.Value == "0");
         Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.AutomaticRuntimeComponentTypeIds && entry.Value == string.Empty);
+    }
+
+    /// <summary>
+    /// Ensures explicitly declared material files preserve producer identity without requiring serialized payload classification.
+    /// </summary>
+    [Fact]
+    public void AddDeclaredFile_whenPlatformMaterialPayloadUsesArbitraryBytes_preservesDeclaredMaterialIdentity() {
+        string fullPath = Path.Combine(BuildRootPath, "cooked", "engine", "materials", "standard.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllBytes(fullPath, "HELE\x01\x02\x02\x00\x01\x00\x01\x00"u8.ToArray());
+        PlatformCookedArtifactDeclaration declaration = new(
+            "cooked/engine/materials/standard.hasset",
+            "engine:material:standard",
+            "material",
+            "ps2");
+        EditorPlatformCookedArtifactPool artifactPool = new();
+
+        artifactPool.AddDeclaredFile(fullPath, declaration);
+
+        PlatformBuildArtifact artifact = Assert.Single(artifactPool.ToArray());
+        Assert.Equal("material", artifact.ArtifactKind);
+        Assert.Equal("engine:material:standard", artifact.LogicalArtifactId);
+        Assert.Equal("ps2", artifact.VariantId);
     }
 
     /// <summary>
@@ -369,6 +393,39 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.Single(cookedMaterial.ConstantBuffers);
         Assert.Equal("BaseColorBuffer", cookedMaterial.ConstantBuffers[0].Name);
         Assert.Equal(16, cookedMaterial.ConstantBuffers[0].Data.Length);
+    }
+
+    /// <summary>
+    /// Verifies a shader-capable platform receives resolved shader source text and contributes its explicitly declared bundle to the cooked manifest.
+    /// </summary>
+    [Fact]
+    public void Cook_whenPlatformBuilderSupportsShaderArtifacts_resolvesSourcesAndCollectsDeclaredBundle() {
+        const string scenePath = "Scenes/VitaShaderBundle.helen";
+        const string materialPath = "Materials/VitaShaderBundle.hasset";
+        WriteMaterialAsset(materialPath, "VitaShaderBundle");
+        WriteSceneAssetWithMaterial(scenePath, materialPath);
+        ShaderArtifactTestPlatformMaterialAssetBuilder builder = new();
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            "1.0.0-engine",
+            "game",
+            "1.0.0",
+            Array.Empty<IAssetImporterRegistration>(),
+            PackagedFontAssetFactory.Create());
+
+        PlatformBuildManifest manifest = service.Cook(
+            builder.Definition,
+            ["VitaShaderBundle"],
+            BuildRootPath,
+            ["psvita"],
+            builder,
+            "debug",
+            "gxm");
+
+        PlatformShaderArtifactCookRequest request = Assert.IsType<PlatformShaderArtifactCookRequest>(builder.LastShaderArtifactCookRequest);
+        PlatformShaderArtifactCookSource source = Assert.Single(request.ShaderSources);
+        Assert.Equal("ForwardStandardShader", source.ShaderAssetId);
+        Assert.Contains(manifest.CookedArtifacts, artifact => artifact.RelativePath == "cooked/shaders/psvita/shaders.psvb" && artifact.ArtifactKind == "shader");
     }
 
     /// <summary>

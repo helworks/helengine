@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 
+#if DESKTOP_PLATFORM
 [assembly: TypeForwardedTo(typeof(helengine.ButtonState))]
+#endif
 [assembly: TypeForwardedTo(typeof(helengine.IInputBackend))]
 [assembly: TypeForwardedTo(typeof(helengine.InputActionId))]
 [assembly: TypeForwardedTo(typeof(helengine.InputActionState))]
@@ -22,7 +24,9 @@ using System.Runtime.CompilerServices;
 [assembly: TypeForwardedTo(typeof(helengine.InputSystem))]
 [assembly: TypeForwardedTo(typeof(helengine.InputTextState))]
 [assembly: TypeForwardedTo(typeof(helengine.int2))]
+#if DESKTOP_PLATFORM
 [assembly: TypeForwardedTo(typeof(helengine.KeyboardState))]
 [assembly: TypeForwardedTo(typeof(helengine.Keys))]
 [assembly: TypeForwardedTo(typeof(helengine.KeyState))]
 [assembly: TypeForwardedTo(typeof(helengine.MouseState))]
+#endif

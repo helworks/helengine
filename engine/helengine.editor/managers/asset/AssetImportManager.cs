@@ -3478,12 +3478,16 @@ namespace helengine.editor {
             string platformId = ResolveModelProcessorPlatformId(settings);
             ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
             string flipWindingFlag = processorSettings.FlipWinding ? "1" : "0";
+            string tessellateFlag = processorSettings.Tessellate ? "1" : "0";
+            string tessellationMaxEdgeLength = processorSettings.TessellationMaxEdgeLength.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
             string identity = string.Concat(
                 "model", "\n",
                 sourceChecksum, "\n",
                 settings.Importer.ImporterId ?? string.Empty, "\n",
                 platformId, "\n",
-                flipWindingFlag);
+                flipWindingFlag, "\n",
+                tessellateFlag, "\n",
+                tessellationMaxEdgeLength);
             byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
             return Convert.ToHexString(hashBytes).ToLowerInvariant();
@@ -4094,12 +4098,16 @@ namespace helengine.editor {
 
             ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
             string platformId = ResolveModelProcessorPlatformId(settings);
+            string tessellateFlag = processorSettings.Tessellate ? "1" : "0";
+            string tessellationMaxEdgeLength = processorSettings.TessellationMaxEdgeLength.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
             string identity = string.Concat(
                 "model", "\n",
                 sourceChecksum, "\n",
                 settings.Importer.ImporterId ?? string.Empty, "\n",
                 platformId, "\n",
-                (processorSettings.FlipWinding ? "1" : "0"));
+                (processorSettings.FlipWinding ? "1" : "0"), "\n",
+                tessellateFlag, "\n",
+                tessellationMaxEdgeLength);
             byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
             return Convert.ToHexString(hashBytes).ToLowerInvariant();

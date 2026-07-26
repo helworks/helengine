@@ -24,11 +24,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets the layer mask used to filter cameras.
-        /// </summary>
-        public byte LayerMask { get; set; }
-
-        /// <summary>
         /// Gets or sets the corners that remain rounded on this shape.
         /// </summary>
         public RoundedRectCorners Corners { get; set; }

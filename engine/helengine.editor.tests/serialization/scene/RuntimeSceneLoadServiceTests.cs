@@ -1084,7 +1084,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 Rotation = 0.25f,
                 RenderOrder2D = 19,
-                LayerMask = 7,
                 FontScale = 2f,
                 Alignment = TextAlignment.Center,
                 SelectionEnabled = true
@@ -1124,7 +1123,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(new float4(0.1f, 0.2f, 0.3f, 0.4f), loadedTextComponent.SourceRect);
             Assert.Equal(0.25f, loadedTextComponent.Rotation);
             Assert.Equal(19, loadedTextComponent.RenderOrder2D);
-            Assert.Equal(7, loadedTextComponent.LayerMask);
             Assert.Equal(2f, loadedTextComponent.FontScale);
             Assert.Equal(TextAlignment.Center, loadedTextComponent.Alignment);
             Assert.True(loadedTextComponent.SelectionEnabled);
@@ -1380,7 +1378,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Size = new int2(32, 14),
                 Color = new byte4(249, 243, 255, 255),
                 RenderOrder2D = 34,
-                LayerMask = 1
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(
@@ -1415,7 +1412,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(new int2(32, 14), loadedSpriteComponent.Size);
             Assert.Equal(new byte4(249, 243, 255, 255), loadedSpriteComponent.Color);
             Assert.Equal(34, loadedSpriteComponent.RenderOrder2D);
-            Assert.Equal(1, loadedSpriteComponent.LayerMask);
         }
 
         /// <summary>
@@ -1425,7 +1421,6 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneContainsAutomaticRoundedRectComponent_LoadsTheRoundedRectThroughTheDefaultRuntimeRegistry() {
             RoundedRectComponent roundedRectComponent = new RoundedRectComponent {
                 RenderOrder2D = 8,
-                LayerMask = 3,
                 Corners = RoundedRectCorners.All,
                 Rotation = 0.45f,
                 Color = new byte4(1, 2, 3, 4),
@@ -1460,7 +1455,6 @@ namespace helengine.editor.tests.serialization.scene {
             RoundedRectComponent loadedRoundedRectComponent = Assert.IsType<RoundedRectComponent>(Assert.Single(loadedRoots[0].Components));
 
             Assert.Equal(8, loadedRoundedRectComponent.RenderOrder2D);
-            Assert.Equal(3, loadedRoundedRectComponent.LayerMask);
             Assert.Equal(RoundedRectCorners.All, loadedRoundedRectComponent.Corners);
             Assert.Equal(0.45f, loadedRoundedRectComponent.Rotation);
             Assert.Equal(new byte4(1, 2, 3, 4), loadedRoundedRectComponent.Color);
@@ -1708,7 +1702,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 Rotation = 0.25f,
                 RenderOrder2D = 19,
-                LayerMask = 7,
                 SelectionEnabled = true
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();

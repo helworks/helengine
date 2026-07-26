@@ -91,8 +91,9 @@ namespace helengine.editor {
                     nextModuleKindsByModuleId.Add(descriptor.ModuleId, descriptor.ModuleKind);
                 }
             } catch {
-                UnloadContexts(nextLoadContextsByModuleId);
-                DeleteDirectoryIfPresent(snapshotRootDirectoryPath);
+                nextAssembliesByModuleId.Clear();
+                nextModuleKindsByModuleId.Clear();
+                BeginUnloadContexts(nextLoadContextsByModuleId);
                 throw;
             }
 

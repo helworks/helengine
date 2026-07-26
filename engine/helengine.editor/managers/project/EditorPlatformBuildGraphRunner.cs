@@ -309,6 +309,7 @@ namespace helengine.editor {
             string phaseLogPath = Path.Combine(workspace.LogsRootPath, "build-phases.log");
             string line = DateTime.UtcNow.ToString("O") + " " + phaseName + Environment.NewLine;
             File.AppendAllText(phaseLogPath, line);
+            Console.WriteLine($"[build] {phaseName}");
         }
 
         /// <summary>

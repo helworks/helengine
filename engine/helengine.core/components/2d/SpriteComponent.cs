@@ -29,11 +29,6 @@ namespace helengine {
         public RuntimeTexture Texture { get; set; }
 
         /// <summary>
-        /// Gets or sets the layer mask used to filter cameras.
-        /// </summary>
-        public byte LayerMask { get; set; }
-
-        /// <summary>
         /// Gets or sets the source rectangle sampled from the texture.
         /// </summary>
         public float4 SourceRect { get; set; }

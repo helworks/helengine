@@ -1,6 +1,8 @@
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
+using helengine.baseplatform.Requests;
+using helengine.baseplatform.Results;
 
 namespace helengine.editor {
     /// <summary>
@@ -102,6 +104,13 @@ namespace helengine.editor {
                 orderedScenePaths,
                 effectiveExecutionRootPath);
             PlatformCookWorkItem[] platformCookWorkItems = [.. packagerResult.PlatformCookWorkItems];
+            PlatformCookedArtifactDeclaration[] cookedArtifactDeclarations = CookPlatformShaderArtifacts(
+                materialBuilder,
+                platformDefinition,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                effectiveCookRootPath,
+                packagerResult);
 
             Console.WriteLine("[helengine-editor] build scene entries begin");
             PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedSceneIdentityPaths, effectiveCookRootPath);
@@ -110,7 +119,8 @@ namespace helengine.editor {
             PlatformBuildArtifact[] cookedArtifacts = BuildCookedArtifacts(
                 effectiveCookRootPath,
                 targetIds,
-                platformCookWorkItems);
+                platformCookWorkItems,
+                cookedArtifactDeclarations);
             Console.WriteLine("[helengine-editor] build cooked artifacts completed");
 
             PlatformBuildManifest manifest = new PlatformBuildManifest(
@@ -130,6 +140,57 @@ namespace helengine.editor {
                 platformCookWorkItems);
             manifest.StandardPlatformInputConfiguration = ResolveStandardPlatformInputConfiguration(manifest.PlatformName);
             return manifest;
+        }
+
+        /// <summary>
+        /// Resolves authored shader sources and invokes only the selected platform's explicit shader artifact capability.
+        /// </summary>
+        /// <param name="materialBuilder">Loaded platform builder selected for the cook.</param>
+        /// <param name="platformDefinition">Selected platform definition used to resolve the stable platform id.</param>
+        /// <param name="selectedBuildProfileId">Selected build profile identifier.</param>
+        /// <param name="selectedGraphicsProfileId">Selected graphics profile identifier.</param>
+        /// <param name="cookRootPath">Absolute cooked-content root receiving platform shader outputs.</param>
+        /// <param name="packagerResult">Scene packaging output that reports material-selected shader dependencies.</param>
+        /// <returns>All pre-existing and shader-capability-declared cooked artifacts.</returns>
+        PlatformCookedArtifactDeclaration[] CookPlatformShaderArtifacts(
+            IPlatformAssetBuilder materialBuilder,
+            PlatformDefinition platformDefinition,
+            string selectedBuildProfileId,
+            string selectedGraphicsProfileId,
+            string cookRootPath,
+            EditorPlatformBuildScenePackagerResult packagerResult) {
+            if (packagerResult == null) {
+                throw new ArgumentNullException(nameof(packagerResult));
+            }
+
+            List<PlatformCookedArtifactDeclaration> declarations = new(packagerResult.CookedArtifactDeclarations);
+            if (materialBuilder is not IPlatformShaderArtifactBuilder shaderArtifactBuilder
+                || packagerResult.ReferencedShaderDependencies.Count == 0) {
+                return declarations.ToArray();
+            }
+
+            EditorProjectShaderSourceResolver sourceResolver = new(Path.Combine(ProjectRootPath, "assets"));
+            IReadOnlyList<EditorProjectShaderSource> resolvedSources = sourceResolver.Resolve(packagerResult.ReferencedShaderAssetIds);
+            PlatformShaderArtifactCookSource[] shaderSources = new PlatformShaderArtifactCookSource[resolvedSources.Count];
+            for (int index = 0; index < resolvedSources.Count; index++) {
+                EditorProjectShaderSource resolvedSource = resolvedSources[index];
+                shaderSources[index] = new PlatformShaderArtifactCookSource(
+                    resolvedSource.ShaderAssetId,
+                    resolvedSource.SourceHash,
+                    resolvedSource.SourceText);
+            }
+
+            PlatformShaderArtifactCookRequest shaderRequest = PlatformShaderArtifactCookRequest.CreateWithDependenciesAndSources(
+                cookRootPath,
+                ResolvePlatformName(platformDefinition, materialBuilder),
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                packagerResult.ReferencedShaderDependencies,
+                shaderSources);
+            PlatformShaderArtifactCookResult shaderResult = shaderArtifactBuilder.CookShaderArtifacts(shaderRequest)
+                ?? throw new InvalidOperationException("Platform shader artifact builders must return an explicit cook result.");
+            declarations.AddRange(shaderResult.CookedArtifactDeclarations);
+            return declarations.ToArray();
         }
 
         /// <summary>
@@ -380,9 +441,12 @@ namespace helengine.editor {
         PlatformBuildArtifact[] BuildCookedArtifacts(
             string cookRootPath,
             IReadOnlyList<string> targetIds,
-            IReadOnlyList<PlatformCookWorkItem> platformCookWorkItems) {
+            IReadOnlyList<PlatformCookWorkItem> platformCookWorkItems,
+            IReadOnlyList<PlatformCookedArtifactDeclaration> cookedArtifactDeclarations) {
             if (platformCookWorkItems == null) {
                 throw new ArgumentNullException(nameof(platformCookWorkItems));
+            } else if (cookedArtifactDeclarations == null) {
+                throw new ArgumentNullException(nameof(cookedArtifactDeclarations));
             }
 
             string variantId = targetIds.Count == 1 && !string.IsNullOrWhiteSpace(targetIds[0])
@@ -393,11 +457,12 @@ namespace helengine.editor {
             string[] cookedFilePaths = Directory.GetFiles(cookRootPath, "*", SearchOption.AllDirectories);
             Array.Sort(cookedFilePaths, StringComparer.OrdinalIgnoreCase);
             HashSet<string> builderOwnedOutputPaths = BuildBuilderOwnedOutputPathSet(platformCookWorkItems);
+            HashSet<string> declaredOutputPaths = AddDeclaredCookedArtifacts(artifactPool, cookRootPath, cookedArtifactDeclarations);
 
             for (int index = 0; index < cookedFilePaths.Length; index++) {
                 string fullPath = cookedFilePaths[index];
                 string relativePath = "cooked/" + NormalizeRelativePath(Path.GetRelativePath(cookRootPath, fullPath));
-                if (builderOwnedOutputPaths.Contains(relativePath)) {
+                if (builderOwnedOutputPaths.Contains(relativePath) || declaredOutputPaths.Contains(relativePath)) {
                     continue;
                 }
 
@@ -405,6 +470,52 @@ namespace helengine.editor {
             }
 
             return artifactPool.ToArray();
+        }
+
+        /// <summary>
+        /// Adds material and shader files whose producer declared their identity before directory scanning can inspect their paths or payloads.
+        /// </summary>
+        /// <param name="artifactPool">Artifact pool that receives declared files.</param>
+        /// <param name="cookRootPath">Absolute cooked-content root containing declared output paths.</param>
+        /// <param name="cookedArtifactDeclarations">Material and shader declarations emitted by scene packaging or platform staging.</param>
+        /// <returns>Normalized runtime-relative paths that the directory scanner must skip.</returns>
+        static HashSet<string> AddDeclaredCookedArtifacts(
+            EditorPlatformCookedArtifactPool artifactPool,
+            string cookRootPath,
+            IReadOnlyList<PlatformCookedArtifactDeclaration> cookedArtifactDeclarations) {
+            if (artifactPool == null) {
+                throw new ArgumentNullException(nameof(artifactPool));
+            } else if (string.IsNullOrWhiteSpace(cookRootPath)) {
+                throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
+            } else if (cookedArtifactDeclarations == null) {
+                throw new ArgumentNullException(nameof(cookedArtifactDeclarations));
+            }
+
+            string fullCookRootPath = Path.GetFullPath(cookRootPath);
+            string fullCookRootPrefix = fullCookRootPath.EndsWith(Path.DirectorySeparatorChar)
+                ? fullCookRootPath
+                : fullCookRootPath + Path.DirectorySeparatorChar;
+            HashSet<string> declaredOutputPaths = new(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < cookedArtifactDeclarations.Count; index++) {
+                PlatformCookedArtifactDeclaration declaration = cookedArtifactDeclarations[index];
+                if (declaration == null) {
+                    throw new InvalidOperationException("Cooked artifact declarations cannot contain null entries.");
+                }
+
+                string relativeCookPath = NormalizeCookedRelativePath(declaration.RelativePath);
+                string fullArtifactPath = Path.GetFullPath(Path.Combine(fullCookRootPath, relativeCookPath));
+                if (!fullArtifactPath.StartsWith(fullCookRootPrefix, StringComparison.OrdinalIgnoreCase)) {
+                    throw new InvalidOperationException($"Declared cooked artifact '{declaration.RelativePath}' resolves outside cook root '{fullCookRootPath}'.");
+                } else if (!File.Exists(fullArtifactPath)) {
+                    throw new FileNotFoundException($"Declared cooked artifact '{declaration.RelativePath}' was not written before manifest collection.", fullArtifactPath);
+                } else if (!declaredOutputPaths.Add(declaration.RelativePath)) {
+                    throw new InvalidOperationException($"Cooked artifact '{declaration.RelativePath}' was declared more than once.");
+                }
+
+                artifactPool.AddDeclaredFile(fullArtifactPath, declaration);
+            }
+
+            return declaredOutputPaths;
         }
 
         /// <summary>
@@ -496,9 +607,6 @@ namespace helengine.editor {
             if (relativePath.Contains("/models/", StringComparison.OrdinalIgnoreCase) || relativePath.StartsWith("cooked/imported/Models/", StringComparison.OrdinalIgnoreCase)) {
                 return "model";
             }
-            if (relativePath.Contains("/materials/", StringComparison.OrdinalIgnoreCase)) {
-                return "material";
-            }
             if (relativePath.StartsWith("cooked/imported/", StringComparison.OrdinalIgnoreCase)) {
                 return ResolveImportedArtifactKind(fullPath, relativePath);
             }
@@ -527,6 +635,14 @@ namespace helengine.editor {
             try {
                 EngineBinaryReadContext.CurrentAssetPath = fullPath;
                 using FileStream stream = File.OpenRead(fullPath);
+                if (stream.ReadByte() != 'H'
+                    || stream.ReadByte() != 'E'
+                    || stream.ReadByte() != 'L'
+                    || stream.ReadByte() != 'E') {
+                    return string.Empty;
+                }
+
+                stream.Position = 0;
                 if (!UsesGenericEditorAssetSerialization(stream)) {
                     return string.Empty;
                 }
@@ -603,7 +719,8 @@ namespace helengine.editor {
             long previousPosition = stream.Position;
             try {
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-                return header.FormatId == helengine.files.EditorAssetBinarySerializer.FormatId;
+                return header.FormatId == helengine.files.EditorAssetBinarySerializer.FormatId
+                    || header.FormatId == ShaderMaterialAssetBinarySerializer.FormatId;
             } finally {
                 stream.Position = previousPosition;
             }

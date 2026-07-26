@@ -42,6 +42,7 @@ namespace helengine {
         /// </summary>
         /// <param name="key">Activation key to evaluate.</param>
         /// <returns>True when the target should activate for the key.</returns>
+#if DESKTOP_PLATFORM
         bool CanActivateWithKey(Keys key);
 
         /// <summary>
@@ -49,5 +50,6 @@ namespace helengine {
         /// </summary>
         /// <param name="key">Activation key routed to the target.</param>
         void ActivateFromKey(Keys key);
+#endif
     }
 }

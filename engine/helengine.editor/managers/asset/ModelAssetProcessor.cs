@@ -16,12 +16,14 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            if (!settings.FlipWinding) {
-                return;
+            if (settings.Tessellate) {
+                ModelTessellationProcessor.Apply(asset, settings.TessellationMaxEdgeLength);
             }
 
-            FlipTriangleWinding(asset.Indices16);
-            FlipTriangleWinding(asset.Indices32);
+            if (settings.FlipWinding) {
+                FlipTriangleWinding(asset.Indices16);
+                FlipTriangleWinding(asset.Indices32);
+            }
         }
 
         /// <summary>

@@ -101,6 +101,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the generated solution workspace root used by one headless build or editor-command invocation.
+        /// </summary>
+        /// <param name="platformId">Stable build-route identifier used to isolate the invocation.</param>
+        /// <param name="executionId">Unique identifier for the build or command invocation.</param>
+        /// <returns>Absolute invocation-isolated generated solution workspace root path.</returns>
+        public string ResolveGeneratedCodeWorkspaceRootPath(string platformId, string executionId) {
+            return Path.Combine(ResolveGeneratedCodeOutputRootPath(platformId, executionId), "workspace");
+        }
+
+        /// <summary>
         /// Computes one stable project hash segment from the canonical authored project root path.
         /// </summary>
         /// <param name="projectRootPath">Absolute authored project root path.</param>

@@ -967,7 +967,43 @@ namespace helengine.editor.tests {
             Assert.Equal((ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings, header.ValueKind);
             Assert.Equal(ModelAssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
             Assert.True(deserialized.Processor.Platforms["windows"].FlipWinding);
+            Assert.True(deserialized.Processor.Platforms["windows"].Tessellate);
+            Assert.Equal(0.25d, deserialized.Processor.Platforms["windows"].TessellationMaxEdgeLength);
             Assert.False(deserialized.Processor.Platforms["ps2"].FlipWinding);
+            Assert.False(deserialized.Processor.Platforms["ps2"].Tessellate);
+            Assert.Equal(1.0d, deserialized.Processor.Platforms["ps2"].TessellationMaxEdgeLength);
+        }
+
+        /// <summary>
+        /// Ensures version-one model settings deserialize with tessellation defaults.
+        /// </summary>
+        [Fact]
+        public void ModelAssetImportSettingsBinarySerializer_DeserializeVersionOne_DefaultsTessellationSettings() {
+            using MemoryStream stream = new MemoryStream();
+            EngineBinaryHeader header = new EngineBinaryHeader(
+                EngineBinaryEndianness.LittleEndian,
+                1,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)ModelAssetImportSettingsBinarySerializer.RecordKind,
+                (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings);
+            EngineBinaryHeaderSerializer.Write(stream, header);
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
+                writer.WriteString("assimp");
+                writer.WriteString("legacy-model-checksum");
+                writer.WriteString("legacy-model-id");
+                writer.WriteInt32(1);
+                writer.WriteString("windows");
+                writer.WriteByte(1);
+            }
+
+            stream.Position = 0;
+
+            ModelAssetImportSettings deserialized = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
+
+            ModelAssetProcessorSettings platformSettings = deserialized.Processor.Platforms["windows"];
+            Assert.True(platformSettings.FlipWinding);
+            Assert.False(platformSettings.Tessellate);
+            Assert.Equal(1.0d, platformSettings.TessellationMaxEdgeLength);
         }
 
         /// <summary>
@@ -1465,7 +1501,9 @@ namespace helengine.editor.tests {
                 Processor = new ModelAssetProcessorPlatformSettings {
                     Platforms = new Dictionary<string, ModelAssetProcessorSettings> {
                         ["windows"] = new ModelAssetProcessorSettings {
-                            FlipWinding = true
+                            FlipWinding = true,
+                            Tessellate = true,
+                            TessellationMaxEdgeLength = 0.25d
                         },
                         ["ps2"] = new ModelAssetProcessorSettings {
                             FlipWinding = false

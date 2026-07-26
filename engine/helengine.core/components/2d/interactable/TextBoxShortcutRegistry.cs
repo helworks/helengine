@@ -1,4 +1,5 @@
 namespace helengine {
+#if DESKTOP_PLATFORM
     /// <summary>
     /// Stores the shortcut bindings used by textbox editing commands.
     /// </summary>
@@ -27,4 +28,5 @@ namespace helengine {
         /// </summary>
         public TextBoxShortcutBinding PasteShortcut { get; set; }
     }
+#endif
 }

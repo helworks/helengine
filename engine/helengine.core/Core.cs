@@ -31,7 +31,9 @@ namespace helengine {
         /// <summary>
         /// Registry that stores the active textbox shortcut bindings.
         /// </summary>
+#if DESKTOP_PLATFORM
         TextBoxShortcutRegistry TextBoxShortcutRegistryValue;
+#endif
         /// <summary>
         /// Tracks elapsed wall-clock time for the parameterless update path.
         /// </summary>
@@ -76,7 +78,9 @@ namespace helengine {
             StandardPlatformInput = new StandardPlatformInput(Input);
             PointerInteractionSystem = new PointerInteractionSystem(this, Input);
             TextClipboardServiceValue = new NullTextClipboardService();
+#if DESKTOP_PLATFORM
             TextBoxShortcutRegistryValue = new TextBoxShortcutRegistry();
+#endif
             UpdateStopwatchValue = Stopwatch.StartNew();
             DrawStopwatchValue = new Stopwatch();
             ResolvedPerformanceOverlayFontScale = 1f;
@@ -126,6 +130,11 @@ namespace helengine {
         /// Gets the most recent measured duration spent executing <see cref="RenderManager3D.Draw"/>.
         /// </summary>
         public double LastRenderManager3DDrawMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the most recent duration spent committing deferred scene operations at the draw boundary.
+        /// </summary>
+        public double LastCompleteFrameBoundaryMilliseconds { get; private set; }
 
         /// <summary>
         /// Gets the draw-call count reported by the most recent render-manager draw.
@@ -338,7 +347,9 @@ namespace helengine {
         /// <summary>
         /// Gets the registry that stores the active textbox shortcut bindings.
         /// </summary>
+#if DESKTOP_PLATFORM
         public TextBoxShortcutRegistry TextBoxShortcutRegistry => TextBoxShortcutRegistryValue;
+#endif
 
         /// <summary>
         /// Updates the platform-specific performance overlay metrics consumed by the FPS component.
@@ -653,8 +664,13 @@ namespace helengine {
             LastSceneTransitionStage = "DrawBegin";
             if (InitializationOptions.CommitPendingSceneOperationsDuringDraw) {
                 LastSceneTransitionStage = "BeforeCompleteFrameBoundary";
+                DrawStopwatchValue.Restart();
                 CompleteFrameBoundary();
+                DrawStopwatchValue.Stop();
+                LastCompleteFrameBoundaryMilliseconds = DrawStopwatchValue.Elapsed.TotalMilliseconds;
                 LastSceneTransitionStage = "AfterCompleteFrameBoundary";
+            } else {
+                LastCompleteFrameBoundaryMilliseconds = 0d;
             }
 
             LastSceneTransitionStage = "BeforeRenderManager3DDraw";

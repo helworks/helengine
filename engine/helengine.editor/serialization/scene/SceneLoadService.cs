@@ -135,6 +135,7 @@ namespace helengine.editor {
             }
 
             EditorEntity entity = ResolveEditorEntity(EntityFactory.Create(entityAsset.Name));
+            entity.IsSceneOwned = true;
             entity.Static = entityAsset.IsStatic;
             entity.Enabled = entityAsset.Enabled;
             entity.LayerMask = entityAsset.LayerMask;

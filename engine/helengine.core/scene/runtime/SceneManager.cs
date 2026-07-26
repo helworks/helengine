@@ -432,10 +432,14 @@ namespace helengine {
         /// <param name="loadMode">Runtime load behavior to apply.</param>
         void LoadSceneImmediate(string sceneId, SceneLoadMode loadMode) {
             RecordTraceState("LoadSceneImmediateBegin", sceneId);
+            RecordTraceState("LoadSceneImmediateBeforeResolveSceneContentPath", sceneId);
             string sceneContentPath = ResolveSceneContentPath(sceneId);
+            RecordTraceState("LoadSceneImmediateAfterResolveSceneContentPath", sceneId);
+            RecordTraceState("LoadSceneImmediateBeforeLoadedSceneRecordLookup", sceneId);
             if (LoadedSceneRecordsById.ContainsKey(sceneId)) {
                 throw new InvalidOperationException($"Runtime scene '{sceneId}' is already loaded.");
             }
+            RecordTraceState("LoadSceneImmediateAfterLoadedSceneRecordLookup", sceneId);
 
             if (loadMode == SceneLoadMode.Single) {
                 if (LoadedSceneRecords.Count == 0) {

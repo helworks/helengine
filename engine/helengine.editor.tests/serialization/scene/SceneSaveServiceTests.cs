@@ -455,7 +455,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0f,
                 RenderOrder2D = 11,
-                LayerMask = 3
             };
             root.AddComponent(titleText);
             GetSaveComponent(root).SetAssetReference(titleText, "Font", titleFontReference);
@@ -470,7 +469,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0f,
                 RenderOrder2D = 12,
-                LayerMask = 5
             };
             child.AddComponent(bodyText);
             root.AddChild(child);
@@ -533,7 +531,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0f,
                 RenderOrder2D = 12,
-                LayerMask = 5
             };
             root.AddComponent(textComponent);
             GetSaveComponent(root).SetAssetReference(textComponent, nameof(TextComponent.Font), fontReference);
@@ -605,7 +602,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Rotation = 0f,
                 FontScale = 2f,
                 RenderOrder2D = 12,
-                LayerMask = 5
             };
             root.AddComponent(textComponent);
             GetSaveComponent(root).SetAssetReference(textComponent, nameof(TextComponent.Font), fontReference);
@@ -1051,6 +1047,43 @@ namespace helengine.editor.tests.serialization.scene {
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
 
             Assert.Equal(EditorLayerMasks.SceneObjects, loadedEntity.LayerMask);
+        }
+
+        /// <summary>
+        /// Ensures authored scene ownership, rather than the runtime render layer, determines whether entities and their children are serialized.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenSceneOwnedHierarchyUsesOverlayRenderLayer_RoundTripsHierarchyAndLayerMask() {
+            const ushort overlayLayerMask = 0b0000000000000010;
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "OverlayLayerHierarchy.helen");
+            EditorEntity root = CreateUserEntity("OverlayRoot", float3.Zero, float3.One, float4.Identity);
+            root.LayerMask = overlayLayerMask;
+            EditorEntity child = CreateUserEntity("OverlayChild", new float3(16f, 24f, 0f), float3.One, float4.Identity);
+            child.LayerMask = overlayLayerMask;
+            root.AddChild(child);
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset rootAsset = Assert.Single(asset.RootEntities);
+            SceneEntityAsset childAsset = Assert.Single(rootAsset.Children);
+            Assert.Equal(overlayLayerMask, rootAsset.LayerMask);
+            Assert.Equal(overlayLayerMask, childAsset.LayerMask);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
+            EditorEntity loadedChild = Assert.IsType<EditorEntity>(Assert.Single(loadedRoot.Children));
+
+            Assert.True(loadedRoot.IsSceneOwned);
+            Assert.True(loadedChild.IsSceneOwned);
+            Assert.Equal(overlayLayerMask, loadedRoot.LayerMask);
+            Assert.Equal(overlayLayerMask, loadedChild.LayerMask);
         }
 
         /// <summary>

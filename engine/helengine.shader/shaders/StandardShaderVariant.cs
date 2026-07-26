@@ -1,5 +1,3 @@
-using System.Collections.ObjectModel;
-
 namespace helengine;
 
 /// <summary>
@@ -9,7 +7,7 @@ public sealed class StandardShaderVariant {
     /// <summary>
     /// Stores the immutable source define names used by this variant.
     /// </summary>
-    readonly IReadOnlyList<string> DefinesValue;
+    readonly List<string> DefinesValue;
 
     /// <summary>
     /// Initializes one complete Standard Shader variant definition.
@@ -18,7 +16,7 @@ public sealed class StandardShaderVariant {
     /// <param name="vertexEntryPoint">Vertex entry point compiled for the variant.</param>
     /// <param name="pixelEntryPoint">Pixel entry point compiled for the variant.</param>
     /// <param name="defines">Source defines required by the variant.</param>
-    public StandardShaderVariant(string name, string vertexEntryPoint, string pixelEntryPoint, IReadOnlyList<string> defines) {
+    public StandardShaderVariant(string name, string vertexEntryPoint, string pixelEntryPoint, List<string> defines) {
         Name = RequireText(name, nameof(name));
         VertexEntryPoint = RequireText(vertexEntryPoint, nameof(vertexEntryPoint));
         PixelEntryPoint = RequireText(pixelEntryPoint, nameof(pixelEntryPoint));
@@ -64,16 +62,16 @@ public sealed class StandardShaderVariant {
     /// </summary>
     /// <param name="defines">Candidate define list.</param>
     /// <returns>Immutable copied define list.</returns>
-    static IReadOnlyList<string> CopyDefines(IReadOnlyList<string> defines) {
+    static List<string> CopyDefines(List<string> defines) {
         if (defines == null) {
             throw new ArgumentNullException(nameof(defines));
         }
 
-        string[] copiedDefines = new string[defines.Count];
+        List<string> copiedDefines = new();
         for (int index = 0; index < defines.Count; index++) {
-            copiedDefines[index] = RequireText(defines[index], nameof(defines));
+            copiedDefines.Add(RequireText(defines[index], nameof(defines)));
         }
 
-        return new ReadOnlyCollection<string>(copiedDefines);
+        return copiedDefines;
     }
 }

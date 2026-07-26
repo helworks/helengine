@@ -15,7 +15,7 @@ namespace helengine {
             get { return updateOrder; }
             set {
                 if (updateOrder != value) {
-                    if (Parent != null && Parent.IsHierarchyEnabled && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
+                    if (Parent != null && Parent.IsInitialized && Parent.IsHierarchyEnabled && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
                         Core.Instance.ObjectManager.RemoveFromUpdate(this, updateOrder);
                         updateOrder = value;
                         Core.Instance.ObjectManager.RegisterForUpdate(this);
@@ -27,11 +27,19 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Registers the component for updates when added to an enabled entity.
+        /// Records the component attachment before its parent hierarchy has necessarily completed initialization.
         /// </summary>
         /// <param name="entity">Owning entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
+        }
+
+        /// <summary>
+        /// Registers the component for updates once its parent hierarchy is fully materialized and enabled.
+        /// </summary>
+        /// <param name="entity">Owning entity whose hierarchy completed initialization.</param>
+        public override void ComponentInitialized(Entity entity) {
+            base.ComponentInitialized(entity);
 
             if (entity.IsHierarchyEnabled && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, entity)) {
                 Core.Instance.ObjectManager.RegisterForUpdate(this);
@@ -44,7 +52,7 @@ namespace helengine {
         /// <param name="newEnabled">New enabled state.</param>
         public override void ParentEnabledChange(bool newEnabled) {
             base.ParentEnabledChange(newEnabled);
-            if (!ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
+            if (Parent == null || !Parent.IsInitialized || !ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
                 return;
             }
 

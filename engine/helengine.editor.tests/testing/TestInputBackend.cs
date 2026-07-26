@@ -8,6 +8,7 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Gets or sets the keyboard state returned by the backend.
         /// </summary>
+#if DESKTOP_PLATFORM
         public KeyboardState KeyboardState { get; set; }
 
         /// <summary>
@@ -19,6 +20,7 @@ namespace helengine.editor.tests.testing {
         /// Gets or sets a value indicating whether the simulated host window is foreground active.
         /// </summary>
         public bool IsForegroundActive { get; set; } = true;
+#endif
 
         /// <summary>
         /// Gets or sets whether the backend should continue reporting keyboard and button input while inactive.
@@ -56,6 +58,7 @@ namespace helengine.editor.tests.testing {
         /// Gets the pointer position reported by the active core input system.
         /// </summary>
         /// <returns>Current mouse position in window coordinates.</returns>
+#if DESKTOP_PLATFORM
         public int2 GetMousePosition() {
             return ResolveInputSystem().GetMousePosition();
         }
@@ -67,6 +70,7 @@ namespace helengine.editor.tests.testing {
         public int2 GetMouseDelta() {
             return ResolveInputSystem().GetMouseDelta();
         }
+#endif
 
         /// <summary>
         /// Gets the cursor requested by the active pointer interaction system.
@@ -81,8 +85,10 @@ namespace helengine.editor.tests.testing {
         /// <returns>Input frame supplied by the test.</returns>
         public InputFrameState CaptureFrame() {
             InputFrameState frame = new InputFrameState();
+#if DESKTOP_PLATFORM
             frame.Keyboard = CaptureKeyboardState();
             frame.Mouse = CaptureMouseState();
+#endif
             frame.Gamepads = Gamepads;
             frame.GamepadCount = GamepadCount;
             return frame;
@@ -92,6 +98,7 @@ namespace helengine.editor.tests.testing {
         /// Replaces the keyboard state returned during the next input capture.
         /// </summary>
         /// <param name="state">Keyboard state to expose.</param>
+#if DESKTOP_PLATFORM
         public void SetKeyboardState(KeyboardState state) {
             KeyboardState = state;
         }
@@ -158,6 +165,7 @@ namespace helengine.editor.tests.testing {
             state.XButton2 = ButtonState.Released;
             return state;
         }
+#endif
 
         /// <summary>
         /// Resolves the active core input system used by the current test.

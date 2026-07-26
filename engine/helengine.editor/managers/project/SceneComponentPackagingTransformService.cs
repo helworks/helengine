@@ -6,6 +6,8 @@ using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Results;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace helengine.editor {
     /// <summary>
@@ -201,6 +203,10 @@ namespace helengine.editor {
         /// Fast lookup used to deduplicate referenced shader asset ids while preserving discovery order.
         /// </summary>
         readonly HashSet<string> ReferencedShaderAssetIdsSet;
+        /// <summary>
+        /// Optional callback that records complete material shader dependencies in the owning scene packager.
+        /// </summary>
+        readonly Action<PlatformShaderDependency> ShaderDependencySink;
 
         /// <summary>
         /// Service used to load per-platform material settings sidecars for packaged material assets.
@@ -259,6 +265,10 @@ namespace helengine.editor {
         /// </summary>
         readonly Action<PlatformCookWorkItem> PlatformCookWorkItemSink;
         /// <summary>
+        /// Callback that records explicit material and shader outputs written while rewriting scene content.
+        /// </summary>
+        readonly Action<PlatformCookedArtifactDeclaration> CookedArtifactDeclarationSink;
+        /// <summary>
         /// Platform definition that publishes builder-owned asset cook capabilities for the current packaging target.
         /// </summary>
         readonly PlatformDefinition PlatformDefinition;
@@ -278,6 +288,16 @@ namespace helengine.editor {
         readonly StaticMeshCollisionCookProcessorRegistry StaticMeshCookProcessorRegistry;
 
         /// <summary>
+        /// Resolves editor-only per-platform MeshComponent tessellation metadata during packaging.
+        /// </summary>
+        readonly MeshComponentTessellationSettingsService MeshComponentTessellationSettingsService;
+
+        /// <summary>
+        /// Reuses one cooked MeshComponent tessellation model reference for every equal source, platform, settings, and scale identity.
+        /// </summary>
+        readonly Dictionary<string, SceneAssetReference> MeshTessellationVariantReferencesByIdentity;
+
+        /// <summary>
         /// Initializes one shared scene-component transform service.
         /// </summary>
         /// <param name="assetsRootPath">Absolute source assets root path.</param>
@@ -295,6 +315,8 @@ namespace helengine.editor {
         /// <param name="platformDefinition">Optional platform definition that publishes builder-owned asset cook capabilities.</param>
         /// <param name="textComponentSpriteBakeService">Optional bake service used to convert authored text components into sprite-backed runtime payloads.</param>
         /// <param name="staticMeshCookProcessorRegistry">Optional registry that exposes the active static mesh collision cook processor.</param>
+        /// <param name="cookedArtifactDeclarationSink">Optional callback that records material and shader outputs written during transformation.</param>
+        /// <param name="shaderDependencySink">Optional callback that records complete material shader dependencies in the owning scene packager.</param>
         public SceneComponentPackagingTransformService(
             string assetsRootPath,
             ContentManager projectContentManager,
@@ -310,7 +332,9 @@ namespace helengine.editor {
             Action<PlatformCookWorkItem> platformCookWorkItemSink = null,
             PlatformDefinition platformDefinition = null,
             ITextComponentSpriteBakeService textComponentSpriteBakeService = null,
-            StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry = null) {
+            StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry = null,
+            Action<PlatformCookedArtifactDeclaration> cookedArtifactDeclarationSink = null,
+            Action<PlatformShaderDependency> shaderDependencySink = null) {
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
                 : Path.GetFullPath(assetsRootPath);
@@ -339,10 +363,14 @@ namespace helengine.editor {
             PlatformExtendedSchemaBuilder = new PlatformExtendedScriptComponentSchemaBuilder();
             ScriptTypeResolver = scriptTypeResolver;
             PlatformCookWorkItemSink = platformCookWorkItemSink;
+            CookedArtifactDeclarationSink = cookedArtifactDeclarationSink;
+            ShaderDependencySink = shaderDependencySink;
             PlatformDefinition = platformDefinition;
             FileHasher = new AssetFileHasher();
             TextComponentSpriteBakeService = textComponentSpriteBakeService;
             StaticMeshCookProcessorRegistry = staticMeshCookProcessorRegistry ?? StaticMeshCollisionCookProcessorRegistry.Shared;
+            MeshComponentTessellationSettingsService = new MeshComponentTessellationSettingsService();
+            MeshTessellationVariantReferencesByIdentity = new Dictionary<string, SceneAssetReference>(StringComparer.Ordinal);
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
             PlatformOverridePayloadService = new ComponentPlatformOverridePayloadService();
@@ -376,14 +404,33 @@ namespace helengine.editor {
         /// <param name="transformedRecord">Rewritten component record when successful.</param>
         /// <returns>True when a transformation was applied; otherwise false.</returns>
         public bool TryTransform(SceneComponentAssetRecord record, string buildRootPath, out SceneComponentAssetRecord transformedRecord) {
+            return TryTransform(record, buildRootPath, new SceneComponentPackagingTransformContext(float3.One), out transformedRecord);
+        }
+
+        /// <summary>
+        /// Attempts to rewrite one shared component record into its packaged runtime form using entity-specific cook-time context.
+        /// </summary>
+        /// <param name="record">Component record to transform.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <param name="context">Entity-specific static transform data for the component record.</param>
+        /// <param name="transformedRecord">Rewritten component record when successful.</param>
+        /// <returns>True when a transformation was applied; otherwise false.</returns>
+        public bool TryTransform(
+            SceneComponentAssetRecord record,
+            string buildRootPath,
+            SceneComponentPackagingTransformContext context,
+            out SceneComponentAssetRecord transformedRecord) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
             if (string.IsNullOrWhiteSpace(buildRootPath)) {
                 throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
             }
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
 
-            if (TryRewriteAutomaticComponentRecord(record, buildRootPath, out transformedRecord)) {
+            if (TryRewriteAutomaticComponentRecord(record, buildRootPath, context, out transformedRecord)) {
                 return true;
             }
 
@@ -421,9 +468,13 @@ namespace helengine.editor {
         bool TryRewriteAutomaticComponentRecord(
             SceneComponentAssetRecord record,
             string buildRootPath,
+            SceneComponentPackagingTransformContext context,
             out SceneComponentAssetRecord transformedRecord) {
             if (string.IsNullOrWhiteSpace(buildRootPath)) {
                 throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
             }
 
             if (!TryResolvePersistenceDescriptor(record.ComponentTypeId, out IComponentPersistenceDescriptor descriptor)) {
@@ -438,6 +489,7 @@ namespace helengine.editor {
 
             EntitySaveComponent saveComponent = new EntitySaveComponent();
             SceneComponentAssetRecord baseRecord = ResolveTargetPlatformComponentRecord(record, out EntityComponentPlatformOverrideState targetPlatformOverride);
+            MeshComponentTessellationSettings meshTessellationSettings = ResolveMeshComponentTessellationSettings(targetPlatformOverride);
             Component component = DeserializeAutomaticComponentForPackaging(baseRecord, descriptor, saveComponent);
             RestoreTargetPlatformAssetReferences(saveComponent, component, targetPlatformOverride);
             NormalizeAutomaticComponentForRuntimePackaging(component);
@@ -448,7 +500,9 @@ namespace helengine.editor {
                 component,
                 ResolveAutomaticComponentSaveState(saveComponent, component),
                 record,
-                buildRootPath);
+                buildRootPath,
+                context,
+                meshTessellationSettings);
             return true;
         }
 
@@ -648,7 +702,9 @@ namespace helengine.editor {
             Component component,
             EntityComponentSaveState saveState,
             SceneComponentAssetRecord sourceRecord,
-            string buildRootPath) {
+            string buildRootPath,
+            SceneComponentPackagingTransformContext context,
+            MeshComponentTessellationSettings meshTessellationSettings) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }
@@ -661,9 +717,16 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(buildRootPath)) {
                 throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
             }
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+            if (meshTessellationSettings == null) {
+                throw new ArgumentNullException(nameof(meshTessellationSettings));
+            }
 
             ScriptComponentReflectionSchema schema = PlatformExtendedSchemaBuilder.Build(component.GetType(), PlatformDefinition);
             EntityComponentSaveState rewrittenSaveState = RewriteAutomaticComponentSaveStateReferences(schema, saveState, buildRootPath);
+            ApplyMeshComponentTessellationVariant(component, rewrittenSaveState, buildRootPath, context, meshTessellationSettings, sourceRecord);
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
@@ -682,6 +745,121 @@ namespace helengine.editor {
                 ComponentIndex = componentIndex,
                 Payload = stream.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Resolves editor-only MeshComponent tessellation metadata from the selected target-platform override payload.
+        /// </summary>
+        /// <param name="targetPlatformOverride">Selected target-platform override payload, or null when no override exists.</param>
+        /// <returns>Validated component tessellation settings or the disabled default.</returns>
+        MeshComponentTessellationSettings ResolveMeshComponentTessellationSettings(EntityComponentPlatformOverrideState targetPlatformOverride) {
+            if (targetPlatformOverride == null || string.IsNullOrWhiteSpace(TargetPlatformId)) {
+                return new MeshComponentTessellationSettings();
+            }
+
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetPlatformOverride(TargetPlatformId, targetPlatformOverride);
+            return MeshComponentTessellationSettingsService.GetForPlatform(saveState, TargetPlatformId);
+        }
+
+        /// <summary>
+        /// Replaces an enabled MeshComponent model reference with one reusable scale-aware tessellation variant after normal model packaging has written its source asset.
+        /// </summary>
+        /// <param name="component">Materialized component currently being serialized.</param>
+        /// <param name="rewrittenSaveState">Save state containing already packaged runtime asset references.</param>
+        /// <param name="buildRootPath">Absolute packaged build root path.</param>
+        /// <param name="context">Final static world scale of the component's owning entity.</param>
+        /// <param name="settings">Resolved editor-only component tessellation settings.</param>
+        /// <param name="sourceRecord">Original persisted component record used for diagnostics.</param>
+        void ApplyMeshComponentTessellationVariant(
+            Component component,
+            EntityComponentSaveState rewrittenSaveState,
+            string buildRootPath,
+            SceneComponentPackagingTransformContext context,
+            MeshComponentTessellationSettings settings,
+            SceneComponentAssetRecord sourceRecord) {
+            if (!settings.Tessellate || component is not MeshComponent) {
+                return;
+            }
+            if (rewrittenSaveState == null) {
+                throw new InvalidOperationException("Enabled MeshComponent tessellation requires a serialized model reference.");
+            }
+            if (!rewrittenSaveState.TryGetAssetReference(nameof(MeshComponent.Model), out SceneAssetReference sourceModelReference)) {
+                throw new InvalidOperationException($"Enabled MeshComponent tessellation requires model reference '{nameof(MeshComponent.Model)}'. Component='{sourceRecord.ComponentKey}'.");
+            }
+
+            string identity = MeshComponentTessellationSettingsService.BuildVariantIdentity(
+                sourceModelReference.RelativePath,
+                TargetPlatformId,
+                settings,
+                context.WorldScale);
+            if (MeshTessellationVariantReferencesByIdentity.TryGetValue(identity, out SceneAssetReference existingReference)) {
+                rewrittenSaveState.SetAssetReference(nameof(MeshComponent.Model), existingReference);
+                return;
+            }
+
+            string sourceModelPath = ResolvePackagedModelAssetPath(buildRootPath, sourceModelReference.RelativePath);
+            ModelAsset sourceModelAsset = LoadPackagedModelAsset(sourceModelPath, sourceModelReference.RelativePath, sourceRecord.ComponentKey);
+            ModelTessellationProcessor.Apply(sourceModelAsset, settings.TessellationMaxEdgeLength, context.WorldScale);
+            string variantRelativePath = BuildMeshTessellationVariantRelativePath(identity);
+            WriteAsset(Path.Combine(buildRootPath, variantRelativePath), sourceModelAsset);
+            SceneAssetReference variantReference = CreateFileSystemReference(BuildRuntimeModelReferenceRelativePath(variantRelativePath));
+            MeshTessellationVariantReferencesByIdentity.Add(identity, variantReference);
+            rewrittenSaveState.SetAssetReference(nameof(MeshComponent.Model), variantReference);
+        }
+
+        /// <summary>
+        /// Resolves a runtime model reference to the physical file within the active build root.
+        /// Rooted runtime references are valid for platforms such as PS2, but must not cause <see cref="Path.Combine(string, string)"/>
+        /// to discard the build root while locating the already cooked model.
+        /// </summary>
+        /// <param name="buildRootPath">Absolute root directory of the active platform build.</param>
+        /// <param name="runtimeReferencePath">Runtime model reference path, which may begin with a root separator.</param>
+        /// <returns>Absolute physical path of the packaged model asset.</returns>
+        string ResolvePackagedModelAssetPath(string buildRootPath, string runtimeReferencePath) {
+            string packagedRelativePath = runtimeReferencePath.TrimStart('/', '\\');
+            return Path.Combine(buildRootPath, packagedRelativePath);
+        }
+
+        /// <summary>
+        /// Loads the already platform-processed model written by normal packaging so component tessellation never mutates an imported source asset.
+        /// </summary>
+        /// <param name="sourceModelPath">Absolute packaged model path.</param>
+        /// <param name="sourceModelReferencePath">Runtime reference path used for diagnostics.</param>
+        /// <param name="componentKey">Stable component key used for diagnostics.</param>
+        /// <returns>Independent model asset instance that can safely be tessellated.</returns>
+        ModelAsset LoadPackagedModelAsset(string sourceModelPath, string sourceModelReferencePath, string componentKey) {
+            if (!File.Exists(sourceModelPath)) {
+                throw new InvalidOperationException($"MeshComponent tessellation source model '{sourceModelReferencePath}' was not written before variant generation. Component='{componentKey}'.");
+            }
+
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
+            try {
+                EngineBinaryReadContext.CurrentAssetPath = sourceModelPath;
+                using FileStream stream = File.OpenRead(sourceModelPath);
+                if (AssetSerializer.Deserialize(stream) is not ModelAsset modelAsset) {
+                    throw new InvalidOperationException($"MeshComponent tessellation source model '{sourceModelReferencePath}' is not a ModelAsset. Component='{componentKey}'.");
+                }
+
+                return modelAsset;
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
+            }
+        }
+
+        /// <summary>
+        /// Builds the deterministic generated output path for one component tessellation variant identity.
+        /// </summary>
+        /// <param name="identity">Stable variant identity that distinguishes source model, platform, settings, and world scale.</param>
+        /// <returns>Build-root-relative generated model path.</returns>
+        static string BuildMeshTessellationVariantRelativePath(string identity) {
+            if (string.IsNullOrWhiteSpace(identity)) {
+                throw new ArgumentException("Variant identity must be provided.", nameof(identity));
+            }
+
+            byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
+            string hash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+            return string.Concat("cooked/generated/models/tessellation/", hash, ".hasset");
         }
 
         /// <summary>
@@ -1274,21 +1452,27 @@ namespace helengine.editor {
                 MaterialAssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath, materialAsset);
                 PlatformMaterialCookRequest cookRequest = BuildMaterialCookRequest(reference, materialAsset, materialSettings);
                 PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(cookRequest);
-                RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
+                RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
 
                 CopyReferencedDiffuseTextureAsset(fullPath, ResolveReferencedDiffuseTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 CopyReferencedEmissiveTextureAsset(fullPath, ResolveReferencedEmissiveTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 CopyReferencedRoughnessTextureAsset(fullPath, ResolveReferencedRoughnessTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 WriteBytes(Path.Combine(buildRootPath, cookedRelativePath), cookResult.CookedMaterialBytes);
+                ReportMaterialOutput(cookedRelativePath, materialAsset.Id);
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
-            RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
+            RememberReferencedShaderDependency(new PlatformShaderDependency(
+                materialAsset.ShaderAssetId,
+                materialAsset.VertexProgram,
+                materialAsset.PixelProgram,
+                materialAsset.Variant));
             CopyReferencedDiffuseTextureAsset(fullPath, materialAsset, buildRootPath);
             CopyReferencedEmissiveTextureAsset(fullPath, materialAsset, buildRootPath);
             CopyReferencedRoughnessTextureAsset(fullPath, materialAsset, buildRootPath);
 
             WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), materialAsset);
+            ReportMaterialOutput(cookedRelativePath, materialAsset.Id);
             return CreateFileSystemReference(cookedRelativePath);
         }
 
@@ -1904,6 +2088,9 @@ namespace helengine.editor {
                 ? new Dictionary<string, string>(materialSettings.FieldValues, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+            fieldValues["casts-shadows"] = materialAsset.CastsShadows ? "true" : "false";
+            fieldValues["receives-shadows"] = materialAsset.ReceivesShadows ? "true" : "false";
+
             bool useCustomShader = IsCustomShaderEnabled(fieldValues);
             bool usesCookedPlatformOwnedMaterialResolution = UsesCookedPlatformOwnedMaterialResolution();
             if (IsStandardShaderSchema(materialSettings.SchemaId) && !useCustomShader) {
@@ -2067,6 +2254,7 @@ namespace helengine.editor {
                 ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
                 shaderAssetId = shaderAsset.Id;
                 WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
+                ReportShaderOutput(StandardGeneratedShaderRelativePath, shaderAssetId);
             } else if (MaterialBuilder == null) {
                 throw new InvalidOperationException("PS2 generated standard materials require a material builder.");
             }
@@ -2087,6 +2275,7 @@ namespace helengine.editor {
                     ]
                 };
                 WriteAsset(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), materialAsset);
+                ReportMaterialOutput(StandardGeneratedMaterialRelativePath, StandardGeneratedMaterialAssetId);
                 return;
             }
 
@@ -2106,8 +2295,9 @@ namespace helengine.editor {
                 SelectedGraphicsProfileId,
                 standardMaterialSettings.SchemaId,
                 standardMaterialFieldValues));
-            RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
+            RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
             WriteBytes(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), cookResult.CookedMaterialBytes);
+            ReportMaterialOutput(StandardGeneratedMaterialRelativePath, StandardGeneratedMaterialAssetId);
         }
 
         /// <summary>
@@ -2118,7 +2308,59 @@ namespace helengine.editor {
             return !UsesCookedPlatformOwnedMaterialResolution();
         }
 
+        /// <summary>
+        /// Reports one material file immediately after it has been written into the cooked content root.
+        /// </summary>
+        /// <param name="cookedRelativePath">Runtime-relative cooked material file path.</param>
+        /// <param name="materialAssetId">Stable authored or generated material identity.</param>
+        void ReportMaterialOutput(string cookedRelativePath, string materialAssetId) {
+            ReportCookedArtifactOutput(cookedRelativePath, materialAssetId, "material");
+        }
+
+        /// <summary>
+        /// Reports one shader file immediately after it has been written into the cooked content root.
+        /// </summary>
+        /// <param name="cookedRelativePath">Runtime-relative cooked shader file path.</param>
+        /// <param name="shaderAssetId">Stable shader asset identity.</param>
+        void ReportShaderOutput(string cookedRelativePath, string shaderAssetId) {
+            ReportCookedArtifactOutput(cookedRelativePath, shaderAssetId, "shader");
+        }
+
+        /// <summary>
+        /// Reports one explicit material or shader output when the parent packager supplied an output sink.
+        /// </summary>
+        /// <param name="cookedRelativePath">Runtime-relative cooked output file path.</param>
+        /// <param name="logicalArtifactId">Stable material or shader identity.</param>
+        /// <param name="artifactKind">Declared material or shader artifact kind.</param>
+        void ReportCookedArtifactOutput(string cookedRelativePath, string logicalArtifactId, string artifactKind) {
+            if (CookedArtifactDeclarationSink == null) {
+                return;
+            } else if (string.IsNullOrWhiteSpace(logicalArtifactId)) {
+                throw new InvalidOperationException($"Cooked {artifactKind} '{cookedRelativePath}' must include a stable artifact id.");
+            }
+
+            string variantId = string.IsNullOrWhiteSpace(TargetPlatformId) ? "shared" : TargetPlatformId;
+            CookedArtifactDeclarationSink(new PlatformCookedArtifactDeclaration(
+                NormalizeRelativePath(cookedRelativePath),
+                logicalArtifactId,
+                artifactKind,
+                variantId));
+        }
+
         void RememberReferencedShaderAssetId(string shaderAssetId) {
+            RememberReferencedShaderDependency(new PlatformShaderDependency(shaderAssetId, string.Empty, string.Empty, string.Empty));
+        }
+
+        /// <summary>
+        /// Records one complete material shader dependency locally and forwards it to the owning scene packager when present.
+        /// </summary>
+        /// <param name="dependency">Shader dependency reported by material cooking or a generic material asset.</param>
+        void RememberReferencedShaderDependency(PlatformShaderDependency dependency) {
+            if (dependency == null) {
+                throw new ArgumentNullException(nameof(dependency));
+            }
+
+            string shaderAssetId = dependency.ShaderAssetId;
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new InvalidOperationException("Material assets used by packaged scenes must include a shader asset id.");
             }
@@ -2126,6 +2368,8 @@ namespace helengine.editor {
             if (ReferencedShaderAssetIdsSet.Add(shaderAssetId)) {
                 ReferencedShaderAssetIds.Add(shaderAssetId);
             }
+
+            ShaderDependencySink?.Invoke(dependency);
         }
 
         /// <summary>
@@ -2148,6 +2392,20 @@ namespace helengine.editor {
                 ResolveRuntimeReferencePath(relativePath),
                 string.Empty,
                 string.Empty);
+        }
+
+        /// <summary>
+        /// Records complete shader dependencies returned by one builder-owned material cook result.
+        /// </summary>
+        /// <param name="shaderDependencies">Complete shader dependencies to record.</param>
+        void RememberReferencedShaderDependencies(IReadOnlyList<PlatformShaderDependency> shaderDependencies) {
+            if (shaderDependencies == null) {
+                throw new ArgumentNullException(nameof(shaderDependencies));
+            }
+
+            for (int index = 0; index < shaderDependencies.Count; index++) {
+                RememberReferencedShaderDependency(shaderDependencies[index]);
+            }
         }
 
         /// <summary>

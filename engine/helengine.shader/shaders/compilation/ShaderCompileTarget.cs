@@ -26,6 +26,16 @@ namespace helengine {
         /// <summary>
         /// Metal shader library target.
         /// </summary>
-        Metal
+        Metal,
+
+        /// <summary>
+        /// PlayStation Vita shader artifact target compiled by the device-backed compiler.
+        /// </summary>
+        PsVita,
+
+        /// <summary>
+        /// Wii U GLSL source target compiled into GX2 binaries by the platform build.
+        /// </summary>
+        WiiU
     }
 }

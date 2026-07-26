@@ -54,6 +54,14 @@ namespace helengine.editor {
         /// </summary>
         const string FlipWindingLabel = "Flip Winding";
         /// <summary>
+        /// Label text used for the model tessellation toggle.
+        /// </summary>
+        const string TessellateLabel = "Tessellate";
+        /// <summary>
+        /// Label text used for the model tessellation edge-length setting.
+        /// </summary>
+        const string TessellationMaxEdgeLengthLabel = "Tessellation Max Edge Length";
+        /// <summary>
         /// Label text used for the texture max-resolution processor setting.
         /// </summary>
         const string TextureMaxResolutionLabel = "Max Resolution";
@@ -162,6 +170,38 @@ namespace helengine.editor {
         /// Checkbox used to edit the flip-winding processor setting on the selected platform.
         /// </summary>
         readonly CheckBoxComponent FlipWindingCheckBox;
+        /// <summary>
+        /// Host entity for the tessellation label.
+        /// </summary>
+        readonly EditorEntity TessellateLabelHost;
+        /// <summary>
+        /// Text component used to render the tessellation label.
+        /// </summary>
+        readonly TextComponent TessellateLabelText;
+        /// <summary>
+        /// Host entity for the tessellation checkbox control.
+        /// </summary>
+        readonly EditorEntity TessellateCheckBoxHost;
+        /// <summary>
+        /// Checkbox used to edit the tessellation processor setting on the selected platform.
+        /// </summary>
+        readonly CheckBoxComponent TessellateCheckBox;
+        /// <summary>
+        /// Host entity for the tessellation edge-length label.
+        /// </summary>
+        readonly EditorEntity TessellationMaxEdgeLengthLabelHost;
+        /// <summary>
+        /// Text component used to render the tessellation edge-length label.
+        /// </summary>
+        readonly TextComponent TessellationMaxEdgeLengthLabelText;
+        /// <summary>
+        /// Host entity for the tessellation edge-length textbox.
+        /// </summary>
+        readonly EditorEntity TessellationMaxEdgeLengthTextBoxHost;
+        /// <summary>
+        /// Textbox used to edit the tessellation maximum edge length on the selected platform.
+        /// </summary>
+        readonly TextBoxComponent TessellationMaxEdgeLengthTextBox;
         /// <summary>
         /// Host entity for the max-resolution label.
         /// </summary>
@@ -412,6 +452,44 @@ namespace helengine.editor {
             FlipWindingCheckBox.CheckedChanged += (component, isChecked) => HandleFlipWindingCheckedChanged(isChecked);
             FlipWindingCheckBoxHost.AddComponent(FlipWindingCheckBox);
 
+            TessellateLabelHost = new EditorEntity();
+            TessellateLabelHost.LayerMask = layerMask;
+            RootEntity.AddChild(TessellateLabelHost);
+
+            TessellateLabelText = new TextComponent();
+            TessellateLabelText.Font = font;
+            TessellateLabelText.Text = TessellateLabel;
+            TessellateLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            TessellateLabelText.RenderOrder2D = TextOrder;
+            TessellateLabelHost.AddComponent(TessellateLabelText);
+
+            TessellateCheckBoxHost = new EditorEntity();
+            TessellateCheckBoxHost.LayerMask = layerMask;
+            RootEntity.AddChild(TessellateCheckBoxHost);
+
+            TessellateCheckBox = new CheckBoxComponent(new int2(FlipWindingCheckBoxSize, FlipWindingCheckBoxSize), font);
+            TessellateCheckBox.CheckedChanged += (component, isChecked) => HandleTessellateCheckedChanged(isChecked);
+            TessellateCheckBoxHost.AddComponent(TessellateCheckBox);
+
+            TessellationMaxEdgeLengthLabelHost = new EditorEntity();
+            TessellationMaxEdgeLengthLabelHost.LayerMask = layerMask;
+            RootEntity.AddChild(TessellationMaxEdgeLengthLabelHost);
+
+            TessellationMaxEdgeLengthLabelText = new TextComponent();
+            TessellationMaxEdgeLengthLabelText.Font = font;
+            TessellationMaxEdgeLengthLabelText.Text = TessellationMaxEdgeLengthLabel;
+            TessellationMaxEdgeLengthLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            TessellationMaxEdgeLengthLabelText.RenderOrder2D = TextOrder;
+            TessellationMaxEdgeLengthLabelHost.AddComponent(TessellationMaxEdgeLengthLabelText);
+
+            TessellationMaxEdgeLengthTextBoxHost = new EditorEntity();
+            TessellationMaxEdgeLengthTextBoxHost.LayerMask = layerMask;
+            RootEntity.AddChild(TessellationMaxEdgeLengthTextBoxHost);
+
+            TessellationMaxEdgeLengthTextBox = new TextBoxComponent(new int2(80, ControlHeight), font);
+            TessellationMaxEdgeLengthTextBox.TextChanged += HandleTessellationMaxEdgeLengthTextChanged;
+            TessellationMaxEdgeLengthTextBoxHost.AddComponent(TessellationMaxEdgeLengthTextBox);
+
             TextureMaxResolutionLabelHost = new EditorEntity();
             TextureMaxResolutionLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(TextureMaxResolutionLabelHost);
@@ -582,6 +660,21 @@ namespace helengine.editor {
         public bool CurrentFlipWindingValue => GetPendingPlatformSettings(CurrentPlatformId).Model.FlipWinding;
 
         /// <summary>
+        /// Gets the current pending tessellation value for the selected platform.
+        /// </summary>
+        public bool CurrentTessellateValue => GetPendingPlatformSettings(CurrentPlatformId).Model.Tessellate;
+
+        /// <summary>
+        /// Gets the current pending tessellation maximum edge length for the selected platform.
+        /// </summary>
+        public double CurrentTessellationMaxEdgeLengthValue => GetPendingPlatformSettings(CurrentPlatformId).Model.TessellationMaxEdgeLength;
+
+        /// <summary>
+        /// Gets whether the tessellation maximum edge-length control is visible for the selected platform.
+        /// </summary>
+        public bool IsTessellationMaxEdgeLengthVisible => IsModelProcessorVisible && GetPendingPlatformSettings(CurrentPlatformId).Model.Tessellate;
+
+        /// <summary>
         /// Gets the current pending max-resolution value for the selected platform texture settings.
         /// </summary>
         public int CurrentTextureMaxResolutionValue => GetActiveTextureProcessorSettings().MaxResolution;
@@ -722,6 +815,19 @@ namespace helengine.editor {
 
                 FlipWindingCheckBoxHost.Position = new float3(Math.Max(ProcessorPanelPadding, width - ProcessorPanelPadding - FlipWindingCheckBoxSize), currentTop, 0.1f);
                 currentTop += ControlHeight + RowSpacing;
+
+                TessellateLabelHost.Position = new float3(ProcessorPanelPadding, currentTop + labelOffsetY, 0.1f);
+                TessellateLabelText.Size = new int2(Math.Max(1, width - (ProcessorPanelPadding * 2)), labelHeight);
+                TessellateCheckBoxHost.Position = new float3(Math.Max(ProcessorPanelPadding, width - ProcessorPanelPadding - FlipWindingCheckBoxSize), currentTop, 0.1f);
+                currentTop += ControlHeight + RowSpacing;
+
+                int modelControlLeft = ProcessorPanelPadding + ProcessorFieldLabelWidth + ProcessorPanelPadding;
+                int modelControlWidth = Math.Max(1, width - modelControlLeft - ProcessorPanelPadding);
+                TessellationMaxEdgeLengthLabelHost.Position = new float3(ProcessorPanelPadding, currentTop + labelOffsetY, 0.1f);
+                TessellationMaxEdgeLengthLabelText.Size = new int2(ProcessorFieldLabelWidth, labelHeight);
+                TessellationMaxEdgeLengthTextBoxHost.Position = new float3(modelControlLeft, currentTop, 0.1f);
+                TessellationMaxEdgeLengthTextBox.Size = new int2(modelControlWidth, ControlHeight);
+                currentTop += ControlHeight + RowSpacing;
             }
 
             if (IsTextureProcessorVisible) {
@@ -848,6 +954,33 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Applies one tessellation checkbox value to the currently selected platform.
+        /// </summary>
+        /// <param name="isChecked">Checkbox value to apply.</param>
+        void HandleTessellateCheckedChanged(bool isChecked) {
+            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
+            platformSettings.Model.Tessellate = isChecked;
+            UpdateControlState();
+            UpdateStatusText();
+        }
+
+        /// <summary>
+        /// Applies one tessellation maximum edge-length textbox value to the currently selected platform.
+        /// </summary>
+        /// <param name="component">Text box that raised the change event.</param>
+        void HandleTessellationMaxEdgeLengthTextChanged(TextBoxComponent component) {
+            if (!double.TryParse(component.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double maximumEdgeLength)) {
+                return;
+            } else if (double.IsNaN(maximumEdgeLength) || double.IsInfinity(maximumEdgeLength) || maximumEdgeLength <= 0d) {
+                throw new InvalidOperationException("Model tessellation maximum edge length must be finite and greater than zero.");
+            }
+
+            AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
+            platformSettings.Model.TessellationMaxEdgeLength = maximumEdgeLength;
+            UpdateStatusText();
+        }
+
+        /// <summary>
         /// Applies one color-format combo-box value to the currently selected platform texture settings.
         /// </summary>
         /// <param name="selectedIndex">Selected color-format index.</param>
@@ -957,6 +1090,11 @@ namespace helengine.editor {
             bool showFontProcessor = IsFontProcessorVisible;
             FlipWindingLabelHost.Enabled = showModelProcessor;
             FlipWindingCheckBoxHost.Enabled = showModelProcessor;
+            TessellateLabelHost.Enabled = showModelProcessor;
+            TessellateCheckBoxHost.Enabled = showModelProcessor;
+            bool showTessellationMaxEdgeLength = showModelProcessor && GetPendingPlatformSettings(CurrentPlatformId).Model.Tessellate;
+            TessellationMaxEdgeLengthLabelHost.Enabled = showTessellationMaxEdgeLength;
+            TessellationMaxEdgeLengthTextBoxHost.Enabled = showTessellationMaxEdgeLength;
             TextureMaxResolutionLabelHost.Enabled = showTextureProcessor;
             TextureMaxResolutionTextBoxHost.Enabled = showTextureProcessor;
             TextureColorFormatLabelHost.Enabled = showTextureProcessor;
@@ -969,7 +1107,10 @@ namespace helengine.editor {
             FontPixelSizeTextBoxHost.Enabled = showFontProcessor;
 
             if (showModelProcessor) {
-                FlipWindingCheckBox.IsChecked = GetPendingPlatformSettings(CurrentPlatformId).Model.FlipWinding;
+                ModelAssetProcessorSettings modelSettings = GetPendingPlatformSettings(CurrentPlatformId).Model;
+                FlipWindingCheckBox.IsChecked = modelSettings.FlipWinding;
+                TessellateCheckBox.IsChecked = modelSettings.Tessellate;
+                TessellationMaxEdgeLengthTextBox.Text = modelSettings.TessellationMaxEdgeLength.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
             }
 
             if (showTextureProcessor) {
@@ -1504,6 +1645,8 @@ namespace helengine.editor {
             }
 
             clone.FlipWinding = modelSettings.FlipWinding;
+            clone.Tessellate = modelSettings.Tessellate;
+            clone.TessellationMaxEdgeLength = modelSettings.TessellationMaxEdgeLength;
             return clone;
         }
 

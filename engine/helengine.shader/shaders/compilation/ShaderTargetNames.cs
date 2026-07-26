@@ -20,6 +20,8 @@ namespace helengine {
                     return "vulkan";
                 case ShaderCompileTarget.Metal:
                     return "metal";
+                case ShaderCompileTarget.WiiU:
+                    return "wiiu";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(target), "Unsupported compile target.");
             }
@@ -52,6 +54,9 @@ namespace helengine {
                     return true;
                 case "metal":
                     target = ShaderCompileTarget.Metal;
+                    return true;
+                case "wiiu":
+                    target = ShaderCompileTarget.WiiU;
                     return true;
                 default:
                     target = ShaderCompileTarget.DirectX11;

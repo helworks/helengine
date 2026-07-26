@@ -80,6 +80,11 @@ namespace helengine.editor {
         public PlatformComponentMemberDescriptor PlatformComponentMemberDescriptor { get; set; }
 
         /// <summary>
+        /// Gets or sets the stable editor-only member name for a row whose value is persisted outside the runtime component schema.
+        /// </summary>
+        public string EditorOnlyMemberName { get; set; }
+
+        /// <summary>
         /// Gets or sets the stable custom editor type identifier when this row participates in a provider-backed editor.
         /// </summary>
         public string CustomEditorTypeId { get; set; }

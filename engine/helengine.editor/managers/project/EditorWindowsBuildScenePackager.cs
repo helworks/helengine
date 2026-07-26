@@ -243,9 +243,17 @@ namespace helengine.editor {
         /// </summary>
         readonly List<string> ReferencedShaderAssetIds;
         /// <summary>
+        /// Material-reported shader dependencies including selected program-pair lookup keys.
+        /// </summary>
+        readonly List<PlatformShaderDependency> ReferencedShaderDependencies;
+        /// <summary>
         /// Builder-owned platform cook work items discovered while packaging the current scene set.
         /// </summary>
         readonly List<PlatformCookWorkItem> PlatformCookWorkItems;
+        /// <summary>
+        /// Explicit declarations for material and shader files written while packaging the current scene set.
+        /// </summary>
+        readonly List<PlatformCookedArtifactDeclaration> CookedArtifactDeclarations;
 
         /// <summary>
         /// Importer registrations supplied by the editor host for source-backed asset loading.
@@ -257,9 +265,17 @@ namespace helengine.editor {
         /// </summary>
         readonly HashSet<string> ReferencedShaderAssetIdsSet;
         /// <summary>
+        /// Fast lookup used to deduplicate complete material shader dependencies while preserving discovery order.
+        /// </summary>
+        readonly HashSet<string> ReferencedShaderDependencyKeys;
+        /// <summary>
         /// Fast lookup used to deduplicate platform cook work items while preserving discovery order.
         /// </summary>
         readonly HashSet<string> PlatformCookWorkItemIds;
+        /// <summary>
+        /// Lookup used to reject conflicting declarations for the same cooked output path.
+        /// </summary>
+        readonly Dictionary<string, PlatformCookedArtifactDeclaration> CookedArtifactDeclarationsByPath;
 
         /// <summary>
         /// Builder-provided component support metadata keyed by serialized type id.
@@ -532,9 +548,13 @@ namespace helengine.editor {
             }
             FileSystemModelResolver = new EditorFileSystemModelResolver(AssetImportManager);
             ReferencedShaderAssetIds = new List<string>();
+            ReferencedShaderDependencies = new List<PlatformShaderDependency>();
             ReferencedShaderAssetIdsSet = new HashSet<string>(StringComparer.Ordinal);
+            ReferencedShaderDependencyKeys = new HashSet<string>(StringComparer.Ordinal);
             PlatformCookWorkItems = new List<PlatformCookWorkItem>();
             PlatformCookWorkItemIds = new HashSet<string>(StringComparer.Ordinal);
+            CookedArtifactDeclarations = new List<PlatformCookedArtifactDeclaration>();
+            CookedArtifactDeclarationsByPath = new Dictionary<string, PlatformCookedArtifactDeclaration>(StringComparer.OrdinalIgnoreCase);
             PlatformId = effectiveTargetPlatformId;
             PlatformDefinition = platformDefinition;
             FileHasher = new AssetFileHasher();
@@ -569,7 +589,9 @@ namespace helengine.editor {
                 workItem => RememberPlatformCookWorkItem(workItem),
                 platformDefinition,
                 effectiveTextComponentSpriteBakeService,
-                StaticMeshCollisionCookProcessorRegistry.Shared);
+                StaticMeshCollisionCookProcessorRegistry.Shared,
+                declaration => RememberCookedArtifactDeclaration(declaration),
+                dependency => RememberReferencedShaderDependency(dependency));
         }
 
         /// <summary>
@@ -613,9 +635,13 @@ namespace helengine.editor {
             Directory.CreateDirectory(fullBuildRootPath);
 
             ReferencedShaderAssetIds.Clear();
+            ReferencedShaderDependencies.Clear();
             ReferencedShaderAssetIdsSet.Clear();
+            ReferencedShaderDependencyKeys.Clear();
             PlatformCookWorkItems.Clear();
             PlatformCookWorkItemIds.Clear();
+            CookedArtifactDeclarations.Clear();
+            CookedArtifactDeclarationsByPath.Clear();
             EnsureGeneratedStandardMaterialAssets(fullBuildRootPath);
 
             for (int index = 0; index < sceneIds.Count; index++) {
@@ -624,6 +650,7 @@ namespace helengine.editor {
                 SceneAsset packagedSceneAsset = LoadSceneAsset(sceneId, sceneSourcePath);
                 PruneEntitySubtreesForTargetPlatform(packagedSceneAsset);
                 BlueprintExpansionService.Expand(packagedSceneAsset);
+                PruneEntitySubtreesForTargetPlatform(packagedSceneAsset);
                 packagedSceneAsset.Id = sceneId;
                 RewriteSceneAsset(packagedSceneAsset, fullBuildRootPath);
 
@@ -631,11 +658,11 @@ namespace helengine.editor {
                 WriteAsset(Path.Combine(fullBuildRootPath, packagedSceneRelativePath), packagedSceneAsset);
             }
 
-            return new EditorPlatformBuildScenePackagerResult(ReferencedShaderAssetIds, PlatformCookWorkItems);
+            return new EditorPlatformBuildScenePackagerResult(ReferencedShaderAssetIds, PlatformCookWorkItems, CookedArtifactDeclarations, ReferencedShaderDependencies);
         }
 
         /// <summary>
-        /// Removes scene entity subtrees excluded from the selected platform before Blueprint expansion and dependency collection.
+        /// Removes scene entity subtrees excluded from the selected platform before and after Blueprint expansion so generated descendants obey their authored platform restrictions.
         /// </summary>
         /// <param name="sceneAsset">Loaded authored scene to prune in place.</param>
         void PruneEntitySubtreesForTargetPlatform(SceneAsset sceneAsset) {
@@ -735,7 +762,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                RewriteEntityAsset(rootEntityAsset, buildRootPath);
+                RewriteEntityAsset(rootEntityAsset, buildRootPath, float3.One);
                 rewrittenRootEntities.Add(rootEntityAsset);
             }
             sceneAsset.RootEntities = rewrittenRootEntities.ToArray();
@@ -755,7 +782,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entityAsset">Scene entity payload to rewrite.</param>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        void RewriteEntityAsset(SceneEntityAsset entityAsset, string buildRootPath) {
+        /// <param name="parentWorldScale">Final static world scale accumulated from the parent entity hierarchy.</param>
+        void RewriteEntityAsset(SceneEntityAsset entityAsset, string buildRootPath, float3 parentWorldScale) {
             if (entityAsset == null) {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
@@ -764,9 +792,10 @@ namespace helengine.editor {
             entityAsset.PlatformExistenceOverrides = Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
             ApplyTargetPlatformTransformOverride(entityAsset);
             ApplyTargetPlatformComponentOverrides(entityAsset);
+            float3 worldScale = entityAsset.LocalScale * parentWorldScale;
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < componentRecords.Length; index++) {
-                componentRecords[index] = RewriteComponentRecord(componentRecords[index], buildRootPath);
+                componentRecords[index] = RewriteComponentRecord(componentRecords[index], buildRootPath, worldScale);
             }
 
             SceneEntityAsset[] childEntityAssets = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
@@ -777,7 +806,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                RewriteEntityAsset(childEntityAsset, buildRootPath);
+                RewriteEntityAsset(childEntityAsset, buildRootPath, worldScale);
                 rewrittenChildEntityAssets.Add(childEntityAsset);
             }
             entityAsset.Children = rewrittenChildEntityAssets.ToArray();
@@ -1184,8 +1213,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="record">Component record to rewrite.</param>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <param name="worldScale">Final static world scale of the component's owning entity.</param>
         /// <returns>Rewritten component record.</returns>
-        SceneComponentAssetRecord RewriteComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
+        SceneComponentAssetRecord RewriteComponentRecord(SceneComponentAssetRecord record, string buildRootPath, float3 worldScale) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
@@ -1196,7 +1226,7 @@ namespace helengine.editor {
             }
 
             if (supportRule.SupportKind == PlatformComponentSupportKind.Transform) {
-                if (TransformService.TryTransform(record, buildRootPath, out SceneComponentAssetRecord transformedRecord)) {
+                if (TransformService.TryTransform(record, buildRootPath, new SceneComponentPackagingTransformContext(worldScale), out SceneComponentAssetRecord transformedRecord)) {
                     return transformedRecord;
                 }
 
@@ -1806,21 +1836,27 @@ namespace helengine.editor {
                 MaterialAssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath, materialAsset);
                 PlatformMaterialCookRequest cookRequest = BuildMaterialCookRequest(reference, materialAsset, materialSettings);
                 PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(cookRequest);
-                RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
+                RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
 
                 CopyReferencedDiffuseTextureAsset(fullPath, ResolveReferencedDiffuseTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 CopyReferencedEmissiveTextureAsset(fullPath, ResolveReferencedEmissiveTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 CopyReferencedRoughnessTextureAsset(fullPath, ResolveReferencedRoughnessTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 WriteBytes(Path.Combine(buildRootPath, cookedRelativePath), cookResult.CookedMaterialBytes);
+                RememberMaterialOutput(cookedRelativePath, materialAsset.Id);
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
-            RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
+            RememberReferencedShaderDependency(new PlatformShaderDependency(
+                materialAsset.ShaderAssetId,
+                materialAsset.VertexProgram,
+                materialAsset.PixelProgram,
+                materialAsset.Variant));
             CopyReferencedDiffuseTextureAsset(fullPath, materialAsset, buildRootPath);
             CopyReferencedEmissiveTextureAsset(fullPath, materialAsset, buildRootPath);
             CopyReferencedRoughnessTextureAsset(fullPath, materialAsset, buildRootPath);
 
             WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), materialAsset);
+            RememberMaterialOutput(cookedRelativePath, materialAsset.Id);
             return CreateFileSystemReference(cookedRelativePath);
         }
 
@@ -2544,6 +2580,7 @@ namespace helengine.editor {
                 ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
                 shaderAssetId = shaderAsset.Id;
                 WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
+                RememberShaderOutput(StandardGeneratedShaderRelativePath, shaderAssetId);
             } else if (MaterialBuilder == null) {
                 throw new InvalidOperationException("Generated standard materials for cooked-platform-owned builders require a material builder.");
             }
@@ -2564,6 +2601,7 @@ namespace helengine.editor {
                     ]
                 };
                 WriteAsset(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), materialAsset);
+                RememberMaterialOutput(StandardGeneratedMaterialRelativePath, StandardGeneratedMaterialAssetId);
                 return;
             }
 
@@ -2583,8 +2621,9 @@ namespace helengine.editor {
                 SelectedGraphicsProfileId,
                 standardMaterialSettings.SchemaId,
                 standardMaterialFieldValues));
-            RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
+            RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
             WriteBytes(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), cookResult.CookedMaterialBytes);
+            RememberMaterialOutput(StandardGeneratedMaterialRelativePath, StandardGeneratedMaterialAssetId);
         }
 
         /// <summary>
@@ -2596,16 +2635,93 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Records one material output immediately after its bytes have been written into the cooked content root.
+        /// </summary>
+        /// <param name="cookedRelativePath">Runtime-relative cooked material path.</param>
+        /// <param name="materialAssetId">Stable authored or generated material identity.</param>
+        void RememberMaterialOutput(string cookedRelativePath, string materialAssetId) {
+            if (string.IsNullOrWhiteSpace(materialAssetId)) {
+                throw new InvalidOperationException($"Cooked material '{cookedRelativePath}' must include a stable material id.");
+            }
+
+            string variantId = string.IsNullOrWhiteSpace(TargetPlatformId) ? "shared" : TargetPlatformId;
+            RememberCookedArtifactDeclaration(new PlatformCookedArtifactDeclaration(
+                NormalizeRelativePath(cookedRelativePath),
+                materialAssetId,
+                "material",
+                variantId));
+        }
+
+        /// <summary>
+        /// Records one generated or staged shader output immediately after its bytes have been written into the cooked content root.
+        /// </summary>
+        /// <param name="cookedRelativePath">Runtime-relative cooked shader path.</param>
+        /// <param name="shaderAssetId">Stable shader identity.</param>
+        void RememberShaderOutput(string cookedRelativePath, string shaderAssetId) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new InvalidOperationException($"Cooked shader '{cookedRelativePath}' must include a stable shader id.");
+            }
+
+            string variantId = string.IsNullOrWhiteSpace(TargetPlatformId) ? "shared" : TargetPlatformId;
+            RememberCookedArtifactDeclaration(new PlatformCookedArtifactDeclaration(
+                NormalizeRelativePath(cookedRelativePath),
+                shaderAssetId,
+                "shader",
+                variantId));
+        }
+
+        /// <summary>
+        /// Records one explicit cooked material or shader output and rejects conflicting ownership for the same path.
+        /// </summary>
+        /// <param name="declaration">Producer-declared cooked artifact identity.</param>
+        void RememberCookedArtifactDeclaration(PlatformCookedArtifactDeclaration declaration) {
+            if (declaration == null) {
+                throw new ArgumentNullException(nameof(declaration));
+            }
+
+            if (CookedArtifactDeclarationsByPath.TryGetValue(declaration.RelativePath, out PlatformCookedArtifactDeclaration existingDeclaration)) {
+                if (string.Equals(existingDeclaration.LogicalArtifactId, declaration.LogicalArtifactId, StringComparison.Ordinal)
+                    && string.Equals(existingDeclaration.ArtifactKind, declaration.ArtifactKind, StringComparison.Ordinal)
+                    && string.Equals(existingDeclaration.VariantId, declaration.VariantId, StringComparison.Ordinal)) {
+                    return;
+                }
+
+                throw new InvalidOperationException($"Cooked artifact path '{declaration.RelativePath}' was declared with conflicting identities.");
+            }
+
+            CookedArtifactDeclarationsByPath.Add(declaration.RelativePath, declaration);
+            CookedArtifactDeclarations.Add(declaration);
+        }
+
+        /// <summary>
         /// Tracks one referenced shader asset id if it has not already been recorded.
         /// </summary>
         /// <param name="shaderAssetId">Referenced shader asset identifier.</param>
         void RememberReferencedShaderAssetId(string shaderAssetId) {
+            RememberReferencedShaderDependency(new PlatformShaderDependency(shaderAssetId, string.Empty, string.Empty, string.Empty));
+        }
+
+        /// <summary>
+        /// Tracks one complete material-reported shader dependency while preserving the legacy deduplicated shader-id view.
+        /// </summary>
+        /// <param name="dependency">Shader dependency reported by one material cook operation.</param>
+        void RememberReferencedShaderDependency(PlatformShaderDependency dependency) {
+            if (dependency == null) {
+                throw new ArgumentNullException(nameof(dependency));
+            }
+
+            string shaderAssetId = dependency.ShaderAssetId;
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new InvalidOperationException("Material assets used by packaged scenes must include a shader asset id.");
             }
 
             if (ReferencedShaderAssetIdsSet.Add(shaderAssetId)) {
                 ReferencedShaderAssetIds.Add(shaderAssetId);
+            }
+
+            string dependencyKey = string.Concat(shaderAssetId, "\n", dependency.VertexProgramName, "\n", dependency.PixelProgramName, "\n", dependency.VariantName);
+            if (ReferencedShaderDependencyKeys.Add(dependencyKey)) {
+                ReferencedShaderDependencies.Add(dependency);
             }
         }
 
@@ -2634,6 +2750,20 @@ namespace helengine.editor {
                 ResolveRuntimeReferencePath(relativePath),
                 string.Empty,
                 string.Empty);
+        }
+
+        /// <summary>
+        /// Tracks complete shader dependencies returned by one builder-owned material cook result.
+        /// </summary>
+        /// <param name="shaderDependencies">Complete shader dependencies to record.</param>
+        void RememberReferencedShaderDependencies(IReadOnlyList<PlatformShaderDependency> shaderDependencies) {
+            if (shaderDependencies == null) {
+                throw new ArgumentNullException(nameof(shaderDependencies));
+            }
+
+            for (int index = 0; index < shaderDependencies.Count; index++) {
+                RememberReferencedShaderDependency(shaderDependencies[index]);
+            }
         }
 
         /// <summary>

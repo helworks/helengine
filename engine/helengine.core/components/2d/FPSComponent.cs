@@ -506,7 +506,7 @@ namespace helengine {
             if (Initialized && core != null) {
                 UpdateFpsText = ResolveUpdateOverlayText(core, 0d);
                 RenderFpsText = ResolveRenderOverlayText(core, 0d, core.LastRenderManager3DDrawMilliseconds);
-                DetailFpsText = string.Empty;
+                DetailFpsText = ResolveDetailOverlayText(core);
             } else {
                 UpdateFpsText = "Update FPS: --";
                 RenderFpsText = "Render FPS: -- (-- ms)";
@@ -546,7 +546,7 @@ namespace helengine {
 
             UpdateFpsText = ResolveUpdateOverlayText(core, 0d);
             RenderFpsText = ResolveRenderOverlayText(core, 0d, core.LastRenderManager3DDrawMilliseconds);
-            DetailFpsText = string.Empty;
+            DetailFpsText = ResolveDetailOverlayText(core);
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Text = UpdateFpsText;
@@ -581,7 +581,7 @@ namespace helengine {
             double renderFps = RenderFrameCount / safeElapsedSeconds;
             UpdateFpsText = ResolveUpdateOverlayText(core, updateFps);
             RenderFpsText = ResolveRenderOverlayText(core, renderFps, core.LastRenderManager3DDrawMilliseconds);
-            DetailFpsText = string.Empty;
+            DetailFpsText = ResolveDetailOverlayText(core);
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Text = UpdateFpsText;
@@ -601,11 +601,19 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Synchronizes compatibility-only extra overlay text even though only two visible rows are rendered.
+        /// Synchronizes the platform-owned detail and additional rows with the live dynamic overlay text hierarchy.
         /// </summary>
         /// <param name="core">Active core instance that may contribute platform-owned diagnostics rows.</param>
         void UpdateAdditionalLineRows(Core core) {
-            string resolvedAdditionalText = string.Empty;
+            string resolvedAdditionalText = DetailFpsText;
+            string additionalOverlayText = ResolveAdditionalOverlayText(core);
+            if (!string.IsNullOrWhiteSpace(additionalOverlayText)) {
+                if (!string.IsNullOrWhiteSpace(resolvedAdditionalText)) {
+                    resolvedAdditionalText += "\n";
+                }
+
+                resolvedAdditionalText += additionalOverlayText;
+            }
             if (VisibleAdditionalTextValue == resolvedAdditionalText && AreAdditionalRowsLive()) {
                 PublishResolvedOverlayTextRows(core);
                 return;
@@ -904,20 +912,28 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves one optional third overlay row retained for compatibility with earlier overlay layouts.
+        /// Resolves the optional platform-owned detail row for the visible FPS overlay.
         /// </summary>
         /// <param name="core">Active core instance that may provide custom overlay metrics.</param>
-        /// <returns>An empty string because the runtime overlay now renders only two visible rows.</returns>
+        /// <returns>Platform-published detail text, or an empty string when the platform did not publish one.</returns>
         string ResolveDetailOverlayText(Core core) {
+            if (ShouldUsePlatformOwnedOverlayTextRows(core)) {
+                return core.PerformanceOverlayDetailText ?? string.Empty;
+            }
+
             return string.Empty;
         }
 
         /// <summary>
-        /// Resolves one optional compatibility-only text block retained for scene-data stability.
+        /// Resolves the optional platform-owned additional text block for the visible FPS overlay.
         /// </summary>
         /// <param name="core">Active core instance that may contribute platform-owned diagnostics rows.</param>
-        /// <returns>An empty string because the runtime overlay now renders only two visible rows.</returns>
+        /// <returns>Platform-published additional text, or an empty string when the platform did not publish one.</returns>
         string ResolveAdditionalOverlayText(Core core) {
+            if (ShouldUsePlatformOwnedOverlayTextRows(core)) {
+                return core.PerformanceOverlayAdditionalText ?? string.Empty;
+            }
+
             return string.Empty;
         }
 

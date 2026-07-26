@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -86,12 +86,13 @@ namespace helengine.editor {
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
             string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
+            bool shouldRegenerateShaderProject = ShouldRegenerateShaderProject(platformDefinition);
             bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
 
             if (!File.Exists(helengineCoreProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.core project at '{helengineCoreProjectPath}'.", helengineCoreProjectPath);
             }
-            if (!File.Exists(helengineShaderProjectPath)) {
+            if (shouldRegenerateShaderProject && !File.Exists(helengineShaderProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.shader project at '{helengineShaderProjectPath}'.", helengineShaderProjectPath);
             }
             if (!File.Exists(helengineInputProjectPath)) {
@@ -126,19 +127,21 @@ namespace helengine.editor {
                     regenerationLogPath,
                     cancellationToken);
                 AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineCoreProjectPath}");
-                AppendRegenerationLog(regenerationLogPath, $"project-start path={helengineShaderProjectPath}");
-                RegenerateProject(
-                    fullCodegenToolPath,
-                    helengineShaderProjectPath,
-                    shaderOutputRoot,
-                    platformDefinition,
-                    codegenProfile,
-                    selectedCodegenOptionValues,
-                    combinedPreprocessorSymbols,
-                    false,
-                    regenerationLogPath,
-                    cancellationToken);
-                AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineShaderProjectPath}");
+                if (shouldRegenerateShaderProject) {
+                    AppendRegenerationLog(regenerationLogPath, $"project-start path={helengineShaderProjectPath}");
+                    RegenerateProject(
+                        fullCodegenToolPath,
+                        helengineShaderProjectPath,
+                        shaderOutputRoot,
+                        platformDefinition,
+                        codegenProfile,
+                        selectedCodegenOptionValues,
+                        combinedPreprocessorSymbols,
+                        false,
+                        regenerationLogPath,
+                        cancellationToken);
+                    AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineShaderProjectPath}");
+                }
                 AppendRegenerationLog(regenerationLogPath, $"project-start path={helengineInputProjectPath}");
                 RegenerateProject(
                     fullCodegenToolPath,
@@ -152,10 +155,12 @@ namespace helengine.editor {
                     regenerationLogPath,
                     cancellationToken);
                 AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineInputProjectPath}");
-                AppendRegenerationLog(regenerationLogPath, "merge-start shader");
-                MergeGeneratedSourceTree(shaderOutputRoot, generatedCoreOutputRoot);
-                MergeGeneratedConversionReport(shaderOutputRoot, generatedCoreOutputRoot);
-                AppendRegenerationLog(regenerationLogPath, "merge-complete shader");
+                if (shouldRegenerateShaderProject) {
+                    AppendRegenerationLog(regenerationLogPath, "merge-start shader");
+                    MergeGeneratedSourceTree(shaderOutputRoot, generatedCoreOutputRoot);
+                    MergeGeneratedConversionReport(shaderOutputRoot, generatedCoreOutputRoot);
+                    AppendRegenerationLog(regenerationLogPath, "merge-complete shader");
+                }
                 AppendRegenerationLog(regenerationLogPath, "merge-start portable-input");
                 MergeGeneratedSourceTree(portableInputOutputRoot, generatedCoreOutputRoot);
                 MergeGeneratedConversionReport(portableInputOutputRoot, generatedCoreOutputRoot);
@@ -209,11 +214,6 @@ namespace helengine.editor {
                 AppendRegenerationLog(regenerationLogPath, "unity-translation-unit-complete");
             } catch (Exception ex) {
                 AppendRegenerationLog(regenerationLogPath, $"regeneration-failed {ex}");
-                if (logBuilder.Length > 0) {
-                    AppendRegenerationLog(regenerationLogPath, "process-output-start");
-                    File.AppendAllText(regenerationLogPath, logBuilder.ToString());
-                    AppendRegenerationLog(regenerationLogPath, "process-output-end");
-                }
                 throw;
             } finally {
                 AppendRegenerationLog(regenerationLogPath, $"cleanup-start path={tempRoot}");
@@ -526,6 +526,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Determines whether the current platform requires generated shader runtime sources.
+        /// </summary>
+        /// <param name="platformDefinition">Target platform definition being regenerated.</param>
+        /// <returns>True when the target runtime supports the generated shader subsystem.</returns>
+        internal static bool ShouldRegenerateShaderProject(PlatformDefinition platformDefinition) {
+            if (platformDefinition == null) {
+                throw new ArgumentNullException(nameof(platformDefinition));
+            }
+
+            return !string.Equals(platformDefinition.PlatformId, "ps2", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(platformDefinition.PlatformId, "psp", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Returns whether scene-derived preprocessor symbols require the 3D physics project in the generated native core.
         /// </summary>
         /// <param name="additionalPreprocessorSymbols">Scene-derived symbols forwarded to generated-core regeneration.</param>
@@ -551,7 +565,8 @@ namespace helengine.editor {
         /// <param name="fileName">Executable path.</param>
         /// <param name="arguments">Process arguments.</param>
         /// <param name="workingDirectory">Current working directory for the process.</param>
-        /// <param name="logBuilder">Shared log buffer that receives process output.</param>
+        /// <param name="projectPath">Absolute path of the project being converted by the launched codegen process.</param>
+        /// <param name="regenerationLogPath">Absolute path of the persistent regeneration log for the active build.</param>
         /// <param name="cancellationToken">Cancellation token that can stop the process wait loop.</param>
         static void RunProcess(
             string fileName,

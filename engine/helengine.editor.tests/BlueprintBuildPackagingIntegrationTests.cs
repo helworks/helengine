@@ -115,6 +115,75 @@ namespace helengine.editor.tests {
             AssertUniqueEntityIds(packagedScene.RootEntities, entityIds);
         }
 
+        /// <summary>
+        /// Ensures target-platform exclusion metadata authored inside a blueprint removes the corresponding expanded entity from the cooked scene.
+        /// </summary>
+        [Fact]
+        public void Package_WhenExpandedBlueprintChildDefinesPsVitaExistenceOverrideFalse_PrunesTheChildFromPsVitaOutput() {
+            WriteBlueprintAsset(
+                "Blueprints/BottomScreenControls.hblueprint",
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineStandardMaterial(),
+                "DemoDiscBottomScreenRoot",
+                new[] {
+                    new SceneEntityPlatformExistenceOverrideAsset {
+                        PlatformId = "psvita",
+                        Exists = false
+                    }
+                });
+
+            string sceneId = "Scenes/BottomScreenControls.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = [
+                    new SceneEntityAsset {
+                        Id = 100u,
+                        Name = "Bottom Screen Instance",
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        Components = [
+                            SerializeComponent(new BlueprintInstanceComponent {
+                                BlueprintAssetPath = "Blueprints/BottomScreenControls.hblueprint"
+                            })
+                        ],
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                ],
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            EditorPlatformBuildScenePackager psVitaPackager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "psvita");
+            psVitaPackager.Package([sceneId], BuildRootPath);
+
+            SceneAsset psVitaPackagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(sceneId))) {
+                psVitaPackagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset psVitaInstanceRoot = Assert.Single(psVitaPackagedScene.RootEntities);
+            SceneEntityAsset psVitaBottomScreenRoot = Assert.Single(psVitaInstanceRoot.Children);
+            Assert.Empty(psVitaBottomScreenRoot.Children);
+
+            string dsBuildRootPath = Path.Combine(ProjectRootPath, "BuildDs");
+            EditorPlatformBuildScenePackager dsPackager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "ds");
+            dsPackager.Package([sceneId], dsBuildRootPath);
+
+            SceneAsset dsPackagedScene;
+            using (FileStream stream = File.OpenRead(Path.Combine(dsBuildRootPath, PackagedScenePathResolver.BuildRelativePath(sceneId, 0).Replace('/', Path.DirectorySeparatorChar)))) {
+                dsPackagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset dsInstanceRoot = Assert.Single(dsPackagedScene.RootEntities);
+            SceneEntityAsset dsBottomScreenRoot = Assert.Single(dsInstanceRoot.Children);
+            Assert.Equal("Blueprint Child", Assert.Single(dsBottomScreenRoot.Children).Name);
+        }
+
         static void AssertUniqueEntityIds(SceneEntityAsset[] entities, HashSet<uint> entityIds) {
             SceneEntityAsset[] resolvedEntities = entities ?? Array.Empty<SceneEntityAsset>();
             for (int index = 0; index < resolvedEntities.Length; index++) {
@@ -152,7 +221,11 @@ namespace helengine.editor.tests {
             };
         }
 
-        void WriteBlueprintAsset(string relativePath, SceneAssetReference materialReference, string rootName = "Blueprint Root") {
+        void WriteBlueprintAsset(
+            string relativePath,
+            SceneAssetReference materialReference,
+            string rootName = "Blueprint Root",
+            SceneEntityPlatformExistenceOverrideAsset[] childPlatformExistenceOverrides = null) {
             string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Blueprint directory could not be resolved."));
 
@@ -174,6 +247,7 @@ namespace helengine.editor.tests {
                             LocalPosition = float3.Zero,
                             LocalScale = float3.One,
                             LocalOrientation = float4.Identity,
+                            PlatformExistenceOverrides = childPlatformExistenceOverrides ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>(),
                             Children = Array.Empty<SceneEntityAsset>()
                         }
                     ]

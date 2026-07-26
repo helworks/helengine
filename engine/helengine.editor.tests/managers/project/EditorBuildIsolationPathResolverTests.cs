@@ -52,5 +52,20 @@ namespace helengine.editor.tests.managers.project {
             Assert.EndsWith(Path.Combine("vita", "workspace", "cli-build-a", "generated-dotnet"), firstOutputRootPath, StringComparison.OrdinalIgnoreCase);
             Assert.EndsWith(Path.Combine("vita", "workspace", "cli-build-b", "generated-dotnet"), secondOutputRootPath, StringComparison.OrdinalIgnoreCase);
         }
+
+        /// <summary>
+        /// Ensures generated solution files use the same invocation-private workspace as their compiler outputs.
+        /// </summary>
+        [Fact]
+        public void ResolveGeneratedCodeWorkspaceRootPath_WhenInvocationIsProvided_NestsWorkspaceFilesBelowThePrivateGeneratedRoot() {
+            EditorBuildIsolationPathResolver resolver = new(Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "command-project"));
+
+            string workspaceRootPath = resolver.ResolveGeneratedCodeWorkspaceRootPath("editor-command", "command-a");
+
+            Assert.EndsWith(
+                Path.Combine("editor-command", "workspace", "command-a", "generated-dotnet", "workspace"),
+                workspaceRootPath,
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

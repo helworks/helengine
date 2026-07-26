@@ -221,9 +221,51 @@ namespace helengine.editor.tests {
             Assert.True(transformed);
             Assert.NotNull(transformedRecord);
             Assert.Equal("helengine.SpriteComponent", transformedRecord.ComponentTypeId);
-            SceneAssetReference textureReference = ReadSpriteTextureReference(transformedRecord);
+            SceneAssetReference textureReference = ReadAutomaticComponentAssetReference<SpriteComponent>(transformedRecord, nameof(SpriteComponent.Texture));
             Assert.NotNull(textureReference);
             Assert.StartsWith("cooked/imported/", textureReference.RelativePath, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures equal enabled MeshComponents reuse one scale-aware generated model variant after normal model packaging.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenMeshTessellationIsEnabled_ReusesOneGeneratedVariantForEqualScaleAndSettings() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord firstRecord = CreateWrappedTessellatedMeshRecord();
+            SceneComponentAssetRecord secondRecord = CreateWrappedTessellatedMeshRecord();
+            SceneComponentPackagingTransformContext context = new SceneComponentPackagingTransformContext(new float3(4f, 1f, 1f));
+
+            bool firstTransformed = service.TryTransform(firstRecord, BuildRootPath, context, out SceneComponentAssetRecord firstOutput);
+            bool secondTransformed = service.TryTransform(secondRecord, BuildRootPath, context, out SceneComponentAssetRecord secondOutput);
+
+            Assert.True(firstTransformed);
+            Assert.True(secondTransformed);
+            SceneAssetReference firstModelReference = ReadAutomaticComponentAssetReference<MeshComponent>(firstOutput, nameof(MeshComponent.Model));
+            SceneAssetReference secondModelReference = ReadAutomaticComponentAssetReference<MeshComponent>(secondOutput, nameof(MeshComponent.Model));
+            Assert.Equal(firstModelReference.RelativePath, secondModelReference.RelativePath);
+            Assert.StartsWith("cooked/generated/models/tessellation/", firstModelReference.RelativePath, StringComparison.Ordinal);
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, firstModelReference.RelativePath)));
+            string variantDirectoryPath = Path.Combine(BuildRootPath, "cooked", "generated", "models", "tessellation");
+            Assert.Single(Directory.GetFiles(variantDirectoryPath, "*.hasset"));
+        }
+
+        /// <summary>
+        /// Ensures tessellation loads a generated model from the package root when PS2 serializes its runtime model reference with a rooted path.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenMeshTessellationUsesRootedPs2ModelReference_LoadsThePackagedModelBeforeWritingTheVariant() {
+            List<PlatformCookWorkItem> workItems = new List<PlatformCookWorkItem>();
+            SceneComponentPackagingTransformService service = CreateRootedBuilderOwnedFontAtlasService(workItems, new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateWrappedTessellatedMeshRecord("ps2");
+            SceneComponentPackagingTransformContext context = new SceneComponentPackagingTransformContext(new float3(4f, 1f, 1f));
+
+            bool transformed = service.TryTransform(record, BuildRootPath, context, out SceneComponentAssetRecord output);
+
+            Assert.True(transformed);
+            SceneAssetReference modelReference = ReadAutomaticComponentAssetReference<MeshComponent>(output, nameof(MeshComponent.Model));
+            Assert.StartsWith("/cooked/generated/models/tessellation/", modelReference.RelativePath, StringComparison.Ordinal);
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, modelReference.RelativePath.TrimStart('/', '\\'))));
         }
 
         /// <summary>
@@ -590,7 +632,6 @@ namespace helengine.editor.tests {
                 Rotation = 0.25f,
                 FontScale = 2f,
                 RenderOrder2D = 19,
-                LayerMask = 7,
                 SelectionEnabled = true,
                 ConvertTextToSprite = convertTextToSprite,
                 Alignment = TextAlignment.Center
@@ -619,7 +660,6 @@ namespace helengine.editor.tests {
                 Rotation = 0.25f,
                 FontScale = 2f,
                 RenderOrder2D = 19,
-                LayerMask = 7,
                 SelectionEnabled = true,
                 ConvertTextToSprite = convertTextToSprite,
                 Alignment = TextAlignment.Center
@@ -651,7 +691,6 @@ namespace helengine.editor.tests {
                 Rotation = 0.25f,
                 FontScale = 2f,
                 RenderOrder2D = 19,
-                LayerMask = 7,
                 SelectionEnabled = true,
                 Alignment = TextAlignment.Center
             };
@@ -665,7 +704,6 @@ namespace helengine.editor.tests {
                 Rotation = 0.25f,
                 FontScale = fontScale,
                 RenderOrder2D = 19,
-                LayerMask = 7,
                 SelectionEnabled = true,
                 Alignment = TextAlignment.Center
             };
@@ -713,7 +751,6 @@ namespace helengine.editor.tests {
                 Color = new byte4(255, 255, 255, 255),
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 RenderOrder2D = 19,
-                LayerMask = 7
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(
@@ -721,6 +758,27 @@ namespace helengine.editor.tests {
                 global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Images/Menu/helengine-logo.png"));
 
             return descriptor.SerializeComponent(spriteComponent, 0, saveState);
+        }
+
+        /// <summary>
+        /// Creates one MeshComponent record with editor-only Windows tessellation metadata wrapped around its common payload.
+        /// </summary>
+        /// <returns>Wrapped MeshComponent record prepared for scale-aware tessellation packaging.</returns>
+        static SceneComponentAssetRecord CreateWrappedTessellatedMeshRecord(string platformId = "windows") {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            MeshComponent meshComponent = new MeshComponent {
+                Model = new TestRuntimeModel()
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(MeshComponent.Model), global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineCubeModel());
+            SceneComponentAssetRecord baseRecord = descriptor.SerializeComponent(meshComponent, 0, saveState);
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride(platformId);
+            overrideState.Payload = baseRecord.Payload;
+            overrideState.SetPropertyOverride(MeshComponentTessellationSettingsService.TessellateMemberName);
+            overrideState.SetMemberValue(MeshComponentTessellationSettingsService.TessellateMemberName, "True");
+            overrideState.SetPropertyOverride(MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName);
+            overrideState.SetMemberValue(MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, "0.5");
+            return new ComponentPlatformOverridePayloadService().Wrap(baseRecord, saveState);
         }
 
         /// <summary>
@@ -872,19 +930,6 @@ namespace helengine.editor.tests {
             saveState.SetAssetReference(nameof(DebugComponent.Font), fontReference);
 
             return descriptor.SerializeComponent(debugComponent, 0, saveState);
-        }
-
-        /// <summary>
-        /// Reads the packaged sprite texture reference from one strict runtime sprite payload.
-        /// </summary>
-        /// <param name="record">Transformed sprite component record to inspect.</param>
-        /// <returns>Packaged texture reference stored in the sprite payload.</returns>
-        static SceneAssetReference ReadSpriteTextureReference(SceneComponentAssetRecord record) {
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(1, reader.ReadByte());
-            SceneAssetReference reference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
-            return Assert.IsType<SceneAssetReference>(reference);
         }
 
         /// <summary>

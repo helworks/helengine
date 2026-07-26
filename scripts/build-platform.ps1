@@ -71,6 +71,80 @@ function Get-ProjectIsolationHash {
     return $Builder.ToString()
 }
 
+function Copy-ProjectIntoIsolatedWorkspace {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourceProjectRootPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationProjectRootPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SourceProjectRootPath)) {
+        throw "Source project root path must be provided."
+    } elseif ([string]::IsNullOrWhiteSpace($DestinationProjectRootPath)) {
+        throw "Destination project root path must be provided."
+    }
+
+    if (-not (Test-Path -LiteralPath $SourceProjectRootPath -PathType Container)) {
+        throw "Source project root directory was not found at '$SourceProjectRootPath'."
+    }
+    if (Test-Path -LiteralPath $DestinationProjectRootPath) {
+        throw "Destination project workspace already exists at '$DestinationProjectRootPath'."
+    }
+
+    $ExcludedDirectoryPaths = @(
+        (Join-Path $SourceProjectRootPath ".git"),
+        (Join-Path $SourceProjectRootPath ".vs"),
+        (Join-Path $SourceProjectRootPath ".worktrees"),
+        (Join-Path $SourceProjectRootPath "_codex_backups"),
+        (Join-Path $SourceProjectRootPath "cache"),
+        (Join-Path $SourceProjectRootPath "output"),
+        (Join-Path $SourceProjectRootPath "builds"),
+        (Join-Path $SourceProjectRootPath "build-logs"),
+        (Join-Path $SourceProjectRootPath "tmp"),
+        (Join-Path $SourceProjectRootPath "user_settings\generated_code")
+    )
+    $ArtifactDirectoryPatterns = @(
+        "3ds-build*",
+        "ps2-build*",
+        "switch-build*",
+        "vita-build*",
+        "wiiu-build*"
+    )
+    $ArtifactDirectoryPaths = @()
+    foreach ($ArtifactDirectoryPattern in $ArtifactDirectoryPatterns) {
+        $ArtifactDirectoryPaths += Get-ChildItem -LiteralPath $SourceProjectRootPath -Directory -Filter $ArtifactDirectoryPattern |
+            Select-Object -ExpandProperty FullName
+    }
+    $RobocopyArguments = @(
+        $SourceProjectRootPath,
+        $DestinationProjectRootPath,
+        "/E",
+        "/COPY:DAT",
+        "/DCOPY:DAT",
+        "/R:1",
+        "/W:1",
+        "/NFL",
+        "/NDL",
+        "/NJH",
+        "/NJS",
+        "/NP",
+        "/XD"
+    ) + $ExcludedDirectoryPaths + $ArtifactDirectoryPaths + @(
+        "/XF",
+        "*.iso",
+        "*.gcm",
+        "*.vpk"
+    )
+
+    & robocopy @RobocopyArguments
+    $RobocopyExitCode = $LASTEXITCODE
+    if ($RobocopyExitCode -gt 7) {
+        throw "Project workspace copy failed with robocopy exit code $RobocopyExitCode."
+    }
+}
+
 function Get-EditorArtifactsOutputPath {
     param(
         [Parameter(Mandatory = $true)]
@@ -241,7 +315,16 @@ try {
     $ProjectIsolationHash = Get-ProjectIsolationHash -ProjectRootPath $ResolvedProjectRootPath
     $PlatformIsolationSegment = Get-SafePathSegment -Value $Platform
     $ResolvedHelEngineRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-    $EditorIsolationRootPath = Join-Path ([System.IO.Path]::GetTempPath()) ("helengine-builds\" + $ProjectIsolationHash + "\" + $PlatformIsolationSegment + "\editor-app")
+    $BuildExecutionId = [Guid]::NewGuid().ToString("N")
+    $BuildInvocationRootPath = Join-Path ([System.IO.Path]::GetTempPath()) ("helengine-builds\" + $ProjectIsolationHash + "\" + $PlatformIsolationSegment + "\invocations\" + $BuildExecutionId)
+    $IsolatedProjectRootPath = Join-Path $BuildInvocationRootPath "project"
+    $IsolatedProjectPath = Join-Path $IsolatedProjectRootPath (Split-Path -Leaf $ResolvedProjectPath)
+    Copy-ProjectIntoIsolatedWorkspace -SourceProjectRootPath $ResolvedProjectRootPath -DestinationProjectRootPath $IsolatedProjectRootPath
+    if (-not (Test-Path -LiteralPath $IsolatedProjectPath -PathType Leaf)) {
+        throw "Isolated project file was not copied to '$IsolatedProjectPath'."
+    }
+
+    $EditorIsolationRootPath = Join-Path $BuildInvocationRootPath "editor-app"
     $EditorArtifactsPath = Join-Path $EditorIsolationRootPath "artifacts"
     $EditorPublishPath = Join-Path $EditorIsolationRootPath "publish"
 
@@ -272,7 +355,7 @@ try {
 
     $EditorRunArguments = @(
         "--project",
-        $ResolvedProjectPath,
+        $IsolatedProjectPath,
         "--build",
         $Platform
     )
@@ -347,34 +430,6 @@ try {
     $OriginalHelEngineSourceRootPath = $env:HELENGINE_SOURCE_ROOT
     try {
         $env:HELENGINE_SOURCE_ROOT = $ResolvedHelEngineRootPath
-
-        $SceneGenerationArguments = @(
-            $EditorAssemblyPath,
-            "--project",
-            $ResolvedProjectPath,
-            "--editor-command",
-            "menu.generate-game-scenes"
-        )
-        Write-Host ("Regenerating generated game scenes: dotnet " + ($SceneGenerationArguments -join " "))
-        $SceneGenerationExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $SceneGenerationArguments
-        if ($SceneGenerationExitCode -ne 0) {
-            [Console]::Error.WriteLine("Generated game scene refresh failed with exit code $SceneGenerationExitCode.")
-            exit $SceneGenerationExitCode
-        }
-
-        $PresentationAttachmentArguments = @(
-            $EditorAssemblyPath,
-            "--project",
-            $ResolvedProjectPath,
-            "--editor-command",
-            "menu.attach-tilt-trial-presentation-blueprints"
-        )
-        Write-Host ("Refreshing Tilt Trial presentation bindings: dotnet " + ($PresentationAttachmentArguments -join " "))
-        $PresentationAttachmentExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $PresentationAttachmentArguments
-        if ($PresentationAttachmentExitCode -ne 0) {
-            [Console]::Error.WriteLine("Tilt Trial presentation binding refresh failed with exit code $PresentationAttachmentExitCode.")
-            exit $PresentationAttachmentExitCode
-        }
 
         $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
         if ($DotNetExitCode -ne 0) {

@@ -32,6 +32,27 @@ namespace helengine.editor {
             Artifacts.Add(new PlatformBuildArtifact(normalizedRelativePath, contentHash, artifactKind, variantId));
         }
 
+        /// <summary>
+        /// Adds one producer-declared material or shader file while preserving its explicit logical identity and artifact kind.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to the already-written cooked file.</param>
+        /// <param name="declaration">Producer-declared identity for the cooked material or shader file.</param>
+        public void AddDeclaredFile(string fullPath, PlatformCookedArtifactDeclaration declaration) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Full path must be provided.", nameof(fullPath));
+            } else if (declaration == null) {
+                throw new ArgumentNullException(nameof(declaration));
+            }
+
+            string contentHash = string.Concat("sha256:", FileHasher.ComputeHash(fullPath));
+            Artifacts.Add(new PlatformBuildArtifact(
+                declaration.RelativePath,
+                declaration.LogicalArtifactId,
+                contentHash,
+                declaration.ArtifactKind,
+                declaration.VariantId));
+        }
+
         public PlatformBuildArtifact[] ToArray() {
             return [.. Artifacts];
         }

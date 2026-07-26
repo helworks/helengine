@@ -122,6 +122,29 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures scene binding reports each supported body before and after its registration so platform hosts can identify a failing binding boundary.
+        /// </summary>
+        [Fact]
+        public void BindScene_WithDiagnosticSink_ReportsEachRegisteredBodyInOrder() {
+            List<string> diagnosticRecords = new List<string>();
+            Entity groundEntity = CreateStaticBoxEntity(new float3(0f, -0.5f, 0f), new float3(8f, 1f, 8f));
+            Entity dynamicEntity = CreateDynamicBoxEntity(new float3(0f, 2f, 0f), new float3(1f, 1f, 1f));
+            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.SceneBindingDiagnosticSink = diagnosticRecords.Add;
+
+            world.BindScene([groundEntity, dynamicEntity]);
+
+            Assert.Equal([
+                "PhysicsBind begin roots=2",
+                "PhysicsBind before index=1 body=Static collider=Box",
+                "PhysicsBind after index=1 body=Static collider=Box bodies=1",
+                "PhysicsBind before index=2 body=Dynamic collider=Box",
+                "PhysicsBind after index=2 body=Dynamic collider=Box bodies=2",
+                "PhysicsBind end bodies=2"
+            ], diagnosticRecords);
+        }
+
+        /// <summary>
         /// Ensures a dynamic box falls and remains above a static ground box after contact resolution.
         /// </summary>
         [Fact]

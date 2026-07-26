@@ -1,4 +1,5 @@
 namespace helengine {
+#if DESKTOP_PLATFORM
     /// <summary>
     /// Describes one textbox command shortcut and the modifier combination required to trigger it.
     /// </summary>
@@ -59,4 +60,5 @@ namespace helengine {
             return RequiresAlt == isAltPressed;
         }
     }
+#endif
 }

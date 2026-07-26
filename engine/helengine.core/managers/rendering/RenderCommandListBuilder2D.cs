@@ -305,7 +305,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Emits one glyph-quad command per rendered glyph for the supplied text drawable.
+        /// Emits ordered effect and primary glyph-quad commands for the supplied text drawable.
         /// </summary>
         /// <param name="text">Text drawable to flatten.</param>
         void EmitText(ITextDrawable2D text) {
@@ -326,6 +326,12 @@ namespace helengine {
             double baseX = Math.Round(text.Parent.Position.X);
             double baseY = Math.Round(text.Parent.Position.Y);
             IReadOnlyList<double> lineOffsets = BuildTextLineOffsets(text, font, content, fontScale);
+            bool hasTextEffects = text.ShadowOffset.X != 0f
+                || text.ShadowOffset.Y != 0f
+                || text.OutlineScale > 0f;
+            List<TextRenderEffectPass> effectPasses = hasTextEffects
+                ? TextRenderEffectPassBuilder.Build(text)
+                : null;
             int lineIndex = 0;
             double lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
 
@@ -351,15 +357,30 @@ namespace helengine {
                 double glyphWidth = glyph.SourceRect.Z * font.AtlasWidth * fontScale;
                 double glyphHeight = glyph.SourceRect.W * font.AtlasHeight * fontScale;
                 double snappedLineOffsetY = Math.Round(offsetY);
-                CommandListValue.AddGlyphQuad(
-                    font.Texture,
-                    new float4(
-                        (float)(lineOriginX + offsetX),
-                        (float)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale)),
-                        (float)glyphWidth,
-                        (float)glyphHeight),
-                    glyph.SourceRect,
-                    text.Color);
+                if (hasTextEffects) {
+                    for (int passIndex = 0; passIndex < effectPasses.Count; passIndex++) {
+                        TextRenderEffectPass pass = effectPasses[passIndex];
+                        CommandListValue.AddGlyphQuad(
+                            font.Texture,
+                            new float4(
+                                (float)(lineOriginX + offsetX + pass.Offset.X),
+                                (float)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale) + pass.Offset.Y),
+                                (float)glyphWidth,
+                                (float)glyphHeight),
+                            glyph.SourceRect,
+                            pass.Color);
+                    }
+                } else {
+                    CommandListValue.AddGlyphQuad(
+                        font.Texture,
+                        new float4(
+                            (float)(lineOriginX + offsetX),
+                            (float)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale)),
+                            (float)glyphWidth,
+                            (float)glyphHeight),
+                        glyph.SourceRect,
+                        text.Color);
+                }
 
                 double advanceWidth = glyph.AdvanceWidth > 0f
                     ? glyph.AdvanceWidth * fontScale

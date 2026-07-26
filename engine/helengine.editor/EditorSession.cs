@@ -2558,7 +2558,7 @@ namespace helengine.editor {
             if (editorEntity.IsDisposed || editorEntity.InternalEntity) {
                 return null;
             }
-            if (editorEntity.LayerMask != EditorLayerMasks.SceneObjects) {
+            if (!editorEntity.IsSceneOwned) {
                 return null;
             }
 
@@ -3560,7 +3560,7 @@ namespace helengine.editor {
             if (editorEntity.InternalEntity) {
                 return false;
             }
-            if (editorEntity.LayerMask != EditorLayerMasks.SceneObjects) {
+            if (!editorEntity.IsSceneOwned) {
                 return false;
             }
 
@@ -4107,6 +4107,8 @@ namespace helengine.editor {
             }
 
             clone.FlipWinding = settings.FlipWinding;
+            clone.Tessellate = settings.Tessellate;
+            clone.TessellationMaxEdgeLength = settings.TessellationMaxEdgeLength;
             return clone;
         }
 

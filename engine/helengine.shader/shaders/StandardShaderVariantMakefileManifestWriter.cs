@@ -13,7 +13,8 @@ public sealed class StandardShaderVariantMakefileManifestWriter {
     public string Write() {
         StringBuilder builder = new("STANDARD_SHADER_VARIANTS :=");
         for (int index = 0; index < StandardShaderVariants.All.Count; index++) {
-            builder.Append(' ').Append(StandardShaderVariants.All[index].Name);
+            builder.Append(' ');
+            builder.Append(StandardShaderVariants.All[index].Name);
         }
 
         builder.Append('\n');

@@ -111,7 +111,7 @@ namespace helengine.editor {
             if (entity.InternalEntity) {
                 throw new InvalidOperationException("Internal editor entities cannot be captured into undo/redo history.");
             }
-            if (entity.LayerMask != EditorLayerMasks.SceneObjects) {
+            if (!entity.IsSceneOwned) {
                 throw new InvalidOperationException("Only authored scene entities can be captured into undo/redo history.");
             }
 
@@ -166,7 +166,7 @@ namespace helengine.editor {
                 if (editorEntity.InternalEntity) {
                     continue;
                 }
-                if (editorEntity.LayerMask != EditorLayerMasks.SceneObjects) {
+                if (!editorEntity.IsSceneOwned) {
                     continue;
                 }
 
@@ -245,7 +245,7 @@ namespace helengine.editor {
                     if (childEntity.InternalEntity) {
                         continue;
                     }
-                    if (childEntity.LayerMask != EditorLayerMasks.SceneObjects) {
+                    if (!childEntity.IsSceneOwned) {
                         continue;
                     }
                     if (!BlueprintSceneSaveFilterService.ShouldSerializeEntity(childEntity)) {

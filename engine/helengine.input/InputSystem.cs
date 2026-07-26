@@ -47,11 +47,13 @@ public sealed class InputSystem {
     /// <summary>
     /// Mouse state snapshot from the previous update.
     /// </summary>
+#if DESKTOP_PLATFORM
     MouseState lastMouseState;
     /// <summary>
     /// Mouse state snapshot captured during the current update.
     /// </summary>
     MouseState mouseState;
+#endif
     /// <summary>
     /// Raw input frame snapshot from the previous update.
     /// </summary>
@@ -59,11 +61,13 @@ public sealed class InputSystem {
     /// <summary>
     /// Keyboard state snapshot from the previous update.
     /// </summary>
+#if DESKTOP_PLATFORM
     KeyboardState lastKeyboardState;
     /// <summary>
     /// Keyboard state snapshot captured during the current update.
     /// </summary>
     KeyboardState keyboardState;
+#endif
     /// <summary>
     /// Tracks whether input has been captured for the current frame.
     /// </summary>
@@ -71,6 +75,7 @@ public sealed class InputSystem {
     /// <summary>
     /// Mouse movement delta cached for the current frame.
     /// </summary>
+#if DESKTOP_PLATFORM
     int2 mouseDelta;
     /// <summary>
     /// Tracks whether client-edge pointer wrapping is currently active.
@@ -92,6 +97,7 @@ public sealed class InputSystem {
     /// Tracks whether keyboard capture is active for the current backend.
     /// </summary>
     bool KeyboardIsActive;
+#endif
     /// <summary>
     /// Tracks whether the active backend should continue reporting input while its host is not foreground active.
     /// </summary>
@@ -117,6 +123,7 @@ public sealed class InputSystem {
         ContextActionValuesScratch = new Dictionary<int, float>();
         ContextActionKeysScratch = new List<int>();
         ResolvedActionKeysScratch = new List<int>();
+#if DESKTOP_PLATFORM
         keyboardState = new KeyboardState();
         mouseState = new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
         KeyboardIsActive = true;
@@ -124,6 +131,9 @@ public sealed class InputSystem {
             Keyboard = keyboardState,
             Mouse = mouseState
         };
+#else
+        CurrentFrame = new InputFrameState();
+#endif
         previousFrame = CurrentFrame;
     }
 
@@ -140,9 +150,11 @@ public sealed class InputSystem {
     /// <summary>
     /// Gets a value indicating whether client-edge pointer wrapping is currently active.
     /// </summary>
+#if DESKTOP_PLATFORM
     public bool IsPointerWrapEnabled {
         get { return ActivePointerWrapEnabled; }
     }
+#endif
 
     /// <summary>
     /// Binds a backend that will be queried on the next frame capture.
@@ -165,9 +177,11 @@ public sealed class InputSystem {
     /// Enables or disables keyboard input capture for the current backend.
     /// </summary>
     /// <param name="isActive">True to capture key state; false to ignore input.</param>
+#if DESKTOP_PLATFORM
     public void SetKeyboardActive(bool isActive) {
         KeyboardIsActive = isActive;
     }
+#endif
 
     /// <summary>
     /// Enables or disables raw keyboard and mouse-button capture while the host window is not foreground active.
@@ -184,17 +198,20 @@ public sealed class InputSystem {
     /// Replaces the keyboard state exposed by this system when deterministic test input is needed.
     /// </summary>
     /// <param name="state">Keyboard state to expose on the next capture.</param>
+#if DESKTOP_PLATFORM
     public void SetKeyboardState(KeyboardState state) {
         keyboardState = state;
         InputFrameState currentFrame = CurrentFrame;
         currentFrame.Keyboard = state;
         CurrentFrame = currentFrame;
     }
+#endif
 
     /// <summary>
     /// Replaces the mouse state exposed by this system when deterministic test input is needed.
     /// </summary>
     /// <param name="state">Mouse state to expose on the next capture.</param>
+#if DESKTOP_PLATFORM
     public void SetMouseState(MouseState state) {
         mouseState = state;
         InputFrameState currentFrame = CurrentFrame;
@@ -225,6 +242,7 @@ public sealed class InputSystem {
     public void RequestPointerWrapEnabled() {
         RequestedPointerWrapEnabled = true;
     }
+#endif
 
     /// <summary>
     /// Registers one action binding in the input system.
@@ -310,7 +328,9 @@ public sealed class InputSystem {
                 FrameUpdateHandler();
             }
         } finally {
+#if DESKTOP_PLATFORM
             CommitPointerWrapState();
+#endif
             hasCapturedInput = false;
         }
     }
@@ -450,6 +470,7 @@ public sealed class InputSystem {
     /// <summary>
     /// Gets the cached mouse position in window coordinates.
     /// </summary>
+#if DESKTOP_PLATFORM
     /// <returns>Mouse position in pixels.</returns>
     public int2 GetMousePosition() {
         return new int2(mouseState.X, mouseState.Y);
@@ -686,6 +707,7 @@ public sealed class InputSystem {
     public bool WasKeyReleased(Keys key) {
         return keyboardState.IsKeyUp(key) && lastKeyboardState.IsKeyDown(key);
     }
+#endif
 
     /// <summary>
     /// Ensures input state is captured once per frame.
@@ -699,21 +721,27 @@ public sealed class InputSystem {
     }
 
     /// <summary>
-    /// Captures current keyboard and mouse states, updating cached values.
+    /// Captures the current raw input frame and updates the retained frame state.
     /// </summary>
     void CaptureInputState() {
         previousFrame = CurrentFrame;
+#if DESKTOP_PLATFORM
         lastMouseState = mouseState;
         lastKeyboardState = keyboardState;
+#endif
 
         if (Backend != null) {
             InputFrameState backendFrame = Backend.CaptureFrame();
+#if DESKTOP_PLATFORM
             if (KeyboardIsActive) {
                 keyboardState = backendFrame.Keyboard;
             }
             mouseState = backendFrame.Mouse;
+#endif
             CurrentFrame = backendFrame;
-        } else {
+        }
+#if DESKTOP_PLATFORM
+        else {
             InputFrameState currentFrame = CurrentFrame;
             currentFrame.Keyboard = keyboardState;
             currentFrame.Mouse = mouseState;
@@ -740,6 +768,7 @@ public sealed class InputSystem {
             Buttons = BuildPointerButtonMask(mouseState)
         };
         CurrentFrame = updatedFrame;
+#endif
 
         hasCapturedInput = true;
     }
@@ -747,6 +776,7 @@ public sealed class InputSystem {
     /// <summary>
     /// Applies the currently active pointer-wrap state to the cached mouse state before input capture begins.
     /// </summary>
+#if DESKTOP_PLATFORM
     void ApplyPointerWrapState() {
         if (!ActivePointerWrapEnabled) {
             return;
@@ -825,6 +855,7 @@ public sealed class InputSystem {
         PointerWrapDeltaOffset = new int2(0, 0);
         return pointerWrapDeltaOffset;
     }
+#endif
 
     /// <summary>
     /// Applies the current background-input policy to the active backend when one is available.
@@ -839,6 +870,7 @@ public sealed class InputSystem {
 #endif
     }
 
+#if DESKTOP_PLATFORM
     /// <summary>
     /// Builds a pointer button mask from the cached mouse state.
     /// </summary>
@@ -864,6 +896,7 @@ public sealed class InputSystem {
 
         return buttons;
     }
+#endif
 
     /// <summary>
     /// Resolves the registered bindings against the current frame and active contexts.

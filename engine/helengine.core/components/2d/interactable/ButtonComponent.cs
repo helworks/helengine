@@ -450,6 +450,7 @@ namespace helengine {
         /// </summary>
         /// <param name="key">Activation key to evaluate.</param>
         /// <returns>True when Enter or Space should activate the button.</returns>
+#if DESKTOP_PLATFORM
         public bool CanActivateWithKey(Keys key) {
             return key == Keys.Enter || key == Keys.Space;
         }
@@ -465,6 +466,7 @@ namespace helengine {
 
             onClickAction?.Invoke();
         }
+#endif
 
         /// <summary>
         /// Handles cursor events to manage hover/press states and clicks.

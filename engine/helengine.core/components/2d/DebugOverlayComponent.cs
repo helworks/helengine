@@ -30,7 +30,9 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the key used to toggle overlay visibility.
         /// </summary>
+#if DESKTOP_PLATFORM
         public Keys ToggleKey { get; set; } = Keys.F8;
+#endif
 
         /// <summary>
         /// Creates a debug overlay that renders using the provided font.
@@ -91,12 +93,14 @@ namespace helengine {
                 return;
             }
 
+#if DESKTOP_PLATFORM
             // Edge-triggered toggle on key press (not hold)
-            var inputManager = Core.Instance.Input;
+            InputSystem inputManager = Core.Instance.Input;
             bool pressed = inputManager.WasKeyPressed(ToggleKey);
             if (pressed) {
                 Visible = !Visible;
             }
+#endif
 
             bgEntity.Enabled = Visible;
             textEntity.Enabled = Visible;

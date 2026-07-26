@@ -29,6 +29,8 @@ namespace helengine {
             if (TrackedTextComponent != null) {
                 TextSize = TrackedTextComponent.Size;
                 TextFontScale = TrackedTextComponent.FontScale;
+                TextOutlineScale = TrackedTextComponent.OutlineScale;
+                TextShadowOffset = TrackedTextComponent.ShadowOffset;
             }
 
             TrackedSpriteComponent = FindSpriteComponent(entity);
@@ -76,7 +78,7 @@ namespace helengine {
         /// <summary>
         /// Gets the authored anchor distances captured from the anchor component.
         /// </summary>
-        public float4 AnchorDistances { get; }
+        public float4 AnchorDistances { get; private set; }
 
         /// <summary>
         /// Gets the attached rounded-rectangle component when one exists.
@@ -86,17 +88,17 @@ namespace helengine {
         /// <summary>
         /// Gets the authored rounded-rectangle size.
         /// </summary>
-        public int2 RoundedRectSize { get; }
+        public int2 RoundedRectSize { get; private set; }
 
         /// <summary>
         /// Gets the authored rounded-rectangle corner radius.
         /// </summary>
-        public float RoundedRectRadius { get; }
+        public float RoundedRectRadius { get; private set; }
 
         /// <summary>
         /// Gets the authored rounded-rectangle border thickness.
         /// </summary>
-        public float RoundedRectBorderThickness { get; }
+        public float RoundedRectBorderThickness { get; private set; }
 
         /// <summary>
         /// Gets the attached text component when one exists.
@@ -106,12 +108,22 @@ namespace helengine {
         /// <summary>
         /// Gets the authored text layout size.
         /// </summary>
-        public int2 TextSize { get; }
+        public int2 TextSize { get; private set; }
 
         /// <summary>
         /// Gets the authored glyph scale captured from the text component.
         /// </summary>
-        public float TextFontScale { get; }
+        public float TextFontScale { get; private set; }
+
+        /// <summary>
+        /// Gets the authored outline thickness captured from the text component.
+        /// </summary>
+        public float TextOutlineScale { get; private set; }
+
+        /// <summary>
+        /// Gets the authored shadow offset captured from the text component.
+        /// </summary>
+        public float2 TextShadowOffset { get; private set; }
 
         /// <summary>
         /// Gets the attached clip-rectangle component when one exists.
@@ -121,7 +133,7 @@ namespace helengine {
         /// <summary>
         /// Gets the authored sprite size.
         /// </summary>
-        public int2 SpriteSize { get; }
+        public int2 SpriteSize { get; private set; }
 
         /// <summary>
         /// Gets the attached clip-rectangle component when one exists.
@@ -131,7 +143,7 @@ namespace helengine {
         /// <summary>
         /// Gets the authored clip-rectangle size.
         /// </summary>
-        public int2 ClipRectSize { get; }
+        public int2 ClipRectSize { get; private set; }
 
         /// <summary>
         /// Gets the attached interactable component when one exists.
@@ -141,7 +153,7 @@ namespace helengine {
         /// <summary>
         /// Gets the authored interactable region size.
         /// </summary>
-        public int2 InteractableSize { get; }
+        public int2 InteractableSize { get; private set; }
 
         /// <summary>
         /// Gets the attached scroll component when one exists.
@@ -151,12 +163,12 @@ namespace helengine {
         /// <summary>
         /// Gets the authored scroll viewport size.
         /// </summary>
-        public int2 ScrollSize { get; }
+        public int2 ScrollSize { get; private set; }
 
         /// <summary>
         /// Gets the authored scroll item extent.
         /// </summary>
-        public int ScrollItemExtent { get; }
+        public int ScrollItemExtent { get; private set; }
 
         /// <summary>
         /// Applies one absolute fit scale to the captured entity and any supported attached layout components.
@@ -198,6 +210,10 @@ namespace helengine {
             if (TrackedTextComponent != null) {
                 TrackedTextComponent.Size = ScaleInt2(TextSize, widthScale, heightScale);
                 TrackedTextComponent.FontScale = ScaleFloat(TextFontScale, scalarScale);
+                TrackedTextComponent.OutlineScale = ScaleFloat(TextOutlineScale, scalarScale);
+                TrackedTextComponent.ShadowOffset = new float2(
+                    ScaleFloat(TextShadowOffset.X, scalarScale),
+                    ScaleFloat(TextShadowOffset.Y, scalarScale));
             }
 
             if (TrackedSpriteComponent != null) {

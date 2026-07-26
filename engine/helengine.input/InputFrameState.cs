@@ -4,6 +4,7 @@ namespace helengine;
 /// Captures all raw input for a single frame.
 /// </summary>
 public struct InputFrameState {
+#if DESKTOP_PLATFORM
     /// <summary>
     /// Gets or sets the captured keyboard state for the current frame.
     /// </summary>
@@ -13,6 +14,7 @@ public struct InputFrameState {
     /// Gets or sets the captured mouse state for the current frame.
     /// </summary>
     public MouseState Mouse { get; set; }
+#endif
 
     /// <summary>
     /// Gets or sets the current pointer device state.

@@ -105,6 +105,40 @@ namespace helengine.editor.tests.managers.rendering {
         }
 
         /// <summary>
+        /// Ensures the resolved command list expands one outlined glyph into the four crisp offset passes and the primary text pass.
+        /// </summary>
+        [Fact]
+        public void Build_WhenQueueContainsOutlinedText_EmitsOutlineAndPrimaryGlyphPasses() {
+            Entity entity = CreateEntity(new float3(10f, 20f, 0f), true);
+            TextComponent text = new TextComponent {
+                Font = CreateFont(),
+                Text = "A",
+                Color = new byte4(9, 8, 7, 6),
+                OutlineColor = new byte4(1, 2, 3, 4),
+                OutlineScale = 1f
+            };
+            entity.AddComponent(text);
+
+            RenderList2D queue = new RenderList2D(1);
+            queue.Add(text);
+
+            RenderCommandList2D commandList = new RenderCommandListBuilder2D().Build(queue);
+
+            Assert.Equal(5, commandList.Count);
+            Assert.Equal(text.OutlineColor, commandList.GetGlyphQuadColor(commandList.GetGlyphQuadPayloadIndex(0)));
+            Assert.Equal(text.OutlineColor, commandList.GetGlyphQuadColor(commandList.GetGlyphQuadPayloadIndex(1)));
+            Assert.Equal(text.OutlineColor, commandList.GetGlyphQuadColor(commandList.GetGlyphQuadPayloadIndex(2)));
+            Assert.Equal(text.OutlineColor, commandList.GetGlyphQuadColor(commandList.GetGlyphQuadPayloadIndex(3)));
+            Assert.Equal(text.Color, commandList.GetGlyphQuadColor(commandList.GetGlyphQuadPayloadIndex(4)));
+
+            Assert.Equal(new float4(9f, 21f, 5f, 5f), commandList.GetGlyphQuadBounds(commandList.GetGlyphQuadPayloadIndex(0)));
+            Assert.Equal(new float4(11f, 21f, 5f, 5f), commandList.GetGlyphQuadBounds(commandList.GetGlyphQuadPayloadIndex(1)));
+            Assert.Equal(new float4(10f, 20f, 5f, 5f), commandList.GetGlyphQuadBounds(commandList.GetGlyphQuadPayloadIndex(2)));
+            Assert.Equal(new float4(10f, 22f, 5f, 5f), commandList.GetGlyphQuadBounds(commandList.GetGlyphQuadPayloadIndex(3)));
+            Assert.Equal(new float4(10f, 21f, 5f, 5f), commandList.GetGlyphQuadBounds(commandList.GetGlyphQuadPayloadIndex(4)));
+        }
+
+        /// <summary>
         /// Ensures text glyph bounds and advances honor one authored font scale.
         /// </summary>
         [Fact]

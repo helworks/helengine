@@ -144,6 +144,33 @@ public sealed class CityCubeTestSceneSourceTests {
     }
 
     /// <summary>
+    /// Ensures the Nintendo 3DS renderer leaves SD-card trace writes disabled in normal builds so diagnostic I/O cannot throttle frame execution.
+    /// </summary>
+    [Fact]
+    public void Nintendo3ds_renderer_source_disables_runtime_trace_writes_by_default() {
+        string makefilePath = @"C:\dev\helworks\helengine-3ds\Makefile";
+        string rendererSourcePath = @"C:\dev\helworks\helengine-3ds\src\platform\3ds\Nintendo3DsRenderManager3D.cpp";
+        string makefile = File.ReadAllText(makefilePath);
+        string rendererSource = File.ReadAllText(rendererSourcePath);
+
+        Assert.Contains("HELENGINE_3DS_RENDER_TRACE_ENABLED ?= 0", makefile, StringComparison.Ordinal);
+        Assert.Contains("-DHELENGINE_3DS_RENDER_TRACE_ENABLED=$(HELENGINE_3DS_RENDER_TRACE_ENABLED)", makefile, StringComparison.Ordinal);
+        Assert.Contains("#if HELENGINE_3DS_RENDER_TRACE_ENABLED", rendererSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the Nintendo 3DS host advances the generated core by measured frame time instead of assuming every hardware frame completes at sixty hertz.
+    /// </summary>
+    [Fact]
+    public void Nintendo3ds_boot_host_source_uses_measured_elapsed_time_for_core_updates() {
+        string sourcePath = @"C:\dev\helworks\helengine-3ds\src\platform\3ds\Nintendo3DsBootHost.cpp";
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("double elapsedSeconds = ResolveElapsedSecondsForCurrentFrame();", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("EngineCore->Update(1.0 / 60.0);", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Ensures the authored cube-test material stays on the lit forward standard shader so the light-toggle overlay has a visible effect.
     /// </summary>
     [Fact]

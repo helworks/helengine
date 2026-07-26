@@ -109,8 +109,7 @@ namespace helengine.editor.tests {
                 1f,
                 TextAlignment.Center,
                 0f,
-                12,
-                1);
+                12);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.Bake(request));
             Assert.Contains("Unsupported generated font asset id", exception.Message);
@@ -153,8 +152,7 @@ namespace helengine.editor.tests {
                 1f,
                 TextAlignment.Center,
                 0f,
-                12,
-                1);
+                12);
         }
 
         /// <summary>

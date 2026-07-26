@@ -74,7 +74,7 @@ namespace helengine {
             }
 
             IShaderBackend backend = GetBackend(request.Target);
-            ShaderCompileCacheKey cacheKey = CreateCacheKey(request);
+            ShaderCompileCacheKey cacheKey = ShaderCompileRequestIdentity.CreateCacheKey(request, sourceHasher);
             ShaderCompileResult cached;
             if (cache.TryGet(cacheKey, out cached)) {
                 return cached;
@@ -153,61 +153,5 @@ namespace helengine {
             throw new InvalidOperationException("No shader backend is registered for the requested target.");
         }
 
-        /// <summary>
-        /// Builds a cache key for the provided compile request.
-        /// </summary>
-        /// <param name="request">Compile request to describe.</param>
-        /// <returns>Cache key for the request.</returns>
-        ShaderCompileCacheKey CreateCacheKey(ShaderCompileRequest request) {
-            string sourceHash = sourceHasher.ComputeHash(request.Source.Source);
-            string definesSignature = BuildDefinesSignature(request.Defines);
-            string bindingSignature = BuildBindingPolicySignature(request.Options.BindingPolicy);
-            return new ShaderCompileCacheKey(
-                sourceHash,
-                request.ProgramName,
-                request.EntryPoint,
-                request.Stage,
-                request.Target,
-                request.ShaderModel,
-                request.Variant,
-                definesSignature,
-                bindingSignature);
-        }
-
-        /// <summary>
-        /// Builds a stable signature string for a define list.
-        /// </summary>
-        /// <param name="defines">Define list to describe.</param>
-        /// <returns>Stable define signature string.</returns>
-        string BuildDefinesSignature(IReadOnlyList<ShaderDefine> defines) {
-            if (defines.Count == 0) {
-                return string.Empty;
-            }
-
-            System.Text.StringBuilder builder = new System.Text.StringBuilder();
-            for (int i = 0; i < defines.Count; i++) {
-                ShaderDefine define = defines[i];
-                builder.Append(define.Name);
-                builder.Append('=');
-                builder.Append(define.Value);
-                builder.Append(';');
-            }
-
-            return builder.ToString();
-        }
-
-        /// <summary>
-        /// Builds a stable signature string for a binding policy.
-        /// </summary>
-        /// <param name="policy">Binding policy to describe.</param>
-        /// <returns>Stable binding policy signature string.</returns>
-        string BuildBindingPolicySignature(ShaderBindingPolicy policy) {
-            return string.Concat(
-                policy.DefaultSpace.ToString(),
-                ":b", policy.ConstantBufferShift.ToString(),
-                ":t", policy.TextureShift.ToString(),
-                ":s", policy.SamplerShift.ToString(),
-                ":u", policy.StorageShift.ToString());
-        }
     }
 }

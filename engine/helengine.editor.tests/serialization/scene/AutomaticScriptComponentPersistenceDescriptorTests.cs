@@ -230,7 +230,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Rotation = 0.25f,
                 FontScale = 2.0f,
                 RenderOrder2D = 22,
-                LayerMask = 3,
                 SelectionEnabled = true,
                 Texture = new TestRuntimeTexture()
             };
@@ -259,7 +258,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(2.0f, restored.FontScale);
             Assert.Equal("Right", alignmentProperty.GetValue(restored)?.ToString());
             Assert.Equal((byte)22, restored.RenderOrder2D);
-            Assert.Equal((byte)3, restored.LayerMask);
             Assert.True(restored.SelectionEnabled);
             Assert.Null(restored.Texture);
             Assert.True(loadedSaveComponent.TryGetComponentState(restored, out EntityComponentSaveState loadedSaveState));

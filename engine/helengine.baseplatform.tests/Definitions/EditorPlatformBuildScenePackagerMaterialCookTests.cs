@@ -1,5 +1,6 @@
 using System.Reflection;
 using helengine.baseplatform.Builders;
+using helengine.baseplatform.Manifest;
 using helengine.baseplatform.tests.Builders;
 using helengine;
 using helengine.editor;
@@ -46,7 +47,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         /// Ensures packaging uses the target platform sidecar settings instead of stale top-level material fields when custom shader mode is enabled.
         /// </summary>
         [Fact]
-        public void Package_when_builder_is_available_uses_target_platform_material_sidecar_values() {
+    public void Package_when_builder_is_available_uses_target_platform_material_sidecar_values() {
         string sceneId = "Scenes/TestScene.helen";
         string materialRelativePath = "Materials/TestMaterial.helmat";
         SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
@@ -76,6 +77,35 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         Assert.Equal("BaseColorBuffer", packagedMaterial.ConstantBuffers[0].Name);
         Assert.Equal(16, packagedMaterial.ConstantBuffers[0].Data.Length);
         Assert.Equal(new[] { "ForwardStandardShader", "CookedShader" }, result.ReferencedShaderAssetIds);
+    }
+
+    /// <summary>
+    /// Ensures a cooked material output is declared as a material independently from its shader dependency identifiers.
+    /// </summary>
+    [Fact]
+    public void Package_whenBuilderCooksMaterial_reportsExplicitMaterialOutput() {
+        string sceneId = "Scenes/TestScene.helen";
+        SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
+        WriteEmptySceneAsset(sceneId);
+
+        IPlatformAssetBuilder builder = new TestPlatformAssetBuilder();
+        EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+            ProjectRootPath,
+            Array.Empty<IAssetImporterRegistration>(),
+            "windows",
+            builder,
+            "debug",
+            "directx11");
+        EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+
+        PlatformCookedArtifactDeclaration materialOutput = Assert.Single(
+            result.CookedArtifactDeclarations,
+            declaration => string.Equals(declaration.RelativePath, "cooked/engine/materials/standard.hasset", StringComparison.Ordinal));
+
+        Assert.Equal("material", materialOutput.ArtifactKind);
+        Assert.Equal("engine:material:standard", materialOutput.LogicalArtifactId);
+        Assert.Equal(new[] { "ForwardStandardShader" }, result.ReferencedShaderAssetIds);
+        Assert.Equal("ForwardStandardShader", Assert.Single(result.ReferencedShaderDependencies).ShaderAssetId);
     }
 
     /// <summary>
@@ -174,6 +204,23 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
                     Children = Array.Empty<SceneEntityAsset>()
                 }
             ]
+        };
+
+        using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        global::helengine.editor.AssetSerializer.Serialize(stream, sceneAsset);
+    }
+
+    /// <summary>
+    /// Writes one empty scene asset so packaging exercises generated asset output without component serialization dependencies.
+    /// </summary>
+    /// <param name="sceneId">Scene asset id to write.</param>
+    void WriteEmptySceneAsset(string sceneId) {
+        string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+        SceneAsset sceneAsset = new SceneAsset {
+            Id = sceneId,
+            RootEntities = Array.Empty<SceneEntityAsset>()
         };
 
         using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);

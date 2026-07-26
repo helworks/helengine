@@ -28,6 +28,7 @@ namespace helengine.editor {
 
             EditorEntity entity = new EditorEntity {
                 Name = name,
+                IsSceneOwned = true,
                 LayerMask = EditorLayerMasks.SceneObjects,
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,

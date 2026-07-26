@@ -46,9 +46,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Fresh hidden preview text component.</returns>
         public static TextComponent CreatePreviewTextComponent() {
-            return new TextComponent {
-                LayerMask = (byte)EditorLayerMasks.SceneModelPreview
-            };
+            return new TextComponent();
         }
 
         /// <summary>
@@ -56,9 +54,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Fresh hidden preview rounded-rectangle component.</returns>
         public static RoundedRectComponent CreatePreviewRoundedRectComponent() {
-            return new RoundedRectComponent {
-                LayerMask = (byte)EditorLayerMasks.SceneModelPreview
-            };
+            return new RoundedRectComponent();
         }
     }
 }

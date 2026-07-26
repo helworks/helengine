@@ -23,7 +23,9 @@ namespace helengine.editor.tests.serialization {
                 IndexingMethodId = TextureAssetIndexingMethod.QuantizedIndexed.ToString()
             });
             AssetPlatformSettingsSectionRegistry.Shared.SetSection(windowsSettings, "model", new ModelAssetProcessorSettings {
-                FlipWinding = true
+                FlipWinding = true,
+                Tessellate = true,
+                TessellationMaxEdgeLength = 0.5d
             });
             AssetPlatformSettingsSectionRegistry.Shared.SetSection(windowsSettings, "material", new MaterialAssetProcessorSettings {
                 SchemaId = "lit",
@@ -53,10 +55,52 @@ namespace helengine.editor.tests.serialization {
             TextureAssetProcessorSettings fontAtlasSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<TextureAssetProcessorSettings>(
                 deserialized.Processor.Platforms["windows"],
                 "font-atlas-texture");
+            ModelAssetProcessorSettings modelSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<ModelAssetProcessorSettings>(
+                deserialized.Processor.Platforms["windows"],
+                "model");
 
             Assert.Equal(14, fontSettings.PixelSize);
             Assert.Equal(TextureAssetColorFormat.Indexed4, fontAtlasSettings.ColorFormat);
             Assert.Equal(TextureAssetAlphaPrecision.Binary, fontAtlasSettings.AlphaPrecision);
+            Assert.True(modelSettings.FlipWinding);
+            Assert.True(modelSettings.Tessellate);
+            Assert.Equal(0.5d, modelSettings.TessellationMaxEdgeLength);
+        }
+
+        /// <summary>
+        /// Ensures version-nine generic settings payloads default newly added model tessellation settings.
+        /// </summary>
+        [Fact]
+        public void Deserialize_WhenPayloadIsVersionNine_DefaultsModelTessellationSettings() {
+            using MemoryStream stream = new MemoryStream();
+            EngineBinaryHeader header = new EngineBinaryHeader(
+                EngineBinaryEndianness.LittleEndian,
+                9,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)AssetImportSettingsBinarySerializer.RecordKind,
+                (ushort)AssetImportSettingsBinarySerializer.ValueKind);
+            EngineBinaryHeaderSerializer.Write(stream, header);
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
+                writer.WriteString("assimp");
+                writer.WriteString("legacy-checksum");
+                writer.WriteString("legacy-model-id");
+                writer.WriteInt32(1);
+                writer.WriteString("windows");
+                writer.WriteInt32(1);
+                writer.WriteString(ModelAssetPlatformSettingsSectionDefinition.SectionIdValue);
+                writer.WriteByte(1);
+            }
+
+            stream.Position = 0;
+
+            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+            ModelAssetProcessorSettings modelSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<ModelAssetProcessorSettings>(
+                deserialized.Processor.Platforms["windows"],
+                ModelAssetPlatformSettingsSectionDefinition.SectionIdValue);
+
+            Assert.True(modelSettings.FlipWinding);
+            Assert.False(modelSettings.Tessellate);
+            Assert.Equal(1.0d, modelSettings.TessellationMaxEdgeLength);
         }
     }
 }

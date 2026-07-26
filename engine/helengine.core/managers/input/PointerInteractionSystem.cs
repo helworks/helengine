@@ -69,6 +69,7 @@ namespace helengine {
         /// Updates hover and capture routing for the current pointer frame.
         /// </summary>
         public void Update() {
+#if DESKTOP_PLATFORM
             ObjectManager objectManager = Core.ObjectManager;
             List<IInteractable2D> interactables = objectManager.Interactables;
             List<IDrawable2D> drawables2D = objectManager.Drawables2D;
@@ -150,6 +151,7 @@ namespace helengine {
                 int2 hoverDelta = new int2(currentDeltaX, currentDeltaY);
                 Hovering.OnCursor(hoverPointer, hoverDelta, PointerInteraction.Hover);
             }
+#endif
         }
 
         /// <summary>

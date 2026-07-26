@@ -171,6 +171,26 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures a failed later module load reports its original error instead of masking it with a collectible-context unload failure.
+        /// </summary>
+        [Fact]
+        public void Reload_WhenLaterModuleAssemblyIsInvalid_PreservesTheOriginalAssemblyLoadFailure() {
+            string gameplayAssemblyPath = WriteModuleAssembly("gameplay");
+            string invalidAssemblyPath = Path.Combine(OutputRootPath, "menu.tools", "Debug", "net9.0", "menu.tools.dll");
+            string invalidAssemblyDirectoryPath = Path.GetDirectoryName(invalidAssemblyPath)
+                ?? throw new InvalidOperationException("The invalid test assembly path must include a directory.");
+            Directory.CreateDirectory(invalidAssemblyDirectoryPath);
+            File.WriteAllText(invalidAssemblyPath, "This is not a managed assembly.");
+
+            using EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+
+            Assert.Throws<BadImageFormatException>(() => host.Reload([
+                CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime),
+                CreateAssemblyDescriptor("menu.tools", invalidAssemblyPath, EditorCodeModuleKind.Editor)
+            ]));
+        }
+
+        /// <summary>
         /// Ensures the collectible script load context falls back to sibling snapshot DLL probing when the dependency resolver does not return one path.
         /// </summary>
         [Fact]

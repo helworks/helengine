@@ -24,7 +24,7 @@ namespace helengine.editor {
                 if (editorEntity.InternalEntity) {
                     continue;
                 }
-                if (editorEntity.LayerMask != EditorLayerMasks.SceneObjects) {
+                if (!editorEntity.IsSceneOwned) {
                     continue;
                 }
 
@@ -51,6 +51,9 @@ namespace helengine.editor {
             }
             if (rootEntity.InternalEntity) {
                 throw new InvalidOperationException("Blueprint root entity must be user-authored.");
+            }
+            if (!rootEntity.IsSceneOwned) {
+                throw new InvalidOperationException("Blueprint root entity must belong to the authored scene.");
             }
 
             ValidateNoNestedBlueprintInstances(rootEntity);

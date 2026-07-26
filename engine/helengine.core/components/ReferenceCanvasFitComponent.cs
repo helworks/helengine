@@ -100,6 +100,30 @@ namespace helengine {
         public float2 ViewportAnchorOrigin => new float2(-CurrentCanvasOriginValue.X, -CurrentCanvasOriginValue.Y);
 
         /// <summary>
+        /// Calculates the active horizontal and vertical scale factors from reference-canvas coordinates into the fitted canvas.
+        /// </summary>
+        /// <returns>Horizontal and vertical scale factors for values expressed in reference-canvas units.</returns>
+        public float2 CalculateScale() {
+            int2 anchorSpaceSize = ResolveCurrentAnchorSpaceSize();
+            return new float2(
+                (float)((double)anchorSpaceSize.X / ReferenceWidthValue),
+                (float)((double)anchorSpaceSize.Y / ReferenceHeightValue));
+        }
+
+        /// <summary>
+        /// Calculates the fitted subtree-local position for a position expressed in reference-canvas coordinates.
+        /// </summary>
+        /// <param name="referencePosition">Position expressed relative to the reference-canvas subtree.</param>
+        /// <returns>Position expressed in the active fitted canvas coordinate system.</returns>
+        public float3 CalculatePosition(float3 referencePosition) {
+            float2 scale = CalculateScale();
+            return new float3(
+                referencePosition.X * scale.X,
+                referencePosition.Y * scale.Y,
+                referencePosition.Z);
+        }
+
+        /// <summary>
         /// Captures the authored subtree and applies the first fit scale when the component is attached.
         /// </summary>
         /// <param name="entity">Entity that owns the fit component.</param>

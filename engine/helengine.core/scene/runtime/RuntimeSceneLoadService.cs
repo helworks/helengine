@@ -86,10 +86,46 @@ namespace helengine {
         /// <param name="sceneAsset">Packaged scene asset payload to materialize.</param>
         /// <returns>Loaded runtime entities together with scene-owned runtime assets.</returns>
         public RuntimeSceneLoadResult LoadTracked(SceneAsset sceneAsset) {
+            RuntimeSceneLoadOperation operation = CreateTrackedLoadOperation(sceneAsset);
+            while (!operation.IsCompleted) {
+                operation.Advance();
+            }
+
+            return operation.Result;
+        }
+
+        /// <summary>
+        /// Creates one resumable operation that materializes a packaged scene while tracking its owned runtime assets.
+        /// </summary>
+        /// <param name="sceneAsset">Packaged scene payload to materialize.</param>
+        /// <returns>Operation that materializes one root entity per advance.</returns>
+        public RuntimeSceneLoadOperation CreateTrackedLoadOperation(SceneAsset sceneAsset) {
+            return new RuntimeSceneLoadOperation(this, sceneAsset);
+        }
+
+        /// <summary>
+        /// Starts owned runtime-asset tracking for one incremental scene-load operation.
+        /// </summary>
+        internal void BeginTrackedLoad() {
             ReferenceResolver.BeginOwnedAssetTracking();
-            IReadOnlyList<Entity> rootEntities = Load(sceneAsset);
-            RuntimeSceneOwnedAssetSet ownedAssets = ReferenceResolver.CompleteOwnedAssetTracking();
-            return new RuntimeSceneLoadResult(rootEntities, ownedAssets);
+        }
+
+        /// <summary>
+        /// Finalizes owned runtime-asset tracking for one completed incremental scene-load operation.
+        /// </summary>
+        /// <returns>Assets acquired while materializing the operation.</returns>
+        internal RuntimeSceneOwnedAssetSet CompleteTrackedLoad() {
+            return ReferenceResolver.CompleteOwnedAssetTracking();
+        }
+
+        /// <summary>
+        /// Materializes one serialized root entity for an incremental scene-load operation.
+        /// </summary>
+        /// <param name="entityAsset">Serialized root entity payload.</param>
+        /// <param name="rootEntityIndex">Index of the root entity in the packaged scene.</param>
+        /// <returns>Materialized runtime root entity.</returns>
+        internal Entity LoadRootEntity(SceneEntityAsset entityAsset, int rootEntityIndex) {
+            return LoadEntity(entityAsset, rootEntityIndex, 0);
         }
 
         /// <summary>
