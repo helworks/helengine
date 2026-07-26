@@ -13,13 +13,27 @@ public sealed class NativeProcessRunner {
     /// <param name="startInfo">Configured process start information.</param>
     /// <param name="cancellationToken">Cancellation token that terminates the process tree when requested.</param>
     /// <param name="outputHandler">Optional handler that receives each output line and its stream designation.</param>
-    /// <param name="processStartedHandler">Optional handler that receives the started child-process identifier.</param>
-    /// <param name="captureOutput">Whether completed child-process output should be retained in the returned result.</param>
     /// <returns>The process exit code and all output lines received before completion.</returns>
     public NativeProcessRunResult Run(
         ProcessStartInfo startInfo,
         CancellationToken cancellationToken,
-        Action<string, bool> outputHandler = null,
+        Action<string, bool> outputHandler = null) {
+        return Run(startInfo, cancellationToken, outputHandler, null, true);
+    }
+
+    /// <summary>
+    /// Runs one native process with optional process-start notification and optional output retention for long-running tool invocations.
+    /// </summary>
+    /// <param name="startInfo">Configured process start information.</param>
+    /// <param name="cancellationToken">Cancellation token that terminates the process tree when requested.</param>
+    /// <param name="outputHandler">Optional handler that receives each output line and its stream designation.</param>
+    /// <param name="processStartedHandler">Optional handler that receives the started child-process identifier.</param>
+    /// <param name="captureOutput">Whether completed child-process output should be retained in the returned result.</param>
+    /// <returns>The process exit code and any requested completed output.</returns>
+    public NativeProcessRunResult Run(
+        ProcessStartInfo startInfo,
+        CancellationToken cancellationToken,
+        Action<string, bool> outputHandler,
         Action<int> processStartedHandler = null,
         bool captureOutput = true) {
         if (startInfo == null) {
