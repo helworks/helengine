@@ -202,16 +202,17 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies shared portable-input symbol resolution returns only generic capability symbols for Windows builds.
+    /// Verifies shared portable-input symbol resolution includes the Windows desktop capability alongside generic runtime symbols.
     /// </summary>
     [Fact]
-    public void Resolve_portable_input_preprocessor_symbols_returns_generic_capability_symbols_for_windows() {
+    public void Resolve_portable_input_preprocessor_symbols_includes_desktop_platform_for_windows() {
         PlatformDefinition definition = CreatePlatformDefinition("windows", runtimeGenerationContract: null);
 
         IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(definition);
 
         Assert.Collection(
             symbols,
+            symbol => Assert.Equal("DESKTOP_PLATFORM", symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol, symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));

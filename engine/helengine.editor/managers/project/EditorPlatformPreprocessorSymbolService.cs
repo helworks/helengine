@@ -62,7 +62,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(platformDefinition));
             }
 
-            List<string> symbols = [];
+            List<string> symbols = [.. ResolveGameplaySymbols(platformDefinition.PlatformId)];
             RuntimeGenerationContract runtimeGenerationContract = platformDefinition.RuntimeGenerationContract
                 ?? throw new InvalidOperationException($"Platform '{platformDefinition.PlatformId}' must expose a runtime-generation contract.");
             if (runtimeGenerationContract.MaterialResolutionMode == RuntimeMaterialResolutionMode.CookedPlatformOwned) {
