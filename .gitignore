@@ -17,3 +17,12 @@ artifacts/
 user_settings/
 out/
 scratch/
+
+# Local build, log, and temporary artifacts
+*.log
+*.err
+*.exitcode
+*.vpk
+/.codex-temp/
+/tmp-*/
+/tmp_*/
