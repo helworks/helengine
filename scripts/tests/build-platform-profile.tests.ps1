@@ -19,8 +19,20 @@ foreach ($RequiredToken in @(
     }
 }
 
-if ($Source -match '(?s)"--build-profile"\s*,\s*\$Configuration\.ToLowerInvariant\(\)') {
-    throw "The build wrapper must not bind --build-profile to Configuration.ToLowerInvariant()."
+$DirectConfigurationBindingPattern = '(?s)"--build-profile"\s*,\s*\$Configuration(?![A-Za-z0-9_])(?:\s*(?:\.[A-Za-z_][A-Za-z0-9_]*(?:\s*\([^)]*\))?|\[[^\]]+\]|\([^)]*\)))*'
+
+if ($Source -match $DirectConfigurationBindingPattern) {
+    throw "The build wrapper must not bind --build-profile directly to Configuration."
+}
+
+$ControlledDirectConfigurationBindingSources = @(
+    ($Source -replace '(?s)("--build-profile"\s*,\s*)\$ResolvedBuildProfile', '${1}$Configuration'),
+    ($Source -replace '(?s)("--build-profile"\s*,\s*)\$ResolvedBuildProfile', '${1}$Configuration.Trim()')
+)
+foreach ($ControlledDirectConfigurationBindingSource in $ControlledDirectConfigurationBindingSources) {
+    if ($ControlledDirectConfigurationBindingSource -notmatch $DirectConfigurationBindingPattern) {
+        throw "The profile test must reject direct Configuration bindings at the editor invocation."
+    }
 }
 
 if ($Source -notmatch '(?s)"--build-profile"\s*,\s*\$ResolvedBuildProfile') {
