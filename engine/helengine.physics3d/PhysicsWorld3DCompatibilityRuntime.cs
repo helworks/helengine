@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Exposes the parity-complete 3D physics world through a parameterless runtime wrapper that can be created by migration hosts.
     /// </summary>
-    public sealed class PhysicsWorld3DCompatibilityRuntime : ISceneBindablePhysicsRuntime, IPhysicsTriggerEventRuntime3D {
+    public sealed class PhysicsWorld3DCompatibilityRuntime : ISceneBindablePhysicsRuntime, IPhysicsTriggerEventRuntime3D, IPhysicsRuntimeProfilerMetricsProvider {
         /// <summary>
         /// Backing medium-profile world that performs the actual simulation work.
         /// </summary>
@@ -24,6 +24,15 @@ namespace helengine {
         /// Gets the number of registered runtime bodies currently bound to the world.
         /// </summary>
         public int RegisteredBodyCount => InnerWorld.BodyStates.Count;
+
+        /// <summary>
+        /// Delegates profiler metric collection to the owned legacy physics world.
+        /// </summary>
+        /// <param name="metrics">Current solver counters.</param>
+        /// <returns>True when the backing world supplied metrics.</returns>
+        public bool TryGetRuntimeProfilerMetrics(out RuntimePhysicsProfilerMetrics metrics) {
+            return InnerWorld.TryGetRuntimeProfilerMetrics(out metrics);
+        }
 
         /// <summary>
         /// Binds the supplied scene hierarchy to the backing world.

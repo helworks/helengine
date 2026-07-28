@@ -376,14 +376,15 @@ namespace helengine {
         /// <summary>
         /// Commits any runtime scene operations that were deferred for the frame boundary.
         /// </summary>
-        public void CommitPendingOperationsAtFrameBoundary() {
+        /// <returns>Number of scene operations advanced or committed at the safe point.</returns>
+        public int CommitPendingOperationsAtFrameBoundary() {
             if (PendingOperations.Count == 0 && !IsSceneTransitionActiveValue) {
-                return;
+                return 0;
             }
 
             if (IsSceneTransitionActiveValue) {
                 AdvanceSceneTransition();
-                return;
+                return 1;
             }
 
             RecordTraceState("CommitPendingOperationsAtFrameBoundaryBegin", string.Empty);
@@ -423,6 +424,7 @@ namespace helengine {
             }
 
             RecordTraceState("CommitPendingOperationsAtFrameBoundaryEnd", string.Empty);
+            return operationCountToCommit;
         }
 
         /// <summary>
