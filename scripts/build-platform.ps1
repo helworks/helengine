@@ -13,6 +13,9 @@ param(
     [string]$Configuration = "Debug",
 
     [Parameter()]
+    [string]$BuildProfile = "",
+
+    [Parameter()]
     [string]$EditorProject = "",
 
     [Parameter()]
@@ -289,6 +292,15 @@ if ([string]::IsNullOrWhiteSpace($Platform)) { [Console]::Error.WriteLine("Platf
 if ([string]::IsNullOrWhiteSpace($Output)) { [Console]::Error.WriteLine("Output is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Configuration)) { [Console]::Error.WriteLine("Configuration is required."); exit 2 }
 
+if (-not [string]::IsNullOrWhiteSpace($BuildProfile)) {
+    $ResolvedBuildProfile = $BuildProfile
+} elseif ($Configuration -ieq "Debug" -or $Configuration -ieq "Release") {
+    $ResolvedBuildProfile = $Configuration.ToLowerInvariant()
+} else {
+    [Console]::Error.WriteLine("BuildProfile is required when Configuration is not Debug or Release.")
+    exit 2
+}
+
 try {
     if ([string]::IsNullOrWhiteSpace($EditorProject)) {
         $EditorProject = Join-Path $PSScriptRoot "..\\helengine.ui\\helengine.editor.app\\helengine.editor.app.csproj"
@@ -360,12 +372,10 @@ try {
         $Platform
     )
 
-    if ($Configuration -ieq "Debug" -or $Configuration -ieq "Release") {
-        $EditorRunArguments += @(
-            "--build-profile",
-            $Configuration.ToLowerInvariant()
-        )
-    }
+    $EditorRunArguments += @(
+        "--build-profile",
+        $ResolvedBuildProfile
+    )
 
     $EditorRunArguments += @(
         "--output",
