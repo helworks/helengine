@@ -250,33 +250,12 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(stepSeconds), "Simulation step must be a finite value greater than zero.");
             }
 
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("BeforeBepuTimestep");
-            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeBepuTimestepPhaseId);
             SimulationValue.Timestep((float)stepSeconds);
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuTimestepBeforeSync");
-            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterBepuTimestepBeforeSyncPhaseId);
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("BeforeBepuSynchronizeBodies");
-            }
             SynchronizeBodiesBackToEntities();
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuSynchronizeBodiesBeforeTriggerCollection");
-            }
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("BeforeBepuCollectTriggerEvents");
-            }
             CollectTriggerEvents();
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuCollectTriggerEvents");
-            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterBepuSyncPhaseId);
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuSync");
-            }
         }
 
         /// <summary>
@@ -314,6 +293,11 @@ namespace helengine {
                 throw new InvalidOperationException("Simulation must exist before timestep diagnostics can be wired.");
             }
 
+            Core core = Core.Instance;
+            if (core == null || !(core.InitializationOptions.RuntimeDiagnosticsProvider is IRuntimeUpdateStageDiagnosticsProvider)) {
+                return;
+            }
+
             DefaultTimestepper defaultTimestepper = SimulationValue.Timestepper as DefaultTimestepper;
             if (defaultTimestepper == null) {
                 return;
@@ -326,7 +310,6 @@ namespace helengine {
             SimulationValue.BeforeCollisionOverlapDispatch += OnSimulationBeforeCollisionOverlapDispatch;
             SimulationValue.AfterCollisionOverlapDispatch += OnSimulationAfterCollisionOverlapDispatch;
             SimulationValue.AfterCollisionFlush += OnSimulationAfterCollisionFlush;
-            SimulationValue.NarrowPhase.StageReported += OnNarrowPhaseStageReported;
         }
 
         /// <summary>
@@ -679,11 +662,15 @@ namespace helengine {
             IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
             for (int index = 0; index < handles.Count; index++) {
                 BepuBodyHandle3D handle = handles[index];
-                if (!handle.HasBodyHandle) {
+                if (!handle.HasBodyHandle || handle.IsStatic) {
                     continue;
                 }
 
                 BodyReference bodyReference = SimulationValue.Bodies[handle.BodyHandle];
+                if (handle.IsDynamic && !bodyReference.Awake) {
+                    continue;
+                }
+
                 BepuEntitySynchronization3D.CopyBodyToEntity(bodyReference, handle.Entity, handle.RigidBody);
             }
         }

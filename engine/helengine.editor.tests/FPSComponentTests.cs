@@ -101,6 +101,18 @@ namespace helengine.editor.tests {
 
             Assert.Same(font, updateText.Font);
             Assert.Same(font, renderText.Font);
+            Assert.Equal(-1f, updateText.ShadowOffset.X);
+            Assert.Equal(-1f, updateText.ShadowOffset.Y);
+            Assert.Equal(0, updateText.ShadowColor.X);
+            Assert.Equal(0, updateText.ShadowColor.Y);
+            Assert.Equal(0, updateText.ShadowColor.Z);
+            Assert.Equal(255, updateText.ShadowColor.W);
+            Assert.Equal(-1f, renderText.ShadowOffset.X);
+            Assert.Equal(-1f, renderText.ShadowOffset.Y);
+            Assert.Equal(0, renderText.ShadowColor.X);
+            Assert.Equal(0, renderText.ShadowColor.Y);
+            Assert.Equal(0, renderText.ShadowColor.Z);
+            Assert.Equal(255, renderText.ShadowColor.W);
             Assert.Equal(font.LineHeight, overlayHost.Children[1].LocalPosition.Y);
         }
 

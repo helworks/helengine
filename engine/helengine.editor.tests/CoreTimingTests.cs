@@ -73,6 +73,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the core exposes the elapsed time spent advancing fixed-step physics without requiring high-frequency diagnostics callbacks.
+        /// </summary>
+        [Fact]
+        public void Update_WithAttachedPhysicsRuntime_RecordsPhysicsUpdateTiming() {
+            Core core = CreateCore(new CoreInitializationOptions {
+                PhysicsFixedStepSeconds = 1.0d / 60.0d,
+                ContentStreamSource = new FakeContentStreamSource()
+            });
+            TestPhysicsRuntime runtime = new TestPhysicsRuntime();
+            core.AttachPhysicsRuntime(runtime);
+
+            core.Update(1.0d / 30.0d);
+
+            Assert.True(core.LastPhysicsUpdateMilliseconds >= 0d);
+            Assert.Equal(2, core.LastPhysicsStepCount);
+        }
+
+        /// <summary>
         /// Ensures the core exposes the exact amount of fixed-step physics time that will be consumed during the current update so presentation systems can predict post-physics poses without leading frames that do not step physics.
         /// </summary>
         [Fact]

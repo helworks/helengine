@@ -16,12 +16,22 @@ namespace helengine {
         RuntimeSubmesh[] SubmeshesValue;
 
         /// <summary>
+        /// Raw model geometry retained only when a renderer supports load-time mesh preparation.
+        /// </summary>
+        ModelAsset RawModelAssetValue;
+
+        /// <summary>
         /// Gets the runtime submesh draw ranges exposed by the model resource.
         /// </summary>
         public RuntimeSubmesh[] Submeshes {
             get => SubmeshesValue;
             private set => SubmeshesValue = value;
         }
+
+        /// <summary>
+        /// Gets raw geometry retained beside this runtime model for private load-time preparation copies.
+        /// </summary>
+        public ModelAsset RawModelAsset => RawModelAssetValue;
 
         /// <summary>
         /// Gets the minimum vertex position observed when the runtime model was built.
@@ -42,6 +52,8 @@ namespace helengine {
             }
 
             SubmeshesValue = null;
+            NativeOwnership.Delete(RawModelAssetValue);
+            RawModelAssetValue = null;
         }
 
         /// <summary>
@@ -74,6 +86,20 @@ namespace helengine {
         public void SetBounds(float3 boundsMin, float3 boundsMax) {
             BoundsMin = boundsMin;
             BoundsMax = boundsMax;
+        }
+
+        /// <summary>
+        /// Transfers ownership of one raw model asset retained for later load-time geometry preparation.
+        /// </summary>
+        /// <param name="rawModelAsset">Raw model asset whose ownership transfers to this runtime model.</param>
+        public void SetRawModelAsset(ModelAsset rawModelAsset) {
+            if (rawModelAsset == null) {
+                throw new ArgumentNullException(nameof(rawModelAsset));
+            }
+
+            ModelAsset previousRawModelAsset = RawModelAssetValue;
+            RawModelAssetValue = rawModelAsset;
+            NativeOwnership.Delete(previousRawModelAsset);
         }
     }
 }

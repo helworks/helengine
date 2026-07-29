@@ -26,6 +26,9 @@ namespace helengine.editor.tests {
 
             Assert.False(settings.Tessellate);
             Assert.Equal(1.0d, settings.TessellationMaxEdgeLength);
+            Assert.False(settings.BakeScale);
+            Assert.True(settings.TessellateAtCookTime);
+            Assert.True(settings.BakeScaleAtCookTime);
             Assert.False(state.HasPlatformOverride("ps2"));
         }
 
@@ -43,6 +46,35 @@ namespace helengine.editor.tests {
             Assert.Equal(0.25d, Service.GetForPlatform(state, "ps2").TessellationMaxEdgeLength);
             Assert.False(Service.GetForPlatform(state, "windows").Tessellate);
             Assert.Equal(1.0d, Service.GetForPlatform(state, "windows").TessellationMaxEdgeLength);
+        }
+
+        /// <summary>
+        /// Ensures static render-scale baking persists independently with the target platform settings.
+        /// </summary>
+        [Fact]
+        public void SetForPlatform_WhenBakeScaleIsEnabled_PersistsBakeScale() {
+            EntityComponentSaveState state = new EntityComponentSaveState();
+
+            Service.SetForPlatform(state, "psp", new MeshComponentTessellationSettings(true, 0.5d, true));
+
+            MeshComponentTessellationSettings settings = Service.GetForPlatform(state, "psp");
+            Assert.True(settings.Tessellate);
+            Assert.Equal(0.5d, settings.TessellationMaxEdgeLength);
+            Assert.True(settings.BakeScale);
+        }
+
+        /// <summary>
+        /// Ensures each enabled geometry operation independently persists its selected execution time.
+        /// </summary>
+        [Fact]
+        public void SetForPlatform_WhenLoadTimePreparationIsRequested_PersistsBothExecutionTimes() {
+            EntityComponentSaveState state = new EntityComponentSaveState();
+
+            Service.SetForPlatform(state, "psp", new MeshComponentTessellationSettings(true, 0.5d, true, false, false));
+
+            MeshComponentTessellationSettings settings = Service.GetForPlatform(state, "psp");
+            Assert.False(settings.TessellateAtCookTime);
+            Assert.False(settings.BakeScaleAtCookTime);
         }
 
         /// <summary>
@@ -69,7 +101,7 @@ namespace helengine.editor.tests {
 
             string identity = Service.BuildVariantIdentity("models/cube.hasset", "ps2", settings, new float3(2.5f, 1f, -0.5f));
 
-            Assert.Equal("SourceModelReference=models/cube.hasset\nPlatformId=ps2\nTessellate=True\nTessellationMaxEdgeLength=0.125\nWorldScaleX=2.5\nWorldScaleY=1\nWorldScaleZ=-0.5", identity);
+            Assert.Equal("SourceModelReference=models/cube.hasset\nPlatformId=ps2\nTessellate=True\nTessellationMaxEdgeLength=0.125\nBakeScale=False\nTessellateAtCookTime=True\nBakeScaleAtCookTime=True\nWorldScaleX=2.5\nWorldScaleY=1\nWorldScaleZ=-0.5", identity);
         }
 
         /// <summary>

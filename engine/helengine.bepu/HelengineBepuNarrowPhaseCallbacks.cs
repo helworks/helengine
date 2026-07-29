@@ -48,36 +48,14 @@ namespace helengine {
                 return false;
             }
 
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage(
-                        "BeforeBepuAllowContactGenerationFirstProperty aMobility=" + (int)a.Mobility
-                        + " aHandle=" + a.RawHandleValue
-                        + " aBodyExists=" + CollidableProperties.BodyExists(a.BodyHandle)
-                        + " bMobility=" + (int)b.Mobility
-                        + " bHandle=" + b.RawHandleValue
-                        + " bBodyExists=" + CollidableProperties.BodyExists(b.BodyHandle)
-                        + " bodyCapacity=" + CollidableProperties.BodyDataLength);
-            }
             ref BepuCollidableProperties3D firstProperties = ref GetCollidableProperties(a);
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuAllowContactGenerationFirstProperty");
-            }
             ref BepuCollidableProperties3D secondProperties = ref GetCollidableProperties(b);
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuAllowContactGenerationSecondProperty");
-            }
             bool collisionMasksCompatible = AreCollisionMasksCompatible(ref firstProperties, ref secondProperties);
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("BepuFilterAfterMasks compatible=" + collisionMasksCompatible);
-            }
             if (!collisionMasksCompatible) {
                 return false;
             }
 
             bool shouldGenerateContacts = !firstProperties.IsTrigger && !secondProperties.IsTrigger;
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("BepuFilterAfterTriggers accepted=" + shouldGenerateContacts);
-            }
 
             return shouldGenerateContacts;
         }
@@ -106,12 +84,8 @@ namespace helengine {
         /// <returns>True when the manifold should be accepted.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold> {
-            ReportCollidablePropertyReadStage("BepuManifoldBeforeFirstProperty", pair.A);
             ref BepuCollidableProperties3D firstProperties = ref GetCollidableProperties(pair.A);
-            ReportCollidablePropertyReadStage("BepuManifoldAfterFirstProperty", pair.A);
-            ReportCollidablePropertyReadStage("BepuManifoldBeforeSecondProperty", pair.B);
             ref BepuCollidableProperties3D secondProperties = ref GetCollidableProperties(pair.B);
-            ReportCollidablePropertyReadStage("BepuManifoldAfterSecondProperty", pair.B);
             pairMaterial.FrictionCoefficient = ResolvePairFrictionCoefficient(ref firstProperties, ref secondProperties);
             pairMaterial.MaximumRecoveryVelocity = MathF.Max(firstProperties.MaximumRecoveryVelocity, secondProperties.MaximumRecoveryVelocity);
             pairMaterial.SpringSettings = ResolvePairSpringSettings(ref firstProperties, ref secondProperties);
@@ -146,39 +120,13 @@ namespace helengine {
         /// <returns>Reference to the authored properties stored for the collidable.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         ref BepuCollidableProperties3D GetCollidableProperties(CollidableReference collidable) {
-            ReportCollidablePropertyReadStage("BepuPropertyReadEnter", collidable);
             if (collidable.Mobility == CollidableMobility.Static) {
-                ReportCollidablePropertyReadStage("BepuPropertyReadBeforeStaticIndexer", collidable);
                 ref BepuCollidableProperties3D staticProperties = ref CollidableProperties[collidable.StaticHandle];
-                ReportCollidablePropertyReadStage("BepuPropertyReadAfterStaticIndexer", collidable);
                 return ref staticProperties;
             }
 
-            ReportCollidablePropertyReadStage("BepuPropertyReadBeforeBodyIndexer", collidable);
             ref BepuCollidableProperties3D bodyProperties = ref CollidableProperties[collidable.BodyHandle];
-            ReportCollidablePropertyReadStage("BepuPropertyReadAfterBodyIndexer", collidable);
             return ref bodyProperties;
-        }
-
-        /// <summary>
-        /// Records one bounded, data-bearing property-read transition for PSP native crash localization.
-        /// </summary>
-        /// <param name="stageName">Name of the property-read transition being entered or completed.</param>
-        /// <param name="collidable">Collidable reference whose property storage is being inspected.</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void ReportCollidablePropertyReadStage(string stageName, CollidableReference collidable) {
-            if (Core.Instance == null) {
-                return;
-            }
-
-            bool bodyExists = collidable.Mobility != CollidableMobility.Static
-                && CollidableProperties.BodyExists(collidable.BodyHandle);
-            Core.Instance.ReportSceneTransitionStage(
-                stageName
-                + " mobility=" + (int)collidable.Mobility
-                + " handle=" + collidable.RawHandleValue
-                + " bodyExists=" + bodyExists
-                + " bodyCapacity=" + CollidableProperties.BodyDataLength);
         }
 
         /// <summary>

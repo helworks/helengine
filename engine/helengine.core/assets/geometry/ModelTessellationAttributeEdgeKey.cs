@@ -1,4 +1,4 @@
-namespace helengine.editor {
+namespace helengine {
     /// <summary>
     /// Identifies one attribute-vertex edge independently of its winding direction.
     /// </summary>
@@ -51,7 +51,9 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Hash code derived from both endpoint indices.</returns>
         public override int GetHashCode() {
-            return HashCode.Combine(FirstIndex, SecondIndex);
+            unchecked {
+                return (FirstIndex * 397) ^ SecondIndex;
+            }
         }
     }
 }

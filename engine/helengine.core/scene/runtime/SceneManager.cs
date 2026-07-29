@@ -484,8 +484,11 @@ namespace helengine {
                         loadedSceneRecord.RootEntities);
                     try {
                         SceneLoaded?.Invoke(this, sceneLoadedEventArgs);
+                        Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
                     } finally {
+                        Core.Instance?.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
                         NativeOwnership.Delete(sceneLoadedEventArgs);
+                        Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventArgsRelease");
                     }
                     RecordTraceState("LoadSceneImmediateAfterSceneLoadedEvent", sceneId);
                     RecordTraceState("LoadSceneImmediateEnd", sceneId);
@@ -546,16 +549,21 @@ namespace helengine {
             SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(loadedSceneRecord.SceneId, loadedSceneRecord.CookedRelativePath, loadedSceneRecord.RootEntities);
             try {
                 SceneLoaded?.Invoke(this, sceneLoadedEventArgs);
+                Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
             } finally {
+                Core.Instance?.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
                 NativeOwnership.Delete(sceneLoadedEventArgs);
+                Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventArgsRelease");
             }
 
             ReleaseTransientSceneAsset(TransitionSceneAsset);
+            Core.Instance?.ReportSceneTransitionStage("AfterTransitionSceneAssetRelease");
             TransitionSceneAsset = null;
             TransitionLoadOperation = null;
             TransitionSceneContentPath = string.Empty;
             SceneTransitionProgressValue = 1f;
             IsSceneTransitionActiveValue = false;
+            Core.Instance?.ReportSceneTransitionStage("AfterSceneTransitionCommit");
         }
 
         /// <summary>

@@ -16,6 +16,21 @@ namespace helengine.editor {
         public const string TessellationMaxEdgeLengthMemberName = "MeshTessellationMaxEdgeLength";
 
         /// <summary>
+        /// Stable detached override member name that stores whether static render scale is baked into the cooked model variant.
+        /// </summary>
+        public const string BakeScaleMemberName = "MeshBakeScale";
+
+        /// <summary>
+        /// Stable detached override member name that selects package-time execution for enabled tessellation.
+        /// </summary>
+        public const string TessellateAtCookTimeMemberName = "MeshTessellateAtCookTime";
+
+        /// <summary>
+        /// Stable detached override member name that selects package-time execution for enabled scale baking.
+        /// </summary>
+        public const string BakeScaleAtCookTimeMemberName = "MeshBakeScaleAtCookTime";
+
+        /// <summary>
         /// Reads the editor-only MeshComponent tessellation settings for one target platform without creating missing override metadata.
         /// </summary>
         /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
@@ -30,7 +45,10 @@ namespace helengine.editor {
 
             return new MeshComponentTessellationSettings(
                 ReadTessellate(overrideState),
-                ReadTessellationMaxEdgeLength(overrideState));
+                ReadTessellationMaxEdgeLength(overrideState),
+                ReadBakeScale(overrideState),
+                ReadTessellateAtCookTime(overrideState),
+                ReadBakeScaleAtCookTime(overrideState));
         }
 
         /// <summary>
@@ -50,6 +68,9 @@ namespace helengine.editor {
             overrideState.SetMemberValue(
                 TessellationMaxEdgeLengthMemberName,
                 settings.TessellationMaxEdgeLength.ToString("R", CultureInfo.InvariantCulture));
+            overrideState.SetMemberValue(BakeScaleMemberName, settings.BakeScale.ToString(CultureInfo.InvariantCulture));
+            overrideState.SetMemberValue(TessellateAtCookTimeMemberName, settings.TessellateAtCookTime.ToString(CultureInfo.InvariantCulture));
+            overrideState.SetMemberValue(BakeScaleAtCookTimeMemberName, settings.BakeScaleAtCookTime.ToString(CultureInfo.InvariantCulture));
         }
 
         /// <summary>
@@ -80,6 +101,9 @@ namespace helengine.editor {
                 "PlatformId=" + platformId,
                 "Tessellate=" + settings.Tessellate.ToString(CultureInfo.InvariantCulture),
                 "TessellationMaxEdgeLength=" + settings.TessellationMaxEdgeLength.ToString("R", CultureInfo.InvariantCulture),
+                "BakeScale=" + settings.BakeScale.ToString(CultureInfo.InvariantCulture),
+                "TessellateAtCookTime=" + settings.TessellateAtCookTime.ToString(CultureInfo.InvariantCulture),
+                "BakeScaleAtCookTime=" + settings.BakeScaleAtCookTime.ToString(CultureInfo.InvariantCulture),
                 "WorldScaleX=" + worldScale.X.ToString("R", CultureInfo.InvariantCulture),
                 "WorldScaleY=" + worldScale.Y.ToString("R", CultureInfo.InvariantCulture),
                 "WorldScaleZ=" + worldScale.Z.ToString("R", CultureInfo.InvariantCulture));
@@ -116,6 +140,59 @@ namespace helengine.editor {
 
             MeshComponentTessellationSettings.ValidateTessellationMaxEdgeLength(tessellationMaxEdgeLength);
             return tessellationMaxEdgeLength;
+        }
+
+        /// <summary>
+        /// Reads the persisted scale-baking value or returns disabled when the detached member is absent.
+        /// </summary>
+        /// <param name="overrideState">Platform override metadata that may contain the detached member.</param>
+        /// <returns>The persisted scale-baking value or the disabled default.</returns>
+        bool ReadBakeScale(EntityComponentPlatformOverrideState overrideState) {
+            if (!overrideState.TryGetMemberValue(BakeScaleMemberName, out string value)) {
+                return false;
+            }
+            if (!bool.TryParse(value, out bool bakeScale)) {
+                throw new FormatException("MeshComponent scale baking enabled value is invalid.");
+            }
+
+            return bakeScale;
+        }
+
+        /// <summary>
+        /// Reads the tessellation execution time or retains package-time execution for existing scenes without the detached member.
+        /// </summary>
+        /// <param name="overrideState">Platform override metadata that may contain the detached member.</param>
+        /// <returns>Whether enabled tessellation runs while packaging.</returns>
+        bool ReadTessellateAtCookTime(EntityComponentPlatformOverrideState overrideState) {
+            return ReadBooleanOrDefault(overrideState, TessellateAtCookTimeMemberName, true, "MeshComponent tessellation cook-time value is invalid.");
+        }
+
+        /// <summary>
+        /// Reads the scale-baking execution time or retains package-time execution for existing scenes without the detached member.
+        /// </summary>
+        /// <param name="overrideState">Platform override metadata that may contain the detached member.</param>
+        /// <returns>Whether enabled scale baking runs while packaging.</returns>
+        bool ReadBakeScaleAtCookTime(EntityComponentPlatformOverrideState overrideState) {
+            return ReadBooleanOrDefault(overrideState, BakeScaleAtCookTimeMemberName, true, "MeshComponent scale baking cook-time value is invalid.");
+        }
+
+        /// <summary>
+        /// Reads one detached Boolean member or returns its explicit compatibility default when absent.
+        /// </summary>
+        /// <param name="overrideState">Platform override metadata that may contain the member.</param>
+        /// <param name="memberName">Stable detached member name.</param>
+        /// <param name="defaultValue">Value used for scenes saved before the member existed.</param>
+        /// <param name="invalidValueMessage">Exception message used when persisted text is invalid.</param>
+        /// <returns>The parsed value or the compatibility default.</returns>
+        bool ReadBooleanOrDefault(EntityComponentPlatformOverrideState overrideState, string memberName, bool defaultValue, string invalidValueMessage) {
+            if (!overrideState.TryGetMemberValue(memberName, out string value)) {
+                return defaultValue;
+            }
+            if (!bool.TryParse(value, out bool result)) {
+                throw new FormatException(invalidValueMessage);
+            }
+
+            return result;
         }
 
         /// <summary>

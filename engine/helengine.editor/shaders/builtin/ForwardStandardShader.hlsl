@@ -73,11 +73,13 @@ cbuffer EmissiveColorBuffer : register(b7)
 
 Texture2D shadowAtlasTexture : register(t1);
 SamplerState shadowAtlasSampler : register(s1);
+#if !defined(HELENGINE_WIIU_DIRECTIONAL_SHADOWS_ONLY)
 TextureCube pointShadowTexture0 : register(t2);
 TextureCube pointShadowTexture1 : register(t3);
 TextureCube pointShadowTexture2 : register(t4);
 TextureCube pointShadowTexture3 : register(t5);
 SamplerState pointShadowSampler : register(s2);
+#endif
 Texture2D DiffuseTexture : register(t0);
 SamplerState DiffuseTextureSampler : register(s0);
 Texture2D EmissiveTexture : register(t7);
@@ -111,6 +113,7 @@ PS_IN VS(VS_IN input)
     return output;
 }
 
+#if !defined(HELENGINE_WIIU_DIRECTIONAL_SHADOWS_ONLY)
 float SamplePointShadowTexture(int textureIndex, float3 sampleDirection)
 {
     if (textureIndex == 0)
@@ -130,6 +133,7 @@ float SamplePointShadowTexture(int textureIndex, float3 sampleDirection)
 
     return pointShadowTexture3.Sample(pointShadowSampler, sampleDirection).r;
 }
+#endif
 
 float DistributionGgx(float3 normal, float3 halfVector, float roughness)
 {
@@ -234,6 +238,7 @@ float3 EvaluateForwardLight(
                 }
             }
         }
+#if !defined(HELENGINE_WIIU_DIRECTIONAL_SHADOWS_ONLY)
         else if (shadowSlotMetadata.x > 0.5f && shadowSlotMetadata.z > 1.5f && lightType == 1)
         {
             float3 lightToSurface = worldPos - positionAndRange.xyz;
@@ -249,6 +254,7 @@ float3 EvaluateForwardLight(
                 attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
             }
         }
+#endif
     }
 
     float diffuse = saturate(dot(normal, lightDirection));
@@ -274,9 +280,79 @@ float3 EvaluateForwardLight(
     return diffuseColor + specularColor;
 }
 
+#if defined(HELENGINE_WIIU_DIRECTIONAL_SHADOWS_ONLY)
+float3 EvaluateWiiUDirectionalLight(
+    float4 colorAndType,
+    float4 directionAndShadow,
+    float4 shadowAtlasRect,
+    float4 shadowSlotMetadata,
+    float4x4 worldToShadowClip,
+    float3 surfaceColor,
+    float3 worldPos,
+    float3 normal,
+    float3 viewDirection,
+    float roughness,
+    float metallic,
+    float specular)
+{
+    float3 radiance = colorAndType.xyz;
+    float3 lightDirection = normalize(-directionAndShadow.xyz);
+    float attenuation = 1.0f;
+
+    if (materialFlags.x > 0.5f && shadowSlotMetadata.x > 0.5f && shadowSlotMetadata.z < 1.5f && shadowMetadata.x > 0.5f)
+    {
+        float4 shadowClip = mul(float4(worldPos, 1.0f), worldToShadowClip);
+        if (abs(shadowClip.w) > 0.0001f)
+        {
+            float3 shadowNdc = shadowClip.xyz / shadowClip.w;
+            float2 shadowUv = float2((shadowNdc.x * 0.5f) + 0.5f, (-shadowNdc.y * 0.5f) + 0.5f);
+            if (shadowUv.x >= 0.0f && shadowUv.x <= 1.0f && shadowUv.y >= 0.0f && shadowUv.y <= 1.0f && shadowNdc.z >= 0.0f && shadowNdc.z <= 1.0f)
+            {
+                float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);
+                float sampledDepth = shadowAtlasTexture.Sample(shadowAtlasSampler, atlasUv).r;
+                float shadowBias = 0.0015f;
+                float shadowVisibility = (shadowNdc.z - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
+                attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
+            }
+        }
+    }
+
+    float diffuse = saturate(dot(normal, lightDirection));
+    float3 halfVector = normalize(lightDirection + viewDirection);
+    float resolvedRoughness = max(roughness, 0.045f);
+    float dielectricF0 = saturate(specular) * 0.08f;
+    float3 dielectricReflectance = float3(dielectricF0, dielectricF0, dielectricF0);
+    float3 reflectanceAtNormalIncidence = lerp(dielectricReflectance, surfaceColor, metallic);
+    float3 fresnel = FresnelSchlick(saturate(dot(halfVector, viewDirection)), reflectanceAtNormalIncidence);
+    float distribution = DistributionGgx(normal, halfVector, resolvedRoughness);
+    float geometry = GeometrySmith(normal, viewDirection, lightDirection, resolvedRoughness);
+    float normalDotView = saturate(dot(normal, viewDirection));
+    float specularDenominator = max(4.0f * normalDotView * diffuse, 0.0001f);
+    float3 specularColor = (distribution * geometry * fresnel / specularDenominator) * radiance * diffuse * attenuation;
+    float3 diffuseWeight = (1.0f - fresnel) * (1.0f - metallic);
+    float3 diffuseColor = (surfaceColor / 3.14159265f) * diffuseWeight * radiance * diffuse * attenuation;
+
+    return diffuseColor + specularColor;
+}
+#endif
+
 float4 PS(PS_IN input) : SV_Target
 {
-    float4 sampledBaseColor = DiffuseTexture.Sample(DiffuseTextureSampler, input.texCoord) * baseColor;
+    float4 sampledDiffuseTexture = DiffuseTexture.Sample(DiffuseTextureSampler, input.texCoord);
+    float4 sampledBaseColor = sampledDiffuseTexture * baseColor;
+#if defined(HELENGINE_WIIU_DIRECTIONAL_SHADOWS_ONLY) && !defined(HELENGINE_STANDARD_SHADOWED)
+    if (materialFlags.w == -123456.0f)
+    {
+        float preservedRoughnessSample = RoughnessTexture.Sample(RoughnessTextureSampler, input.texCoord).r;
+        float preservedEmissiveSample = EmissiveTexture.Sample(EmissiveTextureSampler, input.texCoord).r;
+        return float4(
+            preservedRoughnessSample + roughnessValue.x + metallicValue.x,
+            preservedEmissiveSample + specularValue.x + emissiveColorValue.x,
+            shadowMetadata.x,
+            1.0f);
+    }
+    return float4(sampledDiffuseTexture.r, light0ColorAndType.g, baseColor.b, 1.0f);
+#endif
     float roughness = saturate(RoughnessTexture.Sample(RoughnessTextureSampler, input.texCoord).r * roughnessValue.x);
     float metallic = saturate(metallicValue.x);
     float specular = saturate(specularValue.x);
@@ -292,6 +368,12 @@ float4 PS(PS_IN input) : SV_Target
     float3 color = surfaceColor * ambientLightColor.rgb;
     int activeLightCount = (int)(lightMetadata.x + 0.5f);
 
+#if defined(HELENGINE_WIIU_DIRECTIONAL_SHADOWS_ONLY)
+    if (activeLightCount > 0)
+    {
+        color += EvaluateWiiUDirectionalLight(light0ColorAndType, light0DirectionAndShadow, shadowLight0AtlasRect, shadowLight0Metadata, shadowLight0WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection, roughness, metallic, specular);
+    }
+#else
     if (activeLightCount > 0)
     {
         color += EvaluateForwardLight(light0ColorAndType, light0DirectionAndShadow, light0PositionAndRange, light0SpotAngles, shadowLight0AtlasRect, shadowLight0Metadata, shadowLight0WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection, roughness, metallic, specular);
@@ -311,6 +393,7 @@ float4 PS(PS_IN input) : SV_Target
     {
         color += EvaluateForwardLight(light3ColorAndType, light3DirectionAndShadow, light3PositionAndRange, light3SpotAngles, shadowLight3AtlasRect, shadowLight3Metadata, shadowLight3WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection, roughness, metallic, specular);
     }
+#endif
 
     color += emissiveColor;
     return float4(saturate(color), sampledBaseColor.a);

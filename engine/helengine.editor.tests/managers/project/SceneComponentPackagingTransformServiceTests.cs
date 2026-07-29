@@ -5,6 +5,8 @@ using helengine.editor.tests.testing;
 using System.Reflection;
 using System.Reflection.Emit;
 
+using System.Globalization;
+
 namespace helengine.editor.tests {
     /// <summary>
     /// Verifies focused text-component packaging rewrites in the shared scene-component transform service.
@@ -248,6 +250,23 @@ namespace helengine.editor.tests {
             Assert.True(File.Exists(Path.Combine(BuildRootPath, firstModelReference.RelativePath)));
             string variantDirectoryPath = Path.Combine(BuildRootPath, "cooked", "generated", "models", "tessellation");
             Assert.Single(Directory.GetFiles(variantDirectoryPath, "*.hasset"));
+        }
+
+        /// <summary>
+        /// Ensures an enabled load-time tessellation request keeps its packaged source model instead of creating a cooked variant.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenMeshTessellationRunsAtLoadTime_DoesNotCreateCookedVariant() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateWrappedTessellatedMeshRecord(tessellateAtCookTime: false);
+            SceneComponentPackagingTransformContext context = new SceneComponentPackagingTransformContext(new float3(4f, 1f, 1f));
+
+            bool transformed = service.TryTransform(record, BuildRootPath, context, out SceneComponentAssetRecord output);
+
+            Assert.True(transformed);
+            SceneAssetReference modelReference = ReadAutomaticComponentAssetReference<MeshComponent>(output, nameof(MeshComponent.Model));
+            Assert.DoesNotContain("cooked/generated/models/tessellation/", modelReference.RelativePath, StringComparison.Ordinal);
+            Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "generated", "models", "tessellation")));
         }
 
         /// <summary>
@@ -764,7 +783,7 @@ namespace helengine.editor.tests {
         /// Creates one MeshComponent record with editor-only Windows tessellation metadata wrapped around its common payload.
         /// </summary>
         /// <returns>Wrapped MeshComponent record prepared for scale-aware tessellation packaging.</returns>
-        static SceneComponentAssetRecord CreateWrappedTessellatedMeshRecord(string platformId = "windows") {
+        static SceneComponentAssetRecord CreateWrappedTessellatedMeshRecord(string platformId = "windows", bool tessellateAtCookTime = true) {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             MeshComponent meshComponent = new MeshComponent {
                 Model = new TestRuntimeModel()
@@ -778,6 +797,8 @@ namespace helengine.editor.tests {
             overrideState.SetMemberValue(MeshComponentTessellationSettingsService.TessellateMemberName, "True");
             overrideState.SetPropertyOverride(MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName);
             overrideState.SetMemberValue(MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, "0.5");
+            overrideState.SetPropertyOverride(MeshComponentTessellationSettingsService.TessellateAtCookTimeMemberName);
+            overrideState.SetMemberValue(MeshComponentTessellationSettingsService.TessellateAtCookTimeMemberName, tessellateAtCookTime.ToString(CultureInfo.InvariantCulture));
             return new ComponentPlatformOverridePayloadService().Wrap(baseRecord, saveState);
         }
 

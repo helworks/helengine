@@ -138,6 +138,7 @@ namespace helengine {
 
             BepuPhysicsWorld3D world = EnsureRuntimeWorldAttached(core);
             world.BindScene(rootEntities);
+            core.ReportSceneTransitionStage("AfterBepuSceneBinding");
         }
 
         /// <summary>

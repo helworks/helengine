@@ -343,6 +343,7 @@ namespace helengine {
 
             UpdateTextComponent = new TextComponent();
             UpdateTextComponent.Color = new byte4(255, 255, 255, 255);
+            ApplyTextShadow(UpdateTextComponent);
             UpdateTextComponent.Font = Font;
             UpdateTextComponent.FontScale = ResolveEffectiveFontScale();
             UpdateRowHost.AddComponent(UpdateTextComponent);
@@ -355,6 +356,7 @@ namespace helengine {
 
             RenderTextComponent = new TextComponent();
             RenderTextComponent.Color = new byte4(255, 255, 255, 255);
+            ApplyTextShadow(RenderTextComponent);
             RenderTextComponent.Font = Font;
             RenderTextComponent.FontScale = ResolveEffectiveFontScale();
             RenderRowHost.AddComponent(RenderTextComponent);
@@ -773,6 +775,7 @@ namespace helengine {
 
             TextComponent textComponent = new TextComponent();
             textComponent.Color = new byte4(255, 255, 255, 255);
+            ApplyTextShadow(textComponent);
             textComponent.Font = Font;
             textComponent.FontScale = ResolveEffectiveFontScale();
             textComponent.Text = lineText;
@@ -780,6 +783,15 @@ namespace helengine {
 
             AdditionalLineRowHosts.Add(rowHost);
             AdditionalLineTextComponents.Add(textComponent);
+        }
+
+        /// <summary>
+        /// Applies the standard black one-pixel offset shadow used by every FPS overlay text row.
+        /// </summary>
+        /// <param name="textComponent">Text component that should receive the FPS overlay shadow.</param>
+        void ApplyTextShadow(TextComponent textComponent) {
+            textComponent.ShadowOffset = new float2(-1f, -1f);
+            textComponent.ShadowColor = new byte4(0, 0, 0, 255);
         }
 
         /// <summary>

@@ -83,7 +83,9 @@ namespace helengine {
             }
 
             if (NextRootEntityIndex == RootEntityAssets.Length) {
+                RuntimeMeshPreparationService meshPreparationService = new RuntimeMeshPreparationService();
                 for (int index = 0; index < RootEntities.Count; index++) {
+                    meshPreparationService.Prepare(RootEntities[index], SceneLoadService.TrackPreparedModel);
                     RootEntities[index].InitializeHierarchy();
                 }
 

@@ -778,7 +778,9 @@ namespace helengine.editor {
             SceneComponentPackagingTransformContext context,
             MeshComponentTessellationSettings settings,
             SceneComponentAssetRecord sourceRecord) {
-            if (!settings.Tessellate || component is not MeshComponent) {
+            bool tessellateAtCookTime = settings.Tessellate && settings.TessellateAtCookTime;
+            bool bakeScaleAtCookTime = settings.BakeScale && settings.BakeScaleAtCookTime;
+            if ((!tessellateAtCookTime && !bakeScaleAtCookTime) || component is not MeshComponent) {
                 return;
             }
             if (rewrittenSaveState == null) {
@@ -800,8 +802,17 @@ namespace helengine.editor {
 
             string sourceModelPath = ResolvePackagedModelAssetPath(buildRootPath, sourceModelReference.RelativePath);
             ModelAsset sourceModelAsset = LoadPackagedModelAsset(sourceModelPath, sourceModelReference.RelativePath, sourceRecord.ComponentKey);
-            ModelTessellationProcessor.Apply(sourceModelAsset, settings.TessellationMaxEdgeLength, context.WorldScale);
+            if (bakeScaleAtCookTime) {
+                ModelTessellationProcessor.ApplyBakeScale(sourceModelAsset, context.WorldScale);
+            }
+            if (tessellateAtCookTime) {
+                ModelTessellationProcessor.Apply(
+                    sourceModelAsset,
+                    settings.TessellationMaxEdgeLength,
+                    bakeScaleAtCookTime ? float3.One : context.WorldScale);
+            }
             string variantRelativePath = BuildMeshTessellationVariantRelativePath(identity);
+            sourceModelAsset.Id = "generated:tessellation:" + identity;
             WriteAsset(Path.Combine(buildRootPath, variantRelativePath), sourceModelAsset);
             SceneAssetReference variantReference = CreateFileSystemReference(BuildRuntimeModelReferenceRelativePath(variantRelativePath));
             MeshTessellationVariantReferencesByIdentity.Add(identity, variantReference);

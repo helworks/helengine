@@ -38,10 +38,10 @@ namespace helengine.bepu.tests {
     }
 
     /// <summary>
-    /// Ensures narrow-phase callback diagnostics distinguish callback entry from each collidable-property lookup during native hardware crash investigation.
+    /// Ensures the runtime narrow phase does not construct per-contact diagnostic strings during normal collision processing.
     /// </summary>
     [Fact]
-    public void HelengineBepuNarrowPhaseCallbacks_source_reports_collidable_property_lookup_stages() {
+    public void HelengineBepuNarrowPhaseCallbacks_source_omits_per_contact_diagnostics() {
         string sourcePath = Path.Combine(
             ResolveRepositoryRootPath(),
             "engine",
@@ -50,21 +50,28 @@ namespace helengine.bepu.tests {
 
         string source = File.ReadAllText(sourcePath);
 
-        Assert.Contains("BeforeBepuAllowContactGenerationFirstProperty", source, StringComparison.Ordinal);
-        Assert.Contains("AfterBepuAllowContactGenerationFirstProperty", source, StringComparison.Ordinal);
-        Assert.Contains("AfterBepuAllowContactGenerationSecondProperty", source, StringComparison.Ordinal);
-        Assert.Contains("a.RawHandleValue", source, StringComparison.Ordinal);
-        Assert.Contains("b.RawHandleValue", source, StringComparison.Ordinal);
-        Assert.Contains("aBodyExists=", source, StringComparison.Ordinal);
-        Assert.Contains("BodyDataLength", source, StringComparison.Ordinal);
         Assert.Contains("GetCollidableProperties", source, StringComparison.Ordinal);
         Assert.Contains("CollidableProperties[collidable.BodyHandle]", source, StringComparison.Ordinal);
         Assert.Contains("ref BepuCollidableProperties3D firstProperties", source, StringComparison.Ordinal);
         Assert.Contains("ref BepuCollidableProperties3D bodyProperties = ref CollidableProperties[collidable.BodyHandle]", source, StringComparison.Ordinal);
-        Assert.Contains("BepuPropertyReadBeforeBodyIndexer", source, StringComparison.Ordinal);
-        Assert.Contains("BepuPropertyReadAfterBodyIndexer", source, StringComparison.Ordinal);
-        Assert.Contains("BepuFilterAfterMasks", source, StringComparison.Ordinal);
-        Assert.Contains("BepuManifoldAfterSecondProperty", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportSceneTransitionStage", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportCollidablePropertyReadStage", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures every production BEPU timestep avoids Core diagnostic stage publication.
+    /// </summary>
+    [Fact]
+    public void BepuPhysicsWorld3D_source_omits_per_timestep_core_diagnostics() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.bepu",
+            "BepuPhysicsWorld3D.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.DoesNotContain("ReportSceneTransitionStage(\"BeforeBepuTimestep\")", source, StringComparison.Ordinal);
     }
 
     /// <summary>

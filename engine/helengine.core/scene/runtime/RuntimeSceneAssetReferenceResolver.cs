@@ -633,6 +633,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Tracks a runtime model created after ordinary reference resolution but before the active scene load completes.
+        /// </summary>
+        /// <param name="asset">Prepared runtime model owned by the active scene load.</param>
+        public void TrackAdditionalOwnedModel(RuntimeModel asset) {
+            TrackOwnedModel(asset);
+        }
+
+        /// <summary>
         /// Tracks one scene-owned runtime material so the owning scene can release it during unload.
         /// </summary>
         /// <param name="asset">Runtime material resolved during scene materialization.</param>

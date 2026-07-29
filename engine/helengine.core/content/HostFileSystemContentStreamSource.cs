@@ -2,7 +2,21 @@ namespace helengine {
     /// <summary>
     /// Opens runtime content streams from one host filesystem root while preserving virtual rooted path conventions used by platform runtimes.
     /// </summary>
-    public sealed class HostFileSystemContentStreamSource : IContentStreamSource {
+public sealed class HostFileSystemContentStreamSource : IContentStreamSource {
+        /// <summary>
+        /// Wii U read-only virtual root used by packaged WUHB content.
+        /// </summary>
+        const string WiiUPackagedContentRootPath = "fs:/vol/content";
+
+        /// <summary>
+        /// Canonical generated Standard material path emitted by the common cook pipeline.
+        /// </summary>
+        const string WiiUGeneratedStandardMaterialRelativePath = "cooked/engine/materials/standard.hasset";
+
+        /// <summary>
+        /// Wii U WUHB-safe alias for the generated Standard material payload.
+        /// </summary>
+        const string WiiUGeneratedStandardMaterialAliasRelativePath = "wiiu_standard_material.hasset";
         /// <summary>
         /// Stores the normalized host or virtual content root.
         /// </summary>
@@ -45,6 +59,11 @@ namespace helengine {
         string ResolveContentPath(string assetPath) {
             if (string.IsNullOrWhiteSpace(assetPath)) {
                 throw new ArgumentException("Asset path must be provided.", nameof(assetPath));
+            }
+
+            if (string.Equals(RootPath, WiiUPackagedContentRootPath, StringComparison.Ordinal)
+                && string.Equals(assetPath, WiiUGeneratedStandardMaterialRelativePath, StringComparison.Ordinal)) {
+                assetPath = WiiUGeneratedStandardMaterialAliasRelativePath;
             }
 
             if (HasVirtualRootPrefix(assetPath)) {

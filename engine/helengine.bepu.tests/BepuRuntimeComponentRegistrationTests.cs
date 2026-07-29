@@ -51,6 +51,7 @@ namespace helengine.bepu.tests {
             Assert.Equal(4, world.SolveVelocityIterationCount);
             Assert.Equal(1, world.SolveSubstepCount);
             Assert.Equal(1, world.RegisteredBodyCount);
+            Assert.Equal("AfterBepuSceneBinding", core.LastSceneTransitionStage);
         }
 
         /// <summary>

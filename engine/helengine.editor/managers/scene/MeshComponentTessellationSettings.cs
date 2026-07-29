@@ -19,9 +19,24 @@ namespace helengine.editor {
         public double TessellationMaxEdgeLength { get; }
 
         /// <summary>
+        /// Gets whether the target platform cooks the owning entity's static scale directly into its render-model variant.
+        /// </summary>
+        public bool BakeScale { get; }
+
+        /// <summary>
+        /// Gets whether enabled tessellation runs while the target platform is packaged instead of while its scene loads.
+        /// </summary>
+        public bool TessellateAtCookTime { get; }
+
+        /// <summary>
+        /// Gets whether enabled scale baking runs while the target platform is packaged instead of while its scene loads.
+        /// </summary>
+        public bool BakeScaleAtCookTime { get; }
+
+        /// <summary>
         /// Initializes disabled settings with the standard maximum edge length.
         /// </summary>
-        public MeshComponentTessellationSettings() : this(false, DefaultTessellationMaxEdgeLength) {
+        public MeshComponentTessellationSettings() : this(false, DefaultTessellationMaxEdgeLength, false, true, true) {
         }
 
         /// <summary>
@@ -29,10 +44,33 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="tessellate">Whether cooking should generate a tessellated model variant.</param>
         /// <param name="tessellationMaxEdgeLength">Maximum permitted world-space triangle edge length.</param>
-        public MeshComponentTessellationSettings(bool tessellate, double tessellationMaxEdgeLength) {
+        public MeshComponentTessellationSettings(bool tessellate, double tessellationMaxEdgeLength) : this(tessellate, tessellationMaxEdgeLength, false, true, true) {
+        }
+
+        /// <summary>
+        /// Initializes component tessellation and static render-scale baking settings.
+        /// </summary>
+        /// <param name="tessellate">Whether cooking should generate a tessellated model variant.</param>
+        /// <param name="tessellationMaxEdgeLength">Maximum permitted world-space triangle edge length.</param>
+        /// <param name="bakeScale">Whether cooking should bake the static render scale into the model variant.</param>
+        public MeshComponentTessellationSettings(bool tessellate, double tessellationMaxEdgeLength, bool bakeScale) : this(tessellate, tessellationMaxEdgeLength, bakeScale, true, true) {
+        }
+
+        /// <summary>
+        /// Initializes component tessellation and static render-scale baking settings with independent package-time execution choices.
+        /// </summary>
+        /// <param name="tessellate">Whether component-specific tessellation is enabled.</param>
+        /// <param name="tessellationMaxEdgeLength">Maximum permitted world-space triangle edge length.</param>
+        /// <param name="bakeScale">Whether static render scale baking is enabled.</param>
+        /// <param name="tessellateAtCookTime">Whether enabled tessellation runs during platform packaging.</param>
+        /// <param name="bakeScaleAtCookTime">Whether enabled scale baking runs during platform packaging.</param>
+        public MeshComponentTessellationSettings(bool tessellate, double tessellationMaxEdgeLength, bool bakeScale, bool tessellateAtCookTime, bool bakeScaleAtCookTime) {
             ValidateTessellationMaxEdgeLength(tessellationMaxEdgeLength);
             Tessellate = tessellate;
             TessellationMaxEdgeLength = tessellationMaxEdgeLength;
+            BakeScale = bakeScale;
+            TessellateAtCookTime = tessellateAtCookTime;
+            BakeScaleAtCookTime = bakeScaleAtCookTime;
         }
 
         /// <summary>

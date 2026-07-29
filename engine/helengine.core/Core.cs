@@ -43,6 +43,10 @@ namespace helengine {
         /// </summary>
         readonly Stopwatch DrawStopwatchValue;
         /// <summary>
+        /// Tracks elapsed wall-clock time spent advancing fixed-step physics during the current update without requiring diagnostic callbacks.
+        /// </summary>
+        readonly Stopwatch PhysicsStopwatchValue;
+        /// <summary>
         /// Stores whether one previous measured update timestamp has been captured yet.
         /// </summary>
         bool HasPreviousMeasuredUpdateSeconds;
@@ -83,6 +87,7 @@ namespace helengine {
 #endif
             UpdateStopwatchValue = Stopwatch.StartNew();
             DrawStopwatchValue = new Stopwatch();
+            PhysicsStopwatchValue = new Stopwatch();
             ResolvedPerformanceOverlayFontScale = 1f;
             ResolvedPerformanceOverlayPadding = new int2(0, 0);
             ResolvedPerformanceOverlayUpdateText = string.Empty;
@@ -135,6 +140,16 @@ namespace helengine {
         /// Gets the most recent duration spent committing deferred scene operations at the draw boundary.
         /// </summary>
         public double LastCompleteFrameBoundaryMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the elapsed duration spent advancing fixed-step physics during the most recent core update.
+        /// </summary>
+        public double LastPhysicsUpdateMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the number of fixed physics steps consumed during the most recent core update.
+        /// </summary>
+        public int LastPhysicsStepCount { get; private set; }
 
         /// <summary>
         /// Gets the draw-call count reported by the most recent render-manager draw.
@@ -338,6 +353,11 @@ namespace helengine {
         /// Gets the most recent core-side scene-transition stage recorded for runtime diagnostics.
         /// </summary>
         public string LastSceneTransitionStage { get; private set; }
+
+        /// <summary>
+        /// Gets whether the active host explicitly requested high-frequency update-stage diagnostics.
+        /// </summary>
+        internal bool HasUpdateStageDiagnostics => UpdateStageDiagnosticsProviderValue != null;
 
         /// <summary>
         /// Gets the clipboard service used by textbox shortcut commands.
@@ -669,13 +689,22 @@ namespace helengine {
                 DrawStopwatchValue.Stop();
                 LastCompleteFrameBoundaryMilliseconds = DrawStopwatchValue.Elapsed.TotalMilliseconds;
                 LastSceneTransitionStage = "AfterCompleteFrameBoundary";
+                if (UpdateStageDiagnosticsProviderValue != null) {
+                    RecordUpdateStage("AfterCompleteFrameBoundary");
+                }
             } else {
                 LastCompleteFrameBoundaryMilliseconds = 0d;
             }
 
             LastSceneTransitionStage = "BeforeRenderManager3DDraw";
+            if (UpdateStageDiagnosticsProviderValue != null) {
+                RecordUpdateStage("BeforeRenderManager3DDraw");
+            }
             LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
             LastSceneTransitionStage = "AfterRenderManager3DDraw";
+            if (UpdateStageDiagnosticsProviderValue != null) {
+                RecordUpdateStage("AfterRenderManager3DDraw");
+            }
             LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
             FPSComponent.RecordRenderFrame();
 #if !HELENGINE_CODEGEN_FEATURE_DISABLED_DEBUG_OVERLAY
@@ -692,6 +721,9 @@ namespace helengine {
                 LastSceneTransitionStage = "CompleteFrameBoundaryCommitBegin";
                 SceneManager.CommitPendingOperationsAtFrameBoundary();
                 LastSceneTransitionStage = "CompleteFrameBoundaryCommitEnd";
+                if (UpdateStageDiagnosticsProviderValue != null) {
+                    RecordUpdateStage("AfterCompleteFrameBoundarySceneCommit");
+                }
             }
         }
 
@@ -921,10 +953,13 @@ namespace helengine {
         /// </summary>
         /// <param name="elapsedSeconds">Elapsed host frame time in seconds.</param>
         void UpdatePhysics(double elapsedSeconds) {
+            LastPhysicsUpdateMilliseconds = 0d;
+            LastPhysicsStepCount = 0;
             if (PhysicsRuntimeValue == null) {
                 return;
             }
 
+            PhysicsStopwatchValue.Restart();
             bool shouldRecordUpdateStages = UpdateStageDiagnosticsProviderValue != null;
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforePhysicsSchedulerAddElapsedSeconds");
@@ -957,7 +992,9 @@ namespace helengine {
                 }
                 consumedStepCount++;
             }
-
+            PhysicsStopwatchValue.Stop();
+            LastPhysicsUpdateMilliseconds = PhysicsStopwatchValue.Elapsed.TotalMilliseconds;
+            LastPhysicsStepCount = consumedStepCount;
         }
     }
 }

@@ -1,8 +1,8 @@
-namespace helengine.editor {
+namespace helengine {
     /// <summary>
     /// Identifies one position-space edge independently of duplicated attribute vertices and winding direction.
     /// </summary>
-    internal readonly struct ModelTessellationGeometricEdgeKey : IEquatable<ModelTessellationGeometricEdgeKey> {
+    internal sealed class ModelTessellationGeometricEdgeKey : IEquatable<ModelTessellationGeometricEdgeKey> {
         /// <summary>
         /// Packed bit pattern for the first endpoint's X coordinate.
         /// </summary>
@@ -78,7 +78,7 @@ namespace helengine.editor {
         /// <param name="obj">Object to compare.</param>
         /// <returns>True when the supplied object is an equal key.</returns>
         public override bool Equals(object obj) {
-            return obj is ModelTessellationGeometricEdgeKey other && Equals(other);
+            return false;
         }
 
         /// <summary>
@@ -86,7 +86,14 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Hash code derived from the packed endpoint coordinates.</returns>
         public override int GetHashCode() {
-            return HashCode.Combine(FirstX, FirstY, FirstZ, SecondX, SecondY, SecondZ);
+            unchecked {
+                int hashCode = FirstX;
+                hashCode = (hashCode * 397) ^ FirstY;
+                hashCode = (hashCode * 397) ^ FirstZ;
+                hashCode = (hashCode * 397) ^ SecondX;
+                hashCode = (hashCode * 397) ^ SecondY;
+                return (hashCode * 397) ^ SecondZ;
+            }
         }
 
         /// <summary>

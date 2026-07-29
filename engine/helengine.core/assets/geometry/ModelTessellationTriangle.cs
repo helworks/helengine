@@ -1,4 +1,4 @@
-namespace helengine.editor {
+namespace helengine {
     /// <summary>
     /// Stores one mutable indexed triangle and the source submesh it belongs to during model tessellation.
     /// </summary>

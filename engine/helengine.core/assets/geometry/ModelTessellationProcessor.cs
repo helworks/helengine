@@ -1,4 +1,4 @@
-namespace helengine.editor {
+namespace helengine {
     /// <summary>
     /// Subdivides imported indexed model geometry into conforming smaller triangles before platform cooking.
     /// </summary>
@@ -15,6 +15,183 @@ namespace helengine.editor {
         /// <param name="maximumEdgeLength">Largest permitted output edge length.</param>
         public static void Apply(ModelAsset asset, double maximumEdgeLength) {
             Apply(asset, maximumEdgeLength, float3.One);
+        }
+
+        /// <summary>
+        /// Creates an independent raw model copy suitable for per-component load-time geometry preparation.
+        /// </summary>
+        /// <param name="asset">Shared source model whose streams and metadata are copied.</param>
+        /// <returns>A model asset with independently owned geometry and submesh arrays.</returns>
+        public static ModelAsset Clone(ModelAsset asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+
+            ModelSubmeshAsset[] submeshes = null;
+            if (asset.Submeshes != null) {
+                submeshes = new ModelSubmeshAsset[asset.Submeshes.Length];
+                for (int submeshIndex = 0; submeshIndex < asset.Submeshes.Length; submeshIndex++) {
+                    ModelSubmeshAsset sourceSubmesh = asset.Submeshes[submeshIndex];
+                    if (sourceSubmesh == null) {
+                        throw new InvalidOperationException($"Model clone source submesh {submeshIndex} is null.");
+                    }
+
+                    submeshes[submeshIndex] = new ModelSubmeshAsset {
+                        MaterialSlotName = sourceSubmesh.MaterialSlotName,
+                        IndexStart = sourceSubmesh.IndexStart,
+                        IndexCount = sourceSubmesh.IndexCount
+                    };
+                }
+            }
+
+            return new ModelAsset {
+                Id = asset.Id,
+                RuntimeAssetId = 0u,
+                Positions = CopyPositions(asset.Positions),
+                Normals = CopyPositions(asset.Normals),
+                TexCoords = CopyTexCoords(asset.TexCoords),
+                BoundsMin = asset.BoundsMin,
+                BoundsMax = asset.BoundsMax,
+                Indices16 = CopyIndices16(asset.Indices16),
+                Indices32 = CopyIndices32(asset.Indices32),
+                Submeshes = submeshes
+            };
+        }
+
+        /// <summary>
+        /// Copies a three-component vector stream when it exists.
+        /// </summary>
+        /// <param name="source">Optional source vector stream.</param>
+        /// <returns>Independent copied vectors, or null.</returns>
+        static float3[] CopyPositions(float3[] source) {
+            if (source == null) {
+                return null;
+            }
+
+            float3[] result = new float3[source.Length];
+            for (int index = 0; index < source.Length; index++) {
+                result[index] = source[index];
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Copies a two-component vector stream when it exists.
+        /// </summary>
+        /// <param name="source">Optional source vector stream.</param>
+        /// <returns>Independent copied vectors, or null.</returns>
+        static float2[] CopyTexCoords(float2[] source) {
+            if (source == null) {
+                return null;
+            }
+
+            float2[] result = new float2[source.Length];
+            for (int index = 0; index < source.Length; index++) {
+                result[index] = source[index];
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Copies a 16-bit index stream when it exists.
+        /// </summary>
+        /// <param name="source">Optional source index stream.</param>
+        /// <returns>Independent copied indices, or null.</returns>
+        static ushort[] CopyIndices16(ushort[] source) {
+            if (source == null) {
+                return null;
+            }
+
+            ushort[] result = new ushort[source.Length];
+            for (int index = 0; index < source.Length; index++) {
+                result[index] = source[index];
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Copies a 32-bit index stream when it exists.
+        /// </summary>
+        /// <param name="source">Optional source index stream.</param>
+        /// <returns>Independent copied indices, or null.</returns>
+        static uint[] CopyIndices32(uint[] source) {
+            if (source == null) {
+                return null;
+            }
+
+            uint[] result = new uint[source.Length];
+            for (int index = 0; index < source.Length; index++) {
+                result[index] = source[index];
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Copies source positions into a mutable list without unsupported collection-copy constructors.
+        /// </summary>
+        /// <param name="source">Source position stream.</param>
+        /// <returns>Independent mutable position list.</returns>
+        static List<float3> CreatePositionList(float3[] source) {
+            List<float3> result = new List<float3>(source.Length);
+            for (int index = 0; index < source.Length; index++) {
+                result.Add(source[index]);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Copies source texture coordinates into a mutable list without unsupported collection-copy constructors.
+        /// </summary>
+        /// <param name="source">Source texture-coordinate stream.</param>
+        /// <returns>Independent mutable texture-coordinate list.</returns>
+        static List<float2> CreateTexCoordList(float2[] source) {
+            List<float2> result = new List<float2>(source.Length);
+            for (int index = 0; index < source.Length; index++) {
+                result.Add(source[index]);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Bakes one static render scale into model positions and corrects its normals for fixed-function lighting.
+        /// </summary>
+        /// <param name="asset">Imported model asset whose geometry receives the scale.</param>
+        /// <param name="scale">Finite nonzero scale to bake into the asset.</param>
+        public static void ApplyBakeScale(ModelAsset asset, float3 scale) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+
+            ValidateMeasurementScale(scale);
+            if (asset.Positions == null || asset.Normals == null || asset.Positions.Length != asset.Normals.Length) {
+                throw new InvalidOperationException("Model scale baking requires equally sized position and normal streams.");
+            }
+
+            for (int vertexIndex = 0; vertexIndex < asset.Positions.Length; vertexIndex++) {
+                float3 position = asset.Positions[vertexIndex];
+                float3 normal = asset.Normals[vertexIndex];
+                asset.Positions[vertexIndex] = new float3(position.X * scale.X, position.Y * scale.Y, position.Z * scale.Z);
+                double normalX = normal.X / scale.X;
+                double normalY = normal.Y / scale.Y;
+                double normalZ = normal.Z / scale.Z;
+                double lengthSquared = (normalX * normalX) + (normalY * normalY) + (normalZ * normalZ);
+                if (lengthSquared == 0d) {
+                    asset.Normals[vertexIndex] = new float3(0f, 0f, 0f);
+                    continue;
+                }
+
+                double inverseLength = 1d / Math.Sqrt(lengthSquared);
+                asset.Normals[vertexIndex] = new float3(
+                    (float)(normalX * inverseLength),
+                    (float)(normalY * inverseLength),
+                    (float)(normalZ * inverseLength));
+            }
         }
 
         /// <summary>
@@ -36,16 +213,19 @@ namespace helengine.editor {
                 return;
             }
 
-            List<float3> positions = new List<float3>(asset.Positions);
-            List<float3> normals = new List<float3>(asset.Normals);
-            List<float2> texCoords = new List<float2>(asset.TexCoords);
+            List<float3> positions = CreatePositionList(asset.Positions);
+            List<float3> normals = CreatePositionList(asset.Normals);
+            List<float2> texCoords = CreateTexCoordList(asset.TexCoords);
             List<ModelTessellationTriangle> triangles = CreateTriangles(asset, indexData);
             Dictionary<ModelTessellationAttributeEdgeKey, int> midpointIndices = new Dictionary<ModelTessellationAttributeEdgeKey, int>();
-            while (TryFindOversizedEdge(triangles, positions, maximumEdgeLength, measurementScale, out ModelTessellationGeometricEdgeKey oversizedEdge)) {
+            ModelTessellationGeometricEdgeKey oversizedEdge = FindOversizedEdge(triangles, positions, maximumEdgeLength, measurementScale);
+            while (oversizedEdge != null) {
                 SplitGeometricEdge(triangles, positions, normals, texCoords, midpointIndices, oversizedEdge);
                 if (triangles.Count > MaximumTriangleCount) {
                     throw new InvalidOperationException($"Model tessellation exceeded the maximum output triangle count of {MaximumTriangleCount}.");
                 }
+
+                oversizedEdge = FindOversizedEdge(triangles, positions, maximumEdgeLength, measurementScale);
             }
 
             ApplyOutput(asset, positions, normals, texCoords, triangles);
@@ -211,12 +391,11 @@ namespace helengine.editor {
         /// <param name="positions">Current mutable vertex positions.</param>
         /// <param name="maximumEdgeLength">Largest permitted output edge length.</param>
         /// <param name="measurementScale">Static scale used only to measure output edge lengths.</param>
-        /// <param name="oversizedEdge">Resolved oversized geometric edge when found.</param>
-        /// <returns>True when an oversized edge was found.</returns>
-        static bool TryFindOversizedEdge(List<ModelTessellationTriangle> triangles, List<float3> positions, double maximumEdgeLength, float3 measurementScale, out ModelTessellationGeometricEdgeKey oversizedEdge) {
+        /// <returns>One oversized geometric edge, or null when every edge fits.</returns>
+        static ModelTessellationGeometricEdgeKey FindOversizedEdge(List<ModelTessellationTriangle> triangles, List<float3> positions, double maximumEdgeLength, float3 measurementScale) {
             double maximumEdgeLengthSquared = maximumEdgeLength * maximumEdgeLength;
             double longestOversizedEdgeLengthSquared = maximumEdgeLengthSquared;
-            ModelTessellationGeometricEdgeKey longestOversizedEdge = default;
+            ModelTessellationGeometricEdgeKey longestOversizedEdge = null;
             for (int triangleIndex = 0; triangleIndex < triangles.Count; triangleIndex++) {
                 ModelTessellationTriangle triangle = triangles[triangleIndex];
                 double firstEdgeLengthSquared = GetDistanceSquared(positions[triangle.FirstIndex], positions[triangle.SecondIndex], measurementScale);
@@ -238,8 +417,7 @@ namespace helengine.editor {
                 }
             }
 
-            oversizedEdge = longestOversizedEdge;
-            return longestOversizedEdgeLengthSquared > maximumEdgeLengthSquared;
+            return longestOversizedEdge;
         }
 
         /// <summary>
@@ -360,7 +538,7 @@ namespace helengine.editor {
             double z = ((double)first.Z + second.Z) * 0.5d;
             double lengthSquared = (x * x) + (y * y) + (z * z);
             if (lengthSquared == 0d) {
-                return float3.Zero;
+                return new float3(0f, 0f, 0f);
             }
 
             double inverseLength = 1d / Math.Sqrt(lengthSquared);

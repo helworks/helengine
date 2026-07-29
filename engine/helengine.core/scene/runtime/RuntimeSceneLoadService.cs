@@ -119,6 +119,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Tracks a runtime model created during load-time component preparation so the loaded scene releases it during unload.
+        /// </summary>
+        /// <param name="runtimeModel">Prepared runtime model owned by the active load operation.</param>
+        internal void TrackPreparedModel(RuntimeModel runtimeModel) {
+            ReferenceResolver.TrackAdditionalOwnedModel(runtimeModel);
+        }
+
+        /// <summary>
         /// Materializes one serialized root entity for an incremental scene-load operation.
         /// </summary>
         /// <param name="entityAsset">Serialized root entity payload.</param>

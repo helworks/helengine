@@ -595,6 +595,8 @@ public class ObjectManager {
     /// Updates all registered updateables in order.
     /// </summary>
     public virtual void Update() {
+        Core core = Core.Instance;
+        bool shouldRecordUpdateStages = core != null && core.HasUpdateStageDiagnostics;
         diagnosticUpdatePassCount++;
         LastUpdateableDiagnosticPass = diagnosticUpdatePassCount;
         LastUpdateableDiagnosticIndex = -1;
@@ -610,7 +612,19 @@ public class ObjectManager {
                 LastUpdateableDiagnosticIndex = i;
                 LastUpdateableDiagnosticTypeHash = ComputeStableTypeNameHash(item);
                 LastUpdateableDiagnosticOwnerSceneEntityId = ResolveUpdateableOwnerSceneEntityId(item);
+                if (shouldRecordUpdateStages) {
+                    core.ReportSceneTransitionStage(
+                        "BeforeObjectManagerUpdateable index=" + i
+                        + " hash=" + LastUpdateableDiagnosticTypeHash
+                        + " owner=" + LastUpdateableDiagnosticOwnerSceneEntityId);
+                }
                 item.Update();
+                if (shouldRecordUpdateStages) {
+                    core.ReportSceneTransitionStage(
+                        "AfterObjectManagerUpdateable index=" + i
+                        + " hash=" + LastUpdateableDiagnosticTypeHash
+                        + " owner=" + LastUpdateableDiagnosticOwnerSceneEntityId);
+                }
             }
         } finally {
             updateLoopActive = false;

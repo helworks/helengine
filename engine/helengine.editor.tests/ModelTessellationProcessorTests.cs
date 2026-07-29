@@ -58,6 +58,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures static render-scale baking transforms positions and inverse-scale-corrects normals.
+        /// </summary>
+        [Fact]
+        public void ApplyBakeScale_WhenScaleIsNonUniform_TransformsPositionsAndNormals() {
+            ModelAsset asset = CreateUnitTriangleAsset();
+            asset.Positions[1] = new float3(1f, 2f, 3f);
+            asset.Normals[1] = new float3(1f, 1f, 0f);
+
+            ModelTessellationProcessor.ApplyBakeScale(asset, new float3(2f, 4f, 1f));
+
+            Assert.Equal(new float3(2f, 8f, 3f), asset.Positions[1]);
+            Assert.InRange(asset.Normals[1].X, 0.8944f, 0.8945f);
+            Assert.InRange(asset.Normals[1].Y, 0.4472f, 0.4473f);
+            Assert.Equal(0f, asset.Normals[1].Z);
+        }
+
+        /// <summary>
+        /// Ensures load-time preparation can mutate a private model copy without changing the shared source geometry.
+        /// </summary>
+        [Fact]
+        public void Clone_WhenSourceModelIsMutatedAfterward_RemainsIndependent() {
+            ModelAsset source = CreateUnitTriangleAsset();
+
+            ModelAsset clone = ModelTessellationProcessor.Clone(source);
+            clone.Positions[1] = new float3(9f, 0f, 0f);
+
+            Assert.Equal(new float3(1f, 0f, 0f), source.Positions[1]);
+            Assert.Equal(new float3(9f, 0f, 0f), clone.Positions[1]);
+        }
+
+        /// <summary>
         /// Creates one large indexed triangle with complete vertex attributes.
         /// </summary>
         /// <returns>Representative model asset for tessellation tests.</returns>
