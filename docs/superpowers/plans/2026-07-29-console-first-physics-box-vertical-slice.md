@@ -512,7 +512,7 @@ Test feature-identifier persistence, local-anchor proximity fallback, impulse re
 The cache exposes:
 
 ```csharp
-public void Update(ref HelPhysicsContactManifold3D Manifold, int StepId)
+public void Update(HelPhysicsPairKey3D Pair, ref HelPhysicsContactManifold3D Manifold, int StepId)
 public void Touch(HelPhysicsPairKey3D Pair, int StepId)
 public bool TryGet(HelPhysicsPairKey3D Pair, out HelPhysicsContactManifold3D Manifold)
 public void RemoveUntouched(int StepId)
