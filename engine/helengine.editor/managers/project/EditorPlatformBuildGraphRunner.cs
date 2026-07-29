@@ -834,6 +834,10 @@ namespace helengine.editor {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             }
 
+            if (string.Equals(relativePath, "helcpp_config.hpp", StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
             string destinationPath = Path.Combine(generatedCoreRootPath, relativePath);
             string destinationDirectoryPath = Path.GetDirectoryName(destinationPath)
                 ?? throw new InvalidOperationException($"Generated-core destination directory could not be resolved for '{relativePath}'.");
