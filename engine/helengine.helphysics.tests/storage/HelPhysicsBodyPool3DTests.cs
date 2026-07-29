@@ -20,6 +20,26 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies that releasing the final representable generation diagnoses exhaustion before the slot can wrap and reissue an ancient handle generation.
+        /// </summary>
+        [Fact]
+        public void Release_WhenGenerationWouldOverflow_ThrowsGenerationExhaustionError() {
+            HelPhysicsBodyPool3D pool = new HelPhysicsBodyPool3D(1);
+            HelPhysicsBodyHandle3D handle = pool.Allocate(CreateDynamicState(), CreateDynamicColdState());
+
+            for (int releaseCount = 0; releaseCount < ushort.MaxValue; releaseCount++) {
+                pool.Release(handle);
+                handle = pool.Allocate(CreateDynamicState(), CreateDynamicColdState());
+            }
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => pool.Release(handle));
+
+            Assert.Contains("generation", exception.Message);
+            Assert.Contains("exhausted", exception.Message);
+            Assert.Equal(1, pool.ActiveCount);
+        }
+
+        /// <summary>
         /// Verifies that allocation reports the body pool name and fixed capacity when no free slot remains.
         /// </summary>
         [Fact]

@@ -92,9 +92,13 @@ namespace helengine {
         /// Releases a live body slot, invalidates its generation, and returns its index to the free list.
         /// </summary>
         /// <param name="handle">Current generational handle for the body slot to release.</param>
-        /// <exception cref="InvalidOperationException">Thrown when <paramref name="handle"/> is invalid, stale, or already released.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when <paramref name="handle"/> is invalid, stale, already released, or cannot advance beyond the final representable generation.</exception>
         public void Release(HelPhysicsBodyHandle3D handle) {
             ValidateHandle(handle);
+
+            if (Generations[handle.Index] == ushort.MaxValue) {
+                throw new InvalidOperationException("The body handle generation is exhausted and cannot be reissued.");
+            }
 
             States[handle.Index].IsOccupied = false;
             Generations[handle.Index]++;
