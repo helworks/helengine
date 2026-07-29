@@ -180,10 +180,10 @@ git commit -m "feat: add HelPhysics scalar math foundation"
 [Fact]
 public void ReleaseAndAllocate_ReusesIndexWithNewGeneration() {
     HelPhysicsBodyPool3D pool = new HelPhysicsBodyPool3D(1);
-    HelPhysicsBodyHandle3D first = pool.Allocate(CreateDynamicState());
+    HelPhysicsBodyHandle3D first = pool.Allocate(CreateDynamicState(), CreateDynamicColdState());
 
     pool.Release(first);
-    HelPhysicsBodyHandle3D second = pool.Allocate(CreateDynamicState());
+    HelPhysicsBodyHandle3D second = pool.Allocate(CreateDynamicState(), CreateDynamicColdState());
 
     Assert.Equal(first.Index, second.Index);
     Assert.NotEqual(first.Generation, second.Generation);
@@ -193,10 +193,10 @@ public void ReleaseAndAllocate_ReusesIndexWithNewGeneration() {
 [Fact]
 public void Allocate_WhenCapacityIsExhausted_ThrowsExactCapacityError() {
     HelPhysicsBodyPool3D pool = new HelPhysicsBodyPool3D(1);
-    pool.Allocate(CreateDynamicState());
+    pool.Allocate(CreateDynamicState(), CreateDynamicColdState());
 
     HelPhysicsCapacityExceededException exception = Assert.Throws<HelPhysicsCapacityExceededException>(
-        () => pool.Allocate(CreateDynamicState()));
+        () => pool.Allocate(CreateDynamicState(), CreateDynamicColdState()));
 
     Assert.Equal("body", exception.PoolName);
     Assert.Equal(1, exception.Capacity);
@@ -232,7 +232,7 @@ internal struct HelPhysicsBodyState3D {
 }
 ```
 
-`HelPhysicsBodyColdState3D` stores shape handle, body kind, material, collision layer/mask, entity binding identity, and authoring metadata that hot integration loops do not require. Allocate parallel hot-state, cold-state, generation, and free-index arrays in the constructor. Initialize a deterministic free list in ascending allocation order. `GetRequiredState` and `GetRequiredColdState` return references only after validating index, generation, and occupancy. `Release` increments generation and rejects double release. Reject capacities below 1 or above 65,534.
+`HelPhysicsBodyColdState3D` stores shape handle, body kind, a `ushort MaterialIndex`, collision layer/mask, an `int EntityBindingId`, and authoring metadata that hot integration loops do not require. Task 2 deliberately stores material identity rather than depending on `HelPhysicsMaterial3D`, which is introduced in Task 8. `Allocate` requires both hot and cold state explicitly; it must not invent a cold-state default. Allocate parallel hot-state, cold-state, generation, and free-index arrays in the constructor. Initialize a deterministic free list in ascending allocation order. `GetRequiredState` and `GetRequiredColdState` return references only after validating index, generation, and occupancy. `Release` increments generation and rejects double release. Reject capacities below 1 or above 65,534.
 
 - [ ] **Step 4: Run storage tests**
 
