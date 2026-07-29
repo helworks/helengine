@@ -176,6 +176,29 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies that an eligible pair and a zero-length destination report the exact candidate-pair exhaustion diagnostic.
+        /// </summary>
+        [Fact]
+        public void BuildCandidatePairs_WhenDestinationLengthIsZero_ThrowsExactCapacityError() {
+            HelPhysicsSweepAndPrune3D broadphase = new HelPhysicsSweepAndPrune3D(2, 1);
+            broadphase.UpdateProxy(1, BodyKind3D.Dynamic, true, 1, ushort.MaxValue, CreateAabb(-1f, 1f));
+            broadphase.UpdateProxy(2, BodyKind3D.Static, true, 1, ushort.MaxValue, CreateAabb(-1f, 1f));
+            HelPhysicsCandidatePair3D[] pairs = new HelPhysicsCandidatePair3D[0];
+            Exception observedException = null;
+
+            try {
+                broadphase.BuildCandidatePairs(pairs);
+            } catch (Exception caughtException) {
+                observedException = caughtException;
+            }
+
+            HelPhysicsCapacityExceededException exception = Assert.IsType<HelPhysicsCapacityExceededException>(observedException);
+            Assert.Equal("candidate pair", exception.PoolName);
+            Assert.Equal(0, exception.Capacity);
+            Assert.Equal("The candidate pair pool capacity of 0 has been exceeded.", exception.Message);
+        }
+
+        /// <summary>
         /// Verifies that removing a proxy removes all of its endpoint participation before the next candidate build.
         /// </summary>
         [Fact]

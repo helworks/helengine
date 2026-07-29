@@ -19,15 +19,15 @@ namespace helengine {
         /// <param name="poolName">Concise name of the pool that rejected allocation.</param>
         /// <param name="capacity">Configured number of slots in the exhausted pool.</param>
         /// <exception cref="ArgumentException">Thrown when <paramref name="poolName"/> is empty or whitespace.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="capacity"/> is not positive.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="capacity"/> is negative.</exception>
         public HelPhysicsCapacityExceededException(string poolName, int capacity)
             : base(CreateMessage(poolName, capacity)) {
             if (string.IsNullOrWhiteSpace(poolName)) {
                 throw new ArgumentException("A capacity exception requires the exhausted pool name.", nameof(poolName));
             }
 
-            if (capacity < 1) {
-                throw new ArgumentOutOfRangeException(nameof(capacity), "A capacity exception requires a positive pool capacity.");
+            if (capacity < 0) {
+                throw new ArgumentOutOfRangeException(nameof(capacity), "A capacity exception cannot report a negative pool capacity.");
             }
 
             PoolName = poolName;
@@ -45,8 +45,8 @@ namespace helengine {
                 throw new ArgumentException("A capacity exception requires the exhausted pool name.", nameof(poolName));
             }
 
-            if (capacity < 1) {
-                throw new ArgumentOutOfRangeException(nameof(capacity), "A capacity exception requires a positive pool capacity.");
+            if (capacity < 0) {
+                throw new ArgumentOutOfRangeException(nameof(capacity), "A capacity exception cannot report a negative pool capacity.");
             }
 
             return $"The {poolName} pool capacity of {capacity} has been exceeded.";
