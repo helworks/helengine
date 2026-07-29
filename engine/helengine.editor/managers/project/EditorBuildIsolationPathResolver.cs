@@ -12,6 +12,11 @@ namespace helengine.editor {
         const string IsolationFolderName = "helengine-builds";
 
         /// <summary>
+        /// Environment setting that allows build hosts to select a short visible isolation root.
+        /// </summary>
+        const string WorkspaceRootEnvironmentVariableName = "HELENGINE_BUILD_WORKSPACE_ROOT";
+
+        /// <summary>
         /// Number of SHA-256 bytes retained in the stable project hash segment.
         /// </summary>
         const int ProjectHashByteCount = 16;
@@ -50,8 +55,7 @@ namespace helengine.editor {
             }
 
             return Path.Combine(
-                Path.GetTempPath(),
-                IsolationFolderName,
+                ResolveIsolationRootPath(),
                 ProjectHashSegment,
                 SanitizePathSegment(platformId));
         }
@@ -123,6 +127,19 @@ namespace helengine.editor {
             }
 
             return builder.ToString();
+        }
+
+        /// <summary>
+        /// Resolves the base isolation directory, honoring the build host's explicit visible workspace root when provided.
+        /// </summary>
+        /// <returns>Absolute root directory for isolated build state.</returns>
+        static string ResolveIsolationRootPath() {
+            string configuredWorkspaceRootPath = Environment.GetEnvironmentVariable(WorkspaceRootEnvironmentVariableName);
+            if (!string.IsNullOrWhiteSpace(configuredWorkspaceRootPath)) {
+                return Path.GetFullPath(configuredWorkspaceRootPath);
+            }
+
+            return Path.Combine(Path.GetTempPath(), IsolationFolderName);
         }
 
         /// <summary>

@@ -341,6 +341,8 @@ try {
         $ResolvedWorkspaceRootPath = [System.IO.Path]::GetFullPath($WorkspaceRoot)
     }
 
+    $env:HELENGINE_BUILD_WORKSPACE_ROOT = $ResolvedWorkspaceRootPath
+
     $BuildExecutionId = [Guid]::NewGuid().ToString("N")
     $BuildInvocationRootPath = Join-Path $ResolvedWorkspaceRootPath ($ProjectIsolationHash + "\" + $PlatformIsolationSegment + "\" + $BuildExecutionId)
     $IsolatedProjectRootPath = Join-Path $BuildInvocationRootPath "project"
