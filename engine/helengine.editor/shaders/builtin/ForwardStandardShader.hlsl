@@ -311,7 +311,8 @@ float3 EvaluateWiiUDirectionalLight(
                 float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);
                 float sampledDepth = shadowAtlasTexture.Sample(shadowAtlasSampler, atlasUv).r;
                 float shadowBias = 0.0015f;
-                float shadowVisibility = (shadowNdc.z - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
+                float wiiuShadowReceiverDepth = (shadowNdc.z * 0.5f) + 0.5f;
+                float shadowVisibility = (wiiuShadowReceiverDepth - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
                 attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
             }
         }
@@ -346,12 +347,11 @@ float4 PS(PS_IN input) : SV_Target
         float preservedRoughnessSample = RoughnessTexture.Sample(RoughnessTextureSampler, input.texCoord).r;
         float preservedEmissiveSample = EmissiveTexture.Sample(EmissiveTextureSampler, input.texCoord).r;
         return float4(
-            preservedRoughnessSample + roughnessValue.x + metallicValue.x,
+            preservedRoughnessSample + roughnessValue.x + metallicValue.x + light0ColorAndType.x,
             preservedEmissiveSample + specularValue.x + emissiveColorValue.x,
             shadowMetadata.x,
             1.0f);
     }
-    return float4(sampledDiffuseTexture.r, light0ColorAndType.g, baseColor.b, 1.0f);
 #endif
     float roughness = saturate(RoughnessTexture.Sample(RoughnessTextureSampler, input.texCoord).r * roughnessValue.x);
     float metallic = saturate(metallicValue.x);
