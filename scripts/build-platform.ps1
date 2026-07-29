@@ -13,6 +13,9 @@ param(
     [string]$Configuration = "Debug",
 
     [Parameter()]
+    [string]$BuildProfile = "",
+
+    [Parameter()]
     [string]$EditorProject = "",
 
     [Parameter()]
@@ -289,6 +292,20 @@ if ([string]::IsNullOrWhiteSpace($Platform)) { [Console]::Error.WriteLine("Platf
 if ([string]::IsNullOrWhiteSpace($Output)) { [Console]::Error.WriteLine("Output is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Configuration)) { [Console]::Error.WriteLine("Configuration is required."); exit 2 }
 
+if (-not [string]::IsNullOrWhiteSpace($BuildProfile)) {
+    $ResolvedBuildProfile = $BuildProfile
+} elseif ($Configuration -ieq "Debug" -or $Configuration -ieq "Release") {
+    $ResolvedBuildProfile = $Configuration.ToLowerInvariant()
+} else {
+    [Console]::Error.WriteLine("BuildProfile is required when Configuration is not Debug or Release.")
+    exit 2
+}
+
+$DotNetExecutablePath = $env:HELENGINE_DOTNET_EXECUTABLE_PATH
+if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
+    $DotNetExecutablePath = "dotnet"
+}
+
 try {
     if ([string]::IsNullOrWhiteSpace($EditorProject)) {
         $EditorProject = Join-Path $PSScriptRoot "..\\helengine.ui\\helengine.editor.app\\helengine.editor.app.csproj"
@@ -360,12 +377,10 @@ try {
         $Platform
     )
 
-    if ($Configuration -ieq "Debug" -or $Configuration -ieq "Release") {
-        $EditorRunArguments += @(
-            "--build-profile",
-            $Configuration.ToLowerInvariant()
-        )
-    }
+    $EditorRunArguments += @(
+        "--build-profile",
+        $ResolvedBuildProfile
+    )
 
     $EditorRunArguments += @(
         "--output",
@@ -387,7 +402,7 @@ try {
 
     Write-Host ("Restoring: " + ($RestoreDisplayArguments -join " "))
 
-    $DotNetRestoreExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $DotNetRestoreArguments
+    $DotNetRestoreExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList $DotNetRestoreArguments
     if ($DotNetRestoreExitCode -ne 0) {
         [Console]::Error.WriteLine("Editor project restore failed with exit code $DotNetRestoreExitCode.")
         exit $DotNetRestoreExitCode
@@ -404,7 +419,7 @@ try {
 
     Write-Host ("Publishing: " + ($BuildDisplayArguments -join " "))
 
-    $DotNetBuildExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList $DotNetPublishArguments
+    $DotNetBuildExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList $DotNetPublishArguments
     if ($DotNetBuildExitCode -ne 0) {
         [Console]::Error.WriteLine("Editor project publish failed with exit code $DotNetBuildExitCode.")
         exit $DotNetBuildExitCode
@@ -431,7 +446,7 @@ try {
     try {
         $env:HELENGINE_SOURCE_ROOT = $ResolvedHelEngineRootPath
 
-        $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath "dotnet" -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
+        $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
         if ($DotNetExitCode -ne 0) {
             [Console]::Error.WriteLine("Editor platform build failed with exit code $DotNetExitCode.")
             exit $DotNetExitCode

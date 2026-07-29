@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Represents one hosted 3D physics world configured for a specific runtime profile.
     /// </summary>
-    public class PhysicsWorld3D : IPhysicsRuntime, IPhysicsTriggerEventRuntime3D {
+    public class PhysicsWorld3D : IPhysicsRuntime, IPhysicsTriggerEventRuntime3D, IPhysicsRuntimeProfilerMetricsProvider {
         /// <summary>
         /// Gravity applied to dynamic bodies each fixed step.
         /// </summary>
@@ -138,6 +138,23 @@ namespace helengine {
         /// Gets the trigger overlap events emitted during the most recent fixed step.
         /// </summary>
         public IReadOnlyList<TriggerEvent3D> TriggerEvents => TriggerEventsValue;
+
+        /// <summary>
+        /// Returns exact body, contact, and persistent constraint counts owned by the legacy solver.
+        /// </summary>
+        /// <param name="metrics">Current solver counters.</param>
+        /// <returns>Always <see langword="true"/> because this solver owns all reported counters.</returns>
+        public bool TryGetRuntimeProfilerMetrics(out RuntimePhysicsProfilerMetrics metrics) {
+            int contactCount = 0;
+            for (int index = 0; index < BoxBoxContactConstraintsValue.Count; index++) {
+                checked {
+                    contactCount += BoxBoxContactConstraintsValue[index].ContactCount;
+                }
+            }
+
+            metrics = new RuntimePhysicsProfilerMetrics(BodyStatesValue.Count, contactCount, BoxBoxContactConstraintsValue.Count);
+            return true;
+        }
 
         /// <summary>
         /// Binds one scene hierarchy to the world by discovering supported rigid-body entities.
