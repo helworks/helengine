@@ -85,6 +85,79 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies that a reused current manifold slot loses stale solver state when no retained feature or local-anchor match exists.
+        /// </summary>
+        [Fact]
+        public void Update_WithReusedUnmatchedContact_ResetsImpulsesAndLifetime() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(1, 4);
+            HelPhysicsContactManifold3D previousManifold = CreateManifold(CreateContact(23u, 0f, 0f, 0f, 0f));
+            cache.Update(pair, ref previousManifold, 1);
+
+            HelPhysicsContactManifold3D currentManifold = CreateManifold(CreateContact(24u, 1f, 0.1f, 0f, 0.1f));
+            HelPhysicsContactPoint3D currentContact = currentManifold.GetContact(0);
+            currentContact.AccumulatedNormalImpulse = PhysicsScalar.FromFloat(8f);
+            currentContact.AccumulatedTangentImpulse0 = PhysicsScalar.FromFloat(7f);
+            currentContact.AccumulatedTangentImpulse1 = PhysicsScalar.FromFloat(6f);
+            currentContact.PreviousStepLifetime = 5;
+            currentManifold.SetContact(0, in currentContact);
+
+            cache.Update(pair, ref currentManifold, 2);
+
+            currentContact = currentManifold.GetContact(0);
+            Assert.Equal(PhysicsScalar.Zero, currentContact.AccumulatedNormalImpulse);
+            Assert.Equal(PhysicsScalar.Zero, currentContact.AccumulatedTangentImpulse0);
+            Assert.Equal(PhysicsScalar.Zero, currentContact.AccumulatedTangentImpulse1);
+            Assert.Equal(0, currentContact.PreviousStepLifetime);
+        }
+
+        /// <summary>
+        /// Verifies that matching a retained maximum lifetime preserves the maximum instead of overflowing it negative.
+        /// </summary>
+        [Fact]
+        public void Update_WithMaximumLifetime_SaturatesAtMaximumInteger() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(1, 5);
+            HelPhysicsContactManifold3D previousManifold = CreateManifold(CreateContact(25u, 0f, 0f, 0f, 0f));
+            HelPhysicsContactPoint3D previousContact = previousManifold.GetContact(0);
+            previousContact.PreviousStepLifetime = int.MaxValue;
+            previousManifold.SetContact(0, in previousContact);
+            cache.Update(pair, ref previousManifold, 1);
+
+            HelPhysicsContactManifold3D currentManifold = CreateManifold(CreateContact(25u, 1f, 0f, 0f, 0f));
+            cache.Update(pair, ref currentManifold, 2);
+
+            Assert.Equal(int.MaxValue, currentManifold.GetContact(0).PreviousStepLifetime);
+        }
+
+        /// <summary>
+        /// Verifies that a duplicate update for the same step rewrites current geometry and warm-start impulses without advancing lifetime again.
+        /// </summary>
+        [Fact]
+        public void Update_RepeatedForSameStep_DoesNotAdvanceLifetimeAgain() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(1, 6);
+            HelPhysicsContactManifold3D previousManifold = CreateManifold(CreateContact(26u, 0f, 0f, 0f, 0f));
+            HelPhysicsContactPoint3D previousContact = previousManifold.GetContact(0);
+            previousContact.AccumulatedNormalImpulse = PhysicsScalar.FromFloat(9f);
+            previousContact.PreviousStepLifetime = 5;
+            previousManifold.SetContact(0, in previousContact);
+            cache.Update(pair, ref previousManifold, 1);
+
+            HelPhysicsContactManifold3D firstCurrentManifold = CreateManifold(CreateContact(26u, 1f, 0f, 0f, 0f));
+            cache.Update(pair, ref firstCurrentManifold, 2);
+            HelPhysicsContactManifold3D duplicateCurrentManifold = CreateManifold(CreateContact(26u, 2f, 0f, 0f, 0f));
+            cache.Update(pair, ref duplicateCurrentManifold, 2);
+
+            HelPhysicsContactPoint3D duplicateContact = duplicateCurrentManifold.GetContact(0);
+            Assert.Equal(PhysicsScalar.FromFloat(9f), duplicateContact.AccumulatedNormalImpulse);
+            Assert.Equal(6, duplicateContact.PreviousStepLifetime);
+            Assert.True(cache.TryGet(pair, out HelPhysicsContactManifold3D retainedManifold));
+            Assert.Equal(PhysicsScalar.FromFloat(2f), retainedManifold.GetContact(0).Position.X);
+            Assert.Equal(6, retainedManifold.GetContact(0).PreviousStepLifetime);
+        }
+
+        /// <summary>
         /// Verifies that stale removal tombstones an occupied slot without breaking lookup through its collision probe chain.
         /// </summary>
         [Fact]
@@ -126,6 +199,26 @@ namespace helengine {
             Assert.True(cache.TryGet(pair, out HelPhysicsContactManifold3D retainedManifold));
             Assert.Equal(10, retainedManifold.GetContact(0).PreviousStepLifetime);
             Assert.Equal(1, cache.Count);
+        }
+
+        /// <summary>
+        /// Verifies that touching a quiescent pair more than once in one simulation step advances its lifetime only once.
+        /// </summary>
+        [Fact]
+        public void Touch_RepeatedForSameStep_DoesNotAdvanceLifetimeAgain() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(1, 7);
+            HelPhysicsContactManifold3D manifold = CreateManifold(CreateContact(42u, 0f, 0f, 0f, 0f));
+            HelPhysicsContactPoint3D contact = manifold.GetContact(0);
+            contact.PreviousStepLifetime = 5;
+            manifold.SetContact(0, in contact);
+            cache.Update(pair, ref manifold, 1);
+
+            cache.Touch(pair, 2);
+            cache.Touch(pair, 2);
+
+            Assert.True(cache.TryGet(pair, out HelPhysicsContactManifold3D retainedManifold));
+            Assert.Equal(6, retainedManifold.GetContact(0).PreviousStepLifetime);
         }
 
         /// <summary>

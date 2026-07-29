@@ -72,7 +72,8 @@ namespace helengine {
             int existingEntryIndex = FindExistingEntryIndex(pair);
             if (existingEntryIndex >= 0) {
                 ref HelPhysicsManifoldCacheEntry3D existingEntry = ref Entries[existingEntryIndex];
-                WarmStartManifold(ref manifold, in existingEntry.Manifold);
+                bool advancesLifetime = existingEntry.StepId != stepId;
+                WarmStartManifold(ref manifold, in existingEntry.Manifold, advancesLifetime);
                 existingEntry.Manifold = manifold;
                 existingEntry.StepId = stepId;
                 return;
@@ -104,7 +105,9 @@ namespace helengine {
             }
 
             ref HelPhysicsManifoldCacheEntry3D entry = ref Entries[entryIndex];
-            AdvanceContactLifetimes(ref entry.Manifold);
+            if (entry.StepId != stepId) {
+                AdvanceContactLifetimes(ref entry.Manifold);
+            }
             entry.StepId = stepId;
         }
 
@@ -194,14 +197,19 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Matches each new contact at most once against the retained manifold and copies only matched solver impulse state.
+        /// Matches each new contact at most once against the retained manifold and resets unmatched solver state before retaining current geometry.
         /// </summary>
         /// <param name="currentManifold">New narrow-phase manifold whose contacts receive warm-start state.</param>
         /// <param name="previousManifold">Retained manifold that supplies prior contact state.</param>
-        static void WarmStartManifold(ref HelPhysicsContactManifold3D currentManifold, in HelPhysicsContactManifold3D previousManifold) {
+        /// <param name="advancesLifetime">Whether this update represents a later simulation step than the retained manifold.</param>
+        static void WarmStartManifold(
+            ref HelPhysicsContactManifold3D currentManifold,
+            in HelPhysicsContactManifold3D previousManifold,
+            bool advancesLifetime) {
             int usedPreviousContactMask = 0;
             for (int currentContactIndex = 0; currentContactIndex < currentManifold.ContactCount; currentContactIndex++) {
                 HelPhysicsContactPoint3D currentContact = currentManifold.GetContact(currentContactIndex);
+                ResetSolverState(ref currentContact);
                 int previousContactIndex = FindExactFeatureMatchIndex(in currentContact, in previousManifold, usedPreviousContactMask);
                 if (previousContactIndex < 0) {
                     previousContactIndex = FindNearestAnchorMatchIndex(in currentContact, in previousManifold, usedPreviousContactMask);
@@ -209,10 +217,11 @@ namespace helengine {
 
                 if (previousContactIndex >= 0) {
                     HelPhysicsContactPoint3D previousContact = previousManifold.GetContact(previousContactIndex);
-                    CopyMatchedImpulseState(ref currentContact, in previousContact);
-                    currentManifold.SetContact(currentContactIndex, in currentContact);
+                    CopyMatchedImpulseState(ref currentContact, in previousContact, advancesLifetime);
                     usedPreviousContactMask |= 1 << previousContactIndex;
                 }
+
+                currentManifold.SetContact(currentContactIndex, in currentContact);
             }
         }
 
@@ -274,15 +283,34 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Clears solver impulses and persistence age so newly generated contact geometry cannot retain state from a reused manifold slot.
+        /// </summary>
+        /// <param name="contact">Current contact whose solver state is reset before persistence matching.</param>
+        static void ResetSolverState(ref HelPhysicsContactPoint3D contact) {
+            contact.AccumulatedNormalImpulse = PhysicsScalar.Zero;
+            contact.AccumulatedTangentImpulse0 = PhysicsScalar.Zero;
+            contact.AccumulatedTangentImpulse1 = PhysicsScalar.Zero;
+            contact.PreviousStepLifetime = 0;
+        }
+
+        /// <summary>
         /// Copies only accumulated solver impulses and persistence age from one matched retained contact to new contact geometry.
         /// </summary>
         /// <param name="currentContact">New contact that receives matched solver state.</param>
         /// <param name="previousContact">Retained contact that supplies solver state without supplying geometry.</param>
-        static void CopyMatchedImpulseState(ref HelPhysicsContactPoint3D currentContact, in HelPhysicsContactPoint3D previousContact) {
+        /// <param name="advancesLifetime">Whether the current update represents a later simulation step.</param>
+        static void CopyMatchedImpulseState(
+            ref HelPhysicsContactPoint3D currentContact,
+            in HelPhysicsContactPoint3D previousContact,
+            bool advancesLifetime) {
             currentContact.AccumulatedNormalImpulse = previousContact.AccumulatedNormalImpulse;
             currentContact.AccumulatedTangentImpulse0 = previousContact.AccumulatedTangentImpulse0;
             currentContact.AccumulatedTangentImpulse1 = previousContact.AccumulatedTangentImpulse1;
-            currentContact.PreviousStepLifetime = previousContact.PreviousStepLifetime + 1;
+            if (advancesLifetime) {
+                currentContact.PreviousStepLifetime = AdvanceLifetime(previousContact.PreviousStepLifetime);
+            } else {
+                currentContact.PreviousStepLifetime = previousContact.PreviousStepLifetime;
+            }
         }
 
         /// <summary>
@@ -292,9 +320,22 @@ namespace helengine {
         static void AdvanceContactLifetimes(ref HelPhysicsContactManifold3D manifold) {
             for (int contactIndex = 0; contactIndex < manifold.ContactCount; contactIndex++) {
                 HelPhysicsContactPoint3D contact = manifold.GetContact(contactIndex);
-                contact.PreviousStepLifetime++;
+                contact.PreviousStepLifetime = AdvanceLifetime(contact.PreviousStepLifetime);
                 manifold.SetContact(contactIndex, in contact);
             }
+        }
+
+        /// <summary>
+        /// Advances one retained contact lifetime without allowing its non-negative count to overflow.
+        /// </summary>
+        /// <param name="previousLifetime">Lifetime accumulated through prior simulation steps.</param>
+        /// <returns>The next lifetime, saturated at <see cref="int.MaxValue"/>.</returns>
+        static int AdvanceLifetime(int previousLifetime) {
+            if (previousLifetime == int.MaxValue) {
+                return int.MaxValue;
+            }
+
+            return previousLifetime + 1;
         }
 
         /// <summary>
