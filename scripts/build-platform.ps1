@@ -19,6 +19,9 @@ param(
     [string]$EditorProject = "",
 
     [Parameter()]
+    [string]$WorkspaceRoot = "",
+
+    [Parameter()]
     [string[]]$AdditionalArgs = @()
 )
 
@@ -332,8 +335,14 @@ try {
     $ProjectIsolationHash = Get-ProjectIsolationHash -ProjectRootPath $ResolvedProjectRootPath
     $PlatformIsolationSegment = Get-SafePathSegment -Value $Platform
     $ResolvedHelEngineRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+    if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
+        $ResolvedWorkspaceRootPath = Join-Path (Split-Path -Parent $ResolvedHelEngineRootPath) "builds\helengine-builds"
+    } else {
+        $ResolvedWorkspaceRootPath = [System.IO.Path]::GetFullPath($WorkspaceRoot)
+    }
+
     $BuildExecutionId = [Guid]::NewGuid().ToString("N")
-    $BuildInvocationRootPath = Join-Path ([System.IO.Path]::GetTempPath()) ("helengine-builds\" + $ProjectIsolationHash + "\" + $PlatformIsolationSegment + "\invocations\" + $BuildExecutionId)
+    $BuildInvocationRootPath = Join-Path $ResolvedWorkspaceRootPath ($ProjectIsolationHash + "\" + $PlatformIsolationSegment + "\" + $BuildExecutionId)
     $IsolatedProjectRootPath = Join-Path $BuildInvocationRootPath "project"
     $IsolatedProjectPath = Join-Path $IsolatedProjectRootPath (Split-Path -Leaf $ResolvedProjectPath)
     Copy-ProjectIntoIsolatedWorkspace -SourceProjectRootPath $ResolvedProjectRootPath -DestinationProjectRootPath $IsolatedProjectRootPath
