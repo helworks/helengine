@@ -71,10 +71,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Queue item id must be provided.", nameof(queueItemId));
             }
 
-            return Path.Combine(
-                ResolvePlatformRootPath(platformId),
-                "workspace",
-                SanitizePathSegment(queueItemId));
+            if (UsesConfiguredWorkspaceRoot()) {
+                return Path.Combine(ResolveIsolationRootPath(), SanitizePathSegment(platformId), SanitizePathSegment(queueItemId));
+            }
+
+            return Path.Combine(ResolvePlatformRootPath(platformId), "workspace", SanitizePathSegment(queueItemId));
         }
 
         /// <summary>
@@ -89,9 +90,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Execution id must be provided.", nameof(executionId));
             }
 
-            return Path.Combine(
-                ResolveWorkspaceExecutionRootPath(platformId, queueItemId),
-                SanitizePathSegment(executionId));
+            if (UsesConfiguredWorkspaceRoot()) {
+                return Path.Combine(ResolveIsolationRootPath(), SanitizePathSegment(platformId), SanitizePathSegment(executionId));
+            }
+
+            return Path.Combine(ResolveWorkspaceExecutionRootPath(platformId, queueItemId), SanitizePathSegment(executionId));
         }
 
         /// <summary>
@@ -140,6 +143,14 @@ namespace helengine.editor {
             }
 
             return Path.Combine(Path.GetTempPath(), IsolationFolderName);
+        }
+
+        /// <summary>
+        /// Determines whether the build host supplied an explicit compact workspace root.
+        /// </summary>
+        /// <returns><c>true</c> when invocation paths should omit stable project nesting.</returns>
+        static bool UsesConfiguredWorkspaceRoot() {
+            return !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(WorkspaceRootEnvironmentVariableName));
         }
 
         /// <summary>

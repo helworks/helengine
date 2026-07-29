@@ -336,7 +336,7 @@ try {
     $PlatformIsolationSegment = Get-SafePathSegment -Value $Platform
     $ResolvedHelEngineRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
     if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
-        $ResolvedWorkspaceRootPath = Join-Path (Split-Path -Parent $ResolvedHelEngineRootPath) "builds\helengine-builds"
+        $ResolvedWorkspaceRootPath = Join-Path (Split-Path -Parent $ResolvedHelEngineRootPath) "b"
     } else {
         $ResolvedWorkspaceRootPath = [System.IO.Path]::GetFullPath($WorkspaceRoot)
     }
