@@ -717,8 +717,10 @@ namespace helengine {
                 RecordUpdateStage("AfterRenderManager3DDraw");
             }
             LastRenderManager3DDrawCallCount = RenderManager3D == null ? 0 : RenderManager3D.LastDrawCallCount;
+            LastSceneTransitionStage = "BeforeFpsRenderFrame";
             FPSComponent.RecordRenderFrame();
 #if !HELENGINE_CODEGEN_FEATURE_DISABLED_DEBUG_OVERLAY
+            LastSceneTransitionStage = "BeforeDebugRenderFrame";
             DebugComponent.RecordRenderFrame();
 #endif
             LastSceneTransitionStage = "DrawEnd";
