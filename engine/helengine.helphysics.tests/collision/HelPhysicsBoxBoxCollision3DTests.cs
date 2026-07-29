@@ -49,6 +49,70 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies that an outside-to-boundary side-plane transition retains four distinct clipped face positions.
+        /// </summary>
+        [Fact]
+        public void TryBuildManifold_WithIncidentVertexExactlyOnSidePlane_ReturnsFourDistinctContacts() {
+            HelPhysicsBoxShape3D shapeA = new HelPhysicsBoxShape3D(new PhysicsVector3(1f, 1f, 1f));
+            HelPhysicsBoxShape3D shapeB = new HelPhysicsBoxShape3D(new PhysicsVector3(1f, 0.75f, 0.25f));
+            PhysicsQuaternion orientationB = PhysicsQuaternion.CreateFromAxisAngle(
+                PhysicsVector3.UnitX,
+                PhysicsScalar.FromFloat((float)(Math.PI * 0.25d)));
+            PhysicsVector3 boundaryVertexOffset = orientationB.Rotate(new PhysicsVector3(-1f, -0.75f, -0.25f));
+            HelPhysicsBodyState3D bodyA = CreateBodyState(PhysicsVector3.Zero, PhysicsQuaternion.Identity);
+            HelPhysicsBodyState3D bodyB = CreateBodyState(
+                new PhysicsVector3(
+                    PhysicsScalar.FromFloat(1.9f),
+                    PhysicsScalar.FromFloat(-1f) - boundaryVertexOffset.Y,
+                    PhysicsScalar.Zero),
+                orientationB);
+            HelPhysicsBoxCollisionScratch3D scratch = new HelPhysicsBoxCollisionScratch3D();
+            HelPhysicsContactManifold3D manifold = default;
+
+            PhysicsVector3 exactBoundaryVertex = HelPhysicsBoxGeometry3D.GetWorldVertex(
+                shapeB,
+                bodyB.Position,
+                bodyB.Orientation,
+                0);
+            Assert.Equal(-1f, exactBoundaryVertex.Y.ToFloat());
+
+            bool overlaps = HelPhysicsBoxBoxCollision3D.TryBuildManifold(
+                in shapeA,
+                in bodyA,
+                in shapeB,
+                in bodyB,
+                scratch,
+                ref manifold);
+
+            Assert.True(overlaps);
+            Assert.Equal(4, manifold.ContactCount);
+
+            PhysicsScalar distinctDistanceSquared = PhysicsScalar.FromFloat(0.00000001f);
+            for (int contactIndex = 0; contactIndex < manifold.ContactCount; contactIndex++) {
+                HelPhysicsContactPoint3D contact = manifold.GetContact(contactIndex);
+                for (int otherContactIndex = contactIndex + 1; otherContactIndex < manifold.ContactCount; otherContactIndex++) {
+                    PhysicsVector3 separation = contact.Position - manifold.GetContact(otherContactIndex).Position;
+                    Assert.True(
+                        separation.LengthSquared() > distinctDistanceSquared,
+                        "Exact side-plane clipping must not emit the same geometric contact twice.");
+                }
+            }
+
+            bool containsSecondEdgeIntersection = false;
+            PhysicsVector3 expectedSecondEdgeIntersection = new PhysicsVector3(0.95f, -1f, 0f);
+            for (int contactIndex = 0; contactIndex < manifold.ContactCount; contactIndex++) {
+                PhysicsVector3 separation = manifold.GetContact(contactIndex).Position - expectedSecondEdgeIntersection;
+                if (separation.LengthSquared() <= distinctDistanceSquared) {
+                    containsSecondEdgeIntersection = true;
+                }
+            }
+
+            Assert.True(
+                containsSecondEdgeIntersection,
+                "Distinct edge intersection at (0.95, -1, 0) must survive deterministic four-contact reduction.");
+        }
+
+        /// <summary>
         /// Verifies that a tilted half-unit cube with one incident corner behind a broad reference face retains only that corner.
         /// </summary>
         [Fact]

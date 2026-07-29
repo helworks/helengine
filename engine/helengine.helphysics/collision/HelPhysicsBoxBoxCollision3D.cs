@@ -329,7 +329,6 @@ namespace helengine {
             PhysicsScalar previousDistance = PhysicsVector3.Dot(
                 planeNormal,
                 previous.Position - faceCenter) - planeExtent;
-            bool previousInside = previousDistance <= PhysicsScalar.Zero;
 
             for (int inputIndex = 0; inputIndex < inputCount; inputIndex++) {
                 HelPhysicsBoxClipVertex3D current = input[inputIndex];
@@ -338,7 +337,8 @@ namespace helengine {
                     current.Position - faceCenter) - planeExtent;
                 bool currentInside = currentDistance <= PhysicsScalar.Zero;
 
-                if (previousInside != currentInside) {
+                if ((previousDistance < PhysicsScalar.Zero && currentDistance > PhysicsScalar.Zero)
+                    || (previousDistance > PhysicsScalar.Zero && currentDistance < PhysicsScalar.Zero)) {
                     PhysicsScalar interpolation = previousDistance / (previousDistance - currentDistance);
                     PhysicsVector3 intersection = previous.Position
                         + ((current.Position - previous.Position) * interpolation);
@@ -358,7 +358,6 @@ namespace helengine {
 
                 previous = current;
                 previousDistance = currentDistance;
-                previousInside = currentInside;
             }
 
             return outputCount;
