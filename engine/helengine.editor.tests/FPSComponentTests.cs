@@ -146,7 +146,7 @@ namespace helengine.editor.tests {
         /// Ensures the Nintendo 3DS runtime halves the effective FPS row size without changing the authored component scale.
         /// </summary>
         [Fact]
-        public void ThreeDsPlatform_WhenOverlayIsBuilt_HalvesEffectiveFontScaleForBothRows() {
+    public void ThreeDsPlatform_WhenOverlayIsBuilt_HalvesEffectiveFontScaleForBothRows() {
             using Core threeDsCore = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
@@ -172,6 +172,37 @@ namespace helengine.editor.tests {
             Assert.Equal(0.5f, updateText.FontScale);
             Assert.Equal(0.5f, renderText.FontScale);
             Assert.Equal(font.LineHeight * 0.5f, overlayHost.Children[1].LocalPosition.Y);
+        }
+
+        /// <summary>
+        /// Ensures the PS2 profiling overlay does not emit an additional shadow glyph pass for every visible character.
+        /// </summary>
+        [Fact]
+        public void Ps2Platform_WhenOverlayIsBuilt_DisablesTextShadows() {
+            using Core ps2Core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
+            });
+            ps2Core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("ps2", "test-version"));
+
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FPSComponent fps = new FPSComponent {
+                Font = CreateFont(24f)
+            };
+            entity.AddComponent(fps);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            TextComponent updateText = Assert.Single(overlayHost.Children[0].Components.OfType<TextComponent>());
+            TextComponent renderText = Assert.Single(overlayHost.Children[1].Components.OfType<TextComponent>());
+
+            Assert.Equal(0f, updateText.ShadowOffset.X);
+            Assert.Equal(0f, updateText.ShadowOffset.Y);
+            Assert.Equal(0, updateText.ShadowColor.W);
+            Assert.Equal(0f, renderText.ShadowOffset.X);
+            Assert.Equal(0f, renderText.ShadowOffset.Y);
+            Assert.Equal(0, renderText.ShadowColor.W);
         }
 
         /// <summary>

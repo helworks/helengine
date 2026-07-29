@@ -29,6 +29,21 @@ namespace helengine {
         readonly List<double> TextLineOffsets;
 
         /// <summary>
+        /// Queue that produced the currently reusable static-text command list.
+        /// </summary>
+        IRenderQueue2D CachedStaticTextRenderQueue;
+
+        /// <summary>
+        /// Signature of the text state and resolved parent positions stored in the reusable static-text command list.
+        /// </summary>
+        int CachedStaticTextRenderQueueSignature;
+
+        /// <summary>
+        /// Tracks whether the current command list was built from a queue eligible for static-text reuse.
+        /// </summary>
+        bool HasCachedStaticTextRenderQueue;
+
+        /// <summary>
         /// Tracks whether the native reusable builder state was already released.
         /// </summary>
         bool IsDisposedValue;
@@ -53,6 +68,15 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(renderQueue));
             }
 
+            int staticTextRenderQueueSignature;
+            bool canReuseStaticTextCommandList = TryResolveStaticTextRenderQueueSignature(renderQueue, out staticTextRenderQueueSignature);
+            if (canReuseStaticTextCommandList
+                && HasCachedStaticTextRenderQueue
+                && ReferenceEquals(renderQueue, CachedStaticTextRenderQueue)
+                && staticTextRenderQueueSignature == CachedStaticTextRenderQueueSignature) {
+                return CommandListValue;
+            }
+
             if (CommandListValue == null) {
                 CommandListValue = new RenderCommandList2D(Math.Max(renderQueue.Count, 4));
             } else {
@@ -63,7 +87,33 @@ namespace helengine {
             NextClipChain.Clear();
             renderQueue.VisitOrdered(this);
             EmitTrailingClipPops();
+            bool canCacheStaticTextCommandList = canReuseStaticTextCommandList && !ContainsClipCommands();
+            if (canCacheStaticTextCommandList) {
+                CachedStaticTextRenderQueue = renderQueue;
+                CachedStaticTextRenderQueueSignature = staticTextRenderQueueSignature;
+                HasCachedStaticTextRenderQueue = true;
+            } else {
+                CachedStaticTextRenderQueue = null;
+                CachedStaticTextRenderQueueSignature = 0;
+                HasCachedStaticTextRenderQueue = false;
+            }
+
             return CommandListValue;
+        }
+
+        /// <summary>
+        /// Determines whether the current command list contains clipping state that can change through an ancestor independent of text render state.
+        /// </summary>
+        /// <returns><c>true</c> when the command list contains clip commands and must not use static-text reuse.</returns>
+        bool ContainsClipCommands() {
+            for (int commandIndex = 0; commandIndex < CommandListValue.Count; commandIndex++) {
+                RenderCommand2DType commandType = CommandListValue.GetCommandType(commandIndex);
+                if (commandType == RenderCommand2DType.ClipPush || commandType == RenderCommand2DType.ClipPop) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -82,7 +132,45 @@ namespace helengine {
             NativeOwnership.Delete(NextClipChain);
             NativeOwnership.Delete(TextLineOffsets);
             CommandListValue = null;
+            CachedStaticTextRenderQueue = null;
+            CachedStaticTextRenderQueueSignature = 0;
+            HasCachedStaticTextRenderQueue = false;
             IsDisposedValue = true;
+        }
+
+        /// <summary>
+        /// Resolves a signature for a concrete queue containing only static text drawables, or rejects queues that contain other drawable types.
+        /// </summary>
+        /// <param name="renderQueue">Queue considered for command-list reuse.</param>
+        /// <param name="signature">Stable signature for the current text content and resolved positions when reuse is safe.</param>
+        /// <returns><c>true</c> when the queue can reuse its previously resolved text command list.</returns>
+        bool TryResolveStaticTextRenderQueueSignature(IRenderQueue2D renderQueue, out int signature) {
+            signature = renderQueue.Version;
+            RenderList2D renderList = renderQueue as RenderList2D;
+            if (renderList == null || renderList.Count == 0) {
+                return false;
+            }
+
+            unchecked {
+                for (int index = 0; index < renderList.Count; index++) {
+                    IDrawable2D drawable = renderList[index];
+                    if (!(drawable is ITextDrawable2D)) {
+                        return false;
+                    }
+
+                    ITextDrawable2D text = (ITextDrawable2D)drawable;
+                    if (text.Parent == null) {
+                        return false;
+                    }
+
+                    float3 position = text.Parent.Position;
+                    signature = (signature * 31) + text.TextRenderStateVersion;
+                    signature = (signature * 31) + position.GetHashCode();
+                    signature = (signature * 31) + text.Parent.IsHierarchyEnabled.GetHashCode();
+                }
+            }
+
+            return true;
         }
 
         /// <summary>

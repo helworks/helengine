@@ -94,6 +94,11 @@ namespace helengine {
         readonly List<byte4> RoundedRectBorderColors;
 
         /// <summary>
+        /// Monotonically increasing generation that changes whenever this reusable command list is reset for new content.
+        /// </summary>
+        int VersionValue;
+
+        /// <summary>
         /// Tracks whether the native backing lists owned by this reusable command container were already released.
         /// </summary>
         bool IsDisposedValue;
@@ -125,6 +130,7 @@ namespace helengine {
             RoundedRectCornersValues = new List<RoundedRectCorners>(initialCapacity);
             RoundedRectFillColors = new List<byte4>(initialCapacity);
             RoundedRectBorderColors = new List<byte4>(initialCapacity);
+            VersionValue = 1;
         }
 
         /// <summary>
@@ -132,6 +138,13 @@ namespace helengine {
         /// </summary>
         public int Count {
             get { return CommandTypes.Count; }
+        }
+
+        /// <summary>
+        /// Gets the generation of the currently resolved command payloads.
+        /// </summary>
+        public int Version {
+            get { return VersionValue; }
         }
 
         /// <summary>
@@ -168,6 +181,12 @@ namespace helengine {
         /// Clears all logical commands and payload lists so the container can be reused for another frame.
         /// </summary>
         public void Reset() {
+            if (VersionValue == int.MaxValue) {
+                VersionValue = 1;
+            } else {
+                VersionValue++;
+            }
+
             CommandTypes.Clear();
             PayloadIndices.Clear();
             ClipRects.Clear();

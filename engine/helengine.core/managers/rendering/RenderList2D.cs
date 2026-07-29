@@ -9,6 +9,11 @@ namespace helengine {
         readonly List<IDrawable2D> Items;
 
         /// <summary>
+        /// Monotonically increasing revision used by render backends to invalidate cached queue output.
+        /// </summary>
+        int VersionValue;
+
+        /// <summary>
         /// Initializes a new render list with the specified capacity.
         /// </summary>
         /// <param name="initialCapacity">Initial list capacity.</param>
@@ -18,6 +23,7 @@ namespace helengine {
             }
 
             Items = new List<IDrawable2D>(initialCapacity);
+            VersionValue = 1;
         }
 
         /// <summary>
@@ -29,6 +35,11 @@ namespace helengine {
         /// Gets the current backing-list capacity reserved by the queue.
         /// </summary>
         public int Capacity { get { return Items.Capacity; } }
+
+        /// <summary>
+        /// Gets the current membership and ordering revision of this render queue.
+        /// </summary>
+        public int Version { get { return VersionValue; } }
 
         /// <summary>
         /// Gets the drawable at the specified index.
@@ -47,6 +58,7 @@ namespace helengine {
 
         int insertIndex = FindInsertIndex(drawable != null ? drawable.RenderOrder2D : (byte)0);
         Items.Insert(insertIndex, drawable);
+        AdvanceVersion();
     }
 
         /// <summary>
@@ -65,14 +77,23 @@ namespace helengine {
                 removed = true;
             }
 
-            return removed;
+        if (removed) {
+            AdvanceVersion();
+        }
+
+        return removed;
         }
 
         /// <summary>
         /// Removes all drawables from the list.
         /// </summary>
         public void Clear() {
+            if (Items.Count <= 0) {
+                return;
+            }
+
             Items.Clear();
+            AdvanceVersion();
         }
 
         /// <summary>
@@ -152,6 +173,18 @@ namespace helengine {
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Advances the queue revision while retaining a positive value after integer rollover.
+    /// </summary>
+    void AdvanceVersion() {
+        if (VersionValue == int.MaxValue) {
+            VersionValue = 1;
+            return;
+        }
+
+        VersionValue++;
     }
 
     }

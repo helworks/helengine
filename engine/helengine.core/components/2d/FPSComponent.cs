@@ -786,10 +786,19 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Applies the standard black one-pixel offset shadow used by every FPS overlay text row.
+        /// Applies the platform-appropriate text effect for FPS overlay rows, omitting duplicate shadow glyphs on the PS2 profiler path.
         /// </summary>
         /// <param name="textComponent">Text component that should receive the FPS overlay shadow.</param>
         void ApplyTextShadow(TextComponent textComponent) {
+            Core core = Core.Instance;
+            if (core != null
+                && core.PlatformInfo != null
+                && string.Equals(core.PlatformInfo.Name, "ps2", StringComparison.OrdinalIgnoreCase)) {
+                textComponent.ShadowOffset = new float2(0f, 0f);
+                textComponent.ShadowColor = new byte4(0, 0, 0, 0);
+                return;
+            }
+
             textComponent.ShadowOffset = new float2(-1f, -1f);
             textComponent.ShadowColor = new byte4(0, 0, 0, 255);
         }

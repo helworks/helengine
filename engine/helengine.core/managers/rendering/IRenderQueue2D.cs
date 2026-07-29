@@ -14,6 +14,11 @@ namespace helengine {
         int Capacity { get; }
 
         /// <summary>
+        /// Gets the monotonically increasing revision that changes whenever the queue membership or ordering changes.
+        /// </summary>
+        int Version { get; }
+
+        /// <summary>
         /// Adds a drawable to the queue.
         /// </summary>
         /// <param name="drawable">Drawable to add.</param>
