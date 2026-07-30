@@ -38,6 +38,7 @@ namespace helengine {
         /// </summary>
         /// <param name="world">Explicit HelPhysics world owned by the standalone runtime flow.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="world"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when <paramref name="world"/> already has an owner or contains prior generic-world state.</exception>
         public HelPhysicsSceneBinder3D(HelPhysicsWorld3D world) {
             World = world ?? throw new ArgumentNullException(nameof(world));
             BindingsValue = new List<HelPhysicsEntityBinding3D>();
@@ -139,10 +140,7 @@ namespace helengine {
             }
 
             HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
-            HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
-            if (!snapshot.IsRemovalPending) {
-                World.RemoveBodyForSceneBinder(this, binding.BodyHandle);
-            }
+            World.RemoveBodyForSceneBinder(this, binding.BodyHandle);
 
             InvalidateBinding(bindingIndex, true);
         }
@@ -165,28 +163,9 @@ namespace helengine {
                 throw new InvalidOperationException("A foreign lifecycle component cannot invalidate a HelPhysics entity binding.");
             }
 
-            HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
-            if (!snapshot.IsRemovalPending) {
-                World.RemoveBodyForSceneBinder(this, binding.BodyHandle);
-            }
+            World.RemoveBodyForSceneBinder(this, binding.BodyHandle);
 
             InvalidateBinding(bindingIndex, false);
-        }
-
-        /// <summary>
-        /// Reconciles every exact removal already accepted through the public world before any scene input or stepping occurs.
-        /// </summary>
-        internal void ReconcilePendingWorldRemovals() {
-            for (int bindingIndex = 0; bindingIndex < BindingsValue.Count; bindingIndex++) {
-                BindingsValue[bindingIndex].GetBodySnapshot();
-            }
-
-            for (int bindingIndex = BindingsValue.Count - 1; bindingIndex >= 0; bindingIndex--) {
-                HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
-                if (binding.GetBodySnapshot().IsRemovalPending) {
-                    InvalidateBinding(bindingIndex, true);
-                }
-            }
         }
 
         /// <summary>
@@ -382,7 +361,7 @@ namespace helengine {
                 rigidBody,
                 boxCollider,
                 bindingId);
-            HelPhysicsBodyHandle3D handle = World.CreateBody(description);
+            HelPhysicsBodyHandle3D handle = World.CreateBodyForSceneBinder(this, description);
             HelPhysicsEntityBindingLifecycle3D lifecycle = new HelPhysicsEntityBindingLifecycle3D(this);
             HelPhysicsEntityBinding3D binding = new HelPhysicsEntityBinding3D(
                 World,

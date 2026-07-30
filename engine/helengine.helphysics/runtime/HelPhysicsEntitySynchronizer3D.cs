@@ -23,10 +23,9 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Reconciles removals, validates the complete binding and kinematic batch, then accepts every authored kinematic input.
+        /// Validates the complete binding and kinematic batch, then accepts every authored kinematic input.
         /// </summary>
         public void SynchronizeBeforeStep() {
-            Binder.ReconcilePendingWorldRemovals();
             int activeKinematicCount = ValidateBindingsAndKinematicInputs();
             Binder.World.ValidateKinematicCommandCapacity(activeKinematicCount);
             EnqueueKinematicInputs();

@@ -479,6 +479,75 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Ensures public body creation cannot bypass binder ownership or consume capacity before normal hierarchy binding.
+        /// </summary>
+        [Fact]
+        public void CreateBody_OnBinderOwnedWorld_RejectsBeforeReservationAndBinderCanStillBind() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSingleBodySingleCommandSettings());
+            HelPhysicsSceneBinder3D binder = new HelPhysicsSceneBinder3D(world);
+            HelPhysicsStepMetrics3D metricsBefore = world.LastStepMetrics;
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => world.CreateBody(HelPhysicsWorldFixture.CreateGroundDescription()));
+
+            Assert.Contains(nameof(HelPhysicsSceneBinder3D), exception.Message);
+            Assert.Equal(metricsBefore, world.LastStepMetrics);
+            world.ValidateBodyCreationCapacity(1);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            binder.BindHierarchy(entity);
+            Assert.True(Assert.Single(binder.Bindings).GetBodySnapshot().IsPending);
+        }
+
+        /// <summary>
+        /// Ensures a pending generic reservation prevents binder ownership while preserving generic activation and removal.
+        /// </summary>
+        [Fact]
+        public void BinderConstruction_WithPendingGenericBody_RejectsAndWorldRemainsGeneric() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSingleBodySingleCommandSettings());
+            HelPhysicsBodyHandle3D handle = world.CreateBody(HelPhysicsWorldFixture.CreateGroundDescription());
+
+            Assert.Throws<InvalidOperationException>(() => new HelPhysicsSceneBinder3D(world));
+
+            Assert.True(world.GetBodySnapshot(handle).IsPending);
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.True(world.GetBodySnapshot(handle).IsActive);
+            world.RemoveBody(handle);
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.Throws<InvalidOperationException>(() => world.GetBodySnapshot(handle));
+        }
+
+        /// <summary>
+        /// Ensures an active generic body prevents binder ownership while preserving generic removal and stepping.
+        /// </summary>
+        [Fact]
+        public void BinderConstruction_WithActiveGenericBody_RejectsAndWorldRemainsGeneric() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSingleBodySingleCommandSettings());
+            HelPhysicsBodyHandle3D handle = world.CreateBody(HelPhysicsWorldFixture.CreateGroundDescription());
+            world.Step(world.Settings.FixedStepSeconds);
+
+            Assert.Throws<InvalidOperationException>(() => new HelPhysicsSceneBinder3D(world));
+
+            Assert.True(world.GetBodySnapshot(handle).IsActive);
+            world.RemoveBody(handle);
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.Throws<InvalidOperationException>(() => world.GetBodySnapshot(handle));
+        }
+
+        /// <summary>
+        /// Ensures any prior generic simulation step prevents later ownership even when the world contains no bodies.
+        /// </summary>
+        [Fact]
+        public void BinderConstruction_AfterEmptyGenericStep_RejectsAndWorldRemainsGeneric() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSingleBodySingleCommandSettings());
+            world.Step(world.Settings.FixedStepSeconds);
+
+            Assert.Throws<InvalidOperationException>(() => new HelPhysicsSceneBinder3D(world));
+
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.Equal(0, world.LastStepMetrics.BodyCount);
+        }
+
+        /// <summary>
         /// Ensures another binder with an independent world rejects entity ownership before reserving its sole body slot.
         /// </summary>
         [Fact]

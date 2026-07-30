@@ -303,12 +303,20 @@ namespace helengine {
         /// </summary>
         /// <param name="owner">Binder that will coordinate every world step and body removal.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="owner"/> is null.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when this world already has a scene-binder owner.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when this world already has an owner or contains any prior reservation, command, removal, or simulation state.</exception>
         internal void ClaimSceneBinderOwnership(HelPhysicsSceneBinder3D owner) {
             if (owner == null) {
                 throw new ArgumentNullException(nameof(owner));
             } else if (SceneBinderOwner != null) {
                 throw new InvalidOperationException("A HelPhysics world can be owned by only one HelPhysicsSceneBinder3D.");
+            } else if (Bodies.ActiveCount != 0 ||
+                Shapes.ActiveCount != 0 ||
+                DeferredCommandCount != 0 ||
+                DeferredRemovalCount != 0 ||
+                ActiveBodyCount != 0 ||
+                StepId != 0) {
+                throw new InvalidOperationException(
+                    "A HelPhysicsSceneBinder3D can claim only a pristine world with no bodies, shapes, deferred commands, removals, or prior simulation steps.");
             }
 
             SceneBinderOwner = owner;
@@ -342,9 +350,42 @@ namespace helengine {
         /// <param name="description">Complete explicit box body description to reserve.</param>
         /// <returns>A generation-safe world-owned handle whose snapshot is pending until phase one.</returns>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="description"/> is <see langword="null"/>.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when the world is permanently faulted.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when a scene binder owns this world or the world is permanently faulted.</exception>
         /// <exception cref="HelPhysicsCapacityExceededException">Thrown before reservation when command, body, or shape storage is full.</exception>
         public HelPhysicsBodyHandle3D CreateBody(HelPhysicsBodyDescription3D description) {
+            if (SceneBinderOwner != null) {
+                throw new InvalidOperationException(
+                    "A HelPhysics world owned by a HelPhysicsSceneBinder3D must create bodies through HelPhysicsSceneBinder3D.BindHierarchy.");
+            }
+
+            return CreateBodyCore(description);
+        }
+
+        /// <summary>
+        /// Reserves one body on behalf of this world's exclusive scene-binder owner.
+        /// </summary>
+        /// <param name="owner">Exact binder that owns this world's scene associations.</param>
+        /// <param name="description">Complete explicit box body description to reserve.</param>
+        /// <returns>A generation-safe world-owned handle whose snapshot is pending until phase one.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="owner"/> or <paramref name="description"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when <paramref name="owner"/> is not the exact owner or the world is permanently faulted.</exception>
+        /// <exception cref="HelPhysicsCapacityExceededException">Thrown before reservation when command, body, or shape storage is full.</exception>
+        internal HelPhysicsBodyHandle3D CreateBodyForSceneBinder(
+            HelPhysicsSceneBinder3D owner,
+            HelPhysicsBodyDescription3D description) {
+            ValidateSceneBinderOwner(owner);
+            return CreateBodyCore(description);
+        }
+
+        /// <summary>
+        /// Reserves one fully validated public or owner-coordinated body in fixed shape, body, and command storage.
+        /// </summary>
+        /// <param name="description">Complete explicit box body description to reserve.</param>
+        /// <returns>A generation-safe world-owned handle whose snapshot is pending until phase one.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="description"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the world is permanently faulted.</exception>
+        /// <exception cref="HelPhysicsCapacityExceededException">Thrown before reservation when command, body, or shape storage is full.</exception>
+        HelPhysicsBodyHandle3D CreateBodyCore(HelPhysicsBodyDescription3D description) {
             ThrowIfFaulted();
             if (description == null) {
                 throw new ArgumentNullException(nameof(description));

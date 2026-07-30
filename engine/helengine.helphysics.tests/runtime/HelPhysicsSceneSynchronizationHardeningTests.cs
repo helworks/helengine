@@ -107,13 +107,17 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Ensures internal lifecycle entry points reject a binder that does not own the target world before mutation.
+        /// Ensures internal creation and lifecycle entry points reject a binder that does not own the target world before mutation.
         /// </summary>
         [Fact]
-        public void OwnedWorldLifecycle_WithForeignBinderReference_RejectsBeforeMutation() {
+        public void OwnedWorldMutation_WithForeignBinderReference_RejectsBeforeMutation() {
             Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D owner = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 1));
             HelPhysicsSceneBinder3D foreign = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 1));
+
+            Assert.Throws<InvalidOperationException>(
+                () => owner.World.CreateBodyForSceneBinder(foreign, HelPhysicsWorldFixture.CreateGroundDescription()));
+
             owner.BindHierarchy(entity);
             HelPhysicsEntityBinding3D binding = Assert.Single(owner.Bindings);
 
