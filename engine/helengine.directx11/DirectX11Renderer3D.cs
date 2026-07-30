@@ -502,6 +502,10 @@ namespace helengine.directx11 {
         /// <param name="newWidth">New width.</param>
         /// <param name="newHeight">New height.</param>
         void OnWindowResized(IntPtr handle, int newWidth, int newHeight) {
+            if (newWidth <= 0 || newHeight <= 0) {
+                return;
+            }
+
             if (!surfacesByHandle.TryGetValue(handle, out var surface)) {
                 return;
             }
