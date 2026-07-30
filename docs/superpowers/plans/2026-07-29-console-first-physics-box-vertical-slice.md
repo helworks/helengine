@@ -560,6 +560,10 @@ git commit -m "feat: persist HelPhysics manifolds"
 - Create: `engine/helengine.helphysics/solver/HelPhysicsPenetrationCorrector3D.cs`
 - Create: `engine/helengine.helphysics.tests/solver/HelPhysicsContactSolver3DTests.cs`
 - Create: `engine/helengine.helphysics.tests/solver/HelPhysicsPoseIntegrator3DTests.cs`
+- Modify: `engine/helengine.helphysics/storage/HelPhysicsBodyColdState3D.cs`
+- Modify: `engine/helengine.helphysics/collision/HelPhysicsManifoldCache3D.cs`
+- Modify: `engine/helengine.helphysics.tests/storage/HelPhysicsBodyPool3DTests.cs`
+- Modify: `engine/helengine.helphysics.tests/collision/HelPhysicsManifoldCache3DTests.cs`
 
 - [ ] **Step 1: Write solver and integration tests**
 
@@ -568,13 +572,16 @@ Cover a downward-moving body stopped by a static contact, restitution, static fr
 Expose phase-specific methods so each stage is independently testable:
 
 ```csharp
-public void Prepare(PhysicsScalar StepSeconds, HelPhysicsBodyPool3D Bodies, HelPhysicsContactManifold3D[] Manifolds, int ManifoldCount)
+public void Prepare(PhysicsScalar StepSeconds, HelPhysicsBodyPool3D Bodies, HelPhysicsPairKey3D[] Pairs, HelPhysicsContactManifold3D[] Manifolds, int ManifoldCount)
 public void WarmStart(HelPhysicsBodyPool3D Bodies)
 public void SolveVelocityIteration(HelPhysicsBodyPool3D Bodies)
+public void WriteBack(HelPhysicsContactManifold3D[] Manifolds)
 public void CorrectPenetration(HelPhysicsBodyPool3D Bodies)
 public void IntegrateVelocity(PhysicsScalar StepSeconds, in PhysicsVector3 Gravity, HelPhysicsBodyPool3D Bodies)
 public void IntegratePose(PhysicsScalar StepSeconds, HelPhysicsBodyPool3D Bodies)
 ```
+
+Task 8 replaces the temporary `ushort MaterialIndex` in `HelPhysicsBodyColdState3D` with an explicit `HelPhysicsMaterial3D` value; materials remain cold data and require no separate runtime-growing registry. Extend `HelPhysicsManifoldCache3D` with `StoreSolved(HelPhysicsPairKey3D Pair, ref HelPhysicsContactManifold3D Manifold, int StepId)`, which requires an existing same-step entry and replaces only its three solved impulses per contact. The world calls `Update` before solving for matching/warm start, `WriteBack` after velocity iterations, and `StoreSolved` to persist those resulting impulses without running contact matching a second time.
 
 - [ ] **Step 2: Verify solver tests fail**
 
