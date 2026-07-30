@@ -363,6 +363,66 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Ensures active entity disposal remains representable when the only general command slot holds input for the same body.
+        /// </summary>
+        [Fact]
+        public void DisposeEntity_WithActiveBodyAndFullSameBodyCommandBuffer_InvalidatesAndRemovesBody() {
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSingleBodySingleCommandSettings());
+            binder.BindHierarchy(entity);
+            binder.Step();
+            HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
+            HelPhysicsBodyHandle3D staleHandle = binding.BodyHandle;
+            binder.World.ApplyImpulse(staleHandle, PhysicsVector3.UnitX);
+
+            entity.Dispose();
+
+            Assert.False(binding.IsValid);
+            Assert.Empty(binder.Bindings);
+            Assert.Throws<InvalidOperationException>(() => binding.GetBodySnapshot());
+            binder.Step();
+            Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
+
+            Entity replacementEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            binder.BindHierarchy(replacementEntity);
+            HelPhysicsEntityBinding3D replacementBinding = Assert.Single(binder.Bindings);
+            Assert.Equal(staleHandle.Index, replacementBinding.BodyHandle.Index);
+            Assert.NotEqual(staleHandle.Generation, replacementBinding.BodyHandle.Generation);
+            binder.Step();
+            Assert.Equal(PhysicsVector3.Zero, replacementBinding.GetBodySnapshot().LinearVelocity);
+        }
+
+        /// <summary>
+        /// Ensures active removal preserves a full-buffer input for another exact body generation while removing only the disposed entity.
+        /// </summary>
+        [Fact]
+        public void DisposeEntity_WithFullUnrelatedBodyCommandBuffer_PreservesUnrelatedInputAndGeneration() {
+            Entity firstEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(new float3(10f, 0f, 0f), float3.One, BodyKind3D.Dynamic);
+            HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateTwoBodySingleCommandSettings());
+            binder.BindHierarchy(firstEntity);
+            binder.Step();
+            binder.BindHierarchy(secondEntity);
+            binder.Step();
+            HelPhysicsEntityBinding3D firstBinding = binder.GetBinding(firstEntity);
+            HelPhysicsEntityBinding3D secondBinding = binder.GetBinding(secondEntity);
+            HelPhysicsBodyHandle3D staleHandle = firstBinding.BodyHandle;
+            HelPhysicsBodyHandle3D secondHandle = secondBinding.BodyHandle;
+            binder.World.ApplyImpulse(secondHandle, PhysicsVector3.UnitX);
+
+            firstEntity.Dispose();
+
+            Assert.False(firstBinding.IsValid);
+            Assert.Same(secondBinding, Assert.Single(binder.Bindings));
+            Assert.True(secondBinding.IsValid);
+            binder.Step();
+            Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
+            Assert.Equal(secondHandle.Index, secondBinding.BodyHandle.Index);
+            Assert.Equal(secondHandle.Generation, secondBinding.BodyHandle.Generation);
+            Assert.True(secondBinding.GetBodySnapshot().LinearVelocity.X > PhysicsScalar.Zero);
+        }
+
+        /// <summary>
         /// Ensures explicit unbinding queues exactly one pending removal without requiring a second command slot or lifecycle callback removal.
         /// </summary>
         [Fact]
@@ -579,6 +639,25 @@ namespace helengine {
                 4,
                 2,
                 2,
+                1,
+                1,
+                0.05d,
+                PhysicsVector3.Zero);
+        }
+
+        /// <summary>
+        /// Creates a two-body profile whose sole general command slot exposes unrelated input and removal ordering.
+        /// </summary>
+        /// <returns>A valid two-body world profile with one deferred general command slot.</returns>
+        static HelPhysicsWorldSettings3D CreateTwoBodySingleCommandSettings() {
+            return new HelPhysicsWorldSettings3D(
+                2,
+                2,
+                2,
+                2,
+                4,
+                2,
+                1,
                 1,
                 1,
                 0.05d,

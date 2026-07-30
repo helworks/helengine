@@ -93,6 +93,34 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies full-buffer active removal and its settled fixed step use only constructor-owned command and removal storage.
+        /// </summary>
+        [Fact]
+        public void RemoveActiveBody_WithFullCommandBuffer_AllocatesZeroBytesThroughRemovalStep() {
+            HelPhysicsWorldSettings3D settings = CreateSingleBodySingleCommandSettings();
+            HelPhysicsWorld3D warmupWorld = new HelPhysicsWorld3D(settings);
+            HelPhysicsBodyHandle3D warmupHandle = warmupWorld.CreateBody(CreateDynamicDescription());
+            warmupWorld.Step(settings.FixedStepSeconds);
+            warmupWorld.ApplyImpulse(warmupHandle, PhysicsVector3.UnitX);
+            warmupWorld.RemoveBody(warmupHandle);
+            warmupWorld.Step(settings.FixedStepSeconds);
+
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(settings);
+            HelPhysicsBodyHandle3D handle = world.CreateBody(CreateDynamicDescription());
+            world.Step(settings.FixedStepSeconds);
+            world.ApplyImpulse(handle, PhysicsVector3.UnitX);
+            ForceCollection();
+
+            long bytesBefore = GC.GetAllocatedBytesForCurrentThread();
+            world.RemoveBody(handle);
+            world.Step(settings.FixedStepSeconds);
+            long bytesAfter = GC.GetAllocatedBytesForCurrentThread();
+
+            Assert.Equal(bytesBefore, bytesAfter);
+            Assert.Throws<InvalidOperationException>(() => world.GetBodySnapshot(handle));
+        }
+
+        /// <summary>
         /// Creates one complete isolated dynamic description for command allocation coverage.
         /// </summary>
         /// <returns>An initially awake zero-gravity unit box with aggressive sleep settings.</returns>
@@ -116,6 +144,25 @@ namespace helengine {
                 PhysicsScalar.FromFloat(0.2f),
                 5,
                 true);
+        }
+
+        /// <summary>
+        /// Creates the smallest world profile that can fill its general command storage before active removal.
+        /// </summary>
+        /// <returns>A valid one-body world profile with one deferred general command slot.</returns>
+        static HelPhysicsWorldSettings3D CreateSingleBodySingleCommandSettings() {
+            return new HelPhysicsWorldSettings3D(
+                1,
+                1,
+                1,
+                1,
+                4,
+                1,
+                1,
+                1,
+                1,
+                HelPhysicsWorldFixture.StepSeconds,
+                PhysicsVector3.Zero);
         }
 
         /// <summary>

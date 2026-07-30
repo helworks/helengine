@@ -74,6 +74,21 @@ namespace helengine {
         readonly HelPhysicsDeferredCommand3D[] DeferredCommands;
 
         /// <summary>
+        /// Stores the acceptance order of each general command so fixed removal storage can merge without reordering mutations.
+        /// </summary>
+        readonly long[] DeferredCommandOrders;
+
+        /// <summary>
+        /// Stores one exact-generation removal identity per body slot independently from general command capacity.
+        /// </summary>
+        readonly HelPhysicsBodyHandle3D[] DeferredRemovalHandles;
+
+        /// <summary>
+        /// Stores the acceptance order parallel to each fixed removal identity.
+        /// </summary>
+        readonly long[] DeferredRemovalOrders;
+
+        /// <summary>
         /// Marks reservations that have passed phase-one activation and may participate in simulation.
         /// </summary>
         readonly bool[] BodyIsActive;
@@ -164,6 +179,16 @@ namespace helengine {
         int DeferredCommandCount;
 
         /// <summary>
+        /// Stores how many leading fixed removal slots await phase-one execution.
+        /// </summary>
+        int DeferredRemovalCount;
+
+        /// <summary>
+        /// Stores the next deterministic mutation order within the current interval between fixed steps.
+        /// </summary>
+        long NextDeferredMutationOrder;
+
+        /// <summary>
         /// Stores the number of body reservations currently published into active simulation storage.
         /// </summary>
         int ActiveBodyCount;
@@ -216,6 +241,9 @@ namespace helengine {
             PoseIntegrator = new HelPhysicsPoseIntegrator3D();
             CollisionScratch = new HelPhysicsBoxCollisionScratch3D();
             DeferredCommands = new HelPhysicsDeferredCommand3D[settings.DeferredCommandCapacity];
+            DeferredCommandOrders = new long[settings.DeferredCommandCapacity];
+            DeferredRemovalHandles = new HelPhysicsBodyHandle3D[settings.BodyCapacity];
+            DeferredRemovalOrders = new long[settings.BodyCapacity];
             BodyIsActive = new bool[settings.BodyCapacity];
             ProxyIsDirty = new bool[settings.BodyCapacity];
             ProxyIsRegistered = new bool[settings.BodyCapacity];
@@ -326,11 +354,10 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Defers generation-safe removal until the next valid fixed step while leaving the current snapshot active or pending beforehand.
+        /// Defers generation-safe removal in body-capacity storage until the next valid fixed step while leaving the current snapshot active or pending beforehand.
         /// </summary>
         /// <param name="handle">Current world-owned body identity to remove.</param>
         /// <exception cref="InvalidOperationException">Thrown for foreign, stale, released, duplicate-removal, or generation-exhausted handles.</exception>
-        /// <exception cref="HelPhysicsCapacityExceededException">Thrown when the command buffer has no free slot.</exception>
         public void RemoveBody(HelPhysicsBodyHandle3D handle) {
             ThrowIfFaulted();
             HelPhysicsBodyHandle3D internalHandle = GetRequiredInternalHandle(handle);
@@ -343,16 +370,12 @@ namespace helengine {
                 throw new InvalidOperationException("The body or shape handle generation is exhausted and cannot be released safely.");
             }
 
-            if (BodyIsActive[internalHandle.Index]) {
-                EnsureDeferredCommandCapacity();
-                AppendDeferredCommand(new HelPhysicsDeferredCommand3D(
-                    HelPhysicsDeferredCommandKind3D.RemoveBody,
-                    internalHandle,
-                    PhysicsVector3.Zero));
-            } else {
-                ReplacePendingBodyCommandsWithRemoval(internalHandle);
+            EnsureDeferredRemovalCapacity();
+            if (!BodyIsActive[internalHandle.Index]) {
+                RemovePendingBodyCommands(internalHandle);
             }
 
+            AppendDeferredRemoval(internalHandle);
             BodyRemovalQueued[internalHandle.Index] = true;
         }
 
@@ -711,15 +734,36 @@ namespace helengine {
         /// </summary>
         /// <param name="command">Complete command value to append.</param>
         void AppendDeferredCommand(HelPhysicsDeferredCommand3D command) {
+            DeferredCommandOrders[DeferredCommandCount] = NextDeferredMutationOrder++;
             DeferredCommands[DeferredCommandCount++] = command;
         }
 
         /// <summary>
-        /// Replaces one pending body's activation with removal and discards only later commands targeting that exact generation.
+        /// Appends one validated exact-generation removal to body-capacity storage outside the general command quota.
+        /// </summary>
+        /// <param name="handle">Validated pool-internal body identity accepted for deferred removal.</param>
+        void AppendDeferredRemoval(HelPhysicsBodyHandle3D handle) {
+            DeferredRemovalHandles[DeferredRemovalCount] = handle;
+            DeferredRemovalOrders[DeferredRemovalCount] = NextDeferredMutationOrder++;
+            DeferredRemovalCount++;
+        }
+
+        /// <summary>
+        /// Verifies the one-per-body removal queue invariant before any pending command compaction can mutate storage.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown when fixed removal storage is inconsistent with body ownership flags.</exception>
+        void EnsureDeferredRemovalCapacity() {
+            if (DeferredRemovalCount == DeferredRemovalHandles.Length) {
+                throw new InvalidOperationException("Deferred body removal storage is inconsistent with current body ownership.");
+            }
+        }
+
+        /// <summary>
+        /// Removes one pending body's activation and later inputs while retaining every unrelated command and acceptance order.
         /// </summary>
         /// <param name="handle">Validated pool-internal identity for a body that has not yet activated.</param>
         /// <exception cref="InvalidOperationException">Thrown before mutation when the pending command sequence is inconsistent.</exception>
-        void ReplacePendingBodyCommandsWithRemoval(HelPhysicsBodyHandle3D handle) {
+        void RemovePendingBodyCommands(HelPhysicsBodyHandle3D handle) {
             int activationCommandIndex = -1;
             for (int commandIndex = 0; commandIndex < DeferredCommandCount; commandIndex++) {
                 HelPhysicsDeferredCommand3D command = DeferredCommands[commandIndex];
@@ -748,57 +792,78 @@ namespace helengine {
                 }
             }
 
-            DeferredCommands[activationCommandIndex] = new HelPhysicsDeferredCommand3D(
-                HelPhysicsDeferredCommandKind3D.RemoveBody,
-                handle,
-                PhysicsVector3.Zero);
-            int retainedCommandCount = activationCommandIndex + 1;
-            for (int commandIndex = activationCommandIndex + 1; commandIndex < DeferredCommandCount; commandIndex++) {
+            int retainedCommandCount = 0;
+            for (int commandIndex = 0; commandIndex < DeferredCommandCount; commandIndex++) {
                 HelPhysicsDeferredCommand3D command = DeferredCommands[commandIndex];
                 if (command.BodyHandle.Index == handle.Index &&
                     command.BodyHandle.Generation == handle.Generation) {
                     continue;
                 }
 
-                DeferredCommands[retainedCommandCount++] = command;
+                DeferredCommands[retainedCommandCount] = command;
+                DeferredCommandOrders[retainedCommandCount] = DeferredCommandOrders[commandIndex];
+                retainedCommandCount++;
             }
 
             for (int commandIndex = retainedCommandCount; commandIndex < DeferredCommandCount; commandIndex++) {
                 DeferredCommands[commandIndex] = default;
+                DeferredCommandOrders[commandIndex] = default;
             }
 
             DeferredCommandCount = retainedCommandCount;
         }
 
         /// <summary>
-        /// Executes all accepted mutations in insertion order and clears their fixed slots only after each successful application.
+        /// Executes general commands and body removals in one merged acceptance order and clears slots after successful application.
         /// </summary>
         void ApplyDeferredCommands() {
-            for (int commandIndex = 0; commandIndex < DeferredCommandCount; commandIndex++) {
-                HelPhysicsDeferredCommand3D command = DeferredCommands[commandIndex];
-                if (command.Kind == HelPhysicsDeferredCommandKind3D.ActivateBody) {
-                    ActivateBody(command.BodyHandle);
-                } else if (command.Kind == HelPhysicsDeferredCommandKind3D.RemoveBody) {
-                    RemoveBodyImmediately(command.BodyHandle);
-                } else if (command.Kind == HelPhysicsDeferredCommandKind3D.ApplyForce) {
-                    ApplyForceImmediately(command.BodyHandle, command.Vector);
-                } else if (command.Kind == HelPhysicsDeferredCommandKind3D.ApplyImpulse) {
-                    ApplyImpulseImmediately(command.BodyHandle, command.Vector);
-                } else if (command.Kind == HelPhysicsDeferredCommandKind3D.SetKinematicState) {
-                    SetKinematicStateImmediately(
-                        command.BodyHandle,
-                        command.Position,
-                        command.Orientation,
-                        command.LinearVelocity,
-                        command.AngularVelocity);
+            int commandIndex = 0;
+            int removalIndex = 0;
+            while (commandIndex < DeferredCommandCount || removalIndex < DeferredRemovalCount) {
+                bool executeRemoval =
+                    removalIndex < DeferredRemovalCount &&
+                    (commandIndex == DeferredCommandCount ||
+                    DeferredRemovalOrders[removalIndex] < DeferredCommandOrders[commandIndex]);
+                if (executeRemoval) {
+                    RemoveBodyImmediately(DeferredRemovalHandles[removalIndex]);
+                    DeferredRemovalHandles[removalIndex] = default;
+                    DeferredRemovalOrders[removalIndex] = default;
+                    removalIndex++;
                 } else {
-                    throw new InvalidOperationException("The deferred command buffer contains an unsupported mutation kind.");
+                    ExecuteDeferredCommand(DeferredCommands[commandIndex]);
+                    DeferredCommands[commandIndex] = default;
+                    DeferredCommandOrders[commandIndex] = default;
+                    commandIndex++;
                 }
-
-                DeferredCommands[commandIndex] = default;
             }
 
             DeferredCommandCount = 0;
+            DeferredRemovalCount = 0;
+            NextDeferredMutationOrder = 0;
+        }
+
+        /// <summary>
+        /// Executes one already ordered general command against its exact body generation.
+        /// </summary>
+        /// <param name="command">General command selected by the merged phase-one mutation stream.</param>
+        /// <exception cref="InvalidOperationException">Thrown when fixed command storage contains an unsupported mutation kind.</exception>
+        void ExecuteDeferredCommand(HelPhysicsDeferredCommand3D command) {
+            if (command.Kind == HelPhysicsDeferredCommandKind3D.ActivateBody) {
+                ActivateBody(command.BodyHandle);
+            } else if (command.Kind == HelPhysicsDeferredCommandKind3D.ApplyForce) {
+                ApplyForceImmediately(command.BodyHandle, command.Vector);
+            } else if (command.Kind == HelPhysicsDeferredCommandKind3D.ApplyImpulse) {
+                ApplyImpulseImmediately(command.BodyHandle, command.Vector);
+            } else if (command.Kind == HelPhysicsDeferredCommandKind3D.SetKinematicState) {
+                SetKinematicStateImmediately(
+                    command.BodyHandle,
+                    command.Position,
+                    command.Orientation,
+                    command.LinearVelocity,
+                    command.AngularVelocity);
+            } else {
+                throw new InvalidOperationException("The deferred command buffer contains an unsupported general mutation kind.");
+            }
         }
 
         /// <summary>
