@@ -129,16 +129,6 @@ namespace helengine {
         readonly HelPhysicsCandidatePair3D[] CandidatePairs;
 
         /// <summary>
-        /// Stores generation-safe candidates published by the last successfully completed step.
-        /// </summary>
-        HelPhysicsPublishedCandidatePair3D[] PublishedCandidatePairs;
-
-        /// <summary>
-        /// Stores the next generation-safe candidate publication until it can be swapped atomically.
-        /// </summary>
-        HelPhysicsPublishedCandidatePair3D[] StagingPublishedCandidatePairs;
-
-        /// <summary>
         /// Stores current narrow-phase pair keys in deterministic order and parallel to active manifolds.
         /// </summary>
         readonly HelPhysicsPairKey3D[] ActivePairs;
@@ -182,11 +172,6 @@ namespace helengine {
         /// Stores how many leading current candidate slots were emitted by the final phase-three build.
         /// </summary>
         int CandidatePairCount;
-
-        /// <summary>
-        /// Stores how many generation-safe candidates belong to the prior successful publication.
-        /// </summary>
-        int PublishedCandidatePairCount;
 
         /// <summary>
         /// Stores how many leading active pair and manifold entries belong to current narrow phase.
@@ -242,8 +227,6 @@ namespace helengine {
             PendingBodyKinds = new BodyKind3D[settings.BodyCapacity];
             PendingInitialAwakeStates = new bool[settings.BodyCapacity];
             CandidatePairs = new HelPhysicsCandidatePair3D[settings.CandidatePairCapacity];
-            PublishedCandidatePairs = new HelPhysicsPublishedCandidatePair3D[settings.CandidatePairCapacity];
-            StagingPublishedCandidatePairs = new HelPhysicsPublishedCandidatePair3D[settings.CandidatePairCapacity];
             ActivePairs = new HelPhysicsPairKey3D[settings.ManifoldCapacity];
             ActiveManifolds = new HelPhysicsContactManifold3D[settings.ManifoldCapacity];
             IslandPairs = new HelPhysicsPairKey3D[settings.ManifoldCapacity];
@@ -986,6 +969,30 @@ namespace helengine {
                     IslandSleeper.WakeForNewCandidateContact(candidate, Bodies, IslandBuilder);
                 }
             }
+
+            RouteSpeculativeCandidateSleepSuppression();
+        }
+
+        /// <summary>
+        /// Suppresses quiet credit for current candidates lacking both a current manifold and a retained sleeping-stable manifold.
+        /// </summary>
+        void RouteSpeculativeCandidateSleepSuppression() {
+            for (int candidateIndex = 0; candidateIndex < CandidatePairCount; candidateIndex++) {
+                HelPhysicsCandidatePair3D candidate = CandidatePairs[candidateIndex];
+                HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(
+                    candidate.FirstBodyIndex,
+                    candidate.SecondBodyIndex);
+                if (ContainsPair(ActivePairs, ActiveManifoldCount, pair)) {
+                    continue;
+                }
+
+                bool hasRetainedSleepingManifold =
+                    ManifoldCache.TryGet(pair, out _) &&
+                    ShouldRetainSleepingPair(pair);
+                if (!hasRetainedSleepingManifold) {
+                    IslandSleeper.WakeForNewCandidateContact(candidate, Bodies, IslandBuilder);
+                }
+            }
         }
 
         /// <summary>
@@ -1088,7 +1095,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Touches valid sleeping contacts, expires genuinely untouched cache entries, publishes candidate history, and updates immutable and profiler metrics.
+        /// Touches valid sleeping contacts, expires genuinely untouched cache entries, and updates immutable and profiler metrics.
         /// </summary>
         void RetainSleepingContactsAndPublishMetrics() {
             for (int cacheEntryIndex = 0; cacheEntryIndex < ManifoldCache.Capacity; cacheEntryIndex++) {
@@ -1102,7 +1109,6 @@ namespace helengine {
             }
 
             ManifoldCache.RemoveUntouched(StepId);
-            PublishCandidatePairs();
             int awakeBodyCount = CountAwakeBodies();
             int sleepingIslandCount = CountSleepingIslands();
             int solverIterationCount = ActiveContactPointCount > 0
@@ -1157,23 +1163,6 @@ namespace helengine {
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Publishes final current candidates with both body generations so later slot reuse cannot preserve false candidate identity.
-        /// </summary>
-        void PublishCandidatePairs() {
-            for (int candidateIndex = 0; candidateIndex < CandidatePairCount; candidateIndex++) {
-                HelPhysicsCandidatePair3D candidate = CandidatePairs[candidateIndex];
-                StagingPublishedCandidatePairs[candidateIndex] = new HelPhysicsPublishedCandidatePair3D(
-                    Bodies.GetRequiredHandleByIndex(candidate.FirstBodyIndex),
-                    Bodies.GetRequiredHandleByIndex(candidate.SecondBodyIndex));
-            }
-
-            HelPhysicsPublishedCandidatePair3D[] previousPublication = PublishedCandidatePairs;
-            PublishedCandidatePairs = StagingPublishedCandidatePairs;
-            StagingPublishedCandidatePairs = previousPublication;
-            PublishedCandidatePairCount = CandidatePairCount;
         }
 
         /// <summary>

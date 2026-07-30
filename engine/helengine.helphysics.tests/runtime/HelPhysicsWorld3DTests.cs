@@ -822,6 +822,145 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies a cached touching contact that becomes speculative suppresses quiet credit on every still-overlapping broadphase step.
+        /// </summary>
+        [Fact]
+        public void Step_WhenCachedStaticDynamicContactBecomesSpeculative_SuppressesSleepWithoutFalseWake() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: 2,
+                shapeCapacity: 2,
+                candidatePairCapacity: 1,
+                manifoldCapacity: 1,
+                contactPointCapacity: 4,
+                islandCapacity: 2,
+                deferredCommandCapacity: 2,
+                gravity: PhysicsVector3.Zero));
+            world.CreateBody(CreateStaticUnitDescription(PhysicsVector3.Zero, 1));
+            HelPhysicsBodyHandle3D dynamicBody = world.CreateBody(CreateOneTickSleepDynamicDescription(
+                PhysicsVector3.UnitY,
+                new PhysicsVector3(0f, 0.05f, 0f),
+                true,
+                2));
+
+            world.Step(world.Settings.FixedStepSeconds);
+
+            Assert.Equal(1, world.LastStepMetrics.CandidatePairCount);
+            Assert.Equal(1, world.LastStepMetrics.ManifoldCount);
+            Assert.Equal(0, world.LastStepMetrics.NewCandidateContactWakeCount);
+            Assert.Equal(1, world.CachedManifoldCount);
+            Assert.True(world.GetBodySnapshot(dynamicBody).IsAwake);
+
+            for (int speculativeStepIndex = 0; speculativeStepIndex < 3; speculativeStepIndex++) {
+                world.Step(world.Settings.FixedStepSeconds);
+
+                HelPhysicsBodySnapshot3D snapshot = world.GetBodySnapshot(dynamicBody);
+                Assert.Equal(1, world.LastStepMetrics.CandidatePairCount);
+                Assert.Equal(0, world.LastStepMetrics.ManifoldCount);
+                Assert.Equal(0, world.LastStepMetrics.ContactPointCount);
+                Assert.Equal(0, world.LastStepMetrics.NewCandidateContactWakeCount);
+                Assert.Equal(0, world.CachedManifoldCount);
+                Assert.True(snapshot.IsAwake);
+                Assert.Equal((ushort)0, snapshot.LowMotionStepCount);
+                Assert.Equal(PhysicsScalar.FromFloat(0.05f), snapshot.LinearVelocity.Y);
+            }
+        }
+
+        /// <summary>
+        /// Verifies separating dynamics suppress sleep after cached contact loss and record one wake only for the initially sleeping participant.
+        /// </summary>
+        [Fact]
+        public void Step_WhenCachedDynamicContactBecomesSpeculative_WakesSleepingParticipantOnce() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: 2,
+                shapeCapacity: 2,
+                candidatePairCapacity: 1,
+                manifoldCapacity: 1,
+                contactPointCapacity: 4,
+                islandCapacity: 2,
+                deferredCommandCapacity: 2,
+                gravity: PhysicsVector3.Zero));
+            HelPhysicsBodyHandle3D sleepingBody = world.CreateBody(CreateOneTickSleepDynamicDescription(
+                PhysicsVector3.Zero,
+                PhysicsVector3.Zero,
+                false,
+                1));
+            HelPhysicsBodyHandle3D separatingBody = world.CreateBody(CreateOneTickSleepDynamicDescription(
+                PhysicsVector3.UnitX,
+                new PhysicsVector3(0.05f, 0f, 0f),
+                true,
+                2));
+
+            world.Step(world.Settings.FixedStepSeconds);
+
+            Assert.Equal(1, world.LastStepMetrics.CandidatePairCount);
+            Assert.Equal(1, world.LastStepMetrics.ManifoldCount);
+            Assert.Equal(1, world.LastStepMetrics.NewCandidateContactWakeCount);
+            Assert.True(world.GetBodySnapshot(sleepingBody).IsAwake);
+            Assert.True(world.GetBodySnapshot(separatingBody).IsAwake);
+
+            for (int speculativeStepIndex = 0; speculativeStepIndex < 3; speculativeStepIndex++) {
+                world.Step(world.Settings.FixedStepSeconds);
+
+                HelPhysicsBodySnapshot3D sleepingSnapshot = world.GetBodySnapshot(sleepingBody);
+                HelPhysicsBodySnapshot3D separatingSnapshot = world.GetBodySnapshot(separatingBody);
+                Assert.Equal(1, world.LastStepMetrics.CandidatePairCount);
+                Assert.Equal(0, world.LastStepMetrics.ManifoldCount);
+                Assert.Equal(0, world.LastStepMetrics.NewCandidateContactWakeCount);
+                Assert.True(sleepingSnapshot.IsAwake);
+                Assert.True(separatingSnapshot.IsAwake);
+                Assert.Equal((ushort)0, sleepingSnapshot.LowMotionStepCount);
+                Assert.Equal((ushort)0, separatingSnapshot.LowMotionStepCount);
+                Assert.Equal(PhysicsScalar.Zero, sleepingSnapshot.LinearVelocity.X);
+                Assert.Equal(PhysicsScalar.FromFloat(0.05f), separatingSnapshot.LinearVelocity.X);
+            }
+        }
+
+        /// <summary>
+        /// Verifies a stable static contact may sleep and remain retained without speculative suppression or repeated wake diagnostics.
+        /// </summary>
+        [Fact]
+        public void Step_WithStableRetainedSleepingContact_PermitsSleepWithoutRepeatedWake() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: 2,
+                shapeCapacity: 2,
+                candidatePairCapacity: 1,
+                manifoldCapacity: 1,
+                contactPointCapacity: 4,
+                islandCapacity: 2,
+                deferredCommandCapacity: 2,
+                gravity: PhysicsVector3.Zero));
+            world.CreateBody(CreateStaticUnitDescription(PhysicsVector3.Zero, 1));
+            HelPhysicsBodyHandle3D dynamicBody = world.CreateBody(CreateOneTickSleepDynamicDescription(
+                PhysicsVector3.UnitY,
+                PhysicsVector3.Zero,
+                true,
+                2));
+
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.True(world.GetBodySnapshot(dynamicBody).IsAwake);
+            Assert.Equal(1, world.LastStepMetrics.ManifoldCount);
+            Assert.Equal(0, world.LastStepMetrics.NewCandidateContactWakeCount);
+
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.False(world.GetBodySnapshot(dynamicBody).IsAwake);
+            Assert.Equal(1, world.LastStepMetrics.ManifoldCount);
+            Assert.Equal(1, world.CachedManifoldCount);
+            Assert.Equal(0, world.LastStepMetrics.NewCandidateContactWakeCount);
+
+            for (int retainedStepIndex = 0; retainedStepIndex < 2; retainedStepIndex++) {
+                world.Step(world.Settings.FixedStepSeconds);
+
+                Assert.False(world.GetBodySnapshot(dynamicBody).IsAwake);
+                Assert.Equal(0, world.LastStepMetrics.CandidatePairCount);
+                Assert.Equal(0, world.LastStepMetrics.ManifoldCount);
+                Assert.Equal(1, world.LastStepMetrics.IslandCount);
+                Assert.Equal(1, world.LastStepMetrics.SleepingIslandCount);
+                Assert.Equal(0, world.LastStepMetrics.NewCandidateContactWakeCount);
+                Assert.Equal(1, world.CachedManifoldCount);
+            }
+        }
+
+        /// <summary>
         /// Verifies an explicit force is deferred, wakes the complete sleeping stack once, and reports its dedicated reason.
         /// </summary>
         [Fact]
@@ -1068,6 +1207,22 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies the world retains only current broadphase candidates and owns no dead prior-candidate publication storage or type.
+        /// </summary>
+        [Fact]
+        public void WorldArchitecture_DoesNotRetainPriorCandidatePublicationState() {
+            System.Reflection.BindingFlags fieldFlags =
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic;
+            Type worldType = typeof(HelPhysicsWorld3D);
+
+            Assert.Null(worldType.GetField("PublishedCandidatePairs", fieldFlags));
+            Assert.Null(worldType.GetField("StagingPublishedCandidatePairs", fieldFlags));
+            Assert.Null(worldType.GetField("PublishedCandidatePairCount", fieldFlags));
+            Assert.Null(worldType.Assembly.GetType("helengine.HelPhysicsPublishedCandidatePair3D"));
+        }
+
+        /// <summary>
         /// Creates a complete settings object while allowing each validation or capacity test to override one relevant value.
         /// </summary>
         /// <param name="bodyCapacity">Fixed body-slot count.</param>
@@ -1187,6 +1342,40 @@ namespace helengine {
                 PhysicsScalar.FromFloat(0.2f),
                 PhysicsScalar.FromFloat(0.2f),
                 sleepTicks,
+                isAwake);
+        }
+
+        /// <summary>
+        /// Creates one dynamic unit box with exact 0.1 speed thresholds and one required quiet tick for speculative-contact tests.
+        /// </summary>
+        /// <param name="position">Initial world-space center.</param>
+        /// <param name="linearVelocity">Initial world-space linear velocity.</param>
+        /// <param name="isAwake">Whether the body begins in the awake simulation set.</param>
+        /// <param name="entityBindingId">Stable test ownership identifier.</param>
+        /// <returns>A complete gravity-free dynamic description with exact one-tick sleep settings.</returns>
+        static HelPhysicsBodyDescription3D CreateOneTickSleepDynamicDescription(
+            PhysicsVector3 position,
+            PhysicsVector3 linearVelocity,
+            bool isAwake,
+            int entityBindingId) {
+            return new HelPhysicsBodyDescription3D(
+                new HelPhysicsBoxShape3D(new PhysicsVector3(0.5f, 0.5f, 0.5f)),
+                BodyKind3D.Dynamic,
+                position,
+                PhysicsQuaternion.Identity,
+                linearVelocity,
+                PhysicsVector3.Zero,
+                PhysicsScalar.One,
+                HelPhysicsWorldFixture.CreateStackMaterial(),
+                1,
+                ushort.MaxValue,
+                entityBindingId,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.FromFloat(0.1f),
+                PhysicsScalar.FromFloat(0.1f),
+                1,
                 isAwake);
         }
 
