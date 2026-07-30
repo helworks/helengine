@@ -59,6 +59,28 @@ if (Test-Path -LiteralPath $GeneratedPath) {
     throw "OutputPath must be unique and must not already exist: '$GeneratedPath'."
 }
 
+$ContainmentProbePath = Split-Path -Parent $GeneratedPath
+while ($true) {
+    if (Test-Path -LiteralPath $ContainmentProbePath) {
+        $ContainmentProbeItem = Get-Item -LiteralPath $ContainmentProbePath -Force
+        if (($ContainmentProbeItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "OutputPath must not pass through reparse-point directory '$ContainmentProbePath'."
+        }
+    }
+
+    if ($ContainmentProbePath.Equals($ValidationRootPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        break
+    }
+
+    $ParentContainmentProbePath = Split-Path -Parent $ContainmentProbePath
+    if ([string]::IsNullOrWhiteSpace($ParentContainmentProbePath) -or
+        $ParentContainmentProbePath.Equals($ContainmentProbePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "OutputPath containment could not be verified beneath '$ValidationRootPath'."
+    }
+
+    $ContainmentProbePath = $ParentContainmentProbePath
+}
+
 $null = [System.IO.Directory]::CreateDirectory($GeneratedPath)
 
 $CodegenLogPath = Join-Path $GeneratedPath "codegen.log"
@@ -85,7 +107,22 @@ $ConversionReportPath = Join-Path $GeneratedPath "cpp-conversion-report.json"
 if (-not (Test-Path -LiteralPath $ConversionReportPath -PathType Leaf)) {
     throw "Generated conversion report was not found at '$ConversionReportPath'."
 }
-$null = Get-Content -LiteralPath $ConversionReportPath -Raw | ConvertFrom-Json
+$ConversionReport = Get-Content -LiteralPath $ConversionReportPath -Raw | ConvertFrom-Json
+if (-not ($ConversionReport.PSObject.Properties.Name -contains "hasErrors") -or
+    -not ($ConversionReport.PSObject.Properties.Name -contains "errorCount") -or
+    -not ($ConversionReport.PSObject.Properties.Name -contains "diagnostics")) {
+    throw "Generated conversion report does not satisfy the required error-reporting contract at '$ConversionReportPath'."
+}
+if ($ConversionReport.hasErrors -or [int]$ConversionReport.errorCount -gt 0) {
+    Write-Host "C++ generation reported $($ConversionReport.errorCount) conversion error(s):"
+    @($ConversionReport.diagnostics |
+        Where-Object { $_.severity -eq "Error" } |
+        Select-Object -First 20) |
+        ForEach-Object {
+            Write-Host "$($_.code): $($_.sourceTypeName).$($_.sourceMemberName): $($_.message)"
+        }
+    throw "C++ generation reported conversion errors. Full diagnostics are preserved at '$ConversionReportPath'."
+}
 $AuditIssues = @()
 $ReportAuditPattern = '(?i:\b(?:unresolved|unsupported)\s+(?:symbol|type|member|method|dependency|reference)\b|\b(?:symbol|type|member|method|dependency|reference)\s+(?:is\s+)?(?:unresolved|unsupported)\b)|System(?:\.|::)Numerics|\bVector(?:\s*<|\\u003C)'
 $GeneratedAuditPattern = '(?i:\b(?:unresolved|unsupported)[_ ](?:symbol|dependency|reference)\b|\b(?:symbol|dependency|reference)\s+(?:is\s+)?(?:unresolved|unsupported)\b|__(?:unresolved|unsupported))|System(?:\.|::)Numerics|\bVector\s*<'
