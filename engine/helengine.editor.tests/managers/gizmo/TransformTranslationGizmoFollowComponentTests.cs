@@ -168,7 +168,13 @@ namespace helengine.editor.tests.managers.gizmo {
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
             EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
-            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+            TransformTranslationGizmoFollowComponent followComponent = new TransformTranslationGizmoFollowComponent(
+                sceneCamera,
+                gizmoRoot,
+                normalMaterial,
+                highlightMaterial,
+                previewEntity);
+            gizmoRoot.AddComponent(followComponent);
 
             EditorEntity selectedEntity = new EditorEntity();
             selectedEntity.Position = new float3(0f, 0f, 0f);
@@ -177,6 +183,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             EditorEntity xHandle = (EditorEntity)gizmoRoot.Children[0];
             float4 initialOrientation = xHandle.Orientation;
+            float4 initialYawFacingOrientation = followComponent.CurrentYawFacingOrientation;
             float3 initialLocalOffset = xHandle.Position - gizmoRoot.Position;
 
             EditorGizmoDragService.BeginDrag(sceneCamera, selectedEntity);
@@ -185,6 +192,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             float4 dragOrientation = xHandle.Orientation;
             float3 dragLocalOffset = xHandle.Position - gizmoRoot.Position;
+            AssertQuaternionEquals(initialYawFacingOrientation, followComponent.CurrentYawFacingOrientation);
 
             EditorGizmoDragService.EndDrag(sceneCamera);
             UpdateFollowComponent(gizmoRoot);
@@ -193,6 +201,7 @@ namespace helengine.editor.tests.managers.gizmo {
             AssertQuaternionEquals(initialOrientation, dragOrientation);
             AssertVectorEquals(initialLocalOffset, dragLocalOffset);
             Assert.False(AreQuaternionsEqual(initialOrientation, xHandle.Orientation));
+            Assert.False(AreQuaternionsEqual(initialYawFacingOrientation, followComponent.CurrentYawFacingOrientation));
         }
 
         /// <summary>

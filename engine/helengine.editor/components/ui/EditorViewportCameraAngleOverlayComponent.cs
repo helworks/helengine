@@ -464,10 +464,6 @@ namespace helengine.editor {
                 return;
             }
 
-            if (!ShouldRefreshAxisLabels()) {
-                return;
-            }
-
             float3 cameraForward = NormalizeDirection(float4.RotateVector(ForwardAxis, cameraEntity.Orientation));
             float3 cameraUp = NormalizeDirection(float4.RotateVector(UpAxis, cameraEntity.Orientation));
             if (cameraForward == float3.Zero || cameraUp == float3.Zero) {
@@ -475,14 +471,15 @@ namespace helengine.editor {
                 return;
             }
 
-            float4 yawFacingOrientation = TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedEntity.Position, cameraEntity.Position);
-            double gizmoScale = ResolveAxisLabelScale(selectedEntity.Position, cameraEntity.Position);
+            float3 selectedPosition = EditorViewportDirect2DPresentationService.ResolvePresentedWorldAnchorPosition(selectedEntity);
+            float4 yawFacingOrientation = ResolveAxisLabelYawFacingOrientation(selectedPosition, cameraEntity.Position);
+            double gizmoScale = ResolveAxisLabelScale(selectedPosition, cameraEntity.Position);
 
             for (int axisIndex = 0; axisIndex < AxisLabelCount; axisIndex++) {
                 float3 axisDirection = ResolveAxisDirection(axisIndex, yawFacingOrientation);
                 if (!TryResolveAxisLabelData(
                     cameraEntity,
-                    selectedEntity.Position,
+                    selectedPosition,
                     axisDirection,
                     gizmoScale,
                     cameraForward,
@@ -502,11 +499,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Determines whether the axis-label billboards may apply a newly resolved model or transform this frame.
+        /// Resolves the axis-label yaw facing that matches the translation handles for the active viewport camera.
         /// </summary>
-        /// <returns>True when no transform-gizmo drag is active for this viewport camera.</returns>
-        bool ShouldRefreshAxisLabels() {
-            return !EditorGizmoDragService.IsDragging(SceneCamera);
+        /// <param name="selectedPosition">Current presented world-space gizmo origin.</param>
+        /// <param name="cameraPosition">World-space scene camera position.</param>
+        /// <returns>Snapped yaw-facing orientation for the label axis directions.</returns>
+        float4 ResolveAxisLabelYawFacingOrientation(float3 selectedPosition, float3 cameraPosition) {
+            if (!EditorGizmoDragService.IsDragging(SceneCamera)) {
+                return TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedPosition, cameraPosition);
+            }
+
+            TransformTranslationGizmoFollowComponent gizmoFollowComponent = TransformTranslationGizmoFollowComponent.GetForCamera(SceneCamera);
+            if (gizmoFollowComponent == null) {
+                throw new InvalidOperationException("An active translation gizmo drag requires a registered translation gizmo follow component.");
+            }
+
+            return gizmoFollowComponent.CurrentYawFacingOrientation;
         }
 
         /// <summary>

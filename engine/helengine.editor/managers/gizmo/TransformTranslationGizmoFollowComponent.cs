@@ -76,6 +76,10 @@ namespace helengine.editor {
         /// True when base handle transforms were captured from the factory layout.
         /// </summary>
         bool HandleBaseTransformsCached;
+        /// <summary>
+        /// Snapped yaw-facing orientation currently applied to the translation handles.
+        /// </summary>
+        float4 CurrentYawFacingOrientationValue;
 
         /// <summary>
         /// Initializes a new gizmo follow component.
@@ -122,6 +126,7 @@ namespace helengine.editor {
             BaseHandlePositions = new Dictionary<Entity, float3>();
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
+            CurrentYawFacingOrientationValue = float4.Identity;
         }
 
         /// <summary>
@@ -153,6 +158,7 @@ namespace helengine.editor {
             BaseHandlePositions = new Dictionary<Entity, float3>();
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
+            CurrentYawFacingOrientationValue = float4.Identity;
         }
 
         /// <summary>
@@ -164,6 +170,11 @@ namespace helengine.editor {
         /// Gets the current uniform gizmo scale applied to the translation handles.
         /// </summary>
         public float CurrentScale => GizmoRoot.Scale.X;
+
+        /// <summary>
+        /// Gets the snapped yaw-facing orientation currently applied to the translation handles.
+        /// </summary>
+        public float4 CurrentYawFacingOrientation => CurrentYawFacingOrientationValue;
 
         /// <summary>
         /// Gets the registered translation-gizmo follow component for the supplied viewport camera.
@@ -561,6 +572,8 @@ namespace helengine.editor {
             if (GizmoRoot.Children == null) {
                 throw new InvalidOperationException("Gizmo root children must be initialized.");
             }
+
+            CurrentYawFacingOrientationValue = yawFacingOrientation;
 
             for (int handleIndex = 0; handleIndex < GizmoRoot.Children.Count; handleIndex++) {
                 Entity handle = GizmoRoot.Children[handleIndex];
