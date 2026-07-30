@@ -205,13 +205,9 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity[] SnapValueRoots;
         /// <summary>
-        /// Background sprites for snap value boxes.
+        /// Textboxes used to display and edit snap values.
         /// </summary>
-        readonly SpriteComponent[] SnapValueBackgrounds;
-        /// <summary>
-        /// Text components used for snap value readouts.
-        /// </summary>
-        readonly TextComponent[] SnapValueTexts;
+        readonly TextBoxComponent[] SnapValueTextBoxes;
         /// <summary>
         /// Root entities for snap-increase buttons.
         /// </summary>
@@ -367,8 +363,7 @@ namespace helengine.editor {
             SnapLabelMagnetIcons = new SpriteComponent[SnapSlots.Length];
             SnapLabelModifierTexts = new TextComponent[SnapSlots.Length];
             SnapValueRoots = new EditorEntity[SnapSlots.Length];
-            SnapValueBackgrounds = new SpriteComponent[SnapSlots.Length];
-            SnapValueTexts = new TextComponent[SnapSlots.Length];
+            SnapValueTextBoxes = new TextBoxComponent[SnapSlots.Length];
             SnapIncreaseButtonRoots = new EditorEntity[SnapSlots.Length];
             SnapIncreaseButtonBackgrounds = new SpriteComponent[SnapSlots.Length];
             SnapIncreaseButtonIcons = new SpriteComponent[SnapSlots.Length];
@@ -739,7 +734,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates one snap-control label, value display, and up/down button pair.
+        /// Creates one snap-control label, editable value field, and up/down button pair.
         /// </summary>
         /// <param name="slotIndex">Snap slot index inside toolbar arrays.</param>
         /// <param name="snapSlot">Snap slot represented by the control group.</param>
@@ -789,42 +784,25 @@ namespace helengine.editor {
             };
             ToolbarRoot.AddChild(valueRoot);
 
-            SpriteComponent valueBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
-                Color = ThemeManager.Colors.SurfaceInput,
-                RenderOrder2D = ToolbarSurfaceOrder
-            };
-            valueRoot.AddComponent(valueBackground);
-
-            EditorEntity valueTextRoot = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = new float3(0f, 0f, 0.1f)
-            };
-            valueRoot.AddChild(valueTextRoot);
-
-            TextComponent valueText = new TextComponent {
-                Font = Font,
-                Text = string.Empty,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, 1),
-                RenderOrder2D = ToolbarForegroundOrder
-            };
-            valueTextRoot.AddComponent(valueText);
+            TextBoxComponent valueTextBox = new TextBoxComponent(new int2(SnapValueWidth, ToolButtonHeight), Font);
+            valueTextBox.SetRenderOrders(ToolbarSurfaceOrder, ToolbarForegroundOrder);
+            int capturedSlotIndex = slotIndex;
+            valueTextBox.Submitted += textBox => HandleSnapValueSubmitted(capturedSlotIndex, textBox);
+            valueRoot.AddComponent(valueTextBox);
 
             SnapSlots[slotIndex] = snapSlot;
             SnapLabelRoots[slotIndex] = labelRoot;
             SnapLabelMagnetIcons[slotIndex] = magnetIcon;
             SnapLabelModifierTexts[slotIndex] = modifierText;
             SnapValueRoots[slotIndex] = valueRoot;
-            SnapValueBackgrounds[slotIndex] = valueBackground;
-            SnapValueTexts[slotIndex] = valueText;
+            SnapValueTextBoxes[slotIndex] = valueTextBox;
 
             CreateSnapToolbarButton(slotIndex, true, ToolbarIcons.GetSnapButtonIcon(true));
             CreateSnapToolbarButton(slotIndex, false, ToolbarIcons.GetSnapButtonIcon(false));
         }
 
         /// <summary>
-        /// Reassigns the current scaled toolbar fonts to the existing snap labels and value readouts.
+        /// Reassigns the current scaled toolbar fonts to the existing snap labels and editable value fields.
         /// </summary>
         void UpdateToolbarTextFonts() {
             for (int slotIndex = 0; slotIndex < SnapSlots.Length; slotIndex++) {
@@ -833,9 +811,9 @@ namespace helengine.editor {
                     modifierText.Font = SnapModifierFont;
                 }
 
-                TextComponent valueText = SnapValueTexts[slotIndex];
-                if (valueText != null) {
-                    valueText.Font = Font;
+                TextBoxComponent valueTextBox = SnapValueTextBoxes[slotIndex];
+                if (valueTextBox != null) {
+                    valueTextBox.Font = Font;
                 }
             }
         }
@@ -1221,6 +1199,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Commits one typed snap value to the active tool mode and selected snap slot.
+        /// </summary>
+        /// <param name="slotIndex">Snap slot index represented by the submitting text box.</param>
+        /// <param name="textBox">Text box that submitted the authored snap value.</param>
+        void HandleSnapValueSubmitted(int slotIndex, TextBoxComponent textBox) {
+            if (slotIndex < 0 || slotIndex >= SnapSlots.Length) {
+                throw new ArgumentOutOfRangeException(nameof(slotIndex), "Snap slot index must be inside toolbar bounds.");
+            }
+            if (textBox == null) {
+                throw new ArgumentNullException(nameof(textBox));
+            }
+            if (!TryParseFiniteSnapValue(textBox.Text, out double value)) {
+                UpdateSnapControlTexts();
+                return;
+            }
+
+            TransformGizmoSnapSettingsService.SetSnapValue(ToolMode, SnapSlots[slotIndex], value);
+            UpdateSnapControlTexts();
+        }
+
+        /// <summary>
         /// Adjusts a snap value for the current tool mode and refreshes the toolbar text.
         /// </summary>
         /// <param name="slotIndex">Snap slot index to adjust.</param>
@@ -1241,17 +1240,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Refreshes snap value readouts to match the current tool mode configuration.
+        /// Refreshes editable snap values to match the current tool mode configuration.
         /// </summary>
         void UpdateSnapControlTexts() {
             for (int slotIndex = 0; slotIndex < SnapSlots.Length; slotIndex++) {
-                TextComponent valueText = SnapValueTexts[slotIndex];
-                if (valueText == null) {
+                TextBoxComponent valueTextBox = SnapValueTextBoxes[slotIndex];
+                if (valueTextBox == null) {
                     continue;
                 }
 
                 double snapValue = TransformGizmoSnapSettingsService.GetSnapValue(ToolMode, SnapSlots[slotIndex]);
-                valueText.Text = FormatSnapValue(snapValue);
+                valueTextBox.Text = FormatSnapValue(snapValue);
             }
 
             LayoutToolbar();
@@ -1685,8 +1684,7 @@ namespace helengine.editor {
                 SpriteComponent magnetIcon = SnapLabelMagnetIcons[slotIndex];
                 TextComponent modifierText = SnapLabelModifierTexts[slotIndex];
                 EditorEntity valueRoot = SnapValueRoots[slotIndex];
-                SpriteComponent valueBackground = SnapValueBackgrounds[slotIndex];
-                TextComponent valueText = SnapValueTexts[slotIndex];
+                TextBoxComponent valueTextBox = SnapValueTextBoxes[slotIndex];
                 EditorEntity increaseButtonRoot = SnapIncreaseButtonRoots[slotIndex];
                 SpriteComponent increaseButtonBackground = SnapIncreaseButtonBackgrounds[slotIndex];
                 SpriteComponent increaseButtonIcon = SnapIncreaseButtonIcons[slotIndex];
@@ -1699,8 +1697,7 @@ namespace helengine.editor {
                     magnetIcon == null ||
                     modifierText == null ||
                     valueRoot == null ||
-                    valueBackground == null ||
-                    valueText == null ||
+                    valueTextBox == null ||
                     increaseButtonRoot == null ||
                     increaseButtonBackground == null ||
                     increaseButtonIcon == null ||
@@ -1722,8 +1719,7 @@ namespace helengine.editor {
 
                 float valueX = (float)Math.Round(currentX);
                 valueRoot.Position = new float3(valueX, buttonY, 0.1f);
-                valueBackground.Size = new int2(SnapValueWidth, ToolButtonHeight);
-                LayoutToolButtonLabel(valueText, SnapValueWidth, ToolButtonHeight);
+                valueTextBox.Size = new int2(SnapValueWidth, ToolButtonHeight);
 
                 currentX += SnapValueWidth + ToolbarButtonSpacing;
 
@@ -1753,6 +1749,21 @@ namespace helengine.editor {
         /// <returns>Top offset that vertically centers the text.</returns>
         float GetTextTopOffset(float containerHeight, FontTightMetrics metrics) {
             return (float)Math.Round((containerHeight - metrics.Height) * 0.5 - metrics.MinTop);
+        }
+
+        /// <summary>
+        /// Parses one invariant-culture snap input and rejects non-finite values.
+        /// </summary>
+        /// <param name="text">Authored text to parse.</param>
+        /// <param name="value">Parsed finite snap value when parsing succeeds.</param>
+        /// <returns>True when the text represents one finite snap value.</returns>
+        bool TryParseFiniteSnapValue(string text, out double value) {
+            return double.TryParse(
+                text,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value)
+                && double.IsFinite(value);
         }
 
         /// <summary>

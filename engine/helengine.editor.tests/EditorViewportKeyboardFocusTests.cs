@@ -1,5 +1,7 @@
 using System.Reflection;
+using helengine.directx11;
 using helengine.editor.tests.testing;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -115,6 +117,44 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a typed snap value updates only the active tool mode and its selected snap slot.
+        /// </summary>
+        [Fact]
+        public void SubmitSnapValueTextBox_WhenTextIsValid_UpdatesOnlyTheActiveToolSlot() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            TextBoxComponent[] snapValueTextBoxes = GetPrivateField<TextBoxComponent[]>(viewport, "SnapValueTextBoxes");
+
+            viewport.ToolMode = EditorViewportToolMode.Translate;
+            snapValueTextBoxes[0].IsFocused = true;
+            snapValueTextBoxes[0].Text = "2.5";
+            snapValueTextBoxes[0].IsFocused = false;
+
+            Assert.Equal(2.5, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(5.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
+            viewport.ToolMode = EditorViewportToolMode.Rotate;
+            Assert.Equal("5", snapValueTextBoxes[0].Text);
+        }
+
+        /// <summary>
+        /// Ensures invalid snap text restores the current formatted value without changing the service state.
+        /// </summary>
+        [Fact]
+        public void SubmitSnapValueTextBox_WhenTextIsInvalid_RestoresCurrentFormattedValue() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            TextBoxComponent[] snapValueTextBoxes = GetPrivateField<TextBoxComponent[]>(viewport, "SnapValueTextBoxes");
+
+            viewport.ToolMode = EditorViewportToolMode.Rotate;
+            snapValueTextBoxes[1].IsFocused = true;
+            snapValueTextBoxes[1].Text = "invalid";
+            snapValueTextBoxes[1].IsFocused = false;
+
+            Assert.Equal(15.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2));
+            Assert.Equal("15", snapValueTextBoxes[1].Text);
+        }
+
+        /// <summary>
         /// Ensures the viewport declares dedicated state used by the settings toolbar button.
         /// </summary>
         [Fact]
@@ -169,7 +209,13 @@ namespace helengine.editor.tests {
         TestInputBackend InitializeCore() {
             TestInputBackend inputManager = new TestInputBackend();
             Core core = new Core();
-            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"));
+            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             EditorKeyboardFocusService.Reset();
             TransformGizmoSnapSettingsService.ResetDefaults();
             return inputManager;
