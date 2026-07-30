@@ -155,6 +155,73 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures workspace-created viewport panels initialize their hierarchy so snap text boxes release focus after an external pointer press.
+        /// </summary>
+        [Fact]
+        public void ViewportWorkspacePanelController_WhenPointerPressesOutsideSnapValueTextBox_BlursTextBox() {
+            TestInputBackend inputManager = InitializeCore();
+            ViewportWorkspacePanelController controller = new ViewportWorkspacePanelController(
+                CreateFont(),
+                CreateFont(),
+                CreateToolbarIcons(),
+                new EditorSceneCanvasProfileState(),
+                EditorUiMetrics.Default);
+
+            try {
+                EditorViewport viewport = controller.ViewportState.Viewport;
+                TextBoxComponent[] snapValueTextBoxes = GetPrivateField<TextBoxComponent[]>(viewport, "SnapValueTextBoxes");
+                TextBoxComponent snapValueTextBox = snapValueTextBoxes[0];
+                IUpdateable textBoxUpdateComponent = Assert.Single(snapValueTextBox.Parent.Components.OfType<IUpdateable>());
+
+                Assert.True(viewport.IsInitialized);
+                Assert.Contains(textBoxUpdateComponent, Core.Instance.ObjectManager.Updateables);
+
+                snapValueTextBox.IsFocused = true;
+                inputManager.SetMouseState(new MouseState(
+                    300,
+                    180,
+                    0,
+                    ButtonState.Pressed,
+                    ButtonState.Released,
+                    ButtonState.Released,
+                    ButtonState.Released,
+                    ButtonState.Released));
+                Core.Instance.InputSystem.EarlyUpdate();
+                textBoxUpdateComponent.Update();
+
+                Assert.False(snapValueTextBox.IsFocused);
+            } finally {
+                controller.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Ensures clicking outside a focused snap-value text box commits the value and returns pointer input to the viewport.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerPressesOutsideSnapValueTextBox_BlursTextBox() {
+            TestInputBackend inputManager = InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            TextBoxComponent[] snapValueTextBoxes = GetPrivateField<TextBoxComponent[]>(viewport, "SnapValueTextBoxes");
+            TextBoxComponent snapValueTextBox = snapValueTextBoxes[0];
+
+            viewport.InitializeHierarchy();
+            snapValueTextBox.IsFocused = true;
+            inputManager.SetMouseState(new MouseState(
+                300,
+                180,
+                0,
+                ButtonState.Pressed,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+            Core.Instance.Update(1d / 60d);
+
+            Assert.False(snapValueTextBox.IsFocused);
+        }
+
+        /// <summary>
         /// Ensures the viewport declares dedicated state used by the settings toolbar button.
         /// </summary>
         [Fact]
