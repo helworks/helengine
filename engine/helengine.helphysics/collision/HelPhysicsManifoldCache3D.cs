@@ -62,6 +62,11 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the fixed number of probe slots allocated for the lifetime of this cache.
+        /// </summary>
+        public int Capacity => Entries.Length;
+
+        /// <summary>
         /// Warms a newly generated manifold from a retained pair, then persists its current geometry and solver state for the supplied step.
         /// </summary>
         /// <param name="pair">Canonicalizable unordered body pair that owns <paramref name="manifold"/>.</param>
@@ -167,6 +172,59 @@ namespace helengine {
 
             manifold = Entries[entryIndex].Manifold;
             return true;
+        }
+
+        /// <summary>
+        /// Copies one occupied table entry by fixed probe index for allocation-free world composition.
+        /// </summary>
+        /// <param name="entryIndex">Probe-table index to inspect.</param>
+        /// <param name="pair">Receives the retained canonical pair when the slot is occupied.</param>
+        /// <param name="manifold">Receives the retained manifold when the slot is occupied.</param>
+        /// <returns><see langword="true"/> when the selected slot is occupied; otherwise <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="entryIndex"/> lies outside fixed table storage.</exception>
+        public bool TryGetEntry(
+            int entryIndex,
+            out HelPhysicsPairKey3D pair,
+            out HelPhysicsContactManifold3D manifold) {
+            if (entryIndex < 0 || entryIndex >= Entries.Length) {
+                throw new ArgumentOutOfRangeException(nameof(entryIndex), "The manifold cache entry index lies outside fixed table storage.");
+            }
+
+            HelPhysicsManifoldCacheEntry3D entry = Entries[entryIndex];
+            if (entry.State != OccupiedState) {
+                pair = default;
+                manifold = default;
+                return false;
+            }
+
+            pair = entry.Pair;
+            manifold = entry.Manifold;
+            return true;
+        }
+
+        /// <summary>
+        /// Removes every retained pair containing one released body index before that fixed slot may be reused by a new generation.
+        /// </summary>
+        /// <param name="bodyIndex">Non-negative fixed body slot being released.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="bodyIndex"/> is negative.</exception>
+        public void RemoveBody(int bodyIndex) {
+            if (bodyIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(bodyIndex), "Removed manifold body indices cannot be negative.");
+            }
+
+            for (int entryIndex = 0; entryIndex < Entries.Length; entryIndex++) {
+                ref HelPhysicsManifoldCacheEntry3D entry = ref Entries[entryIndex];
+                if (entry.State != OccupiedState ||
+                    (entry.Pair.FirstBodyIndex != bodyIndex && entry.Pair.SecondBodyIndex != bodyIndex)) {
+                    continue;
+                }
+
+                entry.Pair = default;
+                entry.Manifold = default;
+                entry.StepId = default;
+                entry.State = TombstoneState;
+                CountValue--;
+            }
         }
 
         /// <summary>

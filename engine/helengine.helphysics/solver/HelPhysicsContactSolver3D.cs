@@ -1,12 +1,22 @@
 namespace helengine {
     /// <summary>
-    /// Prepares and sequentially solves fixed-capacity scalar contact constraints with warm starting and solved impulse writeback.
+    /// Prepares fixed-capacity scalar contacts, solves coupled manifold normals and sequential friction, and writes solved impulses back.
     /// </summary>
     sealed class HelPhysicsContactSolver3D {
         /// <summary>
         /// Stores the exact incoming normal-speed boundary below which restitution becomes active.
         /// </summary>
         static readonly PhysicsScalar RestitutionImpactThreshold = PhysicsScalar.FromFloat(-1f);
+
+        /// <summary>
+        /// Stores the fixed inline contact count supported by one box manifold and its normal block.
+        /// </summary>
+        const int MaximumManifoldContactCount = 4;
+
+        /// <summary>
+        /// Stores the numerical tolerance used for deterministic pivot and complementarity checks in double-precision block scratch.
+        /// </summary>
+        const double NormalBlockTolerance = 1e-8d;
 
         /// <summary>
         /// Stores one constructor-owned constraint slot for every contact the solver can process in a step.
@@ -22,6 +32,46 @@ namespace helengine {
         /// Stores the dedicated split-correction pass that consumes prepared contact pose data.
         /// </summary>
         readonly HelPhysicsPenetrationCorrector3D PenetrationCorrector;
+
+        /// <summary>
+        /// Stores the current manifold's dense four-by-four normal velocity response matrix in row-major order.
+        /// </summary>
+        readonly double[] NormalBlockMatrix;
+
+        /// <summary>
+        /// Stores the current normal LCP constant term after removing already accumulated normal impulses.
+        /// </summary>
+        readonly double[] NormalBlockConstants;
+
+        /// <summary>
+        /// Stores the accumulated normal impulses applied when the current block solve begins.
+        /// </summary>
+        readonly double[] NormalBlockOldImpulses;
+
+        /// <summary>
+        /// Stores the candidate non-negative total impulse vector selected by active-set enumeration.
+        /// </summary>
+        readonly double[] NormalBlockCandidateImpulses;
+
+        /// <summary>
+        /// Stores active contact indices compressed for one candidate complementarity subset.
+        /// </summary>
+        readonly int[] NormalBlockActiveIndices;
+
+        /// <summary>
+        /// Stores the compressed coefficient matrix used by deterministic Gaussian elimination.
+        /// </summary>
+        readonly double[] NormalBlockWorkingMatrix;
+
+        /// <summary>
+        /// Stores the compressed right-hand side used by deterministic Gaussian elimination.
+        /// </summary>
+        readonly double[] NormalBlockWorkingRightHandSide;
+
+        /// <summary>
+        /// Stores the compressed active impulse solution returned by deterministic Gaussian elimination.
+        /// </summary>
+        readonly double[] NormalBlockWorkingSolution;
 
         /// <summary>
         /// Stores how many leading entries of <see cref="Constraints"/> were prepared for the current step.
@@ -46,6 +96,14 @@ namespace helengine {
             Constraints = new HelPhysicsContactConstraint3D[contactCapacity];
             StagingConstraints = new HelPhysicsContactConstraint3D[contactCapacity];
             PenetrationCorrector = new HelPhysicsPenetrationCorrector3D();
+            NormalBlockMatrix = new double[MaximumManifoldContactCount * MaximumManifoldContactCount];
+            NormalBlockConstants = new double[MaximumManifoldContactCount];
+            NormalBlockOldImpulses = new double[MaximumManifoldContactCount];
+            NormalBlockCandidateImpulses = new double[MaximumManifoldContactCount];
+            NormalBlockActiveIndices = new int[MaximumManifoldContactCount];
+            NormalBlockWorkingMatrix = new double[MaximumManifoldContactCount * MaximumManifoldContactCount];
+            NormalBlockWorkingRightHandSide = new double[MaximumManifoldContactCount];
+            NormalBlockWorkingSolution = new double[MaximumManifoldContactCount];
         }
 
         /// <summary>
@@ -433,7 +491,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Runs one deterministic sequential normal-and-friction impulse iteration over all prepared contacts.
+        /// Runs one deterministic iteration that solves each manifold's coupled normal complementarity block before its sequential friction constraints.
         /// </summary>
         /// <param name="bodies">Fixed body pool containing every prepared pair.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="bodies"/> is <see langword="null"/>.</exception>
@@ -442,8 +500,110 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(bodies));
             }
 
-            for (int constraintIndex = 0; constraintIndex < ConstraintCount; constraintIndex++) {
-                ref HelPhysicsContactConstraint3D constraint = ref Constraints[constraintIndex];
+            int manifoldStartIndex = 0;
+            while (manifoldStartIndex < ConstraintCount) {
+                int manifoldContactCount = Constraints[manifoldStartIndex].ManifoldContactCount;
+                SolveNormalBlock(manifoldStartIndex, manifoldContactCount, bodies);
+                for (int contactOffset = 0; contactOffset < manifoldContactCount; contactOffset++) {
+                    SolveFrictionConstraint(manifoldStartIndex + contactOffset, bodies);
+                }
+
+                manifoldStartIndex += manifoldContactCount;
+            }
+        }
+
+        /// <summary>
+        /// Replaces one manifold's accumulated normal impulses with the deterministic non-negative active-set solution of its coupled contact response.
+        /// </summary>
+        /// <param name="manifoldStartIndex">First contiguous prepared constraint owned by the manifold.</param>
+        /// <param name="manifoldContactCount">One-through-four contact count owned by the manifold.</param>
+        /// <param name="bodies">Fixed body pool containing both manifold participants.</param>
+        /// <exception cref="InvalidOperationException">Thrown when prepared grouping is invalid or no finite complementarity solution exists.</exception>
+        void SolveNormalBlock(
+            int manifoldStartIndex,
+            int manifoldContactCount,
+            HelPhysicsBodyPool3D bodies) {
+            ValidateNormalBlockRange(manifoldStartIndex, manifoldContactCount);
+            bool hasNormalResponse = false;
+            for (int contactOffset = 0; contactOffset < manifoldContactCount; contactOffset++) {
+                ref HelPhysicsContactConstraint3D constraint = ref Constraints[manifoldStartIndex + contactOffset];
+                NormalBlockOldImpulses[contactOffset] = constraint.AccumulatedNormalImpulse.ToFloat();
+                hasNormalResponse = hasNormalResponse || constraint.NormalEffectiveMass > PhysicsScalar.Zero;
+            }
+
+            if (!hasNormalResponse) {
+                return;
+            }
+
+            BuildNormalBlockMatrix(manifoldStartIndex, manifoldContactCount);
+            BuildNormalBlockConstants(manifoldStartIndex, manifoldContactCount, bodies);
+            if (!TrySolveNormalComplementarity(manifoldContactCount)) {
+                throw new InvalidOperationException("The prepared contact manifold does not have a finite normal complementarity solution.");
+            }
+
+            for (int contactOffset = 0; contactOffset < manifoldContactCount; contactOffset++) {
+                ref HelPhysicsContactConstraint3D constraint = ref Constraints[manifoldStartIndex + contactOffset];
+                PhysicsScalar newImpulse = PhysicsScalar.FromFloat((float)NormalBlockCandidateImpulses[contactOffset]);
+                PhysicsScalar oldImpulse = constraint.AccumulatedNormalImpulse;
+                constraint.AccumulatedNormalImpulse = newImpulse;
+                ApplyImpulse(ref constraint, constraint.Normal * (newImpulse - oldImpulse), bodies);
+            }
+        }
+
+        /// <summary>
+        /// Validates contiguous same-manifold contact metadata before a normal block can mutate body velocity.
+        /// </summary>
+        /// <param name="manifoldStartIndex">First prepared constraint in the block.</param>
+        /// <param name="manifoldContactCount">Prepared block size.</param>
+        /// <exception cref="InvalidOperationException">Thrown when block size, range, manifold identity, or contact order is inconsistent.</exception>
+        void ValidateNormalBlockRange(int manifoldStartIndex, int manifoldContactCount) {
+            if (manifoldContactCount < 1 || manifoldContactCount > MaximumManifoldContactCount) {
+                throw new InvalidOperationException("Prepared normal blocks must contain one through four contacts.");
+            }
+
+            if (manifoldStartIndex < 0 || manifoldStartIndex > ConstraintCount - manifoldContactCount) {
+                throw new InvalidOperationException("Prepared normal block ranges must fit current constraint storage.");
+            }
+
+            int manifoldIndex = Constraints[manifoldStartIndex].ManifoldIndex;
+            for (int contactOffset = 0; contactOffset < manifoldContactCount; contactOffset++) {
+                ref HelPhysicsContactConstraint3D constraint = ref Constraints[manifoldStartIndex + contactOffset];
+                if (constraint.ManifoldIndex != manifoldIndex ||
+                    constraint.ManifoldContactCount != manifoldContactCount ||
+                    constraint.ContactIndex != contactOffset) {
+                    throw new InvalidOperationException("Prepared normal blocks require contiguous contacts in exact manifold order.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Builds the dense matrix mapping every candidate normal impulse to every contact's resulting normal velocity.
+        /// </summary>
+        /// <param name="manifoldStartIndex">First prepared constraint in the current manifold.</param>
+        /// <param name="manifoldContactCount">Number of current manifold contacts.</param>
+        void BuildNormalBlockMatrix(int manifoldStartIndex, int manifoldContactCount) {
+            for (int rowIndex = 0; rowIndex < manifoldContactCount; rowIndex++) {
+                ref HelPhysicsContactConstraint3D rowConstraint = ref Constraints[manifoldStartIndex + rowIndex];
+                for (int columnIndex = 0; columnIndex < manifoldContactCount; columnIndex++) {
+                    ref HelPhysicsContactConstraint3D columnConstraint = ref Constraints[manifoldStartIndex + columnIndex];
+                    NormalBlockMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] =
+                        ComputeNormalVelocityCoupling(in rowConstraint, in columnConstraint);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Builds the LCP constant vector from current contact velocities after analytically removing the already applied normal impulse vector.
+        /// </summary>
+        /// <param name="manifoldStartIndex">First prepared constraint in the current manifold.</param>
+        /// <param name="manifoldContactCount">Number of current manifold contacts.</param>
+        /// <param name="bodies">Fixed body pool containing current velocities.</param>
+        void BuildNormalBlockConstants(
+            int manifoldStartIndex,
+            int manifoldContactCount,
+            HelPhysicsBodyPool3D bodies) {
+            for (int rowIndex = 0; rowIndex < manifoldContactCount; rowIndex++) {
+                ref HelPhysicsContactConstraint3D constraint = ref Constraints[manifoldStartIndex + rowIndex];
                 ref HelPhysicsBodyState3D bodyA = ref bodies.GetRequiredStateByIndex(constraint.BodyAIndex);
                 ref HelPhysicsBodyState3D bodyB = ref bodies.GetRequiredStateByIndex(constraint.BodyBIndex);
                 PhysicsVector3 relativeVelocity = ComputeRelativeVelocity(
@@ -451,57 +611,262 @@ namespace helengine {
                     in bodyB,
                     constraint.LeverArmA,
                     constraint.LeverArmB);
-                PhysicsScalar normalVelocity = PhysicsVector3.Dot(relativeVelocity, constraint.Normal);
-                PhysicsScalar normalImpulseDelta =
-                    (constraint.RestitutionVelocity - normalVelocity) * constraint.NormalEffectiveMass;
-                PhysicsScalar oldNormalImpulse = constraint.AccumulatedNormalImpulse;
-                constraint.AccumulatedNormalImpulse = PhysicsScalar.Max(
-                    oldNormalImpulse + normalImpulseDelta,
-                    PhysicsScalar.Zero);
-                normalImpulseDelta = constraint.AccumulatedNormalImpulse - oldNormalImpulse;
-                ApplyImpulse(ref constraint, constraint.Normal * normalImpulseDelta, bodies);
-
-                relativeVelocity = ComputeRelativeVelocity(
-                    in bodyA,
-                    in bodyB,
-                    constraint.LeverArmA,
-                    constraint.LeverArmB);
-                PhysicsScalar candidateTangentImpulse0 =
-                    constraint.AccumulatedTangentImpulse0 -
-                    (PhysicsVector3.Dot(relativeVelocity, constraint.Tangent0) * constraint.TangentEffectiveMass0);
-                PhysicsScalar candidateTangentImpulse1 =
-                    constraint.AccumulatedTangentImpulse1 -
-                    (PhysicsVector3.Dot(relativeVelocity, constraint.Tangent1) * constraint.TangentEffectiveMass1);
-                PhysicsScalar staticLimit = constraint.StaticFriction * constraint.AccumulatedNormalImpulse;
-                PhysicsScalar candidateLengthSquared =
-                    (candidateTangentImpulse0 * candidateTangentImpulse0) +
-                    (candidateTangentImpulse1 * candidateTangentImpulse1);
-                PhysicsScalar newTangentImpulse0;
-                PhysicsScalar newTangentImpulse1;
-                if (candidateLengthSquared <= staticLimit * staticLimit) {
-                    newTangentImpulse0 = candidateTangentImpulse0;
-                    newTangentImpulse1 = candidateTangentImpulse1;
-                } else {
-                    PhysicsScalar dynamicLimit = constraint.DynamicFriction * constraint.AccumulatedNormalImpulse;
-                    if (candidateLengthSquared > PhysicsScalar.Zero && dynamicLimit > PhysicsScalar.Zero) {
-                        PhysicsScalar dynamicScale = dynamicLimit * PhysicsScalar.ReciprocalSqrt(candidateLengthSquared);
-                        newTangentImpulse0 = candidateTangentImpulse0 * dynamicScale;
-                        newTangentImpulse1 = candidateTangentImpulse1 * dynamicScale;
-                    } else {
-                        newTangentImpulse0 = PhysicsScalar.Zero;
-                        newTangentImpulse1 = PhysicsScalar.Zero;
-                    }
+                double constant = PhysicsVector3.Dot(relativeVelocity, constraint.Normal).ToFloat() -
+                    constraint.RestitutionVelocity.ToFloat();
+                for (int columnIndex = 0; columnIndex < manifoldContactCount; columnIndex++) {
+                    constant -= NormalBlockMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] *
+                        NormalBlockOldImpulses[columnIndex];
                 }
 
-                PhysicsScalar tangentImpulseDelta0 = newTangentImpulse0 - constraint.AccumulatedTangentImpulse0;
-                PhysicsScalar tangentImpulseDelta1 = newTangentImpulse1 - constraint.AccumulatedTangentImpulse1;
-                constraint.AccumulatedTangentImpulse0 = newTangentImpulse0;
-                constraint.AccumulatedTangentImpulse1 = newTangentImpulse1;
-                PhysicsVector3 tangentImpulse =
-                    (constraint.Tangent0 * tangentImpulseDelta0) +
-                    (constraint.Tangent1 * tangentImpulseDelta1);
-                ApplyImpulse(ref constraint, tangentImpulse, bodies);
+                NormalBlockConstants[rowIndex] = constant;
             }
+        }
+
+        /// <summary>
+        /// Enumerates all contact-active subsets in stable bit order and retains the first finite vector satisfying normal complementarity.
+        /// </summary>
+        /// <param name="manifoldContactCount">Number of rows and columns in the current normal block.</param>
+        /// <returns><see langword="true"/> when one subset supplies a valid non-negative impulse and separating-velocity solution.</returns>
+        bool TrySolveNormalComplementarity(int manifoldContactCount) {
+            int subsetCount = 1 << manifoldContactCount;
+            for (int activeMask = 0; activeMask < subsetCount; activeMask++) {
+                if (TrySolveNormalActiveSet(manifoldContactCount, activeMask)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Solves one candidate active subset and verifies non-negative impulses and inactive separating velocities against the full block.
+        /// </summary>
+        /// <param name="manifoldContactCount">Number of current normal contacts.</param>
+        /// <param name="activeMask">Bit mask selecting contacts whose final normal velocity equals restitution target.</param>
+        /// <returns><see langword="true"/> when this subset satisfies the complete complementarity conditions.</returns>
+        bool TrySolveNormalActiveSet(int manifoldContactCount, int activeMask) {
+            int activeCount = 0;
+            for (int contactIndex = 0; contactIndex < manifoldContactCount; contactIndex++) {
+                NormalBlockCandidateImpulses[contactIndex] = 0d;
+                if ((activeMask & (1 << contactIndex)) != 0) {
+                    NormalBlockActiveIndices[activeCount++] = contactIndex;
+                }
+            }
+
+            if (activeCount > 0 && !TrySolveNormalLinearSystem(activeCount)) {
+                return false;
+            }
+
+            for (int activeIndex = 0; activeIndex < activeCount; activeIndex++) {
+                double impulse = NormalBlockWorkingSolution[activeIndex];
+                if (double.IsNaN(impulse) || double.IsInfinity(impulse) || impulse < -NormalBlockTolerance) {
+                    return false;
+                }
+
+                NormalBlockCandidateImpulses[NormalBlockActiveIndices[activeIndex]] =
+                    impulse > 0d ? impulse : 0d;
+            }
+
+            for (int rowIndex = 0; rowIndex < manifoldContactCount; rowIndex++) {
+                double normalVelocity = NormalBlockConstants[rowIndex];
+                for (int columnIndex = 0; columnIndex < manifoldContactCount; columnIndex++) {
+                    normalVelocity += NormalBlockMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] *
+                        NormalBlockCandidateImpulses[columnIndex];
+                }
+
+                bool isActive = (activeMask & (1 << rowIndex)) != 0;
+                if (isActive) {
+                    if (Math.Abs(normalVelocity) > NormalBlockTolerance * 8d) {
+                        return false;
+                    }
+                } else if (normalVelocity < -NormalBlockTolerance) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Solves the compressed active-contact equations with deterministic partial-pivot Gaussian elimination.
+        /// </summary>
+        /// <param name="activeCount">Positive number of selected active contacts.</param>
+        /// <returns><see langword="true"/> when every pivot and solved value is finite and non-degenerate.</returns>
+        bool TrySolveNormalLinearSystem(int activeCount) {
+            for (int rowIndex = 0; rowIndex < activeCount; rowIndex++) {
+                int sourceRowIndex = NormalBlockActiveIndices[rowIndex];
+                NormalBlockWorkingRightHandSide[rowIndex] = -NormalBlockConstants[sourceRowIndex];
+                NormalBlockWorkingSolution[rowIndex] = 0d;
+                for (int columnIndex = 0; columnIndex < activeCount; columnIndex++) {
+                    int sourceColumnIndex = NormalBlockActiveIndices[columnIndex];
+                    NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] =
+                        NormalBlockMatrix[(sourceRowIndex * MaximumManifoldContactCount) + sourceColumnIndex];
+                }
+            }
+
+            for (int pivotIndex = 0; pivotIndex < activeCount; pivotIndex++) {
+                int pivotRowIndex = FindNormalPivotRow(pivotIndex, activeCount);
+                double pivotMagnitude = Math.Abs(
+                    NormalBlockWorkingMatrix[(pivotRowIndex * MaximumManifoldContactCount) + pivotIndex]);
+                if (double.IsNaN(pivotMagnitude) ||
+                    double.IsInfinity(pivotMagnitude) ||
+                    pivotMagnitude <= NormalBlockTolerance) {
+                    return false;
+                }
+
+                if (pivotRowIndex != pivotIndex) {
+                    SwapNormalWorkingRows(pivotIndex, pivotRowIndex, activeCount);
+                }
+
+                double pivot = NormalBlockWorkingMatrix[(pivotIndex * MaximumManifoldContactCount) + pivotIndex];
+                for (int rowIndex = pivotIndex + 1; rowIndex < activeCount; rowIndex++) {
+                    double factor =
+                        NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + pivotIndex] / pivot;
+                    NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + pivotIndex] = 0d;
+                    for (int columnIndex = pivotIndex + 1; columnIndex < activeCount; columnIndex++) {
+                        NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] -=
+                            factor * NormalBlockWorkingMatrix[(pivotIndex * MaximumManifoldContactCount) + columnIndex];
+                    }
+
+                    NormalBlockWorkingRightHandSide[rowIndex] -=
+                        factor * NormalBlockWorkingRightHandSide[pivotIndex];
+                }
+            }
+
+            for (int rowIndex = activeCount - 1; rowIndex >= 0; rowIndex--) {
+                double value = NormalBlockWorkingRightHandSide[rowIndex];
+                for (int columnIndex = rowIndex + 1; columnIndex < activeCount; columnIndex++) {
+                    value -= NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] *
+                        NormalBlockWorkingSolution[columnIndex];
+                }
+
+                value /= NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + rowIndex];
+                if (double.IsNaN(value) || double.IsInfinity(value)) {
+                    return false;
+                }
+
+                NormalBlockWorkingSolution[rowIndex] = value;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Finds the largest available pivot magnitude with stable lowest-row tie order.
+        /// </summary>
+        /// <param name="pivotIndex">Current matrix column and first eligible row.</param>
+        /// <param name="activeCount">Compressed matrix dimension.</param>
+        /// <returns>Selected pivot row index.</returns>
+        int FindNormalPivotRow(int pivotIndex, int activeCount) {
+            int pivotRowIndex = pivotIndex;
+            double pivotMagnitude = Math.Abs(
+                NormalBlockWorkingMatrix[(pivotIndex * MaximumManifoldContactCount) + pivotIndex]);
+            for (int rowIndex = pivotIndex + 1; rowIndex < activeCount; rowIndex++) {
+                double candidateMagnitude = Math.Abs(
+                    NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + pivotIndex]);
+                if (candidateMagnitude > pivotMagnitude) {
+                    pivotMagnitude = candidateMagnitude;
+                    pivotRowIndex = rowIndex;
+                }
+            }
+
+            return pivotRowIndex;
+        }
+
+        /// <summary>
+        /// Swaps two compressed matrix rows and their right-hand-side values without temporary allocation.
+        /// </summary>
+        /// <param name="firstRowIndex">First row to exchange.</param>
+        /// <param name="secondRowIndex">Second row to exchange.</param>
+        /// <param name="activeCount">Compressed matrix dimension.</param>
+        void SwapNormalWorkingRows(int firstRowIndex, int secondRowIndex, int activeCount) {
+            for (int columnIndex = 0; columnIndex < activeCount; columnIndex++) {
+                int firstIndex = (firstRowIndex * MaximumManifoldContactCount) + columnIndex;
+                int secondIndex = (secondRowIndex * MaximumManifoldContactCount) + columnIndex;
+                double value = NormalBlockWorkingMatrix[firstIndex];
+                NormalBlockWorkingMatrix[firstIndex] = NormalBlockWorkingMatrix[secondIndex];
+                NormalBlockWorkingMatrix[secondIndex] = value;
+            }
+
+            double rightHandSide = NormalBlockWorkingRightHandSide[firstRowIndex];
+            NormalBlockWorkingRightHandSide[firstRowIndex] = NormalBlockWorkingRightHandSide[secondRowIndex];
+            NormalBlockWorkingRightHandSide[secondRowIndex] = rightHandSide;
+        }
+
+        /// <summary>
+        /// Computes one dense normal response entry from an impulse at the column contact to velocity at the row contact.
+        /// </summary>
+        /// <param name="rowConstraint">Contact whose resulting relative normal velocity is measured.</param>
+        /// <param name="columnConstraint">Contact at which one unit normal impulse is applied.</param>
+        /// <returns>Finite scalar velocity response coefficient.</returns>
+        static double ComputeNormalVelocityCoupling(
+            in HelPhysicsContactConstraint3D rowConstraint,
+            in HelPhysicsContactConstraint3D columnConstraint) {
+            PhysicsScalar linearResponse =
+                (rowConstraint.InverseMassA + rowConstraint.InverseMassB) *
+                PhysicsVector3.Dot(rowConstraint.Normal, columnConstraint.Normal);
+            PhysicsVector3 angularImpulseA = columnConstraint.WorldInverseInertiaA.Transform(
+                PhysicsVector3.Cross(columnConstraint.LeverArmA, columnConstraint.Normal));
+            PhysicsVector3 angularImpulseB = columnConstraint.WorldInverseInertiaB.Transform(
+                PhysicsVector3.Cross(columnConstraint.LeverArmB, columnConstraint.Normal));
+            PhysicsScalar angularResponseA = PhysicsVector3.Dot(
+                rowConstraint.Normal,
+                PhysicsVector3.Cross(angularImpulseA, rowConstraint.LeverArmA));
+            PhysicsScalar angularResponseB = PhysicsVector3.Dot(
+                rowConstraint.Normal,
+                PhysicsVector3.Cross(angularImpulseB, rowConstraint.LeverArmB));
+            return (linearResponse + angularResponseA + angularResponseB).ToFloat();
+        }
+
+        /// <summary>
+        /// Solves both tangent axes for one contact using the normal impulse selected by its manifold block.
+        /// </summary>
+        /// <param name="constraintIndex">Prepared fixed constraint slot to solve.</param>
+        /// <param name="bodies">Fixed body pool containing both prepared participants.</param>
+        void SolveFrictionConstraint(int constraintIndex, HelPhysicsBodyPool3D bodies) {
+            ref HelPhysicsContactConstraint3D constraint = ref Constraints[constraintIndex];
+            ref HelPhysicsBodyState3D bodyA = ref bodies.GetRequiredStateByIndex(constraint.BodyAIndex);
+            ref HelPhysicsBodyState3D bodyB = ref bodies.GetRequiredStateByIndex(constraint.BodyBIndex);
+            PhysicsVector3 relativeVelocity = ComputeRelativeVelocity(
+                in bodyA,
+                in bodyB,
+                constraint.LeverArmA,
+                constraint.LeverArmB);
+            PhysicsScalar candidateTangentImpulse0 =
+                constraint.AccumulatedTangentImpulse0 -
+                (PhysicsVector3.Dot(relativeVelocity, constraint.Tangent0) * constraint.TangentEffectiveMass0);
+            PhysicsScalar candidateTangentImpulse1 =
+                constraint.AccumulatedTangentImpulse1 -
+                (PhysicsVector3.Dot(relativeVelocity, constraint.Tangent1) * constraint.TangentEffectiveMass1);
+            PhysicsScalar staticLimit = constraint.StaticFriction * constraint.AccumulatedNormalImpulse;
+            PhysicsScalar candidateLengthSquared =
+                (candidateTangentImpulse0 * candidateTangentImpulse0) +
+                (candidateTangentImpulse1 * candidateTangentImpulse1);
+            PhysicsScalar newTangentImpulse0;
+            PhysicsScalar newTangentImpulse1;
+            if (candidateLengthSquared <= staticLimit * staticLimit) {
+                newTangentImpulse0 = candidateTangentImpulse0;
+                newTangentImpulse1 = candidateTangentImpulse1;
+            } else {
+                PhysicsScalar dynamicLimit = constraint.DynamicFriction * constraint.AccumulatedNormalImpulse;
+                if (candidateLengthSquared > PhysicsScalar.Zero && dynamicLimit > PhysicsScalar.Zero) {
+                    PhysicsScalar dynamicScale = dynamicLimit * PhysicsScalar.ReciprocalSqrt(candidateLengthSquared);
+                    newTangentImpulse0 = candidateTangentImpulse0 * dynamicScale;
+                    newTangentImpulse1 = candidateTangentImpulse1 * dynamicScale;
+                } else {
+                    newTangentImpulse0 = PhysicsScalar.Zero;
+                    newTangentImpulse1 = PhysicsScalar.Zero;
+                }
+            }
+
+            PhysicsScalar tangentImpulseDelta0 = newTangentImpulse0 - constraint.AccumulatedTangentImpulse0;
+            PhysicsScalar tangentImpulseDelta1 = newTangentImpulse1 - constraint.AccumulatedTangentImpulse1;
+            constraint.AccumulatedTangentImpulse0 = newTangentImpulse0;
+            constraint.AccumulatedTangentImpulse1 = newTangentImpulse1;
+            PhysicsVector3 tangentImpulse =
+                (constraint.Tangent0 * tangentImpulseDelta0) +
+                (constraint.Tangent1 * tangentImpulseDelta1);
+            ApplyImpulse(ref constraint, tangentImpulse, bodies);
         }
 
         /// <summary>

@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Describes the physics counters a runtime can authoritatively expose for one profiler frame.
+    /// Describes the physics counters a runtime can authoritatively expose for one profiler frame and allows allocation-sensitive runtimes to reuse one owned sample.
     /// Individual counters are marked unavailable when the physics implementation does not own a valid value.
     /// </summary>
     public sealed class RuntimePhysicsProfilerMetrics {
@@ -11,15 +11,7 @@ namespace helengine {
         /// <param name="contactCount">Number of currently active contact points.</param>
         /// <param name="constraintCount">Number of currently active constraints.</param>
         public RuntimePhysicsProfilerMetrics(int bodyCount, int contactCount, int constraintCount) {
-            ValidateCount(bodyCount, nameof(bodyCount));
-            ValidateCount(contactCount, nameof(contactCount));
-            ValidateCount(constraintCount, nameof(constraintCount));
-            HasBodyCount = true;
-            HasContactCount = true;
-            HasConstraintCount = true;
-            BodyCount = bodyCount;
-            ContactCount = contactCount;
-            ConstraintCount = constraintCount;
+            Update(bodyCount, contactCount, constraintCount);
         }
 
         /// <summary>
@@ -39,32 +31,50 @@ namespace helengine {
         /// <summary>
         /// Gets whether <see cref="BodyCount"/> contains a valid runtime-owned value.
         /// </summary>
-        public bool HasBodyCount { get; }
+        public bool HasBodyCount { get; private set; }
 
         /// <summary>
         /// Gets whether <see cref="ContactCount"/> contains a valid runtime-owned value.
         /// </summary>
-        public bool HasContactCount { get; }
+        public bool HasContactCount { get; private set; }
 
         /// <summary>
         /// Gets whether <see cref="ConstraintCount"/> contains a valid runtime-owned value.
         /// </summary>
-        public bool HasConstraintCount { get; }
+        public bool HasConstraintCount { get; private set; }
 
         /// <summary>
         /// Gets the active physics-body count when <see cref="HasBodyCount"/> is true.
         /// </summary>
-        public int BodyCount { get; }
+        public int BodyCount { get; private set; }
 
         /// <summary>
         /// Gets the active contact-point count when <see cref="HasContactCount"/> is true.
         /// </summary>
-        public int ContactCount { get; }
+        public int ContactCount { get; private set; }
 
         /// <summary>
         /// Gets the active constraint count when <see cref="HasConstraintCount"/> is true.
         /// </summary>
-        public int ConstraintCount { get; }
+        public int ConstraintCount { get; private set; }
+
+        /// <summary>
+        /// Replaces this runtime-owned sample with a complete validated set of body, contact, and constraint counts without allocating a new object.
+        /// </summary>
+        /// <param name="bodyCount">Number of currently active physics bodies.</param>
+        /// <param name="contactCount">Number of currently active contact points.</param>
+        /// <param name="constraintCount">Number of currently active constraints.</param>
+        public void Update(int bodyCount, int contactCount, int constraintCount) {
+            ValidateCount(bodyCount, nameof(bodyCount));
+            ValidateCount(contactCount, nameof(contactCount));
+            ValidateCount(constraintCount, nameof(constraintCount));
+            HasBodyCount = true;
+            HasContactCount = true;
+            HasConstraintCount = true;
+            BodyCount = bodyCount;
+            ContactCount = contactCount;
+            ConstraintCount = constraintCount;
+        }
 
         /// <summary>
         /// Rejects counters that cannot represent a real runtime quantity.

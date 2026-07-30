@@ -68,6 +68,11 @@ namespace helengine {
         public int ActiveCount => ActiveCountValue;
 
         /// <summary>
+        /// Gets the fixed number of box-shape slots allocated for the lifetime of this pool.
+        /// </summary>
+        public int Capacity => Boxes.Length;
+
+        /// <summary>
         /// Allocates one free shape slot and stores the supplied box value.
         /// </summary>
         /// <param name="box">Box shape to store in the newly allocated slot.</param>

@@ -27,6 +27,40 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies a symmetric four-corner face patch does not turn purely normal motion into lateral or angular motion.
+        /// </summary>
+        [Fact]
+        public void SolveVelocityIteration_WithSymmetricFacePatch_PreservesLateralAndAngularSymmetry() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(2);
+            bodies.Allocate(CreateStaticState(), CreateColdState(BodyKind3D.Static, 0.8f, 0.6f, 0f));
+            HelPhysicsBodyHandle3D dynamicHandle = bodies.Allocate(
+                CreateDynamicState(new PhysicsVector3(0f, -0.5f, 0f)),
+                CreateColdState(BodyKind3D.Dynamic, 0.8f, 0.6f, 0f));
+            HelPhysicsContactManifold3D[] manifolds = new HelPhysicsContactManifold3D[] {
+                CreateSymmetricFaceManifold()
+            };
+            HelPhysicsContactSolver3D solver = new HelPhysicsContactSolver3D(4);
+
+            solver.Prepare(
+                PhysicsScalar.FromFloat(0.05f),
+                bodies,
+                CreatePairArray(),
+                manifolds,
+                1);
+            for (int iterationIndex = 0; iterationIndex < 4; iterationIndex++) {
+                solver.SolveVelocityIteration(bodies);
+            }
+
+            ref HelPhysicsBodyState3D dynamicState = ref bodies.GetRequiredState(dynamicHandle);
+            AssertClose(0f, dynamicState.LinearVelocity.X);
+            AssertClose(0f, dynamicState.LinearVelocity.Y);
+            AssertClose(0f, dynamicState.LinearVelocity.Z);
+            AssertClose(0f, dynamicState.AngularVelocity.X);
+            AssertClose(0f, dynamicState.AngularVelocity.Y);
+            AssertClose(0f, dynamicState.AngularVelocity.Z);
+        }
+
+        /// <summary>
         /// Verifies that restitution uses the larger material coefficient when impact speed is strictly below the threshold.
         /// </summary>
         [Fact]
@@ -916,6 +950,44 @@ namespace helengine {
             HelPhysicsContactManifold3D manifold = default;
             manifold.ContactCount = 1;
             manifold.SetContact(0, in contact);
+            return manifold;
+        }
+
+        /// <summary>
+        /// Creates four upward-normal contacts at the corners of a centered unit-box bottom face.
+        /// </summary>
+        /// <returns>A symmetric four-contact face manifold with distinct stable features.</returns>
+        static HelPhysicsContactManifold3D CreateSymmetricFaceManifold() {
+            HelPhysicsContactManifold3D manifold = default;
+            manifold.ContactCount = 4;
+            HelPhysicsContactPoint3D contact0 = CreateContactWithData(
+                1u,
+                PhysicsVector3.UnitY,
+                new PhysicsVector3(-0.5f, 0f, -0.5f),
+                new PhysicsVector3(-0.5f, -0.5f, -0.5f),
+                0f);
+            HelPhysicsContactPoint3D contact1 = CreateContactWithData(
+                2u,
+                PhysicsVector3.UnitY,
+                new PhysicsVector3(0.5f, 0f, -0.5f),
+                new PhysicsVector3(0.5f, -0.5f, -0.5f),
+                0f);
+            HelPhysicsContactPoint3D contact2 = CreateContactWithData(
+                3u,
+                PhysicsVector3.UnitY,
+                new PhysicsVector3(-0.5f, 0f, 0.5f),
+                new PhysicsVector3(-0.5f, -0.5f, 0.5f),
+                0f);
+            HelPhysicsContactPoint3D contact3 = CreateContactWithData(
+                4u,
+                PhysicsVector3.UnitY,
+                new PhysicsVector3(0.5f, 0f, 0.5f),
+                new PhysicsVector3(0.5f, -0.5f, 0.5f),
+                0f);
+            manifold.SetContact(0, in contact0);
+            manifold.SetContact(1, in contact1);
+            manifold.SetContact(2, in contact2);
+            manifold.SetContact(3, in contact3);
             return manifold;
         }
 

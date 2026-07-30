@@ -4,6 +4,59 @@ namespace helengine {
     /// </summary>
     public sealed class HelPhysicsManifoldCache3DTests {
         /// <summary>
+        /// Verifies indexed cache inspection copies only occupied entries and validates the fixed probe range.
+        /// </summary>
+        [Fact]
+        public void TryGetEntry_WithOccupiedAndEmptySlots_CopiesOnlyRetainedValues() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D expectedPair = new HelPhysicsPairKey3D(2, 5);
+            HelPhysicsContactManifold3D expectedManifold = CreateManifold(CreateContact(91u, 3f, 0f, 0f, 0f));
+            cache.Update(expectedPair, ref expectedManifold, 7);
+            bool found = false;
+
+            for (int entryIndex = 0; entryIndex < cache.Capacity; entryIndex++) {
+                if (!cache.TryGetEntry(
+                    entryIndex,
+                    out HelPhysicsPairKey3D actualPair,
+                    out HelPhysicsContactManifold3D actualManifold)) {
+                    continue;
+                }
+
+                Assert.False(found);
+                Assert.Equal(expectedPair, actualPair);
+                Assert.Equal((uint)91, actualManifold.GetContact(0).Feature.Value);
+                found = true;
+            }
+
+            Assert.True(found);
+            Assert.Throws<ArgumentOutOfRangeException>(() => cache.TryGetEntry(-1, out _, out _));
+            Assert.Throws<ArgumentOutOfRangeException>(() => cache.TryGetEntry(cache.Capacity, out _, out _));
+        }
+
+        /// <summary>
+        /// Verifies body removal tombstones every affected pair while preserving unrelated probe entries and exact count.
+        /// </summary>
+        [Fact]
+        public void RemoveBody_WithSeveralRetainedPairs_RemovesOnlyAffectedEntries() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(8);
+            HelPhysicsPairKey3D firstAffectedPair = new HelPhysicsPairKey3D(1, 2);
+            HelPhysicsPairKey3D secondAffectedPair = new HelPhysicsPairKey3D(1, 3);
+            HelPhysicsPairKey3D retainedPair = new HelPhysicsPairKey3D(2, 3);
+            HelPhysicsContactManifold3D manifold = CreateManifold(CreateContact(92u, 0f, 0f, 0f, 0f));
+            cache.Update(firstAffectedPair, ref manifold, 1);
+            cache.Update(secondAffectedPair, ref manifold, 1);
+            cache.Update(retainedPair, ref manifold, 1);
+
+            cache.RemoveBody(1);
+
+            Assert.Equal(1, cache.Count);
+            Assert.False(cache.TryGet(firstAffectedPair, out _));
+            Assert.False(cache.TryGet(secondAffectedPair, out _));
+            Assert.True(cache.TryGet(retainedPair, out _));
+            Assert.Throws<ArgumentOutOfRangeException>(() => cache.RemoveBody(-1));
+        }
+
+        /// <summary>
         /// Verifies that a contact with the same geometric feature receives the prior solver impulses without receiving stale geometry.
         /// </summary>
         [Fact]
