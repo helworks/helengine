@@ -104,7 +104,46 @@ namespace helengine {
             Assert.Equal(expectedColdState.CollisionLayer, storedColdState.CollisionLayer);
             Assert.Equal(expectedColdState.CollisionMask, storedColdState.CollisionMask);
             Assert.Equal(expectedColdState.EntityBindingId, storedColdState.EntityBindingId);
+            Assert.Equal(expectedColdState.LinearSleepThresholdSquared, storedColdState.LinearSleepThresholdSquared);
+            Assert.Equal(expectedColdState.AngularSleepThresholdSquared, storedColdState.AngularSleepThresholdSquared);
+            Assert.Equal(expectedColdState.SleepTicks, storedColdState.SleepTicks);
             Assert.Equal(1, pool.ActiveCount);
+        }
+
+        /// <summary>
+        /// Verifies that cold body construction preserves validated squared sleep thresholds and a positive quiet duration.
+        /// </summary>
+        [Fact]
+        public void ColdState_WithValidSleepSettings_StoresEverySetting() {
+            HelPhysicsBodyColdState3D coldState = CreateDynamicColdStateWithSleepSettings(
+                PhysicsScalar.FromFloat(0.04f),
+                PhysicsScalar.FromFloat(0.09f),
+                13);
+
+            Assert.Equal(PhysicsScalar.FromFloat(0.04f), coldState.LinearSleepThresholdSquared);
+            Assert.Equal(PhysicsScalar.FromFloat(0.09f), coldState.AngularSleepThresholdSquared);
+            Assert.Equal((ushort)13, coldState.SleepTicks);
+        }
+
+        /// <summary>
+        /// Verifies that cold body construction rejects negative squared thresholds and a zero quiet duration.
+        /// </summary>
+        [Fact]
+        public void ColdState_WithInvalidSleepSettings_ThrowsArgumentOutOfRangeException() {
+            Assert.Throws<ArgumentOutOfRangeException>(() => CreateDynamicColdStateWithSleepSettings(
+                PhysicsScalar.FromFloat(-0.01f),
+                PhysicsScalar.Zero,
+                1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => CreateDynamicColdStateWithSleepSettings(
+                PhysicsScalar.Zero,
+                PhysicsScalar.FromFloat(-0.01f),
+                1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => CreateDynamicColdStateWithSleepSettings(
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => PhysicsScalar.FromFloat(float.NaN));
+            Assert.Throws<ArgumentOutOfRangeException>(() => PhysicsScalar.FromFloat(float.PositiveInfinity));
         }
 
         /// <summary>
@@ -267,21 +306,40 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Creates populated cold state so tests prove the pool preserves all Task 2 metadata fields.
+        /// Creates populated cold state so tests prove the pool preserves all metadata and sleep fields.
         /// </summary>
         /// <returns>Cold body metadata associated with the dynamic test body.</returns>
         static HelPhysicsBodyColdState3D CreateDynamicColdState() {
-            return new HelPhysicsBodyColdState3D {
-                ShapeHandle = new HelPhysicsShapeHandle3D(7, 11),
-                BodyKind = BodyKind3D.Dynamic,
-                Material = new HelPhysicsMaterial3D(
+            return CreateDynamicColdStateWithSleepSettings(
+                PhysicsScalar.FromFloat(0.04f),
+                PhysicsScalar.FromFloat(0.09f),
+                13);
+        }
+
+        /// <summary>
+        /// Creates complete dynamic cold state through the validated sleep-setting constructor.
+        /// </summary>
+        /// <param name="linearSleepThresholdSquared">Squared linear speed threshold to validate and store.</param>
+        /// <param name="angularSleepThresholdSquared">Squared angular speed threshold to validate and store.</param>
+        /// <param name="sleepTicks">Positive quiet duration to validate and store.</param>
+        /// <returns>Cold body metadata containing the requested sleep configuration.</returns>
+        static HelPhysicsBodyColdState3D CreateDynamicColdStateWithSleepSettings(
+            PhysicsScalar linearSleepThresholdSquared,
+            PhysicsScalar angularSleepThresholdSquared,
+            ushort sleepTicks) {
+            return new HelPhysicsBodyColdState3D(
+                new HelPhysicsShapeHandle3D(7, 11),
+                BodyKind3D.Dynamic,
+                new HelPhysicsMaterial3D(
                     PhysicsScalar.FromFloat(0.7f),
                     PhysicsScalar.FromFloat(0.4f),
                     PhysicsScalar.FromFloat(0.25f)),
-                CollisionLayer = 17,
-                CollisionMask = 19,
-                EntityBindingId = 23
-            };
+                17,
+                19,
+                23,
+                linearSleepThresholdSquared,
+                angularSleepThresholdSquared,
+                sleepTicks);
         }
     }
 }
