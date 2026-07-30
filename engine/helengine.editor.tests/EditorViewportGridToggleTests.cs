@@ -1,5 +1,7 @@
 using System.Reflection;
+using helengine.directx11;
 using helengine.editor.tests.testing;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -52,7 +54,13 @@ namespace helengine.editor.tests {
         void InitializeCore() {
             TestInputBackend inputManager = new TestInputBackend();
             Core core = new Core();
-            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"));
+            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             EditorKeyboardFocusService.Reset();
             TransformGizmoSnapSettingsService.ResetDefaults();
         }

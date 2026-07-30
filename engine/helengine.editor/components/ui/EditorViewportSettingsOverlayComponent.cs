@@ -126,10 +126,6 @@ namespace helengine.editor {
         /// </summary>
         RoundedRectComponent OverlayBackground;
         /// <summary>
-        /// Transparent hit area that lets the full overlay panel receive pointer input without closing.
-        /// </summary>
-        InteractableComponent OverlayBackgroundInteractable;
-        /// <summary>
         /// Label text for the grid row.
         /// </summary>
         TextComponent GridToggleLabelText;
@@ -583,12 +579,6 @@ namespace helengine.editor {
                 RenderOrder2D = RenderOrder2D.OverlayBackground
             };
             OverlayRoot.AddComponent(OverlayBackground);
-
-            OverlayBackgroundInteractable = new InteractableComponent {
-                Size = new int2(PanelWidth, PanelHeight),
-                HoverCursor = PointerCursorKind.Default
-            };
-            OverlayRoot.AddComponent(OverlayBackgroundInteractable);
         }
 
         /// <summary>
@@ -960,10 +950,6 @@ namespace helengine.editor {
             float panelX = ResolvePanelLeft();
             OverlayRoot.Position = new float3(panelX, AnchorY, 0.45f);
             OverlayBackground.Size = new int2(PanelWidth, PanelHeight);
-            if (OverlayBackgroundInteractable != null) {
-                OverlayBackgroundInteractable.Size = new int2(PanelWidth, PanelHeight);
-            }
-
             int gridRowY = PanelPadding;
             int pixelsPerWorldUnitLabelY = gridRowY + GridToggleRowHeight + SectionSpacing;
             int pixelsPerWorldUnitSliderY = pixelsPerWorldUnitLabelY + SectionLabelHeight + SectionLabelSpacing;

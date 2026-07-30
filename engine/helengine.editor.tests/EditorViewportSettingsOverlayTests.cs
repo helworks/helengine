@@ -1,7 +1,9 @@
 using System.Reflection;
+using helengine.directx11;
 using helengine;
 using helengine.editor;
 using helengine.editor.tests.testing;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -157,22 +159,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the overlay background itself owns a full-panel interactable hit area.
-        /// </summary>
-        [Fact]
-        public void OverlayBackground_WhenOverlayIsCreated_UsesFullPanelInteractable() {
-            InitializeCore();
-            EditorViewport viewport = CreateViewport();
-            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
-
-            RoundedRectComponent overlayBackground = GetPrivateField<RoundedRectComponent>(overlayComponent, "OverlayBackground");
-            InteractableComponent overlayBackgroundInteractable = GetPrivateField<InteractableComponent>(overlayComponent, "OverlayBackgroundInteractable");
-
-            Assert.Equal(overlayBackground.Size.X, overlayBackgroundInteractable.Size.X);
-            Assert.Equal(overlayBackground.Size.Y, overlayBackgroundInteractable.Size.Y);
-        }
-
-        /// <summary>
         /// Ensures clicking the empty overlay background does not close the settings panel.
         /// </summary>
         [Fact]
@@ -213,6 +199,41 @@ namespace helengine.editor.tests {
             overlayComponent.Update();
 
             Assert.True(overlayComponent.IsOpen);
+        }
+
+        /// <summary>
+        /// Ensures a pointer press on the near-plane track reaches the slider instead of being consumed by the overlay background.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerPressesNearPlaneSlider_UpdatesCameraNearPlane() {
+            TestInputBackend inputManager = InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.Size = new int2(400, 280);
+            InvokePrivateMethod(viewport, "UpdateViewport");
+            EditorEntity uiCameraEntity = new EditorEntity();
+            CameraComponent uiCamera = new CameraComponent {
+                LayerMask = EditorLayerMasks.EditorUi,
+                CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi,
+                Viewport = new float4(0f, 0f, 640f, 480f)
+            };
+            uiCameraEntity.AddComponent(uiCamera);
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+            overlayComponent.Open();
+
+            int pointerX = (int)Math.Round(overlayComponent.NearPlaneSlider.Position.X + overlayComponent.NearPlaneSlider.ControlSize.X - 1);
+            int pointerY = (int)Math.Round(overlayComponent.NearPlaneSlider.Position.Y + 8f);
+            InteractableComponent nearPlaneTrack = Assert.IsType<InteractableComponent>(overlayComponent.NearPlaneSlider.Components.Single(component => component is InteractableComponent));
+            IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
+                Core.Instance.ObjectManager.Interactables,
+                Core.Instance.ObjectManager.Drawables2D,
+                uiCamera,
+                pointerX,
+                pointerY);
+            Assert.Same(nearPlaneTrack, hit);
+            AdvanceInputFrame(inputManager, CreateMouseState(pointerX, pointerY, ButtonState.Released));
+            AdvanceInputFrame(inputManager, CreateMouseState(pointerX, pointerY, ButtonState.Pressed));
+
+            Assert.True(viewport.Camera.NearPlaneDistance > 1f);
         }
 
         /// <summary>
@@ -355,7 +376,13 @@ namespace helengine.editor.tests {
         TestInputBackend InitializeCore() {
             TestInputBackend inputManager = new TestInputBackend();
             Core core = new Core();
-            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"));
+            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             EditorKeyboardFocusService.Reset();
             TransformGizmoSnapSettingsService.ResetDefaults();
             return inputManager;
