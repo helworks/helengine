@@ -630,6 +630,8 @@ git commit -m "feat: solve HelPhysics box contacts"
 - Create: `engine/helengine.helphysics/islands/HelPhysicsWakeReason3D.cs`
 - Create: `engine/helengine.helphysics.tests/islands/HelPhysicsIslandBuilder3DTests.cs`
 - Create: `engine/helengine.helphysics.tests/islands/HelPhysicsIslandSleeper3DTests.cs`
+- Modify: `engine/helengine.helphysics/storage/HelPhysicsBodyColdState3D.cs`
+- Modify: `engine/helengine.helphysics.tests/storage/HelPhysicsBodyPool3DTests.cs`
 
 - [ ] **Step 1: Write island and sleeping tests**
 
@@ -651,7 +653,9 @@ Preallocate parent, rank, body-index, and island-range arrays. Union only dynami
 
 - [ ] **Step 4: Implement aggressive island sleeping and wake propagation**
 
-An island gains one quiet tick only when every member remains below its configured squared linear and angular sleep thresholds. Sleep the complete island when every member reaches `SleepTicks`. Any explicit force/impulse, meaningful new candidate contact, or moving kinematic contact wakes the complete connected island and resets its counters.
+Store each body's validated non-negative `LinearSleepThresholdSquared`, `AngularSleepThresholdSquared`, and positive `SleepTicks` in cold state so the sleep loop does not square configured thresholds every step. An island gains one quiet tick only when every member remains at or below both configured squared velocity thresholds and no wake condition occurred during the step. Increment every member's `LowMotionStepCount` together, saturating at `ushort.MaxValue`, and sleep the complete island when the island's shared quiet count reaches the greatest `SleepTicks` required by any member. Sleeping zeroes linear/angular velocities, accumulated force, and accumulated torque.
+
+Any explicit force or impulse, meaningful new candidate contact, or contact with a moving kinematic body wakes the complete connected dynamic island and resets every member's quiet counter. `HelPhysicsIslandSleeper3D` records the initiating `HelPhysicsWakeReason3D` once per wake event for later profiler aggregation. Static and kinematic bodies never become island members; dynamic-static and dynamic-kinematic manifolds only identify constraints or wake sources for the dynamic member's island.
 
 - [ ] **Step 5: Run island tests**
 
