@@ -278,6 +278,7 @@ namespace helengine.editor {
                 rotationGizmoRoot,
                 scaleGizmoRoot);
             WireViewportCallbacks(state);
+            sceneCameraEntity.InitializeHierarchy();
             return state;
         }
 

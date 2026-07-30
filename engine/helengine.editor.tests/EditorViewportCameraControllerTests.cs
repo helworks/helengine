@@ -1,5 +1,6 @@
 using helengine;
 using helengine.editor.tests.testing;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -33,6 +34,43 @@ namespace helengine.editor.tests {
             Assert.Equal(0f, cameraEntity.Position.X);
             Assert.Equal(0f, cameraEntity.Position.Y);
             Assert.Equal(-2f, cameraEntity.Position.Z);
+        }
+
+        /// <summary>
+        /// Ensures the editor's normal core update loop invokes one registered viewport controller while right-click navigation is active.
+        /// </summary>
+        [Fact]
+        public void Update_WhenRegisteredWithEditorCoreAndRightMouseNavigationIsActive_MovesCamera() {
+            TestInputBackend input = new TestInputBackend();
+            EditorCore editorCore = new EditorCore(new Project {
+                Name = "Viewport Camera Controller Tests",
+                Path = AppContext.BaseDirectory
+            });
+            editorCore.Initialize(
+                null,
+                new TestRenderManager2D(),
+                input,
+                new PlatformInfo("test", "test-version"),
+                new CoreInitializationOptions {
+                    ContentStreamSource = new FakeContentStreamSource()
+                });
+            editorCore.InputSystem.SetMouseClientBounds(new int2(500, 400));
+            EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
+            CreateController(cameraEntity, camera);
+            cameraEntity.InitializeHierarchy();
+
+            try {
+                input.SetMouseState(CreateMouseState(150, 150, 0));
+                editorCore.Update();
+                input.SetKeyboardState(new KeyboardState(Keys.W));
+                input.SetMouseState(CreateMouseState(150, 150, 0, ButtonState.Pressed, ButtonState.Released));
+
+                editorCore.Update();
+
+                Assert.True(cameraEntity.Position.Z < 0f);
+            } finally {
+                editorCore.Dispose();
+            }
         }
 
         /// <summary>
