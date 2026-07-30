@@ -21,7 +21,9 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenPointerIsOutsideViewport_DoesNotClearHoverOwnedByAnotherViewport() {
             TestInputBackend inputBackend = new TestInputBackend();
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
 
             try {
                 core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputBackend, new PlatformInfo("test", "test-version"));
@@ -89,7 +91,9 @@ namespace helengine.editor.tests {
         [Fact]
         public void SynchronizePickerCameraProjection_WhenGizmoCameraUsesExtendedClipRange_MirrorsClipPlanesOntoPickerCamera() {
             TestInputBackend inputBackend = new TestInputBackend();
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
 
             try {
                 core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputBackend, new PlatformInfo("test", "test-version"));

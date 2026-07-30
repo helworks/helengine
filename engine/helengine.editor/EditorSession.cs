@@ -553,6 +553,7 @@ namespace helengine.editor {
             this.core.SetDefaultFontAssetForEditor(this.uiFont);
 
             EditorKeyboardFocusService.Reset();
+            EditorInputCaptureService.Reset();
             core.Initialize(render3D, render2D, input, CreateEditorPlatformInfo());
             EditorComponentAddCatalog.Initialize();
             core.Input.SetKeyboardActive(true);
@@ -1473,6 +1474,7 @@ namespace helengine.editor {
         /// Disposes engine resources owned by the session.
         /// </summary>
         public void Dispose() {
+            EditorInputCaptureService.Reset();
             ClearSceneSelectionBeforeTeardown();
             assetBrowserPanel.AssetSelected -= HandleAssetSelected;
             assetBrowserPanel.SelectionCleared -= HandleAssetSelectionCleared;
