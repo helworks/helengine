@@ -335,6 +335,54 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Ensures entity disposal can replace a pending activation even when the deferred command buffer has no spare slot.
+        /// </summary>
+        [Fact]
+        public void DisposeEntity_BeforeFirstStepWithSingleCommandSlot_InvalidatesAndRecyclesBody() {
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSingleBodySingleCommandSettings());
+            binder.BindHierarchy(entity);
+            HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
+            HelPhysicsBodyHandle3D staleHandle = binding.BodyHandle;
+
+            entity.Dispose();
+
+            Assert.False(binding.IsValid);
+            Assert.Empty(binder.Bindings);
+            Assert.Throws<InvalidOperationException>(() => binding.GetBodySnapshot());
+            binder.Step();
+            Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
+
+            Entity replacementEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            binder.BindHierarchy(replacementEntity);
+            HelPhysicsEntityBinding3D replacementBinding = Assert.Single(binder.Bindings);
+            Assert.Equal(staleHandle.Index, replacementBinding.BodyHandle.Index);
+            Assert.NotEqual(staleHandle.Generation, replacementBinding.BodyHandle.Generation);
+            binder.Step();
+            Assert.True(replacementBinding.GetBodySnapshot().IsActive);
+        }
+
+        /// <summary>
+        /// Ensures explicit unbinding queues exactly one pending removal without requiring a second command slot or lifecycle callback removal.
+        /// </summary>
+        [Fact]
+        public void Unbind_BeforeFirstStepWithSingleCommandSlot_InvalidatesAndRemovesBodyOnce() {
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSingleBodySingleCommandSettings());
+            binder.BindHierarchy(entity);
+            HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
+            HelPhysicsBodyHandle3D staleHandle = binding.BodyHandle;
+
+            binder.Unbind(entity);
+
+            Assert.False(binding.IsValid);
+            Assert.Empty(binder.Bindings);
+            Assert.Throws<InvalidOperationException>(() => binder.Unbind(entity));
+            binder.Step();
+            Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
+        }
+
+        /// <summary>
         /// Ensures rebinding an already owned entity cannot create a duplicate body or association.
         /// </summary>
         [Fact]
@@ -348,6 +396,49 @@ namespace helengine {
 
             Assert.Same(originalBinding, Assert.Single(binder.Bindings));
             Assert.True(originalBinding.GetBodySnapshot().IsPending);
+        }
+
+        /// <summary>
+        /// Ensures another binder sharing the world rejects entity ownership before consuming the remaining body reservation.
+        /// </summary>
+        [Fact]
+        public void BindHierarchy_FromSecondBinderSharingWorld_RejectsOwnedEntityBeforeReservation() {
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateTwoBodyWorldSettings());
+            HelPhysicsSceneBinder3D firstBinder = new HelPhysicsSceneBinder3D(world);
+            HelPhysicsSceneBinder3D secondBinder = new HelPhysicsSceneBinder3D(world);
+            firstBinder.BindHierarchy(entity);
+            HelPhysicsEntityBinding3D firstBinding = Assert.Single(firstBinder.Bindings);
+
+            Assert.Throws<InvalidOperationException>(() => secondBinder.BindHierarchy(entity));
+
+            Assert.Same(firstBinding, Assert.Single(firstBinder.Bindings));
+            Assert.True(firstBinding.IsValid);
+            Assert.Empty(secondBinder.Bindings);
+            Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            secondBinder.BindHierarchy(secondEntity);
+            Assert.Single(secondBinder.Bindings);
+        }
+
+        /// <summary>
+        /// Ensures another binder with an independent world rejects entity ownership before reserving its sole body slot.
+        /// </summary>
+        [Fact]
+        public void BindHierarchy_FromSecondBinderWithSeparateWorld_RejectsOwnedEntityBeforeReservation() {
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            HelPhysicsSceneBinder3D firstBinder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
+            HelPhysicsSceneBinder3D secondBinder = HelPhysicsRuntimeFactory3D.Create(CreateSingleBodySingleCommandSettings());
+            firstBinder.BindHierarchy(entity);
+            HelPhysicsEntityBinding3D firstBinding = Assert.Single(firstBinder.Bindings);
+
+            Assert.Throws<InvalidOperationException>(() => secondBinder.BindHierarchy(entity));
+
+            Assert.Same(firstBinding, Assert.Single(firstBinder.Bindings));
+            Assert.True(firstBinding.IsValid);
+            Assert.Empty(secondBinder.Bindings);
+            Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            secondBinder.BindHierarchy(secondEntity);
+            Assert.Single(secondBinder.Bindings);
         }
 
         /// <summary>
@@ -454,6 +545,44 @@ namespace helengine {
             Assert.Equal(snapshot.LinearVelocity.X.ToFloat(), rigidBody.LinearVelocity.X);
             Assert.Equal(snapshot.LinearVelocity.Y.ToFloat(), rigidBody.LinearVelocity.Y);
             Assert.Equal(snapshot.LinearVelocity.Z.ToFloat(), rigidBody.LinearVelocity.Z);
+        }
+
+        /// <summary>
+        /// Creates the smallest world profile that exposes pending activation and removal competition for one command slot.
+        /// </summary>
+        /// <returns>A valid one-body world profile with exactly one deferred command slot.</returns>
+        static HelPhysicsWorldSettings3D CreateSingleBodySingleCommandSettings() {
+            return new HelPhysicsWorldSettings3D(
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                0.05d,
+                PhysicsVector3.Zero);
+        }
+
+        /// <summary>
+        /// Creates a shared-world profile with exactly two body and shape reservations available to ownership tests.
+        /// </summary>
+        /// <returns>A valid two-body world profile with room for both accepted activation commands.</returns>
+        static HelPhysicsWorldSettings3D CreateTwoBodyWorldSettings() {
+            return new HelPhysicsWorldSettings3D(
+                2,
+                2,
+                2,
+                2,
+                4,
+                2,
+                2,
+                1,
+                1,
+                0.05d,
+                PhysicsVector3.Zero);
         }
     }
 }

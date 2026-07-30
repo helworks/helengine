@@ -343,11 +343,16 @@ namespace helengine {
                 throw new InvalidOperationException("The body or shape handle generation is exhausted and cannot be released safely.");
             }
 
-            EnsureDeferredCommandCapacity();
-            AppendDeferredCommand(new HelPhysicsDeferredCommand3D(
-                HelPhysicsDeferredCommandKind3D.RemoveBody,
-                internalHandle,
-                PhysicsVector3.Zero));
+            if (BodyIsActive[internalHandle.Index]) {
+                EnsureDeferredCommandCapacity();
+                AppendDeferredCommand(new HelPhysicsDeferredCommand3D(
+                    HelPhysicsDeferredCommandKind3D.RemoveBody,
+                    internalHandle,
+                    PhysicsVector3.Zero));
+            } else {
+                ReplacePendingBodyCommandsWithRemoval(internalHandle);
+            }
+
             BodyRemovalQueued[internalHandle.Index] = true;
         }
 
@@ -707,6 +712,62 @@ namespace helengine {
         /// <param name="command">Complete command value to append.</param>
         void AppendDeferredCommand(HelPhysicsDeferredCommand3D command) {
             DeferredCommands[DeferredCommandCount++] = command;
+        }
+
+        /// <summary>
+        /// Replaces one pending body's activation with removal and discards only later commands targeting that exact generation.
+        /// </summary>
+        /// <param name="handle">Validated pool-internal identity for a body that has not yet activated.</param>
+        /// <exception cref="InvalidOperationException">Thrown before mutation when the pending command sequence is inconsistent.</exception>
+        void ReplacePendingBodyCommandsWithRemoval(HelPhysicsBodyHandle3D handle) {
+            int activationCommandIndex = -1;
+            for (int commandIndex = 0; commandIndex < DeferredCommandCount; commandIndex++) {
+                HelPhysicsDeferredCommand3D command = DeferredCommands[commandIndex];
+                if (command.BodyHandle.Index != handle.Index ||
+                    command.BodyHandle.Generation != handle.Generation ||
+                    command.Kind != HelPhysicsDeferredCommandKind3D.ActivateBody) {
+                    continue;
+                }
+
+                if (activationCommandIndex >= 0) {
+                    throw new InvalidOperationException("A pending body cannot own more than one activation command.");
+                }
+
+                activationCommandIndex = commandIndex;
+            }
+
+            if (activationCommandIndex < 0) {
+                throw new InvalidOperationException("A pending body must own one activation command before removal.");
+            }
+
+            for (int commandIndex = 0; commandIndex < activationCommandIndex; commandIndex++) {
+                HelPhysicsDeferredCommand3D command = DeferredCommands[commandIndex];
+                if (command.BodyHandle.Index == handle.Index &&
+                    command.BodyHandle.Generation == handle.Generation) {
+                    throw new InvalidOperationException("A pending body's activation must precede every deferred body input.");
+                }
+            }
+
+            DeferredCommands[activationCommandIndex] = new HelPhysicsDeferredCommand3D(
+                HelPhysicsDeferredCommandKind3D.RemoveBody,
+                handle,
+                PhysicsVector3.Zero);
+            int retainedCommandCount = activationCommandIndex + 1;
+            for (int commandIndex = activationCommandIndex + 1; commandIndex < DeferredCommandCount; commandIndex++) {
+                HelPhysicsDeferredCommand3D command = DeferredCommands[commandIndex];
+                if (command.BodyHandle.Index == handle.Index &&
+                    command.BodyHandle.Generation == handle.Generation) {
+                    continue;
+                }
+
+                DeferredCommands[retainedCommandCount++] = command;
+            }
+
+            for (int commandIndex = retainedCommandCount; commandIndex < DeferredCommandCount; commandIndex++) {
+                DeferredCommands[commandIndex] = default;
+            }
+
+            DeferredCommandCount = retainedCommandCount;
         }
 
         /// <summary>

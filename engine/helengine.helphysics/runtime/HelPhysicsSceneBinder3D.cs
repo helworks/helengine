@@ -196,7 +196,10 @@ namespace helengine {
             if (entity.Components != null) {
                 for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
                     Component component = entity.Components[componentIndex];
-                    if (component is RigidBody3DComponent body) {
+                    if (component is HelPhysicsEntityBindingLifecycle3D) {
+                        throw new InvalidOperationException(
+                            "An entity cannot be owned by more than one HelPhysics scene binder.");
+                    } else if (component is RigidBody3DComponent body) {
                         rigidBodyCount++;
                         rigidBody = body;
                     } else if (component is Collider3DComponent collider) {
