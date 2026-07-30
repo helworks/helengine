@@ -273,6 +273,46 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a numeric value selection ignores a stale hover event after the physical left button is released.
+        /// </summary>
+        [Fact]
+        public void Update_WhenNearPlaneValueTextBoxReceivesHoverAfterMouseRelease_DoesNotExtendTextSelection() {
+            TestInputBackend inputManager = InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.Size = new int2(400, 280);
+            InvokePrivateMethod(viewport, "UpdateViewport");
+            EditorEntity uiCameraEntity = new EditorEntity();
+            CameraComponent uiCamera = new CameraComponent {
+                LayerMask = EditorLayerMasks.EditorUi,
+                CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi,
+                Viewport = new float4(0f, 0f, 640f, 480f)
+            };
+            uiCameraEntity.AddComponent(uiCamera);
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+            overlayComponent.Open();
+
+            TextBoxComponent valueTextBox = overlayComponent.NearPlaneValueTextBox;
+            valueTextBox.Text = "1234";
+            int pointerY = (int)Math.Round(valueTextBox.Parent.Position.Y + 8f);
+            int startPointerX = (int)Math.Round(valueTextBox.Parent.Position.X + 9f);
+            int endPointerX = (int)Math.Round(valueTextBox.Parent.Position.X + 33f);
+            TextBoxEditState editState = GetPrivateField<TextBoxEditState>(valueTextBox, "EditState");
+
+            AdvanceInputFrame(inputManager, CreateMouseState(startPointerX, pointerY, ButtonState.Released));
+            AdvanceInputFrame(inputManager, CreateMouseState(startPointerX, pointerY, ButtonState.Pressed));
+            inputManager.SetMouseState(CreateMouseState(endPointerX, pointerY, ButtonState.Released));
+            inputManager.EarlyUpdate();
+            InvokePrivateMethod(
+                valueTextBox,
+                "OnCursorEvent",
+                new int2(endPointerX - startPointerX, 0),
+                new int2(endPointerX - startPointerX, 0),
+                PointerInteraction.Hover);
+
+            Assert.False(editState.HasSelection);
+        }
+
+        /// <summary>
         /// Ensures clicking outside the overlay closes it and returns focus to the settings button.
         /// </summary>
         [Fact]
@@ -532,13 +572,14 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="target">Object that owns the method.</param>
         /// <param name="methodName">Name of the method to invoke.</param>
-        void InvokePrivateMethod(object target, string methodName) {
+        /// <param name="parameters">Arguments supplied to the invoked method.</param>
+        void InvokePrivateMethod(object target, string methodName, params object[] parameters) {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
             if (method == null) {
                 throw new InvalidOperationException("Expected private method was not found.");
             }
 
-            method.Invoke(target, null);
+            method.Invoke(target, parameters);
         }
 
         /// <summary>
