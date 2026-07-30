@@ -172,9 +172,18 @@ namespace helengine.editor.tests {
                 TextBoxComponent[] snapValueTextBoxes = GetPrivateField<TextBoxComponent[]>(viewport, "SnapValueTextBoxes");
                 TextBoxComponent snapValueTextBox = snapValueTextBoxes[0];
                 IUpdateable textBoxUpdateComponent = Assert.Single(snapValueTextBox.Parent.Components.OfType<IUpdateable>());
+                TransformTranslationGizmoFollowComponent translationFollowComponent = Assert.Single(controller.ViewportState.TranslationGizmoRoot.Components.OfType<TransformTranslationGizmoFollowComponent>());
+                TransformRotationGizmoFollowComponent rotationFollowComponent = Assert.Single(controller.ViewportState.RotationGizmoRoot.Components.OfType<TransformRotationGizmoFollowComponent>());
+                TransformScaleGizmoFollowComponent scaleFollowComponent = Assert.Single(controller.ViewportState.ScaleGizmoRoot.Components.OfType<TransformScaleGizmoFollowComponent>());
 
                 Assert.True(viewport.IsInitialized);
                 Assert.Contains(textBoxUpdateComponent, Core.Instance.ObjectManager.Updateables);
+                Assert.True(controller.ViewportState.TranslationGizmoRoot.IsInitialized);
+                Assert.True(controller.ViewportState.RotationGizmoRoot.IsInitialized);
+                Assert.True(controller.ViewportState.ScaleGizmoRoot.IsInitialized);
+                Assert.Contains(translationFollowComponent, Core.Instance.ObjectManager.Updateables);
+                Assert.Contains(rotationFollowComponent, Core.Instance.ObjectManager.Updateables);
+                Assert.Contains(scaleFollowComponent, Core.Instance.ObjectManager.Updateables);
 
                 snapValueTextBox.IsFocused = true;
                 inputManager.SetMouseState(new MouseState(
