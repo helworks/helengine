@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Stores one allocation-free deferred world mutation with a generation-safe body identity and optional vector input.
+    /// Stores one allocation-free deferred general world mutation with a generation-safe body identity and optional state input.
     /// </summary>
     readonly struct HelPhysicsDeferredCommand3D {
         /// <summary>
@@ -14,7 +14,7 @@ namespace helengine {
         public readonly HelPhysicsBodyHandle3D BodyHandle;
 
         /// <summary>
-        /// Stores a world-space force or impulse and remains zero for lifecycle commands.
+        /// Stores a world-space force or impulse and remains zero for activation and kinematic-state commands.
         /// </summary>
         public readonly PhysicsVector3 Vector;
 
@@ -43,7 +43,7 @@ namespace helengine {
         /// </summary>
         /// <param name="kind">Mutation represented by this command.</param>
         /// <param name="bodyHandle">Current pool-internal body identity targeted by the mutation.</param>
-        /// <param name="vector">World-space force or impulse, or zero for lifecycle commands.</param>
+        /// <param name="vector">World-space force or impulse, or zero for activation.</param>
         public HelPhysicsDeferredCommand3D(
             HelPhysicsDeferredCommandKind3D kind,
             HelPhysicsBodyHandle3D bodyHandle,

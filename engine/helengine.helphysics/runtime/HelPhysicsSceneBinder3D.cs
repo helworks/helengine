@@ -24,6 +24,11 @@ namespace helengine {
         readonly IReadOnlyList<HelPhysicsEntityBinding3D> BindingsView;
 
         /// <summary>
+        /// Marks permanent binder-local identifier exhaustion after the final positive integer has been assigned.
+        /// </summary>
+        bool BindingIdExhausted;
+
+        /// <summary>
         /// Stores the next positive engine-binding identifier assigned by this binder.
         /// </summary>
         int NextBindingId;
@@ -66,7 +71,9 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(root));
             }
 
-            ValidateEntityAndDescendants(root);
+            int requiredBodyCount = ValidateEntityAndDescendants(root);
+            ValidateBindingIdCapacity(requiredBodyCount);
+            World.ValidateBodyCreationCapacity(requiredBodyCount);
             BindEntityAndDescendants(root);
         }
 
@@ -131,13 +138,12 @@ namespace helengine {
             }
 
             HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
-            World.RemoveBody(binding.BodyHandle);
-            BindingsValue.RemoveAt(bindingIndex);
-            binding.Invalidate();
-            if (ReferenceEquals(binding.Lifecycle.Parent, entity)) {
-                entity.RemoveComponent(binding.Lifecycle);
-                binding.Lifecycle.Dispose();
+            HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
+            if (!snapshot.IsRemovalPending) {
+                World.RemoveBody(binding.BodyHandle);
             }
+
+            InvalidateBinding(bindingIndex, true);
         }
 
         /// <summary>
@@ -158,9 +164,43 @@ namespace helengine {
                 throw new InvalidOperationException("A foreign lifecycle component cannot invalidate a HelPhysics entity binding.");
             }
 
-            World.RemoveBody(binding.BodyHandle);
+            HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
+            if (!snapshot.IsRemovalPending) {
+                World.RemoveBody(binding.BodyHandle);
+            }
+
+            InvalidateBinding(bindingIndex, false);
+        }
+
+        /// <summary>
+        /// Reconciles every exact removal already accepted through the public world before any scene input or stepping occurs.
+        /// </summary>
+        internal void ReconcilePendingWorldRemovals() {
+            for (int bindingIndex = 0; bindingIndex < BindingsValue.Count; bindingIndex++) {
+                BindingsValue[bindingIndex].GetBodySnapshot();
+            }
+
+            for (int bindingIndex = BindingsValue.Count - 1; bindingIndex >= 0; bindingIndex--) {
+                HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
+                if (binding.GetBodySnapshot().IsRemovalPending) {
+                    InvalidateBinding(bindingIndex, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes one accepted association from binder state, invalidates it once, and optionally detaches its lifecycle observer.
+        /// </summary>
+        /// <param name="bindingIndex">Current deterministic list index of the association.</param>
+        /// <param name="detachLifecycle">Whether the lifecycle component is still attached and must be removed explicitly.</param>
+        void InvalidateBinding(int bindingIndex, bool detachLifecycle) {
+            HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
             BindingsValue.RemoveAt(bindingIndex);
             binding.Invalidate();
+            if (detachLifecycle && ReferenceEquals(binding.Lifecycle.Parent, binding.Entity)) {
+                binding.Entity.RemoveComponent(binding.Lifecycle);
+                binding.Lifecycle.Dispose();
+            }
         }
 
         /// <summary>
@@ -182,7 +222,8 @@ namespace helengine {
         /// Validates an entire hierarchy before reserving any body so malformed descendants cannot leave a partial binding set.
         /// </summary>
         /// <param name="entity">Current hierarchy entity to validate.</param>
-        void ValidateEntityAndDescendants(Entity entity) {
+        /// <returns>The exact number of supported bodies required by this entity and its descendants.</returns>
+        int ValidateEntityAndDescendants(Entity entity) {
             if (FindBindingIndex(entity) >= 0) {
                 throw new InvalidOperationException("An entity cannot be bound to the same HelPhysics scene runtime more than once.");
             }
@@ -190,9 +231,11 @@ namespace helengine {
             int rigidBodyCount = 0;
             int colliderCount = 0;
             int boxColliderCount = 0;
-            string unsupportedColliderName = null;
+            bool hasStaticMeshCollider = false;
+            bool hasUnsupportedCollider = false;
             RigidBody3DComponent rigidBody = null;
             BoxCollider3DComponent boxCollider = null;
+            int requiredBodyCount = 0;
             if (entity.Components != null) {
                 for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
                     Component component = entity.Components[componentIndex];
@@ -208,16 +251,20 @@ namespace helengine {
                             boxColliderCount++;
                             boxCollider = box;
                         } else if (collider is StaticMeshCollider3DComponent) {
-                            unsupportedColliderName = nameof(StaticMeshCollider3DComponent);
-                        } else if (unsupportedColliderName == null) {
-                            unsupportedColliderName = collider.GetType().Name;
+                            hasStaticMeshCollider = true;
+                        } else {
+                            hasUnsupportedCollider = true;
                         }
                     }
                 }
             }
 
-            if (unsupportedColliderName != null) {
-                throw new InvalidOperationException($"HelPhysics scene binding does not support {unsupportedColliderName}.");
+            if (hasStaticMeshCollider) {
+                throw new InvalidOperationException(
+                    $"HelPhysics scene binding does not support {nameof(StaticMeshCollider3DComponent)}.");
+            } else if (hasUnsupportedCollider) {
+                throw new InvalidOperationException(
+                    "HelPhysics scene binding does not support this Collider3DComponent implementation.");
             }
 
             if (rigidBodyCount != 0 || colliderCount != 0) {
@@ -230,13 +277,37 @@ namespace helengine {
                 } else {
                     ValidateEffectiveBoxSize(entity, boxCollider);
                     _ = CreateBodyDescription(entity, rigidBody, boxCollider, 1);
+                    requiredBodyCount = 1;
                 }
             }
 
             if (entity.Children != null) {
                 for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                    ValidateEntityAndDescendants(entity.Children[childIndex]);
+                    int childBodyCount = ValidateEntityAndDescendants(entity.Children[childIndex]);
+                    if (requiredBodyCount > int.MaxValue - childBodyCount) {
+                        throw new InvalidOperationException("A HelPhysics hierarchy contains too many body entities to preflight safely.");
+                    }
+
+                    requiredBodyCount += childBodyCount;
                 }
+            }
+
+            return requiredBodyCount;
+        }
+
+        /// <summary>
+        /// Validates that one complete hierarchy can receive monotonic positive binder-local identities without rollover.
+        /// </summary>
+        /// <param name="requiredBodyCount">Validated number of supported body entities in the hierarchy.</param>
+        /// <exception cref="InvalidOperationException">Thrown when the remaining positive identifier range cannot represent the transaction.</exception>
+        void ValidateBindingIdCapacity(int requiredBodyCount) {
+            if (requiredBodyCount == 0) {
+                return;
+            }
+
+            long finalBindingId = (long)NextBindingId + requiredBodyCount - 1L;
+            if (BindingIdExhausted || finalBindingId > int.MaxValue) {
+                throw new InvalidOperationException("The HelPhysics scene binding identifier range is exhausted.");
             }
         }
 
@@ -299,7 +370,12 @@ namespace helengine {
         /// <param name="rigidBody">Rigid body supplying mode, motion, mass, gravity, and sleep values.</param>
         /// <param name="boxCollider">Box collider supplying dimensions, filtering, and contact material.</param>
         void BindEntity(Entity entity, RigidBody3DComponent rigidBody, BoxCollider3DComponent boxCollider) {
-            int bindingId = NextBindingId++;
+            int bindingId = NextBindingId;
+            if (bindingId == int.MaxValue) {
+                BindingIdExhausted = true;
+            } else {
+                NextBindingId++;
+            }
             HelPhysicsBodyDescription3D description = CreateBodyDescription(
                 entity,
                 rigidBody,
@@ -311,6 +387,7 @@ namespace helengine {
                 World,
                 entity,
                 rigidBody,
+                boxCollider,
                 handle,
                 bindingId,
                 description,

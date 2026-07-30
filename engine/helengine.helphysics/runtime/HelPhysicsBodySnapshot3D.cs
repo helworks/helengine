@@ -49,6 +49,11 @@ namespace helengine {
         public readonly bool IsPending;
 
         /// <summary>
+        /// Indicates whether exact-generation removal has been accepted for the next fixed-step boundary.
+        /// </summary>
+        public readonly bool IsRemovalPending;
+
+        /// <summary>
         /// Initializes one immutable snapshot from copied hot, cold, and world lifecycle state.
         /// </summary>
         /// <param name="bodyKind">Simulation participation mode.</param>
@@ -59,6 +64,7 @@ namespace helengine {
         /// <param name="lowMotionStepCount">Current synchronized quiet duration.</param>
         /// <param name="isAwake">Current dynamic awake state.</param>
         /// <param name="isActive">Whether creation has entered active simulation storage.</param>
+        /// <param name="isRemovalPending">Whether exact-generation removal is waiting for the next fixed-step boundary.</param>
         public HelPhysicsBodySnapshot3D(
             BodyKind3D bodyKind,
             PhysicsVector3 position,
@@ -67,7 +73,8 @@ namespace helengine {
             PhysicsVector3 angularVelocity,
             ushort lowMotionStepCount,
             bool isAwake,
-            bool isActive) {
+            bool isActive,
+            bool isRemovalPending) {
             BodyKind = bodyKind;
             Position = position;
             Orientation = orientation;
@@ -77,6 +84,7 @@ namespace helengine {
             IsAwake = isAwake;
             IsActive = isActive;
             IsPending = !isActive;
+            IsRemovalPending = isRemovalPending;
         }
     }
 }

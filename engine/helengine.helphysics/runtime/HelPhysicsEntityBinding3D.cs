@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Associates one engine entity and rigid-body component with the generation-safe body identity reserved in a HelPhysics world.
+    /// Associates one engine entity and its exact authored component pair with the generation-safe body identity reserved in a HelPhysics world.
     /// </summary>
     public sealed class HelPhysicsEntityBinding3D {
         /// <summary>
@@ -14,6 +14,7 @@ namespace helengine {
         /// <param name="world">World that owns the reserved body.</param>
         /// <param name="entity">Engine entity represented by the body.</param>
         /// <param name="rigidBody">Authored rigid-body component synchronized by the binding.</param>
+        /// <param name="boxCollider">Authored box-collider component whose identity must remain attached.</param>
         /// <param name="bodyHandle">Generation-safe world-owned body identity.</param>
         /// <param name="bindingId">Positive binder-local identity retained by the body description.</param>
         /// <param name="description">Validated immutable creation data translated from the entity.</param>
@@ -23,6 +24,7 @@ namespace helengine {
             HelPhysicsWorld3D world,
             Entity entity,
             RigidBody3DComponent rigidBody,
+            BoxCollider3DComponent boxCollider,
             HelPhysicsBodyHandle3D bodyHandle,
             int bindingId,
             HelPhysicsBodyDescription3D description,
@@ -30,6 +32,7 @@ namespace helengine {
             WorldValue = world ?? throw new ArgumentNullException(nameof(world));
             Entity = entity ?? throw new ArgumentNullException(nameof(entity));
             RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
+            BoxCollider = boxCollider ?? throw new ArgumentNullException(nameof(boxCollider));
             BodyHandle = bodyHandle;
             BindingId = bindingId;
             Description = description ?? throw new ArgumentNullException(nameof(description));
@@ -46,6 +49,11 @@ namespace helengine {
         /// Gets the authored rigid-body component synchronized by this binding.
         /// </summary>
         public RigidBody3DComponent RigidBody { get; }
+
+        /// <summary>
+        /// Gets the exact authored box collider whose continued attachment is required by this binding.
+        /// </summary>
+        public BoxCollider3DComponent BoxCollider { get; }
 
         /// <summary>
         /// Gets the generation-safe body identity issued by the owning world.

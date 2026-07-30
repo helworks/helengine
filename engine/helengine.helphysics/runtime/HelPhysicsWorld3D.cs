@@ -294,6 +294,28 @@ namespace helengine {
         internal int PhaseElevenProxyUpdateCount { get; private set; }
 
         /// <summary>
+        /// Validates aggregate body, shape, and activation-command demand without reserving or mutating world storage.
+        /// </summary>
+        /// <param name="bodyCount">Non-negative number of complete box-body reservations required by one transaction.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="bodyCount"/> is negative.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the world is permanently faulted.</exception>
+        /// <exception cref="HelPhysicsCapacityExceededException">Thrown when any fixed reservation pool cannot accept the complete demand.</exception>
+        public void ValidateBodyCreationCapacity(int bodyCount) {
+            ThrowIfFaulted();
+            if (bodyCount < 0) {
+                throw new ArgumentOutOfRangeException(nameof(bodyCount), "Body creation demand cannot be negative.");
+            }
+
+            if (bodyCount > Bodies.Capacity - Bodies.ActiveCount) {
+                throw new HelPhysicsCapacityExceededException("body", Bodies.Capacity);
+            } else if (bodyCount > Shapes.Capacity - Shapes.ActiveCount) {
+                throw new HelPhysicsCapacityExceededException("shape", Shapes.Capacity);
+            } else if (bodyCount > DeferredCommands.Length - DeferredCommandCount) {
+                throw new HelPhysicsCapacityExceededException("deferred command", DeferredCommands.Length);
+            }
+        }
+
+        /// <summary>
         /// Reserves one shape and body immediately, returning a stable pending handle whose activation executes first at the next valid step.
         /// </summary>
         /// <param name="description">Complete explicit box body description to reserve.</param>
@@ -422,7 +444,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Defers one atomic replacement of a kinematic body's world pose and authored velocity until the next fixed-step boundary.
+        /// Coalesces one pending kinematic state into its reservation or defers one active state until the next fixed-step boundary.
         /// </summary>
         /// <param name="handle">Current world-owned kinematic body identity.</param>
         /// <param name="position">Finite world-space center-of-mass position.</param>
@@ -431,8 +453,50 @@ namespace helengine {
         /// <param name="angularVelocity">Finite world-space angular velocity.</param>
         /// <exception cref="InvalidOperationException">Thrown when the handle is foreign, stale, removed, or does not identify a kinematic body.</exception>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when the orientation is not normalized or aggregate velocity arithmetic is not finite.</exception>
-        /// <exception cref="HelPhysicsCapacityExceededException">Thrown before mutation when the deferred command buffer is full.</exception>
+        /// <exception cref="HelPhysicsCapacityExceededException">Thrown before active-body mutation when the deferred command buffer is full.</exception>
         public void SetKinematicState(
+            HelPhysicsBodyHandle3D handle,
+            PhysicsVector3 position,
+            PhysicsQuaternion orientation,
+            PhysicsVector3 linearVelocity,
+            PhysicsVector3 angularVelocity) {
+            bool isActive = ValidateKinematicState(
+                handle,
+                position,
+                orientation,
+                linearVelocity,
+                angularVelocity);
+            HelPhysicsBodyHandle3D internalHandle = GetRequiredKinematicInputHandle(handle);
+            if (isActive) {
+                EnsureDeferredCommandCapacity();
+                AppendDeferredCommand(new HelPhysicsDeferredCommand3D(
+                    internalHandle,
+                    position,
+                    orientation,
+                    linearVelocity,
+                    angularVelocity));
+            } else {
+                SetKinematicStateImmediately(
+                    internalHandle,
+                    position,
+                    orientation,
+                    linearVelocity,
+                    angularVelocity);
+            }
+        }
+
+        /// <summary>
+        /// Validates one complete kinematic state without mutating its reservation or deferred command storage.
+        /// </summary>
+        /// <param name="handle">Current world-owned kinematic body identity.</param>
+        /// <param name="position">Finite world-space center-of-mass position.</param>
+        /// <param name="orientation">Finite normalized world-space orientation.</param>
+        /// <param name="linearVelocity">Finite world-space linear velocity.</param>
+        /// <param name="angularVelocity">Finite world-space angular velocity.</param>
+        /// <returns><see langword="true"/> when the state requires an active-body deferred command; otherwise <see langword="false"/> for a pending reservation.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when ownership, generation, removal state, or body mode is invalid.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when a pose or velocity value is not finite and normalized as required.</exception>
+        internal bool ValidateKinematicState(
             HelPhysicsBodyHandle3D handle,
             PhysicsVector3 position,
             PhysicsQuaternion orientation,
@@ -440,16 +504,27 @@ namespace helengine {
             PhysicsVector3 angularVelocity) {
             ThrowIfFaulted();
             HelPhysicsBodyHandle3D internalHandle = GetRequiredKinematicInputHandle(handle);
+            position.LengthSquared();
             ValidateNormalizedOrientation(orientation);
             linearVelocity.LengthSquared();
             angularVelocity.LengthSquared();
-            EnsureDeferredCommandCapacity();
-            AppendDeferredCommand(new HelPhysicsDeferredCommand3D(
-                internalHandle,
-                position,
-                orientation,
-                linearVelocity,
-                angularVelocity));
+            return BodyIsActive[internalHandle.Index];
+        }
+
+        /// <summary>
+        /// Validates aggregate active-kinematic command demand without appending any state replacement.
+        /// </summary>
+        /// <param name="commandCount">Non-negative number of active kinematic state commands required by one batch.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="commandCount"/> is negative.</exception>
+        /// <exception cref="HelPhysicsCapacityExceededException">Thrown when the complete batch cannot fit general command storage.</exception>
+        internal void ValidateKinematicCommandCapacity(int commandCount) {
+            if (commandCount < 0) {
+                throw new ArgumentOutOfRangeException(nameof(commandCount), "Kinematic command demand cannot be negative.");
+            }
+
+            if (commandCount > DeferredCommands.Length - DeferredCommandCount) {
+                throw new HelPhysicsCapacityExceededException("deferred command", DeferredCommands.Length);
+            }
         }
 
         /// <summary>
@@ -477,7 +552,8 @@ namespace helengine {
                 state.AngularVelocity,
                 state.LowMotionStepCount,
                 state.IsAwake,
-                isActive);
+                isActive,
+                BodyRemovalQueued[internalHandle.Index]);
         }
 
         /// <summary>
