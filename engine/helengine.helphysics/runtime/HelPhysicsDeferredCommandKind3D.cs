@@ -21,6 +21,11 @@ namespace helengine {
         /// <summary>
         /// Wakes a dynamic island and applies one immediate world-space linear impulse.
         /// </summary>
-        ApplyImpulse = 3
+        ApplyImpulse = 3,
+
+        /// <summary>
+        /// Replaces one kinematic body's world pose and authored linear and angular velocity at the next fixed-step boundary.
+        /// </summary>
+        SetKinematicState = 4
     }
 }

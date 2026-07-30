@@ -394,6 +394,37 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Defers one atomic replacement of a kinematic body's world pose and authored velocity until the next fixed-step boundary.
+        /// </summary>
+        /// <param name="handle">Current world-owned kinematic body identity.</param>
+        /// <param name="position">Finite world-space center-of-mass position.</param>
+        /// <param name="orientation">Finite normalized world-space orientation.</param>
+        /// <param name="linearVelocity">Finite world-space linear velocity.</param>
+        /// <param name="angularVelocity">Finite world-space angular velocity.</param>
+        /// <exception cref="InvalidOperationException">Thrown when the handle is foreign, stale, removed, or does not identify a kinematic body.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when the orientation is not normalized or aggregate velocity arithmetic is not finite.</exception>
+        /// <exception cref="HelPhysicsCapacityExceededException">Thrown before mutation when the deferred command buffer is full.</exception>
+        public void SetKinematicState(
+            HelPhysicsBodyHandle3D handle,
+            PhysicsVector3 position,
+            PhysicsQuaternion orientation,
+            PhysicsVector3 linearVelocity,
+            PhysicsVector3 angularVelocity) {
+            ThrowIfFaulted();
+            HelPhysicsBodyHandle3D internalHandle = GetRequiredKinematicInputHandle(handle);
+            ValidateNormalizedOrientation(orientation);
+            linearVelocity.LengthSquared();
+            angularVelocity.LengthSquared();
+            EnsureDeferredCommandCapacity();
+            AppendDeferredCommand(new HelPhysicsDeferredCommand3D(
+                internalHandle,
+                position,
+                orientation,
+                linearVelocity,
+                angularVelocity));
+        }
+
+        /// <summary>
         /// Copies the complete observable simulation and pending/active lifecycle state for one current world-owned handle.
         /// </summary>
         /// <param name="handle">Current world-owned body identity to inspect.</param>
@@ -571,6 +602,48 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Validates one public kinematic state target including pending authored mode and queued-removal state.
+        /// </summary>
+        /// <param name="handle">Public target identity.</param>
+        /// <returns>The current pool-internal kinematic identity.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the target is non-kinematic or already waiting for removal.</exception>
+        HelPhysicsBodyHandle3D GetRequiredKinematicInputHandle(HelPhysicsBodyHandle3D handle) {
+            HelPhysicsBodyHandle3D internalHandle = GetRequiredInternalHandle(handle);
+            if (BodyRemovalQueued[internalHandle.Index]) {
+                throw new InvalidOperationException("A body waiting for removal cannot accept another deferred input.");
+            }
+
+            BodyKind3D bodyKind;
+            if (BodyIsActive[internalHandle.Index]) {
+                bodyKind = Bodies.GetRequiredColdState(internalHandle).BodyKind;
+            } else {
+                bodyKind = PendingBodyKinds[internalHandle.Index];
+            }
+
+            if (bodyKind != BodyKind3D.Kinematic) {
+                throw new InvalidOperationException("Kinematic state targets must be kinematic bodies.");
+            }
+
+            return internalHandle;
+        }
+
+        /// <summary>
+        /// Validates that one authored world orientation is unit length before a command can enter the deferred buffer.
+        /// </summary>
+        /// <param name="orientation">Quaternion to validate without normalizing silently.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when the quaternion differs materially from unit length.</exception>
+        static void ValidateNormalizedOrientation(PhysicsQuaternion orientation) {
+            double lengthSquared =
+                ((double)orientation.X.ToFloat() * orientation.X.ToFloat()) +
+                ((double)orientation.Y.ToFloat() * orientation.Y.ToFloat()) +
+                ((double)orientation.Z.ToFloat() * orientation.Z.ToFloat()) +
+                ((double)orientation.W.ToFloat() * orientation.W.ToFloat());
+            if (Math.Abs(lengthSquared - 1d) > 0.0001d) {
+                throw new ArgumentOutOfRangeException(nameof(orientation), "Kinematic body orientations must be normalized before mutation.");
+            }
+        }
+
+        /// <summary>
         /// Dry-runs every accepted and prospective linear input for one body through phase-one impulse, phase-six force, damping, and pose arithmetic.
         /// </summary>
         /// <param name="handle">Pool-internal dynamic body identity targeted by the prospective command.</param>
@@ -650,6 +723,13 @@ namespace helengine {
                     ApplyForceImmediately(command.BodyHandle, command.Vector);
                 } else if (command.Kind == HelPhysicsDeferredCommandKind3D.ApplyImpulse) {
                     ApplyImpulseImmediately(command.BodyHandle, command.Vector);
+                } else if (command.Kind == HelPhysicsDeferredCommandKind3D.SetKinematicState) {
+                    SetKinematicStateImmediately(
+                        command.BodyHandle,
+                        command.Position,
+                        command.Orientation,
+                        command.LinearVelocity,
+                        command.AngularVelocity);
                 } else {
                     throw new InvalidOperationException("The deferred command buffer contains an unsupported mutation kind.");
                 }
@@ -726,6 +806,28 @@ namespace helengine {
             ref HelPhysicsBodyState3D state = ref Bodies.GetRequiredState(handle);
             IslandSleeper.WakeForExplicitImpulse(handle.Index, Bodies, IslandBuilder);
             state.LinearVelocity += impulse * state.InverseMass;
+            ProxyIsDirty[handle.Index] = true;
+        }
+
+        /// <summary>
+        /// Atomically publishes one already validated kinematic pose and velocity replacement to hot body state.
+        /// </summary>
+        /// <param name="handle">Pool-internal kinematic identity validated when the command was accepted.</param>
+        /// <param name="position">World-space center-of-mass position.</param>
+        /// <param name="orientation">Normalized world-space orientation.</param>
+        /// <param name="linearVelocity">World-space linear velocity.</param>
+        /// <param name="angularVelocity">World-space angular velocity.</param>
+        void SetKinematicStateImmediately(
+            HelPhysicsBodyHandle3D handle,
+            PhysicsVector3 position,
+            PhysicsQuaternion orientation,
+            PhysicsVector3 linearVelocity,
+            PhysicsVector3 angularVelocity) {
+            ref HelPhysicsBodyState3D state = ref Bodies.GetRequiredState(handle);
+            state.Position = position;
+            state.Orientation = orientation;
+            state.LinearVelocity = linearVelocity;
+            state.AngularVelocity = angularVelocity;
             ProxyIsDirty[handle.Index] = true;
         }
 
