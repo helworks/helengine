@@ -244,18 +244,54 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Verifies that first-step candidates between awake dynamics require no prior island publication and produce no wake event.
+        /// Verifies that a first-step candidate suppresses quiet credit for its newly connected awake island without recording a wake transition.
         /// </summary>
         [Fact]
-        public void WakeForNewCandidateContact_WithOnlyAwakeDynamicsAndNoPriorIslands_DoesNothing() {
+        public void WakeForNewCandidateContact_WithOnlyAwakeDynamicsAndNoPriorIslands_SuppressesCurrentIslandSleep() {
             HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(2);
             HelPhysicsBodyState3D firstState = CreateDynamicState(true);
             firstState.LowMotionStepCount = 2;
             HelPhysicsBodyState3D secondState = CreateDynamicState(true);
             secondState.LowMotionStepCount = 3;
-            bodies.Allocate(firstState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 2));
-            bodies.Allocate(secondState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 2));
+            bodies.Allocate(firstState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            bodies.Allocate(secondState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
             HelPhysicsIslandBuilder3D islands = new HelPhysicsIslandBuilder3D(2, 2);
+            HelPhysicsIslandSleeper3D sleeper = new HelPhysicsIslandSleeper3D(2);
+            HelPhysicsPairKey3D[] pairs = new HelPhysicsPairKey3D[] {
+                new HelPhysicsPairKey3D(0, 1)
+            };
+            HelPhysicsContactManifold3D[] manifolds = new HelPhysicsContactManifold3D[] {
+                CreateActiveManifold()
+            };
+
+            sleeper.BeginStep();
+            sleeper.WakeForNewCandidateContact(
+                new HelPhysicsCandidatePair3D(0, 1),
+                bodies,
+                islands);
+            islands.Build(bodies, pairs, manifolds, 1);
+            sleeper.EvaluateSleep(bodies, islands);
+
+            Assert.True(bodies.GetRequiredStateByIndex(0).IsAwake);
+            Assert.True(bodies.GetRequiredStateByIndex(1).IsAwake);
+            Assert.Equal((ushort)0, bodies.GetRequiredStateByIndex(0).LowMotionStepCount);
+            Assert.Equal((ushort)0, bodies.GetRequiredStateByIndex(1).LowMotionStepCount);
+            Assert.Equal(0, sleeper.WakeEventCount);
+        }
+
+        /// <summary>
+        /// Verifies that a candidate within an already connected awake island resets every member and grants no same-step quiet tick or wake event.
+        /// </summary>
+        [Fact]
+        public void WakeForNewCandidateContact_WithinConnectedAwakeIsland_SuppressesCurrentIslandSleep() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(2);
+            HelPhysicsBodyState3D firstState = CreateDynamicState(true);
+            firstState.LowMotionStepCount = 4;
+            HelPhysicsBodyState3D secondState = CreateDynamicState(true);
+            secondState.LowMotionStepCount = 4;
+            bodies.Allocate(firstState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            bodies.Allocate(secondState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsIslandBuilder3D islands = BuildConnectedPair(bodies, 0, 1);
             HelPhysicsIslandSleeper3D sleeper = new HelPhysicsIslandSleeper3D(2);
 
             sleeper.BeginStep();
@@ -263,12 +299,162 @@ namespace helengine {
                 new HelPhysicsCandidatePair3D(0, 1),
                 bodies,
                 islands);
+            islands.Build(
+                bodies,
+                new HelPhysicsPairKey3D[] { new HelPhysicsPairKey3D(0, 1) },
+                new HelPhysicsContactManifold3D[] { CreateActiveManifold() },
+                1);
+            sleeper.EvaluateSleep(bodies, islands);
 
             Assert.True(bodies.GetRequiredStateByIndex(0).IsAwake);
             Assert.True(bodies.GetRequiredStateByIndex(1).IsAwake);
-            Assert.Equal((ushort)2, bodies.GetRequiredStateByIndex(0).LowMotionStepCount);
-            Assert.Equal((ushort)3, bodies.GetRequiredStateByIndex(1).LowMotionStepCount);
+            Assert.Equal((ushort)0, bodies.GetRequiredStateByIndex(0).LowMotionStepCount);
+            Assert.Equal((ushort)0, bodies.GetRequiredStateByIndex(1).LowMotionStepCount);
             Assert.Equal(0, sleeper.WakeEventCount);
+        }
+
+        /// <summary>
+        /// Verifies that a new awake dynamic can suppress its current merged island while a sleeping participant still wakes its valid prior island once.
+        /// </summary>
+        [Fact]
+        public void WakeForNewCandidateContact_WithNewAwakeDynamicAndSleepingPriorIsland_ComposesWithCurrentBuild() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(3);
+            bodies.Allocate(CreateSleepingState(5), CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            bodies.Allocate(CreateSleepingState(5), CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsIslandBuilder3D islands = BuildConnectedPair(bodies, 0, 1);
+            HelPhysicsBodyState3D newState = CreateDynamicState(true);
+            newState.LowMotionStepCount = 7;
+            bodies.Allocate(newState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsIslandSleeper3D sleeper = new HelPhysicsIslandSleeper3D(3);
+
+            sleeper.BeginStep();
+            sleeper.WakeForNewCandidateContact(
+                new HelPhysicsCandidatePair3D(1, 2),
+                bodies,
+                islands);
+            islands.Build(
+                bodies,
+                new HelPhysicsPairKey3D[] {
+                    new HelPhysicsPairKey3D(0, 1),
+                    new HelPhysicsPairKey3D(1, 2)
+                },
+                new HelPhysicsContactManifold3D[] {
+                    CreateActiveManifold(),
+                    CreateActiveManifold()
+                },
+                2);
+            sleeper.EvaluateSleep(bodies, islands);
+
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(0), 0);
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(1), 0);
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(2), 0);
+            Assert.Equal(1, sleeper.WakeEventCount);
+            Assert.Equal(HelPhysicsWakeReason3D.NewCandidateContact, sleeper.GetWakeEventReason(0));
+        }
+
+        /// <summary>
+        /// Verifies that wake propagation skips a vacant stale prior member while waking every surviving identity without throwing.
+        /// </summary>
+        [Fact]
+        public void WakeForNewCandidateContact_WithVacantPriorMember_WakesSurvivorsWithoutThrowing() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(3);
+            bodies.Allocate(CreateSleepingState(5), CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsBodyHandle3D removed = bodies.Allocate(
+                CreateSleepingState(5),
+                CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsBodyState3D unrelatedState = CreateDynamicState(true);
+            unrelatedState.LowMotionStepCount = 7;
+            bodies.Allocate(unrelatedState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsIslandBuilder3D islands = BuildConnectedPair(bodies, 0, 1);
+            HelPhysicsIslandSleeper3D sleeper = new HelPhysicsIslandSleeper3D(3);
+            bodies.Release(removed);
+
+            sleeper.BeginStep();
+            sleeper.WakeForNewCandidateContact(
+                new HelPhysicsCandidatePair3D(0, 2),
+                bodies,
+                islands);
+
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(0), 0);
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(2), 0);
+            Assert.Equal(1, sleeper.WakeEventCount);
+            Assert.Equal(HelPhysicsWakeReason3D.NewCandidateContact, sleeper.GetWakeEventReason(0));
+        }
+
+        /// <summary>
+        /// Verifies that stale prior membership never wakes or resets a different generation that reused the removed member's slot.
+        /// </summary>
+        [Fact]
+        public void WakeForNewCandidateContact_WithReusedPriorMember_DoesNotTouchReplacement() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(3);
+            bodies.Allocate(CreateSleepingState(5), CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsBodyHandle3D removed = bodies.Allocate(
+                CreateSleepingState(5),
+                CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsBodyState3D unrelatedState = CreateDynamicState(true);
+            unrelatedState.LowMotionStepCount = 7;
+            bodies.Allocate(unrelatedState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsIslandBuilder3D islands = BuildConnectedPair(bodies, 0, 1);
+            HelPhysicsIslandSleeper3D sleeper = new HelPhysicsIslandSleeper3D(3);
+            bodies.Release(removed);
+            HelPhysicsBodyState3D replacementState = CreateDynamicState(true);
+            replacementState.LowMotionStepCount = 9;
+            HelPhysicsBodyHandle3D replacement = bodies.Allocate(
+                replacementState,
+                CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+
+            sleeper.BeginStep();
+            sleeper.WakeForNewCandidateContact(
+                new HelPhysicsCandidatePair3D(0, 2),
+                bodies,
+                islands);
+
+            Assert.Equal(removed.Index, replacement.Index);
+            Assert.NotEqual(removed.Generation, replacement.Generation);
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(0), 0);
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(1), 9);
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(2), 0);
+            Assert.Equal(1, sleeper.WakeEventCount);
+        }
+
+        /// <summary>
+        /// Verifies that a slot-reused direct participant is marked as the current body without inheriting its predecessor's prior island.
+        /// </summary>
+        [Fact]
+        public void WakeForNewCandidateContact_WithDirectReusedParticipant_MarksCurrentBodyOnlyAndComposesWithBuild() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(3);
+            bodies.Allocate(CreateSleepingState(5), CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsBodyHandle3D removed = bodies.Allocate(
+                CreateSleepingState(5),
+                CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsBodyState3D secondParticipantState = CreateDynamicState(true);
+            secondParticipantState.LowMotionStepCount = 6;
+            bodies.Allocate(secondParticipantState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsIslandBuilder3D islands = BuildConnectedPair(bodies, 0, 1);
+            HelPhysicsIslandSleeper3D sleeper = new HelPhysicsIslandSleeper3D(3);
+            bodies.Release(removed);
+            HelPhysicsBodyState3D replacementState = CreateDynamicState(true);
+            replacementState.LowMotionStepCount = 8;
+            bodies.Allocate(replacementState, CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+
+            sleeper.BeginStep();
+            sleeper.WakeForNewCandidateContact(
+                new HelPhysicsCandidatePair3D(1, 2),
+                bodies,
+                islands);
+            islands.Build(
+                bodies,
+                new HelPhysicsPairKey3D[] { new HelPhysicsPairKey3D(1, 2) },
+                new HelPhysicsContactManifold3D[] { CreateActiveManifold() },
+                1);
+            sleeper.EvaluateSleep(bodies, islands);
+
+            Assert.False(bodies.GetRequiredStateByIndex(0).IsAwake);
+            Assert.Equal((ushort)5, bodies.GetRequiredStateByIndex(0).LowMotionStepCount);
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(1), 0);
+            AssertAwakeWithCounter(bodies.GetRequiredStateByIndex(2), 0);
+            Assert.Equal(0, sleeper.WakeEventCount);
+            Assert.Equal(0, sleeper.GetWakeCount(HelPhysicsWakeReason3D.NewCandidateContact));
         }
 
         /// <summary>
@@ -401,6 +587,48 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies that generation checks, stale-member skips, and direct current replacement marking allocate no managed memory after warmup.
+        /// </summary>
+        [Fact]
+        public void StalePublicationWakePaths_AfterWarmup_AllocateNoManagedMemory() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(3);
+            bodies.Allocate(CreateSleepingState(5), CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsBodyHandle3D removed = bodies.Allocate(
+                CreateSleepingState(5),
+                CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            bodies.Allocate(CreateDynamicState(true), CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsIslandBuilder3D islands = BuildConnectedPair(bodies, 0, 1);
+            bodies.Release(removed);
+            bodies.Allocate(CreateDynamicState(true), CreateColdState(BodyKind3D.Dynamic, 0.01f, 0.01f, 10));
+            HelPhysicsIslandSleeper3D sleeper = new HelPhysicsIslandSleeper3D(3);
+            HelPhysicsCandidatePair3D survivingCandidate = new HelPhysicsCandidatePair3D(0, 2);
+            HelPhysicsCandidatePair3D replacementCandidate = new HelPhysicsCandidatePair3D(1, 2);
+            RunStalePublicationWakeCycle(
+                sleeper,
+                bodies,
+                islands,
+                survivingCandidate,
+                replacementCandidate);
+
+            HelPhysicsWakeReason3D lastReason = HelPhysicsWakeReason3D.None;
+            long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+            for (int iteration = 0; iteration < 1024; iteration++) {
+                RunStalePublicationWakeCycle(
+                    sleeper,
+                    bodies,
+                    islands,
+                    survivingCandidate,
+                    replacementCandidate);
+                lastReason = sleeper.GetWakeEventReason(0);
+            }
+            long allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
+
+            Assert.Equal(allocatedBefore, allocatedAfter);
+            Assert.Equal(HelPhysicsWakeReason3D.NewCandidateContact, lastReason);
+            Assert.Equal(1, sleeper.WakeEventCount);
+        }
+
+        /// <summary>
         /// Runs one explicit sequence that wakes two prior islands and blocks quiet credit for the wake step.
         /// </summary>
         /// <param name="sleeper">Sleeper whose transient storage and diagnostics are exercised.</param>
@@ -422,6 +650,35 @@ namespace helengine {
             sleeper.WakeForExplicitForce(0, bodies, islands);
             sleeper.WakeForExplicitImpulse(2, bodies, islands);
             sleeper.EvaluateSleep(bodies, islands);
+        }
+
+        /// <summary>
+        /// Resets and exercises valid prior propagation, one stale member skip, and one direct replacement participant.
+        /// </summary>
+        /// <param name="sleeper">Sleeper whose fixed transient and diagnostic storage is exercised.</param>
+        /// <param name="bodies">Pool containing one surviving sleeper, one replacement, and one prior awake body.</param>
+        /// <param name="islands">Prior publication that still contains the removed member identity.</param>
+        /// <param name="survivingCandidate">Candidate that propagates through the valid surviving prior member.</param>
+        /// <param name="replacementCandidate">Candidate whose direct replacement participant has no matching prior identity.</param>
+        static void RunStalePublicationWakeCycle(
+            HelPhysicsIslandSleeper3D sleeper,
+            HelPhysicsBodyPool3D bodies,
+            HelPhysicsIslandBuilder3D islands,
+            HelPhysicsCandidatePair3D survivingCandidate,
+            HelPhysicsCandidatePair3D replacementCandidate) {
+            ref HelPhysicsBodyState3D survivingState = ref bodies.GetRequiredStateByIndex(0);
+            survivingState.IsAwake = false;
+            survivingState.LowMotionStepCount = 5;
+            ref HelPhysicsBodyState3D replacementState = ref bodies.GetRequiredStateByIndex(1);
+            replacementState.IsAwake = true;
+            replacementState.LowMotionStepCount = 9;
+            ref HelPhysicsBodyState3D priorAwakeState = ref bodies.GetRequiredStateByIndex(2);
+            priorAwakeState.IsAwake = true;
+            priorAwakeState.LowMotionStepCount = 7;
+
+            sleeper.BeginStep();
+            sleeper.WakeForNewCandidateContact(survivingCandidate, bodies, islands);
+            sleeper.WakeForNewCandidateContact(replacementCandidate, bodies, islands);
         }
 
         /// <summary>

@@ -133,7 +133,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Wakes every dynamic participant's prior island when a caller identifies a meaningful new candidate touching a sleeping body.
+        /// Marks every dynamic participant's current step and wakes any sleeping prior island when a caller identifies a meaningful new candidate.
         /// </summary>
         /// <param name="candidate">Canonical new broadphase candidate selected by the world or manifold lifecycle.</param>
         /// <param name="bodies">Fixed body pool containing both candidate participants.</param>
@@ -143,14 +143,6 @@ namespace helengine {
             HelPhysicsBodyPool3D bodies,
             HelPhysicsIslandBuilder3D islands) {
             ValidateCandidate(candidate, bodies, islands);
-            bool touchesSleepingDynamic = IsSleepingDynamic(candidate.FirstBodyIndex, bodies) ||
-                IsSleepingDynamic(candidate.SecondBodyIndex, bodies);
-            if (!touchesSleepingDynamic) {
-                return;
-            }
-
-            ValidateDynamicParticipantLookup(candidate.FirstBodyIndex, bodies, islands);
-            ValidateDynamicParticipantLookup(candidate.SecondBodyIndex, bodies, islands);
             WakeDynamicParticipant(
                 candidate.FirstBodyIndex,
                 HelPhysicsWakeReason3D.NewCandidateContact,
@@ -196,7 +188,7 @@ namespace helengine {
                 return;
             }
 
-            WakeConnectedDynamicBody(
+            WakeDynamicParticipant(
                 dynamicBodyIndex,
                 HelPhysicsWakeReason3D.MovingKinematicContact,
                 bodies,
@@ -346,22 +338,11 @@ namespace helengine {
             HelPhysicsWakeReason3D reason,
             HelPhysicsBodyPool3D bodies,
             HelPhysicsIslandBuilder3D islands) {
-            if (islands.GetIslandIndexForBody(bodyIndex) >= 0) {
-                WakeConnectedDynamicBody(bodyIndex, reason, bodies, islands);
-                return;
-            }
-
-            ref HelPhysicsBodyState3D state = ref bodies.GetRequiredStateByIndex(bodyIndex);
-            if (!state.IsAwake) {
-                throw new InvalidOperationException("A sleeping explicit wake target requires a prior or current island for complete propagation.");
-            }
-
-            state.LowMotionStepCount = 0;
-            WakeOccurredThisStep[bodyIndex] = true;
+            WakeDynamicParticipant(bodyIndex, reason, bodies, islands);
         }
 
         /// <summary>
-        /// Wakes one participant only when it is dynamic, allowing candidate processing to ignore static and kinematic counterparts.
+        /// Wakes one dynamic participant's identity-matched prior island or marks only its current slot occupant when no prior identity exists.
         /// </summary>
         /// <param name="bodyIndex">Occupied candidate body index.</param>
         /// <param name="reason">Initiating reason shared by candidate participants.</param>
@@ -372,40 +353,107 @@ namespace helengine {
             HelPhysicsWakeReason3D reason,
             HelPhysicsBodyPool3D bodies,
             HelPhysicsIslandBuilder3D islands) {
-            if (bodies.GetRequiredColdStateByIndex(bodyIndex).BodyKind == BodyKind3D.Dynamic) {
-                WakeConnectedDynamicBody(bodyIndex, reason, bodies, islands);
+            if (bodies.GetRequiredColdStateByIndex(bodyIndex).BodyKind != BodyKind3D.Dynamic) {
+                return;
+            }
+
+            int islandIndex = GetMatchingPublishedIslandIndex(bodyIndex, bodies, islands);
+            if (islandIndex >= 0) {
+                WakePublishedIsland(islandIndex, reason, bodies, islands);
+                return;
+            }
+
+            MarkCurrentDynamicBody(bodyIndex, reason, bodies);
+        }
+
+        /// <summary>
+        /// Marks one current dynamic occupant as woken this step without treating stale prior membership as its connectivity.
+        /// </summary>
+        /// <param name="bodyIndex">Occupied current dynamic body slot to mark.</param>
+        /// <param name="reason">Initiating reason for a possible direct asleep-to-awake transition.</param>
+        /// <param name="bodies">Body pool containing the current occupant.</param>
+        void MarkCurrentDynamicBody(
+            int bodyIndex,
+            HelPhysicsWakeReason3D reason,
+            HelPhysicsBodyPool3D bodies) {
+            ref HelPhysicsBodyState3D state = ref bodies.GetRequiredStateByIndex(bodyIndex);
+            bool wasAsleep = !state.IsAwake;
+            state.LowMotionStepCount = 0;
+            state.IsAwake = true;
+            WakeOccurredThisStep[bodyIndex] = true;
+            if (wasAsleep) {
+                RecordWakeEvent(reason);
             }
         }
 
         /// <summary>
-        /// Wakes and resets every member of one published island and records a reason only when any member was asleep.
+        /// Finds a direct participant's prior island only when its published handle matches the current slot occupant.
         /// </summary>
-        /// <param name="bodyIndex">Dynamic member identifying the island.</param>
-        /// <param name="reason">Initiating wake reason for a possible transition event.</param>
-        /// <param name="bodies">Body pool containing all island members.</param>
-        /// <param name="islands">Published island range and lookup.</param>
-        void WakeConnectedDynamicBody(
+        /// <param name="bodyIndex">Occupied current dynamic body slot to locate.</param>
+        /// <param name="bodies">Body pool containing the current occupant identity.</param>
+        /// <param name="islands">Prior publication whose lookup and member handles are inspected.</param>
+        /// <returns>The matching prior island index, or negative one when the current occupant has no prior identity.</returns>
+        static int GetMatchingPublishedIslandIndex(
             int bodyIndex,
-            HelPhysicsWakeReason3D reason,
             HelPhysicsBodyPool3D bodies,
             HelPhysicsIslandBuilder3D islands) {
             int islandIndex = islands.GetIslandIndexForBody(bodyIndex);
             if (islandIndex < 0) {
-                throw new InvalidOperationException("Every occupied dynamic wake target must belong to a published island.");
+                return -1;
             }
 
+            HelPhysicsBodyHandle3D currentHandle = bodies.GetRequiredHandleByIndex(bodyIndex);
+            HelPhysicsIsland3D island = islands.GetIsland(islandIndex);
+            for (int memberOffset = 0; memberOffset < island.BodyCount; memberOffset++) {
+                HelPhysicsBodyHandle3D publishedHandle = islands.GetBodyHandle(
+                    island.BodyStartIndex + memberOffset);
+                if (publishedHandle.Index == currentHandle.Index) {
+                    if (publishedHandle.Generation == currentHandle.Generation) {
+                        return islandIndex;
+                    }
+
+                    return -1;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Wakes and resets every still-current identity in one prior island while skipping removed or replaced published members.
+        /// </summary>
+        /// <param name="islandIndex">Prior published island whose surviving identities must be propagated.</param>
+        /// <param name="reason">Initiating wake reason for a possible transition event.</param>
+        /// <param name="bodies">Body pool containing current slot occupants.</param>
+        /// <param name="islands">Prior publication containing immutable member handles for this propagation.</param>
+        void WakePublishedIsland(
+            int islandIndex,
+            HelPhysicsWakeReason3D reason,
+            HelPhysicsBodyPool3D bodies,
+            HelPhysicsIslandBuilder3D islands) {
             HelPhysicsIsland3D island = islands.GetIsland(islandIndex);
             bool wasAsleep = false;
             for (int memberOffset = 0; memberOffset < island.BodyCount; memberOffset++) {
-                int memberBodyIndex = islands.GetBodyIndex(island.BodyStartIndex + memberOffset);
-                ref HelPhysicsBodyState3D state = ref bodies.GetRequiredStateByIndex(memberBodyIndex);
+                HelPhysicsBodyHandle3D publishedHandle = islands.GetBodyHandle(
+                    island.BodyStartIndex + memberOffset);
+                if (!IsPublishedHandleCurrent(publishedHandle, bodies)) {
+                    continue;
+                }
+
+                ref HelPhysicsBodyState3D state = ref bodies.GetRequiredStateByIndex(publishedHandle.Index);
                 if (!state.IsAwake) {
                     wasAsleep = true;
                 }
             }
 
             for (int memberOffset = 0; memberOffset < island.BodyCount; memberOffset++) {
-                int memberBodyIndex = islands.GetBodyIndex(island.BodyStartIndex + memberOffset);
+                HelPhysicsBodyHandle3D publishedHandle = islands.GetBodyHandle(
+                    island.BodyStartIndex + memberOffset);
+                if (!IsPublishedHandleCurrent(publishedHandle, bodies)) {
+                    continue;
+                }
+
+                int memberBodyIndex = publishedHandle.Index;
                 ref HelPhysicsBodyState3D state = ref bodies.GetRequiredStateByIndex(memberBodyIndex);
                 state.LowMotionStepCount = 0;
                 state.IsAwake = true;
@@ -415,6 +463,23 @@ namespace helengine {
             if (wasAsleep) {
                 RecordWakeEvent(reason);
             }
+        }
+
+        /// <summary>
+        /// Determines whether one published member handle still identifies the occupied body in its fixed slot.
+        /// </summary>
+        /// <param name="publishedHandle">Prior snapshot identity to compare.</param>
+        /// <param name="bodies">Body pool containing current occupancy and generations.</param>
+        /// <returns><see langword="true"/> only when the slot remains occupied by the same generation.</returns>
+        static bool IsPublishedHandleCurrent(
+            HelPhysicsBodyHandle3D publishedHandle,
+            HelPhysicsBodyPool3D bodies) {
+            if (publishedHandle.Index >= bodies.Capacity || !bodies.IsOccupied(publishedHandle.Index)) {
+                return false;
+            }
+
+            HelPhysicsBodyHandle3D currentHandle = bodies.GetRequiredHandleByIndex(publishedHandle.Index);
+            return publishedHandle.Generation == currentHandle.Generation;
         }
 
         /// <summary>
@@ -440,17 +505,6 @@ namespace helengine {
             } else {
                 throw new ArgumentOutOfRangeException(nameof(reason), "Wake events require one explicit initiating reason.");
             }
-        }
-
-        /// <summary>
-        /// Determines whether one occupied candidate participant is a sleeping dynamic body.
-        /// </summary>
-        /// <param name="bodyIndex">Occupied body index to inspect.</param>
-        /// <param name="bodies">Body pool containing the participant.</param>
-        /// <returns><see langword="true"/> when the participant is dynamic and asleep.</returns>
-        static bool IsSleepingDynamic(int bodyIndex, HelPhysicsBodyPool3D bodies) {
-            return bodies.GetRequiredColdStateByIndex(bodyIndex).BodyKind == BodyKind3D.Dynamic &&
-                !bodies.GetRequiredStateByIndex(bodyIndex).IsAwake;
         }
 
         /// <summary>
@@ -482,9 +536,17 @@ namespace helengine {
                 HelPhysicsIsland3D island = islands.GetIsland(islandIndex);
                 bool firstMemberIsAwake = false;
                 for (int memberOffset = 0; memberOffset < island.BodyCount; memberOffset++) {
-                    int bodyIndex = islands.GetBodyIndex(island.BodyStartIndex + memberOffset);
+                    int memberIndex = island.BodyStartIndex + memberOffset;
+                    int bodyIndex = islands.GetBodyIndex(memberIndex);
                     if (!bodies.IsOccupied(bodyIndex)) {
                         throw new InvalidOperationException("Published island members must remain occupied through sleep evaluation.");
+                    }
+
+                    HelPhysicsBodyHandle3D publishedHandle = islands.GetBodyHandle(memberIndex);
+                    HelPhysicsBodyHandle3D currentHandle = bodies.GetRequiredHandleByIndex(bodyIndex);
+                    if (publishedHandle.Index != currentHandle.Index ||
+                        publishedHandle.Generation != currentHandle.Generation) {
+                        throw new InvalidOperationException("Published island member handles must match every current slot occupant through sleep evaluation.");
                     }
 
                     ref HelPhysicsBodyState3D state = ref bodies.GetRequiredStateByIndex(bodyIndex);
@@ -607,24 +669,6 @@ namespace helengine {
                 throw new InvalidOperationException("Moving kinematic wake contacts require an active one-through-four-contact manifold.");
             }
 
-            ValidateDynamicParticipantLookup(pair.FirstBodyIndex, bodies, islands);
-            ValidateDynamicParticipantLookup(pair.SecondBodyIndex, bodies, islands);
-        }
-
-        /// <summary>
-        /// Ensures an occupied dynamic pair participant belongs to the supplied prior or current island publication.
-        /// </summary>
-        /// <param name="bodyIndex">Occupied pair participant.</param>
-        /// <param name="bodies">Body pool containing its mode.</param>
-        /// <param name="islands">Island lookup to validate when the participant is dynamic.</param>
-        static void ValidateDynamicParticipantLookup(
-            int bodyIndex,
-            HelPhysicsBodyPool3D bodies,
-            HelPhysicsIslandBuilder3D islands) {
-            if (bodies.GetRequiredColdStateByIndex(bodyIndex).BodyKind == BodyKind3D.Dynamic &&
-                islands.GetIslandIndexForBody(bodyIndex) < 0) {
-                throw new InvalidOperationException("Every dynamic wake participant must belong to the supplied island publication.");
-            }
         }
     }
 }

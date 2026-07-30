@@ -166,6 +166,29 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies that fixed-index handle access identifies the live generation, rejects vacancy, and observes a reused slot's replacement generation.
+        /// </summary>
+        [Fact]
+        public void GetRequiredHandleByIndex_AcrossReleaseAndReuse_ReturnsCurrentOccupantIdentity() {
+            HelPhysicsBodyPool3D pool = new HelPhysicsBodyPool3D(1);
+            HelPhysicsBodyHandle3D first = pool.Allocate(CreateDynamicState(), CreateDynamicColdState());
+
+            HelPhysicsBodyHandle3D publishedFirst = pool.GetRequiredHandleByIndex(first.Index);
+            pool.Release(first);
+
+            Assert.Equal(first.Index, publishedFirst.Index);
+            Assert.Equal(first.Generation, publishedFirst.Generation);
+            Assert.Throws<InvalidOperationException>(() => pool.GetRequiredHandleByIndex(first.Index));
+
+            HelPhysicsBodyHandle3D replacement = pool.Allocate(CreateDynamicState(), CreateDynamicColdState());
+            HelPhysicsBodyHandle3D publishedReplacement = pool.GetRequiredHandleByIndex(replacement.Index);
+
+            Assert.Equal(replacement.Index, publishedReplacement.Index);
+            Assert.Equal(replacement.Generation, publishedReplacement.Generation);
+            Assert.NotEqual(publishedFirst.Generation, publishedReplacement.Generation);
+        }
+
+        /// <summary>
         /// Verifies that fixed-index occupancy reports a released in-range slot without treating it as a live body.
         /// </summary>
         [Fact]
@@ -189,6 +212,8 @@ namespace helengine {
 
             Assert.Throws<ArgumentOutOfRangeException>(() => pool.IsOccupied(-1));
             Assert.Throws<ArgumentOutOfRangeException>(() => pool.IsOccupied(1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => pool.GetRequiredHandleByIndex(-1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => pool.GetRequiredHandleByIndex(1));
             Assert.Throws<ArgumentOutOfRangeException>(() => pool.GetRequiredStateByIndex(-1));
             Assert.Throws<ArgumentOutOfRangeException>(() => pool.GetRequiredColdStateByIndex(1));
         }

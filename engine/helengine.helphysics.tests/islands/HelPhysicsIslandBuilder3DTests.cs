@@ -241,6 +241,48 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies that member handles remain paired with the prior publication after staging fails and update together on the next valid build.
+        /// </summary>
+        [Fact]
+        public void Build_AcrossFailedAndValidPublication_KeepsMemberHandlesTransactional() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(2);
+            HelPhysicsBodyHandle3D first = bodies.Allocate(
+                CreateBodyState(true),
+                CreateColdState(BodyKind3D.Dynamic));
+            HelPhysicsBodyHandle3D second = bodies.Allocate(
+                CreateBodyState(true),
+                CreateColdState(BodyKind3D.Dynamic));
+            HelPhysicsIslandBuilder3D builder = new HelPhysicsIslandBuilder3D(2, 1);
+            HelPhysicsPairKey3D[] joinedPairs = new HelPhysicsPairKey3D[] {
+                new HelPhysicsPairKey3D(0, 1)
+            };
+            HelPhysicsContactManifold3D[] joinedManifolds = CreateActiveManifolds(1);
+            builder.Build(bodies, joinedPairs, joinedManifolds, 1);
+
+            AssertPublishedHandle(builder, 0, first);
+            AssertPublishedHandle(builder, 1, second);
+
+            bodies.Release(second);
+            HelPhysicsBodyHandle3D replacement = bodies.Allocate(
+                CreateBodyState(true),
+                CreateColdState(BodyKind3D.Dynamic));
+
+            Assert.Throws<HelPhysicsCapacityExceededException>(() => builder.Build(
+                bodies,
+                Array.Empty<HelPhysicsPairKey3D>(),
+                Array.Empty<HelPhysicsContactManifold3D>(),
+                0));
+
+            AssertPublishedHandle(builder, 0, first);
+            AssertPublishedHandle(builder, 1, second);
+
+            builder.Build(bodies, joinedPairs, joinedManifolds, 1);
+
+            AssertPublishedHandle(builder, 0, first);
+            AssertPublishedHandle(builder, 1, replacement);
+        }
+
+        /// <summary>
         /// Verifies that a later invalid pair leaves the preceding successful indexed publication unchanged.
         /// </summary>
         [Fact]
@@ -379,6 +421,21 @@ namespace helengine {
                     expectedBodyIndices[memberOffset],
                     builder.GetBodyIndex(island.BodyStartIndex + memberOffset));
             }
+        }
+
+        /// <summary>
+        /// Verifies that one flat island member stores the exact expected body index and generation.
+        /// </summary>
+        /// <param name="builder">Builder containing the published member handle.</param>
+        /// <param name="memberIndex">Flat published member position to inspect.</param>
+        /// <param name="expected">Expected full body identity captured during publication.</param>
+        static void AssertPublishedHandle(
+            HelPhysicsIslandBuilder3D builder,
+            int memberIndex,
+            HelPhysicsBodyHandle3D expected) {
+            HelPhysicsBodyHandle3D actual = builder.GetBodyHandle(memberIndex);
+            Assert.Equal(expected.Index, actual.Index);
+            Assert.Equal(expected.Generation, actual.Generation);
         }
     }
 }

@@ -148,6 +148,19 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Returns the complete generational identity of the live body occupying one fixed slot.
+        /// </summary>
+        /// <param name="bodyIndex">Fixed body slot whose current occupant identity is required.</param>
+        /// <returns>A handle containing the occupied slot index and its current generation.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="bodyIndex"/> lies outside this pool.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when <paramref name="bodyIndex"/> identifies an unoccupied slot.</exception>
+        public HelPhysicsBodyHandle3D GetRequiredHandleByIndex(int bodyIndex) {
+            ValidateOccupiedBodyIndex(bodyIndex);
+
+            return new HelPhysicsBodyHandle3D((ushort)bodyIndex, Generations[bodyIndex]);
+        }
+
+        /// <summary>
         /// Returns mutable hot state for one occupied fixed body index without constructing a handle.
         /// </summary>
         /// <param name="bodyIndex">Fixed body slot index whose live state is required.</param>

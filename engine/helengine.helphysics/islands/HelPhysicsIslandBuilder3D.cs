@@ -34,6 +34,16 @@ namespace helengine {
         int[] StagingBodyIndices;
 
         /// <summary>
+        /// Stores the full generational body identity parallel to every currently published member index.
+        /// </summary>
+        HelPhysicsBodyHandle3D[] BodyHandles;
+
+        /// <summary>
+        /// Stores inactive member identities until their complete ranges and lookups publish successfully.
+        /// </summary>
+        HelPhysicsBodyHandle3D[] StagingBodyHandles;
+
+        /// <summary>
         /// Maps each fixed body slot to its currently published island index, or negative one when it is not a dynamic member.
         /// </summary>
         int[] BodyToIslandIndices;
@@ -97,6 +107,8 @@ namespace helengine {
             StagingIslands = new HelPhysicsIsland3D[islandCapacity];
             BodyIndices = new int[bodyCapacity];
             StagingBodyIndices = new int[bodyCapacity];
+            BodyHandles = new HelPhysicsBodyHandle3D[bodyCapacity];
+            StagingBodyHandles = new HelPhysicsBodyHandle3D[bodyCapacity];
             BodyToIslandIndices = new int[bodyCapacity];
             StagingBodyToIslandIndices = new int[bodyCapacity];
             Parents = new int[bodyCapacity];
@@ -193,6 +205,20 @@ namespace helengine {
             }
 
             return BodyIndices[memberIndex];
+        }
+
+        /// <summary>
+        /// Returns the full body identity captured for one published flat island member.
+        /// </summary>
+        /// <param name="memberIndex">Flat member index contained by one published island range.</param>
+        /// <returns>The occupied dynamic body handle captured when the publication succeeded.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when the index is outside current published members.</exception>
+        public HelPhysicsBodyHandle3D GetBodyHandle(int memberIndex) {
+            if (memberIndex < 0 || memberIndex >= BodyCountValue) {
+                throw new ArgumentOutOfRangeException(nameof(memberIndex), "The island member index is outside the current publication.");
+            }
+
+            return BodyHandles[memberIndex];
         }
 
         /// <summary>
@@ -378,6 +404,7 @@ namespace helengine {
                 int islandIndex = RootToIslandIndices[rootBodyIndex];
                 int destinationIndex = StagingIslandWriteIndices[islandIndex]++;
                 StagingBodyIndices[destinationIndex] = bodyIndex;
+                StagingBodyHandles[destinationIndex] = bodies.GetRequiredHandleByIndex(bodyIndex);
                 StagingBodyToIslandIndices[bodyIndex] = islandIndex;
                 stagingBodyCount++;
             }
@@ -398,6 +425,10 @@ namespace helengine {
             int[] previousBodyIndices = BodyIndices;
             BodyIndices = StagingBodyIndices;
             StagingBodyIndices = previousBodyIndices;
+
+            HelPhysicsBodyHandle3D[] previousBodyHandles = BodyHandles;
+            BodyHandles = StagingBodyHandles;
+            StagingBodyHandles = previousBodyHandles;
 
             int[] previousBodyToIslandIndices = BodyToIslandIndices;
             BodyToIslandIndices = StagingBodyToIslandIndices;
