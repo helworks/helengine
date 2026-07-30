@@ -24,6 +24,16 @@ namespace helengine {
         public int ContactIndex;
 
         /// <summary>
+        /// Stores the complete active contact count of the source manifold so writeback can detect layout changes.
+        /// </summary>
+        public int ManifoldContactCount;
+
+        /// <summary>
+        /// Stores the source contact feature identity so same-count reordering cannot receive another contact's impulses.
+        /// </summary>
+        public HelPhysicsContactFeature3D Feature;
+
+        /// <summary>
         /// Stores the unit world-space contact normal directed from body A toward body B.
         /// </summary>
         public PhysicsVector3 Normal;
