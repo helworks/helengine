@@ -561,6 +561,8 @@ git commit -m "feat: persist HelPhysics manifolds"
 - Create: `engine/helengine.helphysics.tests/solver/HelPhysicsContactSolver3DTests.cs`
 - Create: `engine/helengine.helphysics.tests/solver/HelPhysicsPoseIntegrator3DTests.cs`
 - Modify: `engine/helengine.helphysics/storage/HelPhysicsBodyColdState3D.cs`
+- Modify: `engine/helengine.helphysics/storage/HelPhysicsBodyState3D.cs`
+- Modify: `engine/helengine.helphysics/storage/HelPhysicsBodyPool3D.cs`
 - Modify: `engine/helengine.helphysics/collision/HelPhysicsManifoldCache3D.cs`
 - Modify: `engine/helengine.helphysics.tests/storage/HelPhysicsBodyPool3DTests.cs`
 - Modify: `engine/helengine.helphysics.tests/collision/HelPhysicsManifoldCache3DTests.cs`
@@ -581,7 +583,7 @@ public void IntegrateVelocity(PhysicsScalar StepSeconds, in PhysicsVector3 Gravi
 public void IntegratePose(PhysicsScalar StepSeconds, HelPhysicsBodyPool3D Bodies)
 ```
 
-Task 8 replaces the temporary `ushort MaterialIndex` in `HelPhysicsBodyColdState3D` with an explicit `HelPhysicsMaterial3D` value; materials remain cold data and require no separate runtime-growing registry. Extend `HelPhysicsManifoldCache3D` with `StoreSolved(HelPhysicsPairKey3D Pair, ref HelPhysicsContactManifold3D Manifold, int StepId)`, which requires an existing same-step entry and replaces only its three solved impulses per contact. The world calls `Update` before solving for matching/warm start, `WriteBack` after velocity iterations, and `StoreSolved` to persist those resulting impulses without running contact matching a second time.
+Task 8 replaces the temporary `ushort MaterialIndex` in `HelPhysicsBodyColdState3D` with an explicit `HelPhysicsMaterial3D` value; materials remain cold data and require no separate runtime-growing registry. Add accumulated force and torque vectors to `HelPhysicsBodyState3D`. Add `Capacity`, `IsOccupied(int BodyIndex)`, `GetRequiredStateByIndex(int BodyIndex)`, and `GetRequiredColdStateByIndex(int BodyIndex)` to the body pool so fixed hot loops and pair-key solving do not synthesize handles or allocate enumerators. Extend `HelPhysicsManifoldCache3D` with `StoreSolved(HelPhysicsPairKey3D Pair, ref HelPhysicsContactManifold3D Manifold, int StepId)`, which requires an existing same-step entry and replaces only its three solved impulses per contact. The world calls `Update` before solving for matching/warm start, `WriteBack` after velocity iterations, and `StoreSolved` to persist those resulting impulses without running contact matching a second time.
 
 - [ ] **Step 2: Verify solver tests fail**
 
