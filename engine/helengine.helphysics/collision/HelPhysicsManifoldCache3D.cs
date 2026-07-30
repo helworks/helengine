@@ -72,16 +72,17 @@ namespace helengine {
         /// <param name="pair">Canonicalizable unordered body pair that owns <paramref name="manifold"/>.</param>
         /// <param name="manifold">New narrow-phase manifold to warm and retain.</param>
         /// <param name="stepId">Simulation step in which the pair was observed.</param>
+        /// <returns><see langword="true"/> when every contact and both local anchors matched stable prior geometry; otherwise <see langword="false"/>.</returns>
         /// <exception cref="HelPhysicsCapacityExceededException">Thrown when no free or tombstoned slot remains for a new pair.</exception>
-        public void Update(HelPhysicsPairKey3D pair, ref HelPhysicsContactManifold3D manifold, int stepId) {
+        public bool Update(HelPhysicsPairKey3D pair, ref HelPhysicsContactManifold3D manifold, int stepId) {
             int existingEntryIndex = FindExistingEntryIndex(pair);
             if (existingEntryIndex >= 0) {
                 ref HelPhysicsManifoldCacheEntry3D existingEntry = ref Entries[existingEntryIndex];
                 bool advancesLifetime = existingEntry.StepId != stepId;
-                WarmStartManifold(ref manifold, in existingEntry.Manifold, advancesLifetime);
+                bool anchorsWereStable = WarmStartManifold(ref manifold, in existingEntry.Manifold, advancesLifetime);
                 existingEntry.Manifold = manifold;
                 existingEntry.StepId = stepId;
-                return;
+                return anchorsWereStable;
             }
 
             int insertionEntryIndex = FindInsertionEntryIndex(pair);
@@ -95,6 +96,7 @@ namespace helengine {
             insertionEntry.StepId = stepId;
             insertionEntry.State = OccupiedState;
             CountValue++;
+            return false;
         }
 
         /// <summary>
@@ -203,6 +205,29 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Tombstones one occupied probe slot selected by allocation-free world lifecycle analysis so its storage can be reused immediately.
+        /// </summary>
+        /// <param name="entryIndex">Fixed probe-table index whose retained pair is definitively stale.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="entryIndex"/> lies outside fixed table storage.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the selected slot does not currently retain a manifold.</exception>
+        public void RemoveEntryAt(int entryIndex) {
+            if (entryIndex < 0 || entryIndex >= Entries.Length) {
+                throw new ArgumentOutOfRangeException(nameof(entryIndex), "The manifold cache entry index lies outside fixed table storage.");
+            }
+
+            ref HelPhysicsManifoldCacheEntry3D entry = ref Entries[entryIndex];
+            if (entry.State != OccupiedState) {
+                throw new InvalidOperationException("Only an occupied manifold cache entry can be reclaimed.");
+            }
+
+            entry.Pair = default;
+            entry.Manifold = default;
+            entry.StepId = default;
+            entry.State = TombstoneState;
+            CountValue--;
+        }
+
+        /// <summary>
         /// Removes every retained pair containing one released body index before that fixed slot may be reused by a new generation.
         /// </summary>
         /// <param name="bodyIndex">Non-negative fixed body slot being released.</param>
@@ -301,11 +326,13 @@ namespace helengine {
         /// <param name="currentManifold">New narrow-phase manifold whose contacts receive warm-start state.</param>
         /// <param name="previousManifold">Retained manifold that supplies prior contact state.</param>
         /// <param name="advancesLifetime">Whether this update represents a later simulation step than the retained manifold.</param>
-        static void WarmStartManifold(
+        /// <returns><see langword="true"/> when every current contact matched one stable prior anchor pair.</returns>
+        static bool WarmStartManifold(
             ref HelPhysicsContactManifold3D currentManifold,
             in HelPhysicsContactManifold3D previousManifold,
             bool advancesLifetime) {
             int usedPreviousContactMask = 0;
+            bool anchorsWereStable = currentManifold.ContactCount > 0;
             for (int currentContactIndex = 0; currentContactIndex < currentManifold.ContactCount; currentContactIndex++) {
                 HelPhysicsContactPoint3D currentContact = currentManifold.GetContact(currentContactIndex);
                 ResetSolverState(ref currentContact);
@@ -318,10 +345,14 @@ namespace helengine {
                     HelPhysicsContactPoint3D previousContact = previousManifold.GetContact(previousContactIndex);
                     CopyMatchedImpulseState(ref currentContact, in previousContact, advancesLifetime);
                     usedPreviousContactMask |= 1 << previousContactIndex;
+                } else {
+                    anchorsWereStable = false;
                 }
 
                 currentManifold.SetContact(currentContactIndex, in currentContact);
             }
+
+            return anchorsWereStable;
         }
 
         /// <summary>
@@ -341,7 +372,8 @@ namespace helengine {
                 }
 
                 HelPhysicsContactPoint3D previousContact = previousManifold.GetContact(previousContactIndex);
-                if (currentContact.Feature == previousContact.Feature) {
+                if (currentContact.Feature == previousContact.Feature &&
+                    ComputeAnchorDistanceSquared(in currentContact, in previousContact) < AnchorMatchDistanceSquared) {
                     return previousContactIndex;
                 }
             }
@@ -368,9 +400,7 @@ namespace helengine {
                 }
 
                 HelPhysicsContactPoint3D previousContact = previousManifold.GetContact(previousContactIndex);
-                PhysicsVector3 anchorASeparation = currentContact.LocalAnchorA - previousContact.LocalAnchorA;
-                PhysicsVector3 anchorBSeparation = currentContact.LocalAnchorB - previousContact.LocalAnchorB;
-                PhysicsScalar distanceSquared = anchorASeparation.LengthSquared() + anchorBSeparation.LengthSquared();
+                PhysicsScalar distanceSquared = ComputeAnchorDistanceSquared(in currentContact, in previousContact);
                 if (distanceSquared < AnchorMatchDistanceSquared &&
                     (nearestPreviousContactIndex < 0 || distanceSquared < nearestDistanceSquared)) {
                     nearestPreviousContactIndex = previousContactIndex;
@@ -379,6 +409,20 @@ namespace helengine {
             }
 
             return nearestPreviousContactIndex;
+        }
+
+        /// <summary>
+        /// Computes the combined squared movement of both body-local anchors between current and retained contact geometry.
+        /// </summary>
+        /// <param name="currentContact">Current contact carrying newly generated local anchors.</param>
+        /// <param name="previousContact">Retained contact carrying prior-step local anchors.</param>
+        /// <returns>Sum of the two body-local squared anchor distances.</returns>
+        static PhysicsScalar ComputeAnchorDistanceSquared(
+            in HelPhysicsContactPoint3D currentContact,
+            in HelPhysicsContactPoint3D previousContact) {
+            PhysicsVector3 anchorASeparation = currentContact.LocalAnchorA - previousContact.LocalAnchorA;
+            PhysicsVector3 anchorBSeparation = currentContact.LocalAnchorB - previousContact.LocalAnchorB;
+            return anchorASeparation.LengthSquared() + anchorBSeparation.LengthSquared();
         }
 
         /// <summary>

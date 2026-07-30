@@ -4,9 +4,9 @@ namespace helengine {
     /// </summary>
     public sealed class HelPhysicsWorld3D : IPhysicsRuntime, IPhysicsRuntimeProfilerMetricsProvider {
         /// <summary>
-        /// Stores the nonzero process-local ownership sequence used to reject handles issued by another world.
+        /// Stores the process-local monotonic ownership allocator that permanently rejects token wraparound.
         /// </summary>
-        static int LastAssignedWorldId;
+        static readonly HelPhysicsWorldIdAllocator3D WorldIdAllocator = new HelPhysicsWorldIdAllocator3D();
 
         /// <summary>
         /// Stores the conservative collision skin added to every world-space box bound.
@@ -79,6 +79,36 @@ namespace helengine {
         readonly bool[] BodyIsActive;
 
         /// <summary>
+        /// Marks active body slots whose broadphase metadata or velocity-dependent bounds require publication before comparison can skip them.
+        /// </summary>
+        readonly bool[] ProxyIsDirty;
+
+        /// <summary>
+        /// Marks active body slots that currently own a published broadphase proxy and comparable pose snapshot.
+        /// </summary>
+        readonly bool[] ProxyIsRegistered;
+
+        /// <summary>
+        /// Stores each registered proxy's last exact body position for allocation-free moved-state detection.
+        /// </summary>
+        readonly PhysicsVector3[] ProxyPositions;
+
+        /// <summary>
+        /// Stores each registered proxy's last exact body orientation for allocation-free moved-state detection.
+        /// </summary>
+        readonly PhysicsQuaternion[] ProxyOrientations;
+
+        /// <summary>
+        /// Stores each registered proxy's last awake-or-moving activity flag for wake and sleep transition detection.
+        /// </summary>
+        readonly bool[] ProxyActivityStates;
+
+        /// <summary>
+        /// Stores each registered proxy's last scalar linear-velocity expansion so velocity-only bound changes cannot remain stale.
+        /// </summary>
+        readonly PhysicsScalar[] ProxyVelocityExpansions;
+
+        /// <summary>
         /// Marks body identities that already own one accepted deferred removal command.
         /// </summary>
         readonly bool[] BodyRemovalQueued;
@@ -131,7 +161,7 @@ namespace helengine {
         /// <summary>
         /// Stores the single reusable outer-profiler sample returned without allocation.
         /// </summary>
-        readonly RuntimePhysicsProfilerMetrics RuntimeProfilerMetrics;
+        readonly HelPhysicsRuntimeProfilerMetrics3D RuntimeProfilerMetrics;
 
         /// <summary>
         /// Stores the nonzero ownership token embedded into every public body handle from this world.
@@ -189,7 +219,7 @@ namespace helengine {
             }
 
             Settings = settings;
-            WorldId = AllocateWorldId();
+            WorldId = WorldIdAllocator.Allocate();
             Bodies = new HelPhysicsBodyPool3D(settings.BodyCapacity);
             Shapes = new HelPhysicsShapePool3D(settings.ShapeCapacity);
             Broadphase = new HelPhysicsSweepAndPrune3D(settings.BodyCapacity, settings.CandidatePairCapacity);
@@ -202,6 +232,12 @@ namespace helengine {
             CollisionScratch = new HelPhysicsBoxCollisionScratch3D();
             DeferredCommands = new HelPhysicsDeferredCommand3D[settings.DeferredCommandCapacity];
             BodyIsActive = new bool[settings.BodyCapacity];
+            ProxyIsDirty = new bool[settings.BodyCapacity];
+            ProxyIsRegistered = new bool[settings.BodyCapacity];
+            ProxyPositions = new PhysicsVector3[settings.BodyCapacity];
+            ProxyOrientations = new PhysicsQuaternion[settings.BodyCapacity];
+            ProxyActivityStates = new bool[settings.BodyCapacity];
+            ProxyVelocityExpansions = new PhysicsScalar[settings.BodyCapacity];
             BodyRemovalQueued = new bool[settings.BodyCapacity];
             PendingBodyKinds = new BodyKind3D[settings.BodyCapacity];
             PendingInitialAwakeStates = new bool[settings.BodyCapacity];
@@ -212,7 +248,7 @@ namespace helengine {
             ActiveManifolds = new HelPhysicsContactManifold3D[settings.ManifoldCapacity];
             IslandPairs = new HelPhysicsPairKey3D[settings.ManifoldCapacity];
             IslandManifolds = new HelPhysicsContactManifold3D[settings.ManifoldCapacity];
-            RuntimeProfilerMetrics = new RuntimePhysicsProfilerMetrics(0, 0, 0);
+            RuntimeProfilerMetrics = new HelPhysicsRuntimeProfilerMetrics3D();
             LastStepMetrics = default;
         }
 
@@ -227,9 +263,24 @@ namespace helengine {
         public HelPhysicsStepMetrics3D LastStepMetrics { get; private set; }
 
         /// <summary>
+        /// Gets whether an exception after fixed-step mutation permanently disabled further simulation work for this world.
+        /// </summary>
+        public bool IsFaulted { get; private set; }
+
+        /// <summary>
         /// Gets the number of persistent manifolds currently retained for active or sleeping contacts.
         /// </summary>
         internal int CachedManifoldCount => ManifoldCache.Count;
+
+        /// <summary>
+        /// Gets the exact number of broadphase proxy publications performed before narrow phase in the latest attempted step.
+        /// </summary>
+        internal int PhaseTwoProxyUpdateCount { get; private set; }
+
+        /// <summary>
+        /// Gets the exact number of broadphase proxy publications performed after pose correction in the latest attempted step.
+        /// </summary>
+        internal int PhaseElevenProxyUpdateCount { get; private set; }
 
         /// <summary>
         /// Reserves one shape and body immediately, returning a stable pending handle whose activation executes first at the next valid step.
@@ -237,8 +288,10 @@ namespace helengine {
         /// <param name="description">Complete explicit box body description to reserve.</param>
         /// <returns>A generation-safe world-owned handle whose snapshot is pending until phase one.</returns>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="description"/> is <see langword="null"/>.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the world is permanently faulted.</exception>
         /// <exception cref="HelPhysicsCapacityExceededException">Thrown before reservation when command, body, or shape storage is full.</exception>
         public HelPhysicsBodyHandle3D CreateBody(HelPhysicsBodyDescription3D description) {
+            ThrowIfFaulted();
             if (description == null) {
                 throw new ArgumentNullException(nameof(description));
             }
@@ -296,6 +349,7 @@ namespace helengine {
         /// <exception cref="InvalidOperationException">Thrown for foreign, stale, released, duplicate-removal, or generation-exhausted handles.</exception>
         /// <exception cref="HelPhysicsCapacityExceededException">Thrown when the command buffer has no free slot.</exception>
         public void RemoveBody(HelPhysicsBodyHandle3D handle) {
+            ThrowIfFaulted();
             HelPhysicsBodyHandle3D internalHandle = GetRequiredInternalHandle(handle);
             if (BodyRemovalQueued[internalHandle.Index]) {
                 throw new InvalidOperationException("The body already has a deferred removal command.");
@@ -322,8 +376,13 @@ namespace helengine {
         /// <exception cref="InvalidOperationException">Thrown when the handle is invalid, non-dynamic, or already queued for removal.</exception>
         /// <exception cref="HelPhysicsCapacityExceededException">Thrown when the command buffer has no free slot.</exception>
         public void ApplyForce(HelPhysicsBodyHandle3D handle, PhysicsVector3 force) {
+            ThrowIfFaulted();
             HelPhysicsBodyHandle3D internalHandle = GetRequiredDynamicInputHandle(handle);
             EnsureDeferredCommandCapacity();
+            ValidateDeferredLinearInput(
+                internalHandle,
+                HelPhysicsDeferredCommandKind3D.ApplyForce,
+                force);
             AppendDeferredCommand(new HelPhysicsDeferredCommand3D(
                 HelPhysicsDeferredCommandKind3D.ApplyForce,
                 internalHandle,
@@ -338,8 +397,13 @@ namespace helengine {
         /// <exception cref="InvalidOperationException">Thrown when the handle is invalid, non-dynamic, or already queued for removal.</exception>
         /// <exception cref="HelPhysicsCapacityExceededException">Thrown when the command buffer has no free slot.</exception>
         public void ApplyImpulse(HelPhysicsBodyHandle3D handle, PhysicsVector3 impulse) {
+            ThrowIfFaulted();
             HelPhysicsBodyHandle3D internalHandle = GetRequiredDynamicInputHandle(handle);
             EnsureDeferredCommandCapacity();
+            ValidateDeferredLinearInput(
+                internalHandle,
+                HelPhysicsDeferredCommandKind3D.ApplyImpulse,
+                impulse);
             AppendDeferredCommand(new HelPhysicsDeferredCommand3D(
                 HelPhysicsDeferredCommandKind3D.ApplyImpulse,
                 internalHandle,
@@ -379,29 +443,37 @@ namespace helengine {
         /// </summary>
         /// <param name="stepSeconds">Public double duration that must exactly equal <see cref="HelPhysicsWorldSettings3D.FixedStepSeconds"/>.</param>
         /// <exception cref="ArgumentOutOfRangeException">Thrown before mutation when the duration is non-positive, non-finite, or not the configured fixed step.</exception>
+        /// <exception cref="InvalidOperationException">Thrown before mutation when a prior post-mutation failure permanently faulted the world.</exception>
         public void Step(double stepSeconds) {
+            ThrowIfFaulted();
             ValidateStepSeconds(stepSeconds);
             if (StepId == int.MaxValue) {
                 throw new InvalidOperationException("The manifold lifecycle step identifier is exhausted.");
             }
 
             PhysicsScalar scalarStepSeconds = PhysicsScalar.FromFloat((float)stepSeconds);
-            StepId++;
-
-            IslandSleeper.BeginStep();
-            ApplyDeferredCommands();
-            UpdateBroadphaseProxies(scalarStepSeconds);
-            BuildCandidatesAndRouteNewContactWakes(scalarStepSeconds);
-            BuildActiveManifolds();
-            BuildIslandsAndRouteKinematicWakes();
-            PhysicsVector3 gravity = Settings.Gravity;
-            BodyIntegrator.IntegrateVelocity(scalarStepSeconds, in gravity, Bodies);
-            PrepareWarmStartAndSolve(scalarStepSeconds);
-            CorrectPenetration();
-            PoseIntegrator.IntegratePose(scalarStepSeconds, Bodies);
-            UpdateBroadphaseProxies(scalarStepSeconds);
-            IslandSleeper.EvaluateSleep(Bodies, IslandBuilder);
-            RetainSleepingContactsAndPublishMetrics();
+            try {
+                StepId++;
+                PhaseTwoProxyUpdateCount = 0;
+                PhaseElevenProxyUpdateCount = 0;
+                IslandSleeper.BeginStep();
+                ApplyDeferredCommands();
+                PhaseTwoProxyUpdateCount = UpdateBroadphaseProxies(scalarStepSeconds);
+                BuildCandidatesAndRouteNewContactWakes(scalarStepSeconds);
+                BuildActiveManifolds();
+                BuildIslandsAndRouteKinematicWakes();
+                PhysicsVector3 gravity = Settings.Gravity;
+                BodyIntegrator.IntegrateVelocity(scalarStepSeconds, in gravity, Bodies);
+                PrepareWarmStartAndSolve(scalarStepSeconds);
+                CorrectPenetration();
+                PoseIntegrator.IntegratePose(scalarStepSeconds, Bodies);
+                PhaseElevenProxyUpdateCount = UpdateBroadphaseProxies(scalarStepSeconds);
+                IslandSleeper.EvaluateSleep(Bodies, IslandBuilder);
+                RetainSleepingContactsAndPublishMetrics();
+            } catch {
+                IsFaulted = true;
+                throw;
+            }
         }
 
         /// <summary>
@@ -434,17 +506,13 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Allocates one nonzero process-local ownership token without coupling simulation results to construction order.
+        /// Rejects simulation mutations after an earlier step failed beyond its no-mutation validation boundary.
         /// </summary>
-        /// <returns>A nonzero token unique among normally constructed live worlds.</returns>
-        /// <exception cref="InvalidOperationException">Thrown after the positive ownership-token range is exhausted.</exception>
-        static uint AllocateWorldId() {
-            int assignedWorldId = Interlocked.Increment(ref LastAssignedWorldId);
-            if (assignedWorldId <= 0) {
-                throw new InvalidOperationException("The HelPhysics world ownership token range is exhausted.");
+        /// <exception cref="InvalidOperationException">Thrown when this world can no longer guarantee coherent mutable simulation state.</exception>
+        void ThrowIfFaulted() {
+            if (IsFaulted) {
+                throw new InvalidOperationException("The HelPhysics world is faulted and cannot accept further simulation work.");
             }
-
-            return (uint)assignedWorldId;
         }
 
         /// <summary>
@@ -520,6 +588,55 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Dry-runs every accepted and prospective linear input for one body through phase-one impulse, phase-six force, damping, and pose arithmetic.
+        /// </summary>
+        /// <param name="handle">Pool-internal dynamic body identity targeted by the prospective command.</param>
+        /// <param name="prospectiveKind">Force or impulse command kind being validated before append.</param>
+        /// <param name="prospectiveVector">World-space input carried by the prospective command.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown before queue mutation when aggregate scalar arithmetic is not finite.</exception>
+        /// <exception cref="ArgumentException">Thrown when the prospective command kind is not a linear input.</exception>
+        void ValidateDeferredLinearInput(
+            HelPhysicsBodyHandle3D handle,
+            HelPhysicsDeferredCommandKind3D prospectiveKind,
+            PhysicsVector3 prospectiveVector) {
+            ref HelPhysicsBodyState3D state = ref Bodies.GetRequiredState(handle);
+            PhysicsVector3 predictedForce = state.AccumulatedForce;
+            PhysicsVector3 predictedVelocity = state.LinearVelocity;
+            for (int commandIndex = 0; commandIndex < DeferredCommandCount; commandIndex++) {
+                HelPhysicsDeferredCommand3D command = DeferredCommands[commandIndex];
+                if (command.BodyHandle.Index != handle.Index ||
+                    command.BodyHandle.Generation != handle.Generation) {
+                    continue;
+                }
+
+                if (command.Kind == HelPhysicsDeferredCommandKind3D.ApplyForce) {
+                    predictedForce += command.Vector;
+                } else if (command.Kind == HelPhysicsDeferredCommandKind3D.ApplyImpulse) {
+                    predictedVelocity += command.Vector * state.InverseMass;
+                }
+            }
+
+            if (prospectiveKind == HelPhysicsDeferredCommandKind3D.ApplyForce) {
+                predictedForce += prospectiveVector;
+            } else if (prospectiveKind == HelPhysicsDeferredCommandKind3D.ApplyImpulse) {
+                predictedVelocity += prospectiveVector * state.InverseMass;
+            } else {
+                throw new ArgumentException("Deferred linear input validation requires a force or impulse command.", nameof(prospectiveKind));
+            }
+
+            PhysicsScalar stepSeconds = PhysicsScalar.FromFloat((float)Settings.FixedStepSeconds);
+            PhysicsVector3 linearAcceleration =
+                (Settings.Gravity * state.GravityScale) +
+                (predictedForce * state.InverseMass);
+            predictedVelocity += linearAcceleration * stepSeconds;
+            PhysicsScalar dampingScale =
+                PhysicsScalar.One / (PhysicsScalar.One + (state.LinearDamping * stepSeconds));
+            predictedVelocity *= dampingScale;
+            predictedVelocity.LengthSquared();
+            _ = state.Position + (predictedVelocity * stepSeconds);
+        }
+
+        /// <summary>
         /// Throws the exact deferred-command diagnostic before any public operation mutates reservation or queue state.
         /// </summary>
         void EnsureDeferredCommandCapacity() {
@@ -575,6 +692,7 @@ namespace helengine {
             coldState.BodyKind = PendingBodyKinds[handle.Index];
             state.IsAwake = PendingInitialAwakeStates[handle.Index];
             BodyIsActive[handle.Index] = true;
+            ProxyIsDirty[handle.Index] = true;
             ActiveBodyCount++;
         }
 
@@ -592,6 +710,12 @@ namespace helengine {
 
             ManifoldCache.RemoveBody(handle.Index);
             BodyIsActive[handle.Index] = false;
+            ProxyIsDirty[handle.Index] = false;
+            ProxyIsRegistered[handle.Index] = false;
+            ProxyPositions[handle.Index] = default;
+            ProxyOrientations[handle.Index] = default;
+            ProxyActivityStates[handle.Index] = false;
+            ProxyVelocityExpansions[handle.Index] = default;
             BodyRemovalQueued[handle.Index] = false;
             PendingBodyKinds[handle.Index] = default;
             PendingInitialAwakeStates[handle.Index] = false;
@@ -619,13 +743,16 @@ namespace helengine {
             ref HelPhysicsBodyState3D state = ref Bodies.GetRequiredState(handle);
             IslandSleeper.WakeForExplicitImpulse(handle.Index, Bodies, IslandBuilder);
             state.LinearVelocity += impulse * state.InverseMass;
+            ProxyIsDirty[handle.Index] = true;
         }
 
         /// <summary>
-        /// Recomputes conservative bounds and active flags for every active world body while preserving persistent endpoint storage.
+        /// Publishes only dirty, activity-changed, or pose-changed proxies while preserving persistent endpoint storage.
         /// </summary>
         /// <param name="stepSeconds">Current fixed scalar step used for velocity-dependent expansion.</param>
-        void UpdateBroadphaseProxies(PhysicsScalar stepSeconds) {
+        /// <returns>The exact number of calls made to fixed broadphase proxy publication.</returns>
+        int UpdateBroadphaseProxies(PhysicsScalar stepSeconds) {
+            int updateCount = 0;
             for (int bodyIndex = 0; bodyIndex < Bodies.Capacity; bodyIndex++) {
                 if (!Bodies.IsOccupied(bodyIndex) || !BodyIsActive[bodyIndex]) {
                     continue;
@@ -633,23 +760,24 @@ namespace helengine {
 
                 ref HelPhysicsBodyState3D state = ref Bodies.GetRequiredStateByIndex(bodyIndex);
                 ref HelPhysicsBodyColdState3D coldState = ref Bodies.GetRequiredColdStateByIndex(bodyIndex);
-                ref HelPhysicsBoxShape3D shape = ref Shapes.GetRequiredBox(coldState.ShapeHandle);
+                bool isActive = IsBroadphaseProxyActive(in state, coldState.BodyKind);
                 PhysicsScalar velocityExpansion =
                     state.LinearVelocity.Length() * stepSeconds * BroadphaseVelocityExpansionFactor;
+                if (ProxyIsRegistered[bodyIndex] &&
+                    !ProxyIsDirty[bodyIndex] &&
+                    ProxyActivityStates[bodyIndex] == isActive &&
+                    ProxyVelocityExpansions[bodyIndex] == velocityExpansion &&
+                    !HasProxyPoseChanged(bodyIndex, in state)) {
+                    continue;
+                }
+
+                ref HelPhysicsBoxShape3D shape = ref Shapes.GetRequiredBox(coldState.ShapeHandle);
                 PhysicsScalar margin = BroadphaseCollisionSkin + velocityExpansion;
                 HelPhysicsAabb3D aabb = HelPhysicsBoxGeometry3D.ComputeWorldAabb(
                     shape,
                     state.Position,
                     state.Orientation,
                     margin);
-                bool isActive = false;
-                if (coldState.BodyKind == BodyKind3D.Dynamic) {
-                    isActive = state.IsAwake;
-                } else if (coldState.BodyKind == BodyKind3D.Kinematic) {
-                    isActive = state.LinearVelocity.LengthSquared() != PhysicsScalar.Zero ||
-                        state.AngularVelocity.LengthSquared() != PhysicsScalar.Zero;
-                }
-
                 Broadphase.UpdateProxy(
                     bodyIndex,
                     coldState.BodyKind,
@@ -657,7 +785,51 @@ namespace helengine {
                     coldState.CollisionLayer,
                     coldState.CollisionMask,
                     aabb);
+                ProxyIsDirty[bodyIndex] = false;
+                ProxyIsRegistered[bodyIndex] = true;
+                ProxyPositions[bodyIndex] = state.Position;
+                ProxyOrientations[bodyIndex] = state.Orientation;
+                ProxyActivityStates[bodyIndex] = isActive;
+                ProxyVelocityExpansions[bodyIndex] = velocityExpansion;
+                updateCount++;
             }
+
+            return updateCount;
+        }
+
+        /// <summary>
+        /// Computes whether one active body should participate as a moving broadphase endpoint owner.
+        /// </summary>
+        /// <param name="state">Current hot state supplying awake and velocity values.</param>
+        /// <param name="bodyKind">Current simulation mode interpreting activity.</param>
+        /// <returns><see langword="true"/> for awake dynamics or moving kinematics; otherwise <see langword="false"/>.</returns>
+        static bool IsBroadphaseProxyActive(in HelPhysicsBodyState3D state, BodyKind3D bodyKind) {
+            if (bodyKind == BodyKind3D.Dynamic) {
+                return state.IsAwake;
+            } else if (bodyKind == BodyKind3D.Kinematic) {
+                return state.LinearVelocity.LengthSquared() != PhysicsScalar.Zero ||
+                    state.AngularVelocity.LengthSquared() != PhysicsScalar.Zero;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Compares one body's current pose against the exact pose stored by its most recent proxy publication.
+        /// </summary>
+        /// <param name="bodyIndex">Registered fixed body slot whose snapshot is inspected.</param>
+        /// <param name="state">Current body state supplying position and orientation.</param>
+        /// <returns><see langword="true"/> when any scalar pose component changed.</returns>
+        bool HasProxyPoseChanged(int bodyIndex, in HelPhysicsBodyState3D state) {
+            PhysicsVector3 position = ProxyPositions[bodyIndex];
+            PhysicsQuaternion orientation = ProxyOrientations[bodyIndex];
+            return position.X != state.Position.X ||
+                position.Y != state.Position.Y ||
+                position.Z != state.Position.Z ||
+                orientation.X != state.Orientation.X ||
+                orientation.Y != state.Orientation.Y ||
+                orientation.Z != state.Orientation.Z ||
+                orientation.W != state.Orientation.W;
         }
 
         /// <summary>
@@ -689,12 +861,12 @@ namespace helengine {
                     throw new InvalidOperationException("Candidate wake rebuilding did not converge within fixed body capacity.");
                 }
 
-                UpdateBroadphaseProxies(stepSeconds);
+                PhaseTwoProxyUpdateCount += UpdateBroadphaseProxies(stepSeconds);
             }
         }
 
         /// <summary>
-        /// Determines whether a candidate is absent from both retained manifolds and the generation-safe prior candidate publication.
+        /// Determines whether a candidate lacks a retained manifold and therefore remains speculative regardless of prior broadphase publication.
         /// </summary>
         /// <param name="candidate">Current canonical broadphase candidate.</param>
         /// <returns><see langword="true"/> when the candidate represents newly published contact potential.</returns>
@@ -702,19 +874,7 @@ namespace helengine {
             HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(
                 candidate.FirstBodyIndex,
                 candidate.SecondBodyIndex);
-            if (ManifoldCache.TryGet(pair, out _)) {
-                return false;
-            }
-
-            HelPhysicsBodyHandle3D firstHandle = Bodies.GetRequiredHandleByIndex(candidate.FirstBodyIndex);
-            HelPhysicsBodyHandle3D secondHandle = Bodies.GetRequiredHandleByIndex(candidate.SecondBodyIndex);
-            for (int publishedIndex = 0; publishedIndex < PublishedCandidatePairCount; publishedIndex++) {
-                if (PublishedCandidatePairs[publishedIndex].Matches(firstHandle, secondHandle)) {
-                    return false;
-                }
-            }
-
-            return true;
+            return !ManifoldCache.TryGet(pair, out _);
         }
 
         /// <summary>
@@ -800,6 +960,7 @@ namespace helengine {
                 ActiveContactPointCount += manifold.ContactCount;
             }
 
+            ReclaimDefinitivelyStaleManifolds();
             int newCacheEntryCount = 0;
             for (int manifoldIndex = 0; manifoldIndex < ActiveManifoldCount; manifoldIndex++) {
                 if (!ManifoldCache.TryGet(ActivePairs[manifoldIndex], out _)) {
@@ -813,7 +974,35 @@ namespace helengine {
 
             SortParallelManifolds(ActivePairs, ActiveManifolds, ActiveManifoldCount);
             for (int manifoldIndex = 0; manifoldIndex < ActiveManifoldCount; manifoldIndex++) {
-                ManifoldCache.Update(ActivePairs[manifoldIndex], ref ActiveManifolds[manifoldIndex], StepId);
+                HelPhysicsPairKey3D pair = ActivePairs[manifoldIndex];
+                bool anchorsWereStable = ManifoldCache.Update(
+                    pair,
+                    ref ActiveManifolds[manifoldIndex],
+                    StepId);
+                HelPhysicsCandidatePair3D candidate = new HelPhysicsCandidatePair3D(
+                    pair.FirstBodyIndex,
+                    pair.SecondBodyIndex);
+                if (!anchorsWereStable && !IsMovingKinematicCandidate(candidate)) {
+                    IslandSleeper.WakeForNewCandidateContact(candidate, Bodies, IslandBuilder);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reclaims prior cache entries before insertion only when they are absent from current manifolds and cannot qualify for sleeping retention.
+        /// </summary>
+        void ReclaimDefinitivelyStaleManifolds() {
+            for (int cacheEntryIndex = 0; cacheEntryIndex < ManifoldCache.Capacity; cacheEntryIndex++) {
+                if (!ManifoldCache.TryGetEntry(
+                    cacheEntryIndex,
+                    out HelPhysicsPairKey3D pair,
+                    out _) ||
+                    ContainsPair(ActivePairs, ActiveManifoldCount, pair) ||
+                    ShouldRetainSleepingPair(pair)) {
+                    continue;
+                }
+
+                ManifoldCache.RemoveEntryAt(cacheEntryIndex);
             }
         }
 
@@ -932,7 +1121,7 @@ namespace helengine {
                 IslandSleeper.GetWakeCount(HelPhysicsWakeReason3D.ExplicitImpulse),
                 IslandSleeper.GetWakeCount(HelPhysicsWakeReason3D.NewCandidateContact),
                 IslandSleeper.GetWakeCount(HelPhysicsWakeReason3D.MovingKinematicContact));
-            RuntimeProfilerMetrics.Update(
+            RuntimeProfilerMetrics.Publish(
                 LastStepMetrics.BodyCount,
                 LastStepMetrics.ContactPointCount,
                 LastStepMetrics.ManifoldCount);

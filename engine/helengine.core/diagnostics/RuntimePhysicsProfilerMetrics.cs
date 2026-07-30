@@ -3,7 +3,7 @@ namespace helengine {
     /// Describes the physics counters a runtime can authoritatively expose for one profiler frame and allows allocation-sensitive runtimes to reuse one owned sample.
     /// Individual counters are marked unavailable when the physics implementation does not own a valid value.
     /// </summary>
-    public sealed class RuntimePhysicsProfilerMetrics {
+    public class RuntimePhysicsProfilerMetrics {
         /// <summary>
         /// Initializes a complete physics metric sample with body, contact, and constraint counts.
         /// </summary>
@@ -64,7 +64,7 @@ namespace helengine {
         /// <param name="bodyCount">Number of currently active physics bodies.</param>
         /// <param name="contactCount">Number of currently active contact points.</param>
         /// <param name="constraintCount">Number of currently active constraints.</param>
-        public void Update(int bodyCount, int contactCount, int constraintCount) {
+        protected void Update(int bodyCount, int contactCount, int constraintCount) {
             ValidateCount(bodyCount, nameof(bodyCount));
             ValidateCount(contactCount, nameof(contactCount));
             ValidateCount(constraintCount, nameof(constraintCount));

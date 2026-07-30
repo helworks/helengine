@@ -229,6 +229,51 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies a dynamic body cannot enter the sleeping set while retaining authored linear motion.
+        /// </summary>
+        [Fact]
+        public void BodyDescription_WithInitiallySleepingDynamicLinearVelocity_Throws() {
+            Assert.Throws<ArgumentException>(() => CreateSleepingDynamicDescriptionWithVelocities(
+                PhysicsVector3.UnitX,
+                PhysicsVector3.Zero));
+        }
+
+        /// <summary>
+        /// Verifies a dynamic body cannot enter the sleeping set while retaining authored angular motion.
+        /// </summary>
+        [Fact]
+        public void BodyDescription_WithInitiallySleepingDynamicAngularVelocity_Throws() {
+            Assert.Throws<ArgumentException>(() => CreateSleepingDynamicDescriptionWithVelocities(
+                PhysicsVector3.Zero,
+                PhysicsVector3.UnitZ));
+        }
+
+        /// <summary>
+        /// Verifies a valid zero-motion sleeping body wakes from an impulse without exposing any latent authored velocity.
+        /// </summary>
+        [Fact]
+        public void InitiallySleepingDynamic_AfterImpulse_WakesFromZeroVelocity() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(gravity: PhysicsVector3.Zero));
+            HelPhysicsBodyHandle3D handle = world.CreateBody(CreateSleepingDynamicDescriptionWithVelocities(
+                PhysicsVector3.Zero,
+                PhysicsVector3.Zero));
+            world.Step(world.Settings.FixedStepSeconds);
+
+            HelPhysicsBodySnapshot3D sleeping = world.GetBodySnapshot(handle);
+            Assert.False(sleeping.IsAwake);
+            Assert.Equal(PhysicsVector3.Zero, sleeping.LinearVelocity);
+            Assert.Equal(PhysicsVector3.Zero, sleeping.AngularVelocity);
+
+            world.ApplyImpulse(handle, PhysicsVector3.UnitX);
+            world.Step(world.Settings.FixedStepSeconds);
+
+            HelPhysicsBodySnapshot3D awake = world.GetBodySnapshot(handle);
+            Assert.True(awake.IsAwake);
+            Assert.Equal(PhysicsVector3.UnitX, awake.LinearVelocity);
+            Assert.Equal(PhysicsVector3.Zero, awake.AngularVelocity);
+        }
+
+        /// <summary>
         /// Verifies body creation reserves a stable handle immediately but does not publish the body to simulation until the next step.
         /// </summary>
         [Fact]
@@ -291,6 +336,68 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies an overflowing aggregate force is rejected before append so the accepted command executes once without queue replay.
+        /// </summary>
+        [Fact]
+        public void ApplyForce_WithOverflowingDeferredAggregate_RejectsBeforeQueueMutationAndRemainsUsable() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: 1,
+                shapeCapacity: 1,
+                islandCapacity: 1,
+                gravity: PhysicsVector3.Zero));
+            HelPhysicsBodyHandle3D handle = world.CreateBody(CreateDynamicDescription(
+                PhysicsVector3.Zero,
+                PhysicsVector3.Zero,
+                true,
+                20));
+            world.Step(world.Settings.FixedStepSeconds);
+            PhysicsVector3 maximumForce = new PhysicsVector3(float.MaxValue, 0f, 0f);
+
+            world.ApplyForce(handle, PhysicsVector3.UnitX);
+            Assert.Throws<ArgumentOutOfRangeException>(() => world.ApplyForce(handle, maximumForce));
+            Assert.Equal(PhysicsScalar.Zero, world.GetBodySnapshot(handle).LinearVelocity.X);
+
+            world.Step(world.Settings.FixedStepSeconds);
+            PhysicsScalar velocityAfterAcceptedForce = world.GetBodySnapshot(handle).LinearVelocity.X;
+            Assert.Equal(PhysicsScalar.FromFloat(0.05f), velocityAfterAcceptedForce);
+
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.Equal(velocityAfterAcceptedForce, world.GetBodySnapshot(handle).LinearVelocity.X);
+            Assert.Equal(1, world.LastStepMetrics.BodyCount);
+        }
+
+        /// <summary>
+        /// Verifies an overflowing aggregate impulse is rejected before append and cannot replay as a default lifecycle command.
+        /// </summary>
+        [Fact]
+        public void ApplyImpulse_WithOverflowingDeferredAggregate_RejectsBeforeQueueMutationAndRemainsUsable() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: 1,
+                shapeCapacity: 1,
+                islandCapacity: 1,
+                gravity: PhysicsVector3.Zero));
+            HelPhysicsBodyHandle3D handle = world.CreateBody(CreateDynamicDescription(
+                PhysicsVector3.Zero,
+                PhysicsVector3.Zero,
+                true,
+                20));
+            world.Step(world.Settings.FixedStepSeconds);
+            PhysicsVector3 maximumImpulse = new PhysicsVector3(float.MaxValue, 0f, 0f);
+
+            world.ApplyImpulse(handle, PhysicsVector3.UnitX);
+            Assert.Throws<ArgumentOutOfRangeException>(() => world.ApplyImpulse(handle, maximumImpulse));
+            Assert.Equal(PhysicsScalar.Zero, world.GetBodySnapshot(handle).LinearVelocity.X);
+
+            world.Step(world.Settings.FixedStepSeconds);
+            PhysicsScalar velocityAfterAcceptedImpulse = world.GetBodySnapshot(handle).LinearVelocity.X;
+            Assert.Equal(PhysicsScalar.One, velocityAfterAcceptedImpulse);
+
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.Equal(velocityAfterAcceptedImpulse, world.GetBodySnapshot(handle).LinearVelocity.X);
+            Assert.Equal(1, world.LastStepMetrics.BodyCount);
+        }
+
+        /// <summary>
         /// Verifies next-step removal invalidates the old generation and a later creation safely reuses its slot.
         /// </summary>
         [Fact]
@@ -326,6 +433,23 @@ namespace helengine {
             Assert.NotEqual(firstHandle.WorldId, secondHandle.WorldId);
             Assert.Throws<InvalidOperationException>(() => secondWorld.GetBodySnapshot(firstHandle));
             Assert.True(secondWorld.GetBodySnapshot(secondHandle).IsPending);
+        }
+
+        /// <summary>
+        /// Verifies the monotonic ownership allocator permanently latches after issuing the final positive token and never cycles to one.
+        /// </summary>
+        [Fact]
+        public void WorldIdAllocator_AfterPositiveRangeExhaustion_NeverReusesToken() {
+            HelPhysicsWorldIdAllocator3D allocator = new HelPhysicsWorldIdAllocator3D(int.MaxValue - 1);
+
+            uint finalToken = allocator.Allocate();
+            InvalidOperationException firstFailure = Assert.Throws<InvalidOperationException>(() => allocator.Allocate());
+            InvalidOperationException repeatedFailure = Assert.Throws<InvalidOperationException>(() => allocator.Allocate());
+
+            Assert.Equal((uint)int.MaxValue, finalToken);
+            Assert.True(allocator.IsExhausted);
+            Assert.Equal("The HelPhysics world ownership token range is exhausted.", firstFailure.Message);
+            Assert.Equal(firstFailure.Message, repeatedFailure.Message);
         }
 
         /// <summary>
@@ -394,6 +518,37 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies an unexpected failure after step mutation permanently faults the world and prevents command or step replay.
+        /// </summary>
+        [Fact]
+        public void Step_WhenPostMutationFailureOccurs_LatchesExplicitPermanentWorldFault() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: 3,
+                shapeCapacity: 3,
+                candidatePairCapacity: 1,
+                manifoldCapacity: 4,
+                contactPointCapacity: 12,
+                islandCapacity: 3,
+                deferredCommandCapacity: 3,
+                gravity: PhysicsVector3.Zero));
+            HelPhysicsBodyHandle3D handle = world.CreateBody(CreateDynamicDescription(PhysicsVector3.Zero, PhysicsVector3.Zero, true, 5));
+            world.CreateBody(CreateDynamicDescription(PhysicsVector3.Zero, PhysicsVector3.Zero, true, 5));
+            world.CreateBody(CreateDynamicDescription(PhysicsVector3.Zero, PhysicsVector3.Zero, true, 5));
+
+            Assert.False(world.IsFaulted);
+            AssertCapacityExceeded(() => world.Step(world.Settings.FixedStepSeconds), "candidate pair", 1);
+            Assert.True(world.IsFaulted);
+            Assert.True(world.GetBodySnapshot(handle).IsActive);
+
+            InvalidOperationException stepException = Assert.Throws<InvalidOperationException>(
+                () => world.Step(world.Settings.FixedStepSeconds));
+            InvalidOperationException commandException = Assert.Throws<InvalidOperationException>(
+                () => world.ApplyForce(handle, PhysicsVector3.UnitX));
+            Assert.Equal("The HelPhysics world is faulted and cannot accept further simulation work.", stepException.Message);
+            Assert.Equal(stepException.Message, commandException.Message);
+        }
+
+        /// <summary>
         /// Verifies two real contacts cannot partially publish beyond one configured manifold slot.
         /// </summary>
         [Fact]
@@ -412,6 +567,41 @@ namespace helengine {
             world.CreateBody(CreateDynamicDescription(new PhysicsVector3(2f, 0.5f, 0f), PhysicsVector3.Zero, true, 5));
 
             AssertCapacityExceeded(() => world.Step(world.Settings.FixedStepSeconds), "manifold", 1);
+        }
+
+        /// <summary>
+        /// Verifies a full capacity-one cache reclaims a departed awake pair before retaining the only current arriving contact.
+        /// </summary>
+        [Fact]
+        public void Step_WithCapacityOneDepartingAndArrivingContacts_ReplacesStaleManifoldAndContinues() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: 3,
+                shapeCapacity: 3,
+                candidatePairCapacity: 2,
+                manifoldCapacity: 1,
+                contactPointCapacity: 4,
+                islandCapacity: 3,
+                deferredCommandCapacity: 4,
+                gravity: PhysicsVector3.Zero));
+            HelPhysicsBodyHandle3D leftStatic = world.CreateBody(CreateStaticUnitDescription(PhysicsVector3.Zero, 1));
+            HelPhysicsBodyHandle3D mover = world.CreateBody(CreateDynamicDescription(
+                PhysicsVector3.UnitX,
+                PhysicsVector3.Zero,
+                true,
+                20));
+            HelPhysicsBodyHandle3D rightStatic = world.CreateBody(CreateStaticUnitDescription(new PhysicsVector3(3f, 0f, 0f), 2));
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.True(world.TryGetCachedManifold(leftStatic, mover, out _));
+
+            world.ApplyImpulse(mover, new PhysicsVector3(20f, 0f, 0f));
+            world.Step(world.Settings.FixedStepSeconds);
+            world.Step(world.Settings.FixedStepSeconds);
+
+            Assert.False(world.TryGetCachedManifold(leftStatic, mover, out _));
+            Assert.True(world.TryGetCachedManifold(mover, rightStatic, out _));
+            Assert.Equal(1, world.CachedManifoldCount);
+            world.Step(world.Settings.FixedStepSeconds);
+            Assert.False(world.IsFaulted);
         }
 
         /// <summary>
@@ -567,6 +757,71 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies a persistent speculative pair without a retained manifold suppresses sleep until delayed physical contact is safely solved.
+        /// </summary>
+        [Fact]
+        public void Step_WithPersistentSpeculativeCandidate_NeverBuildsMixedAwakeIslandAtDelayedContact() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: 2,
+                shapeCapacity: 2,
+                candidatePairCapacity: 1,
+                manifoldCapacity: 1,
+                contactPointCapacity: 4,
+                islandCapacity: 2,
+                deferredCommandCapacity: 2,
+                gravity: PhysicsVector3.Zero));
+            HelPhysicsBodyHandle3D quietBody = world.CreateBody(new HelPhysicsBodyDescription3D(
+                new HelPhysicsBoxShape3D(new PhysicsVector3(0.5f, 0.5f, 0.5f)),
+                BodyKind3D.Dynamic,
+                PhysicsVector3.Zero,
+                PhysicsQuaternion.Identity,
+                PhysicsVector3.Zero,
+                PhysicsVector3.Zero,
+                PhysicsScalar.One,
+                HelPhysicsWorldFixture.CreateStackMaterial(),
+                1,
+                ushort.MaxValue,
+                1,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.FromFloat(0.2f),
+                PhysicsScalar.FromFloat(0.2f),
+                2,
+                true));
+            HelPhysicsBodyHandle3D movingBody = world.CreateBody(new HelPhysicsBodyDescription3D(
+                new HelPhysicsBoxShape3D(new PhysicsVector3(0.5f, 0.5f, 0.5f)),
+                BodyKind3D.Dynamic,
+                new PhysicsVector3(1.009f, 0f, 0f),
+                PhysicsQuaternion.Identity,
+                new PhysicsVector3(-0.01f, 0f, 0f),
+                PhysicsVector3.Zero,
+                PhysicsScalar.One,
+                HelPhysicsWorldFixture.CreateStackMaterial(),
+                1,
+                ushort.MaxValue,
+                2,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.FromFloat(0.001f),
+                PhysicsScalar.FromFloat(0.001f),
+                2,
+                true));
+            bool observedContact = false;
+
+            for (int stepIndex = 0; stepIndex < 25; stepIndex++) {
+                world.Step(world.Settings.FixedStepSeconds);
+                observedContact = observedContact || world.LastStepMetrics.ManifoldCount > 0;
+            }
+
+            Assert.True(observedContact);
+            Assert.True(world.GetBodySnapshot(quietBody).IsAwake);
+            Assert.Equal((ushort)0, world.GetBodySnapshot(quietBody).LowMotionStepCount);
+            Assert.True(world.GetBodySnapshot(movingBody).IsAwake);
+        }
+
+        /// <summary>
         /// Verifies an explicit force is deferred, wakes the complete sleeping stack once, and reports its dedicated reason.
         /// </summary>
         [Fact]
@@ -628,6 +883,99 @@ namespace helengine {
             Assert.True(world.GetBodySnapshot(dynamic).IsAwake);
             Assert.Equal(0, world.LastStepMetrics.NewCandidateContactWakeCount);
             Assert.Equal(1, world.LastStepMetrics.MovingKinematicContactWakeCount);
+        }
+
+        /// <summary>
+        /// Verifies a retained same-feature contact moving 0.025 units per step cannot earn quiet credit or erase tangential motion.
+        /// </summary>
+        [Fact]
+        public void Step_WithSlidingUnstableContact_KeepsDynamicAwakeAndPreservesVelocity() {
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: 2,
+                shapeCapacity: 2,
+                candidatePairCapacity: 1,
+                manifoldCapacity: 1,
+                contactPointCapacity: 4,
+                islandCapacity: 2,
+                deferredCommandCapacity: 2,
+                gravity: PhysicsVector3.Zero));
+            world.CreateBody(HelPhysicsWorldFixture.CreateGroundDescription());
+            HelPhysicsBodyHandle3D slidingBody = world.CreateBody(CreateSlidingDynamicDescription());
+
+            for (int stepIndex = 0; stepIndex < 8; stepIndex++) {
+                world.Step(world.Settings.FixedStepSeconds);
+            }
+
+            HelPhysicsBodySnapshot3D snapshot = world.GetBodySnapshot(slidingBody);
+            Assert.True(snapshot.IsAwake);
+            Assert.Equal((ushort)0, snapshot.LowMotionStepCount);
+            Assert.Equal(PhysicsScalar.FromFloat(0.5f), snapshot.LinearVelocity.X);
+            Assert.InRange(snapshot.Position.X.ToFloat(), 0.1999f, 0.2001f);
+            Assert.Equal(1, world.CachedManifoldCount);
+        }
+
+        /// <summary>
+        /// Verifies constructor-activated static proxies update once and then incur no repeated linear broadphase refresh work.
+        /// </summary>
+        [Fact]
+        public void Step_WithPopulatedStaticWorld_UpdatesProxiesOnlyDuringActivation() {
+            const int staticBodyCount = 12;
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateSettings(
+                bodyCapacity: staticBodyCount,
+                shapeCapacity: staticBodyCount,
+                candidatePairCapacity: 1,
+                manifoldCapacity: 1,
+                contactPointCapacity: 4,
+                islandCapacity: staticBodyCount,
+                deferredCommandCapacity: staticBodyCount,
+                gravity: PhysicsVector3.Zero));
+            for (int bodyIndex = 0; bodyIndex < staticBodyCount; bodyIndex++) {
+                world.CreateBody(CreateStaticUnitDescription(
+                    new PhysicsVector3(bodyIndex * 3f, 0f, 0f),
+                    bodyIndex + 1));
+            }
+
+            world.Step(world.Settings.FixedStepSeconds);
+
+            Assert.Equal(staticBodyCount, world.PhaseTwoProxyUpdateCount);
+            Assert.Equal(0, world.PhaseElevenProxyUpdateCount);
+
+            world.Step(world.Settings.FixedStepSeconds);
+
+            Assert.Equal(0, world.PhaseTwoProxyUpdateCount);
+            Assert.Equal(0, world.PhaseElevenProxyUpdateCount);
+        }
+
+        /// <summary>
+        /// Verifies settled static and sleeping stack proxies receive no phase-two or post-pose refresh calls.
+        /// </summary>
+        [Fact]
+        public void Step_WithSettledStack_PerformsZeroProxyUpdates() {
+            HelPhysicsWorldFixture fixture = HelPhysicsWorldFixture.CreateFourBoxStack();
+            StepWorld(fixture.World, 200);
+
+            fixture.World.Step(fixture.World.Settings.FixedStepSeconds);
+
+            Assert.Equal(0, fixture.World.PhaseTwoProxyUpdateCount);
+            Assert.Equal(0, fixture.World.PhaseElevenProxyUpdateCount);
+            Assert.Equal(0, fixture.World.LastStepMetrics.CandidatePairCount);
+        }
+
+        /// <summary>
+        /// Verifies explicit island wake refreshes four changed activity flags before collision and four changed poses afterward.
+        /// </summary>
+        [Fact]
+        public void Step_AfterExplicitStackWake_UpdatesOnlyFourDynamicProxiesPerProxyPhase() {
+            HelPhysicsWorldFixture fixture = HelPhysicsWorldFixture.CreateFourBoxStack();
+            StepWorld(fixture.World, 200);
+            fixture.World.ApplyImpulse(fixture.DynamicBoxes[3], new PhysicsVector3(0.1f, 0f, 0f));
+
+            fixture.World.Step(fixture.World.Settings.FixedStepSeconds);
+
+            Assert.Equal(4, fixture.World.PhaseTwoProxyUpdateCount);
+            Assert.Equal(4, fixture.World.PhaseElevenProxyUpdateCount);
+            Assert.Equal(4, fixture.World.LastStepMetrics.AwakeBodyCount);
+            Assert.Equal(4, fixture.World.LastStepMetrics.ManifoldCount);
         }
 
         /// <summary>
@@ -705,6 +1053,18 @@ namespace helengine {
             Assert.Equal(5, metrics.BodyCount);
             Assert.Equal(16, metrics.ContactCount);
             Assert.Equal(4, metrics.ConstraintCount);
+        }
+
+        /// <summary>
+        /// Verifies profiler consumers cannot publicly mutate a world-owned reusable physics sample.
+        /// </summary>
+        [Fact]
+        public void RuntimePhysicsProfilerMetrics_DoesNotExposePublicUpdateMutation() {
+            System.Reflection.MethodInfo updateMethod = typeof(RuntimePhysicsProfilerMetrics).GetMethod(
+                "Update",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+
+            Assert.Null(updateMethod);
         }
 
         /// <summary>
@@ -831,6 +1191,62 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Creates a dynamic unit box that explicitly requests sleeping state with the supplied motion for invariant tests.
+        /// </summary>
+        /// <param name="linearVelocity">Authored initial linear velocity.</param>
+        /// <param name="angularVelocity">Authored initial angular velocity.</param>
+        /// <returns>A complete dynamic description whose awake flag is false.</returns>
+        static HelPhysicsBodyDescription3D CreateSleepingDynamicDescriptionWithVelocities(
+            PhysicsVector3 linearVelocity,
+            PhysicsVector3 angularVelocity) {
+            return new HelPhysicsBodyDescription3D(
+                new HelPhysicsBoxShape3D(new PhysicsVector3(0.5f, 0.5f, 0.5f)),
+                BodyKind3D.Dynamic,
+                PhysicsVector3.Zero,
+                PhysicsQuaternion.Identity,
+                linearVelocity,
+                angularVelocity,
+                PhysicsScalar.One,
+                HelPhysicsWorldFixture.CreateStackMaterial(),
+                1,
+                ushort.MaxValue,
+                1,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.FromFloat(0.2f),
+                PhysicsScalar.FromFloat(0.2f),
+                5,
+                false);
+        }
+
+        /// <summary>
+        /// Creates the exact low-threshold sliding body whose 0.025-unit per-step anchor motion must suppress sleep.
+        /// </summary>
+        /// <returns>An awake unit box with 0.5 horizontal speed, a 0.6 linear sleep threshold, and three sleep ticks.</returns>
+        static HelPhysicsBodyDescription3D CreateSlidingDynamicDescription() {
+            return new HelPhysicsBodyDescription3D(
+                new HelPhysicsBoxShape3D(new PhysicsVector3(0.5f, 0.5f, 0.5f)),
+                BodyKind3D.Dynamic,
+                new PhysicsVector3(0f, 0.5f, 0f),
+                PhysicsQuaternion.Identity,
+                new PhysicsVector3(0.5f, 0f, 0f),
+                PhysicsVector3.Zero,
+                PhysicsScalar.One,
+                HelPhysicsWorldFixture.CreateStackMaterial(),
+                1,
+                ushort.MaxValue,
+                3,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.FromFloat(0.6f),
+                PhysicsScalar.FromFloat(0.2f),
+                3,
+                true);
+        }
+
+        /// <summary>
         /// Creates a moving zero-mass kinematic unit box for dedicated wake-reason routing.
         /// </summary>
         /// <param name="position">Initial world-space center.</param>
@@ -857,6 +1273,36 @@ namespace helengine {
                 PhysicsScalar.FromFloat(0.2f),
                 PhysicsScalar.FromFloat(0.2f),
                 5,
+                false);
+        }
+
+        /// <summary>
+        /// Creates one immovable unit box at an explicit position for focused cache-lifecycle tests.
+        /// </summary>
+        /// <param name="position">World-space center of the static unit box.</param>
+        /// <param name="entityBindingId">Stable test ownership identifier.</param>
+        /// <returns>A complete zero-mass static unit-box description.</returns>
+        static HelPhysicsBodyDescription3D CreateStaticUnitDescription(
+            PhysicsVector3 position,
+            int entityBindingId) {
+            return new HelPhysicsBodyDescription3D(
+                new HelPhysicsBoxShape3D(new PhysicsVector3(0.5f, 0.5f, 0.5f)),
+                BodyKind3D.Static,
+                position,
+                PhysicsQuaternion.Identity,
+                PhysicsVector3.Zero,
+                PhysicsVector3.Zero,
+                PhysicsScalar.Zero,
+                HelPhysicsWorldFixture.CreateStackMaterial(),
+                1,
+                ushort.MaxValue,
+                entityBindingId,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                1,
                 false);
         }
 

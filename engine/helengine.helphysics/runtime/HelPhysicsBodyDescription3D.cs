@@ -66,6 +66,18 @@ namespace helengine {
                 throw new ArgumentException("Only dynamic bodies may begin in the awake simulation set.", nameof(isAwake));
             }
 
+            if (bodyKind == BodyKind3D.Dynamic && !isAwake &&
+                (linearVelocity.X != PhysicsScalar.Zero ||
+                linearVelocity.Y != PhysicsScalar.Zero ||
+                linearVelocity.Z != PhysicsScalar.Zero ||
+                angularVelocity.X != PhysicsScalar.Zero ||
+                angularVelocity.Y != PhysicsScalar.Zero ||
+                angularVelocity.Z != PhysicsScalar.Zero)) {
+                throw new ArgumentException(
+                    "A dynamic body that begins asleep must have exact zero linear and angular velocity.",
+                    nameof(isAwake));
+            }
+
             Shape = shape;
             BodyKind = bodyKind;
             Position = position;

@@ -32,6 +32,11 @@ namespace helengine {
         public static PhysicsScalar One => new PhysicsScalar(1f);
 
         /// <summary>
+        /// Gets the backend-owned relative tolerance used when finite scalar elimination validates scale-dependent residuals.
+        /// </summary>
+        internal static PhysicsScalar ComputationalRelativeTolerance => new PhysicsScalar(0.000001f);
+
+        /// <summary>
         /// Creates a physics scalar from one finite engine-boundary float value.
         /// </summary>
         /// <param name="value">Finite float value to wrap.</param>

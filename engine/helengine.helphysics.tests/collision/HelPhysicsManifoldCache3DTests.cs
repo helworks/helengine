@@ -57,6 +57,28 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies direct stale-slot reclamation turns a full capacity-one table into a reusable tombstone without breaking retry lookup.
+        /// </summary>
+        [Fact]
+        public void RemoveEntryAt_WithFullCapacityOneTable_AllowsReplacementAndSamePairRetry() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(1);
+            HelPhysicsPairKey3D stalePair = new HelPhysicsPairKey3D(1, 2);
+            HelPhysicsPairKey3D replacementPair = new HelPhysicsPairKey3D(3, 4);
+            HelPhysicsContactManifold3D staleManifold = CreateManifold(CreateContact(11u, 0f, 0f, 0f, 0f));
+            HelPhysicsContactManifold3D replacementManifold = CreateManifold(CreateContact(12u, 1f, 0f, 0f, 0f));
+            cache.Update(stalePair, ref staleManifold, 1);
+
+            cache.RemoveEntryAt(0);
+            cache.Update(replacementPair, ref replacementManifold, 2);
+            cache.Update(replacementPair, ref replacementManifold, 2);
+
+            Assert.False(cache.TryGet(stalePair, out _));
+            Assert.True(cache.TryGet(replacementPair, out HelPhysicsContactManifold3D retainedManifold));
+            Assert.Equal((uint)12, retainedManifold.GetContact(0).Feature.Value);
+            Assert.Equal(1, cache.Count);
+        }
+
+        /// <summary>
         /// Verifies that a contact with the same geometric feature receives the prior solver impulses without receiving stale geometry.
         /// </summary>
         [Fact]
@@ -72,7 +94,7 @@ namespace helengine {
             previousManifold.SetContact(0, in previousContact);
             cache.Update(pair, ref previousManifold, 10);
 
-            HelPhysicsContactManifold3D currentManifold = CreateManifold(CreateContact(1u, 9f, 0.2f, 0.3f, 0.4f));
+            HelPhysicsContactManifold3D currentManifold = CreateManifold(CreateContact(1u, 9f, 0.01f, 0.005f, 0.01f));
             cache.Update(pair, ref currentManifold, 11);
 
             HelPhysicsContactPoint3D currentContact = currentManifold.GetContact(0);
@@ -81,8 +103,34 @@ namespace helengine {
             Assert.Equal(PhysicsScalar.FromFloat(-1f), currentContact.AccumulatedTangentImpulse1);
             Assert.Equal(8, currentContact.PreviousStepLifetime);
             Assert.Equal(PhysicsScalar.FromFloat(9f), currentContact.Position.X);
-            Assert.Equal(PhysicsScalar.FromFloat(0.2f), currentContact.LocalAnchorA.X);
-            Assert.Equal(PhysicsScalar.FromFloat(0.4f), currentContact.LocalAnchorB.X);
+            Assert.Equal(PhysicsScalar.FromFloat(0.01f), currentContact.LocalAnchorA.X);
+            Assert.Equal(PhysicsScalar.FromFloat(0.01f), currentContact.LocalAnchorB.X);
+        }
+
+        /// <summary>
+        /// Verifies equal feature provenance cannot inherit solver state when either local anchor has moved beyond the stability limit.
+        /// </summary>
+        [Fact]
+        public void Update_WithMatchingFeatureButUnstableAnchor_ResetsImpulsesAndLifetime() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(2, 7);
+            HelPhysicsContactManifold3D previousManifold = CreateManifold(CreateContact(10u, 0f, 0f, 0f, 0f));
+            HelPhysicsContactPoint3D previousContact = previousManifold.GetContact(0);
+            previousContact.AccumulatedNormalImpulse = PhysicsScalar.FromFloat(5f);
+            previousContact.AccumulatedTangentImpulse0 = PhysicsScalar.FromFloat(4f);
+            previousContact.AccumulatedTangentImpulse1 = PhysicsScalar.FromFloat(3f);
+            previousContact.PreviousStepLifetime = 6;
+            previousManifold.SetContact(0, in previousContact);
+            cache.Update(pair, ref previousManifold, 1);
+
+            HelPhysicsContactManifold3D currentManifold = CreateManifold(CreateContact(10u, 1f, 0.025f, 0f, 0f));
+            cache.Update(pair, ref currentManifold, 2);
+
+            HelPhysicsContactPoint3D currentContact = currentManifold.GetContact(0);
+            Assert.Equal(PhysicsScalar.Zero, currentContact.AccumulatedNormalImpulse);
+            Assert.Equal(PhysicsScalar.Zero, currentContact.AccumulatedTangentImpulse0);
+            Assert.Equal(PhysicsScalar.Zero, currentContact.AccumulatedTangentImpulse1);
+            Assert.Equal(0, currentContact.PreviousStepLifetime);
         }
 
         /// <summary>

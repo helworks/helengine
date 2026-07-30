@@ -14,11 +14,6 @@ namespace helengine {
         const int MaximumManifoldContactCount = 4;
 
         /// <summary>
-        /// Stores the numerical tolerance used for deterministic pivot and complementarity checks in double-precision block scratch.
-        /// </summary>
-        const double NormalBlockTolerance = 1e-8d;
-
-        /// <summary>
         /// Stores one constructor-owned constraint slot for every contact the solver can process in a step.
         /// </summary>
         HelPhysicsContactConstraint3D[] Constraints;
@@ -36,22 +31,22 @@ namespace helengine {
         /// <summary>
         /// Stores the current manifold's dense four-by-four normal velocity response matrix in row-major order.
         /// </summary>
-        readonly double[] NormalBlockMatrix;
+        readonly PhysicsScalar[] NormalBlockMatrix;
 
         /// <summary>
         /// Stores the current normal LCP constant term after removing already accumulated normal impulses.
         /// </summary>
-        readonly double[] NormalBlockConstants;
+        readonly PhysicsScalar[] NormalBlockConstants;
 
         /// <summary>
         /// Stores the accumulated normal impulses applied when the current block solve begins.
         /// </summary>
-        readonly double[] NormalBlockOldImpulses;
+        readonly PhysicsScalar[] NormalBlockOldImpulses;
 
         /// <summary>
         /// Stores the candidate non-negative total impulse vector selected by active-set enumeration.
         /// </summary>
-        readonly double[] NormalBlockCandidateImpulses;
+        readonly PhysicsScalar[] NormalBlockCandidateImpulses;
 
         /// <summary>
         /// Stores active contact indices compressed for one candidate complementarity subset.
@@ -61,17 +56,17 @@ namespace helengine {
         /// <summary>
         /// Stores the compressed coefficient matrix used by deterministic Gaussian elimination.
         /// </summary>
-        readonly double[] NormalBlockWorkingMatrix;
+        readonly PhysicsScalar[] NormalBlockWorkingMatrix;
 
         /// <summary>
         /// Stores the compressed right-hand side used by deterministic Gaussian elimination.
         /// </summary>
-        readonly double[] NormalBlockWorkingRightHandSide;
+        readonly PhysicsScalar[] NormalBlockWorkingRightHandSide;
 
         /// <summary>
         /// Stores the compressed active impulse solution returned by deterministic Gaussian elimination.
         /// </summary>
-        readonly double[] NormalBlockWorkingSolution;
+        readonly PhysicsScalar[] NormalBlockWorkingSolution;
 
         /// <summary>
         /// Stores how many leading entries of <see cref="Constraints"/> were prepared for the current step.
@@ -82,6 +77,11 @@ namespace helengine {
         /// Stores the exact parallel manifold-array length accepted by the last successful preparation.
         /// </summary>
         int PreparedManifoldArrayLength;
+
+        /// <summary>
+        /// Stores how many positional passes consumed the current prepared constraints so only later passes rebuild pose-dependent geometry.
+        /// </summary>
+        int PenetrationCorrectionPassIndex;
 
         /// <summary>
         /// Initializes fixed contact-constraint storage for the lifetime of this solver.
@@ -96,14 +96,14 @@ namespace helengine {
             Constraints = new HelPhysicsContactConstraint3D[contactCapacity];
             StagingConstraints = new HelPhysicsContactConstraint3D[contactCapacity];
             PenetrationCorrector = new HelPhysicsPenetrationCorrector3D();
-            NormalBlockMatrix = new double[MaximumManifoldContactCount * MaximumManifoldContactCount];
-            NormalBlockConstants = new double[MaximumManifoldContactCount];
-            NormalBlockOldImpulses = new double[MaximumManifoldContactCount];
-            NormalBlockCandidateImpulses = new double[MaximumManifoldContactCount];
+            NormalBlockMatrix = new PhysicsScalar[MaximumManifoldContactCount * MaximumManifoldContactCount];
+            NormalBlockConstants = new PhysicsScalar[MaximumManifoldContactCount];
+            NormalBlockOldImpulses = new PhysicsScalar[MaximumManifoldContactCount];
+            NormalBlockCandidateImpulses = new PhysicsScalar[MaximumManifoldContactCount];
             NormalBlockActiveIndices = new int[MaximumManifoldContactCount];
-            NormalBlockWorkingMatrix = new double[MaximumManifoldContactCount * MaximumManifoldContactCount];
-            NormalBlockWorkingRightHandSide = new double[MaximumManifoldContactCount];
-            NormalBlockWorkingSolution = new double[MaximumManifoldContactCount];
+            NormalBlockWorkingMatrix = new PhysicsScalar[MaximumManifoldContactCount * MaximumManifoldContactCount];
+            NormalBlockWorkingRightHandSide = new PhysicsScalar[MaximumManifoldContactCount];
+            NormalBlockWorkingSolution = new PhysicsScalar[MaximumManifoldContactCount];
         }
 
         /// <summary>
@@ -159,6 +159,7 @@ namespace helengine {
             StagingConstraints = previousConstraints;
             ConstraintCount = stagingConstraintCount;
             PreparedManifoldArrayLength = manifolds.Length;
+            PenetrationCorrectionPassIndex = 0;
         }
 
         /// <summary>
@@ -384,6 +385,8 @@ namespace helengine {
             constraint.Normal = contact.Normal;
             constraint.Tangent0 = CreateFirstTangent(contact.Normal);
             constraint.Tangent1 = PhysicsVector3.Cross(contact.Normal, constraint.Tangent0);
+            constraint.LocalAnchorA = contact.LocalAnchorA;
+            constraint.LocalAnchorB = contact.LocalAnchorB;
             constraint.LeverArmA = bodyA.Orientation.Rotate(contact.LocalAnchorA);
             constraint.LeverArmB = bodyB.Orientation.Rotate(contact.LocalAnchorB);
             constraint.WorldInverseInertiaA = worldInverseInertiaA;
@@ -491,7 +494,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Runs one deterministic iteration that solves each manifold's coupled normal complementarity block before its sequential friction constraints.
+        /// Runs one deterministic symmetric iteration with forward and reverse manifold sweeps of coupled normals followed by ordered friction.
         /// </summary>
         /// <param name="bodies">Fixed body pool containing every prepared pair.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="bodies"/> is <see langword="null"/>.</exception>
@@ -503,12 +506,32 @@ namespace helengine {
             int manifoldStartIndex = 0;
             while (manifoldStartIndex < ConstraintCount) {
                 int manifoldContactCount = Constraints[manifoldStartIndex].ManifoldContactCount;
-                SolveNormalBlock(manifoldStartIndex, manifoldContactCount, bodies);
-                for (int contactOffset = 0; contactOffset < manifoldContactCount; contactOffset++) {
-                    SolveFrictionConstraint(manifoldStartIndex + contactOffset, bodies);
-                }
-
+                SolveManifoldVelocityBlock(manifoldStartIndex, manifoldContactCount, bodies);
                 manifoldStartIndex += manifoldContactCount;
+            }
+
+            int manifoldEndIndex = ConstraintCount;
+            while (manifoldEndIndex > 0) {
+                int manifoldContactCount = Constraints[manifoldEndIndex - 1].ManifoldContactCount;
+                manifoldStartIndex = manifoldEndIndex - manifoldContactCount;
+                SolveManifoldVelocityBlock(manifoldStartIndex, manifoldContactCount, bodies);
+                manifoldEndIndex = manifoldStartIndex;
+            }
+        }
+
+        /// <summary>
+        /// Solves one contiguous manifold's coupled normals and ordered friction constraints during the current directional sweep.
+        /// </summary>
+        /// <param name="manifoldStartIndex">First prepared constraint owned by the manifold.</param>
+        /// <param name="manifoldContactCount">One-through-four number of contiguous manifold contacts.</param>
+        /// <param name="bodies">Fixed body pool receiving normal and friction impulses.</param>
+        void SolveManifoldVelocityBlock(
+            int manifoldStartIndex,
+            int manifoldContactCount,
+            HelPhysicsBodyPool3D bodies) {
+            SolveNormalBlock(manifoldStartIndex, manifoldContactCount, bodies);
+            for (int contactOffset = 0; contactOffset < manifoldContactCount; contactOffset++) {
+                SolveFrictionConstraint(manifoldStartIndex + contactOffset, bodies);
             }
         }
 
@@ -527,7 +550,7 @@ namespace helengine {
             bool hasNormalResponse = false;
             for (int contactOffset = 0; contactOffset < manifoldContactCount; contactOffset++) {
                 ref HelPhysicsContactConstraint3D constraint = ref Constraints[manifoldStartIndex + contactOffset];
-                NormalBlockOldImpulses[contactOffset] = constraint.AccumulatedNormalImpulse.ToFloat();
+                NormalBlockOldImpulses[contactOffset] = constraint.AccumulatedNormalImpulse;
                 hasNormalResponse = hasNormalResponse || constraint.NormalEffectiveMass > PhysicsScalar.Zero;
             }
 
@@ -543,7 +566,7 @@ namespace helengine {
 
             for (int contactOffset = 0; contactOffset < manifoldContactCount; contactOffset++) {
                 ref HelPhysicsContactConstraint3D constraint = ref Constraints[manifoldStartIndex + contactOffset];
-                PhysicsScalar newImpulse = PhysicsScalar.FromFloat((float)NormalBlockCandidateImpulses[contactOffset]);
+                PhysicsScalar newImpulse = NormalBlockCandidateImpulses[contactOffset];
                 PhysicsScalar oldImpulse = constraint.AccumulatedNormalImpulse;
                 constraint.AccumulatedNormalImpulse = newImpulse;
                 ApplyImpulse(ref constraint, constraint.Normal * (newImpulse - oldImpulse), bodies);
@@ -611,8 +634,9 @@ namespace helengine {
                     in bodyB,
                     constraint.LeverArmA,
                     constraint.LeverArmB);
-                double constant = PhysicsVector3.Dot(relativeVelocity, constraint.Normal).ToFloat() -
-                    constraint.RestitutionVelocity.ToFloat();
+                PhysicsScalar constant =
+                    PhysicsVector3.Dot(relativeVelocity, constraint.Normal) -
+                    constraint.RestitutionVelocity;
                 for (int columnIndex = 0; columnIndex < manifoldContactCount; columnIndex++) {
                     constant -= NormalBlockMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] *
                         NormalBlockOldImpulses[columnIndex];
@@ -647,7 +671,7 @@ namespace helengine {
         bool TrySolveNormalActiveSet(int manifoldContactCount, int activeMask) {
             int activeCount = 0;
             for (int contactIndex = 0; contactIndex < manifoldContactCount; contactIndex++) {
-                NormalBlockCandidateImpulses[contactIndex] = 0d;
+                NormalBlockCandidateImpulses[contactIndex] = PhysicsScalar.Zero;
                 if ((activeMask & (1 << contactIndex)) != 0) {
                     NormalBlockActiveIndices[activeCount++] = contactIndex;
                 }
@@ -658,28 +682,38 @@ namespace helengine {
             }
 
             for (int activeIndex = 0; activeIndex < activeCount; activeIndex++) {
-                double impulse = NormalBlockWorkingSolution[activeIndex];
-                if (double.IsNaN(impulse) || double.IsInfinity(impulse) || impulse < -NormalBlockTolerance) {
+                PhysicsScalar impulse = NormalBlockWorkingSolution[activeIndex];
+                PhysicsScalar impulseTolerance =
+                    PhysicsScalar.Max(PhysicsScalar.One, PhysicsScalar.Abs(impulse)) *
+                    PhysicsScalar.ComputationalRelativeTolerance;
+                if (impulse < -impulseTolerance) {
                     return false;
                 }
 
                 NormalBlockCandidateImpulses[NormalBlockActiveIndices[activeIndex]] =
-                    impulse > 0d ? impulse : 0d;
+                    impulse > PhysicsScalar.Zero ? impulse : PhysicsScalar.Zero;
             }
 
             for (int rowIndex = 0; rowIndex < manifoldContactCount; rowIndex++) {
-                double normalVelocity = NormalBlockConstants[rowIndex];
+                PhysicsScalar normalVelocity = NormalBlockConstants[rowIndex];
+                PhysicsScalar rowScale = PhysicsScalar.Abs(normalVelocity);
                 for (int columnIndex = 0; columnIndex < manifoldContactCount; columnIndex++) {
-                    normalVelocity += NormalBlockMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] *
+                    PhysicsScalar response =
+                        NormalBlockMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] *
                         NormalBlockCandidateImpulses[columnIndex];
+                    normalVelocity += response;
+                    rowScale = PhysicsScalar.Max(rowScale, PhysicsScalar.Abs(response));
                 }
 
+                PhysicsScalar rowTolerance =
+                    PhysicsScalar.Max(PhysicsScalar.One, rowScale) *
+                    PhysicsScalar.ComputationalRelativeTolerance;
                 bool isActive = (activeMask & (1 << rowIndex)) != 0;
                 if (isActive) {
-                    if (Math.Abs(normalVelocity) > NormalBlockTolerance * 8d) {
+                    if (PhysicsScalar.Abs(normalVelocity) > rowTolerance * PhysicsScalar.FromFloat(8f)) {
                         return false;
                     }
-                } else if (normalVelocity < -NormalBlockTolerance) {
+                } else if (normalVelocity < -rowTolerance) {
                     return false;
                 }
             }
@@ -688,29 +722,57 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Solves the compressed active-contact equations with deterministic partial-pivot Gaussian elimination.
+        /// Solves row-normalized active-contact equations with deterministic scale-aware partial-pivot Gaussian elimination.
         /// </summary>
         /// <param name="activeCount">Positive number of selected active contacts.</param>
         /// <returns><see langword="true"/> when every pivot and solved value is finite and non-degenerate.</returns>
         bool TrySolveNormalLinearSystem(int activeCount) {
+            return BuildNormalWorkingSystem(activeCount) &&
+                EliminateNormalWorkingSystem(activeCount);
+        }
+
+        /// <summary>
+        /// Rebuilds one row-normalized active system so pivot classification depends on relative shape rather than absolute mass scale.
+        /// </summary>
+        /// <param name="activeCount">Positive number of selected active contacts.</param>
+        /// <returns><see langword="true"/> when every active equation has representable nonzero response scale.</returns>
+        bool BuildNormalWorkingSystem(int activeCount) {
             for (int rowIndex = 0; rowIndex < activeCount; rowIndex++) {
                 int sourceRowIndex = NormalBlockActiveIndices[rowIndex];
-                NormalBlockWorkingRightHandSide[rowIndex] = -NormalBlockConstants[sourceRowIndex];
-                NormalBlockWorkingSolution[rowIndex] = 0d;
+                PhysicsScalar rowScale = PhysicsScalar.Zero;
                 for (int columnIndex = 0; columnIndex < activeCount; columnIndex++) {
                     int sourceColumnIndex = NormalBlockActiveIndices[columnIndex];
-                    NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] =
+                    PhysicsScalar coefficient =
                         NormalBlockMatrix[(sourceRowIndex * MaximumManifoldContactCount) + sourceColumnIndex];
+                    NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] = coefficient;
+                    rowScale = PhysicsScalar.Max(rowScale, PhysicsScalar.Abs(coefficient));
+                }
+
+                if (rowScale == PhysicsScalar.Zero) {
+                    return false;
+                }
+
+                NormalBlockWorkingRightHandSide[rowIndex] = -NormalBlockConstants[sourceRowIndex] / rowScale;
+                NormalBlockWorkingSolution[rowIndex] = PhysicsScalar.Zero;
+                for (int columnIndex = 0; columnIndex < activeCount; columnIndex++) {
+                    NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] /= rowScale;
                 }
             }
 
+            return true;
+        }
+
+        /// <summary>
+        /// Eliminates the already row-normalized working system with scale-aware partial pivots and backend-scalar arithmetic.
+        /// </summary>
+        /// <param name="activeCount">Positive dimension of the populated working system.</param>
+        /// <returns><see langword="true"/> when every normalized pivot remains representably distinct from singularity.</returns>
+        bool EliminateNormalWorkingSystem(int activeCount) {
             for (int pivotIndex = 0; pivotIndex < activeCount; pivotIndex++) {
                 int pivotRowIndex = FindNormalPivotRow(pivotIndex, activeCount);
-                double pivotMagnitude = Math.Abs(
+                PhysicsScalar pivotMagnitude = PhysicsScalar.Abs(
                     NormalBlockWorkingMatrix[(pivotRowIndex * MaximumManifoldContactCount) + pivotIndex]);
-                if (double.IsNaN(pivotMagnitude) ||
-                    double.IsInfinity(pivotMagnitude) ||
-                    pivotMagnitude <= NormalBlockTolerance) {
+                if (pivotMagnitude <= PhysicsScalar.ComputationalRelativeTolerance) {
                     return false;
                 }
 
@@ -718,11 +780,11 @@ namespace helengine {
                     SwapNormalWorkingRows(pivotIndex, pivotRowIndex, activeCount);
                 }
 
-                double pivot = NormalBlockWorkingMatrix[(pivotIndex * MaximumManifoldContactCount) + pivotIndex];
+                PhysicsScalar pivot = NormalBlockWorkingMatrix[(pivotIndex * MaximumManifoldContactCount) + pivotIndex];
                 for (int rowIndex = pivotIndex + 1; rowIndex < activeCount; rowIndex++) {
-                    double factor =
+                    PhysicsScalar factor =
                         NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + pivotIndex] / pivot;
-                    NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + pivotIndex] = 0d;
+                    NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + pivotIndex] = PhysicsScalar.Zero;
                     for (int columnIndex = pivotIndex + 1; columnIndex < activeCount; columnIndex++) {
                         NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] -=
                             factor * NormalBlockWorkingMatrix[(pivotIndex * MaximumManifoldContactCount) + columnIndex];
@@ -734,17 +796,13 @@ namespace helengine {
             }
 
             for (int rowIndex = activeCount - 1; rowIndex >= 0; rowIndex--) {
-                double value = NormalBlockWorkingRightHandSide[rowIndex];
+                PhysicsScalar value = NormalBlockWorkingRightHandSide[rowIndex];
                 for (int columnIndex = rowIndex + 1; columnIndex < activeCount; columnIndex++) {
                     value -= NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + columnIndex] *
                         NormalBlockWorkingSolution[columnIndex];
                 }
 
                 value /= NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + rowIndex];
-                if (double.IsNaN(value) || double.IsInfinity(value)) {
-                    return false;
-                }
-
                 NormalBlockWorkingSolution[rowIndex] = value;
             }
 
@@ -759,10 +817,10 @@ namespace helengine {
         /// <returns>Selected pivot row index.</returns>
         int FindNormalPivotRow(int pivotIndex, int activeCount) {
             int pivotRowIndex = pivotIndex;
-            double pivotMagnitude = Math.Abs(
+            PhysicsScalar pivotMagnitude = PhysicsScalar.Abs(
                 NormalBlockWorkingMatrix[(pivotIndex * MaximumManifoldContactCount) + pivotIndex]);
             for (int rowIndex = pivotIndex + 1; rowIndex < activeCount; rowIndex++) {
-                double candidateMagnitude = Math.Abs(
+                PhysicsScalar candidateMagnitude = PhysicsScalar.Abs(
                     NormalBlockWorkingMatrix[(rowIndex * MaximumManifoldContactCount) + pivotIndex]);
                 if (candidateMagnitude > pivotMagnitude) {
                     pivotMagnitude = candidateMagnitude;
@@ -783,12 +841,12 @@ namespace helengine {
             for (int columnIndex = 0; columnIndex < activeCount; columnIndex++) {
                 int firstIndex = (firstRowIndex * MaximumManifoldContactCount) + columnIndex;
                 int secondIndex = (secondRowIndex * MaximumManifoldContactCount) + columnIndex;
-                double value = NormalBlockWorkingMatrix[firstIndex];
+                PhysicsScalar value = NormalBlockWorkingMatrix[firstIndex];
                 NormalBlockWorkingMatrix[firstIndex] = NormalBlockWorkingMatrix[secondIndex];
                 NormalBlockWorkingMatrix[secondIndex] = value;
             }
 
-            double rightHandSide = NormalBlockWorkingRightHandSide[firstRowIndex];
+            PhysicsScalar rightHandSide = NormalBlockWorkingRightHandSide[firstRowIndex];
             NormalBlockWorkingRightHandSide[firstRowIndex] = NormalBlockWorkingRightHandSide[secondRowIndex];
             NormalBlockWorkingRightHandSide[secondRowIndex] = rightHandSide;
         }
@@ -799,7 +857,7 @@ namespace helengine {
         /// <param name="rowConstraint">Contact whose resulting relative normal velocity is measured.</param>
         /// <param name="columnConstraint">Contact at which one unit normal impulse is applied.</param>
         /// <returns>Finite scalar velocity response coefficient.</returns>
-        static double ComputeNormalVelocityCoupling(
+        static PhysicsScalar ComputeNormalVelocityCoupling(
             in HelPhysicsContactConstraint3D rowConstraint,
             in HelPhysicsContactConstraint3D columnConstraint) {
             PhysicsScalar linearResponse =
@@ -815,7 +873,7 @@ namespace helengine {
             PhysicsScalar angularResponseB = PhysicsVector3.Dot(
                 rowConstraint.Normal,
                 PhysicsVector3.Cross(angularImpulseB, rowConstraint.LeverArmB));
-            return (linearResponse + angularResponseA + angularResponseB).ToFloat();
+            return linearResponse + angularResponseA + angularResponseB;
         }
 
         /// <summary>
@@ -920,7 +978,14 @@ namespace helengine {
         /// <param name="bodies">Fixed body pool containing every prepared pair.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="bodies"/> is <see langword="null"/>.</exception>
         public void CorrectPenetration(HelPhysicsBodyPool3D bodies) {
-            PenetrationCorrector.CorrectPenetration(bodies, Constraints, ConstraintCount);
+            PenetrationCorrector.CorrectPenetration(
+                bodies,
+                Constraints,
+                ConstraintCount,
+                PenetrationCorrectionPassIndex > 0);
+            if (PenetrationCorrectionPassIndex < int.MaxValue) {
+                PenetrationCorrectionPassIndex++;
+            }
         }
 
         /// <summary>

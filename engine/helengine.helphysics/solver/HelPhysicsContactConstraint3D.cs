@@ -49,6 +49,16 @@ namespace helengine {
         public PhysicsVector3 Tangent1;
 
         /// <summary>
+        /// Stores the contact anchor in body A local space so positional passes can rebuild current world geometry.
+        /// </summary>
+        public PhysicsVector3 LocalAnchorA;
+
+        /// <summary>
+        /// Stores the contact anchor in body B local space so positional passes can rebuild current world geometry.
+        /// </summary>
+        public PhysicsVector3 LocalAnchorB;
+
+        /// <summary>
         /// Stores the world-space contact lever arm from body A's center of mass.
         /// </summary>
         public PhysicsVector3 LeverArmA;

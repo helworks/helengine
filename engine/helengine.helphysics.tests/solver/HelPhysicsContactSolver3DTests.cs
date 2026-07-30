@@ -61,6 +61,105 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies centered four-contact patches remain solvable when valid inverse mass scales below the former absolute pivot cutoff.
+        /// </summary>
+        /// <param name="mass">Large finite dynamic mass whose reciprocal controls every response coefficient.</param>
+        [Theory]
+        [InlineData(1000000f)]
+        [InlineData(10000000f)]
+        [InlineData(100000000f)]
+        [InlineData(1000000000f)]
+        public void SolveVelocityIteration_WithHighMassCenteredPatch_StopsNormalMotion(float mass) {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(2);
+            bodies.Allocate(CreateStaticState(), CreateColdState(BodyKind3D.Static, 0f, 0f, 0f));
+            HelPhysicsBodyHandle3D dynamicHandle = bodies.Allocate(
+                CreateDynamicStateWithMass(new PhysicsVector3(0f, -0.5f, 0f), mass),
+                CreateColdState(BodyKind3D.Dynamic, 0f, 0f, 0f));
+            HelPhysicsContactManifold3D[] manifolds = new HelPhysicsContactManifold3D[] {
+                CreateSymmetricFaceManifold()
+            };
+            HelPhysicsContactSolver3D solver = new HelPhysicsContactSolver3D(4);
+
+            solver.Prepare(PhysicsScalar.FromFloat(0.05f), bodies, CreatePairArray(), manifolds, 1);
+            for (int iterationIndex = 0; iterationIndex < 4; iterationIndex++) {
+                solver.SolveVelocityIteration(bodies);
+            }
+
+            ref HelPhysicsBodyState3D dynamicState = ref bodies.GetRequiredState(dynamicHandle);
+            AssertClose(0f, dynamicState.LinearVelocity.Y);
+            AssertClose(0f, dynamicState.AngularVelocity.X);
+            AssertClose(0f, dynamicState.AngularVelocity.Z);
+        }
+
+        /// <summary>
+        /// Verifies a high-mass asymmetric patch produces finite coupled linear and angular response instead of rejecting its scale.
+        /// </summary>
+        [Fact]
+        public void SolveVelocityIteration_WithHighMassAsymmetricPatch_ProducesOffCenterResponseWithoutThrowing() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(2);
+            bodies.Allocate(CreateStaticState(), CreateColdState(BodyKind3D.Static, 0f, 0f, 0f));
+            HelPhysicsBodyHandle3D dynamicHandle = bodies.Allocate(
+                CreateDynamicStateWithMass(new PhysicsVector3(0f, -0.5f, 0f), 1000000000f),
+                CreateColdState(BodyKind3D.Dynamic, 0f, 0f, 0f));
+            HelPhysicsContactManifold3D[] manifolds = new HelPhysicsContactManifold3D[] {
+                CreateAsymmetricFaceManifold()
+            };
+            HelPhysicsContactSolver3D solver = new HelPhysicsContactSolver3D(2);
+
+            solver.Prepare(PhysicsScalar.FromFloat(0.05f), bodies, CreatePairArray(), manifolds, 1);
+            for (int iterationIndex = 0; iterationIndex < 4; iterationIndex++) {
+                solver.SolveVelocityIteration(bodies);
+            }
+
+            ref HelPhysicsBodyState3D dynamicState = ref bodies.GetRequiredState(dynamicHandle);
+            Assert.True(dynamicState.LinearVelocity.Y > PhysicsScalar.FromFloat(-0.5f));
+            Assert.NotEqual(PhysicsScalar.Zero, dynamicState.AngularVelocity.Z);
+        }
+
+        /// <summary>
+        /// Verifies equal high-mass dynamic participants exchange a symmetric four-contact impulse without static-body assumptions.
+        /// </summary>
+        [Fact]
+        public void SolveVelocityIteration_WithHighMassDynamicDynamicPatch_PreservesMomentumAndStopsRelativeMotion() {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(2);
+            HelPhysicsBodyHandle3D firstHandle = bodies.Allocate(
+                CreateDynamicStateWithMass(new PhysicsVector3(0f, 0.25f, 0f), 1000000000f),
+                CreateColdState(BodyKind3D.Dynamic, 0f, 0f, 0f));
+            HelPhysicsBodyHandle3D secondHandle = bodies.Allocate(
+                CreateDynamicStateWithMass(new PhysicsVector3(0f, -0.25f, 0f), 1000000000f),
+                CreateColdState(BodyKind3D.Dynamic, 0f, 0f, 0f));
+            HelPhysicsContactManifold3D[] manifolds = new HelPhysicsContactManifold3D[] {
+                CreateSymmetricFaceManifold()
+            };
+            HelPhysicsContactSolver3D solver = new HelPhysicsContactSolver3D(4);
+
+            solver.Prepare(PhysicsScalar.FromFloat(0.05f), bodies, CreatePairArray(), manifolds, 1);
+            for (int iterationIndex = 0; iterationIndex < 4; iterationIndex++) {
+                solver.SolveVelocityIteration(bodies);
+            }
+
+            ref HelPhysicsBodyState3D firstState = ref bodies.GetRequiredState(firstHandle);
+            ref HelPhysicsBodyState3D secondState = ref bodies.GetRequiredState(secondHandle);
+            AssertClose(0f, firstState.LinearVelocity.Y);
+            AssertClose(0f, secondState.LinearVelocity.Y);
+            Assert.Equal(firstState.LinearVelocity.Y, -secondState.LinearVelocity.Y);
+        }
+
+        /// <summary>
+        /// Verifies every numeric normal-block scratch array is governed by the physics scalar backend rather than raw floating-point storage.
+        /// </summary>
+        [Fact]
+        public void NormalBlockScratch_UsesPhysicsScalarBackendForEveryNumericArray() {
+            AssertPhysicsScalarScratchField("NormalBlockMatrix");
+            AssertPhysicsScalarScratchField("NormalBlockConstants");
+            AssertPhysicsScalarScratchField("NormalBlockOldImpulses");
+            AssertPhysicsScalarScratchField("NormalBlockCandidateImpulses");
+            AssertPhysicsScalarScratchField("NormalBlockWorkingMatrix");
+            AssertPhysicsScalarScratchField("NormalBlockWorkingRightHandSide");
+            AssertPhysicsScalarScratchField("NormalBlockWorkingSolution");
+        }
+
+        /// <summary>
         /// Verifies that restitution uses the larger material coefficient when impact speed is strictly below the threshold.
         /// </summary>
         [Fact]
@@ -419,7 +518,9 @@ namespace helengine {
             HelPhysicsBodyHandle3D dynamicHandle = bodies.Allocate(
                 dynamicState,
                 CreateColdState(BodyKind3D.Dynamic, 0f, 0f, 0f));
-            HelPhysicsContactPoint3D contact = CreateContact(PhysicsVector3.Zero, PhysicsVector3.Zero);
+            HelPhysicsContactPoint3D contact = CreateContact(
+                new PhysicsVector3(0f, 0.105f, 0f),
+                PhysicsVector3.Zero);
             contact.PenetrationDepth = PhysicsScalar.FromFloat(0.105f);
             contact.AccumulatedNormalImpulse = PhysicsScalar.FromFloat(0.7f);
             contact.AccumulatedTangentImpulse0 = PhysicsScalar.FromFloat(0.2f);
@@ -445,6 +546,48 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies repeated correction rebuilds current contact geometry so overlap converges monotonically without creating separation.
+        /// </summary>
+        /// <param name="passCount">Number of correction passes to execute against updated poses.</param>
+        /// <param name="expectedCenterY">Analytical center after removing twenty percent of remaining overlap beyond slop each pass.</param>
+        [Theory]
+        [InlineData(1, 0.919f)]
+        [InlineData(2, 0.9342f)]
+        [InlineData(5, 0.9638704f)]
+        [InlineData(10, 0.9847995f)]
+        public void CorrectPenetration_WithRepeatedPasses_ConvergesFromCurrentAnchors(
+            int passCount,
+            float expectedCenterY) {
+            HelPhysicsBodyPool3D bodies = new HelPhysicsBodyPool3D(2);
+            bodies.Allocate(CreateStaticState(), CreateColdState(BodyKind3D.Static, 0f, 0f, 0f));
+            HelPhysicsBodyState3D dynamicState = CreateDynamicState(new PhysicsVector3(0.25f, 0f, 0f));
+            dynamicState.Position = new PhysicsVector3(0f, 0.9f, 0f);
+            HelPhysicsBodyHandle3D dynamicHandle = bodies.Allocate(
+                dynamicState,
+                CreateColdState(BodyKind3D.Dynamic, 0f, 0f, 0f));
+            HelPhysicsContactPoint3D contact = CreateContactWithData(
+                41u,
+                PhysicsVector3.UnitY,
+                new PhysicsVector3(0f, 0.5f, 0f),
+                new PhysicsVector3(0f, -0.5f, 0f),
+                0.1f);
+            HelPhysicsContactManifold3D[] manifolds = CreateManifoldArray(contact);
+            HelPhysicsContactSolver3D solver = new HelPhysicsContactSolver3D(1);
+            solver.Prepare(PhysicsScalar.FromFloat(0.05f), bodies, CreatePairArray(), manifolds, 1);
+
+            for (int passIndex = 0; passIndex < passCount; passIndex++) {
+                solver.CorrectPenetration(bodies);
+            }
+
+            ref HelPhysicsBodyState3D corrected = ref bodies.GetRequiredState(dynamicHandle);
+            Assert.InRange(corrected.Position.Y.ToFloat(), expectedCenterY - 0.0002f, expectedCenterY + 0.0002f);
+            Assert.True(corrected.Position.Y <= PhysicsScalar.FromFloat(0.995f));
+            Assert.Equal(PhysicsScalar.FromFloat(0.25f), corrected.LinearVelocity.X);
+            Assert.Equal(PhysicsScalar.Zero, corrected.LinearVelocity.Y);
+            Assert.Equal(PhysicsScalar.Zero, corrected.AngularVelocity.Z);
+        }
+
+        /// <summary>
         /// Verifies that equal responsive bodies share central positional separation according to inverse mass.
         /// </summary>
         [Fact]
@@ -456,7 +599,9 @@ namespace helengine {
             HelPhysicsBodyHandle3D bodyBHandle = bodies.Allocate(
                 CreateDynamicState(PhysicsVector3.Zero),
                 CreateColdState(BodyKind3D.Dynamic, 0f, 0f, 0f));
-            HelPhysicsContactPoint3D contact = CreateContact(PhysicsVector3.Zero, PhysicsVector3.Zero);
+            HelPhysicsContactPoint3D contact = CreateContact(
+                new PhysicsVector3(0f, 0.0525f, 0f),
+                new PhysicsVector3(0f, -0.0525f, 0f));
             contact.PenetrationDepth = PhysicsScalar.FromFloat(0.105f);
             HelPhysicsContactManifold3D[] manifolds = CreateManifoldArray(contact);
             HelPhysicsContactSolver3D solver = new HelPhysicsContactSolver3D(1);
@@ -478,7 +623,9 @@ namespace helengine {
             HelPhysicsBodyHandle3D dynamicHandle = bodies.Allocate(
                 CreateDynamicState(PhysicsVector3.Zero),
                 CreateColdState(BodyKind3D.Dynamic, 0f, 0f, 0f));
-            HelPhysicsContactPoint3D contact = CreateContact(PhysicsVector3.Zero, PhysicsVector3.Zero);
+            HelPhysicsContactPoint3D contact = CreateContact(
+                new PhysicsVector3(0f, 2f, 0f),
+                PhysicsVector3.Zero);
             contact.PenetrationDepth = PhysicsScalar.FromFloat(2f);
             HelPhysicsContactManifold3D[] manifolds = CreateManifoldArray(contact);
             HelPhysicsContactSolver3D solver = new HelPhysicsContactSolver3D(1);
@@ -499,7 +646,9 @@ namespace helengine {
             HelPhysicsBodyHandle3D dynamicHandle = bodies.Allocate(
                 CreateDynamicState(PhysicsVector3.Zero),
                 CreateColdState(BodyKind3D.Dynamic, 0f, 0f, 0f));
-            HelPhysicsContactPoint3D contact = CreateContact(PhysicsVector3.Zero, PhysicsVector3.UnitX);
+            HelPhysicsContactPoint3D contact = CreateContact(
+                new PhysicsVector3(0f, 0.105f, 0f),
+                PhysicsVector3.UnitX);
             contact.PenetrationDepth = PhysicsScalar.FromFloat(0.105f);
             HelPhysicsContactManifold3D[] manifolds = CreateManifoldArray(contact);
             HelPhysicsContactSolver3D solver = new HelPhysicsContactSolver3D(1);
@@ -879,6 +1028,33 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Creates awake dynamic state whose reciprocal mass and inertia scale together from one explicit large finite mass.
+        /// </summary>
+        /// <param name="linearVelocity">Initial world-space linear velocity.</param>
+        /// <param name="mass">Positive finite mass used to derive reciprocal response.</param>
+        /// <returns>Dynamic-compatible hot state with uniformly mass-scaled inverse inertia.</returns>
+        static HelPhysicsBodyState3D CreateDynamicStateWithMass(
+            PhysicsVector3 linearVelocity,
+            float mass) {
+            PhysicsScalar inverseMass = PhysicsScalar.One / PhysicsScalar.FromFloat(mass);
+            return new HelPhysicsBodyState3D {
+                Position = PhysicsVector3.Zero,
+                Orientation = PhysicsQuaternion.Identity,
+                LinearVelocity = linearVelocity,
+                AngularVelocity = PhysicsVector3.Zero,
+                InverseMass = inverseMass,
+                LocalInverseInertia = PhysicsMatrix3x3.CreateDiagonal(new PhysicsVector3(
+                    inverseMass,
+                    inverseMass,
+                    inverseMass)),
+                GravityScale = PhysicsScalar.One,
+                LinearDamping = PhysicsScalar.Zero,
+                AngularDamping = PhysicsScalar.Zero,
+                IsAwake = true
+            };
+        }
+
+        /// <summary>
         /// Creates cold metadata with explicit material coefficients for one solver participant.
         /// </summary>
         /// <param name="bodyKind">Simulation motion kind.</param>
@@ -992,6 +1168,30 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Creates two upward-normal contacts shifted to one side so coupled response must include angular motion.
+        /// </summary>
+        /// <returns>An asymmetric two-contact face manifold with distinct stable features.</returns>
+        static HelPhysicsContactManifold3D CreateAsymmetricFaceManifold() {
+            HelPhysicsContactManifold3D manifold = default;
+            manifold.ContactCount = 2;
+            HelPhysicsContactPoint3D contact0 = CreateContactWithData(
+                11u,
+                PhysicsVector3.UnitY,
+                new PhysicsVector3(0.2f, 0f, -0.4f),
+                new PhysicsVector3(0.2f, -0.5f, -0.4f),
+                0f);
+            HelPhysicsContactPoint3D contact1 = CreateContactWithData(
+                12u,
+                PhysicsVector3.UnitY,
+                new PhysicsVector3(0.5f, 0f, 0.4f),
+                new PhysicsVector3(0.5f, -0.5f, 0.4f),
+                0f);
+            manifold.SetContact(0, in contact0);
+            manifold.SetContact(1, in contact1);
+            return manifold;
+        }
+
+        /// <summary>
         /// Creates a single-manifold array with one active contact in its first inline slot.
         /// </summary>
         /// <param name="contact">Contact to place in the manifold.</param>
@@ -1006,6 +1206,18 @@ namespace helengine {
         /// <returns>One-element pair array parallel to the test manifold array.</returns>
         static HelPhysicsPairKey3D[] CreatePairArray() {
             return new HelPhysicsPairKey3D[] { new HelPhysicsPairKey3D(0, 1) };
+        }
+
+        /// <summary>
+        /// Verifies one named normal-block field exists and uses a physics-scalar array as its runtime storage type.
+        /// </summary>
+        /// <param name="fieldName">Exact non-public solver field to inspect.</param>
+        static void AssertPhysicsScalarScratchField(string fieldName) {
+            System.Reflection.FieldInfo field = typeof(HelPhysicsContactSolver3D).GetField(
+                fieldName,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            Assert.Equal(typeof(PhysicsScalar[]), field.FieldType);
         }
 
         /// <summary>
