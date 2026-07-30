@@ -174,6 +174,11 @@ namespace helengine {
         readonly uint WorldId;
 
         /// <summary>
+        /// Stores the exclusive scene binder coordinating lifecycle stepping and removal, or null while this is a generic standalone world.
+        /// </summary>
+        HelPhysicsSceneBinder3D SceneBinderOwner;
+
+        /// <summary>
         /// Stores how many leading deferred command slots await phase-one execution.
         /// </summary>
         int DeferredCommandCount;
@@ -294,6 +299,22 @@ namespace helengine {
         internal int PhaseElevenProxyUpdateCount { get; private set; }
 
         /// <summary>
+        /// Claims exclusive scene-lifecycle coordination for one exact binder before it can reserve any bodies.
+        /// </summary>
+        /// <param name="owner">Binder that will coordinate every world step and body removal.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="owner"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when this world already has a scene-binder owner.</exception>
+        internal void ClaimSceneBinderOwnership(HelPhysicsSceneBinder3D owner) {
+            if (owner == null) {
+                throw new ArgumentNullException(nameof(owner));
+            } else if (SceneBinderOwner != null) {
+                throw new InvalidOperationException("A HelPhysics world can be owned by only one HelPhysicsSceneBinder3D.");
+            }
+
+            SceneBinderOwner = owner;
+        }
+
+        /// <summary>
         /// Validates aggregate body, shape, and activation-command demand without reserving or mutating world storage.
         /// </summary>
         /// <param name="bodyCount">Non-negative number of complete box-body reservations required by one transaction.</param>
@@ -379,8 +400,36 @@ namespace helengine {
         /// Defers generation-safe removal in body-capacity storage until the next valid fixed step while leaving the current snapshot active or pending beforehand.
         /// </summary>
         /// <param name="handle">Current world-owned body identity to remove.</param>
-        /// <exception cref="InvalidOperationException">Thrown for foreign, stale, released, duplicate-removal, or generation-exhausted handles.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when a scene binder owns this world or for foreign, stale, released, duplicate-removal, or generation-exhausted handles.</exception>
         public void RemoveBody(HelPhysicsBodyHandle3D handle) {
+            if (SceneBinderOwner != null) {
+                throw new InvalidOperationException(
+                    "A HelPhysics world owned by a HelPhysicsSceneBinder3D must remove bodies through HelPhysicsSceneBinder3D.Unbind.");
+            }
+
+            RemoveBodyCore(handle);
+        }
+
+        /// <summary>
+        /// Defers exact-generation body removal on behalf of this world's exclusive scene-binder owner.
+        /// </summary>
+        /// <param name="owner">Exact binder that owns this world's lifecycle operations.</param>
+        /// <param name="handle">Current world-owned body identity to remove.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="owner"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when <paramref name="owner"/> is not the exact owner or the handle cannot be removed.</exception>
+        internal void RemoveBodyForSceneBinder(
+            HelPhysicsSceneBinder3D owner,
+            HelPhysicsBodyHandle3D handle) {
+            ValidateSceneBinderOwner(owner);
+            RemoveBodyCore(handle);
+        }
+
+        /// <summary>
+        /// Accepts one validated public or owner-coordinated removal into fixed exact-generation storage.
+        /// </summary>
+        /// <param name="handle">Current world-owned body identity to remove.</param>
+        /// <exception cref="InvalidOperationException">Thrown for foreign, stale, released, duplicate-removal, or generation-exhausted handles.</exception>
+        void RemoveBodyCore(HelPhysicsBodyHandle3D handle) {
             ThrowIfFaulted();
             HelPhysicsBodyHandle3D internalHandle = GetRequiredInternalHandle(handle);
             if (BodyRemovalQueued[internalHandle.Index]) {
@@ -561,8 +610,36 @@ namespace helengine {
         /// </summary>
         /// <param name="stepSeconds">Public double duration that must exactly equal <see cref="HelPhysicsWorldSettings3D.FixedStepSeconds"/>.</param>
         /// <exception cref="ArgumentOutOfRangeException">Thrown before mutation when the duration is non-positive, non-finite, or not the configured fixed step.</exception>
-        /// <exception cref="InvalidOperationException">Thrown before mutation when a prior post-mutation failure permanently faulted the world.</exception>
+        /// <exception cref="InvalidOperationException">Thrown before mutation when a scene binder owns this world or a prior post-mutation failure permanently faulted the world.</exception>
         public void Step(double stepSeconds) {
+            if (SceneBinderOwner != null) {
+                throw new InvalidOperationException(
+                    "A HelPhysics world owned by a HelPhysicsSceneBinder3D must be stepped through HelPhysicsSceneBinder3D.Step.");
+            }
+
+            StepCore(stepSeconds);
+        }
+
+        /// <summary>
+        /// Advances the world on behalf of its exclusive scene-binder owner.
+        /// </summary>
+        /// <param name="owner">Exact binder that owns this world's lifecycle operations.</param>
+        /// <param name="stepSeconds">Double duration that must exactly equal the configured fixed step.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="owner"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when <paramref name="owner"/> is not the exact owner or the world cannot step.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown before mutation when the duration is invalid.</exception>
+        internal void StepForSceneBinder(HelPhysicsSceneBinder3D owner, double stepSeconds) {
+            ValidateSceneBinderOwner(owner);
+            StepCore(stepSeconds);
+        }
+
+        /// <summary>
+        /// Executes one fully validated public or owner-coordinated fixed step.
+        /// </summary>
+        /// <param name="stepSeconds">Double duration that must exactly equal the configured fixed step.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown before mutation when the duration is invalid.</exception>
+        /// <exception cref="InvalidOperationException">Thrown before mutation when the world cannot step.</exception>
+        void StepCore(double stepSeconds) {
             ThrowIfFaulted();
             ValidateStepSeconds(stepSeconds);
             if (StepId == int.MaxValue) {
@@ -621,6 +698,20 @@ namespace helengine {
                 firstInternalHandle.Index,
                 secondInternalHandle.Index);
             return ManifoldCache.TryGet(pair, out manifold);
+        }
+
+        /// <summary>
+        /// Validates that one internal lifecycle request comes from the exact binder that claimed this world.
+        /// </summary>
+        /// <param name="owner">Binder reference supplied by the internal caller.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="owner"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when this is unowned or <paramref name="owner"/> is foreign.</exception>
+        void ValidateSceneBinderOwner(HelPhysicsSceneBinder3D owner) {
+            if (owner == null) {
+                throw new ArgumentNullException(nameof(owner));
+            } else if (!ReferenceEquals(SceneBinderOwner, owner)) {
+                throw new InvalidOperationException("Only the exact HelPhysicsSceneBinder3D owner can coordinate this world lifecycle.");
+            }
         }
 
         /// <summary>

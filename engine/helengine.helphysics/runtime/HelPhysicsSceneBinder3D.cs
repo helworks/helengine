@@ -44,6 +44,7 @@ namespace helengine {
             BindingsView = BindingsValue.AsReadOnly();
             NextBindingId = 1;
             Synchronizer = new HelPhysicsEntitySynchronizer3D(this);
+            World.ClaimSceneBinderOwnership(this);
         }
 
         /// <summary>
@@ -140,7 +141,7 @@ namespace helengine {
             HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
             HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
             if (!snapshot.IsRemovalPending) {
-                World.RemoveBody(binding.BodyHandle);
+                World.RemoveBodyForSceneBinder(this, binding.BodyHandle);
             }
 
             InvalidateBinding(bindingIndex, true);
@@ -166,7 +167,7 @@ namespace helengine {
 
             HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
             if (!snapshot.IsRemovalPending) {
-                World.RemoveBody(binding.BodyHandle);
+                World.RemoveBodyForSceneBinder(this, binding.BodyHandle);
             }
 
             InvalidateBinding(bindingIndex, false);

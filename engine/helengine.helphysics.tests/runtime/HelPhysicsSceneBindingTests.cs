@@ -459,25 +459,23 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Ensures another binder sharing the world rejects entity ownership before consuming the remaining body reservation.
+        /// Ensures a world rejects a second scene-binder owner before any entity or body reservation can occur.
         /// </summary>
         [Fact]
         public void BindHierarchy_FromSecondBinderSharingWorld_RejectsOwnedEntityBeforeReservation() {
             Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateTwoBodyWorldSettings());
             HelPhysicsSceneBinder3D firstBinder = new HelPhysicsSceneBinder3D(world);
-            HelPhysicsSceneBinder3D secondBinder = new HelPhysicsSceneBinder3D(world);
             firstBinder.BindHierarchy(entity);
             HelPhysicsEntityBinding3D firstBinding = Assert.Single(firstBinder.Bindings);
 
-            Assert.Throws<InvalidOperationException>(() => secondBinder.BindHierarchy(entity));
+            Assert.Throws<InvalidOperationException>(() => new HelPhysicsSceneBinder3D(world));
 
             Assert.Same(firstBinding, Assert.Single(firstBinder.Bindings));
             Assert.True(firstBinding.IsValid);
-            Assert.Empty(secondBinder.Bindings);
             Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
-            secondBinder.BindHierarchy(secondEntity);
-            Assert.Single(secondBinder.Bindings);
+            firstBinder.BindHierarchy(secondEntity);
+            Assert.Equal(2, firstBinder.Bindings.Count);
         }
 
         /// <summary>
@@ -561,7 +559,7 @@ namespace helengine {
                 PhysicsVector3.Zero,
                 PhysicsVector3.Zero));
 
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.World.StepForSceneBinder(binder, binder.World.Settings.FixedStepSeconds);
 
             HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
             Assert.Equal(2f, snapshot.Position.X.ToFloat());

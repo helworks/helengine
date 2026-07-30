@@ -15,10 +15,10 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Ensures raw world removal of an active dynamic body reconciles its binding before stepping and write-back.
+        /// Ensures raw world removal cannot mutate a binder-owned dynamic body and explicit unbind remains recoverable.
         /// </summary>
         [Fact]
-        public void Step_AfterRawWorldRemovalOfDynamicBinding_InvalidatesBindingWithoutWriteBackFailure() {
+        public void RawWorldRemove_OnBinderOwnedDynamicBody_RejectsBeforeMutationAndUnbindSucceeds() {
             Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 1));
             binder.BindHierarchy(entity);
@@ -26,78 +26,106 @@ namespace helengine {
             HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
             HelPhysicsBodyHandle3D staleHandle = binding.BodyHandle;
 
-            binder.World.RemoveBody(staleHandle);
-            Assert.True(binding.GetBodySnapshot().IsRemovalPending);
-            binder.Step();
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => binder.World.RemoveBody(staleHandle));
 
+            Assert.Contains(nameof(HelPhysicsSceneBinder3D), exception.Message);
+            Assert.True(binding.IsValid);
+            Assert.False(binding.GetBodySnapshot().IsRemovalPending);
+            binder.Unbind(entity);
             Assert.False(binding.IsValid);
             Assert.Empty(binder.Bindings);
-            Assert.Equal(2, entity.Components.Count);
+            binder.Step();
             Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
         }
 
         /// <summary>
-        /// Ensures raw world removal of an active kinematic body reconciles its binding before pre-step input synchronization.
+        /// Ensures raw lifecycle operations cannot strand an active kinematic binding and binder lifecycle remains usable.
         /// </summary>
         [Fact]
-        public void Step_AfterRawWorldRemovalOfKinematicBinding_InvalidatesBindingWithoutInputFailure() {
+        public void RawWorldLifecycle_OnBinderOwnedKinematicBody_RejectsAndBinderRemainsRecoverable() {
             Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Kinematic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 1));
             binder.BindHierarchy(entity);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
-            HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
-            HelPhysicsBodyHandle3D staleHandle = binding.BodyHandle;
-
-            binder.World.RemoveBody(staleHandle);
-            Assert.True(binding.GetBodySnapshot().IsRemovalPending);
-            binder.Step();
-
-            Assert.False(binding.IsValid);
-            Assert.Empty(binder.Bindings);
-            Assert.Equal(2, entity.Components.Count);
-            Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
-        }
-
-        /// <summary>
-        /// Ensures explicit unbind accepts an exact removal already queued through the public world without duplicate queueing.
-        /// </summary>
-        [Fact]
-        public void Unbind_AfterRawWorldRemoval_InvalidatesBindingWithoutDuplicateRemoval() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
-            HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 1));
-            binder.BindHierarchy(entity);
             binder.Step();
             HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
             HelPhysicsBodyHandle3D staleHandle = binding.BodyHandle;
-            binder.World.RemoveBody(staleHandle);
+            HelPhysicsBodySnapshot3D before = binding.GetBodySnapshot();
 
+            Assert.Throws<InvalidOperationException>(() => binder.World.RemoveBody(staleHandle));
+            Assert.Throws<InvalidOperationException>(() => binder.World.Step(binder.World.Settings.FixedStepSeconds));
+
+            Assert.True(binding.IsValid);
+            AssertBodyPoseEqual(before, binding.GetBodySnapshot());
+            binder.Step();
             binder.Unbind(entity);
-
+            binder.Step();
             Assert.False(binding.IsValid);
             Assert.Empty(binder.Bindings);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
             Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
         }
 
         /// <summary>
-        /// Ensures entity disposal accepts an exact removal already queued through the public world without stranding lifecycle state.
+        /// Ensures raw world stepping cannot activate a pending binder-owned body before scene synchronization.
         /// </summary>
         [Fact]
-        public void DisposeEntity_AfterRawWorldRemoval_InvalidatesBindingWithoutDuplicateRemoval() {
+        public void RawWorldStep_OnBinderOwnedWorld_RejectsBeforeMutationAndBinderStepSucceeds() {
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 1));
+            binder.BindHierarchy(entity);
+            HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => binder.World.Step(binder.World.Settings.FixedStepSeconds));
+
+            Assert.Contains(nameof(HelPhysicsSceneBinder3D), exception.Message);
+            Assert.True(binding.GetBodySnapshot().IsPending);
+            binder.Step();
+            Assert.True(binding.GetBodySnapshot().IsActive);
+        }
+
+        /// <summary>
+        /// Ensures rejected raw lifecycle operations cannot prevent entity disposal from completing exact binder-owned removal.
+        /// </summary>
+        [Fact]
+        public void DisposeEntity_AfterRejectedRawWorldLifecycle_RemovesBindingExactlyOnce() {
             Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 1));
             binder.BindHierarchy(entity);
             binder.Step();
             HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
             HelPhysicsBodyHandle3D staleHandle = binding.BodyHandle;
-            binder.World.RemoveBody(staleHandle);
+
+            Assert.Throws<InvalidOperationException>(() => binder.World.RemoveBody(staleHandle));
+            Assert.Throws<InvalidOperationException>(() => binder.World.Step(binder.World.Settings.FixedStepSeconds));
 
             entity.Dispose();
 
             Assert.False(binding.IsValid);
             Assert.Empty(binder.Bindings);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.Step();
             Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
+        }
+
+        /// <summary>
+        /// Ensures internal lifecycle entry points reject a binder that does not own the target world before mutation.
+        /// </summary>
+        [Fact]
+        public void OwnedWorldLifecycle_WithForeignBinderReference_RejectsBeforeMutation() {
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            HelPhysicsSceneBinder3D owner = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 1));
+            HelPhysicsSceneBinder3D foreign = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 1));
+            owner.BindHierarchy(entity);
+            HelPhysicsEntityBinding3D binding = Assert.Single(owner.Bindings);
+
+            Assert.Throws<InvalidOperationException>(
+                () => owner.World.RemoveBodyForSceneBinder(foreign, binding.BodyHandle));
+            Assert.Throws<InvalidOperationException>(
+                () => owner.World.StepForSceneBinder(foreign, owner.World.Settings.FixedStepSeconds));
+
+            Assert.True(binding.IsValid);
+            Assert.True(binding.GetBodySnapshot().IsPending);
+            owner.Step();
+            Assert.True(binding.GetBodySnapshot().IsActive);
         }
 
         /// <summary>
@@ -156,9 +184,9 @@ namespace helengine {
             Entity second = HelPhysicsTestSceneFactory3D.CreateBoxEntity(new float3(10f, 0f, 0f), float3.One, BodyKind3D.Kinematic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(2, 1));
             binder.BindHierarchy(first);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.World.StepForSceneBinder(binder, binder.World.Settings.FixedStepSeconds);
             binder.BindHierarchy(second);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.World.StepForSceneBinder(binder, binder.World.Settings.FixedStepSeconds);
             HelPhysicsEntityBinding3D firstBinding = binder.GetBinding(first);
             HelPhysicsEntityBinding3D secondBinding = binder.GetBinding(second);
             HelPhysicsBodySnapshot3D firstBefore = firstBinding.GetBodySnapshot();
@@ -186,9 +214,9 @@ namespace helengine {
             RigidBody3DComponent secondRigidBody = Assert.IsType<RigidBody3DComponent>(second.Components[0]);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(2, 2));
             binder.BindHierarchy(first);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.World.StepForSceneBinder(binder, binder.World.Settings.FixedStepSeconds);
             binder.BindHierarchy(second);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.World.StepForSceneBinder(binder, binder.World.Settings.FixedStepSeconds);
             HelPhysicsEntityBinding3D firstBinding = binder.GetBinding(first);
             HelPhysicsEntityBinding3D secondBinding = binder.GetBinding(second);
             HelPhysicsBodySnapshot3D firstBefore = firstBinding.GetBodySnapshot();
@@ -221,7 +249,7 @@ namespace helengine {
             RigidBody3DComponent rigidBody = Assert.IsType<RigidBody3DComponent>(entity.Components[0]);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 2));
             binder.BindHierarchy(entity);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.Step();
             HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
             HelPhysicsBodySnapshot3D before = binding.GetBodySnapshot();
             rigidBody.BodyKind = replacementKind;
@@ -232,7 +260,7 @@ namespace helengine {
             AssertBodyPoseEqual(before, binding.GetBodySnapshot());
             Assert.True(binding.IsValid);
             binder.Unbind(entity);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.Step();
             Assert.False(binding.IsValid);
         }
 
@@ -251,7 +279,7 @@ namespace helengine {
             BoxCollider3DComponent originalCollider = Assert.IsType<BoxCollider3DComponent>(entity.Components[1]);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 2));
             binder.BindHierarchy(entity);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.Step();
             HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
             HelPhysicsBodySnapshot3D before = binding.GetBodySnapshot();
             if (componentKind == "rigid-body-removed") {
@@ -272,7 +300,7 @@ namespace helengine {
             AssertBodyPoseEqual(before, binding.GetBodySnapshot());
             Assert.True(binding.IsValid);
             binder.Unbind(entity);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.Step();
             Assert.False(binding.IsValid);
         }
 
@@ -292,7 +320,7 @@ namespace helengine {
             parent.AddChild(entity);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 2));
             binder.BindHierarchy(parent);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.Step();
             HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
             HelPhysicsBodySnapshot3D before = binding.GetBodySnapshot();
             float3 localPositionBefore = entity.LocalPosition;
@@ -318,7 +346,7 @@ namespace helengine {
             parent.AddChild(entity);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSettings(1, 2));
             binder.BindHierarchy(parent);
-            binder.World.Step(binder.World.Settings.FixedStepSeconds);
+            binder.Step();
             HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
             HelPhysicsBodySnapshot3D before = binding.GetBodySnapshot();
             float3 localPositionBefore = entity.LocalPosition;

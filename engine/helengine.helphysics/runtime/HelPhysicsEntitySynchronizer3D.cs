@@ -58,7 +58,7 @@ namespace helengine {
         /// </summary>
         public void Step() {
             SynchronizeBeforeStep();
-            Binder.World.Step(Binder.World.Settings.FixedStepSeconds);
+            Binder.World.StepForSceneBinder(Binder, Binder.World.Settings.FixedStepSeconds);
             SynchronizeAfterStep();
         }
 
