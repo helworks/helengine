@@ -237,6 +237,42 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a pointer press on a numeric value field resolves to the textbox instead of the overlay surface.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerPressesNearPlaneValueTextBox_FocusesTextBox() {
+            TestInputBackend inputManager = InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.Size = new int2(400, 280);
+            InvokePrivateMethod(viewport, "UpdateViewport");
+            EditorEntity uiCameraEntity = new EditorEntity();
+            CameraComponent uiCamera = new CameraComponent {
+                LayerMask = EditorLayerMasks.EditorUi,
+                CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi,
+                Viewport = new float4(0f, 0f, 640f, 480f)
+            };
+            uiCameraEntity.AddComponent(uiCamera);
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+            overlayComponent.Open();
+
+            TextBoxComponent valueTextBox = overlayComponent.NearPlaneValueTextBox;
+            int pointerX = (int)Math.Round(valueTextBox.Parent.Position.X + 4f);
+            int pointerY = (int)Math.Round(valueTextBox.Parent.Position.Y + 8f);
+            InteractableComponent textBoxInteractable = GetPrivateField<InteractableComponent>(valueTextBox, "interactableComponent");
+            IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
+                Core.Instance.ObjectManager.Interactables,
+                Core.Instance.ObjectManager.Drawables2D,
+                uiCamera,
+                pointerX,
+                pointerY);
+            Assert.Same(textBoxInteractable, hit);
+            AdvanceInputFrame(inputManager, CreateMouseState(pointerX, pointerY, ButtonState.Released));
+            AdvanceInputFrame(inputManager, CreateMouseState(pointerX, pointerY, ButtonState.Pressed));
+
+            Assert.True(valueTextBox.IsFocused);
+        }
+
+        /// <summary>
         /// Ensures clicking outside the overlay closes it and returns focus to the settings button.
         /// </summary>
         [Fact]
@@ -304,6 +340,67 @@ namespace helengine.editor.tests {
             overlayComponent.NearPlaneSlider.SetValue(0.75);
 
             Assert.Equal(0.75f, viewport.Camera.NearPlaneDistance, 3);
+        }
+
+        /// <summary>
+        /// Ensures committing a valid typed near-plane value updates the camera through the slider state.
+        /// </summary>
+        [Fact]
+        public void SubmitNearPlaneValueTextBox_WhenTextIsValid_UpdatesCameraImmediately() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+
+            overlayComponent.Open();
+            overlayComponent.NearPlaneValueTextBox.IsFocused = true;
+            overlayComponent.NearPlaneValueTextBox.Text = "0.75";
+            overlayComponent.NearPlaneValueTextBox.IsFocused = false;
+
+            Assert.Equal(0.75f, viewport.Camera.NearPlaneDistance, 3);
+            Assert.Equal("0.75", overlayComponent.NearPlaneValueTextBox.Text);
+        }
+
+        /// <summary>
+        /// Ensures committing an invalid typed value restores the current formatted near-plane value.
+        /// </summary>
+        [Fact]
+        public void SubmitNearPlaneValueTextBox_WhenTextIsInvalid_RestoresCurrentCameraValue() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+
+            overlayComponent.Open();
+            overlayComponent.NearPlaneValueTextBox.IsFocused = true;
+            overlayComponent.NearPlaneValueTextBox.Text = "invalid";
+            overlayComponent.NearPlaneValueTextBox.IsFocused = false;
+
+            Assert.Equal(0.1f, viewport.Camera.NearPlaneDistance, 3);
+            Assert.Equal("0.1", overlayComponent.NearPlaneValueTextBox.Text);
+        }
+
+        /// <summary>
+        /// Ensures each remaining viewport settings numeric input commits through its corresponding slider.
+        /// </summary>
+        [Fact]
+        public void SubmitOtherValueTextBoxes_WhenTextIsValid_UpdatesCorrespondingViewportSettings() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+
+            overlayComponent.Open();
+            overlayComponent.PixelsPerWorldUnitValueTextBox.IsFocused = true;
+            overlayComponent.PixelsPerWorldUnitValueTextBox.Text = "250";
+            overlayComponent.PixelsPerWorldUnitValueTextBox.IsFocused = false;
+            overlayComponent.FarPlaneValueTextBox.IsFocused = true;
+            overlayComponent.FarPlaneValueTextBox.Text = "750";
+            overlayComponent.FarPlaneValueTextBox.IsFocused = false;
+            overlayComponent.ManualCameraSpeedValueTextBox.IsFocused = true;
+            overlayComponent.ManualCameraSpeedValueTextBox.Text = "8";
+            overlayComponent.ManualCameraSpeedValueTextBox.IsFocused = false;
+
+            Assert.Equal(250, viewport.CanvasPreviewSettings.PixelsPerWorldUnit);
+            Assert.Equal(750f, viewport.Camera.FarPlaneDistance, 3);
+            Assert.Equal(8.0, viewport.ManualCameraSpeedOverride, 3);
         }
 
         /// <summary>

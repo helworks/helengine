@@ -142,25 +142,25 @@ namespace helengine.editor {
         /// </summary>
         TextComponent PixelsPerWorldUnitLabelText;
         /// <summary>
-        /// Value text for the pixels-per-world-unit slider row.
+        /// Numeric input used to edit the pixels-per-world-unit slider row.
         /// </summary>
-        TextComponent PixelsPerWorldUnitValueText;
+        TextBoxComponent PixelsPerWorldUnitValueTextBoxInternal;
         /// <summary>
         /// Label text for the near-plane slider row.
         /// </summary>
         TextComponent NearPlaneLabelText;
         /// <summary>
-        /// Value text for the near-plane slider row.
+        /// Numeric input used to edit the near-plane slider row.
         /// </summary>
-        TextComponent NearPlaneValueText;
+        TextBoxComponent NearPlaneValueTextBoxInternal;
         /// <summary>
         /// Label text for the far-plane slider row.
         /// </summary>
         TextComponent FarPlaneLabelText;
         /// <summary>
-        /// Value text for the far-plane slider row.
+        /// Numeric input used to edit the far-plane slider row.
         /// </summary>
-        TextComponent FarPlaneValueText;
+        TextBoxComponent FarPlaneValueTextBoxInternal;
         /// <summary>
         /// Label text for the camera speed mode row.
         /// </summary>
@@ -178,9 +178,9 @@ namespace helengine.editor {
         /// </summary>
         TextComponent ManualCameraSpeedLabelText;
         /// <summary>
-        /// Value text for the manual camera speed slider row.
+        /// Numeric input used to edit the manual camera speed slider row.
         /// </summary>
-        TextComponent ManualCameraSpeedValueText;
+        TextBoxComponent ManualCameraSpeedValueTextBoxInternal;
         /// <summary>
         /// Root entity for the close button.
         /// </summary>
@@ -356,14 +356,29 @@ namespace helengine.editor {
         public EditorSlider PixelsPerWorldUnitSlider => PixelsPerWorldUnitSliderInternal;
 
         /// <summary>
+        /// Gets the numeric input that edits the pixels-per-world-unit value.
+        /// </summary>
+        public TextBoxComponent PixelsPerWorldUnitValueTextBox => PixelsPerWorldUnitValueTextBoxInternal;
+
+        /// <summary>
         /// Gets the near-plane slider entity.
         /// </summary>
         public EditorSlider NearPlaneSlider => NearPlaneSliderInternal;
 
         /// <summary>
+        /// Gets the numeric input that edits the near-plane distance.
+        /// </summary>
+        public TextBoxComponent NearPlaneValueTextBox => NearPlaneValueTextBoxInternal;
+
+        /// <summary>
         /// Gets the far-plane slider entity.
         /// </summary>
         public EditorSlider FarPlaneSlider => FarPlaneSliderInternal;
+
+        /// <summary>
+        /// Gets the numeric input that edits the far-plane distance.
+        /// </summary>
+        public TextBoxComponent FarPlaneValueTextBox => FarPlaneValueTextBoxInternal;
         /// <summary>
         /// Gets the checkbox that toggles manual camera speed override mode.
         /// </summary>
@@ -372,6 +387,11 @@ namespace helengine.editor {
         /// Gets the manual camera speed slider entity.
         /// </summary>
         public EditorSlider ManualCameraSpeedSlider => ManualCameraSpeedSliderInternal;
+
+        /// <summary>
+        /// Gets the numeric input that edits the manual camera speed override.
+        /// </summary>
+        public TextBoxComponent ManualCameraSpeedValueTextBox => ManualCameraSpeedValueTextBoxInternal;
 
         /// <summary>
         /// Creates the overlay hierarchy and registers focus targets when attached to one viewport.
@@ -634,14 +654,10 @@ namespace helengine.editor {
             EditorEntity valueRoot = CreateChildRoot();
             OverlayRoot.AddChild(valueRoot);
 
-            PixelsPerWorldUnitValueText = new TextComponent {
-                Font = Font,
-                Text = string.Empty,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(SliderValueWidth, SliderHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
-            };
-            valueRoot.AddComponent(PixelsPerWorldUnitValueText);
+            PixelsPerWorldUnitValueTextBoxInternal = new TextBoxComponent(new int2(SliderValueWidth, SliderHeight), Font);
+            PixelsPerWorldUnitValueTextBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            PixelsPerWorldUnitValueTextBoxInternal.Submitted += HandlePixelsPerWorldUnitValueSubmitted;
+            valueRoot.AddComponent(PixelsPerWorldUnitValueTextBoxInternal);
         }
 
         /// <summary>
@@ -672,14 +688,10 @@ namespace helengine.editor {
             EditorEntity valueRoot = CreateChildRoot();
             OverlayRoot.AddChild(valueRoot);
 
-            NearPlaneValueText = new TextComponent {
-                Font = Font,
-                Text = string.Empty,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(SliderValueWidth, SliderHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
-            };
-            valueRoot.AddComponent(NearPlaneValueText);
+            NearPlaneValueTextBoxInternal = new TextBoxComponent(new int2(SliderValueWidth, SliderHeight), Font);
+            NearPlaneValueTextBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            NearPlaneValueTextBoxInternal.Submitted += HandleNearPlaneValueSubmitted;
+            valueRoot.AddComponent(NearPlaneValueTextBoxInternal);
         }
 
         /// <summary>
@@ -710,14 +722,10 @@ namespace helengine.editor {
             EditorEntity valueRoot = CreateChildRoot();
             OverlayRoot.AddChild(valueRoot);
 
-            FarPlaneValueText = new TextComponent {
-                Font = Font,
-                Text = string.Empty,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(SliderValueWidth, SliderHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
-            };
-            valueRoot.AddComponent(FarPlaneValueText);
+            FarPlaneValueTextBoxInternal = new TextBoxComponent(new int2(SliderValueWidth, SliderHeight), Font);
+            FarPlaneValueTextBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            FarPlaneValueTextBoxInternal.Submitted += HandleFarPlaneValueSubmitted;
+            valueRoot.AddComponent(FarPlaneValueTextBoxInternal);
         }
 
         /// <summary>
@@ -773,14 +781,10 @@ namespace helengine.editor {
             EditorEntity valueRoot = CreateChildRoot();
             OverlayRoot.AddChild(valueRoot);
 
-            ManualCameraSpeedValueText = new TextComponent {
-                Font = Font,
-                Text = string.Empty,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(SliderValueWidth, SliderHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
-            };
-            valueRoot.AddComponent(ManualCameraSpeedValueText);
+            ManualCameraSpeedValueTextBoxInternal = new TextBoxComponent(new int2(SliderValueWidth, SliderHeight), Font);
+            ManualCameraSpeedValueTextBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ManualCameraSpeedValueTextBoxInternal.Submitted += HandleManualCameraSpeedValueSubmitted;
+            valueRoot.AddComponent(ManualCameraSpeedValueTextBoxInternal);
         }
 
         /// <summary>
@@ -963,11 +967,11 @@ namespace helengine.editor {
             int closeY = PanelHeight - PanelPadding - CloseButtonHeight;
 
             LayoutGridRow(gridRowY);
-            LayoutSliderRow(PixelsPerWorldUnitSliderInternal, PixelsPerWorldUnitValueText, pixelsPerWorldUnitLabelY, pixelsPerWorldUnitSliderY);
-            LayoutSliderRow(NearPlaneSliderInternal, NearPlaneValueText, nearLabelY, nearSliderY);
-            LayoutSliderRow(FarPlaneSliderInternal, FarPlaneValueText, farLabelY, farSliderY);
+            LayoutSliderRow(PixelsPerWorldUnitSliderInternal, PixelsPerWorldUnitValueTextBoxInternal, pixelsPerWorldUnitLabelY, pixelsPerWorldUnitSliderY);
+            LayoutSliderRow(NearPlaneSliderInternal, NearPlaneValueTextBoxInternal, nearLabelY, nearSliderY);
+            LayoutSliderRow(FarPlaneSliderInternal, FarPlaneValueTextBoxInternal, farLabelY, farSliderY);
             LayoutCameraSpeedModeRow(cameraSpeedModeRowY);
-            LayoutSliderRow(ManualCameraSpeedSliderInternal, ManualCameraSpeedValueText, manualCameraSpeedLabelY, manualCameraSpeedSliderY);
+            LayoutSliderRow(ManualCameraSpeedSliderInternal, ManualCameraSpeedValueTextBoxInternal, manualCameraSpeedLabelY, manualCameraSpeedSliderY);
             LayoutCloseButton(closeY);
         }
 
@@ -1013,11 +1017,11 @@ namespace helengine.editor {
         /// Positions one label, slider, and numeric value row.
         /// </summary>
         /// <param name="slider">Slider entity to position.</param>
-        /// <param name="valueText">Numeric value text paired with the slider.</param>
+        /// <param name="valueTextBox">Numeric value input paired with the slider.</param>
         /// <param name="labelY">Top coordinate of the section label.</param>
         /// <param name="sliderY">Top coordinate of the slider row.</param>
-        void LayoutSliderRow(EditorSlider slider, TextComponent valueText, int labelY, int sliderY) {
-            if (slider == null || valueText == null) {
+        void LayoutSliderRow(EditorSlider slider, TextBoxComponent valueTextBox, int labelY, int sliderY) {
+            if (slider == null || valueTextBox == null) {
                 return;
             }
 
@@ -1037,9 +1041,9 @@ namespace helengine.editor {
             }
 
             slider.Position = new float3(PanelPadding, sliderY, 0.1f);
-            if (valueText.Parent != null) {
+            if (valueTextBox.Parent != null) {
                 int valueX = PanelPadding + SliderWidth + SliderValueSpacing;
-                valueText.Parent.Position = new float3(valueX, sliderY + 1f, 0.1f);
+                valueTextBox.Parent.Position = new float3(valueX, sliderY + 1f, 0.1f);
             }
         }
 
@@ -1337,6 +1341,62 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Commits a typed pixels-per-world-unit value through the existing slider conversion rules.
+        /// </summary>
+        /// <param name="textBox">Text box that submitted the authored value.</param>
+        void HandlePixelsPerWorldUnitValueSubmitted(TextBoxComponent textBox) {
+            if (IsSynchronizingState || !TryParseFiniteNumber(textBox.Text, out double value)) {
+                SynchronizeFromState();
+                return;
+            }
+
+            PixelsPerWorldUnitSliderInternal.SetValue(value);
+            SynchronizeFromState();
+        }
+
+        /// <summary>
+        /// Commits a typed near-plane value through the existing slider clamp rules.
+        /// </summary>
+        /// <param name="textBox">Text box that submitted the authored value.</param>
+        void HandleNearPlaneValueSubmitted(TextBoxComponent textBox) {
+            if (IsSynchronizingState || !TryParseFiniteNumber(textBox.Text, out double value)) {
+                SynchronizeFromState();
+                return;
+            }
+
+            NearPlaneSliderInternal.SetValue(value);
+            SynchronizeFromState();
+        }
+
+        /// <summary>
+        /// Commits a typed far-plane value through the existing slider clamp rules.
+        /// </summary>
+        /// <param name="textBox">Text box that submitted the authored value.</param>
+        void HandleFarPlaneValueSubmitted(TextBoxComponent textBox) {
+            if (IsSynchronizingState || !TryParseFiniteNumber(textBox.Text, out double value)) {
+                SynchronizeFromState();
+                return;
+            }
+
+            FarPlaneSliderInternal.SetValue(value);
+            SynchronizeFromState();
+        }
+
+        /// <summary>
+        /// Commits a typed manual camera speed value through the existing slider clamp rules.
+        /// </summary>
+        /// <param name="textBox">Text box that submitted the authored value.</param>
+        void HandleManualCameraSpeedValueSubmitted(TextBoxComponent textBox) {
+            if (IsSynchronizingState || !TryParseFiniteNumber(textBox.Text, out double value)) {
+                SynchronizeFromState();
+                return;
+            }
+
+            ManualCameraSpeedSliderInternal.SetValue(value);
+            SynchronizeFromState();
+        }
+
+        /// <summary>
         /// Synchronizes overlay control state, slider positions, and numeric readouts from the current viewport state.
         /// </summary>
         void SynchronizeFromState() {
@@ -1403,20 +1463,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates the viewport-local preview and clip-plane numeric value readouts from current state.
+        /// Updates the viewport-local preview and clip-plane numeric inputs from current state.
         /// </summary>
         void UpdateSliderValueTexts() {
-            if (PixelsPerWorldUnitValueText != null) {
-                PixelsPerWorldUnitValueText.Text = FormatIntegerValue(CanvasPreviewSettings.PixelsPerWorldUnit);
+            if (PixelsPerWorldUnitValueTextBoxInternal != null) {
+                PixelsPerWorldUnitValueTextBoxInternal.Text = FormatIntegerValue(CanvasPreviewSettings.PixelsPerWorldUnit);
             }
-            if (NearPlaneValueText != null) {
-                NearPlaneValueText.Text = FormatDistance(Camera.NearPlaneDistance);
+            if (NearPlaneValueTextBoxInternal != null) {
+                NearPlaneValueTextBoxInternal.Text = FormatDistance(Camera.NearPlaneDistance);
             }
-            if (FarPlaneValueText != null) {
-                FarPlaneValueText.Text = FormatDistance(Camera.FarPlaneDistance);
+            if (FarPlaneValueTextBoxInternal != null) {
+                FarPlaneValueTextBoxInternal.Text = FormatDistance(Camera.FarPlaneDistance);
             }
-            if (ManualCameraSpeedValueText != null) {
-                ManualCameraSpeedValueText.Text = FormatDistance(OwnerViewport.ManualCameraSpeedOverride);
+            if (ManualCameraSpeedValueTextBoxInternal != null) {
+                ManualCameraSpeedValueTextBoxInternal.Text = FormatDistance(OwnerViewport.ManualCameraSpeedOverride);
             }
         }
 
@@ -1572,6 +1632,21 @@ namespace helengine.editor {
                 LayerMask = OverlayLayerMask,
                 Position = float3.Zero
             };
+        }
+
+        /// <summary>
+        /// Parses one invariant-culture numeric input and rejects non-finite values.
+        /// </summary>
+        /// <param name="text">Authored text to parse.</param>
+        /// <param name="value">Parsed finite value when parsing succeeds.</param>
+        /// <returns>True when the text represents one finite numeric value.</returns>
+        bool TryParseFiniteNumber(string text, out double value) {
+            return double.TryParse(
+                text,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value)
+                && double.IsFinite(value);
         }
 
         /// <summary>
