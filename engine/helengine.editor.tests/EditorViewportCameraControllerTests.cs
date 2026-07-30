@@ -349,7 +349,9 @@ namespace helengine.editor.tests {
         /// <returns>Input manager used by the current test.</returns>
         TestInputBackend InitializeCore() {
             EditorInputCaptureService.Reset();
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
             TestInputBackend input = new TestInputBackend();
             core.InputSystem.SetMouseClientBounds(new int2(500, 400));
             core.Initialize(null, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
