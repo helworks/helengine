@@ -48,11 +48,38 @@ namespace helengine.editor.tests.components.ui {
         }
 
         /// <summary>
+        /// Ensures transform-gizmo axis labels do not refresh while their viewport camera owns an active drag.
+        /// </summary>
+        [Fact]
+        public void ShouldRefreshAxisLabels_WhenTranslationGizmoIsDragging_ReturnsFalse() {
+            InitializeCore();
+            CameraComponent sceneCamera = new CameraComponent();
+            EditorViewportCameraAngleOverlayComponent overlayComponent = new EditorViewportCameraAngleOverlayComponent(
+                sceneCamera,
+                CreateTestFont(),
+                0,
+                false);
+
+            EditorGizmoDragService.BeginDrag(sceneCamera, new EditorEntity());
+            try {
+                bool shouldRefresh = InvokeShouldRefreshAxisLabels(overlayComponent);
+
+                Assert.False(shouldRefresh);
+            } finally {
+                EditorGizmoDragService.EndDrag(sceneCamera);
+            }
+
+            Assert.True(InvokeShouldRefreshAxisLabels(overlayComponent));
+        }
+
+        /// <summary>
         /// Initializes a fresh core so camera components can be constructed in isolation tests.
         /// </summary>
         static void InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, null, new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            core.Initialize(null, null, new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
         }
 
         /// <summary>
@@ -117,6 +144,25 @@ namespace helengine.editor.tests.components.ui {
             object result = method.Invoke(overlayComponent, new object[] { axisDirection }) ??
                             throw new InvalidOperationException("BuildAxisLabel returned null.");
             return (string)result;
+        }
+
+        /// <summary>
+        /// Invokes the overlay component's private axis-label refresh gate.
+        /// </summary>
+        /// <param name="overlayComponent">Overlay component to inspect.</param>
+        /// <returns>True when labels may apply a newly resolved state.</returns>
+        static bool InvokeShouldRefreshAxisLabels(EditorViewportCameraAngleOverlayComponent overlayComponent) {
+            if (overlayComponent == null) {
+                throw new ArgumentNullException(nameof(overlayComponent));
+            }
+
+            MethodInfo method = typeof(EditorViewportCameraAngleOverlayComponent).GetMethod(
+                "ShouldRefreshAxisLabels",
+                BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new InvalidOperationException("Expected ShouldRefreshAxisLabels method.");
+
+            object result = method.Invoke(overlayComponent, null) ??
+                            throw new InvalidOperationException("ShouldRefreshAxisLabels returned null.");
+            return (bool)result;
         }
 
         /// <summary>

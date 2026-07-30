@@ -378,7 +378,9 @@ namespace helengine.editor.tests.managers.gizmo {
         TestInputBackend InitializeCore() {
             Core core = new Core();
             var input = new TestInputBackend();
-            core.Initialize(null, null, input, new PlatformInfo("test", "test-version"));
+            core.Initialize(null, null, input, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
             return input;
         }
 

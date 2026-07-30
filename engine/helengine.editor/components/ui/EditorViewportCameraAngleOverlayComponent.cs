@@ -464,6 +464,10 @@ namespace helengine.editor {
                 return;
             }
 
+            if (!ShouldRefreshAxisLabels()) {
+                return;
+            }
+
             float3 cameraForward = NormalizeDirection(float4.RotateVector(ForwardAxis, cameraEntity.Orientation));
             float3 cameraUp = NormalizeDirection(float4.RotateVector(UpAxis, cameraEntity.Orientation));
             if (cameraForward == float3.Zero || cameraUp == float3.Zero) {
@@ -495,6 +499,14 @@ namespace helengine.editor {
             }
 
             SetAxisLabelsVisible(true);
+        }
+
+        /// <summary>
+        /// Determines whether the axis-label billboards may apply a newly resolved model or transform this frame.
+        /// </summary>
+        /// <returns>True when no transform-gizmo drag is active for this viewport camera.</returns>
+        bool ShouldRefreshAxisLabels() {
+            return !EditorGizmoDragService.IsDragging(SceneCamera);
         }
 
         /// <summary>
