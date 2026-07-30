@@ -271,6 +271,82 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Verifies that solved writeback replaces only impulses while retaining the cache's current geometry and contact lifetime.
+        /// </summary>
+        [Fact]
+        public void StoreSolved_WithMatchingSameStepManifold_ReplacesOnlySolvedImpulses() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(2, 5);
+            HelPhysicsContactManifold3D cachedManifold = CreateManifold(CreateContact(81u, 1f, 0.1f, 0.2f, 0.3f));
+            HelPhysicsContactPoint3D cachedContact = cachedManifold.GetContact(0);
+            cachedContact.PreviousStepLifetime = 7;
+            cachedManifold.SetContact(0, in cachedContact);
+            cache.Update(pair, ref cachedManifold, 12);
+            HelPhysicsContactManifold3D solvedManifold = CreateManifold(CreateContact(81u, 9f, 0.4f, 0.5f, 0.6f));
+            HelPhysicsContactPoint3D solvedContact = solvedManifold.GetContact(0);
+            solvedContact.AccumulatedNormalImpulse = PhysicsScalar.FromFloat(6f);
+            solvedContact.AccumulatedTangentImpulse0 = PhysicsScalar.FromFloat(-2f);
+            solvedContact.AccumulatedTangentImpulse1 = PhysicsScalar.FromFloat(3f);
+            solvedContact.PreviousStepLifetime = 99;
+            solvedManifold.SetContact(0, in solvedContact);
+
+            cache.StoreSolved(pair, ref solvedManifold, 12);
+
+            Assert.True(cache.TryGet(pair, out HelPhysicsContactManifold3D retainedManifold));
+            HelPhysicsContactPoint3D retainedContact = retainedManifold.GetContact(0);
+            Assert.Equal(PhysicsScalar.FromFloat(6f), retainedContact.AccumulatedNormalImpulse);
+            Assert.Equal(PhysicsScalar.FromFloat(-2f), retainedContact.AccumulatedTangentImpulse0);
+            Assert.Equal(PhysicsScalar.FromFloat(3f), retainedContact.AccumulatedTangentImpulse1);
+            Assert.Equal(PhysicsScalar.FromFloat(1f), retainedContact.Position.X);
+            Assert.Equal(PhysicsScalar.FromFloat(0.1f), retainedContact.LocalAnchorA.X);
+            Assert.Equal(PhysicsScalar.FromFloat(0.3f), retainedContact.LocalAnchorB.X);
+            Assert.Equal(7, retainedContact.PreviousStepLifetime);
+        }
+
+        /// <summary>
+        /// Verifies that solved writeback cannot create a cache entry or update a pair retained by a different simulation step.
+        /// </summary>
+        [Fact]
+        public void StoreSolved_WithoutExistingSameStepPair_ThrowsRequiredStateException() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D retainedPair = new HelPhysicsPairKey3D(1, 2);
+            HelPhysicsPairKey3D missingPair = new HelPhysicsPairKey3D(3, 4);
+            HelPhysicsContactManifold3D manifold = CreateManifold(CreateContact(82u, 0f, 0f, 0f, 0f));
+            cache.Update(retainedPair, ref manifold, 4);
+
+            Assert.Throws<KeyNotFoundException>(() => cache.StoreSolved(missingPair, ref manifold, 4));
+            Assert.Throws<InvalidOperationException>(() => cache.StoreSolved(retainedPair, ref manifold, 5));
+        }
+
+        /// <summary>
+        /// Verifies that solved writeback rejects a changed contact count before any cached impulse can be replaced.
+        /// </summary>
+        [Fact]
+        public void StoreSolved_WithChangedContactCount_ThrowsInvalidOperationException() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(1, 2);
+            HelPhysicsContactManifold3D cachedManifold = CreateManifold(CreateContact(83u, 0f, 0f, 0f, 0f));
+            cache.Update(pair, ref cachedManifold, 6);
+            HelPhysicsContactManifold3D solvedManifold = default;
+
+            Assert.Throws<InvalidOperationException>(() => cache.StoreSolved(pair, ref solvedManifold, 6));
+        }
+
+        /// <summary>
+        /// Verifies that solved writeback rejects changed feature provenance before any cached impulse can be replaced.
+        /// </summary>
+        [Fact]
+        public void StoreSolved_WithChangedContactFeature_ThrowsInvalidOperationException() {
+            HelPhysicsManifoldCache3D cache = new HelPhysicsManifoldCache3D(4);
+            HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(1, 2);
+            HelPhysicsContactManifold3D cachedManifold = CreateManifold(CreateContact(84u, 0f, 0f, 0f, 0f));
+            cache.Update(pair, ref cachedManifold, 7);
+            HelPhysicsContactManifold3D solvedManifold = CreateManifold(CreateContact(85u, 0f, 0f, 0f, 0f));
+
+            Assert.Throws<InvalidOperationException>(() => cache.StoreSolved(pair, ref solvedManifold, 7));
+        }
+
+        /// <summary>
         /// Verifies that successful cache hot-path operations reuse the constructor-owned table without managed allocations.
         /// </summary>
         [Fact]
@@ -279,6 +355,7 @@ namespace helengine {
             HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(1, 2);
             HelPhysicsContactManifold3D manifold = CreateManifold(CreateContact(71u, 0f, 0f, 0f, 0f));
             cache.Update(pair, ref manifold, 1);
+            cache.StoreSolved(pair, ref manifold, 1);
             cache.TryGet(pair, out HelPhysicsContactManifold3D warmedManifold);
             cache.Touch(pair, 1);
             cache.RemoveUntouched(1);
@@ -286,6 +363,7 @@ namespace helengine {
             long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
             for (int stepId = 2; stepId < 1026; stepId++) {
                 cache.Update(pair, ref manifold, stepId);
+                cache.StoreSolved(pair, ref manifold, stepId);
                 cache.TryGet(pair, out HelPhysicsContactManifold3D foundManifold);
                 cache.Touch(pair, stepId);
                 cache.RemoveUntouched(stepId);

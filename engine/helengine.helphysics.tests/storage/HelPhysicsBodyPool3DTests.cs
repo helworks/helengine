@@ -88,15 +88,104 @@ namespace helengine {
             Assert.Equal(expectedState.Position.Z, storedState.Position.Z);
             Assert.Equal(expectedState.Orientation.W, storedState.Orientation.W);
             Assert.Equal(expectedState.InverseMass, storedState.InverseMass);
+            Assert.Equal(expectedState.AccumulatedForce.X, storedState.AccumulatedForce.X);
+            Assert.Equal(expectedState.AccumulatedForce.Y, storedState.AccumulatedForce.Y);
+            Assert.Equal(expectedState.AccumulatedForce.Z, storedState.AccumulatedForce.Z);
+            Assert.Equal(expectedState.AccumulatedTorque.X, storedState.AccumulatedTorque.X);
+            Assert.Equal(expectedState.AccumulatedTorque.Y, storedState.AccumulatedTorque.Y);
+            Assert.Equal(expectedState.AccumulatedTorque.Z, storedState.AccumulatedTorque.Z);
             Assert.True(storedState.IsOccupied);
             Assert.Equal(expectedColdState.ShapeHandle.Index, storedColdState.ShapeHandle.Index);
             Assert.Equal(expectedColdState.ShapeHandle.Generation, storedColdState.ShapeHandle.Generation);
             Assert.Equal(expectedColdState.BodyKind, storedColdState.BodyKind);
-            Assert.Equal(expectedColdState.MaterialIndex, storedColdState.MaterialIndex);
+            Assert.Equal(expectedColdState.Material.StaticFriction, storedColdState.Material.StaticFriction);
+            Assert.Equal(expectedColdState.Material.DynamicFriction, storedColdState.Material.DynamicFriction);
+            Assert.Equal(expectedColdState.Material.Restitution, storedColdState.Material.Restitution);
             Assert.Equal(expectedColdState.CollisionLayer, storedColdState.CollisionLayer);
             Assert.Equal(expectedColdState.CollisionMask, storedColdState.CollisionMask);
             Assert.Equal(expectedColdState.EntityBindingId, storedColdState.EntityBindingId);
             Assert.Equal(1, pool.ActiveCount);
+        }
+
+        /// <summary>
+        /// Verifies that fixed-index access exposes pool capacity and the live occupant without synthesizing a generational handle.
+        /// </summary>
+        [Fact]
+        public void FixedIndexAccess_WithLiveBody_ReturnsStoredHotAndColdState() {
+            HelPhysicsBodyPool3D pool = new HelPhysicsBodyPool3D(3);
+            HelPhysicsBodyState3D expectedState = CreateDynamicState();
+            HelPhysicsBodyColdState3D expectedColdState = CreateDynamicColdState();
+            HelPhysicsBodyHandle3D handle = pool.Allocate(expectedState, expectedColdState);
+
+            ref HelPhysicsBodyState3D storedState = ref pool.GetRequiredStateByIndex(handle.Index);
+            ref HelPhysicsBodyColdState3D storedColdState = ref pool.GetRequiredColdStateByIndex(handle.Index);
+
+            Assert.Equal(3, pool.Capacity);
+            Assert.True(pool.IsOccupied(handle.Index));
+            Assert.Equal(PhysicsScalar.FromFloat(0.5f), storedState.InverseMass);
+            Assert.Equal(PhysicsScalar.FromFloat(0.7f), storedColdState.Material.StaticFriction);
+        }
+
+        /// <summary>
+        /// Verifies that fixed-index occupancy reports a released in-range slot without treating it as a live body.
+        /// </summary>
+        [Fact]
+        public void IsOccupied_AfterRelease_ReturnsFalse() {
+            HelPhysicsBodyPool3D pool = new HelPhysicsBodyPool3D(1);
+            HelPhysicsBodyHandle3D handle = pool.Allocate(CreateDynamicState(), CreateDynamicColdState());
+
+            pool.Release(handle);
+
+            Assert.False(pool.IsOccupied(handle.Index));
+            Assert.Throws<InvalidOperationException>(() => pool.GetRequiredStateByIndex(handle.Index));
+            Assert.Throws<InvalidOperationException>(() => pool.GetRequiredColdStateByIndex(handle.Index));
+        }
+
+        /// <summary>
+        /// Verifies that every fixed-index body-pool API rejects indices outside its constructor-owned storage.
+        /// </summary>
+        [Fact]
+        public void FixedIndexAccess_WhenIndexIsOutsideCapacity_ThrowsArgumentOutOfRangeException() {
+            HelPhysicsBodyPool3D pool = new HelPhysicsBodyPool3D(1);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => pool.IsOccupied(-1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => pool.IsOccupied(1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => pool.GetRequiredStateByIndex(-1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => pool.GetRequiredColdStateByIndex(1));
+        }
+
+        /// <summary>
+        /// Verifies that a material preserves independently authored static friction, dynamic friction, and restitution coefficients.
+        /// </summary>
+        [Fact]
+        public void Material_WithValidCoefficients_StoresEveryCoefficient() {
+            HelPhysicsMaterial3D material = new HelPhysicsMaterial3D(
+                PhysicsScalar.FromFloat(0.7f),
+                PhysicsScalar.FromFloat(0.4f),
+                PhysicsScalar.FromFloat(0.25f));
+
+            Assert.Equal(PhysicsScalar.FromFloat(0.7f), material.StaticFriction);
+            Assert.Equal(PhysicsScalar.FromFloat(0.4f), material.DynamicFriction);
+            Assert.Equal(PhysicsScalar.FromFloat(0.25f), material.Restitution);
+        }
+
+        /// <summary>
+        /// Verifies that material construction rejects negative friction and restitution outside its physical coefficient range.
+        /// </summary>
+        [Fact]
+        public void Material_WithInvalidCoefficient_ThrowsArgumentOutOfRangeException() {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new HelPhysicsMaterial3D(
+                PhysicsScalar.FromFloat(-0.1f),
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new HelPhysicsMaterial3D(
+                PhysicsScalar.Zero,
+                PhysicsScalar.FromFloat(-0.1f),
+                PhysicsScalar.Zero));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new HelPhysicsMaterial3D(
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.FromFloat(1.1f)));
         }
 
         /// <summary>
@@ -165,6 +254,8 @@ namespace helengine {
                 Orientation = PhysicsQuaternion.Identity,
                 LinearVelocity = new PhysicsVector3(4f, 5f, 6f),
                 AngularVelocity = new PhysicsVector3(7f, 8f, 9f),
+                AccumulatedForce = new PhysicsVector3(10f, 11f, 12f),
+                AccumulatedTorque = new PhysicsVector3(13f, 14f, 15f),
                 InverseMass = PhysicsScalar.FromFloat(0.5f),
                 LocalInverseInertia = PhysicsMatrix3x3.Identity,
                 GravityScale = PhysicsScalar.One,
@@ -183,7 +274,10 @@ namespace helengine {
             return new HelPhysicsBodyColdState3D {
                 ShapeHandle = new HelPhysicsShapeHandle3D(7, 11),
                 BodyKind = BodyKind3D.Dynamic,
-                MaterialIndex = 13,
+                Material = new HelPhysicsMaterial3D(
+                    PhysicsScalar.FromFloat(0.7f),
+                    PhysicsScalar.FromFloat(0.4f),
+                    PhysicsScalar.FromFloat(0.25f)),
                 CollisionLayer = 17,
                 CollisionMask = 19,
                 EntityBindingId = 23

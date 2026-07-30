@@ -14,9 +14,9 @@ namespace helengine {
         public BodyKind3D BodyKind;
 
         /// <summary>
-        /// Stores the compact material identity resolved by a later material table.
+        /// Stores validated contact-response coefficients without requiring a runtime material lookup.
         /// </summary>
-        public ushort MaterialIndex;
+        public HelPhysicsMaterial3D Material;
 
         /// <summary>
         /// Stores the collision layer this body belongs to.

@@ -93,6 +93,47 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Replaces solved impulses on an existing same-step manifold while preserving its retained geometry and lifecycle state.
+        /// </summary>
+        /// <param name="pair">Canonicalizable unordered body pair whose retained manifold was solved.</param>
+        /// <param name="manifold">Current manifold containing final normal and tangent impulses in matching contact order.</param>
+        /// <param name="stepId">Simulation step that previously updated the retained pair.</param>
+        /// <exception cref="KeyNotFoundException">Thrown when <paramref name="pair"/> does not own an occupied cache slot.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the retained step, contact count, or ordered contact features do not match.</exception>
+        public void StoreSolved(HelPhysicsPairKey3D pair, ref HelPhysicsContactManifold3D manifold, int stepId) {
+            int entryIndex = FindExistingEntryIndex(pair);
+            if (entryIndex < 0) {
+                throw new KeyNotFoundException("Only a retained manifold pair can store solved impulses.");
+            }
+
+            ref HelPhysicsManifoldCacheEntry3D entry = ref Entries[entryIndex];
+            if (entry.StepId != stepId) {
+                throw new InvalidOperationException("Solved impulses must be stored in the same step that updated the retained manifold.");
+            }
+
+            if (entry.Manifold.ContactCount != manifold.ContactCount) {
+                throw new InvalidOperationException("Solved impulse writeback requires the retained contact count to remain unchanged.");
+            }
+
+            for (int contactIndex = 0; contactIndex < manifold.ContactCount; contactIndex++) {
+                HelPhysicsContactPoint3D retainedContact = entry.Manifold.GetContact(contactIndex);
+                HelPhysicsContactPoint3D solvedContact = manifold.GetContact(contactIndex);
+                if (retainedContact.Feature != solvedContact.Feature) {
+                    throw new InvalidOperationException("Solved impulse writeback requires every retained contact feature to remain in matching order.");
+                }
+            }
+
+            for (int contactIndex = 0; contactIndex < manifold.ContactCount; contactIndex++) {
+                HelPhysicsContactPoint3D retainedContact = entry.Manifold.GetContact(contactIndex);
+                HelPhysicsContactPoint3D solvedContact = manifold.GetContact(contactIndex);
+                retainedContact.AccumulatedNormalImpulse = solvedContact.AccumulatedNormalImpulse;
+                retainedContact.AccumulatedTangentImpulse0 = solvedContact.AccumulatedTangentImpulse0;
+                retainedContact.AccumulatedTangentImpulse1 = solvedContact.AccumulatedTangentImpulse1;
+                entry.Manifold.SetContact(contactIndex, in retainedContact);
+            }
+        }
+
+        /// <summary>
         /// Marks an already retained, still-overlapping sleeping pair as observed and advances every persisted contact lifetime.
         /// </summary>
         /// <param name="pair">Canonicalizable unordered body pair that must already be retained.</param>

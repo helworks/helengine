@@ -68,6 +68,11 @@ namespace helengine {
         public int ActiveCount => ActiveCountValue;
 
         /// <summary>
+        /// Gets the fixed number of body slots allocated for the lifetime of this pool.
+        /// </summary>
+        public int Capacity => States.Length;
+
+        /// <summary>
         /// Allocates one free body slot and stores both explicitly supplied hot and cold state.
         /// </summary>
         /// <param name="state">Hot simulation state for the new body.</param>
@@ -131,6 +136,44 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Determines whether one validated fixed body index currently owns a live body.
+        /// </summary>
+        /// <param name="bodyIndex">Fixed body slot index to inspect.</param>
+        /// <returns><see langword="true"/> when the slot is occupied; otherwise <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="bodyIndex"/> lies outside this pool.</exception>
+        public bool IsOccupied(int bodyIndex) {
+            ValidateBodyIndex(bodyIndex);
+
+            return States[bodyIndex].IsOccupied;
+        }
+
+        /// <summary>
+        /// Returns mutable hot state for one occupied fixed body index without constructing a handle.
+        /// </summary>
+        /// <param name="bodyIndex">Fixed body slot index whose live state is required.</param>
+        /// <returns>A reference to the live body's hot simulation state.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="bodyIndex"/> lies outside this pool.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when <paramref name="bodyIndex"/> identifies an unoccupied slot.</exception>
+        public ref HelPhysicsBodyState3D GetRequiredStateByIndex(int bodyIndex) {
+            ValidateOccupiedBodyIndex(bodyIndex);
+
+            return ref States[bodyIndex];
+        }
+
+        /// <summary>
+        /// Returns mutable cold metadata for one occupied fixed body index without constructing a handle.
+        /// </summary>
+        /// <param name="bodyIndex">Fixed body slot index whose live metadata is required.</param>
+        /// <returns>A reference to the live body's cold metadata.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="bodyIndex"/> lies outside this pool.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when <paramref name="bodyIndex"/> identifies an unoccupied slot.</exception>
+        public ref HelPhysicsBodyColdState3D GetRequiredColdStateByIndex(int bodyIndex) {
+            ValidateOccupiedBodyIndex(bodyIndex);
+
+            return ref ColdStates[bodyIndex];
+        }
+
+        /// <summary>
         /// Validates that a requested capacity fits the fixed handle-addressable body-pool range.
         /// </summary>
         /// <param name="capacity">Requested number of permanent body slots.</param>
@@ -138,6 +181,31 @@ namespace helengine {
         static void ValidateCapacity(int capacity) {
             if (capacity < MinimumCapacity || capacity > MaximumCapacity) {
                 throw new ArgumentOutOfRangeException(nameof(capacity), "Body pool capacities must be between 1 and 65,534 inclusive.");
+            }
+        }
+
+        /// <summary>
+        /// Validates that an integer body index addresses one slot in this pool's fixed arrays.
+        /// </summary>
+        /// <param name="bodyIndex">Fixed body slot index to validate.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="bodyIndex"/> lies outside this pool.</exception>
+        void ValidateBodyIndex(int bodyIndex) {
+            if (bodyIndex < 0 || bodyIndex >= States.Length) {
+                throw new ArgumentOutOfRangeException(nameof(bodyIndex), "The body index does not identify a slot in this pool.");
+            }
+        }
+
+        /// <summary>
+        /// Validates that an integer body index addresses the live occupant of one fixed pool slot.
+        /// </summary>
+        /// <param name="bodyIndex">Fixed body slot index whose occupancy must be current.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="bodyIndex"/> lies outside this pool.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when <paramref name="bodyIndex"/> identifies an unoccupied slot.</exception>
+        void ValidateOccupiedBodyIndex(int bodyIndex) {
+            ValidateBodyIndex(bodyIndex);
+
+            if (!States[bodyIndex].IsOccupied) {
+                throw new InvalidOperationException("The body index refers to an unoccupied slot.");
             }
         }
 

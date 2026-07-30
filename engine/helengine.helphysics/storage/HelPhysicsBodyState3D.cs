@@ -24,6 +24,16 @@ namespace helengine {
         public PhysicsVector3 AngularVelocity;
 
         /// <summary>
+        /// Stores world-space force accumulated since this body last integrated velocity.
+        /// </summary>
+        public PhysicsVector3 AccumulatedForce;
+
+        /// <summary>
+        /// Stores world-space torque accumulated since this body last integrated velocity.
+        /// </summary>
+        public PhysicsVector3 AccumulatedTorque;
+
+        /// <summary>
         /// Stores reciprocal body mass for efficient solver mass calculations.
         /// </summary>
         public PhysicsScalar InverseMass;
