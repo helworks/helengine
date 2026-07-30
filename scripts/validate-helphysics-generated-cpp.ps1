@@ -67,7 +67,7 @@ try {
     $PreviousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
-        $CodegenOutput = @(& $ResolvedCodegenPath --cpp --project engine\helengine.helphysics\helengine.helphysics.csproj --output $GeneratedPath --feature-catalog engine\helengine.editor\codegen\features\helengine-feature-catalog.json --platform windows --language cpp --endianness little --set include-project-defined-preprocessor-symbols=false --set write-conversion-report=true 2>&1)
+        $CodegenOutput = @(& $ResolvedCodegenPath --cpp --project engine\helengine.helphysics\helengine.helphysics.csproj --output $GeneratedPath --feature-catalog engine\helengine.editor\codegen\features\helengine-feature-catalog.json --platform windows --language cpp --endianness little --set include-project-defined-preprocessor-symbols=false --set additional-preprocessor-symbols=HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION --set write-conversion-report=true 2>&1)
         $CodegenExitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $PreviousErrorActionPreference
