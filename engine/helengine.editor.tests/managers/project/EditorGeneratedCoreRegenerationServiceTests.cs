@@ -105,13 +105,13 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     [Fact]
     public void Portable_input_desktop_state_source_units_are_gated_by_desktop_platform() {
         string inputRootPath = Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.input");
-        string inputFrameStateSource = File.ReadAllText(Path.Combine(inputRootPath, "InputFrameState.cs"));
+        string inputFrameStateSource = File.ReadAllText(Path.Combine(inputRootPath, "InputFrameState.cs")).ReplaceLineEndings("\n");
         string keyboardStateSource = File.ReadAllText(Path.Combine(inputRootPath, "KeyboardState.cs"));
         string mouseStateSource = File.ReadAllText(Path.Combine(inputRootPath, "MouseState.cs"));
         string keysSource = File.ReadAllText(Path.Combine(inputRootPath, "Keys.cs"));
         string buttonStateSource = File.ReadAllText(Path.Combine(inputRootPath, "ButtonState.cs"));
         string keyStateSource = File.ReadAllText(Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.core", "managers", "input", "KeyState.cs"));
-        string typeForwardersSource = File.ReadAllText(Path.Combine(inputRootPath, "TypeForwarders.cs"));
+        string typeForwardersSource = File.ReadAllText(Path.Combine(inputRootPath, "TypeForwarders.cs")).ReplaceLineEndings("\n");
 
         Assert.Contains("#if DESKTOP_PLATFORM\n    /// <summary>\n    /// Gets or sets the captured keyboard state", inputFrameStateSource, StringComparison.Ordinal);
         Assert.Contains("#if DESKTOP_PLATFORM", keyboardStateSource, StringComparison.Ordinal);
