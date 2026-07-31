@@ -33,8 +33,10 @@ public sealed class ShaderProjectBoundaryTests {
         string compilationProject = File.ReadAllText(compilationProjectPath);
 
         Assert.Contains("shaders\\compilation\\**\\*.cs", runtimeProject, StringComparison.Ordinal);
+        Assert.Contains("shaders\\packages\\**\\*.cs", runtimeProject, StringComparison.Ordinal);
         Assert.Contains("Compile Remove", runtimeProject, StringComparison.Ordinal);
         Assert.Contains("..\\helengine.shader\\shaders\\compilation\\**\\*.cs", compilationProject, StringComparison.Ordinal);
+        Assert.Contains("..\\helengine.shader\\shaders\\packages\\**\\*.cs", compilationProject, StringComparison.Ordinal);
         Assert.Contains("..\\helengine.shader\\helengine.shader.csproj", compilationProject, StringComparison.Ordinal);
         Assert.True(File.Exists(Path.Combine(runtimeSourceRootPath, "ShaderCompileTarget.cs")));
         Assert.True(File.Exists(Path.Combine(runtimeSourceRootPath, "ShaderTargetNames.cs")));
@@ -55,8 +57,12 @@ public sealed class ShaderProjectBoundaryTests {
         Assert.Same(runtimeAssembly, typeof(ShaderBindingPolicy).Assembly);
         Assert.Null(runtimeAssembly.GetType("helengine.ShaderCompileService"));
         Assert.Null(runtimeAssembly.GetType("helengine.HlslShaderBindingParser"));
+        Assert.Null(runtimeAssembly.GetType("helengine.ShaderModulePackageReader"));
+        Assert.Null(runtimeAssembly.GetType("helengine.ShaderModulePackage"));
         Assert.NotNull(compilationAssembly.GetType("helengine.ShaderCompileService"));
         Assert.NotNull(compilationAssembly.GetType("helengine.HlslShaderBindingParser"));
+        Assert.NotNull(compilationAssembly.GetType("helengine.ShaderModulePackageReader"));
+        Assert.NotNull(compilationAssembly.GetType("helengine.ShaderModulePackage"));
     }
 
     /// <summary>

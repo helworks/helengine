@@ -13,6 +13,8 @@
   <ItemGroup>
     <Compile Include="..\helengine.shader\shaders\compilation\**\*.cs"
              Link="shaders\compilation\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\helengine.shader\shaders\packages\**\*.cs"
+             Link="shaders\packages\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

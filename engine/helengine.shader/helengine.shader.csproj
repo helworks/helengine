@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <Compile Remove="shaders\compilation\**\*.cs" />
+    <Compile Remove="shaders\packages\**\*.cs" />
   </ItemGroup>
 
 </Project>
