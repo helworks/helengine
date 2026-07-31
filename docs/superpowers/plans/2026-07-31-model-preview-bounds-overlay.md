@@ -6,7 +6,7 @@
 
 **Architecture:** `ModelPreviewBoundsOverlayFactory` will build reusable line-list box and sphere runtime models and overlay material. `ModelPreviewSource` will position both entities around its cached bounds and expose a display-mode setter. `PreviewPanel` will own a panel-scoped mode and the second toolbar button.
 
-**Tech Stack:** C#/.NET 9, HelEngine line-list models, editor overlay materials, XUnit, PNG toolbar assets.
+**Tech Stack:** C#/.NET 9, HelEngine line-list models, editor overlay materials, XUnit, existing editor text controls.
 
 ---
 
@@ -85,11 +85,7 @@ git commit -m "feat: add model preview bounds overlays"
 ### Task 2: Add the bounds-mode toolbar button
 
 **Files:**
-- Create: `helengine.ui/helengine.editor.app/content/icons/toolbar/bounds.png`
-- Modify: `engine/helengine.editor.windows/content/textures/EditorToolbarIconLoader.cs`
-- Modify: `engine/helengine.editor/EditorViewportToolbarIconSet.cs`
 - Modify: `engine/helengine.editor/components/ui/PreviewPanel.cs`
-- Modify: `engine/helengine.editor/EditorSession.cs`
 - Test: `engine/helengine.editor.tests/components/ui/PreviewPanelTests.cs`
 
 - [ ] **Step 1: Write failing button-cycle tests**
@@ -125,11 +121,9 @@ dotnet test engine/helengine.editor.tests/helengine.editor.tests.csproj --no-res
 
 Expected: failure because `boundsButtonInteractable` and `CycleModelBoundsDisplayMode` do not exist.
 
-- [ ] **Step 3: Add the icon and panel control**
+- [ ] **Step 3: Add the panel control**
 
-Create `bounds.png` as a simple monochrome 16×16 wireframe cube icon on transparent pixels. Load it in `EditorToolbarIconLoader`, expose it as `BoundsIcon` from `EditorViewportToolbarIconSet`, and pass both grid and bounds icon textures through the Preview-panel constructors from both `EditorSession` creation sites.
-
-In `PreviewPanel`, create a second 22×18 button immediately after the grid button. Maintain `ModelPreviewBoundsDisplayMode ModelBoundsDisplayModeValue`, initialized to `None`. Implement:
+In `PreviewPanel`, create a second 22×18 button immediately after the grid button. Its foreground is the existing text-control type displaying the compact `B` bounds glyph, so no new raster icon or icon-loader contract is required. Maintain `ModelPreviewBoundsDisplayMode ModelBoundsDisplayModeValue`, initialized to `None`. Implement:
 
 ```csharp
 public void CycleModelBoundsDisplayMode() {
@@ -162,7 +156,7 @@ Expected: all `PreviewPanelTests` pass.
 - [ ] **Step 5: Commit the toolbar control**
 
 ```powershell
-git add -- helengine.ui/helengine.editor.app/content/icons/toolbar/bounds.png engine/helengine.editor.windows/content/textures/EditorToolbarIconLoader.cs engine/helengine.editor/EditorViewportToolbarIconSet.cs engine/helengine.editor/components/ui/PreviewPanel.cs engine/helengine.editor/EditorSession.cs engine/helengine.editor.tests/components/ui/PreviewPanelTests.cs
+git add -- engine/helengine.editor/components/ui/PreviewPanel.cs engine/helengine.editor.tests/components/ui/PreviewPanelTests.cs
 git commit -m "feat: add model preview bounds control"
 ```
 
