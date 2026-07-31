@@ -2,6 +2,7 @@ namespace helengine.helphysics.tests {
     /// <summary>
     /// Verifies configured HelPhysics registration owns scene binding and Core runtime attachment without a backend fallback.
     /// </summary>
+    [Collection("HelPhysicsSceneBindingCoreTests")]
     public sealed class HelPhysicsRuntimeComponentRegistrationTests {
         /// <summary>
         /// Ensures registration subscribes lifecycle handling without attaching a runtime before a physics scene exists.

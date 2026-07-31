@@ -2,7 +2,18 @@ namespace helengine.helphysics.tests {
     /// <summary>
     /// Verifies the Core-facing HelPhysics adapter preserves exact fixed-step, synchronization, and profiler behavior.
     /// </summary>
+    [Collection("HelPhysicsSceneBindingCoreTests")]
     public sealed class HelPhysicsSceneRuntime3DTests {
+        /// <summary>
+        /// Initializes the minimal engine Core required by real entity fixtures used in adapter tests.
+        /// </summary>
+        public HelPhysicsSceneRuntime3DTests() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+        }
+
         /// <summary>
         /// Ensures a Core step that differs from the world configuration is rejected before simulation state changes.
         /// </summary>
