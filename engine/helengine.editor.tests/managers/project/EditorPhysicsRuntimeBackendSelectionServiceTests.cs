@@ -10,9 +10,7 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void Resolve_WhenSettingIsAbsent_ReturnsBepu() {
-            EditorPhysicsRuntimeBackendSelectionService service = new();
-
-            string backend = service.Resolve(new Dictionary<string, string>());
+            string backend = EditorPhysicsRuntimeBackendSelectionService.Resolve(new Dictionary<string, string>());
 
             Assert.Equal(EditorPhysicsRuntimeBackendSelectionService.BepuValue, backend);
         }
@@ -22,12 +20,11 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void Resolve_WhenBepuIsSelected_ReturnsBepu() {
-            EditorPhysicsRuntimeBackendSelectionService service = new();
             Dictionary<string, string> values = new() {
                 [EditorPhysicsRuntimeBackendSelectionService.SettingId] = "bepu"
             };
 
-            string backend = service.Resolve(values);
+            string backend = EditorPhysicsRuntimeBackendSelectionService.Resolve(values);
 
             Assert.Equal(EditorPhysicsRuntimeBackendSelectionService.BepuValue, backend);
         }
@@ -37,12 +34,11 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void Resolve_WhenHelPhysicsIsSelected_ReturnsHelPhysics() {
-            EditorPhysicsRuntimeBackendSelectionService service = new();
             Dictionary<string, string> values = new() {
                 [EditorPhysicsRuntimeBackendSelectionService.SettingId] = "helphysics"
             };
 
-            string backend = service.Resolve(values);
+            string backend = EditorPhysicsRuntimeBackendSelectionService.Resolve(values);
 
             Assert.Equal(EditorPhysicsRuntimeBackendSelectionService.HelPhysicsValue, backend);
         }
@@ -52,12 +48,12 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void Resolve_WhenSelectionIsBlank_ThrowsSettingSpecificError() {
-            EditorPhysicsRuntimeBackendSelectionService service = new();
             Dictionary<string, string> values = new() {
                 [EditorPhysicsRuntimeBackendSelectionService.SettingId] = " "
             };
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.Resolve(values));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => EditorPhysicsRuntimeBackendSelectionService.Resolve(values));
 
             Assert.Contains(EditorPhysicsRuntimeBackendSelectionService.SettingId, exception.Message, StringComparison.Ordinal);
         }
@@ -67,15 +63,38 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void Resolve_WhenSelectionIsUnknown_ThrowsSettingSpecificError() {
-            EditorPhysicsRuntimeBackendSelectionService service = new();
             Dictionary<string, string> values = new() {
                 [EditorPhysicsRuntimeBackendSelectionService.SettingId] = "unknown"
             };
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.Resolve(values));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => EditorPhysicsRuntimeBackendSelectionService.Resolve(values));
 
             Assert.Contains(EditorPhysicsRuntimeBackendSelectionService.SettingId, exception.Message, StringComparison.Ordinal);
             Assert.Contains("unknown", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures an omitted persisted option remains valid before profile defaults are applied.
+        /// </summary>
+        [Fact]
+        public void ValidateExplicitSelection_WhenSettingIsAbsent_DoesNotThrow() {
+            EditorPhysicsRuntimeBackendSelectionService.ValidateExplicitSelection(new Dictionary<string, string>());
+        }
+
+        /// <summary>
+        /// Ensures a persisted blank value fails before generic profile-default resolution can replace it.
+        /// </summary>
+        [Fact]
+        public void ValidateExplicitSelection_WhenSettingIsBlank_ThrowsSettingSpecificError() {
+            Dictionary<string, string> values = new() {
+                [EditorPhysicsRuntimeBackendSelectionService.SettingId] = " "
+            };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => EditorPhysicsRuntimeBackendSelectionService.ValidateExplicitSelection(values));
+
+            Assert.Contains(EditorPhysicsRuntimeBackendSelectionService.SettingId, exception.Message, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -83,9 +102,8 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void BuildPreprocessorSymbols_WhenBepuIsSelected_ReturnsOnlyBepuSymbol() {
-            EditorPhysicsRuntimeBackendSelectionService service = new();
-
-            IReadOnlyList<string> symbols = service.BuildPreprocessorSymbols(EditorPhysicsRuntimeBackendSelectionService.BepuValue);
+            IReadOnlyList<string> symbols = EditorPhysicsRuntimeBackendSelectionService.BuildPreprocessorSymbols(
+                EditorPhysicsRuntimeBackendSelectionService.BepuValue);
 
             Assert.Equal([EditorPhysicsRuntimeBackendSelectionService.BepuSymbol], symbols);
         }
@@ -95,11 +113,43 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void BuildPreprocessorSymbols_WhenHelPhysicsIsSelected_ReturnsOnlyHelPhysicsSymbol() {
-            EditorPhysicsRuntimeBackendSelectionService service = new();
-
-            IReadOnlyList<string> symbols = service.BuildPreprocessorSymbols(EditorPhysicsRuntimeBackendSelectionService.HelPhysicsValue);
+            IReadOnlyList<string> symbols = EditorPhysicsRuntimeBackendSelectionService.BuildPreprocessorSymbols(
+                EditorPhysicsRuntimeBackendSelectionService.HelPhysicsValue);
 
             Assert.Equal([EditorPhysicsRuntimeBackendSelectionService.HelPhysicsSymbol], symbols);
+        }
+
+        /// <summary>
+        /// Ensures a final symbol graph containing the selected backend and no competitor is accepted.
+        /// </summary>
+        [Fact]
+        public void ValidatePreprocessorSymbols_WhenOnlySelectedBackendIsPresent_DoesNotThrow() {
+            IReadOnlyList<string> symbols = [
+                "DESKTOP_PLATFORM",
+                EditorPhysicsRuntimeBackendSelectionService.HelPhysicsSymbol
+            ];
+
+            EditorPhysicsRuntimeBackendSelectionService.ValidatePreprocessorSymbols(
+                EditorPhysicsRuntimeBackendSelectionService.HelPhysicsValue,
+                symbols);
+        }
+
+        /// <summary>
+        /// Ensures a final symbol graph that identifies both runtimes is rejected before code generation.
+        /// </summary>
+        [Fact]
+        public void ValidatePreprocessorSymbols_WhenConflictingBackendIsPresent_Throws() {
+            IReadOnlyList<string> symbols = [
+                EditorPhysicsRuntimeBackendSelectionService.BepuSymbol,
+                EditorPhysicsRuntimeBackendSelectionService.HelPhysicsSymbol
+            ];
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => EditorPhysicsRuntimeBackendSelectionService.ValidatePreprocessorSymbols(
+                    EditorPhysicsRuntimeBackendSelectionService.HelPhysicsValue,
+                    symbols));
+
+            Assert.Contains("conflicting", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

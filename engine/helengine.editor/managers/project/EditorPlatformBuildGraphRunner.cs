@@ -150,6 +150,7 @@ namespace helengine.editor {
             PlatformStorageProfileDefinition selectedStorageProfile = selectionModel.ResolveStorageProfile(selectedStorageProfileId);
             PlatformMediaProfileDefinition selectedMediaProfile = selectionModel.ResolveMediaProfile(selectedMediaProfileId);
             PlatformCodegenProfileDefinition selectedCodegenProfile = selectionModel.ResolveCodegenProfile(selectedCodegenProfileId);
+            EditorPhysicsRuntimeBackendSelectionService.ValidateExplicitSelection(queueItem.SelectedCodegenOptionValues);
             Dictionary<string, string> effectiveCodegenOptionValues = EditorBuildProfileDefaultResolver.CreateEffectiveCodegenOptionValues(
                 queueItem.SelectedCodegenOptionValues,
                 selectedCodegenProfile,
@@ -463,9 +464,8 @@ namespace helengine.editor {
             IReadOnlyList<string> defaultDisabledFeatureSymbols = EditorPlatformPreprocessorSymbolService.ResolveDefaultDisabledFeatureSymbols(
                 selectedCodegenProfile,
                 selectedCodegenOptionValues);
-            EditorPhysicsRuntimeBackendSelectionService physicsRuntimeBackendSelectionService = new();
-            string physicsRuntimeBackend = physicsRuntimeBackendSelectionService.Resolve(selectedCodegenOptionValues);
-            IReadOnlyList<string> physicsRuntimeBackendSymbols = physicsRuntimeBackendSelectionService.BuildPreprocessorSymbols(physicsRuntimeBackend);
+            string physicsRuntimeBackend = EditorPhysicsRuntimeBackendSelectionService.Resolve(selectedCodegenOptionValues);
+            IReadOnlyList<string> physicsRuntimeBackendSymbols = EditorPhysicsRuntimeBackendSelectionService.BuildPreprocessorSymbols(physicsRuntimeBackend);
             IReadOnlyList<string> additionalPreprocessorSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
                 platformCodegenSymbols,
                 physics3DCodegenSymbols);
@@ -478,6 +478,9 @@ namespace helengine.editor {
             additionalPreprocessorSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
                 additionalPreprocessorSymbols,
                 disabledFeatureSymbols);
+            EditorPhysicsRuntimeBackendSelectionService.ValidatePreprocessorSymbols(
+                physicsRuntimeBackend,
+                additionalPreprocessorSymbols);
             GeneratedCoreRegenerationService.Regenerate(
                 builderDefinition,
                 selectedCodegenProfile,
