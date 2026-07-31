@@ -277,6 +277,8 @@ namespace helengine.editor {
 
             string compileGlob = Path.Combine(ResolveProjectPath(moduleEntry.FolderPath), "**", "*.cs");
             projectBuilder.AppendLine($"    <Compile Include=\"{EscapeXml(compileGlob)}\" />");
+            string inferredTestCompileGlob = Path.Combine(ResolveProjectPath(moduleEntry.FolderPath), "**", "*.tests", "**", "*.cs");
+            projectBuilder.AppendLine($"    <Compile Remove=\"{EscapeXml(inferredTestCompileGlob)}\" />");
             for (int index = 0; index < moduleEntry.NestedModuleFolderPaths.Length; index++) {
                 string nestedCompileGlob = Path.Combine(ResolveProjectPath(moduleEntry.NestedModuleFolderPaths[index]), "**", "*.cs");
                 projectBuilder.AppendLine($"    <Compile Remove=\"{EscapeXml(nestedCompileGlob)}\" />");

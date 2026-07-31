@@ -267,6 +267,45 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
         Assert.Contains(EscapePathForProjectInclude(globalUsingsPath), File.ReadAllText(projectFilePath), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies native runtime code generation excludes inferred sibling test folders even though they do not have module manifests of their own.
+    /// </summary>
+    [Fact]
+    public void Compile_code_modules_excludes_inferred_test_folders_from_the_synthetic_runtime_project() {
+        RecordingCodegenToolRunner toolRunner = new();
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        string testFolderPath = Path.Combine(ProjectRootPath, "assets", "Scripts", "rendering.tools.tests");
+        Directory.CreateDirectory(testFolderPath);
+        File.WriteAllText(Path.Combine(testFolderPath, "UnsupportedRuntimeTest.cs"), "public sealed class UnsupportedRuntimeTest { }");
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+            []),
+            ["gameplay"],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        string projectFilePath = Path.Combine(OutputRootPath, "gameplay", "_project", "gameplay.csproj");
+        string expectedTestExclusion = Path.Combine(ProjectRootPath, "assets", "Scripts", "**", "*.tests", "**", "*.cs");
+
+        Assert.Contains(
+            $"<Compile Remove=\"{EscapePathForProjectInclude(expectedTestExclusion)}\" />",
+            File.ReadAllText(projectFilePath),
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Compile_code_modules_throws_when_dependency_module_is_missing() {
         RecordingCodegenToolRunner toolRunner = new();
