@@ -37,6 +37,10 @@ namespace helengine {
         byte textRenderOrder;
         bool isInvalid;
         /// <summary>
+        /// True when the text box hides its border while it is neither focused nor invalid.
+        /// </summary>
+        bool UseFocusedBorderOnlyValue;
+        /// <summary>
         /// Tracks whether the mouse is currently dragging a text selection inside the textbox.
         /// </summary>
         bool isSelectingText;
@@ -157,6 +161,17 @@ namespace helengine {
         public bool IsFocused {
             get { return isFocused; }
             set { SetFocusedState(value, true); }
+        }
+
+        /// <summary>
+        /// Gets or sets whether the textbox border is shown only while focused or invalid.
+        /// </summary>
+        public bool UseFocusedBorderOnly {
+            get { return UseFocusedBorderOnlyValue; }
+            set {
+                UseFocusedBorderOnlyValue = value;
+                UpdateFocusVisual();
+            }
         }
 
         /// <summary>
@@ -808,6 +823,8 @@ namespace helengine {
             if (backgroundSprite == null) {
                 return;
             }
+
+            backgroundSprite.BorderThickness = UseFocusedBorderOnlyValue && !isFocused && !isInvalid ? 0f : 2f;
 
             if (isInvalid) {
                 backgroundSprite.BorderColor = ThemeManager.Colors.StateDanger;
