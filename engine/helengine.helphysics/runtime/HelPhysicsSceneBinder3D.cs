@@ -73,10 +73,44 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(root));
             }
 
-            int requiredBodyCount = ValidateEntityAndDescendants(root);
+            List<Entity> roots = new List<Entity>(1) {
+                root
+            };
+            BindHierarchies(roots);
+        }
+
+        /// <summary>
+        /// Validates every supplied root hierarchy as one transaction before reserving or associating any scene body.
+        /// </summary>
+        /// <param name="roots">Complete loaded-scene root list in deterministic traversal order.</param>
+        /// <exception cref="ArgumentNullException">Thrown when the root list or one root is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when roots overlap or any entity has an unsupported component composition.</exception>
+        public void BindHierarchies(IReadOnlyList<Entity> roots) {
+            if (roots == null) {
+                throw new ArgumentNullException(nameof(roots));
+            }
+
+            List<Entity> validatedEntities = new List<Entity>();
+            int requiredBodyCount = 0;
+            for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++) {
+                Entity root = roots[rootIndex];
+                if (root == null) {
+                    throw new ArgumentNullException(nameof(roots), "A HelPhysics scene root cannot be null.");
+                }
+
+                int hierarchyBodyCount = ValidateEntityAndDescendants(root, validatedEntities);
+                if (requiredBodyCount > int.MaxValue - hierarchyBodyCount) {
+                    throw new InvalidOperationException("A HelPhysics scene contains too many body entities to preflight safely.");
+                }
+
+                requiredBodyCount += hierarchyBodyCount;
+            }
+
             ValidateBindingIdCapacity(requiredBodyCount);
             World.ValidateBodyCreationCapacity(requiredBodyCount);
-            BindEntityAndDescendants(root);
+            for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++) {
+                BindEntityAndDescendants(roots[rootIndex]);
+            }
         }
 
         /// <summary>
@@ -203,7 +237,13 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Current hierarchy entity to validate.</param>
         /// <returns>The exact number of supported bodies required by this entity and its descendants.</returns>
-        int ValidateEntityAndDescendants(Entity entity) {
+        /// <param name="validatedEntities">Scene-transaction entities already visited by reference.</param>
+        int ValidateEntityAndDescendants(Entity entity, List<Entity> validatedEntities) {
+            if (ContainsEntityReference(validatedEntities, entity)) {
+                throw new InvalidOperationException("A HelPhysics scene cannot contain overlapping or repeated root hierarchies.");
+            }
+
+            validatedEntities.Add(entity);
             if (FindBindingIndex(entity) >= 0) {
                 throw new InvalidOperationException("An entity cannot be bound to the same HelPhysics scene runtime more than once.");
             }
@@ -263,7 +303,7 @@ namespace helengine {
 
             if (entity.Children != null) {
                 for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                    int childBodyCount = ValidateEntityAndDescendants(entity.Children[childIndex]);
+                    int childBodyCount = ValidateEntityAndDescendants(entity.Children[childIndex], validatedEntities);
                     if (requiredBodyCount > int.MaxValue - childBodyCount) {
                         throw new InvalidOperationException("A HelPhysics hierarchy contains too many body entities to preflight safely.");
                     }
@@ -273,6 +313,22 @@ namespace helengine {
             }
 
             return requiredBodyCount;
+        }
+
+        /// <summary>
+        /// Determines whether one exact entity reference already participates in the current scene preflight transaction.
+        /// </summary>
+        /// <param name="entities">Entities already visited in deterministic order.</param>
+        /// <param name="entity">Exact entity reference under inspection.</param>
+        /// <returns>True when the same reference was visited previously; otherwise false.</returns>
+        static bool ContainsEntityReference(List<Entity> entities, Entity entity) {
+            for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
+                if (ReferenceEquals(entities[entityIndex], entity)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
