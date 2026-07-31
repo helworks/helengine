@@ -626,7 +626,7 @@ namespace helengine {
                 throw new InvalidOperationException($"Unsupported rigid body component payload version '{version}'.");
             }
 
-            if (TryReadAutomaticMemberCount(payload, AutomaticRigidBodyMemberCount)) {
+            if (HasAtLeastAutomaticMemberCount(payload, AutomaticRigidBodyMemberCount)) {
                 reader.ReadInt32();
                 reader.ReadFloat3();
                 bodyKind = (BodyKind3D)reader.ReadInt32();
@@ -765,6 +765,28 @@ namespace helengine {
                 | (payload[3] << 16)
                 | (payload[4] << 24);
             return memberCount == expectedMemberCount;
+        }
+
+        /// <summary>
+        /// Determines whether an automatic reflected payload contains the stable leading members plus zero or more append-only members.
+        /// </summary>
+        /// <param name="payload">Serialized component payload whose leading member-count header should be inspected.</param>
+        /// <param name="minimumMemberCount">Minimum stable member count required by the reader.</param>
+        /// <returns>True when the payload contains at least the stable leading members; otherwise false.</returns>
+        static bool HasAtLeastAutomaticMemberCount(byte[] payload, int minimumMemberCount) {
+            if (payload == null) {
+                throw new ArgumentNullException(nameof(payload));
+            }
+            if (payload.Length < 5) {
+                return false;
+            }
+
+            int memberCount =
+                payload[1]
+                | (payload[2] << 8)
+                | (payload[3] << 16)
+                | (payload[4] << 24);
+            return memberCount >= minimumMemberCount;
         }
 
         /// <summary>

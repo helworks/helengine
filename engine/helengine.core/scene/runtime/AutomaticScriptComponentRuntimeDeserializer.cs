@@ -31,6 +31,11 @@ namespace helengine {
         readonly Type[] MemberTypes;
 
         /// <summary>
+        /// Minimum ordinal member count required before omitted members may be treated as appended extensions.
+        /// </summary>
+        readonly int RequiredMemberCount;
+
+        /// <summary>
         /// Initializes one automatic scripted-component runtime deserializer.
         /// </summary>
         /// <param name="componentTypeId">Stable serialized component type id handled by the deserializer.</param>
@@ -50,6 +55,7 @@ namespace helengine {
             ComponentTypeValue = componentType;
             Members = LoadMembers(componentType);
             MemberTypes = LoadMemberTypes(Members);
+            RequiredMemberCount = GetRequiredMemberCount(Members);
         }
 
         /// <summary>
@@ -80,12 +86,12 @@ namespace helengine {
             }
 
             int memberCount = reader.ReadInt32();
-            if (memberCount != Members.Length) {
+            if (memberCount < RequiredMemberCount || memberCount > Members.Length) {
                 throw new InvalidOperationException(
-                    $"Packaged scripted component '{ComponentTypeIdValue}' expected {Members.Length} members but payload contained {memberCount}.");
+                    $"Packaged scripted component '{ComponentTypeIdValue}' requires between {RequiredMemberCount} and {Members.Length} members but payload contained {memberCount}.");
             }
 
-            for (int index = 0; index < Members.Length; index++) {
+            for (int index = 0; index < memberCount; index++) {
                 SetMemberValue(component, Members[index], ReadSupportedValue(reader, MemberTypes[index], referenceResolver));
             }
 
@@ -101,7 +107,8 @@ namespace helengine {
             return componentType
                 .GetMembers(BindingFlags.Instance | BindingFlags.Public)
                 .Where(IsSupportedMember)
-                .OrderBy(member => member.Name, StringComparer.Ordinal)
+                .OrderBy(member => member.IsDefined(typeof(ScenePersistenceAppendAttribute), false) ? 1 : 0)
+                .ThenBy(member => member.Name, StringComparer.Ordinal)
                 .ToArray();
         }
 
@@ -121,6 +128,24 @@ namespace helengine {
             }
 
             return memberTypes;
+        }
+
+        /// <summary>
+        /// Counts the non-appended members that every ordinal payload must contain.
+        /// </summary>
+        /// <param name="members">Ordered persisted members.</param>
+        /// <returns>Count of required non-appended members.</returns>
+        static int GetRequiredMemberCount(MemberInfo[] members) {
+            int requiredMemberCount = 0;
+            for (int index = 0; index < members.Length; index++) {
+                if (members[index].IsDefined(typeof(ScenePersistenceAppendAttribute), false)) {
+                    break;
+                }
+
+                requiredMemberCount++;
+            }
+
+            return requiredMemberCount;
         }
 
         /// <summary>

@@ -47,7 +47,8 @@ namespace helengine.editor {
             MemberInfo[] members = componentType
                 .GetMembers(BindingFlags.Instance | BindingFlags.Public)
                 .Where(IsSupportedMember)
-                .OrderBy(member => member.Name, StringComparer.Ordinal)
+                .OrderBy(member => member.IsDefined(typeof(ScenePersistenceAppendAttribute), false) ? 1 : 0)
+                .ThenBy(member => member.Name, StringComparer.Ordinal)
                 .ToArray();
 
             List<ScriptComponentReflectionMember> reflectedMembers = new List<ScriptComponentReflectionMember>(members.Length);

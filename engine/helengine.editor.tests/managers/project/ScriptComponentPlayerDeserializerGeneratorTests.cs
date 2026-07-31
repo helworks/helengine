@@ -24,6 +24,22 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures generated managed and native deserializers require all non-appended rigid-body members while allowing appended sleep members to be omitted.
+        /// </summary>
+        [Fact]
+        public void Generate_WhenSchemaContainsRigidBodySleepExtensions_EmitsRequiredMemberCountBoundary() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(RigidBody3DComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string managedSource = generator.Generate(schema);
+            string nativeSource = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("memberCount < 6", managedSource, StringComparison.Ordinal);
+            Assert.Contains("memberCount < RequiredMemberCount", nativeSource, StringComparison.Ordinal);
+            Assert.Contains("RequiredMemberCount = 6", nativeSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures eligible engine-owned automatic components can emit native runtime deserializer classes for player builds.
         /// </summary>
         [Fact]

@@ -230,15 +230,34 @@ namespace helengine.editor {
             }
 
             int memberCount = reader.ReadInt32();
-            if (memberCount < schema.Members.Count) {
+            int requiredMemberCount = GetRequiredMemberCount(schema.Members);
+            if (memberCount < requiredMemberCount || memberCount > schema.Members.Count) {
                 throw new InvalidOperationException(
-                    $"Automatic scripted component payload expected at least {schema.Members.Count} members but contained {memberCount}.");
+                    $"Automatic scripted component payload requires between {requiredMemberCount} and {schema.Members.Count} members but contained {memberCount}.");
             }
 
-            for (int index = 0; index < schema.Members.Count; index++) {
+            for (int index = 0; index < memberCount; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
                 member.SetValue(component, ReadSupportedMemberValue(reader, member, component, saveComponent, referenceResolver));
             }
+        }
+
+        /// <summary>
+        /// Counts the non-appended schema members that every ordinal payload must contain.
+        /// </summary>
+        /// <param name="members">Ordered reflected schema members.</param>
+        /// <returns>Count of required non-appended members.</returns>
+        static int GetRequiredMemberCount(IReadOnlyList<ScriptComponentReflectionMember> members) {
+            int requiredMemberCount = 0;
+            for (int index = 0; index < members.Count; index++) {
+                if (members[index].IsAppended) {
+                    break;
+                }
+
+                requiredMemberCount++;
+            }
+
+            return requiredMemberCount;
         }
 
         /// <summary>
@@ -1155,9 +1174,19 @@ namespace helengine.editor {
         /// <param name="valueType">Runtime object type whose writable public members should be returned.</param>
         /// <returns>Deterministically ordered writable public members.</returns>
         static IReadOnlyList<MemberInfo> GetSerializableMembers(Type valueType) {
-            return valueType
+            MemberInfo[] members = valueType
                 .GetMembers(BindingFlags.Instance | BindingFlags.Public)
                 .Where(IsSerializableMember)
+                .ToArray();
+
+            for (int index = 0; index < members.Length; index++) {
+                if (members[index].IsDefined(typeof(ScenePersistenceAppendAttribute), false)) {
+                    throw new InvalidOperationException(
+                        $"Nested serialized type '{valueType.FullName}' cannot use {nameof(ScenePersistenceAppendAttribute)} because nested payloads have no member-count framing.");
+                }
+            }
+
+            return members
                 .OrderBy(member => member.Name, StringComparer.Ordinal)
                 .ToArray();
         }

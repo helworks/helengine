@@ -110,6 +110,11 @@ namespace helengine.editor {
         public bool IsField => MemberInfoValue is FieldInfo;
 
         /// <summary>
+        /// Gets whether the member is explicitly appended after the required ordinal payload members.
+        /// </summary>
+        public bool IsAppended => MemberInfoValue != null && MemberInfoValue.IsDefined(typeof(ScenePersistenceAppendAttribute), false);
+
+        /// <summary>
         /// Gets a value indicating whether the schema member is synthetic rather than backed by one reflected property or field.
         /// </summary>
         public bool IsSynthetic => MemberInfoValue == null;
