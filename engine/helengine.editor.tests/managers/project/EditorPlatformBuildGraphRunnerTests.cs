@@ -1307,6 +1307,73 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies an explicit HelPhysics selection reaches generated-core regeneration as the exclusive physics backend symbol.
+    /// </summary>
+    [Fact]
+    public void RunRegenerateCore_WhenHelPhysicsIsSelected_ForwardsOnlyHelPhysicsBackendSymbol() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(rootPath, "assets", "Scenes"));
+
+        try {
+            WriteSceneAssetForBuildGraphRunnerTest(rootPath, "Scenes/VisualScene.helen");
+            Dictionary<string, string> selectedCodegenOptionValues = new Dictionary<string, string> {
+                [EditorPhysicsRuntimeBackendSelectionService.SettingId] = EditorPhysicsRuntimeBackendSelectionService.HelPhysicsValue
+            };
+            RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    "builder.dll",
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                regenerationService);
+
+            MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "RunRegenerateCore",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(runRegenerateCoreMethod);
+
+            runRegenerateCoreMethod.Invoke(
+                runner,
+                [
+                    CreatePlatformDefinition("windows", "Windows"),
+                    CreateCodegenProfile(),
+                    selectedCodegenOptionValues,
+                    new EditorBuildQueueItemDocument {
+                        QueueItemId = "queue-item",
+                        PlatformId = "windows",
+                        OutputDirectoryPath = Path.Combine(rootPath, "output"),
+                        SelectedSceneIds = ["VisualScene"],
+                        SelectedCodegenOptionValues = selectedCodegenOptionValues
+                    },
+                    new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
+                ]);
+
+            Assert.NotNull(regenerationService.AdditionalPreprocessorSymbols);
+            Assert.Contains(
+                EditorPhysicsRuntimeBackendSelectionService.HelPhysicsSymbol,
+                regenerationService.AdditionalPreprocessorSymbols);
+            Assert.DoesNotContain(
+                EditorPhysicsRuntimeBackendSelectionService.BepuSymbol,
+                regenerationService.AdditionalPreprocessorSymbols);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies selected source scenes without 3D physics components do not request any physics generated-core support.
     /// </summary>
     [Fact]

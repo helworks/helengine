@@ -463,9 +463,15 @@ namespace helengine.editor {
             IReadOnlyList<string> defaultDisabledFeatureSymbols = EditorPlatformPreprocessorSymbolService.ResolveDefaultDisabledFeatureSymbols(
                 selectedCodegenProfile,
                 selectedCodegenOptionValues);
+            EditorPhysicsRuntimeBackendSelectionService physicsRuntimeBackendSelectionService = new();
+            string physicsRuntimeBackend = physicsRuntimeBackendSelectionService.Resolve(selectedCodegenOptionValues);
+            IReadOnlyList<string> physicsRuntimeBackendSymbols = physicsRuntimeBackendSelectionService.BuildPreprocessorSymbols(physicsRuntimeBackend);
             IReadOnlyList<string> additionalPreprocessorSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
                 platformCodegenSymbols,
                 physics3DCodegenSymbols);
+            additionalPreprocessorSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
+                additionalPreprocessorSymbols,
+                physicsRuntimeBackendSymbols);
             additionalPreprocessorSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
                 additionalPreprocessorSymbols,
                 defaultDisabledFeatureSymbols);
