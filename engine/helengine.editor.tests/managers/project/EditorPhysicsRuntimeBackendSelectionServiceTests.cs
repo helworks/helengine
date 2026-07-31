@@ -98,6 +98,21 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures persisted setting identifiers are validated case-insensitively just like the effective build-option map.
+        /// </summary>
+        [Fact]
+        public void ValidateExplicitSelection_WhenCaseVariedSettingIsBlank_ThrowsSettingSpecificError() {
+            Dictionary<string, string> values = new() {
+                ["Physics-Runtime-Backend"] = " "
+            };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => EditorPhysicsRuntimeBackendSelectionService.ValidateExplicitSelection(values));
+
+            Assert.Contains(EditorPhysicsRuntimeBackendSelectionService.SettingId, exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures BEPU selection contributes only the BEPU generated-core symbol.
         /// </summary>
         [Fact]

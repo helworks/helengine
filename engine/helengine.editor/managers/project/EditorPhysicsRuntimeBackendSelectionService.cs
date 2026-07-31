@@ -37,7 +37,21 @@ namespace helengine.editor {
             if (selectedCodegenOptionValues == null) {
                 throw new ArgumentNullException(nameof(selectedCodegenOptionValues));
             }
-            if (!selectedCodegenOptionValues.TryGetValue(SettingId, out string selectedValue)) {
+            bool foundSelection = false;
+            string selectedValue = string.Empty;
+            foreach (KeyValuePair<string, string> optionValue in selectedCodegenOptionValues) {
+                if (!string.Equals(optionValue.Key, SettingId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (foundSelection) {
+                    throw new InvalidOperationException(
+                        $"Code-generation setting '{SettingId}' was provided more than once with different key casing.");
+                }
+
+                foundSelection = true;
+                selectedValue = optionValue.Value;
+            }
+            if (!foundSelection) {
                 return BepuValue;
             }
             if (string.IsNullOrWhiteSpace(selectedValue)) {
@@ -60,12 +74,16 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="selectedCodegenOptionValues">Persisted code-generation settings captured directly from the build request.</param>
         public static void ValidateExplicitSelection(IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
-            if (selectedCodegenOptionValues == null
-                || !selectedCodegenOptionValues.ContainsKey(SettingId)) {
+            if (selectedCodegenOptionValues == null) {
                 return;
             }
 
-            _ = Resolve(selectedCodegenOptionValues);
+            foreach (KeyValuePair<string, string> optionValue in selectedCodegenOptionValues) {
+                if (string.Equals(optionValue.Key, SettingId, StringComparison.OrdinalIgnoreCase)) {
+                    _ = Resolve(selectedCodegenOptionValues);
+                    return;
+                }
+            }
         }
 
         /// <summary>
