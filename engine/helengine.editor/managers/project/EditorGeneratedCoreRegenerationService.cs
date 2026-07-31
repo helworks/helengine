@@ -78,16 +78,20 @@ namespace helengine.editor {
             string helengineShaderProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.shader", "helengine.shader.csproj");
             string helengineInputProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.input", "helengine.input.csproj");
             string helenginePhysics3DProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.physics3d", "helengine.physics3d.csproj");
+            string helengineHelPhysicsProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.helphysics", "helengine.helphysics.csproj");
             string bundledRuntimeSupportRootPath = Path.Combine(
                 Path.GetDirectoryName(fullCodegenToolPath) ?? throw new InvalidOperationException($"Unable to resolve the codegen tool directory from '{fullCodegenToolPath}'."),
                 ".net.cpp");
-            string tempRoot = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformDefinition.PlatformId, Guid.NewGuid().ToString("N"));
+            string scratchRootPath = ResolveRegenerationScratchRootPath(generatedCoreOutputRoot, platformDefinition.PlatformId);
+            string tempRoot = Path.Combine(scratchRootPath, Guid.NewGuid().ToString("N"));
             string shaderOutputRoot = Path.Combine(tempRoot, "shader");
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
+            string helPhysicsOutputRoot = Path.Combine(tempRoot, "helphysics");
             string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
             bool shouldRegenerateShaderProject = ShouldRegenerateShaderProject(platformDefinition);
             bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
+            bool shouldRegenerateHelPhysicsProject = ShouldRegenerateHelPhysicsProject(additionalPreprocessorSymbols);
 
             if (!File.Exists(helengineCoreProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.core project at '{helengineCoreProjectPath}'.", helengineCoreProjectPath);
@@ -100,6 +104,9 @@ namespace helengine.editor {
             }
             if (shouldRegeneratePhysics3DProject && !File.Exists(helenginePhysics3DProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.physics3d project at '{helenginePhysics3DProjectPath}'.", helenginePhysics3DProjectPath);
+            }
+            if (shouldRegenerateHelPhysicsProject && !File.Exists(helengineHelPhysicsProjectPath)) {
+                throw new FileNotFoundException($"Could not find helengine.helphysics project at '{helengineHelPhysicsProjectPath}'.", helengineHelPhysicsProjectPath);
             }
             if (!File.Exists(fullCodegenToolPath)) {
                 throw new FileNotFoundException($"Could not find the bundled csharpcodegen executable at '{fullCodegenToolPath}'.", fullCodegenToolPath);
@@ -183,6 +190,25 @@ namespace helengine.editor {
                     MergeGeneratedSourceTree(physics3DOutputRoot, generatedCoreOutputRoot);
                     MergeGeneratedConversionReport(physics3DOutputRoot, generatedCoreOutputRoot);
                     AppendRegenerationLog(regenerationLogPath, "merge-complete physics3d");
+                }
+                if (shouldRegenerateHelPhysicsProject) {
+                    AppendRegenerationLog(regenerationLogPath, $"project-start path={helengineHelPhysicsProjectPath}");
+                    RegenerateProject(
+                        fullCodegenToolPath,
+                        helengineHelPhysicsProjectPath,
+                        helPhysicsOutputRoot,
+                        platformDefinition,
+                        codegenProfile,
+                        selectedCodegenOptionValues,
+                        combinedPreprocessorSymbols,
+                        false,
+                        regenerationLogPath,
+                        cancellationToken);
+                    AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineHelPhysicsProjectPath}");
+                    AppendRegenerationLog(regenerationLogPath, "merge-start helphysics");
+                    MergeGeneratedSourceTree(helPhysicsOutputRoot, generatedCoreOutputRoot);
+                    MergeGeneratedConversionReport(helPhysicsOutputRoot, generatedCoreOutputRoot);
+                    AppendRegenerationLog(regenerationLogPath, "merge-complete helphysics");
                 }
                 AppendRegenerationLog(regenerationLogPath, "external-projects-start");
                 RegenerateAdditionalGeneratedCoreProjects(
@@ -526,6 +552,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the visible workspace-owned scratch root used for one platform's generated-core project conversions.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute or relative final generated-core output path.</param>
+        /// <param name="platformId">Stable platform identifier used to isolate concurrent platform conversions.</param>
+        /// <returns>Absolute platform-specific scratch root beside the final generated-core directory.</returns>
+        internal static string ResolveRegenerationScratchRootPath(string generatedCoreRootPath, string platformId) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core output root must be provided.", nameof(generatedCoreRootPath));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            string fullGeneratedCoreRootPath = Path.GetFullPath(generatedCoreRootPath);
+            string workspaceRootPath = Path.GetDirectoryName(fullGeneratedCoreRootPath)
+                ?? throw new InvalidOperationException($"Generated core workspace parent could not be resolved from '{fullGeneratedCoreRootPath}'.");
+            return Path.Combine(workspaceRootPath, "generated-core-regeneration", platformId);
+        }
+
+        /// <summary>
         /// Determines whether the current platform requires generated shader runtime sources.
         /// </summary>
         /// <param name="platformDefinition">Target platform definition being regenerated.</param>
@@ -552,6 +597,28 @@ namespace helengine.editor {
             for (int index = 0; index < additionalPreprocessorSymbols.Count; index++) {
                 string symbol = additionalPreprocessorSymbols[index];
                 if (string.Equals(symbol, PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol, StringComparison.OrdinalIgnoreCase)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Returns whether the selected physics runtime requires the HelPhysics project in the generated native core.
+        /// </summary>
+        /// <param name="additionalPreprocessorSymbols">Build-local symbols forwarded to generated-core regeneration.</param>
+        /// <returns>True only when HelPhysics is the explicitly selected runtime backend.</returns>
+        internal static bool ShouldRegenerateHelPhysicsProject(IReadOnlyList<string> additionalPreprocessorSymbols) {
+            if (additionalPreprocessorSymbols == null) {
+                throw new ArgumentNullException(nameof(additionalPreprocessorSymbols));
+            }
+
+            for (int index = 0; index < additionalPreprocessorSymbols.Count; index++) {
+                if (string.Equals(
+                    additionalPreprocessorSymbols[index],
+                    EditorPhysicsRuntimeBackendSelectionService.HelPhysicsSymbol,
+                    StringComparison.Ordinal)) {
                     return true;
                 }
             }

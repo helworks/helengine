@@ -568,6 +568,37 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies HelPhysics source generation is controlled only by the explicit HelPhysics backend symbol.
+    /// </summary>
+    [Fact]
+    public void Should_regenerate_helphysics_project_returns_true_only_for_helphysics_backend_symbol() {
+        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegenerateHelPhysicsProject([
+            EditorPhysicsRuntimeBackendSelectionService.HelPhysicsSymbol
+        ]));
+
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegenerateHelPhysicsProject([
+            EditorPhysicsRuntimeBackendSelectionService.BepuSymbol,
+            PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol
+        ]));
+    }
+
+    /// <summary>
+    /// Ensures generated-core scratch output is rooted beside the caller-owned output workspace rather than in the system temporary directory.
+    /// </summary>
+    [Fact]
+    public void Resolve_regeneration_scratch_root_path_uses_generated_core_workspace_parent() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "workspace", "generated-core");
+
+        string scratchRootPath = EditorGeneratedCoreRegenerationService.ResolveRegenerationScratchRootPath(
+            generatedCoreRootPath,
+            "windows");
+
+        Assert.Equal(
+            Path.Combine(RootPath, "workspace", "generated-core-regeneration", "windows"),
+            scratchRootPath);
+    }
+
+    /// <summary>
     /// Ensures shaderless console runtimes exclude the shader project while shader-capable platforms retain the existing generation behavior.
     /// </summary>
     [Fact]
@@ -586,8 +617,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     [Fact]
     public void Regenerate_when_codegen_tool_is_missing_deletes_scratch_workspace() {
         string platformId = "temp-cleanup-failure-" + Guid.NewGuid().ToString("N");
-        string platformScratchRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformId);
         string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-failure-output");
+        string platformScratchRootPath = EditorGeneratedCoreRegenerationService.ResolveRegenerationScratchRootPath(
+            generatedCoreRootPath,
+            platformId);
         EditorGeneratedCoreRegenerationService service = new();
 
         try {
@@ -613,8 +646,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     [Fact]
     public void Regenerate_when_codegen_succeeds_deletes_scratch_workspace() {
         string platformId = "temp-cleanup-success-" + Guid.NewGuid().ToString("N");
-        string platformScratchRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformId);
         string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-success-output");
+        string platformScratchRootPath = EditorGeneratedCoreRegenerationService.ResolveRegenerationScratchRootPath(
+            generatedCoreRootPath,
+            platformId);
         string codegenRootPath = Path.Combine(RootPath, "fake-codegen");
         string fakeCodegenPath = CreateFakeCodegenTool(codegenRootPath);
         EditorGeneratedCoreRegenerationService service = new();
@@ -636,6 +671,39 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         } finally {
             DeleteDirectoryIfPresent(platformScratchRootPath);
         }
+    }
+
+    /// <summary>
+    /// Verifies an explicit HelPhysics backend symbol invokes the HelPhysics project through the normal code-generation process.
+    /// </summary>
+    [Fact]
+    public void Regenerate_with_helphysics_backend_symbol_invokes_helphysics_project() {
+        string platformId = "helphysics-generation-" + Guid.NewGuid().ToString("N");
+        string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-helphysics-output");
+        string codegenRootPath = Path.Combine(RootPath, "fake-codegen-helphysics");
+        string argumentsLogPath = Path.Combine(RootPath, "fake-codegen-helphysics-arguments.log");
+        string fakeCodegenPath = CreateFakeCodegenTool(codegenRootPath, argumentsLogPath);
+        string helPhysicsProjectPath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.helphysics",
+            "helengine.helphysics.csproj");
+        EditorGeneratedCoreRegenerationService service = new();
+
+        service.Regenerate(
+            CreatePlatformDefinition(platformId, runtimeGenerationContract: null),
+            CreateDefaultCodegenProfile(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            generatedCoreRootPath,
+            fakeCodegenPath,
+            [],
+            [EditorPhysicsRuntimeBackendSelectionService.HelPhysicsSymbol],
+            CancellationToken.None);
+
+        string[] loggedInvocations = File.ReadAllLines(argumentsLogPath);
+        Assert.Contains(
+            loggedInvocations,
+            invocation => invocation.Contains($"PROJECT={helPhysicsProjectPath}|", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
