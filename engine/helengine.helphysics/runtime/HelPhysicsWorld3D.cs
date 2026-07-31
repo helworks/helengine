@@ -2,7 +2,11 @@ namespace helengine {
     /// <summary>
     /// Owns one deterministic fixed-capacity scalar box world and executes its simulation in a fixed twelve-phase order.
     /// </summary>
-    public sealed class HelPhysicsWorld3D : IPhysicsRuntime, IPhysicsRuntimeProfilerMetricsProvider {
+    public sealed class HelPhysicsWorld3D : IPhysicsRuntime
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
+        , IPhysicsRuntimeProfilerMetricsProvider
+#endif
+    {
         /// <summary>
         /// Stores the process-local monotonic ownership allocator that permanently rejects token wraparound.
         /// </summary>
@@ -166,7 +170,9 @@ namespace helengine {
         /// <summary>
         /// Stores the single reusable outer-profiler sample returned without allocation.
         /// </summary>
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         readonly HelPhysicsRuntimeProfilerMetrics3D RuntimeProfilerMetrics;
+#endif
 
         /// <summary>
         /// Stores the nonzero ownership token embedded into every public body handle from this world.
@@ -264,7 +270,9 @@ namespace helengine {
             ActiveManifolds = new HelPhysicsContactManifold3D[settings.ManifoldCapacity];
             IslandPairs = new HelPhysicsPairKey3D[settings.ManifoldCapacity];
             IslandManifolds = new HelPhysicsContactManifold3D[settings.ManifoldCapacity];
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
             RuntimeProfilerMetrics = new HelPhysicsRuntimeProfilerMetrics3D();
+#endif
             LastStepMetrics = default;
         }
 
@@ -717,10 +725,12 @@ namespace helengine {
         /// </summary>
         /// <param name="metrics">Receives a world-owned object whose values update after later completed steps.</param>
         /// <returns><see langword="true"/> because this world always owns body, contact, and manifold totals.</returns>
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         public bool TryGetRuntimeProfilerMetrics(out RuntimePhysicsProfilerMetrics metrics) {
             metrics = RuntimeProfilerMetrics;
             return true;
         }
+#endif
 
         /// <summary>
         /// Retrieves one retained manifold after validating both public body identities and world ownership.
@@ -1563,10 +1573,12 @@ namespace helengine {
                 IslandSleeper.GetWakeCount(HelPhysicsWakeReason3D.ExplicitImpulse),
                 IslandSleeper.GetWakeCount(HelPhysicsWakeReason3D.NewCandidateContact),
                 IslandSleeper.GetWakeCount(HelPhysicsWakeReason3D.MovingKinematicContact));
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
             RuntimeProfilerMetrics.Publish(
                 LastStepMetrics.BodyCount,
                 LastStepMetrics.ContactPointCount,
                 LastStepMetrics.ManifoldCount);
+#endif
         }
 
         /// <summary>

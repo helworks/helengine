@@ -2,7 +2,11 @@ namespace helengine {
     /// <summary>
     /// Adapts one binder-owned HelPhysics scene to Core's exact fixed-step and profiler contracts.
     /// </summary>
-    public sealed class HelPhysicsSceneRuntime3D : IPhysicsRuntime, IPhysicsRuntimeProfilerMetricsProvider {
+    public sealed class HelPhysicsSceneRuntime3D : IPhysicsRuntime
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
+        , IPhysicsRuntimeProfilerMetricsProvider
+#endif
+    {
         /// <summary>
         /// Initializes the Core-facing adapter around one exclusively owned scene binder.
         /// </summary>
@@ -35,8 +39,10 @@ namespace helengine {
         /// </summary>
         /// <param name="metrics">Receives the world's current authoritative physics metrics.</param>
         /// <returns>True when the world provides its metrics sample.</returns>
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         public bool TryGetRuntimeProfilerMetrics(out RuntimePhysicsProfilerMetrics metrics) {
             return Binder.World.TryGetRuntimeProfilerMetrics(out metrics);
         }
+#endif
     }
 }

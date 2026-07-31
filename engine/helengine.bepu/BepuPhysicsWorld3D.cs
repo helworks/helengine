@@ -1020,7 +1020,8 @@ namespace helengine {
         /// </summary>
         static bool ContainsTriggerPair(IReadOnlyList<TriggerPairKey3D> pairs, TriggerPairKey3D pairKey) {
             for (int index = 0; index < pairs.Count; index++) {
-                if (pairs[index].Equals(pairKey)) {
+                TriggerPairKey3D existingPair = pairs[index];
+                if (existingPair.Equals(pairKey)) {
                     return true;
                 }
             }
