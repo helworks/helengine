@@ -80,6 +80,31 @@ namespace helengine.helphysics.tests {
         }
 
         /// <summary>
+        /// Ensures a failure after scene preflight rolls back bodies and lifecycle associations created earlier in the binding pass.
+        /// </summary>
+        [Fact]
+        public void BindHierarchies_WhenLaterRootChangesAfterPreflight_RollsBackEarlierBindings() {
+            Entity firstRoot = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
+                float3.Zero,
+                float3.One,
+                BodyKind3D.Static);
+            Entity secondRoot = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
+                new float3(2f, 0f, 0f),
+                float3.One,
+                BodyKind3D.Static);
+            MutatingRootEntityList roots = new MutatingRootEntityList(
+                [firstRoot, secondRoot],
+                secondRoot.Dispose);
+            HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => binder.BindHierarchies(roots));
+
+            Assert.Contains("Disposed entities", exception.Message, StringComparison.Ordinal);
+            Assert.Empty(binder.Bindings);
+            Assert.DoesNotContain(firstRoot.Components, component => component is HelPhysicsEntityBindingLifecycle3D);
+        }
+
+        /// <summary>
         /// Ensures scene unloading detaches the adapter while all binding-owned entity components are still alive.
         /// </summary>
         [Fact]
@@ -97,6 +122,62 @@ namespace helengine.helphysics.tests {
             Assert.Null(core.PhysicsRuntime);
             Assert.Empty(runtime.Binder.Bindings);
             Assert.All(bindings, binding => Assert.False(binding.IsValid));
+        }
+
+        /// <summary>
+        /// Ensures a failed binding cleanup remains registered and retryable instead of losing its only owning reference.
+        /// </summary>
+        [Fact]
+        public void HandleUnloadingScene_WhenLifecycleStateIsMalformed_RetainsRuntimeUntilCleanupRetrySucceeds() {
+            HelPhysicsWorldSettings3D settings = new HelPhysicsWorldSettings3D();
+            Core core = CreateCore(settings.FixedStepSeconds);
+            Entity root = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
+                float3.Zero,
+                float3.One,
+                BodyKind3D.Static);
+            HelPhysicsRuntimeComponentRegistration.RegisterConfigured(core, settings);
+            HelPhysicsRuntimeComponentRegistration.HandleLoadedScene(core, [root]);
+            HelPhysicsSceneRuntime3D runtime = Assert.IsType<HelPhysicsSceneRuntime3D>(core.PhysicsRuntime);
+            HelPhysicsEntityBindingLifecycle3D lifecycle = Assert.IsType<HelPhysicsEntityBindingLifecycle3D>(
+                root.Components.Single(component => component is HelPhysicsEntityBindingLifecycle3D));
+            Assert.True(root.Components.Remove(lifecycle));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                HelPhysicsRuntimeComponentRegistration.HandleUnloadingScene(core, [root]));
+
+            Assert.Null(core.PhysicsRuntime);
+            Assert.Same(runtime, HelPhysicsRuntimeComponentRegistration.RegisteredRuntime);
+            Assert.Single(runtime.Binder.Bindings);
+            root.Components.Add(lifecycle);
+
+            HelPhysicsRuntimeComponentRegistration.HandleUnloadingScene(core, [root]);
+
+            Assert.Null(HelPhysicsRuntimeComponentRegistration.RegisteredRuntime);
+            Assert.Empty(runtime.Binder.Bindings);
+        }
+
+        /// <summary>
+        /// Ensures explicit shutdown releases event ownership, runtime bindings, and static Core references.
+        /// </summary>
+        [Fact]
+        public void UnregisterConfigured_WithAttachedRuntime_ReleasesRegistrationState() {
+            HelPhysicsWorldSettings3D settings = new HelPhysicsWorldSettings3D();
+            Core core = CreateCore(settings.FixedStepSeconds);
+            Entity root = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
+                float3.Zero,
+                float3.One,
+                BodyKind3D.Static);
+            HelPhysicsRuntimeComponentRegistration.RegisterConfigured(core, settings);
+            HelPhysicsRuntimeComponentRegistration.HandleLoadedScene(core, [root]);
+            HelPhysicsSceneRuntime3D runtime = Assert.IsType<HelPhysicsSceneRuntime3D>(core.PhysicsRuntime);
+
+            HelPhysicsRuntimeComponentRegistration.UnregisterConfigured(core);
+
+            Assert.Null(core.PhysicsRuntime);
+            Assert.Null(HelPhysicsRuntimeComponentRegistration.RegisteredRuntime);
+            Assert.Empty(runtime.Binder.Bindings);
+            Assert.Throws<InvalidOperationException>(() =>
+                HelPhysicsRuntimeComponentRegistration.HandleLoadedScene(core, [root]));
         }
 
         /// <summary>

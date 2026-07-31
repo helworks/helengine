@@ -108,8 +108,22 @@ namespace helengine {
 
             ValidateBindingIdCapacity(requiredBodyCount);
             World.ValidateBodyCreationCapacity(requiredBodyCount);
-            for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++) {
-                BindEntityAndDescendants(roots[rootIndex]);
+            int initialBindingCount = BindingsValue.Count;
+            try {
+                for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++) {
+                    BindEntityAndDescendants(roots[rootIndex]);
+                }
+            } catch (Exception bindingException) {
+                try {
+                    RollbackBindingsToCount(initialBindingCount);
+                } catch (Exception rollbackException) {
+                    throw new AggregateException(
+                        "HelPhysics scene binding failed and rollback could not restore the prior binding state.",
+                        bindingException,
+                        rollbackException);
+                }
+
+                throw;
             }
         }
 
@@ -174,6 +188,7 @@ namespace helengine {
             }
 
             HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
+            ValidateBindingLifecycleAttachment(binding);
             World.RemoveBodyForSceneBinder(this, binding.BodyHandle);
 
             InvalidateBinding(bindingIndex, true);
@@ -185,6 +200,40 @@ namespace helengine {
         public void UnbindAll() {
             while (BindingsValue.Count > 0) {
                 Unbind(BindingsValue[BindingsValue.Count - 1].Entity);
+            }
+        }
+
+        /// <summary>
+        /// Removes bindings added by a failed multi-hierarchy transaction while preserving associations that predated the call.
+        /// </summary>
+        /// <param name="bindingCount">Exact prior binding count that must remain after rollback.</param>
+        void RollbackBindingsToCount(int bindingCount) {
+            while (BindingsValue.Count > bindingCount) {
+                Unbind(BindingsValue[BindingsValue.Count - 1].Entity);
+            }
+        }
+
+        /// <summary>
+        /// Verifies a binding's lifecycle observer remains attached and present before body-removal state is mutated.
+        /// </summary>
+        /// <param name="binding">Current binding whose cleanup must remain retryable.</param>
+        /// <exception cref="InvalidOperationException">Thrown when lifecycle ownership or collection membership is malformed.</exception>
+        static void ValidateBindingLifecycleAttachment(HelPhysicsEntityBinding3D binding) {
+            if (!ReferenceEquals(binding.Lifecycle.Parent, binding.Entity)) {
+                throw new InvalidOperationException("A HelPhysics binding lifecycle component is no longer attached to its owning entity.");
+            }
+
+            bool lifecycleIsPresent = false;
+            List<Component> components = binding.Entity.Components;
+            for (int componentIndex = 0; componentIndex < components.Count; componentIndex++) {
+                if (ReferenceEquals(components[componentIndex], binding.Lifecycle)) {
+                    lifecycleIsPresent = true;
+                    break;
+                }
+            }
+
+            if (!lifecycleIsPresent) {
+                throw new InvalidOperationException("A HelPhysics binding lifecycle component is missing from its owning entity collection.");
             }
         }
 

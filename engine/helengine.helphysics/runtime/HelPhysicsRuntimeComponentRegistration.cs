@@ -19,6 +19,11 @@ namespace helengine {
         static HelPhysicsSceneRuntime3D RuntimeValue;
 
         /// <summary>
+        /// Gets the adapter retained by registration for lifecycle cleanup validation and retry handling.
+        /// </summary>
+        internal static HelPhysicsSceneRuntime3D RegisteredRuntime => RuntimeValue;
+
+        /// <summary>
         /// Subscribes one initialized Core to configured HelPhysics scene loading without attaching a backend prematurely.
         /// </summary>
         /// <param name="core">Initialized Core that owns scene loading and fixed-step scheduling.</param>
@@ -40,6 +45,17 @@ namespace helengine {
             RuntimeValue = null;
             RuntimeCore.SceneManager.SceneLoaded += BindLoadedScene;
             RuntimeCore.SceneManager.SceneUnloading += DetachUnloadingScene;
+        }
+
+        /// <summary>
+        /// Detaches runtime state and releases scene callbacks and static references owned for one registered Core.
+        /// </summary>
+        /// <param name="core">Exact registered Core whose HelPhysics lifecycle ownership should end.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="core"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the supplied Core does not own the current registration.</exception>
+        public static void UnregisterConfigured(Core core) {
+            ValidateRegisteredCore(core);
+            UnregisterCurrentCore();
         }
 
         /// <summary>
@@ -121,10 +137,11 @@ namespace helengine {
                 core.DetachPhysicsRuntime();
             }
 
-            RuntimeValue = null;
             if (runtime != null) {
                 runtime.Binder.UnbindAll();
             }
+
+            RuntimeValue = null;
         }
 
         /// <summary>
