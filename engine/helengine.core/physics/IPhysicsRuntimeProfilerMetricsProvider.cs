@@ -1,3 +1,4 @@
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
 namespace helengine {
     /// <summary>
     /// Allows a physics runtime to expose only the profiler counters it can authoritatively own.
@@ -11,3 +12,4 @@ namespace helengine {
         bool TryGetRuntimeProfilerMetrics(out RuntimePhysicsProfilerMetrics metrics);
     }
 }
+#endif

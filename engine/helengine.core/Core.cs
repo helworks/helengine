@@ -62,7 +62,9 @@ namespace helengine {
         /// <summary>
         /// Owns profiler counters for the current host frame independently from legacy overlay metrics.
         /// </summary>
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         readonly RuntimeProfilerMetrics RuntimeProfilerMetricsValue;
+#endif
 
         /// <summary>
         /// Initializes a new core instance with default initialization options.
@@ -93,7 +95,9 @@ namespace helengine {
             UpdateStopwatchValue = Stopwatch.StartNew();
             DrawStopwatchValue = new Stopwatch();
             PhysicsStopwatchValue = new Stopwatch();
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
             RuntimeProfilerMetricsValue = new RuntimeProfilerMetrics();
+#endif
             ResolvedPerformanceOverlayFontScale = 1f;
             ResolvedPerformanceOverlayPadding = new int2(0, 0);
             ResolvedPerformanceOverlayUpdateText = string.Empty;
@@ -332,7 +336,9 @@ namespace helengine {
         /// <summary>
         /// Gets an immutable snapshot of the core-owned profiler counters for the current host frame.
         /// </summary>
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         public RuntimeProfilerMetricsSnapshot RuntimeProfilerMetrics => RuntimeProfilerMetricsValue.GetSnapshot();
+#endif
 
         /// <summary>
         /// Gets the packaged scene asset resolver configured for the current runtime target.
@@ -732,7 +738,11 @@ namespace helengine {
         public virtual void CompleteFrameBoundary() {
             if (SceneManager != null) {
                 LastSceneTransitionStage = "CompleteFrameBoundaryCommitBegin";
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
                 RuntimeProfilerMetricsValue.AddSceneOperationCount(SceneManager.CommitPendingOperationsAtFrameBoundary());
+#else
+                SceneManager.CommitPendingOperationsAtFrameBoundary();
+#endif
                 LastSceneTransitionStage = "CompleteFrameBoundaryCommitEnd";
                 if (UpdateStageDiagnosticsProviderValue != null) {
                     RecordUpdateStage("AfterCompleteFrameBoundarySceneCommit");
@@ -745,9 +755,11 @@ namespace helengine {
         /// </summary>
         /// <param name="drawCallCount">Number of draw calls submitted by the native renderer.</param>
         /// <param name="triangleCount">Number of triangles submitted by the native renderer.</param>
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         public void ReportRuntimeProfilerRenderingMetrics(int drawCallCount, int triangleCount) {
             RuntimeProfilerMetricsValue.SetRenderingMetrics(drawCallCount, triangleCount);
         }
+#endif
 
         /// <summary>
         /// Releases managed resources for render managers.
@@ -814,7 +826,9 @@ namespace helengine {
         /// <param name="elapsedSeconds">Elapsed update time in seconds.</param>
         /// <param name="currentMeasuredUpdateSeconds">Current measured elapsed update time captured for this update.</param>
         void AdvanceUpdate(double elapsedSeconds, double currentMeasuredUpdateSeconds) {
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
             RuntimeProfilerMetricsValue.BeginFrame();
+#endif
             float elapsedSecondsFloat = (float)elapsedSeconds;
             FrameDeltaSeconds = elapsedSeconds;
             UnscaledDeltaTime = elapsedSecondsFloat;
@@ -979,7 +993,9 @@ namespace helengine {
             LastPhysicsUpdateMilliseconds = 0d;
             LastPhysicsStepCount = 0;
             if (PhysicsRuntimeValue == null) {
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
                 RuntimeProfilerMetricsValue.SetFixedUpdateCount(0);
+#endif
                 return;
             }
 
@@ -1020,11 +1036,13 @@ namespace helengine {
             LastPhysicsUpdateMilliseconds = PhysicsStopwatchValue.Elapsed.TotalMilliseconds;
             LastPhysicsStepCount = consumedStepCount;
 
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
             RuntimeProfilerMetricsValue.SetFixedUpdateCount(consumedStepCount);
             if (PhysicsRuntimeValue is IPhysicsRuntimeProfilerMetricsProvider metricsProvider
                 && metricsProvider.TryGetRuntimeProfilerMetrics(out RuntimePhysicsProfilerMetrics metrics)) {
                 RuntimeProfilerMetricsValue.SetPhysicsMetrics(metrics);
             }
+#endif
         }
     }
 }

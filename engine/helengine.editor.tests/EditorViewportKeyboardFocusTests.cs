@@ -155,6 +155,30 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures snap value text boxes remain borderless until keyboard focus highlights the active field.
+        /// </summary>
+        [Fact]
+        public void SnapValueTextBoxes_WhenFocusChanges_ShowBorderOnlyForFocusedField() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            TextBoxComponent[] snapValueTextBoxes = GetPrivateField<TextBoxComponent[]>(viewport, "SnapValueTextBoxes");
+            RoundedRectComponent firstBackground = GetPrivateField<RoundedRectComponent>(snapValueTextBoxes[0], "backgroundSprite");
+            RoundedRectComponent secondBackground = GetPrivateField<RoundedRectComponent>(snapValueTextBoxes[1], "backgroundSprite");
+
+            Assert.Equal(0f, firstBackground.BorderThickness);
+            Assert.Equal(0f, secondBackground.BorderThickness);
+
+            snapValueTextBoxes[0].IsFocused = true;
+
+            Assert.Equal(2f, firstBackground.BorderThickness);
+            Assert.Equal(0f, secondBackground.BorderThickness);
+
+            snapValueTextBoxes[0].IsFocused = false;
+
+            Assert.Equal(0f, firstBackground.BorderThickness);
+        }
+
+        /// <summary>
         /// Ensures workspace-created viewport panels initialize their hierarchy so snap text boxes release focus after an external pointer press.
         /// </summary>
         [Fact]

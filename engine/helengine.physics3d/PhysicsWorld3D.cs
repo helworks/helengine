@@ -2,7 +2,11 @@ namespace helengine {
     /// <summary>
     /// Represents one hosted 3D physics world configured for a specific runtime profile.
     /// </summary>
-    public class PhysicsWorld3D : IPhysicsRuntime, IPhysicsTriggerEventRuntime3D, IPhysicsRuntimeProfilerMetricsProvider {
+    public class PhysicsWorld3D : IPhysicsRuntime, IPhysicsTriggerEventRuntime3D
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
+        , IPhysicsRuntimeProfilerMetricsProvider
+#endif
+    {
         /// <summary>
         /// Gravity applied to dynamic bodies each fixed step.
         /// </summary>
@@ -144,6 +148,7 @@ namespace helengine {
         /// </summary>
         /// <param name="metrics">Current solver counters.</param>
         /// <returns>Always <see langword="true"/> because this solver owns all reported counters.</returns>
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         public bool TryGetRuntimeProfilerMetrics(out RuntimePhysicsProfilerMetrics metrics) {
             int contactCount = 0;
             for (int index = 0; index < BoxBoxContactConstraintsValue.Count; index++) {
@@ -155,6 +160,7 @@ namespace helengine {
             metrics = new RuntimePhysicsProfilerMetrics(BodyStatesValue.Count, contactCount, BoxBoxContactConstraintsValue.Count);
             return true;
         }
+#endif
 
         /// <summary>
         /// Binds one scene hierarchy to the world by discovering supported rigid-body entities.

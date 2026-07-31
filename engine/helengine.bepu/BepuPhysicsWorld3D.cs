@@ -8,7 +8,11 @@ namespace helengine {
     /// <summary>
     /// Hosts the real BEPU simulation used by supported Helengine 3D rigid-body scenes.
     /// </summary>
-    public sealed class BepuPhysicsWorld3D : ISceneBindablePhysicsRuntime, IPhysicsBodySynchronizationRuntime3D, IPhysicsTriggerEventRuntime3D, IPhysicsRuntimeProfilerMetricsProvider {
+    public sealed class BepuPhysicsWorld3D : ISceneBindablePhysicsRuntime, IPhysicsBodySynchronizationRuntime3D, IPhysicsTriggerEventRuntime3D
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
+        , IPhysicsRuntimeProfilerMetricsProvider
+#endif
+    {
         /// <summary>
         /// Default contact spring settings used for the initial BEPU integration pass.
         /// </summary>
@@ -148,10 +152,12 @@ namespace helengine {
         /// </summary>
         /// <param name="metrics">Current BEPU profiler metrics.</param>
         /// <returns>Always <see langword="true"/> because the body registry is authoritative.</returns>
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         public bool TryGetRuntimeProfilerMetrics(out RuntimePhysicsProfilerMetrics metrics) {
             metrics = new RuntimePhysicsProfilerMetrics(RegisteredBodyCount);
             return true;
         }
+#endif
 
         /// <summary>
         /// Gets the trigger overlap events emitted during the most recent fixed step.

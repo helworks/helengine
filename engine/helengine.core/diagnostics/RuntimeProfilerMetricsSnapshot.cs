@@ -1,3 +1,4 @@
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
 namespace helengine {
     /// <summary>
     /// Provides the immutable, core-owned profiler counters for one host frame after generated runtime execution.
@@ -145,3 +146,4 @@ namespace helengine {
         }
     }
 }
+#endif

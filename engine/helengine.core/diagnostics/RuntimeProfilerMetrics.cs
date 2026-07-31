@@ -1,3 +1,4 @@
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
 namespace helengine {
     /// <summary>
     /// Owns the mutable profiler counters for the active core and produces immutable snapshots for platform hosts.
@@ -135,3 +136,4 @@ namespace helengine {
         }
     }
 }
+#endif

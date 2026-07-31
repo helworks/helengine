@@ -785,6 +785,7 @@ namespace helengine.editor {
             ToolbarRoot.AddChild(valueRoot);
 
             TextBoxComponent valueTextBox = new TextBoxComponent(new int2(SnapValueWidth, ToolButtonHeight), Font);
+            valueTextBox.UseFocusedBorderOnly = true;
             valueTextBox.SetRenderOrders(ToolbarSurfaceOrder, ToolbarForegroundOrder);
             int capturedSlotIndex = slotIndex;
             valueTextBox.Submitted += textBox => HandleSnapValueSubmitted(capturedSlotIndex, textBox);

@@ -1,3 +1,4 @@
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
 namespace helengine {
     /// <summary>
     /// Describes the physics counters a runtime can authoritatively expose for one profiler frame.
@@ -78,3 +79,4 @@ namespace helengine {
         }
     }
 }
+#endif
