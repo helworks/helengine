@@ -91,14 +91,16 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void ResolveSharedEngineUserSettingsRootPath_WhenOverrideExists_ReturnsAbsoluteOverride() {
-            string configuredRootPath = Path.Combine(TemporaryRepositoryRootPath, "isolated-user-settings");
-            Directory.CreateDirectory(configuredRootPath);
+            string expectedRootPath = Path.Combine(TemporaryRepositoryRootPath, "isolated-user-settings");
+            string childPath = Path.Combine(expectedRootPath, "normalization-child");
+            Directory.CreateDirectory(childPath);
+            string configuredRootPath = Path.Combine(childPath, "..");
             Environment.SetEnvironmentVariable(SharedUserSettingsRootEnvironmentVariableName, configuredRootPath);
             EditorSourceBuildWorkspaceLocator locator = new();
 
             string resolvedRootPath = locator.ResolveSharedEngineUserSettingsRootPath();
 
-            Assert.Equal(Path.GetFullPath(configuredRootPath), resolvedRootPath);
+            Assert.Equal(Path.GetFullPath(expectedRootPath), resolvedRootPath);
         }
 
         /// <summary>
