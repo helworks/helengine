@@ -625,7 +625,7 @@ namespace helengine.editor {
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
-            previewPanel = new PreviewPanel(uiFont, CurrentUiMetrics);
+            previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
@@ -1858,7 +1858,7 @@ namespace helengine.editor {
         /// <param name="session">Owning editor session.</param>
         /// <returns>Created preview panel controller.</returns>
         IEditorWorkspacePanelController CreatePreviewPanelController(EditorSession session) {
-            PreviewPanel panel = new PreviewPanel(session.uiFont, session.CurrentUiMetrics);
+            PreviewPanel panel = new PreviewPanel(session.uiFont, session.ViewportToolbarIcons.GridIcon, session.CurrentUiMetrics);
             return CreatePreviewPanelSessionController(panel);
         }
 

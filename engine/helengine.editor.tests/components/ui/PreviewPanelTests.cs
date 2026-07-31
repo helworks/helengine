@@ -25,6 +25,11 @@ namespace helengine.editor.tests {
             EditorInputCaptureService.Reset();
             Input = new TestInputBackend();
 
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new helengine.directx11.DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new helengine.vulkan.VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
@@ -130,6 +135,95 @@ namespace helengine.editor.tests {
 
             Assert.False(resolutionLabelHost.Enabled);
             Assert.Equal(string.Empty, resolutionLabelText.Text);
+        }
+
+        /// <summary>
+        /// Ensures the compact model toolbar is shown only while the panel hosts a model preview source.
+        /// </summary>
+        [Fact]
+        public void SetPreviewSource_WhenModelPreviewIsAssigned_ShowsGridToolbarOnlyForTheModel() {
+            PreviewPanel panel = new PreviewPanel(CreateFont()) {
+                Size = new int2(416, 312)
+            };
+            ModelPreviewSource modelSource = CreateModelPreviewSource();
+
+            panel.SetPreviewSource(modelSource);
+
+            EditorEntity modelToolbarRoot = GetPrivateField<EditorEntity>(panel, "modelToolbarRoot");
+            Assert.True(modelToolbarRoot.Enabled);
+
+            panel.SetPreviewSource(new TexturePreviewSource(new TestRuntimeTexture {
+                Width = 64,
+                Height = 64
+            }));
+
+            Assert.False(modelToolbarRoot.Enabled);
+        }
+
+        /// <summary>
+        /// Ensures the toolbar grid button changes the active model preview and preserves its state for later model previews.
+        /// </summary>
+        [Fact]
+        public void GridToolbarButton_WhenActivated_PersistsThePanelGridPreferenceAcrossModelPreviews() {
+            PreviewPanel panel = new PreviewPanel(CreateFont()) {
+                Size = new int2(416, 312)
+            };
+            ModelPreviewSource firstSource = CreateModelPreviewSource();
+            ModelPreviewSource secondSource = CreateModelPreviewSource();
+            panel.SetPreviewSource(firstSource);
+            InteractableComponent gridButtonInteractable = GetPrivateField<InteractableComponent>(panel, "gridButtonInteractable");
+
+            gridButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Hover);
+            gridButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Press);
+            gridButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Release);
+
+            Assert.False(firstSource.IsGridVisible);
+
+            panel.SetPreviewSource(secondSource);
+
+            Assert.False(secondSource.IsGridVisible);
+            panel.ClearPreview();
+        }
+
+        /// <summary>
+        /// Ensures pointer drags beginning on the model toolbar do not orbit the model beneath it.
+        /// </summary>
+        [Fact]
+        public void UpdatePreviewSource_WhenPointerDragsOverModelToolbar_DoesNotOrbitTheModel() {
+            PreviewPanel panel = new PreviewPanel(CreateFont()) {
+                Size = new int2(416, 312)
+            };
+            ModelPreviewSource source = CreateModelPreviewSource();
+            panel.SetPreviewSource(source);
+            EditorEntity gridButtonRoot = GetPrivateField<EditorEntity>(panel, "gridButtonRoot");
+            float4 initialOrientation = source.PreviewCamera.Parent.Orientation;
+            int pointerX = (int)Math.Round(gridButtonRoot.Position.X) + 4;
+            int pointerY = (int)Math.Round(gridButtonRoot.Position.Y) + 4;
+
+            CompleteInputFrame(new MouseState(
+                pointerX,
+                pointerY,
+                0,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+            AdvanceInputFrame(new MouseState(
+                pointerX + 12,
+                pointerY,
+                0,
+                ButtonState.Pressed,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+
+            panel.UpdatePreviewSource();
+            Input.Update();
+
+            Assert.Equal(initialOrientation, source.PreviewCamera.Parent.Orientation);
+            panel.ClearPreview();
         }
 
         /// <summary>
@@ -401,6 +495,45 @@ namespace helengine.editor.tests {
                 16f,
                 64,
                 64);
+        }
+
+        /// <summary>
+        /// Creates one model preview source with deterministic bounds for toolbar interaction tests.
+        /// </summary>
+        /// <returns>Configured interactive model preview source.</returns>
+        ModelPreviewSource CreateModelPreviewSource() {
+            ModelAsset modelAsset = new ModelAsset {
+                Positions = new[] {
+                    new float3(-1f, -1f, -1f),
+                    new float3(1f, -1f, -1f),
+                    new float3(1f, 1f, -1f),
+                    new float3(-1f, 1f, -1f)
+                },
+                Normals = new[] {
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(1f, 1f),
+                    new float2(0f, 1f)
+                },
+                Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        IndexStart = 0,
+                        IndexCount = 6,
+                        MaterialSlotName = "Default"
+                    }
+                },
+                Indices16 = new ushort[] { 0, 1, 2, 0, 2, 3 },
+                BoundsMin = new float3(-1f, -1f, -1f),
+                BoundsMax = new float3(1f, 1f, 1f)
+            };
+            RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            return new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D);
         }
 
         /// <summary>

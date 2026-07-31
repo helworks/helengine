@@ -31,15 +31,67 @@ namespace helengine.editor {
         /// Multiplier applied for each scroll-wheel notch while zooming a texture preview.
         /// </summary>
         const double ZoomStepFactor = 1.1d;
+        /// <summary>
+        /// Height of the compact toolbar displayed for model previews.
+        /// </summary>
+        const int ModelToolbarHeight = 24;
+        /// <summary>
+        /// Horizontal padding around the model-grid button.
+        /// </summary>
+        const int ModelToolbarPadding = 6;
+        /// <summary>
+        /// Width of the model-grid button.
+        /// </summary>
+        const int ModelToolbarButtonWidth = 22;
+        /// <summary>
+        /// Height of the model-grid button.
+        /// </summary>
+        const int ModelToolbarButtonHeight = 18;
+        /// <summary>
+        /// Square size of the model-grid button icon.
+        /// </summary>
+        const int ModelToolbarIconSize = 14;
 
         /// <summary>
         /// Render order used for the preview sprite.
         /// </summary>
         readonly byte spriteOrder;
         /// <summary>
+        /// Runtime texture used by the model-grid toolbar button.
+        /// </summary>
+        readonly RuntimeTexture modelGridIcon;
+        /// <summary>
         /// Root entity hosting preview content.
         /// </summary>
         readonly EditorEntity contentRoot;
+        /// <summary>
+        /// Root entity hosting controls specific to model previews.
+        /// </summary>
+        readonly EditorEntity modelToolbarRoot;
+        /// <summary>
+        /// Background sprite for the model-preview toolbar.
+        /// </summary>
+        readonly SpriteComponent modelToolbarBackground;
+        /// <summary>
+        /// Root entity of the model-preview grid toggle button.
+        /// </summary>
+        readonly EditorEntity gridButtonRoot;
+        /// <summary>
+        /// Background sprite for the model-preview grid toggle button.
+        /// </summary>
+        readonly SpriteComponent gridButtonBackground;
+        /// <summary>
+        /// Icon sprite for the model-preview grid toggle button.
+        /// </summary>
+        readonly SpriteComponent gridButtonIcon;
+        /// <summary>
+        /// Hit-testable region used to activate the model-preview grid button.
+        /// </summary>
+        readonly InteractableComponent gridButtonInteractable;
+        /// <summary>
+        /// Keyboard focus target assigned to the model-preview grid button.
+        /// </summary>
+        readonly EditorFocusTarget gridButtonFocusTarget;
         /// <summary>
         /// Entity that positions the preview sprite.
         /// </summary>
@@ -96,12 +148,28 @@ namespace helengine.editor {
         /// Tracks whether a left-mouse drag is currently active on an interactive non-texture preview.
         /// </summary>
         bool IsLeftMouseDragging;
+        /// <summary>
+        /// Tracks the grid-button hover state used by toolbar visuals.
+        /// </summary>
+        bool IsGridButtonHovered;
+        /// <summary>
+        /// Tracks the grid-button press state until the pointer is released.
+        /// </summary>
+        bool IsGridButtonPressed;
+        /// <summary>
+        /// Tracks whether keyboard navigation currently targets the grid button.
+        /// </summary>
+        bool IsGridButtonKeyboardFocused;
+        /// <summary>
+        /// Stores the grid visibility preference owned by this preview-panel instance.
+        /// </summary>
+        bool IsModelGridVisibleValue;
 
         /// <summary>
         /// Initializes a new preview panel with the provided font.
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
-        public PreviewPanel(FontAsset font) : this(font, EditorUiMetrics.Default) {
+        public PreviewPanel(FontAsset font) : this(font, TextureUtils.PixelTexture, EditorUiMetrics.Default) {
         }
 
         /// <summary>
@@ -109,20 +177,92 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and padding.</param>
-        public PreviewPanel(FontAsset font, EditorUiMetrics metrics) : base(font, metrics) {
+        public PreviewPanel(FontAsset font, EditorUiMetrics metrics) : this(font, TextureUtils.PixelTexture, metrics) {
+        }
+
+        /// <summary>
+        /// Initializes a new preview panel with a model-grid toolbar icon and shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for the title bar.</param>
+        /// <param name="gridIcon">Icon drawn by the model-preview grid toggle button.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and padding.</param>
+        public PreviewPanel(FontAsset font, RuntimeTexture gridIcon, EditorUiMetrics metrics) : base(font, metrics) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
+            }
+            if (gridIcon == null) {
+                throw new ArgumentNullException(nameof(gridIcon));
             }
 
             Title = "Preview";
             MinSize = new int2(metrics.ScalePixels(220), metrics.ScalePixels(160));
 
             spriteOrder = RenderOrder2D.PanelForeground;
+            modelGridIcon = gridIcon;
+            IsModelGridVisibleValue = true;
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
+
+            modelToolbarRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Enabled = false,
+                Position = new float3(0f, 0f, 0.4f)
+            };
+            contentRoot.AddChild(modelToolbarRoot);
+
+            modelToolbarBackground = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = ThemeManager.Colors.SurfacePrimary,
+                RenderOrder2D = RenderOrder2D.PanelSurface
+            };
+            modelToolbarRoot.AddComponent(modelToolbarBackground);
+
+            gridButtonRoot = new EditorEntity {
+                LayerMask = LayerMask
+            };
+            modelToolbarRoot.AddChild(gridButtonRoot);
+
+            gridButtonBackground = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                RenderOrder2D = RenderOrder2D.PanelSurface
+            };
+            gridButtonRoot.AddComponent(gridButtonBackground);
+
+            EditorEntity gridIconHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = new float3(0f, 0f, 0.1f)
+            };
+            gridButtonRoot.AddChild(gridIconHost);
+
+            gridButtonIcon = new SpriteComponent {
+                Texture = modelGridIcon,
+                Color = new byte4(255, 255, 255, 224),
+                Size = new int2(ModelToolbarIconSize, ModelToolbarIconSize),
+                RenderOrder2D = spriteOrder
+            };
+            gridIconHost.AddComponent(gridButtonIcon);
+
+            gridButtonInteractable = new InteractableComponent {
+                Size = new int2(ModelToolbarButtonWidth, ModelToolbarButtonHeight)
+            };
+            gridButtonInteractable.CursorEvent += HandleGridButtonCursor;
+            gridButtonRoot.AddComponent(gridButtonInteractable);
+            gridButtonFocusTarget = new EditorFocusTarget(
+                this,
+                0,
+                false,
+                () => Enabled && modelToolbarRoot.Enabled,
+                ContainsGridButtonPoint,
+                isFocused => {
+                    IsGridButtonKeyboardFocused = isFocused;
+                    UpdateGridButtonVisuals();
+                },
+                key => key == Keys.Enter || key == Keys.Space,
+                key => ToggleModelGrid());
+            EditorKeyboardFocusService.RegisterTarget(gridButtonFocusTarget);
 
             textureHost = new EditorEntity();
             textureHost.LayerMask = LayerMask;
@@ -148,6 +288,8 @@ namespace helengine.editor {
             resolutionLabelHost.AddComponent(resolutionLabelText);
 
             ClearPreview();
+            LayoutModelToolbar();
+            UpdateGridButtonVisuals();
             AddComponent(new PreviewPanelUpdater(this));
             isInitialized = true;
             InitializeHierarchy();
@@ -199,12 +341,14 @@ namespace helengine.editor {
 
             ActivePreviewSourceValue = previewSource;
             if (ActivePreviewSourceValue == null) {
+                UpdateModelToolbarVisibility();
                 ClearPreviewVisuals();
                 return;
             }
 
             ResetTexturePreviewLayout();
-            ActivePreviewSourceValue.Resize(GetContentSize());
+            UpdateModelToolbarVisibility();
+            ActivePreviewSourceValue.Resize(GetPreviewContentSize());
             textureSprite.Texture = ActivePreviewSourceValue.Texture;
             LayoutPreview();
         }
@@ -268,6 +412,18 @@ namespace helengine.editor {
         /// </summary>
         public void ToggleLock() {
             IsLockedValue = !IsLockedValue;
+        }
+
+        /// <summary>
+        /// Toggles the persistent floor-grid preference for model previews shown by this panel.
+        /// </summary>
+        public void ToggleModelGrid() {
+            IsModelGridVisibleValue = !IsModelGridVisibleValue;
+            if (ActivePreviewSourceValue is ModelPreviewSource modelPreviewSource) {
+                modelPreviewSource.SetGridVisible(IsModelGridVisibleValue);
+            }
+
+            UpdateGridButtonVisuals();
         }
 
         /// <summary>
@@ -428,6 +584,7 @@ namespace helengine.editor {
 
             ActivePreviewSourceValue = null;
             ResetTexturePreviewLayout();
+            UpdateModelToolbarVisibility();
             ClearPreviewVisuals();
         }
 
@@ -461,9 +618,10 @@ namespace helengine.editor {
             }
 
             if (ActivePreviewSourceValue != null) {
-                ActivePreviewSourceValue.Resize(GetContentSize());
+                ActivePreviewSourceValue.Resize(GetPreviewContentSize());
             }
 
+            LayoutModelToolbar();
             LayoutPreview();
         }
 
@@ -475,6 +633,8 @@ namespace helengine.editor {
             contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
             textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
             resolutionLabelText.Font = TitleFont;
+            LayoutModelToolbar();
+            LayoutPreview();
         }
 
         /// <summary>
@@ -535,8 +695,9 @@ namespace helengine.editor {
             resolutionLabelText.Text = string.Empty;
             resolutionLabelText.Size = new int2(1, 1);
 
-            int2 contentSize = GetContentSize();
-            textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
+            int2 contentSize = GetPreviewContentSize();
+            int toolbarOffset = IsModelPreviewSource() ? ModelToolbarHeight : 0;
+            textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels() + toolbarOffset, 0.2f);
             textureSprite.Size = contentSize;
         }
 
@@ -677,6 +838,12 @@ namespace helengine.editor {
                 return;
             }
 
+            if (IsPointerInsideModelToolbar(pointer)) {
+                IsLeftMouseDragging = false;
+                IsMiddleMouseDragging = false;
+                return;
+            }
+
             if (!IsPointerInsideContent(pointer)) {
                 IsLeftMouseDragging = false;
                 return;
@@ -745,6 +912,106 @@ namespace helengine.editor {
         /// <returns>True when the panel is currently showing a texture preview.</returns>
         bool IsTexturePreviewSource() {
             return ActivePreviewSourceValue is TexturePreviewSource;
+        }
+
+        /// <summary>
+        /// Returns true when the active source is a model preview that should show model-specific controls.
+        /// </summary>
+        /// <returns>True when model-preview controls apply to the active source.</returns>
+        bool IsModelPreviewSource() {
+            return ActivePreviewSourceValue is ModelPreviewSource;
+        }
+
+        /// <summary>
+        /// Synchronizes toolbar visibility and the panel-owned grid preference with the active source.
+        /// </summary>
+        void UpdateModelToolbarVisibility() {
+            if (ActivePreviewSourceValue is ModelPreviewSource modelPreviewSource) {
+                modelToolbarRoot.Enabled = true;
+                modelPreviewSource.SetGridVisible(IsModelGridVisibleValue);
+            } else {
+                modelToolbarRoot.Enabled = false;
+            }
+
+            LayoutModelToolbar();
+            UpdateGridButtonVisuals();
+        }
+
+        /// <summary>
+        /// Lays out the model-preview toolbar and its grid toggle button.
+        /// </summary>
+        void LayoutModelToolbar() {
+            int toolbarWidth = ModelToolbarPadding * 2 + ModelToolbarButtonWidth;
+            modelToolbarRoot.Position = new float3(0f, 0f, 0.4f);
+            modelToolbarBackground.Size = new int2(toolbarWidth, ModelToolbarHeight);
+
+            float buttonY = (float)Math.Round((ModelToolbarHeight - ModelToolbarButtonHeight) * 0.5d);
+            gridButtonRoot.Position = new float3(ModelToolbarPadding, buttonY, 0.1f);
+            gridButtonBackground.Size = new int2(ModelToolbarButtonWidth, ModelToolbarButtonHeight);
+            gridButtonInteractable.Size = new int2(ModelToolbarButtonWidth, ModelToolbarButtonHeight);
+
+            if (gridButtonIcon.Parent != null) {
+                float iconX = (float)Math.Round((ModelToolbarButtonWidth - ModelToolbarIconSize) * 0.5d);
+                float iconY = (float)Math.Round((ModelToolbarButtonHeight - ModelToolbarIconSize) * 0.5d);
+                gridButtonIcon.Parent.Position = new float3(iconX, iconY, 0.1f);
+            }
+
+            gridButtonIcon.Size = new int2(ModelToolbarIconSize, ModelToolbarIconSize);
+        }
+
+        /// <summary>
+        /// Handles pointer interaction state updates for the model-preview grid button.
+        /// </summary>
+        /// <param name="position">Pointer position relative to the button.</param>
+        /// <param name="delta">Pointer movement delta since the previous interaction event.</param>
+        /// <param name="interaction">Pointer interaction state reported by the input system.</param>
+        void HandleGridButtonCursor(int2 position, int2 delta, PointerInteraction interaction) {
+            switch (interaction) {
+                case PointerInteraction.Hover:
+                    IsGridButtonHovered = true;
+                    break;
+                case PointerInteraction.Press:
+                    IsGridButtonPressed = true;
+                    break;
+                case PointerInteraction.Release:
+                    bool shouldToggle = IsGridButtonPressed && IsGridButtonHovered;
+                    IsGridButtonPressed = false;
+                    if (shouldToggle) {
+                        ToggleModelGrid();
+                    }
+                    break;
+                case PointerInteraction.Leave:
+                    IsGridButtonHovered = false;
+                    IsGridButtonPressed = false;
+                    break;
+                case PointerInteraction.None:
+                    break;
+                default:
+                    throw new InvalidOperationException("Pointer interaction state is not supported.");
+            }
+
+            UpdateGridButtonVisuals();
+        }
+
+        /// <summary>
+        /// Applies active, hover, press, and keyboard-focus colors to the model-preview grid button.
+        /// </summary>
+        void UpdateGridButtonVisuals() {
+            if (IsGridButtonPressed) {
+                gridButtonBackground.Color = ThemeManager.Colors.AccentTertiary;
+            } else if (IsModelGridVisibleValue && modelToolbarRoot.Enabled) {
+                gridButtonBackground.Color = ThemeManager.Colors.AccentPrimary;
+            } else if (IsGridButtonHovered || IsGridButtonKeyboardFocused) {
+                gridButtonBackground.Color = ThemeManager.Colors.AccentSecondary;
+            } else {
+                gridButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
+            }
+
+            if (IsModelGridVisibleValue || IsGridButtonHovered || IsGridButtonPressed || IsGridButtonKeyboardFocused) {
+                gridButtonIcon.Color = new byte4(255, 255, 255, 255);
+            } else {
+                gridButtonIcon.Color = new byte4(255, 255, 255, 224);
+            }
         }
 
         /// <summary>
@@ -837,6 +1104,19 @@ namespace helengine.editor {
     }
 
         /// <summary>
+        /// Gets the usable render-target size after reserving toolbar height for model previews.
+        /// </summary>
+        /// <returns>Size available to the active preview source.</returns>
+        int2 GetPreviewContentSize() {
+            int2 contentSize = GetContentSize();
+            if (!IsModelPreviewSource()) {
+                return contentSize;
+            }
+
+            return new int2(contentSize.X, Math.Max(1, contentSize.Y - ModelToolbarHeight));
+        }
+
+        /// <summary>
         /// Gets the scaled content padding used around the preview texture.
         /// </summary>
         /// <returns>Scaled preview content padding in pixels.</returns>
@@ -863,6 +1143,42 @@ namespace helengine.editor {
                    pointer.X < panelLeft + panelWidth &&
                    pointer.Y >= panelTop &&
                    pointer.Y < panelTop + panelHeight;
+        }
+
+        /// <summary>
+        /// Returns true when the pointer lies inside the visible model-preview toolbar.
+        /// </summary>
+        /// <param name="pointer">Pointer position in screen coordinates.</param>
+        /// <returns>True when the pointer is inside the model toolbar bounds.</returns>
+        bool IsPointerInsideModelToolbar(int2 pointer) {
+            if (!modelToolbarRoot.Enabled) {
+                return false;
+            }
+
+            int toolbarLeft = (int)Math.Round(modelToolbarRoot.Position.X);
+            int toolbarTop = (int)Math.Round(modelToolbarRoot.Position.Y);
+            return pointer.X >= toolbarLeft &&
+                   pointer.X < toolbarLeft + modelToolbarBackground.Size.X &&
+                   pointer.Y >= toolbarTop &&
+                   pointer.Y < toolbarTop + modelToolbarBackground.Size.Y;
+        }
+
+        /// <summary>
+        /// Returns true when the pointer lies inside the model-preview grid button.
+        /// </summary>
+        /// <param name="pointer">Pointer position in screen coordinates.</param>
+        /// <returns>True when the pointer is inside the grid-button bounds.</returns>
+        bool ContainsGridButtonPoint(int2 pointer) {
+            if (!gridButtonRoot.Enabled || !modelToolbarRoot.Enabled) {
+                return false;
+            }
+
+            int buttonLeft = (int)Math.Round(gridButtonRoot.Position.X);
+            int buttonTop = (int)Math.Round(gridButtonRoot.Position.Y);
+            return pointer.X >= buttonLeft &&
+                   pointer.X < buttonLeft + gridButtonInteractable.Size.X &&
+                   pointer.Y >= buttonTop &&
+                   pointer.Y < buttonTop + gridButtonInteractable.Size.Y;
         }
 
         /// <summary>
