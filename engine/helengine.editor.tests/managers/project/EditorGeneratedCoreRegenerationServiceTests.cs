@@ -581,6 +581,24 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures generated-core regeneration submits the shader runtime project without submitting the managed compiler project.
+    /// </summary>
+    [Fact]
+    public void Generated_core_regeneration_never_submits_shader_compilation_project() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.editor",
+            "managers",
+            "project",
+            "EditorGeneratedCoreRegenerationService.cs");
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("helengine.shader.csproj", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("helengine.shader.compilation", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies regeneration failure does not leave one generated-core scratch workspace behind in the system temp folder.
     /// </summary>
     [Fact]
