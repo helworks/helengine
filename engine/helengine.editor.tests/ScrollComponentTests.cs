@@ -56,6 +56,7 @@ namespace helengine.editor.tests {
                 VisibleItemCount = 8
             };
             host.AddComponent(scroll);
+            host.InitializeHierarchy();
 
             AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(40, 50, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
@@ -77,6 +78,7 @@ namespace helengine.editor.tests {
                 VisibleItemCount = 8
             };
             host.AddComponent(scroll);
+            host.InitializeHierarchy();
 
             AdvanceInput(new MouseState(5, 5, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(5, 5, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
@@ -98,6 +100,7 @@ namespace helengine.editor.tests {
                 VisibleItemCount = 1
             };
             host.AddComponent(scroll);
+            host.InitializeHierarchy();
 
             AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(40, 50, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
@@ -126,6 +129,7 @@ namespace helengine.editor.tests {
             };
             viewport.AddComponent(scroll);
             scroll.ContentRoot = itemsRoot;
+            viewport.InitializeHierarchy();
 
             AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(40, 50, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
@@ -152,8 +156,9 @@ namespace helengine.editor.tests {
             };
             viewport.AddComponent(scroll);
             scroll.ContentRoot = itemsRoot;
+            viewport.InitializeHierarchy();
 
-            Assert.Equal(9, scroll.VisibleItemCount);
+            Assert.Equal(8, scroll.VisibleItemCount);
             float4 clipRect = scroll.GetClipRect();
             Assert.Equal(20f, clipRect.X);
             Assert.Equal(30f, clipRect.Y);
@@ -165,6 +170,21 @@ namespace helengine.editor.tests {
 
             Assert.Equal(1, scroll.ScrollOffset);
             Assert.Equal(-12f, itemsRoot.LocalPosition.Y);
+        }
+
+        /// <summary>
+        /// Ensures a partially fitting trailing item does not reduce the scroll range required to show the final item completely.
+        /// </summary>
+        [Fact]
+        public void ScrollComponent_WhenViewportEndsMidItem_ExcludesThePartialItemFromVisibleCount() {
+            ScrollComponent scroll = new ScrollComponent {
+                Size = new int2(160, 95),
+                ItemCount = 8,
+                ItemExtent = 24
+            };
+
+            Assert.Equal(3, scroll.VisibleItemCount);
+            Assert.Equal(5, scroll.MaximumScrollOffset);
         }
 
         /// <summary>

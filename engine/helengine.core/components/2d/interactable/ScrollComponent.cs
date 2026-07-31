@@ -88,7 +88,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets the number of items visible in the viewport.
+        /// Gets or sets the number of complete items visible in the viewport.
         /// When set to zero, the component derives the value from the viewport height and item extent.
         /// </summary>
         public int VisibleItemCount {
@@ -348,9 +348,9 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves the item count visible in the current viewport.
+        /// Resolves the count of complete items visible in the current viewport.
         /// </summary>
-        /// <returns>Visible item count derived from the viewport or an explicit override.</returns>
+        /// <returns>Complete visible item count derived from the viewport or an explicit override.</returns>
         int GetVisibleItemCount() {
             if (VisibleItemCountValue > 0) {
                 return VisibleItemCountValue;
@@ -362,7 +362,7 @@ namespace helengine {
             }
 
             int2 viewportSize = ResolveViewportSize();
-            return Math.Max(1, (viewportSize.Y + extent - 1) / extent);
+            return Math.Max(1, viewportSize.Y / extent);
         }
 
         /// <summary>

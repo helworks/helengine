@@ -170,7 +170,7 @@ namespace helengine.editor.tests {
             Assert.Equal(320f, clipRect.Z);
             Assert.Equal((float)AssetBrowserView.ToolbarHeight, clipRect.Y);
             Assert.Equal((float)(AssetBrowserView.RowHeight * 4 - 1), clipRect.W);
-            Assert.Equal(4, scrollComponent.VisibleItemCount);
+            Assert.Equal(3, scrollComponent.VisibleItemCount);
             Assert.Equal(0, scrollComponent.ScrollOffset);
             Assert.Equal(0f, listRoot.LocalPosition.Y);
 
@@ -179,6 +179,11 @@ namespace helengine.editor.tests {
 
             Assert.Equal(1, scrollComponent.ScrollOffset);
             Assert.Equal(-AssetBrowserView.RowHeight, listRoot.LocalPosition.Y);
+
+            scrollComponent.ScrollTo(int.MaxValue);
+
+            Assert.Equal(5, scrollComponent.ScrollOffset);
+            Assert.Equal(-(AssetBrowserView.RowHeight * 5), listRoot.LocalPosition.Y);
         }
 
         /// <summary>

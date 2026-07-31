@@ -78,7 +78,7 @@ namespace helengine.editor.tests {
 
             ScrollComponent listScrollComponent = GetPrivateField<ScrollComponent>(dialog, "ListScrollComponent");
             int rowStride = ComponentAddDialog.RowHeight + ComponentAddDialog.RowSpacing;
-            int expectedVisibleRowCount = Math.Max(1, (listScrollComponent.Size.Y + rowStride - 1) / rowStride);
+            int expectedVisibleRowCount = Math.Max(1, listScrollComponent.Size.Y / rowStride);
 
             Assert.True(listScrollComponent.UsesAutomaticVisibleItemCount);
             Assert.Equal(expectedVisibleRowCount, listScrollComponent.VisibleItemCount);
