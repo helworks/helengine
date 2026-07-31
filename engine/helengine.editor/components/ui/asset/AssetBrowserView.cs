@@ -306,6 +306,7 @@ namespace helengine.editor {
 
             IsInitialized = true;
             RefreshEntries();
+            Root.InitializeHierarchy();
         }
 
         /// <summary>
