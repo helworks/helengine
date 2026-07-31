@@ -644,14 +644,15 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     /// Verifies a code-generation process failure does not leave one generated-core scratch workspace behind in the caller-owned build workspace.
     /// </summary>
     [Fact]
-    public void Regenerate_when_codegen_tool_is_missing_deletes_scratch_workspace() {
+    public void Regenerate_when_scratch_codegen_fails_deletes_scratch_workspace() {
         string platformId = "temp-cleanup-failure-" + Guid.NewGuid().ToString("N");
         string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-failure-output");
         string platformScratchRootPath = EditorGeneratedCoreRegenerationService.ResolveRegenerationScratchRootPath(
             generatedCoreRootPath,
             platformId);
         string codegenRootPath = Path.Combine(RootPath, "failing-codegen");
-        string fakeCodegenPath = CreateFakeCodegenTool(codegenRootPath, string.Empty, true);
+        string argumentsLogPath = Path.Combine(RootPath, "failing-codegen-arguments.log");
+        string fakeCodegenPath = CreateFakeCodegenTool(codegenRootPath, argumentsLogPath, true);
         EditorGeneratedCoreRegenerationService service = new();
 
         try {
@@ -665,6 +666,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
                 [],
                 CancellationToken.None));
 
+            string[] loggedInvocations = File.ReadAllLines(argumentsLogPath);
+            Assert.Contains(
+                loggedInvocations,
+                invocation => invocation.Contains("helengine.shader.csproj", StringComparison.OrdinalIgnoreCase));
             AssertScratchWorkspaceIsClean(platformScratchRootPath);
         } finally {
             DeleteDirectoryIfPresent(platformScratchRootPath);
@@ -1559,13 +1564,13 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Creates one fake codegen tool with controllable process failure after generated scratch files are written.
+    /// Creates one fake codegen tool with controllable shader-project failure after generated scratch files are written.
     /// </summary>
     /// <param name="codegenRootPath">Directory that should contain the fake codegen tool and bundled runtime support root.</param>
     /// <param name="argumentsLogPath">Optional log file path that receives one line per invocation.</param>
-    /// <param name="failAfterWritingOutput">Whether the fake process should fail after proving scratch output was created.</param>
+    /// <param name="failOnShaderProject">Whether the fake process should fail after writing the shader project's scratch output.</param>
     /// <returns>Absolute path to the fake codegen command file.</returns>
-    static string CreateFakeCodegenTool(string codegenRootPath, string argumentsLogPath, bool failAfterWritingOutput) {
+    static string CreateFakeCodegenTool(string codegenRootPath, string argumentsLogPath, bool failOnShaderProject) {
         Directory.CreateDirectory(codegenRootPath);
         Directory.CreateDirectory(Path.Combine(codegenRootPath, ".net.cpp"));
 
@@ -1590,7 +1595,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "goto parse\r\n"
             + ":done\r\n"
             + "if \"%OUTPUT%\"==\"\" exit /b 2\r\n"
-            + "for %%F in (\"%PROJECT%\") do set PROJECT_NAME=%%~nF\r\n"
+            + "for %%F in (\"%PROJECT%\") do (\r\n"
+            + "  set PROJECT_NAME=%%~nF\r\n"
+            + "  set PROJECT_FILE=%%~nxF\r\n"
+            + ")\r\n"
             + (string.IsNullOrWhiteSpace(argumentsLogPath)
                 ? string.Empty
                 : $">> \"{argumentsLogPath}\" echo PROJECT=%PROJECT%^|ARGS=%*\r\n")
@@ -1608,7 +1616,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "  echo   }\r\n"
             + "  echo }\r\n"
             + ")\r\n"
-            + (failAfterWritingOutput ? "exit /b 9\r\n" : "exit /b 0\r\n"));
+            + (failOnShaderProject
+                ? "if /I \"!PROJECT_FILE!\"==\"helengine.shader.csproj\" exit /b 9\r\n"
+                : string.Empty)
+            + "exit /b 0\r\n");
         return fakeCodegenPath;
     }
 
