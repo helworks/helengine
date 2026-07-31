@@ -8,9 +8,9 @@ namespace helengine.editor.tests;
 /// </summary>
 public sealed class CityHelPhysicsStackTestScenePreparationTests : IDisposable {
     /// <summary>
-    /// Absolute isolated Demodisc worktree that owns the authored source scene and proof command.
+    /// Environment variable that supplies the Demodisc project root containing the authored source scene and proof command.
     /// </summary>
-    const string DemodiscWorktreeRootPath = @"C:\dev\helprojs\demodisc\.worktrees\helphysics-demodisc-stack-test";
+    const string DemodiscProjectRootEnvironmentVariableName = "HELENGINE_DEMODISC_HELPHYSICS_STACK_TEST_ROOT";
 
     /// <summary>
     /// Relative path to the real authored stacked-box scene beneath a project root.
@@ -48,9 +48,24 @@ public sealed class CityHelPhysicsStackTestScenePreparationTests : IDisposable {
     readonly string CopiedProjectRootPath;
 
     /// <summary>
+    /// Absolute caller-supplied Demodisc project root used as the immutable source for this integration test.
+    /// </summary>
+    readonly string DemodiscProjectRootPath;
+
+    /// <summary>
     /// Creates one unique visible copied-project root without touching the authored Demodisc worktree scene.
     /// </summary>
     public CityHelPhysicsStackTestScenePreparationTests() {
+        string configuredDemodiscProjectRootPath = Environment.GetEnvironmentVariable(DemodiscProjectRootEnvironmentVariableName);
+        if (string.IsNullOrWhiteSpace(configuredDemodiscProjectRootPath)) {
+            throw new InvalidOperationException($"Set '{DemodiscProjectRootEnvironmentVariableName}' to the Demodisc project root before running this integration test.");
+        }
+
+        DemodiscProjectRootPath = Path.GetFullPath(configuredDemodiscProjectRootPath);
+        if (!Directory.Exists(DemodiscProjectRootPath)) {
+            throw new DirectoryNotFoundException($"The configured Demodisc project root '{DemodiscProjectRootPath}' does not exist.");
+        }
+
         CopiedProjectRootPath = Path.Combine(
             TestOutputRootPath,
             "scene-preparation",
@@ -77,7 +92,7 @@ public sealed class CityHelPhysicsStackTestScenePreparationTests : IDisposable {
     /// </summary>
     [Fact]
     public void Preparation_command_removes_only_return_to_menu_from_copied_stack_scene() {
-        string sourceScenePath = Path.Combine(DemodiscWorktreeRootPath, StackSceneRelativePath);
+        string sourceScenePath = Path.Combine(DemodiscProjectRootPath, StackSceneRelativePath);
         string copiedScenePath = Path.Combine(CopiedProjectRootPath, StackSceneRelativePath);
         byte[] sourceHashBefore = SHA256.HashData(File.ReadAllBytes(sourceScenePath));
         byte[] expectedPreparedSceneBytes = BuildExpectedPreparedSceneBytes(sourceScenePath);
@@ -111,11 +126,11 @@ public sealed class CityHelPhysicsStackTestScenePreparationTests : IDisposable {
     /// </summary>
     void CopyProjectCommandSources() {
         File.Copy(
-            Path.Combine(DemodiscWorktreeRootPath, "project.heproj"),
+            Path.Combine(DemodiscProjectRootPath, "project.heproj"),
             Path.Combine(CopiedProjectRootPath, "project.heproj"),
             true);
         CopyDirectory(
-            Path.Combine(DemodiscWorktreeRootPath, "assets", "codebase"),
+            Path.Combine(DemodiscProjectRootPath, "assets", "codebase"),
             Path.Combine(CopiedProjectRootPath, "assets", "codebase"));
     }
 
