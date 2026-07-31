@@ -319,6 +319,51 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the preview panel registers its updater with the engine loop so interactive sources receive input during normal editor frames.
+        /// </summary>
+        [Fact]
+        public void PreviewPanelUpdater_WhenInteractivePreviewIsAssigned_ForwardsInputDuringEngineUpdate() {
+            PreviewPanel panel = new PreviewPanel(CreateFont()) {
+                Size = new int2(416, 312)
+            };
+            TestInteractivePreviewSource source = new TestInteractivePreviewSource(new TestRuntimeTexture {
+                Width = 64,
+                Height = 64
+            });
+            panel.SetPreviewSource(source);
+
+            EditorEntity contentRoot = GetPrivateField<EditorEntity>(panel, "contentRoot");
+            int pointerX = (int)Math.Round(contentRoot.Position.X) + 100;
+            int pointerY = (int)Math.Round(contentRoot.Position.Y) + 80;
+
+            CompleteInputFrame(new MouseState(
+                pointerX,
+                pointerY,
+                0,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+            AdvanceInputFrame(new MouseState(
+                pointerX + 12,
+                pointerY + 8,
+                120,
+                ButtonState.Pressed,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+
+            Core.Instance.ObjectManager.Update();
+            Input.Update();
+
+            Assert.Equal(1, source.UpdateCount);
+            Assert.Equal(1, source.WheelCount);
+            Assert.Equal(1, source.DragCount);
+        }
+
+        /// <summary>
         /// Creates a small font asset that can satisfy dockable layout requirements.
         /// </summary>
         /// <returns>Font asset with basic glyph metrics for the current test.</returns>

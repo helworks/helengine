@@ -150,6 +150,7 @@ namespace helengine.editor {
             ClearPreview();
             AddComponent(new PreviewPanelUpdater(this));
             isInitialized = true;
+            InitializeHierarchy();
         }
 
         /// <summary>
