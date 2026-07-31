@@ -501,6 +501,7 @@ namespace helengine.editor {
             NativeResizeBorderEntity.AddComponent(NativeResizeBorderInteractable);
 
             UpdateLayout(HostSize.X, HostSize.Y);
+            RootEntity.InitializeHierarchy();
         }
 
         /// <summary>

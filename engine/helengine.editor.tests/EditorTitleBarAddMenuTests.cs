@@ -259,6 +259,57 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures an open title-bar File menu closes when the user presses a dockable editor surface outside the menu stack.
+        /// </summary>
+        [Fact]
+        public void FileMenu_WhenPointerPressesOutsideTitleBarMenuStack_ClosesMenu() {
+            TestInputBackend input = new TestInputBackend();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
+            CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
+
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            DockableEntity dockable = new DockableEntity(CreateFont());
+            dockable.Position = new float3(0f, titleBar.Height, 0f);
+            dockable.Size = new int2(640, 360);
+            InvokePrivate(titleBar, "ToggleFileMenu");
+
+            ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
+            AdvanceCoreInput(input, new MouseState(800, 400, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(input, new MouseState(800, 400, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(input, new MouseState(800, 400, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.False(fileMenu.IsVisible);
+        }
+
+        /// <summary>
+        /// Ensures a press inside an open title-bar menu does not dismiss it before the selected row handles its release.
+        /// </summary>
+        [Fact]
+        public void FileMenu_WhenPointerPressesInsideVisibleMenu_RemainsOpenUntilActivation() {
+            TestInputBackend input = new TestInputBackend();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
+            CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
+
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            InvokePrivate(titleBar, "ToggleFileMenu");
+
+            ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
+            int2 itemPointer = new int2(
+                fileMenu.Position.X + 16,
+                fileMenu.Position.Y + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));
+            AdvanceCoreInput(input, new MouseState(itemPointer.X, itemPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(input, new MouseState(itemPointer.X, itemPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.True(fileMenu.IsVisible);
+        }
+
+        /// <summary>
         /// Finds the first component of the requested type in an entity hierarchy.
         /// </summary>
         /// <typeparam name="T">Component type to locate.</typeparam>
