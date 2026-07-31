@@ -9,7 +9,12 @@ namespace helengine.editor {
         /// <summary>
         /// Default title bar height in pixels.
         /// </summary>
-        public const int HeightPixels = 27;
+        public const int HeightPixels = ContentHeightPixels + NativeResizeBorderHeight;
+
+        /// <summary>
+        /// Height in pixels used by the title-bar controls beneath the native resize area.
+        /// </summary>
+        public const int ContentHeightPixels = 27;
 
         /// <summary>
         /// Height in pixels reserved at the top of the host window for native window resizing.
@@ -24,20 +29,20 @@ namespace helengine.editor {
         /// <summary>
         /// Size used for the rendered editor icon inside the left slot.
         /// </summary>
-        public const int IconSizePixels = HeightPixels - (IconPaddingPixels * 2);
+        public const int IconSizePixels = ContentHeightPixels - (IconPaddingPixels * 2);
 
         /// <summary>
         /// Width reserved at the left edge for the editor icon.
         /// </summary>
-        const int LeftIconSlotWidth = HeightPixels;
+        const int LeftIconSlotWidth = ContentHeightPixels;
         /// <summary>
         /// Top offset used for title bar buttons.
         /// </summary>
-        const int ButtonTop = 0;
+        const int ButtonTop = NativeResizeBorderHeight;
         /// <summary>
         /// Height used for title bar buttons.
         /// </summary>
-        const int ButtonHeight = HeightPixels;
+        const int ButtonHeight = ContentHeightPixels;
         /// <summary>
         /// Horizontal spacing between title bar controls.
         /// </summary>
@@ -430,7 +435,7 @@ namespace helengine.editor {
             if (iconTexture != null) {
                 IconEntity = new EditorEntity {
                     LayerMask = TitleBarLayerMask,
-                    Position = new float3(Metrics.HostTitleBarIconPadding, Metrics.HostTitleBarIconPadding, 0f)
+                    Position = new float3(Metrics.HostTitleBarIconPadding, GetContentTopOffset() + Metrics.HostTitleBarIconPadding, 0f)
                 };
                 RootEntity.AddChild(IconEntity);
 
@@ -564,7 +569,7 @@ namespace helengine.editor {
             UpdateTitleBarButtonChrome(CloseButtonEntity, CloseButtonWidth, true, false, font);
 
             if (IconEntity != null) {
-                IconEntity.Position = new float3(Metrics.HostTitleBarIconPadding, Metrics.HostTitleBarIconPadding, 0f);
+                IconEntity.Position = new float3(Metrics.HostTitleBarIconPadding, GetContentTopOffset() + Metrics.HostTitleBarIconPadding, 0f);
             }
             if (IconSprite != null) {
                 IconSprite.Size = new int2(Metrics.HostTitleBarIconSize, Metrics.HostTitleBarIconSize);
@@ -698,22 +703,22 @@ namespace helengine.editor {
             Background.Size = new int2(width + 1, Height);
             HoverShieldSurface.Size = new int2(width, Height);
             HoverShieldInteractable.Size = new int2(width, Height);
-            NativeResizeBorderSurface.Size = new int2(width, NativeResizeBorderHeight);
-            NativeResizeBorderInteractable.Size = new int2(width, NativeResizeBorderHeight);
+            NativeResizeBorderSurface.Size = new int2(width, GetNativeResizeBorderHeight());
+            NativeResizeBorderInteractable.Size = new int2(width, GetNativeResizeBorderHeight());
 
             float fileButtonX = GetLeftIconSlotWidth();
-            FileMenuButtonEntity.Position = new float3(fileButtonX, ButtonTop, 0f);
+            FileMenuButtonEntity.Position = new float3(fileButtonX, GetContentTopOffset(), 0f);
             float addButtonX = fileButtonX + FileMenuButtonWidth + ButtonSpacing;
-            AddMenuButtonEntity.Position = new float3(addButtonX, ButtonTop, 0f);
+            AddMenuButtonEntity.Position = new float3(addButtonX, GetContentTopOffset(), 0f);
             float buildButtonX = addButtonX + AddMenuButtonWidth + ButtonSpacing;
-            BuildMenuButtonEntity.Position = new float3(buildButtonX, ButtonTop, 0f);
+            BuildMenuButtonEntity.Position = new float3(buildButtonX, GetContentTopOffset(), 0f);
             float uiButtonX = buildButtonX + BuildMenuButtonWidth + ButtonSpacing;
-            UiMenuButtonEntity.Position = new float3(uiButtonX, ButtonTop, 0f);
+            UiMenuButtonEntity.Position = new float3(uiButtonX, GetContentTopOffset(), 0f);
             float lastMenuButtonRightEdge = uiButtonX + UiMenuButtonWidth;
             for (int index = 0; index < ProjectMenuStates.Count; index++) {
                 EditorTitleBarProjectMenuState projectMenuState = ProjectMenuStates[index];
                 float projectButtonX = lastMenuButtonRightEdge + ButtonSpacing;
-                projectMenuState.ButtonEntity.Position = new float3(projectButtonX, ButtonTop, 0f);
+                projectMenuState.ButtonEntity.Position = new float3(projectButtonX, GetContentTopOffset(), 0f);
                 lastMenuButtonRightEdge = projectButtonX + projectMenuState.ButtonWidth;
             }
 
@@ -1055,7 +1060,7 @@ namespace helengine.editor {
             width = ComputeButtonWidth(label);
             EditorEntity buttonEntity = new EditorEntity {
                 LayerMask = TitleBarLayerMask,
-                Position = new float3(0f, ButtonTop, 0f)
+                Position = new float3(0f, GetContentTopOffset(), 0f)
             };
 
             ButtonComponent button = new ButtonComponent(label, new int2(width, GetButtonHeight()), Font, onClick, 0f);
@@ -1278,13 +1283,13 @@ namespace helengine.editor {
         void LayoutWindowControls(float startX) {
             float controlX = startX;
 
-            MinimizeButtonEntity.Position = new float3(controlX, ButtonTop, 0f);
+            MinimizeButtonEntity.Position = new float3(controlX, GetContentTopOffset(), 0f);
             controlX += MinimizeButtonWidth + ButtonSpacing;
 
-            MaximizeButtonEntity.Position = new float3(controlX, ButtonTop, 0f);
+            MaximizeButtonEntity.Position = new float3(controlX, GetContentTopOffset(), 0f);
             controlX += MaximizeButtonWidth + ButtonSpacing;
 
-            CloseButtonEntity.Position = new float3(controlX, ButtonTop, 0f);
+            CloseButtonEntity.Position = new float3(controlX, GetContentTopOffset(), 0f);
         }
 
         /// <summary>
@@ -1668,7 +1673,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (pos.Y < NativeResizeBorderHeight) {
+            if (pos.Y < GetNativeResizeBorderHeight()) {
                 return;
             }
 
@@ -2300,7 +2305,7 @@ namespace helengine.editor {
         /// <returns>Top offset for the title label.</returns>
         float GetTitleVerticalOffset() {
             float lineHeight = Math.Max(Font.LineHeight, 1f);
-            return (Height - lineHeight) * 0.5f;
+            return GetContentTopOffset() + ((GetButtonHeight() - lineHeight) * 0.5f);
         }
 
         /// <summary>
@@ -2308,7 +2313,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Scaled width reserved for the title-bar icon slot.</returns>
         int GetLeftIconSlotWidth() {
-            return Height;
+            return Metrics.ScalePixels(LeftIconSlotWidth);
         }
 
         /// <summary>
@@ -2316,7 +2321,23 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Scaled title-bar button height in pixels.</returns>
         int GetButtonHeight() {
-            return Height;
+            return Metrics.ScalePixels(ButtonHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled vertical offset that separates the native resize area from title-bar controls.
+        /// </summary>
+        /// <returns>Scaled content top offset in pixels.</returns>
+        int GetContentTopOffset() {
+            return Metrics.ScalePixels(ButtonTop);
+        }
+
+        /// <summary>
+        /// Gets the scaled height of the native top resize area.
+        /// </summary>
+        /// <returns>Scaled resize height in pixels.</returns>
+        int GetNativeResizeBorderHeight() {
+            return Metrics.ScalePixels(NativeResizeBorderHeight);
         }
 
         /// <summary>

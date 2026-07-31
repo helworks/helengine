@@ -28,14 +28,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the default host title-bar height uses the reduced chrome target.
+        /// Ensures the default host title-bar height includes the reserved native resize area.
         /// </summary>
         [Fact]
-        public void Constructor_UsesReducedDefaultTitleBarHeight() {
+        public void Constructor_UsesDefaultTitleBarHeightWithNativeResizeArea() {
             InitializeCore();
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
 
-            Assert.Equal(27, titleBar.Height);
+            Assert.Equal(33, titleBar.Height);
+        }
+
+        /// <summary>
+        /// Ensures the top resize hit area expands the host header without covering the title-bar controls.
+        /// </summary>
+        [Fact]
+        public void Constructor_ReservesTopResizeAreaAboveTitleBarControls() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
+            EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
+            RoundedRectComponent fileButtonBackground = FindComponent<RoundedRectComponent>(fileButtonEntity);
+            RoundedRectComponent minimizeButtonBackground = FindComponent<RoundedRectComponent>(minimizeButtonEntity);
+
+            Assert.Equal(33, titleBar.Height);
+            Assert.Equal(6f, fileButtonEntity.Position.Y);
+            Assert.Equal(6f, minimizeButtonEntity.Position.Y);
+            Assert.Equal(27, fileButtonBackground.Size.Y);
+            Assert.Equal(27, minimizeButtonBackground.Size.Y);
         }
 
         /// <summary>
@@ -119,7 +138,7 @@ namespace helengine.editor.tests {
 
             Assert.NotNull(iconEntity);
             Assert.Equal(4f, iconEntity.Position.X);
-            Assert.Equal(4f, iconEntity.Position.Y);
+            Assert.Equal(10f, iconEntity.Position.Y);
             Assert.Same(iconTexture, iconSprite.Texture);
             Assert.Equal(new int2(19, 19), iconSprite.Size);
         }
@@ -141,9 +160,9 @@ namespace helengine.editor.tests {
             EditorEntity iconEntity = GetPrivateField<EditorEntity>(titleBar, "IconEntity");
             SpriteComponent iconSprite = GetPrivateField<SpriteComponent>(titleBar, "IconSprite");
 
-            Assert.Equal(41, titleBar.Height);
+            Assert.Equal(50, titleBar.Height);
             Assert.Equal(6f, iconEntity.Position.X);
-            Assert.Equal(6f, iconEntity.Position.Y);
+            Assert.Equal(15f, iconEntity.Position.Y);
             Assert.Equal(new int2(29, 29), iconSprite.Size);
         }
 
@@ -415,7 +434,7 @@ namespace helengine.editor.tests {
 
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
 
-            Assert.Equal(EditorTitleBar.HeightPixels, fileButtonEntity.Position.X);
+            Assert.Equal(EditorTitleBar.ContentHeightPixels, fileButtonEntity.Position.X);
         }
 
         /// <summary>
@@ -481,9 +500,9 @@ namespace helengine.editor.tests {
             RoundedRectComponent background = FindComponent<RoundedRectComponent>(buttonEntity);
             InteractableComponent interactable = FindComponent<InteractableComponent>(buttonEntity);
 
-            Assert.Equal(0f, buttonEntity.Position.Y);
-            Assert.Equal(EditorTitleBar.HeightPixels, background.Size.Y);
-            Assert.Equal(EditorTitleBar.HeightPixels, interactable.Size.Y);
+            Assert.Equal((float)EditorTitleBar.NativeResizeBorderHeight, buttonEntity.Position.Y);
+            Assert.Equal(EditorTitleBar.ContentHeightPixels, background.Size.Y);
+            Assert.Equal(EditorTitleBar.ContentHeightPixels, interactable.Size.Y);
         }
 
         /// <summary>
@@ -600,7 +619,7 @@ namespace helengine.editor.tests {
                     for (int componentIndex = 0; componentIndex < currentEntity.Components.Count; componentIndex++) {
                         if (currentEntity.Components[componentIndex] is SpriteComponent spriteComponent &&
                             spriteComponent.Size.X == 1 &&
-                            spriteComponent.Size.Y == EditorTitleBar.HeightPixels &&
+                            spriteComponent.Size.Y == EditorTitleBar.ContentHeightPixels &&
                             spriteComponent.Color.Equals(ThemeManager.Colors.AccentQuaternary)) {
                             borderPositions.Add(currentEntity.Position.X);
                         }

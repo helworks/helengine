@@ -613,6 +613,10 @@ namespace helengine.editor.app {
         /// </summary>
         /// <param name="m">Windows message payload.</param>
         protected override void WndProc(ref Message m) {
+            if (WindowResizeAdapter.ApplyBorderlessClientFrame(ref m)) {
+                return;
+            }
+
             if (WindowResizeAdapter.ApplyResizeHitTest(this, ref m, WindowResizeAdapter.DefaultResizeBorderThickness)) {
                 return;
             }

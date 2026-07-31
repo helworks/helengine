@@ -8,6 +8,10 @@ namespace helengine.editor.windows {
         /// </summary>
         const int WmNcHitTest = 0x84;
         /// <summary>
+        /// Windows message sent while Windows calculates the non-client window frame.
+        /// </summary>
+        const int WmNcCalcSize = 0x83;
+        /// <summary>
         /// Windows style flag that enables native sizing behavior while preserving custom borderless chrome.
         /// </summary>
         const int WsThickFrame = 0x00040000;
@@ -60,6 +64,20 @@ namespace helengine.editor.windows {
         /// <returns>Window style bits with native sizing enabled.</returns>
         public static int GetResizableWindowStyle(int windowStyle) {
             return windowStyle | WsThickFrame;
+        }
+
+        /// <summary>
+        /// Removes Windows-drawn non-client chrome while retaining the native sizing style required for resize gestures.
+        /// </summary>
+        /// <param name="m">Windows message payload.</param>
+        /// <returns>True when the message result was updated.</returns>
+        public static bool ApplyBorderlessClientFrame(ref Message m) {
+            if (m.Msg != WmNcCalcSize) {
+                return false;
+            }
+
+            m.Result = IntPtr.Zero;
+            return true;
         }
 
         /// <summary>

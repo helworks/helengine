@@ -1,4 +1,5 @@
 using helengine.editor.windows.tests.testing;
+using System.Reflection;
 using Xunit;
 
 namespace helengine.editor.windows.tests.utils {
@@ -112,6 +113,29 @@ namespace helengine.editor.windows.tests.utils {
             int resizableWindowStyle = WindowResizeAdapter.GetResizableWindowStyle(borderlessWindowStyle);
 
             Assert.Equal(borderlessWindowStyle | WsThickFrame, resizableWindowStyle);
+        }
+
+        /// <summary>
+        /// Ensures the native sizing style does not reserve a Windows-drawn client-edge frame.
+        /// </summary>
+        [Fact]
+        public void ApplyBorderlessClientFrame_WhenWindowsCalculatesTheNonClientArea_UsesTheFullWindowAsClientArea() {
+            MethodInfo method = typeof(WindowResizeAdapter).GetMethod(
+                "ApplyBorderlessClientFrame",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] { typeof(Message).MakeByRefType() },
+                null);
+            Assert.NotNull(method);
+
+            Message message = Message.Create(IntPtr.Zero, 0x0083, IntPtr.Zero, IntPtr.Zero);
+            object[] arguments = new object[] { message };
+
+            bool result = (bool)method.Invoke(null, arguments);
+            Message updatedMessage = (Message)arguments[0];
+
+            Assert.True(result);
+            Assert.Equal(IntPtr.Zero, updatedMessage.Result);
         }
 
         /// <summary>
