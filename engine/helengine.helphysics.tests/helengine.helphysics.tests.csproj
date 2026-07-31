@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\helengine.bepu\helengine.bepu.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.helphysics\helengine.helphysics.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 </Project>
