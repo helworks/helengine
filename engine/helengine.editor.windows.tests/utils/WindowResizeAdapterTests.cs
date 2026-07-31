@@ -72,6 +72,32 @@ namespace helengine.editor.windows.tests.utils {
         }
 
         /// <summary>
+        /// Ensures the top resize border overrides a preceding native caption hit test.
+        /// </summary>
+        [Fact]
+        public void ApplyResizeHitTest_WhenTopBorderHasCaptionResult_ReturnsTopResizeResult() {
+            using TestResizeBorderStateForm form = new TestResizeBorderStateForm {
+                IsResizeBorderEnabled = true,
+                IsWindowForegroundActive = true
+            };
+            Point screenPoint = form.PointToScreen(new Point(100, 1));
+            Message message = Message.Create(
+                form.Handle,
+                0x84,
+                IntPtr.Zero,
+                CreatePointLParam(screenPoint));
+            message.Result = (IntPtr)2;
+
+            bool result = WindowResizeAdapter.ApplyResizeHitTest(
+                form,
+                ref message,
+                WindowResizeAdapter.DefaultResizeBorderThickness);
+
+            Assert.True(result);
+            Assert.Equal((IntPtr)12, message.Result);
+        }
+
+        /// <summary>
         /// Packs a screen-space point into a Windows message lParam.
         /// </summary>
         /// <param name="point">Screen-space point to pack.</param>

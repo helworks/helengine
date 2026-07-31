@@ -69,10 +69,6 @@ namespace helengine.editor.windows {
                 return false;
             }
 
-            if ((int)m.Result != HtClient) {
-                return false;
-            }
-
             Point clientPoint = GetHitTestPoint(hostForm, m.LParam);
             int hitTest = GetResizeHitTest(hostForm, clientPoint, resizeBorderThickness);
             if (hitTest != HtClient) {
