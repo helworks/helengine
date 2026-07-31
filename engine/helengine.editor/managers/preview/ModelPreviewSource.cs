@@ -65,6 +65,14 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity previewGridEntity;
         /// <summary>
+        /// Entity that renders the optional wireframe bounding box around the previewed model.
+        /// </summary>
+        readonly EditorEntity boundsBoxEntity;
+        /// <summary>
+        /// Entity that renders the optional wireframe bounding sphere around the previewed model.
+        /// </summary>
+        readonly EditorEntity boundsSphereEntity;
+        /// <summary>
         /// Entity that holds the preview camera.
         /// </summary>
         readonly EditorEntity cameraEntity;
@@ -128,6 +136,10 @@ namespace helengine.editor {
         /// Tracks whether the preview floor grid should be rendered.
         /// </summary>
         bool IsGridVisibleValue;
+        /// <summary>
+        /// Selected bounds overlay mode for the preview source.
+        /// </summary>
+        ModelPreviewBoundsDisplayMode BoundsDisplayModeValue;
 
         /// <summary>
         /// Initializes a new model preview source for one runtime model.
@@ -168,7 +180,10 @@ namespace helengine.editor {
 
             float3 boundsCenter = GetBoundsCenter();
             previewGridEntity.LocalPosition = new float3(0f, boundsMin.Y - boundsCenter.Y - 0.001f, 0f);
+            boundsBoxEntity = ModelPreviewBoundsOverlayFactory.CreateBox(renderManager3D, GetBoundsHalfExtents());
+            boundsSphereEntity = ModelPreviewBoundsOverlayFactory.CreateSphere(renderManager3D, (float)ResolveBoundsRadius());
             SetGridVisible(true);
+            SetBoundsDisplayMode(ModelPreviewBoundsDisplayMode.None);
 
             previewMeshComponent = new MeshComponent {
                 Model = runtimeModel
@@ -196,6 +211,8 @@ namespace helengine.editor {
 
             previewEntity.AddChild(modelEntity);
             previewEntity.AddChild(previewGridEntity);
+            previewEntity.AddChild(boundsBoxEntity);
+            previewEntity.AddChild(boundsSphereEntity);
             previewEntity.AddChild(cameraEntity);
             previewEntity.AddChild(lightEntity);
 
@@ -231,12 +248,33 @@ namespace helengine.editor {
         public bool IsGridVisible => IsGridVisibleValue;
 
         /// <summary>
+        /// Gets the bounds overlay currently rendered around the previewed model.
+        /// </summary>
+        public ModelPreviewBoundsDisplayMode BoundsDisplayMode => BoundsDisplayModeValue;
+
+        /// <summary>
         /// Shows or hides the floor grid rendered beneath the model preview.
         /// </summary>
         /// <param name="isVisible">True to render the grid; otherwise false.</param>
         public void SetGridVisible(bool isVisible) {
             IsGridVisibleValue = isVisible;
             previewGridEntity.Enabled = isVisible;
+        }
+
+        /// <summary>
+        /// Selects the bounds overlay rendered around the previewed model.
+        /// </summary>
+        /// <param name="displayMode">Requested bounding-box, bounding-sphere, or no-overlay mode.</param>
+        public void SetBoundsDisplayMode(ModelPreviewBoundsDisplayMode displayMode) {
+            if (displayMode != ModelPreviewBoundsDisplayMode.None &&
+                displayMode != ModelPreviewBoundsDisplayMode.Box &&
+                displayMode != ModelPreviewBoundsDisplayMode.Sphere) {
+                throw new ArgumentOutOfRangeException(nameof(displayMode), "Bounds display mode is not supported.");
+            }
+
+            BoundsDisplayModeValue = displayMode;
+            boundsBoxEntity.Enabled = displayMode == ModelPreviewBoundsDisplayMode.Box;
+            boundsSphereEntity.Enabled = displayMode == ModelPreviewBoundsDisplayMode.Sphere;
         }
 
         /// <summary>
@@ -436,6 +474,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the half extents of the cached model bounds around their shared center.
+        /// </summary>
+        /// <returns>Absolute half extents on all model axes.</returns>
+        float3 GetBoundsHalfExtents() {
+            return new float3(
+                Math.Abs(boundsMax.X - boundsMin.X) * 0.5f,
+                Math.Abs(boundsMax.Y - boundsMin.Y) * 0.5f,
+                Math.Abs(boundsMax.Z - boundsMin.Z) * 0.5f);
+        }
+
+        /// <summary>
         /// Resolves the distance used to frame the model at the current panel aspect ratio.
         /// </summary>
         /// <returns>Camera distance that fits the full bounding sphere inside the viewport.</returns>
@@ -454,10 +503,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Radius derived from the cached model bounds.</returns>
         double ResolveBoundsRadius() {
-            float3 halfExtents = new float3(
-                Math.Abs(boundsMax.X - boundsMin.X) * 0.5f,
-                Math.Abs(boundsMax.Y - boundsMin.Y) * 0.5f,
-                Math.Abs(boundsMax.Z - boundsMin.Z) * 0.5f);
+            float3 halfExtents = GetBoundsHalfExtents();
             return Math.Max(0.5d, Math.Sqrt(
                 (double)halfExtents.X * halfExtents.X +
                 (double)halfExtents.Y * halfExtents.Y +

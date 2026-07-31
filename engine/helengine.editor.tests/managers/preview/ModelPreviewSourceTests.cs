@@ -377,6 +377,52 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures model previews initialize with no bounds overlay and enable only the requested wireframe box or sphere.
+        /// </summary>
+        [Fact]
+        public void SetBoundsDisplayMode_WhenModeChanges_EnablesOnlyTheRequestedLineOverlay() {
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D);
+            EditorEntity boundsBoxEntity = GetPrivateField<EditorEntity>(source, "boundsBoxEntity");
+            EditorEntity boundsSphereEntity = GetPrivateField<EditorEntity>(source, "boundsSphereEntity");
+
+            Assert.Equal(ModelPreviewBoundsDisplayMode.None, source.BoundsDisplayMode);
+            Assert.False(boundsBoxEntity.Enabled);
+            Assert.False(boundsSphereEntity.Enabled);
+
+            source.SetBoundsDisplayMode(ModelPreviewBoundsDisplayMode.Box);
+
+            Assert.Equal(ModelPreviewBoundsDisplayMode.Box, source.BoundsDisplayMode);
+            Assert.True(boundsBoxEntity.Enabled);
+            Assert.False(boundsSphereEntity.Enabled);
+
+            source.SetBoundsDisplayMode(ModelPreviewBoundsDisplayMode.Sphere);
+
+            Assert.Equal(ModelPreviewBoundsDisplayMode.Sphere, source.BoundsDisplayMode);
+            Assert.False(boundsBoxEntity.Enabled);
+            Assert.True(boundsSphereEntity.Enabled);
+            source.Dispose();
+        }
+
+        /// <summary>
+        /// Ensures both model-bounds overlays use line-list geometry instead of solid triangle meshes.
+        /// </summary>
+        [Fact]
+        public void Constructor_WhenBoundsOverlaysAreCreated_UsesLineListSubmeshes() {
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D);
+            EditorEntity boundsBoxEntity = GetPrivateField<EditorEntity>(source, "boundsBoxEntity");
+            EditorEntity boundsSphereEntity = GetPrivateField<EditorEntity>(source, "boundsSphereEntity");
+            MeshComponent boxMesh = Assert.IsType<MeshComponent>(Assert.Single(boundsBoxEntity.Components, component => component is MeshComponent));
+            MeshComponent sphereMesh = Assert.IsType<MeshComponent>(Assert.Single(boundsSphereEntity.Components, component => component is MeshComponent));
+
+            RuntimeSubmesh boxSubmesh = Assert.Single(boxMesh.Model.Submeshes);
+            RuntimeSubmesh sphereSubmesh = Assert.Single(sphereMesh.Model.Submeshes);
+
+            Assert.Equal(ModelPrimitiveTopology.LineList, boxSubmesh.PrimitiveTopology);
+            Assert.Equal(ModelPrimitiveTopology.LineList, sphereSubmesh.PrimitiveTopology);
+            source.Dispose();
+        }
+
+        /// <summary>
         /// Builds one simple runtime model with known cached bounds for preview framing tests.
         /// </summary>
         /// <returns>Runtime model with deterministic bounds.</returns>
