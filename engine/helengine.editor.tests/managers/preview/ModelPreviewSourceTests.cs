@@ -24,6 +24,11 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempProjectRootPath);
             Directory.CreateDirectory(AssetsRootPath);
 
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new helengine.directx11.DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new helengine.vulkan.VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
@@ -314,6 +319,64 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures compact models receive the five-unit minimum floor grid beneath their centered preview transform.
+        /// </summary>
+        [Fact]
+        public void Constructor_WhenModelBoundsAreSmallerThanFiveUnits_CreatesFiveUnitPreviewGrid() {
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            RuntimeModel runtimeModel = CreateRuntimeModel();
+            int gridModelAssetIndex = renderManager3D.BuiltModelAssets.Count;
+            ModelPreviewSource source = new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D);
+
+            EditorEntity gridEntity = GetPrivateField<EditorEntity>(source, "previewGridEntity");
+            MeshComponent gridMesh = Assert.IsType<MeshComponent>(Assert.Single(gridEntity.Components, component => component is MeshComponent));
+            ModelAsset gridModelAsset = renderManager3D.BuiltModelAssets[gridModelAssetIndex];
+
+            Assert.True(source.IsGridVisible);
+            Assert.NotNull(gridMesh.Model);
+            Assert.Contains(gridModelAsset.Positions, position => position.Equals(new float3(-2.5f, -2.5f, 0f)));
+            Assert.Contains(gridModelAsset.Positions, position => position.Equals(new float3(2.5f, 2.5f, 0f)));
+            Assert.Equal(float3.One, gridEntity.LocalScale);
+            Assert.Equal(new float3(0f, -1.001f, 0f), gridEntity.LocalPosition);
+            source.Dispose();
+        }
+
+        /// <summary>
+        /// Ensures wide models expand the preview grid to their largest horizontal bound extent.
+        /// </summary>
+        [Fact]
+        public void Constructor_WhenModelIsWiderThanFiveUnits_ScalesPreviewGridToModelWidth() {
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            RuntimeModel runtimeModel = CreateWideRuntimeModel();
+            int gridModelAssetIndex = renderManager3D.BuiltModelAssets.Count;
+            ModelPreviewSource source = new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D);
+
+            EditorEntity gridEntity = GetPrivateField<EditorEntity>(source, "previewGridEntity");
+            MeshComponent gridMesh = Assert.IsType<MeshComponent>(Assert.Single(gridEntity.Components, component => component is MeshComponent));
+            ModelAsset gridModelAsset = renderManager3D.BuiltModelAssets[gridModelAssetIndex];
+
+            Assert.NotNull(gridMesh.Model);
+            Assert.Contains(gridModelAsset.Positions, position => position.Equals(new float3(-8f, -8f, 0f)));
+            Assert.Contains(gridModelAsset.Positions, position => position.Equals(new float3(8f, 8f, 0f)));
+            Assert.Equal(new float3(0f, -2.001f, 0f), gridEntity.LocalPosition);
+            source.Dispose();
+        }
+
+        /// <summary>
+        /// Ensures grid visibility updates both the public source state and rendered grid entity.
+        /// </summary>
+        [Fact]
+        public void SetGridVisible_WhenDisabled_HidesThePreviewGridEntity() {
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D);
+
+            source.SetGridVisible(false);
+
+            Assert.False(source.IsGridVisible);
+            Assert.False(GetPrivateField<EditorEntity>(source, "previewGridEntity").Enabled);
+            source.Dispose();
+        }
+
+        /// <summary>
         /// Builds one simple runtime model with known cached bounds for preview framing tests.
         /// </summary>
         /// <returns>Runtime model with deterministic bounds.</returns>
@@ -386,6 +449,45 @@ namespace helengine.editor.tests {
                 Indices16 = new ushort[] { 0, 1, 2, 0, 2, 3 },
                 BoundsMin = new float3(-33.212997f, 0.015032411f, -11.019729f),
                 BoundsMax = new float3(-9.314689f, 227.78258f, 13.117148f)
+            };
+
+            return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+        }
+
+        /// <summary>
+        /// Builds one wide runtime model used to verify preview-grid sizing from horizontal bounds.
+        /// </summary>
+        /// <returns>Runtime model with a sixteen-unit horizontal extent.</returns>
+        RuntimeModel CreateWideRuntimeModel() {
+            ModelAsset modelAsset = new ModelAsset {
+                Positions = new[] {
+                    new float3(-8f, 0f, -1f),
+                    new float3(8f, 0f, -1f),
+                    new float3(8f, 4f, 1f),
+                    new float3(-8f, 4f, 1f)
+                },
+                Normals = new[] {
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(1f, 1f),
+                    new float2(0f, 1f)
+                },
+                Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        IndexStart = 0,
+                        IndexCount = 6,
+                        MaterialSlotName = "Default"
+                    }
+                },
+                Indices16 = new ushort[] { 0, 1, 2, 0, 2, 3 },
+                BoundsMin = new float3(-8f, 0f, -1f),
+                BoundsMax = new float3(8f, 4f, 1f)
             };
 
             return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);

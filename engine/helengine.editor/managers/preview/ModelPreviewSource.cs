@@ -61,6 +61,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity modelEntity;
         /// <summary>
+        /// Entity that renders the optional floor grid beneath the previewed model.
+        /// </summary>
+        readonly EditorEntity previewGridEntity;
+        /// <summary>
         /// Entity that holds the preview camera.
         /// </summary>
         readonly EditorEntity cameraEntity;
@@ -120,6 +124,10 @@ namespace helengine.editor {
         /// Tracks whether the source has been disposed.
         /// </summary>
         bool isDisposed;
+        /// <summary>
+        /// Tracks whether the preview floor grid should be rendered.
+        /// </summary>
+        bool IsGridVisibleValue;
 
         /// <summary>
         /// Initializes a new model preview source for one runtime model.
@@ -154,8 +162,13 @@ namespace helengine.editor {
 
             previewEntity = CreateHiddenEntity("Model Preview Root");
             modelEntity = CreateHiddenEntity("Model Preview Model");
+            previewGridEntity = ModelPreviewGridFactory.Create(renderManager3D, ResolvePreviewGridSize());
             cameraEntity = CreateHiddenEntity("Model Preview Camera");
             lightEntity = CreateHiddenEntity("Model Preview Light");
+
+            float3 boundsCenter = GetBoundsCenter();
+            previewGridEntity.LocalPosition = new float3(0f, boundsMin.Y - boundsCenter.Y - 0.001f, 0f);
+            SetGridVisible(true);
 
             previewMeshComponent = new MeshComponent {
                 Model = runtimeModel
@@ -182,6 +195,7 @@ namespace helengine.editor {
             lightEntity.AddComponent(previewLightComponent);
 
             previewEntity.AddChild(modelEntity);
+            previewEntity.AddChild(previewGridEntity);
             previewEntity.AddChild(cameraEntity);
             previewEntity.AddChild(lightEntity);
 
@@ -210,6 +224,20 @@ namespace helengine.editor {
         /// Gets the current preview texture exposed by the source.
         /// </summary>
         public RuntimeTexture Texture => renderTarget;
+
+        /// <summary>
+        /// Gets whether the floor grid is currently rendered beneath the model preview.
+        /// </summary>
+        public bool IsGridVisible => IsGridVisibleValue;
+
+        /// <summary>
+        /// Shows or hides the floor grid rendered beneath the model preview.
+        /// </summary>
+        /// <param name="isVisible">True to render the grid; otherwise false.</param>
+        public void SetGridVisible(bool isVisible) {
+            IsGridVisibleValue = isVisible;
+            previewGridEntity.Enabled = isVisible;
+        }
 
         /// <summary>
         /// Creates one preview source from a selected model asset entry.
@@ -395,6 +423,16 @@ namespace helengine.editor {
                 (boundsMin.X + boundsMax.X) * 0.5f,
                 (boundsMin.Y + boundsMax.Y) * 0.5f,
                 (boundsMin.Z + boundsMax.Z) * 0.5f);
+        }
+
+        /// <summary>
+        /// Resolves a square grid size that contains the model's horizontal bounds while retaining a useful minimum scale.
+        /// </summary>
+        /// <returns>Grid side length in world units.</returns>
+        float ResolvePreviewGridSize() {
+            float width = Math.Abs(boundsMax.X - boundsMin.X);
+            float depth = Math.Abs(boundsMax.Z - boundsMin.Z);
+            return Math.Max(5f, Math.Max(width, depth));
         }
 
         /// <summary>
