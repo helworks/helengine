@@ -80,10 +80,10 @@ namespace helengine.helphysics.tests {
         }
 
         /// <summary>
-        /// Ensures a failure after scene preflight rolls back bodies and lifecycle associations created earlier in the binding pass.
+        /// Ensures binding uses the exact root references captured during preflight instead of rereading a changing caller-owned list.
         /// </summary>
         [Fact]
-        public void BindHierarchies_WhenLaterRootChangesAfterPreflight_RollsBackEarlierBindings() {
+        public void BindHierarchies_WithChangingRootList_BindsOnlyValidatedRootSnapshot() {
             Entity firstRoot = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
                 float3.Zero,
                 float3.One,
@@ -92,16 +92,26 @@ namespace helengine.helphysics.tests {
                 new float3(2f, 0f, 0f),
                 float3.One,
                 BodyKind3D.Static);
-            MutatingRootEntityList roots = new MutatingRootEntityList(
+            Entity firstReplacement = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
+                new float3(4f, 0f, 0f),
+                float3.One,
+                BodyKind3D.Static);
+            Entity secondReplacement = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
+                new float3(6f, 0f, 0f),
+                float3.One,
+                BodyKind3D.Static);
+            ChangingRootEntityList roots = new ChangingRootEntityList(
                 [firstRoot, secondRoot],
-                secondRoot.Dispose);
+                [firstReplacement, secondReplacement]);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => binder.BindHierarchies(roots));
+            binder.BindHierarchies(roots);
 
-            Assert.Contains("Disposed entities", exception.Message, StringComparison.Ordinal);
-            Assert.Empty(binder.Bindings);
-            Assert.DoesNotContain(firstRoot.Components, component => component is HelPhysicsEntityBindingLifecycle3D);
+            Assert.Equal(2, binder.Bindings.Count);
+            Assert.Contains(binder.Bindings, binding => ReferenceEquals(binding.Entity, firstRoot));
+            Assert.Contains(binder.Bindings, binding => ReferenceEquals(binding.Entity, secondRoot));
+            Assert.DoesNotContain(binder.Bindings, binding => ReferenceEquals(binding.Entity, firstReplacement));
+            Assert.DoesNotContain(binder.Bindings, binding => ReferenceEquals(binding.Entity, secondReplacement));
         }
 
         /// <summary>

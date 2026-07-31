@@ -90,6 +90,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(roots));
             }
 
+            List<Entity> validatedRoots = new List<Entity>(roots.Count);
             List<Entity> validatedEntities = new List<Entity>();
             int requiredBodyCount = 0;
             for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++) {
@@ -98,6 +99,7 @@ namespace helengine {
                     throw new ArgumentNullException(nameof(roots), "A HelPhysics scene root cannot be null.");
                 }
 
+                validatedRoots.Add(root);
                 int hierarchyBodyCount = ValidateEntityAndDescendants(root, validatedEntities);
                 if (requiredBodyCount > int.MaxValue - hierarchyBodyCount) {
                     throw new InvalidOperationException("A HelPhysics scene contains too many body entities to preflight safely.");
@@ -110,8 +112,8 @@ namespace helengine {
             World.ValidateBodyCreationCapacity(requiredBodyCount);
             int initialBindingCount = BindingsValue.Count;
             try {
-                for (int rootIndex = 0; rootIndex < roots.Count; rootIndex++) {
-                    BindEntityAndDescendants(roots[rootIndex]);
+                for (int rootIndex = 0; rootIndex < validatedRoots.Count; rootIndex++) {
+                    BindEntityAndDescendants(validatedRoots[rootIndex]);
                 }
             } catch (Exception bindingException) {
                 try {
