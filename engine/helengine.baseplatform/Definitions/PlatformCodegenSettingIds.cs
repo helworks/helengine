@@ -14,6 +14,11 @@ namespace helengine.baseplatform.Definitions {
         public const string ForcedDisabledFeatures = "codegen-forced-disabled-features";
 
         /// <summary>
+        /// Stable setting identifier for generated-runtime features explicitly enabled by one codegen profile.
+        /// </summary>
+        public const string EnabledFeatures = "codegen-enabled-features";
+
+        /// <summary>
         /// Stable setting identifier for compact native exception message lowering consumed by csharpcodegen.
         /// </summary>
         public const string CompactNativeExceptionMessages = "codegen-compact-native-exception-messages";

@@ -11,6 +11,11 @@ namespace helengine.editor {
         public const string DisabledFeatureSymbolPrefix = "HELENGINE_CODEGEN_FEATURE_DISABLED_";
 
         /// <summary>
+        /// Generated-runtime symbol that removes generic runtime profiling from ordinary builds.
+        /// </summary>
+        public const string RuntimeProfilerDisabledSymbol = "HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER";
+
+        /// <summary>
         /// Preprocessor symbol used when generated runtimes resolve cooked platform-owned material assets.
         /// </summary>
         public const string RuntimeMaterialResolutionCookedPlatformOwnedSymbol = "HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED";
@@ -109,6 +114,32 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves features that generated runtimes disable unless the active codegen profile explicitly enables them.
+        /// </summary>
+        /// <param name="codegenProfile">Selected codegen profile whose defaults establish the generated-runtime feature set.</param>
+        /// <param name="selectedCodegenOptionValues">Explicit codegen setting overrides for the current build.</param>
+        /// <returns>The runtime-profiler disable symbol unless the effective enabled-feature list contains <c>runtime_profiler</c>.</returns>
+        public static IReadOnlyList<string> ResolveDefaultDisabledFeatureSymbols(
+            PlatformCodegenProfileDefinition codegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
+            if (codegenProfile == null) {
+                throw new ArgumentNullException(nameof(codegenProfile));
+            } else if (selectedCodegenOptionValues == null) {
+                throw new ArgumentNullException(nameof(selectedCodegenOptionValues));
+            }
+
+            string enabledFeatureValue = ResolveEnabledFeatureValue(codegenProfile, selectedCodegenOptionValues);
+            string[] featureIds = enabledFeatureValue.Split(
+                [';', ',', ' '],
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (featureIds.Contains("runtime_profiler", StringComparer.OrdinalIgnoreCase)) {
+                return [];
+            }
+
+            return [RuntimeProfilerDisabledSymbol];
+        }
+
+        /// <summary>
         /// Builds the stable generated-core preprocessor symbol used to indicate one runtime feature id was force-disabled.
         /// </summary>
         /// <param name="featureId">Stable runtime feature identifier.</param>
@@ -129,6 +160,30 @@ namespace helengine.editor {
             }
 
             return DisabledFeatureSymbolPrefix + new string(characters);
+        }
+
+        /// <summary>
+        /// Resolves the effective enabled-feature list by applying an explicit build override over the selected profile default.
+        /// </summary>
+        /// <param name="codegenProfile">Selected codegen profile that provides default setting values.</param>
+        /// <param name="selectedCodegenOptionValues">Explicit setting overrides for the current build.</param>
+        /// <returns>The effective enabled-feature list, or an empty string when the profile enables no generated-runtime features.</returns>
+        static string ResolveEnabledFeatureValue(
+            PlatformCodegenProfileDefinition codegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
+            if (selectedCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.EnabledFeatures, out string selectedValue)) {
+                return selectedValue ?? string.Empty;
+            }
+
+            for (int index = 0; index < codegenProfile.Settings.Length; index++) {
+                PlatformSettingDefinition setting = codegenProfile.Settings[index];
+                if (setting != null
+                    && string.Equals(setting.SettingId, PlatformCodegenSettingIds.EnabledFeatures, StringComparison.OrdinalIgnoreCase)) {
+                    return setting.DefaultValue ?? string.Empty;
+                }
+            }
+
+            return string.Empty;
         }
 
         /// <summary>
