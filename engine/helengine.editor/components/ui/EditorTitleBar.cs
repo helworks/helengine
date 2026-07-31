@@ -12,6 +12,11 @@ namespace helengine.editor {
         public const int HeightPixels = 27;
 
         /// <summary>
+        /// Height in pixels reserved at the top of the host window for native window resizing.
+        /// </summary>
+        public const int NativeResizeBorderHeight = 6;
+
+        /// <summary>
         /// Padding applied around the rendered editor icon.
         /// </summary>
         public const int IconPaddingPixels = 4;
@@ -77,6 +82,10 @@ namespace helengine.editor {
         /// Dedicated layer mask used by the title bar UI.
         /// </summary>
         const ushort TitleBarLayerMask = 0b1000000000000000;
+        /// <summary>
+        /// Input render order that keeps the native resize border above ordinary title-bar controls.
+        /// </summary>
+        const byte NativeResizeBorderInputOrder = 208;
 
         /// <summary>
         /// Font used to render the title bar labels.
@@ -106,6 +115,18 @@ namespace helengine.editor {
         /// Interactable used to absorb pointer events over uncovered title-bar regions.
         /// </summary>
         readonly InteractableComponent HoverShieldInteractable;
+        /// <summary>
+        /// Entity that blocks title-bar controls from receiving input inside the native top resize border.
+        /// </summary>
+        readonly EditorEntity NativeResizeBorderEntity;
+        /// <summary>
+        /// Transparent surface used to place the native resize border above ordinary title-bar input.
+        /// </summary>
+        readonly SpriteComponent NativeResizeBorderSurface;
+        /// <summary>
+        /// Interactable that absorbs engine pointer input while Windows owns the top resize gesture.
+        /// </summary>
+        readonly InteractableComponent NativeResizeBorderInteractable;
         /// <summary>
         /// Entity that hosts the draggable title bar hit region.
         /// </summary>
@@ -460,6 +481,25 @@ namespace helengine.editor {
             CloseButtonEntity = CreateTitleBarButton("X", HandleCloseRequested, null, true, false, out int closeButtonWidth);
             CloseButtonWidth = closeButtonWidth;
 
+            NativeResizeBorderEntity = new EditorEntity {
+                LayerMask = TitleBarLayerMask,
+                Position = float3.Zero
+            };
+            RootEntity.AddChild(NativeResizeBorderEntity);
+
+            NativeResizeBorderSurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = new byte4(255, 255, 255, 0),
+                Size = new int2(HostSize.X, NativeResizeBorderHeight),
+                RenderOrder2D = NativeResizeBorderInputOrder
+            };
+            NativeResizeBorderEntity.AddComponent(NativeResizeBorderSurface);
+
+            NativeResizeBorderInteractable = new InteractableComponent {
+                Size = new int2(HostSize.X, NativeResizeBorderHeight)
+            };
+            NativeResizeBorderEntity.AddComponent(NativeResizeBorderInteractable);
+
             UpdateLayout(HostSize.X, HostSize.Y);
         }
 
@@ -657,6 +697,8 @@ namespace helengine.editor {
             Background.Size = new int2(width + 1, Height);
             HoverShieldSurface.Size = new int2(width, Height);
             HoverShieldInteractable.Size = new int2(width, Height);
+            NativeResizeBorderSurface.Size = new int2(width, NativeResizeBorderHeight);
+            NativeResizeBorderInteractable.Size = new int2(width, NativeResizeBorderHeight);
 
             float fileButtonX = GetLeftIconSlotWidth();
             FileMenuButtonEntity.Position = new float3(fileButtonX, ButtonTop, 0f);
@@ -1622,6 +1664,10 @@ namespace helengine.editor {
         /// <param name="state">Pointer interaction state.</param>
         void HandleTitleBarCursorEvent(int2 pos, int2 delta, PointerInteraction state) {
             if (state != PointerInteraction.Press) {
+                return;
+            }
+
+            if (pos.Y < NativeResizeBorderHeight) {
                 return;
             }
 

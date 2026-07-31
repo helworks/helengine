@@ -39,6 +39,53 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a press inside the native top resize strip cannot initiate the editor title-bar drag gesture.
+        /// </summary>
+        [Fact]
+        public void DragRegion_PressInsideNativeResizeBorder_DoesNotRequestWindowDrag() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            InteractableComponent dragRegion = GetPrivateField<InteractableComponent>(titleBar, "DragRegion");
+            bool wasDragRequested = false;
+            titleBar.DragRequested += () => wasDragRequested = true;
+
+            dragRegion.OnCursor(new int2(10, 0), new int2(0, 0), PointerInteraction.Press);
+
+            Assert.False(wasDragRequested);
+        }
+
+        /// <summary>
+        /// Ensures the title-bar drag gesture remains available immediately below the native top resize strip.
+        /// </summary>
+        [Fact]
+        public void DragRegion_PressBelowNativeResizeBorder_RequestsWindowDrag() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            InteractableComponent dragRegion = GetPrivateField<InteractableComponent>(titleBar, "DragRegion");
+            bool wasDragRequested = false;
+            titleBar.DragRequested += () => wasDragRequested = true;
+
+            dragRegion.OnCursor(new int2(10, 6), new int2(0, 0), PointerInteraction.Press);
+
+            Assert.True(wasDragRequested);
+        }
+
+        /// <summary>
+        /// Ensures the native top resize strip is the foremost title-bar input region so title-bar buttons cannot consume it.
+        /// </summary>
+        [Fact]
+        public void Constructor_CreatesTopmostNativeResizeBorderInputShield() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            InteractableComponent resizeBorderInteractable = GetPrivateField<InteractableComponent>(titleBar, "NativeResizeBorderInteractable");
+            SpriteComponent resizeBorderSurface = GetPrivateField<SpriteComponent>(titleBar, "NativeResizeBorderSurface");
+
+            Assert.Equal(new int2(1280, EditorTitleBar.NativeResizeBorderHeight), resizeBorderInteractable.Size);
+            Assert.Equal(new int2(1280, EditorTitleBar.NativeResizeBorderHeight), resizeBorderSurface.Size);
+            Assert.True(resizeBorderSurface.RenderOrder2D > RenderOrder2D.OverlayInput);
+        }
+
+        /// <summary>
         /// Ensures the main title text uses a high-contrast color against the dark title-bar surface.
         /// </summary>
         [Fact]
@@ -375,7 +422,9 @@ namespace helengine.editor.tests {
         /// Initializes a core instance with the minimum services required by title-bar UI controls.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
             core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
