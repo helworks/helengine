@@ -14,6 +14,7 @@
 		<PackageReference Include="Silk.NET.Shaderc" Version="2.21.0" />
 		<ProjectReference Include="..\helengine.core\helengine.core.csproj" />
 		<ProjectReference Include="..\helengine.shader\helengine.shader.csproj" />
+		<ProjectReference Include="..\helengine.shader.compilation\helengine.shader.compilation.csproj" />
 	</ItemGroup>
 
 </Project>

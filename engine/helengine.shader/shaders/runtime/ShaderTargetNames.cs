@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Provides stable string identifiers for shader compilation targets.
+    /// Provides stable string identifiers for runtime shader package targets.
     /// </summary>
     public static class ShaderTargetNames {
         /// <summary>

@@ -63,6 +63,7 @@
 		<ProjectReference Include="..\..\engine\helengine.directx11\helengine.directx11.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.platforms\helengine.platforms.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.projectfile\helengine.projectfile.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.shader.compilation\helengine.shader.compilation.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.vulkan\helengine.vulkan.csproj" SkipGetTargetFrameworkProperties="true" />
 	</ItemGroup>
 

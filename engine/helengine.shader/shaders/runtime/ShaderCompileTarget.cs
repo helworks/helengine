@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Identifies the backend API target for shader compilation.
+    /// Identifies the backend API target stored in runtime shader packages and selected during compilation.
     /// </summary>
     public enum ShaderCompileTarget {
         /// <summary>

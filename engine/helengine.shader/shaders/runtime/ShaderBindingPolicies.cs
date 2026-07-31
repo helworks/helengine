@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Provides commonly used shader binding policy presets.
+    /// Provides shared runtime shader binding policy presets.
     /// </summary>
     public static class ShaderBindingPolicies {
         /// <summary>

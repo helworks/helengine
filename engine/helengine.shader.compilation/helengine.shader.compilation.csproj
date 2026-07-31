@@ -7,11 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.shader\helengine.shader.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="shaders\compilation\**\*.cs" />
+    <Compile Include="..\helengine.shader\shaders\compilation\**\*.cs"
+             Link="shaders\compilation\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

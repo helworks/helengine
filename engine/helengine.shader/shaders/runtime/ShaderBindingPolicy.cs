@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Defines how HLSL registers map to unified binding slots for cross-API shader reflection.
+    /// Defines how reflected shader registers map to runtime binding slots across graphics APIs.
     /// </summary>
     public class ShaderBindingPolicy {
         /// <summary>
