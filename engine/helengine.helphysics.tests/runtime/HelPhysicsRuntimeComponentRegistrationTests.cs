@@ -89,11 +89,13 @@ namespace helengine.helphysics.tests {
             HelPhysicsRuntimeComponentRegistration.RegisterConfigured(core, settings);
             HelPhysicsRuntimeComponentRegistration.HandleLoadedScene(core, [root]);
             HelPhysicsSceneRuntime3D runtime = Assert.IsType<HelPhysicsSceneRuntime3D>(core.PhysicsRuntime);
+            HelPhysicsEntityBinding3D[] bindings = runtime.Binder.Bindings.ToArray();
 
             HelPhysicsRuntimeComponentRegistration.HandleUnloadingScene(core, [root]);
 
             Assert.Null(core.PhysicsRuntime);
-            Assert.Equal(5, runtime.Binder.Bindings.Count);
+            Assert.Empty(runtime.Binder.Bindings);
+            Assert.All(bindings, binding => Assert.False(binding.IsValid));
         }
 
         /// <summary>

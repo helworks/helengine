@@ -116,11 +116,15 @@ namespace helengine {
         /// </summary>
         /// <param name="core">Core that may currently own the registered adapter.</param>
         static void DetachRuntime(Core core) {
-            if (RuntimeValue != null && ReferenceEquals(core.PhysicsRuntime, RuntimeValue)) {
+            HelPhysicsSceneRuntime3D runtime = RuntimeValue;
+            if (runtime != null && ReferenceEquals(core.PhysicsRuntime, runtime)) {
                 core.DetachPhysicsRuntime();
             }
 
             RuntimeValue = null;
+            if (runtime != null) {
+                runtime.Binder.UnbindAll();
+            }
         }
 
         /// <summary>

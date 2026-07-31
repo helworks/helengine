@@ -180,6 +180,15 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Invalidates and removes every current scene association before its owning entity hierarchy is disposed.
+        /// </summary>
+        public void UnbindAll() {
+            while (BindingsValue.Count > 0) {
+                Unbind(BindingsValue[BindingsValue.Count - 1].Entity);
+            }
+        }
+
+        /// <summary>
         /// Handles removal of a binding-owned lifecycle component during explicit detach or entity disposal.
         /// </summary>
         /// <param name="entity">Entity losing the lifecycle component.</param>
