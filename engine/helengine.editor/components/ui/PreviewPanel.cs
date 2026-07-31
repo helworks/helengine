@@ -48,6 +48,10 @@ namespace helengine.editor {
         /// </summary>
         const int ModelToolbarButtonHeight = 18;
         /// <summary>
+        /// Horizontal space separating adjacent model-preview toolbar buttons.
+        /// </summary>
+        const int ModelToolbarButtonGap = 4;
+        /// <summary>
         /// Square size of the model-grid button icon.
         /// </summary>
         const int ModelToolbarIconSize = 14;
@@ -92,6 +96,30 @@ namespace helengine.editor {
         /// Keyboard focus target assigned to the model-preview grid button.
         /// </summary>
         readonly EditorFocusTarget gridButtonFocusTarget;
+        /// <summary>
+        /// Root entity of the model-preview bounds display cycle button.
+        /// </summary>
+        readonly EditorEntity boundsButtonRoot;
+        /// <summary>
+        /// Background sprite for the model-preview bounds display cycle button.
+        /// </summary>
+        readonly SpriteComponent boundsButtonBackground;
+        /// <summary>
+        /// Entity that positions the model-preview bounds button glyph.
+        /// </summary>
+        readonly EditorEntity boundsButtonLabelHost;
+        /// <summary>
+        /// Text glyph that identifies the model-preview bounds display cycle button.
+        /// </summary>
+        readonly TextComponent boundsButtonText;
+        /// <summary>
+        /// Hit-testable region used to activate the model-preview bounds display cycle button.
+        /// </summary>
+        readonly InteractableComponent boundsButtonInteractable;
+        /// <summary>
+        /// Keyboard focus target assigned to the model-preview bounds display cycle button.
+        /// </summary>
+        readonly EditorFocusTarget boundsButtonFocusTarget;
         /// <summary>
         /// Entity that positions the preview sprite.
         /// </summary>
@@ -161,9 +189,25 @@ namespace helengine.editor {
         /// </summary>
         bool IsGridButtonKeyboardFocused;
         /// <summary>
+        /// Tracks the bounds-button hover state used by toolbar visuals.
+        /// </summary>
+        bool IsBoundsButtonHovered;
+        /// <summary>
+        /// Tracks the bounds-button press state until the pointer is released.
+        /// </summary>
+        bool IsBoundsButtonPressed;
+        /// <summary>
+        /// Tracks whether keyboard navigation currently targets the bounds button.
+        /// </summary>
+        bool IsBoundsButtonKeyboardFocused;
+        /// <summary>
         /// Stores the grid visibility preference owned by this preview-panel instance.
         /// </summary>
         bool IsModelGridVisibleValue;
+        /// <summary>
+        /// Stores the bounds display preference owned by this preview-panel instance.
+        /// </summary>
+        ModelPreviewBoundsDisplayMode ModelBoundsDisplayModeValue;
 
         /// <summary>
         /// Initializes a new preview panel with the provided font.
@@ -264,6 +308,50 @@ namespace helengine.editor {
                 key => ToggleModelGrid());
             EditorKeyboardFocusService.RegisterTarget(gridButtonFocusTarget);
 
+            boundsButtonRoot = new EditorEntity {
+                LayerMask = LayerMask
+            };
+            modelToolbarRoot.AddChild(boundsButtonRoot);
+
+            boundsButtonBackground = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                RenderOrder2D = RenderOrder2D.PanelSurface
+            };
+            boundsButtonRoot.AddComponent(boundsButtonBackground);
+
+            boundsButtonLabelHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = new float3(0f, 0f, 0.1f)
+            };
+            boundsButtonRoot.AddChild(boundsButtonLabelHost);
+
+            boundsButtonText = new TextComponent {
+                Font = TitleFont,
+                Text = "B",
+                Color = new byte4(255, 255, 255, 224),
+                RenderOrder2D = spriteOrder
+            };
+            boundsButtonLabelHost.AddComponent(boundsButtonText);
+
+            boundsButtonInteractable = new InteractableComponent {
+                Size = new int2(ModelToolbarButtonWidth, ModelToolbarButtonHeight)
+            };
+            boundsButtonInteractable.CursorEvent += HandleBoundsButtonCursor;
+            boundsButtonRoot.AddComponent(boundsButtonInteractable);
+            boundsButtonFocusTarget = new EditorFocusTarget(
+                this,
+                1,
+                false,
+                () => Enabled && modelToolbarRoot.Enabled,
+                ContainsBoundsButtonPoint,
+                isFocused => {
+                    IsBoundsButtonKeyboardFocused = isFocused;
+                    UpdateBoundsButtonVisuals();
+                },
+                key => key == Keys.Enter || key == Keys.Space,
+                key => CycleModelBoundsDisplayMode());
+            EditorKeyboardFocusService.RegisterTarget(boundsButtonFocusTarget);
+
             textureHost = new EditorEntity();
             textureHost.LayerMask = LayerMask;
             textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
@@ -290,6 +378,7 @@ namespace helengine.editor {
             ClearPreview();
             LayoutModelToolbar();
             UpdateGridButtonVisuals();
+            UpdateBoundsButtonVisuals();
             AddComponent(new PreviewPanelUpdater(this));
             isInitialized = true;
             InitializeHierarchy();
@@ -424,6 +513,27 @@ namespace helengine.editor {
             }
 
             UpdateGridButtonVisuals();
+        }
+
+        /// <summary>
+        /// Advances the persistent model-preview bounds display through box, sphere, and no overlay.
+        /// </summary>
+        public void CycleModelBoundsDisplayMode() {
+            if (ModelBoundsDisplayModeValue == ModelPreviewBoundsDisplayMode.None) {
+                ModelBoundsDisplayModeValue = ModelPreviewBoundsDisplayMode.Box;
+            } else if (ModelBoundsDisplayModeValue == ModelPreviewBoundsDisplayMode.Box) {
+                ModelBoundsDisplayModeValue = ModelPreviewBoundsDisplayMode.Sphere;
+            } else if (ModelBoundsDisplayModeValue == ModelPreviewBoundsDisplayMode.Sphere) {
+                ModelBoundsDisplayModeValue = ModelPreviewBoundsDisplayMode.None;
+            } else {
+                throw new InvalidOperationException("Model preview bounds display mode is not supported.");
+            }
+
+            if (ActivePreviewSourceValue is ModelPreviewSource modelPreviewSource) {
+                modelPreviewSource.SetBoundsDisplayMode(ModelBoundsDisplayModeValue);
+            }
+
+            UpdateBoundsButtonVisuals();
         }
 
         /// <summary>
@@ -633,6 +743,7 @@ namespace helengine.editor {
             contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
             textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
             resolutionLabelText.Font = TitleFont;
+            boundsButtonText.Font = TitleFont;
             LayoutModelToolbar();
             LayoutPreview();
         }
@@ -929,19 +1040,21 @@ namespace helengine.editor {
             if (ActivePreviewSourceValue is ModelPreviewSource modelPreviewSource) {
                 modelToolbarRoot.Enabled = true;
                 modelPreviewSource.SetGridVisible(IsModelGridVisibleValue);
+                modelPreviewSource.SetBoundsDisplayMode(ModelBoundsDisplayModeValue);
             } else {
                 modelToolbarRoot.Enabled = false;
             }
 
             LayoutModelToolbar();
             UpdateGridButtonVisuals();
+            UpdateBoundsButtonVisuals();
         }
 
         /// <summary>
-        /// Lays out the model-preview toolbar and its grid toggle button.
+        /// Lays out the model-preview toolbar and its grid and bounds controls.
         /// </summary>
         void LayoutModelToolbar() {
-            int toolbarWidth = ModelToolbarPadding * 2 + ModelToolbarButtonWidth;
+            int toolbarWidth = ModelToolbarPadding * 2 + ModelToolbarButtonWidth * 2 + ModelToolbarButtonGap;
             modelToolbarRoot.Position = new float3(0f, 0f, 0.4f);
             modelToolbarBackground.Size = new int2(toolbarWidth, ModelToolbarHeight);
 
@@ -957,6 +1070,17 @@ namespace helengine.editor {
             }
 
             gridButtonIcon.Size = new int2(ModelToolbarIconSize, ModelToolbarIconSize);
+
+            boundsButtonRoot.Position = new float3(ModelToolbarPadding + ModelToolbarButtonWidth + ModelToolbarButtonGap, buttonY, 0.1f);
+            boundsButtonBackground.Size = new int2(ModelToolbarButtonWidth, ModelToolbarButtonHeight);
+            boundsButtonInteractable.Size = new int2(ModelToolbarButtonWidth, ModelToolbarButtonHeight);
+            float2 boundsGlyphSize = TitleFont.MeasureString(boundsButtonText.Text);
+            int boundsGlyphWidth = Math.Max(1, (int)Math.Ceiling(boundsGlyphSize.X));
+            int boundsGlyphHeight = Math.Max(1, (int)Math.Ceiling(TitleFont.LineHeight));
+            float glyphX = (float)Math.Round((ModelToolbarButtonWidth - boundsGlyphWidth) * 0.5d);
+            float glyphY = (float)Math.Round((ModelToolbarButtonHeight - boundsGlyphHeight) * 0.5d);
+            boundsButtonLabelHost.Position = new float3(glyphX, glyphY, 0.1f);
+            boundsButtonText.Size = new int2(boundsGlyphWidth, boundsGlyphHeight);
         }
 
         /// <summary>
@@ -1011,6 +1135,61 @@ namespace helengine.editor {
                 gridButtonIcon.Color = new byte4(255, 255, 255, 255);
             } else {
                 gridButtonIcon.Color = new byte4(255, 255, 255, 224);
+            }
+        }
+
+        /// <summary>
+        /// Handles pointer interaction state updates for the model-preview bounds display cycle button.
+        /// </summary>
+        /// <param name="position">Pointer position relative to the button.</param>
+        /// <param name="delta">Pointer movement delta since the previous interaction event.</param>
+        /// <param name="interaction">Pointer interaction state reported by the input system.</param>
+        void HandleBoundsButtonCursor(int2 position, int2 delta, PointerInteraction interaction) {
+            switch (interaction) {
+                case PointerInteraction.Hover:
+                    IsBoundsButtonHovered = true;
+                    break;
+                case PointerInteraction.Press:
+                    IsBoundsButtonPressed = true;
+                    break;
+                case PointerInteraction.Release:
+                    bool shouldCycle = IsBoundsButtonPressed && IsBoundsButtonHovered;
+                    IsBoundsButtonPressed = false;
+                    if (shouldCycle) {
+                        CycleModelBoundsDisplayMode();
+                    }
+                    break;
+                case PointerInteraction.Leave:
+                    IsBoundsButtonHovered = false;
+                    IsBoundsButtonPressed = false;
+                    break;
+                case PointerInteraction.None:
+                    break;
+                default:
+                    throw new InvalidOperationException("Pointer interaction state is not supported.");
+            }
+
+            UpdateBoundsButtonVisuals();
+        }
+
+        /// <summary>
+        /// Applies active, hover, press, and keyboard-focus colors to the model-preview bounds display button.
+        /// </summary>
+        void UpdateBoundsButtonVisuals() {
+            if (IsBoundsButtonPressed) {
+                boundsButtonBackground.Color = ThemeManager.Colors.AccentTertiary;
+            } else if (ModelBoundsDisplayModeValue != ModelPreviewBoundsDisplayMode.None && modelToolbarRoot.Enabled) {
+                boundsButtonBackground.Color = ThemeManager.Colors.AccentPrimary;
+            } else if (IsBoundsButtonHovered || IsBoundsButtonKeyboardFocused) {
+                boundsButtonBackground.Color = ThemeManager.Colors.AccentSecondary;
+            } else {
+                boundsButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
+            }
+
+            if (ModelBoundsDisplayModeValue != ModelPreviewBoundsDisplayMode.None || IsBoundsButtonHovered || IsBoundsButtonPressed || IsBoundsButtonKeyboardFocused) {
+                boundsButtonText.Color = new byte4(255, 255, 255, 255);
+            } else {
+                boundsButtonText.Color = new byte4(255, 255, 255, 224);
             }
         }
 
@@ -1179,6 +1358,24 @@ namespace helengine.editor {
                    pointer.X < buttonLeft + gridButtonInteractable.Size.X &&
                    pointer.Y >= buttonTop &&
                    pointer.Y < buttonTop + gridButtonInteractable.Size.Y;
+        }
+
+        /// <summary>
+        /// Returns true when the pointer lies inside the model-preview bounds display cycle button.
+        /// </summary>
+        /// <param name="pointer">Pointer position in screen coordinates.</param>
+        /// <returns>True when the pointer is inside the bounds-button bounds.</returns>
+        bool ContainsBoundsButtonPoint(int2 pointer) {
+            if (!boundsButtonRoot.Enabled || !modelToolbarRoot.Enabled) {
+                return false;
+            }
+
+            int buttonLeft = (int)Math.Round(boundsButtonRoot.Position.X);
+            int buttonTop = (int)Math.Round(boundsButtonRoot.Position.Y);
+            return pointer.X >= buttonLeft &&
+                   pointer.X < buttonLeft + boundsButtonInteractable.Size.X &&
+                   pointer.Y >= buttonTop &&
+                   pointer.Y < buttonTop + boundsButtonInteractable.Size.Y;
         }
 
         /// <summary>

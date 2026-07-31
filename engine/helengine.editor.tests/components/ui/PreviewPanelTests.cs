@@ -186,6 +186,59 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the bounds toolbar button cycles through box, sphere, and no overlay for the active model preview.
+        /// </summary>
+        [Fact]
+        public void BoundsToolbarButton_WhenActivated_CyclesThroughBoxSphereAndNone() {
+            PreviewPanel panel = new PreviewPanel(CreateFont()) {
+                Size = new int2(416, 312)
+            };
+            ModelPreviewSource source = CreateModelPreviewSource();
+            panel.SetPreviewSource(source);
+            InteractableComponent boundsButtonInteractable = GetPrivateField<InteractableComponent>(panel, "boundsButtonInteractable");
+
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Hover);
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Press);
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Release);
+            Assert.Equal(ModelPreviewBoundsDisplayMode.Box, source.BoundsDisplayMode);
+
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Press);
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Release);
+            Assert.Equal(ModelPreviewBoundsDisplayMode.Sphere, source.BoundsDisplayMode);
+
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Press);
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Release);
+            Assert.Equal(ModelPreviewBoundsDisplayMode.None, source.BoundsDisplayMode);
+            panel.ClearPreview();
+        }
+
+        /// <summary>
+        /// Ensures the bounds display preference is re-applied when this panel is assigned a later model preview source.
+        /// </summary>
+        [Fact]
+        public void BoundsToolbarButton_WhenModelPreviewChanges_PersistsThePanelBoundsPreference() {
+            PreviewPanel panel = new PreviewPanel(CreateFont()) {
+                Size = new int2(416, 312)
+            };
+            ModelPreviewSource firstSource = CreateModelPreviewSource();
+            ModelPreviewSource secondSource = CreateModelPreviewSource();
+            panel.SetPreviewSource(firstSource);
+            InteractableComponent boundsButtonInteractable = GetPrivateField<InteractableComponent>(panel, "boundsButtonInteractable");
+
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Hover);
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Press);
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Release);
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Press);
+            boundsButtonInteractable.OnCursor(int2.Zero, int2.Zero, PointerInteraction.Release);
+            Assert.Equal(ModelPreviewBoundsDisplayMode.Sphere, firstSource.BoundsDisplayMode);
+
+            panel.SetPreviewSource(secondSource);
+
+            Assert.Equal(ModelPreviewBoundsDisplayMode.Sphere, secondSource.BoundsDisplayMode);
+            panel.ClearPreview();
+        }
+
+        /// <summary>
         /// Ensures pointer drags beginning on the model toolbar do not orbit the model beneath it.
         /// </summary>
         [Fact]
@@ -463,6 +516,7 @@ namespace helengine.editor.tests {
         /// <returns>Font asset with basic glyph metrics for the current test.</returns>
         FontAsset CreateFont() {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
+                ['B'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['P'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['c'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
