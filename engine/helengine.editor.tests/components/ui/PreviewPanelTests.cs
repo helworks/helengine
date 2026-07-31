@@ -239,6 +239,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures box mode configures bounds-dimension labels from the panel font shared with editor viewport gizmos.
+        /// </summary>
+        [Fact]
+        public void SetPreviewSource_WhenBoundsBoxIsActivated_ConfiguresDimensionLabelsWithThePanelFont() {
+            FontAsset font = CreateFont();
+            PreviewPanel panel = new PreviewPanel(font) {
+                Size = new int2(416, 312)
+            };
+            ModelPreviewSource source = CreateModelPreviewSource();
+
+            panel.SetPreviewSource(source);
+            panel.CycleModelBoundsDisplayMode();
+
+            EditorEntity[] labels = GetPrivateField<EditorEntity[]>(source, "boundsDimensionLabelEntities");
+            Assert.Equal(3, labels.Length);
+            Assert.All(labels, label => Assert.True(label.Enabled));
+            panel.ClearPreview();
+        }
+
+        /// <summary>
         /// Ensures pointer drags beginning on the model toolbar do not orbit the model beneath it.
         /// </summary>
         [Fact]
@@ -536,7 +556,8 @@ namespace helengine.editor.tests {
                 ['6'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['7'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['8'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
+                ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['.'] = new FontChar(new float4(0f, 0f, 4f, 4f), 0f, 4f, 0f, 0f),
             };
 
             return new FontAsset(

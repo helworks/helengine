@@ -1040,6 +1040,7 @@ namespace helengine.editor {
             if (ActivePreviewSourceValue is ModelPreviewSource modelPreviewSource) {
                 modelToolbarRoot.Enabled = true;
                 modelPreviewSource.SetGridVisible(IsModelGridVisibleValue);
+                modelPreviewSource.ConfigureBoundsDimensionLabels(TitleFont);
                 modelPreviewSource.SetBoundsDisplayMode(ModelBoundsDisplayModeValue);
             } else {
                 modelToolbarRoot.Enabled = false;
