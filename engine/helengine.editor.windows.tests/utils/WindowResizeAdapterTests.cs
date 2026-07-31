@@ -7,6 +7,11 @@ namespace helengine.editor.windows.tests.utils {
     /// </summary>
     public sealed class WindowResizeAdapterTests {
         /// <summary>
+        /// Windows style flag that enables native edge-resize operations.
+        /// </summary>
+        const int WsThickFrame = 0x00040000;
+
+        /// <summary>
         /// Ensures hosts can suppress resize cursors when custom maximize state disables border resizing.
         /// </summary>
         [Fact]
@@ -95,6 +100,18 @@ namespace helengine.editor.windows.tests.utils {
 
             Assert.True(result);
             Assert.Equal((IntPtr)12, message.Result);
+        }
+
+        /// <summary>
+        /// Ensures borderless editor hosts retain a native sizing frame so resize hit-test results start the Windows sizing loop.
+        /// </summary>
+        [Fact]
+        public void GetResizableWindowStyle_WhenSizingFrameIsMissing_AddsTheSizingFrame() {
+            int borderlessWindowStyle = 0x16010000;
+
+            int resizableWindowStyle = WindowResizeAdapter.GetResizableWindowStyle(borderlessWindowStyle);
+
+            Assert.Equal(borderlessWindowStyle | WsThickFrame, resizableWindowStyle);
         }
 
         /// <summary>

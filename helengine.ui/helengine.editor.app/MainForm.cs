@@ -95,6 +95,17 @@ namespace helengine.editor.app {
         }
 
         /// <summary>
+        /// Adds the native sizing frame while allowing the editor to render all window chrome itself.
+        /// </summary>
+        protected override CreateParams CreateParams {
+            get {
+                CreateParams createParams = base.CreateParams;
+                createParams.Style = WindowResizeAdapter.GetResizableWindowStyle(createParams.Style);
+                return createParams;
+            }
+        }
+
+        /// <summary>
         /// Initializes the form shell and window chrome settings.
         /// </summary>
         void InitializeWindowFrame() {

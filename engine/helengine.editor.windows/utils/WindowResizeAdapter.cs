@@ -8,6 +8,10 @@ namespace helengine.editor.windows {
         /// </summary>
         const int WmNcHitTest = 0x84;
         /// <summary>
+        /// Windows style flag that enables native sizing behavior while preserving custom borderless chrome.
+        /// </summary>
+        const int WsThickFrame = 0x00040000;
+        /// <summary>
         /// Hit test result for client area.
         /// </summary>
         const int HtClient = 1;
@@ -48,6 +52,15 @@ namespace helengine.editor.windows {
         /// Default thickness in pixels for resizing the borderless window.
         /// </summary>
         public const int DefaultResizeBorderThickness = 6;
+
+        /// <summary>
+        /// Adds the native sizing frame required for Windows to honor resize-border hit test results.
+        /// </summary>
+        /// <param name="windowStyle">Existing native window style bits.</param>
+        /// <returns>Window style bits with native sizing enabled.</returns>
+        public static int GetResizableWindowStyle(int windowStyle) {
+            return windowStyle | WsThickFrame;
+        }
 
         /// <summary>
         /// Applies window resize hit testing to a WinForms message.
