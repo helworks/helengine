@@ -43,6 +43,18 @@ namespace helengine.editor {
         /// Extra multiplier applied to the preview clip planes so fitted models are not clipped by near or far plane rounding.
         /// </summary>
         const double ClipPlanePadding = 1.25d;
+        /// <summary>
+        /// Vertical field of view used by the preview perspective camera.
+        /// </summary>
+        const double PreviewVerticalFieldOfViewRadians = Math.PI / 4.0d;
+        /// <summary>
+        /// Additional scale applied after converting one font pixel into preview world units.
+        /// </summary>
+        const double DimensionLabelPixelScaleMultiplier = 1.2d;
+        /// <summary>
+        /// Smallest camera distance used while sizing dimension billboards.
+        /// </summary>
+        const double MinimumDimensionLabelCameraDistance = 0.001d;
 
         /// <summary>
         /// Owning renderer used to allocate the preview render target.
@@ -72,6 +84,14 @@ namespace helengine.editor {
         /// Entity that renders the optional wireframe bounding sphere around the previewed model.
         /// </summary>
         readonly EditorEntity boundsSphereEntity;
+        /// <summary>
+        /// World-space text entities that display width, height, and depth while box mode is active.
+        /// </summary>
+        EditorEntity[] boundsDimensionLabelEntities;
+        /// <summary>
+        /// Shared editor font used to build the model-preview dimension glyphs.
+        /// </summary>
+        FontAsset boundsDimensionLabelFont;
         /// <summary>
         /// Entity that holds the preview camera.
         /// </summary>
@@ -262,6 +282,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates the world-space dimension labels using the shared editor font used by transform-gizmo axis labels.
+        /// </summary>
+        /// <param name="font">Font used to construct the width, height, and depth glyph meshes.</param>
+        public void ConfigureBoundsDimensionLabels(FontAsset font) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+            if (ReferenceEquals(boundsDimensionLabelFont, font)) {
+                return;
+            }
+            if (boundsDimensionLabelEntities != null) {
+                throw new InvalidOperationException("Model preview bounds dimension labels cannot change fonts after initialization.");
+            }
+
+            boundsDimensionLabelFont = font;
+            boundsDimensionLabelEntities = ModelPreviewBoundsDimensionLabelFactory.Create(renderManager3D, font, GetBoundsHalfExtents());
+            for (int labelIndex = 0; labelIndex < boundsDimensionLabelEntities.Length; labelIndex++) {
+                previewEntity.AddChild(boundsDimensionLabelEntities[labelIndex]);
+            }
+
+            UpdateBoundsDimensionLabelVisibility();
+            UpdateBoundsDimensionLabelBillboards();
+        }
+
+        /// <summary>
         /// Selects the bounds overlay rendered around the previewed model.
         /// </summary>
         /// <param name="displayMode">Requested bounding-box, bounding-sphere, or no-overlay mode.</param>
@@ -275,6 +320,7 @@ namespace helengine.editor {
             BoundsDisplayModeValue = displayMode;
             boundsBoxEntity.Enabled = displayMode == ModelPreviewBoundsDisplayMode.Box;
             boundsSphereEntity.Enabled = displayMode == ModelPreviewBoundsDisplayMode.Sphere;
+            UpdateBoundsDimensionLabelVisibility();
         }
 
         /// <summary>
@@ -450,6 +496,57 @@ namespace helengine.editor {
             cameraEntity.LocalPosition = cameraPosition;
             UpdateCameraClipPlanes(cameraPosition, boundsRadius);
             modelEntity.LocalPosition = new float3(-boundsCenter.X, -boundsCenter.Y, -boundsCenter.Z);
+            UpdateBoundsDimensionLabelBillboards();
+        }
+
+        /// <summary>
+        /// Enables dimension labels only while the preview uses its wireframe bounding box overlay.
+        /// </summary>
+        void UpdateBoundsDimensionLabelVisibility() {
+            if (boundsDimensionLabelEntities == null) {
+                return;
+            }
+
+            bool isVisible = BoundsDisplayModeValue == ModelPreviewBoundsDisplayMode.Box;
+            for (int labelIndex = 0; labelIndex < boundsDimensionLabelEntities.Length; labelIndex++) {
+                boundsDimensionLabelEntities[labelIndex].Enabled = isVisible;
+            }
+        }
+
+        /// <summary>
+        /// Keeps configured dimension label billboards camera-facing and at a stable on-screen size.
+        /// </summary>
+        void UpdateBoundsDimensionLabelBillboards() {
+            if (boundsDimensionLabelEntities == null) {
+                return;
+            }
+
+            double viewportHeight = previewCameraComponent.Viewport.W;
+            if (viewportHeight <= 0.0d) {
+                throw new InvalidOperationException("Model preview camera viewport height must be greater than zero.");
+            }
+
+            double tanHalfFov = Math.Tan(PreviewVerticalFieldOfViewRadians * 0.5d);
+            if (tanHalfFov <= 0.0d) {
+                throw new InvalidOperationException("Model preview vertical field of view must produce a positive tangent value.");
+            }
+
+            for (int labelIndex = 0; labelIndex < boundsDimensionLabelEntities.Length; labelIndex++) {
+                EditorEntity labelEntity = boundsDimensionLabelEntities[labelIndex];
+                float3 offset = labelEntity.Position - cameraEntity.Position;
+                double distance = Math.Sqrt(
+                    (double)offset.X * offset.X +
+                    (double)offset.Y * offset.Y +
+                    (double)offset.Z * offset.Z);
+                if (distance < MinimumDimensionLabelCameraDistance) {
+                    distance = MinimumDimensionLabelCameraDistance;
+                }
+
+                double worldUnitsPerPixel = (2.0d * distance * tanHalfFov) / viewportHeight;
+                float labelScale = (float)(worldUnitsPerPixel * DimensionLabelPixelScaleMultiplier);
+                labelEntity.Orientation = cameraEntity.Orientation;
+                labelEntity.Scale = new float3(labelScale, labelScale, labelScale);
+            }
         }
 
         /// <summary>

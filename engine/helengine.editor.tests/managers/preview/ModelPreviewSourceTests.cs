@@ -423,6 +423,45 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures box mode displays the three dimensions on positive-facing bounds edges through the gizmo label material.
+        /// </summary>
+        [Fact]
+        public void ConfigureBoundsDimensionLabels_WhenBoxModeIsSelected_ShowsThreeGizmoFontBillboardsAtPositiveEdges() {
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D);
+            FontAsset font = CreateAxisLabelFont();
+
+            source.ConfigureBoundsDimensionLabels(font);
+            source.SetBoundsDisplayMode(ModelPreviewBoundsDisplayMode.Box);
+
+            EditorEntity[] labels = GetPrivateField<EditorEntity[]>(source, "boundsDimensionLabelEntities");
+            Assert.Equal(3, labels.Length);
+            Assert.All(labels, label => Assert.True(label.Enabled));
+            Assert.Equal(new float3(0f, 1f, 1f), labels[0].LocalPosition);
+            Assert.Equal(new float3(1f, 0f, 1f), labels[1].LocalPosition);
+            Assert.Equal(new float3(1f, 1f, 0f), labels[2].LocalPosition);
+            Assert.All(labels, label => {
+                MeshComponent mesh = Assert.IsType<MeshComponent>(Assert.Single(label.Components, component => component is MeshComponent));
+                ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(Assert.Single(mesh.Materials));
+                int labelTextureIndex = material.Layout.FindTextureBindingIndex("LabelTexture");
+                Assert.True(labelTextureIndex >= 0);
+                Assert.Same(font.Texture, material.Properties.GetTexture(labelTextureIndex));
+            });
+
+            source.HandleMouseDrag(new int2(12, -6));
+            source.Update();
+            Assert.All(labels, label => {
+                Assert.Equal(source.PreviewCamera.Parent.Orientation, label.Orientation);
+                Assert.True(label.Scale.X > 0f);
+                Assert.Equal(label.Scale.X, label.Scale.Y);
+                Assert.Equal(label.Scale.X, label.Scale.Z);
+            });
+
+            source.SetBoundsDisplayMode(ModelPreviewBoundsDisplayMode.Sphere);
+            Assert.All(labels, label => Assert.False(label.Enabled));
+            source.Dispose();
+        }
+
+        /// <summary>
         /// Builds one simple runtime model with known cached bounds for preview framing tests.
         /// </summary>
         /// <returns>Runtime model with deterministic bounds.</returns>
@@ -498,6 +537,37 @@ namespace helengine.editor.tests {
             };
 
             return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+        }
+
+        /// <summary>
+        /// Creates a compact font asset containing every glyph required by formatted preview dimensions.
+        /// </summary>
+        /// <returns>Font asset backed by a deterministic test texture.</returns>
+        FontAsset CreateAxisLabelFont() {
+            Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
+                ['0'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['1'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['2'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['3'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['4'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['5'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['6'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['7'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['8'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['.'] = new FontChar(new float4(0f, 0f, 4f, 4f), 0f, 4f, 0f, 0f),
+                ['-'] = new FontChar(new float4(0f, 0f, 6f, 3f), 0f, 6f, 0f, 0f)
+            };
+            return new FontAsset(
+                new FontInfo("Axis Label", 16, 4f),
+                new TestRuntimeTexture {
+                    Width = 64,
+                    Height = 64
+                },
+                characters,
+                16f,
+                64,
+                64);
         }
 
         /// <summary>
