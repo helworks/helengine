@@ -2,18 +2,8 @@ namespace helengine {
     /// <summary>
     /// Verifies the Windows comparison harness reports repeatable timing and final-state contracts without treating managed timing ratios as console gates.
     /// </summary>
-    [Collection("HelPhysicsSceneBindingCoreTests")]
+    [Collection(HelPhysicsBenchmarkCollection.Name)]
     public sealed class HelPhysicsBoxStackBenchmarkTests {
-        /// <summary>
-        /// Initializes the minimal engine core required by the real entity hierarchy used for the BEPU comparison path.
-        /// </summary>
-        public HelPhysicsBoxStackBenchmarkTests() {
-            Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
-            });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-        }
-
         /// <summary>
         /// Verifies a short canonical four-box run records both engines, useful final counters, and allocation-free HelPhysics stepping.
         /// </summary>
@@ -49,6 +39,20 @@ namespace helengine {
             Assert.Equal(30d, HelPhysicsBenchmarkRunner3D.CalculateMedianTicks(oddSamples, oddSamples.Length));
             Assert.Equal(25d, HelPhysicsBenchmarkRunner3D.CalculateMedianTicks(evenSamples, evenSamples.Length));
             Assert.Equal(50L, HelPhysicsBenchmarkRunner3D.SelectPercentileTicks(oddSamples, oddSamples.Length, 0.95d));
+        }
+
+        /// <summary>
+        /// Verifies public sample construction rejects non-finite durations instead of admitting unusable benchmark reports.
+        /// </summary>
+        [Fact]
+        public void Sample_WithNonFiniteTiming_RejectsInvalidReportValues() {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new HelPhysicsBenchmarkSample3D(
+                "HelPhysics",
+                1,
+                double.NaN,
+                double.PositiveInfinity,
+                1d,
+                0));
         }
     }
 }

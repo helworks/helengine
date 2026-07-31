@@ -18,19 +18,17 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(sampleCount), "At least one measured step is required.");
             }
 
-            HelPhysicsWorldFixture helPhysicsFixture = HelPhysicsWorldFixture.CreateFourBoxStack();
+            HelPhysicsWorld3D helPhysicsWorld = CreateHelPhysicsWorld();
             long[] helPhysicsSamples = new long[sampleCount];
-            StepHelPhysics(helPhysicsFixture.World, warmupStepCount);
+            StepHelPhysics(helPhysicsWorld, warmupStepCount);
             ForceCollection();
             long helPhysicsBytesBefore = GC.GetAllocatedBytesForCurrentThread();
-            MeasureHelPhysics(helPhysicsFixture.World, helPhysicsSamples);
+            MeasureHelPhysics(helPhysicsWorld, helPhysicsSamples);
             long helPhysicsAllocatedBytes = GC.GetAllocatedBytesForCurrentThread() - helPhysicsBytesBefore;
-            HelPhysicsStepMetrics3D finalHelPhysicsMetrics = helPhysicsFixture.World.LastStepMetrics;
+            HelPhysicsStepMetrics3D finalHelPhysicsMetrics = helPhysicsWorld.LastStepMetrics;
             HelPhysicsBenchmarkSample3D helPhysicsSample = CreateSample("HelPhysics", helPhysicsSamples, helPhysicsAllocatedBytes);
 
-            Entity bepuRoot = HelPhysicsTestSceneFactory3D.CreateNestedGroundAndFourBoxScene();
-            BepuPhysicsWorld3D bepuWorld = BepuPhysicsWorld3D.CreateDefault();
-            bepuWorld.BindScene([bepuRoot]);
+            using HelPhysicsBepuBenchmarkWorld3D bepuWorld = new HelPhysicsBepuBenchmarkWorld3D();
             long[] bepuSamples = new long[sampleCount];
             StepBepu(bepuWorld, warmupStepCount);
             ForceCollection();
@@ -43,8 +41,74 @@ namespace helengine {
                 helPhysicsSample,
                 bepuSample,
                 finalHelPhysicsMetrics,
-                bepuWorld.RegisteredBodyCount,
+                bepuWorld.BodyCount,
                 bepuWorld.AwakeDynamicBodyCount);
+        }
+
+        /// <summary>
+        /// Creates the raw HelPhysics half of the comparison with geometry and equivalent exposed settings matched to the raw BEPU fixture.
+        /// </summary>
+        /// <returns>A fixed-capacity world containing one static ground and four dynamic unit boxes pending their first step.</returns>
+        static HelPhysicsWorld3D CreateHelPhysicsWorld() {
+            HelPhysicsWorldSettings3D settings = new HelPhysicsWorldSettings3D(
+                32,
+                32,
+                128,
+                64,
+                256,
+                32,
+                128,
+                4,
+                1,
+                HelPhysicsWorldFixture.StepSeconds,
+                new PhysicsVector3(0f, -9.81f, 0f));
+            HelPhysicsWorld3D world = new HelPhysicsWorld3D(settings);
+            HelPhysicsMaterial3D material = new HelPhysicsMaterial3D(
+                PhysicsScalar.FromFloat(0.6f),
+                PhysicsScalar.FromFloat(0.6f),
+                PhysicsScalar.Zero);
+            world.CreateBody(new HelPhysicsBodyDescription3D(
+                new HelPhysicsBoxShape3D(new PhysicsVector3(5f, 0.5f, 5f)),
+                BodyKind3D.Static,
+                new PhysicsVector3(0f, -0.5f, 0f),
+                PhysicsQuaternion.Identity,
+                PhysicsVector3.Zero,
+                PhysicsVector3.Zero,
+                PhysicsScalar.Zero,
+                material,
+                1,
+                ushort.MaxValue,
+                0,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.Zero,
+                PhysicsScalar.FromFloat(0.2f),
+                PhysicsScalar.FromFloat(0.2f),
+                HelPhysicsWorldFixture.SleepTicks,
+                false));
+            for (int boxIndex = 0; boxIndex < 4; boxIndex++) {
+                world.CreateBody(new HelPhysicsBodyDescription3D(
+                    new HelPhysicsBoxShape3D(new PhysicsVector3(0.5f, 0.5f, 0.5f)),
+                    BodyKind3D.Dynamic,
+                    new PhysicsVector3(0f, 0.5f + boxIndex, 0f),
+                    PhysicsQuaternion.Identity,
+                    PhysicsVector3.Zero,
+                    PhysicsVector3.Zero,
+                    PhysicsScalar.One,
+                    material,
+                    1,
+                    ushort.MaxValue,
+                    boxIndex + 1,
+                    PhysicsScalar.One,
+                    PhysicsScalar.Zero,
+                    PhysicsScalar.Zero,
+                    PhysicsScalar.FromFloat(0.2f),
+                    PhysicsScalar.FromFloat(0.2f),
+                    HelPhysicsWorldFixture.SleepTicks,
+                    true));
+            }
+
+            return world;
         }
 
         /// <summary>
@@ -96,7 +160,7 @@ namespace helengine {
         /// </summary>
         /// <param name="world">BEPU world to warm.</param>
         /// <param name="stepCount">Non-negative number of fixed steps.</param>
-        static void StepBepu(BepuPhysicsWorld3D world, int stepCount) {
+        static void StepBepu(HelPhysicsBepuBenchmarkWorld3D world, int stepCount) {
             for (int stepIndex = 0; stepIndex < stepCount; stepIndex++) {
                 world.Step(HelPhysicsWorldFixture.StepSeconds);
             }
@@ -120,7 +184,7 @@ namespace helengine {
         /// </summary>
         /// <param name="world">Warmed BEPU world to measure.</param>
         /// <param name="samples">Preallocated destination receiving timestamp deltas.</param>
-        static void MeasureBepu(BepuPhysicsWorld3D world, long[] samples) {
+        static void MeasureBepu(HelPhysicsBepuBenchmarkWorld3D world, long[] samples) {
             for (int sampleIndex = 0; sampleIndex < samples.Length; sampleIndex++) {
                 long startTimestamp = Stopwatch.GetTimestamp();
                 world.Step(HelPhysicsWorldFixture.StepSeconds);

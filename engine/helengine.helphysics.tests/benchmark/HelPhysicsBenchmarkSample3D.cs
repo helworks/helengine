@@ -23,7 +23,12 @@ namespace helengine {
                 throw new ArgumentException("An engine name is required for a benchmark sample.", nameof(engineName));
             } else if (sampleCount <= 0) {
                 throw new ArgumentOutOfRangeException(nameof(sampleCount), "A benchmark sample must contain at least one timed step.");
-            } else if (medianMilliseconds < 0d || p95Milliseconds < 0d || maximumMilliseconds < 0d) {
+            } else if (!double.IsFinite(medianMilliseconds) ||
+                !double.IsFinite(p95Milliseconds) ||
+                !double.IsFinite(maximumMilliseconds) ||
+                medianMilliseconds < 0d ||
+                p95Milliseconds < 0d ||
+                maximumMilliseconds < 0d) {
                 throw new ArgumentOutOfRangeException(nameof(medianMilliseconds), "Benchmark durations cannot be negative.");
             } else if (allocatedBytes < 0) {
                 throw new ArgumentOutOfRangeException(nameof(allocatedBytes), "Measured allocation bytes cannot be negative.");
