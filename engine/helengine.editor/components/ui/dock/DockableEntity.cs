@@ -206,7 +206,7 @@ namespace helengine.editor {
             PanelMenuButtonInteractivity.CursorEvent += PanelMenuButtonInteractivity_CursorEvent;
             PanelMenuButtonEntity.AddComponent(PanelMenuButtonInteractivity);
 
-            PanelMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            PanelMenu = new ContextMenu(font, EditorLayerMasks.EditorModalUi, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             AddChild(PanelMenu.Entity);
             PanelMenuItems = BuildPanelMenuItems();
 

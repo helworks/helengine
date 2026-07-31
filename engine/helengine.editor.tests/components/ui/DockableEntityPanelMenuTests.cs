@@ -21,6 +21,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the dockable panel menu renders after every dockable content camera while remaining below modal surfaces.
+        /// </summary>
+        [Fact]
+        public void Constructor_PlacesPanelMenuOnModalUiLayerBelowModalSurfaces() {
+            InitializeCore();
+            DockableEntity dock = new DockableEntity(CreateFont());
+            ContextMenu panelMenu = GetPrivateField<ContextMenu>(dock, "PanelMenu");
+            RoundedRectComponent menuBackground = GetPrivateField<RoundedRectComponent>(panelMenu, "Background");
+
+            Assert.Equal(EditorLayerMasks.EditorModalUi, panelMenu.Entity.LayerMask);
+            Assert.True(menuBackground.RenderOrder2D >= RenderOrder2D.OverlayBackground);
+            Assert.True(menuBackground.RenderOrder2D < RenderOrder2D.ModalBackground);
+        }
+
+        /// <summary>
         /// Ensures activating the Close panel-menu action raises the close request event.
         /// </summary>
         [Fact]
@@ -39,7 +54,9 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by dockable panel-menu tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
             core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
