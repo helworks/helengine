@@ -602,13 +602,15 @@ namespace helengine.editor.app {
         /// </summary>
         /// <param name="m">Windows message payload.</param>
         protected override void WndProc(ref Message m) {
+            if (WindowResizeAdapter.ApplyResizeHitTest(this, ref m, WindowResizeAdapter.DefaultResizeBorderThickness)) {
+                return;
+            }
+
             base.WndProc(ref m);
 
             if (m.Msg == WmExitSizeMove) {
                 WindowStateController.CompleteTitleBarDrag(this, Cursor.Position);
             }
-
-            WindowResizeAdapter.ApplyResizeHitTest(this, ref m, WindowResizeAdapter.DefaultResizeBorderThickness);
         }
     }
 }
