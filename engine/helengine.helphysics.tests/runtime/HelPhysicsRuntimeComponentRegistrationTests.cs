@@ -5,6 +5,16 @@ namespace helengine.helphysics.tests {
     [Collection("HelPhysicsSceneBindingCoreTests")]
     public sealed class HelPhysicsRuntimeComponentRegistrationTests {
         /// <summary>
+        /// Initializes the minimal engine Core required by direct binder fixtures before each registration test.
+        /// </summary>
+        public HelPhysicsRuntimeComponentRegistrationTests() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+        }
+
+        /// <summary>
         /// Ensures registration subscribes lifecycle handling without attaching a runtime before a physics scene exists.
         /// </summary>
         [Fact]
@@ -112,6 +122,37 @@ namespace helengine.helphysics.tests {
             Assert.Contains(binder.Bindings, binding => ReferenceEquals(binding.Entity, secondRoot));
             Assert.DoesNotContain(binder.Bindings, binding => ReferenceEquals(binding.Entity, firstReplacement));
             Assert.DoesNotContain(binder.Bindings, binding => ReferenceEquals(binding.Entity, secondReplacement));
+        }
+
+        /// <summary>
+        /// Ensures a later commit-time translation failure removes every body, binding, and lifecycle created earlier in the transaction.
+        /// </summary>
+        [Fact]
+        public void BindHierarchies_WhenLaterCommitFails_RollsBackEarlierBindingState() {
+            Entity firstRoot = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
+                float3.Zero,
+                float3.One,
+                BodyKind3D.Static);
+            ThrowingSecondPositionReadEntity secondRoot = new ThrowingSecondPositionReadEntity();
+            secondRoot.InitComponents();
+            secondRoot.InitChildren();
+            secondRoot.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static
+            });
+            secondRoot.AddComponent(new BoxCollider3DComponent {
+                Size = float3.One
+            });
+            HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                binder.BindHierarchies([firstRoot, secondRoot]));
+
+            Assert.Contains("commit-time position read", exception.Message, StringComparison.Ordinal);
+            Assert.Empty(binder.Bindings);
+            Assert.DoesNotContain(firstRoot.Components, component => component is HelPhysicsEntityBindingLifecycle3D);
+            Assert.DoesNotContain(secondRoot.Components, component => component is HelPhysicsEntityBindingLifecycle3D);
+            binder.Step();
+            Assert.Equal(0, binder.World.LastStepMetrics.BodyCount);
         }
 
         /// <summary>
