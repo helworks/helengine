@@ -34,23 +34,33 @@ namespace helengine.editor {
             }
 
             string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(componentType);
-            List<ScriptComponentReflectionMember> members = new List<ScriptComponentReflectionMember>(baseSchema.Members.Count + platformDefinition.ComponentMemberDefinitions.Length);
-            for (int index = 0; index < baseSchema.Members.Count; index++) {
-                members.Add(baseSchema.Members[index]);
-            }
-
             PlatformComponentMemberDefinition[] matchingDefinitions = platformDefinition.ComponentMemberDefinitions
                 .Where(definition => string.Equals(definition.ComponentTypeId, componentTypeId, StringComparison.Ordinal))
                 .OrderBy(definition => definition.Order)
                 .ThenBy(definition => definition.MemberName, StringComparer.Ordinal)
                 .ToArray();
+            if (matchingDefinitions.Length < 1) {
+                return baseSchema;
+            }
+
+            List<ScriptComponentReflectionMember> members = new List<ScriptComponentReflectionMember>(baseSchema.Members.Count + matchingDefinitions.Length);
+            int firstAppendedMemberIndex = baseSchema.Members.Count;
+            for (int index = 0; index < baseSchema.Members.Count; index++) {
+                if (baseSchema.Members[index].IsAppended) {
+                    firstAppendedMemberIndex = index;
+                    break;
+                }
+
+                members.Add(baseSchema.Members[index]);
+            }
             for (int index = 0; index < matchingDefinitions.Length; index++) {
                 members.Add(CreateSyntheticMember(matchingDefinitions[index]));
             }
+            for (int index = firstAppendedMemberIndex; index < baseSchema.Members.Count; index++) {
+                members.Add(baseSchema.Members[index]);
+            }
 
-            return matchingDefinitions.Length < 1
-                ? baseSchema
-                : new ScriptComponentReflectionSchema(baseSchema.ComponentType, members);
+            return new ScriptComponentReflectionSchema(baseSchema.ComponentType, members);
         }
 
         /// <summary>

@@ -29,6 +29,16 @@ namespace helengine {
         double GravityScaleValue;
 
         /// <summary>
+        /// Backing field for the authored velocity threshold below which the body may sleep.
+        /// </summary>
+        double SleepThresholdValue;
+
+        /// <summary>
+        /// Backing field for the authored number of qualifying simulation ticks before sleep.
+        /// </summary>
+        int SleepTicksValue;
+
+        /// <summary>
         /// Initializes a new rigid body with dynamic defaults suitable for general gameplay bodies.
         /// </summary>
         public RigidBody3DComponent() {
@@ -38,6 +48,8 @@ namespace helengine {
             UseGravity = true;
             MassValue = 1d;
             GravityScaleValue = 1d;
+            SleepThresholdValue = 0.5d;
+            SleepTicksValue = 10;
         }
 
         /// <summary>
@@ -92,6 +104,36 @@ namespace helengine {
         /// Gets or sets whether gravity should be applied while the body is dynamic.
         /// </summary>
         public bool UseGravity { get; set; }
+
+        /// <summary>
+        /// Gets or sets the finite positive motion threshold used by a physics runtime when evaluating sleep eligibility.
+        /// </summary>
+        [ScenePersistenceAppend(0)]
+        public double SleepThreshold {
+            get { return SleepThresholdValue; }
+            set {
+                if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0d) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Sleep threshold must be a finite value greater than zero.");
+                }
+
+                SleepThresholdValue = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the positive number of qualifying simulation ticks required before a body may sleep.
+        /// </summary>
+        [ScenePersistenceAppend(1)]
+        public int SleepTicks {
+            get { return SleepTicksValue; }
+            set {
+                if (value <= 0) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Sleep ticks must be greater than zero.");
+                }
+
+                SleepTicksValue = value;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the mass used by dynamic-body resolution.

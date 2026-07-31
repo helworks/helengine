@@ -53,6 +53,42 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Ensures a legacy six-member rigid-body payload loads while retaining constructor defaults for appended sleep settings.
+        /// </summary>
+        [Fact]
+        public void LoadSceneAsset_WithLegacyRigidBodyPayload_RetainsSleepDefaults() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            Physics3DRuntimeComponentRegistration.Register(core);
+
+            SceneAsset sceneAsset = CreatePhysicsSceneAsset();
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
+            RigidBody3DComponent rigidBody = FindRigidBody(rootEntities[1]);
+
+            Assert.Equal(0.5d, rigidBody.SleepThreshold);
+            Assert.Equal(10, rigidBody.SleepTicks);
+        }
+
+        /// <summary>
+        /// Ensures a rigid-body payload cannot omit the required non-appended gravity member.
+        /// </summary>
+        [Fact]
+        public void LoadSceneAsset_WithRigidBodyPayloadMissingRequiredMember_ThrowsInvalidOperationException() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+
+            SceneComponentAssetRecord record = CreateRigidBodyRecordMissingUseGravity();
+            IRuntimeComponentDeserializer deserializer = core.SceneRuntimeComponentRegistry.GetDeserializer(record.ComponentTypeId);
+
+            Assert.Throws<InvalidOperationException>(() => deserializer.Deserialize(record, core.SceneAssetReferenceResolver));
+        }
+
+        /// <summary>
         /// Ensures a generic automatic rigid body and sphere collider can be loaded through the runtime scene loader and simulated by the physics world.
         /// </summary>
         [Fact]
@@ -791,6 +827,28 @@ namespace helengine.physics3d.tests {
             writer.WriteFloat3(float3.Zero);
             writer.WriteDouble(1d);
             writer.WriteByte(useGravity ? (byte)1 : (byte)0);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.RigidBody3DComponent",
+                ComponentIndex = 0,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates an invalid five-member rigid-body payload that omits the required gravity member.
+        /// </summary>
+        /// <returns>Rigid-body payload with one required member missing.</returns>
+        static SceneComponentAssetRecord CreateRigidBodyRecordMissingUseGravity() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(5);
+            writer.WriteFloat3(float3.Zero);
+            writer.WriteInt32((int)BodyKind3D.Dynamic);
+            writer.WriteDouble(1d);
+            writer.WriteFloat3(float3.Zero);
+            writer.WriteDouble(1d);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.RigidBody3DComponent",

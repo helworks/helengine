@@ -44,11 +44,9 @@ namespace helengine.editor {
         /// <param name="componentType">Scripted component type to inspect.</param>
         /// <returns>Deterministic reflected schema for the component type.</returns>
         ScriptComponentReflectionSchema CreateSchema(Type componentType) {
-            MemberInfo[] members = componentType
+            MemberInfo[] members = ScenePersistenceMemberOrdering.OrderMembers(componentType
                 .GetMembers(BindingFlags.Instance | BindingFlags.Public)
-                .Where(IsSupportedMember)
-                .OrderBy(member => member.Name, StringComparer.Ordinal)
-                .ToArray();
+                .Where(IsSupportedMember));
 
             List<ScriptComponentReflectionMember> reflectedMembers = new List<ScriptComponentReflectionMember>(members.Length);
             for (int index = 0; index < members.Length; index++) {

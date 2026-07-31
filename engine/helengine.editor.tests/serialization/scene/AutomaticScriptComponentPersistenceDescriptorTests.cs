@@ -104,6 +104,37 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures append-marked members are explicitly rejected inside nested objects that lack count-aware payload framing.
+        /// </summary>
+        [Fact]
+        public void SerializeComponent_WhenNestedMemberUsesAppendMarker_ThrowsInvalidOperationException() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestNestedAppendSerializableComponent component = new TestNestedAppendSerializableComponent {
+                Value = new TestNestedAppendSerializableValue {
+                    RequiredValue = 1,
+                    AppendedValue = 2
+                }
+            };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.SerializeComponent(component, 0, new EntityComponentSaveState()));
+
+            Assert.Contains("nested", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures append-only members follow their declared compatibility order rather than alphabetical member names.
+        /// </summary>
+        [Fact]
+        public void BuildSchema_WhenAppendNamesSortDifferently_PreservesDeclaredAppendOrder() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TestOrderedAppendComponent));
+
+            Assert.Equal(
+                ["RequiredValue", "ZuluExtension", "AlphaExtension"],
+                schema.Members.Select(member => member.Name).ToArray());
+        }
+
+        /// <summary>
         /// Ensures the real scene-memory probe runtime component round-trips through the automatic reflected persistence path.
         /// </summary>
         [Fact]

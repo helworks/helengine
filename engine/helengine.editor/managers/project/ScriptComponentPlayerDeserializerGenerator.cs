@@ -52,13 +52,16 @@ namespace helengine.editor {
             builder.AppendLine("        throw new InvalidOperationException($\"Unsupported automatic scripted component payload version '{version}'.\");");
             builder.AppendLine("    }");
             builder.AppendLine("    int memberCount = reader.ReadInt32();");
-            builder.AppendLine($"    if (memberCount != {schema.Members.Count}) {{");
-            builder.AppendLine($"        throw new InvalidOperationException($\"Expected {schema.Members.Count} packaged scripted members but payload contained {{memberCount}}.\");");
+            int requiredMemberCount = GetRequiredMemberCount(schema.Members);
+            builder.AppendLine($"    if (memberCount < {requiredMemberCount} || memberCount > {schema.Members.Count}) {{");
+            builder.AppendLine($"        throw new InvalidOperationException($\"Expected between {requiredMemberCount} and {schema.Members.Count} packaged scripted members but payload contained {{memberCount}}.\");");
             builder.AppendLine("    }");
 
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
+                builder.AppendLine($"    if (memberCount > {index}) {{");
                 builder.AppendLine("    " + BuildManagedAssignmentStatement(member, BuildReadExpression(member.ValueType)));
+                builder.AppendLine("    }");
             }
 
             builder.AppendLine("    return component;");
@@ -156,6 +159,8 @@ namespace helengine.editor {
             builder.AppendLine("    static uint8_t CurrentVersion;");
             builder.AppendLine();
             builder.AppendLine("    static int32_t MemberCount;");
+            builder.AppendLine();
+            builder.AppendLine("    static int32_t RequiredMemberCount;");
             foreach (KeyValuePair<Type, string> helperEntry in BuildNativeNestedHelperMap(schema).OrderBy(entry => entry.Value, StringComparer.Ordinal)) {
                 builder.AppendLine();
                 builder.AppendLine($"    static {BuildNativeValueTypeName(helperEntry.Key)} {helperEntry.Value}(::EngineBinaryReader* reader);");
@@ -242,7 +247,7 @@ namespace helengine.editor {
                 : "throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload version '\") + String::ToJoinString(version) + std::string(\"'.\"));");
             builder.AppendLine("    }");
             builder.AppendLine("const int32_t memberCount = reader->ReadInt32();");
-            builder.AppendLine("    if (memberCount != MemberCount)");
+            builder.AppendLine("    if (memberCount < RequiredMemberCount || memberCount > MemberCount)");
             builder.AppendLine("    {");
             builder.AppendLine(UseCompactNativeExceptionMessages
                 ? "throw new InvalidOperationException();"
@@ -252,7 +257,10 @@ namespace helengine.editor {
             Dictionary<Type, string> nativeNestedHelperNames = BuildNativeNestedHelperMap(schema);
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
+                builder.AppendLine($"if (memberCount > {index})");
+                builder.AppendLine("{");
                 builder.AppendLine(BuildNativeAssignmentStatement(member, BuildNativeReadExpression(member.ValueType, BuildNativeReaderVariableName(), nativeNestedHelperNames)));
+                builder.AppendLine("}");
             }
 
             builder.AppendLine("return component;}");
@@ -268,7 +276,27 @@ namespace helengine.editor {
             builder.AppendLine($"uint8_t {className}::CurrentVersion = 1;");
             builder.AppendLine();
             builder.AppendLine($"int32_t {className}::MemberCount = {schema.Members.Count};");
+            builder.AppendLine();
+            builder.AppendLine($"int32_t {className}::RequiredMemberCount = {GetRequiredMemberCount(schema.Members)};");
             return builder.ToString();
+        }
+
+        /// <summary>
+        /// Counts the non-appended schema members that every generated ordinal payload must contain.
+        /// </summary>
+        /// <param name="members">Ordered reflected schema members.</param>
+        /// <returns>Count of required non-appended members.</returns>
+        static int GetRequiredMemberCount(IReadOnlyList<ScriptComponentReflectionMember> members) {
+            int requiredMemberCount = 0;
+            for (int index = 0; index < members.Count; index++) {
+                if (members[index].IsAppended) {
+                    break;
+                }
+
+                requiredMemberCount++;
+            }
+
+            return requiredMemberCount;
         }
 
         /// <summary>
