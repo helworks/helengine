@@ -599,6 +599,35 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a platform identifier cannot traverse outside the generated-core scratch parent.
+    /// </summary>
+    [Fact]
+    public void Resolve_regeneration_scratch_root_path_rejects_platform_traversal() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "workspace", "generated-core");
+
+        Assert.Throws<ArgumentException>(() => EditorGeneratedCoreRegenerationService.ResolveRegenerationScratchRootPath(
+            generatedCoreRootPath,
+            "../outside"));
+    }
+
+    /// <summary>
+    /// Ensures a cleanup failure preserves the primary regeneration failure rather than replacing it.
+    /// </summary>
+    [Fact]
+    public void Build_cleanup_failure_when_regeneration_already_failed_preserves_both_exceptions() {
+        InvalidOperationException regenerationException = new("regeneration failed");
+        IOException cleanupException = new("cleanup failed");
+
+        Exception combinedException = EditorGeneratedCoreRegenerationService.BuildCleanupFailure(
+            regenerationException,
+            cleanupException);
+
+        AggregateException aggregateException = Assert.IsType<AggregateException>(combinedException);
+        Assert.Contains(regenerationException, aggregateException.InnerExceptions);
+        Assert.Contains(cleanupException, aggregateException.InnerExceptions);
+    }
+
+    /// <summary>
     /// Ensures shaderless console runtimes exclude the shader project while shader-capable platforms retain the existing generation behavior.
     /// </summary>
     [Fact]
@@ -612,7 +641,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies regeneration failure does not leave one generated-core scratch workspace behind in the system temp folder.
+    /// Verifies a code-generation process failure does not leave one generated-core scratch workspace behind in the caller-owned build workspace.
     /// </summary>
     [Fact]
     public void Regenerate_when_codegen_tool_is_missing_deletes_scratch_workspace() {
@@ -621,15 +650,17 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string platformScratchRootPath = EditorGeneratedCoreRegenerationService.ResolveRegenerationScratchRootPath(
             generatedCoreRootPath,
             platformId);
+        string codegenRootPath = Path.Combine(RootPath, "failing-codegen");
+        string fakeCodegenPath = CreateFakeCodegenTool(codegenRootPath, string.Empty, true);
         EditorGeneratedCoreRegenerationService service = new();
 
         try {
-            Assert.Throws<FileNotFoundException>(() => service.Regenerate(
+            Assert.Throws<InvalidOperationException>(() => service.Regenerate(
                 CreatePlatformDefinition(platformId, runtimeGenerationContract: null),
                 CreateDefaultCodegenProfile(),
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 generatedCoreRootPath,
-                Path.Combine(RootPath, "missing-codegen.cmd"),
+                fakeCodegenPath,
                 [],
                 [],
                 CancellationToken.None));
@@ -704,6 +735,9 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains(
             loggedInvocations,
             invocation => invocation.Contains($"PROJECT={helPhysicsProjectPath}|", StringComparison.OrdinalIgnoreCase));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "helengine.helphysics.generated.cpp")));
+        string mergedReport = File.ReadAllText(Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json"));
+        Assert.Contains("helengine.helphysics", mergedReport, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1521,6 +1555,17 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     /// <param name="argumentsLogPath">Optional log file path that receives one line per invocation.</param>
     /// <returns>Absolute path to the fake codegen command file.</returns>
     static string CreateFakeCodegenTool(string codegenRootPath, string argumentsLogPath) {
+        return CreateFakeCodegenTool(codegenRootPath, argumentsLogPath, false);
+    }
+
+    /// <summary>
+    /// Creates one fake codegen tool with controllable process failure after generated scratch files are written.
+    /// </summary>
+    /// <param name="codegenRootPath">Directory that should contain the fake codegen tool and bundled runtime support root.</param>
+    /// <param name="argumentsLogPath">Optional log file path that receives one line per invocation.</param>
+    /// <param name="failAfterWritingOutput">Whether the fake process should fail after proving scratch output was created.</param>
+    /// <returns>Absolute path to the fake codegen command file.</returns>
+    static string CreateFakeCodegenTool(string codegenRootPath, string argumentsLogPath, bool failAfterWritingOutput) {
         Directory.CreateDirectory(codegenRootPath);
         Directory.CreateDirectory(Path.Combine(codegenRootPath, ".net.cpp"));
 
@@ -1545,22 +1590,25 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "goto parse\r\n"
             + ":done\r\n"
             + "if \"%OUTPUT%\"==\"\" exit /b 2\r\n"
+            + "for %%F in (\"%PROJECT%\") do set PROJECT_NAME=%%~nF\r\n"
             + (string.IsNullOrWhiteSpace(argumentsLogPath)
                 ? string.Empty
                 : $">> \"{argumentsLogPath}\" echo PROJECT=%PROJECT%^|ARGS=%*\r\n")
             + "if not exist \"%OUTPUT%\" mkdir \"%OUTPUT%\"\r\n"
-            + "> \"%OUTPUT%\\GeneratedMarker.cpp\" echo // generated\r\n"
+            + "> \"%OUTPUT%\\!PROJECT_NAME!.generated.cpp\" echo // generated !PROJECT_NAME!\r\n"
             + "> \"%OUTPUT%\\cpp-conversion-report.json\" (\r\n"
             + "  echo {\r\n"
             + "  echo   \"assemblyName\": \"fake\",\r\n"
             + "  echo   \"buildFeatures\": {\r\n"
             + "  echo     \"decisions\": [],\r\n"
-            + "  echo     \"detectedRoots\": [],\r\n"
+            + "  echo     \"detectedRoots\": [\r\n"
+            + "  echo       { \"feature\": \"fake\", \"rootId\": \"!PROJECT_NAME!\", \"sourceKind\": \"TypeReference\" }\r\n"
+            + "  echo     ],\r\n"
             + "  echo     \"conflicts\": []\r\n"
             + "  echo   }\r\n"
             + "  echo }\r\n"
             + ")\r\n"
-            + "exit /b 0\r\n");
+            + (failAfterWritingOutput ? "exit /b 9\r\n" : "exit /b 0\r\n"));
         return fakeCodegenPath;
     }
 

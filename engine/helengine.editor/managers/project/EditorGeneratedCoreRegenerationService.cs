@@ -116,6 +116,7 @@ namespace helengine.editor {
             }
             Directory.CreateDirectory(generatedCoreOutputRoot);
             AppendRegenerationLog(regenerationLogPath, $"regeneration-start platform={platformDefinition.PlatformId} codegen={fullCodegenToolPath}");
+            Exception regenerationException = null;
             try {
                 IReadOnlyList<string> portableInputPreprocessorSymbols = ResolvePortableInputPreprocessorSymbols(platformDefinition);
                 IReadOnlyList<string> combinedPreprocessorSymbols = CombineAdditionalPreprocessorSymbols(
@@ -239,6 +240,7 @@ namespace helengine.editor {
                 WriteGeneratedCoreTranslationUnit(generatedCoreOutputRoot);
                 AppendRegenerationLog(regenerationLogPath, "unity-translation-unit-complete");
             } catch (Exception ex) {
+                regenerationException = ex;
                 AppendRegenerationLog(regenerationLogPath, $"regeneration-failed {ex}");
                 throw;
             } finally {
@@ -248,7 +250,7 @@ namespace helengine.editor {
                     AppendRegenerationLog(regenerationLogPath, $"cleanup-complete path={tempRoot}");
                 } catch (Exception cleanupException) {
                     AppendRegenerationLog(regenerationLogPath, $"cleanup-failed {cleanupException}");
-                    throw;
+                    throw BuildCleanupFailure(regenerationException, cleanupException);
                 }
             }
         }
@@ -563,11 +565,47 @@ namespace helengine.editor {
             } else if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
+            if (Path.IsPathRooted(platformId)
+                || platformId.IndexOf(Path.DirectorySeparatorChar) >= 0
+                || platformId.IndexOf(Path.AltDirectorySeparatorChar) >= 0
+                || string.Equals(platformId, ".", StringComparison.Ordinal)
+                || string.Equals(platformId, "..", StringComparison.Ordinal)) {
+                throw new ArgumentException("Platform id must be one non-rooted path segment.", nameof(platformId));
+            }
 
             string fullGeneratedCoreRootPath = Path.GetFullPath(generatedCoreRootPath);
             string workspaceRootPath = Path.GetDirectoryName(fullGeneratedCoreRootPath)
                 ?? throw new InvalidOperationException($"Generated core workspace parent could not be resolved from '{fullGeneratedCoreRootPath}'.");
-            return Path.Combine(workspaceRootPath, "generated-core-regeneration", platformId);
+            string scratchParentPath = Path.GetFullPath(Path.Combine(workspaceRootPath, "generated-core-regeneration"));
+            string scratchRootPath = Path.GetFullPath(Path.Combine(scratchParentPath, platformId));
+            string scratchParentPrefix = scratchParentPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+                ? scratchParentPath
+                : scratchParentPath + Path.DirectorySeparatorChar;
+            if (!scratchRootPath.StartsWith(scratchParentPrefix, StringComparison.OrdinalIgnoreCase)) {
+                throw new ArgumentException("Platform id resolves outside the generated-core scratch workspace.", nameof(platformId));
+            }
+
+            return scratchRootPath;
+        }
+
+        /// <summary>
+        /// Builds the exception propagated when scratch cleanup fails, preserving an earlier regeneration failure when one exists.
+        /// </summary>
+        /// <param name="regenerationException">Primary generation or merge failure, or null when cleanup is the only failure.</param>
+        /// <param name="cleanupException">Scratch cleanup failure that must be propagated.</param>
+        /// <returns>The cleanup failure alone or an aggregate containing both failures.</returns>
+        internal static Exception BuildCleanupFailure(Exception regenerationException, Exception cleanupException) {
+            if (cleanupException == null) {
+                throw new ArgumentNullException(nameof(cleanupException));
+            }
+            if (regenerationException == null) {
+                return cleanupException;
+            }
+
+            return new AggregateException(
+                "Generated-core regeneration failed and its scratch workspace cleanup also failed.",
+                regenerationException,
+                cleanupException);
         }
 
         /// <summary>
