@@ -123,6 +123,18 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures append-only members follow their declared compatibility order rather than alphabetical member names.
+        /// </summary>
+        [Fact]
+        public void BuildSchema_WhenAppendNamesSortDifferently_PreservesDeclaredAppendOrder() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TestOrderedAppendComponent));
+
+            Assert.Equal(
+                ["RequiredValue", "ZuluExtension", "AlphaExtension"],
+                schema.Members.Select(member => member.Name).ToArray());
+        }
+
+        /// <summary>
         /// Ensures the real scene-memory probe runtime component round-trips through the automatic reflected persistence path.
         /// </summary>
         [Fact]

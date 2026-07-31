@@ -108,7 +108,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the finite positive motion threshold used by a physics runtime when evaluating sleep eligibility.
         /// </summary>
-        [ScenePersistenceAppend]
+        [ScenePersistenceAppend(0)]
         public double SleepThreshold {
             get { return SleepThresholdValue; }
             set {
@@ -123,7 +123,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the positive number of qualifying simulation ticks required before a body may sleep.
         /// </summary>
-        [ScenePersistenceAppend]
+        [ScenePersistenceAppend(1)]
         public int SleepTicks {
             get { return SleepTicksValue; }
             set {

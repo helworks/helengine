@@ -11,7 +11,7 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Gets or sets the member that must not participate in nested append ordering.
         /// </summary>
-        [ScenePersistenceAppend]
+        [ScenePersistenceAppend(0)]
         public int AppendedValue { get; set; }
     }
 }

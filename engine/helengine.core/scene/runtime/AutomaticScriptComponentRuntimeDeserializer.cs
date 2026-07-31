@@ -104,12 +104,9 @@ namespace helengine {
         /// <param name="componentType">Scripted component type to inspect.</param>
         /// <returns>Ordered writable public instance members.</returns>
         static MemberInfo[] LoadMembers(Type componentType) {
-            return componentType
+            return ScenePersistenceMemberOrdering.OrderMembers(componentType
                 .GetMembers(BindingFlags.Instance | BindingFlags.Public)
-                .Where(IsSupportedMember)
-                .OrderBy(member => member.IsDefined(typeof(ScenePersistenceAppendAttribute), false) ? 1 : 0)
-                .ThenBy(member => member.Name, StringComparer.Ordinal)
-                .ToArray();
+                .Where(IsSupportedMember));
         }
 
         /// <summary>
@@ -138,7 +135,7 @@ namespace helengine {
         static int GetRequiredMemberCount(MemberInfo[] members) {
             int requiredMemberCount = 0;
             for (int index = 0; index < members.Length; index++) {
-                if (members[index].IsDefined(typeof(ScenePersistenceAppendAttribute), false)) {
+                if (ScenePersistenceMemberOrdering.IsAppended(members[index])) {
                     break;
                 }
 

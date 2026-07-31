@@ -626,7 +626,7 @@ namespace helengine {
                 throw new InvalidOperationException($"Unsupported rigid body component payload version '{version}'.");
             }
 
-            if (HasAtLeastAutomaticMemberCount(payload, AutomaticRigidBodyMemberCount)) {
+            if (HasPlausibleAutomaticMemberCount(payload, AutomaticRigidBodyMemberCount)) {
                 reader.ReadInt32();
                 reader.ReadFloat3();
                 bodyKind = (BodyKind3D)reader.ReadInt32();
@@ -773,7 +773,7 @@ namespace helengine {
         /// <param name="payload">Serialized component payload whose leading member-count header should be inspected.</param>
         /// <param name="minimumMemberCount">Minimum stable member count required by the reader.</param>
         /// <returns>True when the payload contains at least the stable leading members; otherwise false.</returns>
-        static bool HasAtLeastAutomaticMemberCount(byte[] payload, int minimumMemberCount) {
+        static bool HasPlausibleAutomaticMemberCount(byte[] payload, int minimumMemberCount) {
             if (payload == null) {
                 throw new ArgumentNullException(nameof(payload));
             }
@@ -786,7 +786,8 @@ namespace helengine {
                 | (payload[2] << 8)
                 | (payload[3] << 16)
                 | (payload[4] << 24);
-            return memberCount >= minimumMemberCount;
+            int maximumMemberCount = payload.Length - 5;
+            return memberCount >= minimumMemberCount && memberCount <= maximumMemberCount;
         }
 
         /// <summary>

@@ -40,6 +40,20 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures required platform synthetic members remain before the optional append-only suffix.
+        /// </summary>
+        [Fact]
+        public void Build_WhenRigidBodyHasPlatformSyntheticMember_PlacesSyntheticBeforeSleepExtensions() {
+            PlatformExtendedScriptComponentSchemaBuilder schemaBuilder = new PlatformExtendedScriptComponentSchemaBuilder();
+            ScriptComponentReflectionSchema schema = schemaBuilder.Build(typeof(RigidBody3DComponent), CreateRigidBodySyntheticPlatformDefinition());
+            string[] memberNames = schema.Members.Select(member => member.Name).ToArray();
+
+            Assert.Equal(6, Array.IndexOf(memberNames, "PlatformValue"));
+            Assert.Equal(7, Array.IndexOf(memberNames, nameof(RigidBody3DComponent.SleepThreshold)));
+            Assert.Equal(8, Array.IndexOf(memberNames, nameof(RigidBody3DComponent.SleepTicks)));
+        }
+
+        /// <summary>
         /// Ensures eligible engine-owned automatic components can emit native runtime deserializer classes for player builds.
         /// </summary>
         [Fact]
@@ -322,6 +336,33 @@ namespace helengine.editor.tests.managers.project {
                         "helengine.TextComponent",
                         "BGLayer",
                         "BG Layer",
+                        PlatformComponentMemberValueKind.Int32,
+                        "0",
+                        0)
+                ]);
+        }
+
+        /// <summary>
+        /// Creates a platform definition with one required synthetic rigid-body member.
+        /// </summary>
+        /// <returns>Platform definition that extends rigid bodies before their append-only suffix.</returns>
+        static PlatformDefinition CreateRigidBodySyntheticPlatformDefinition() {
+            return new PlatformDefinition(
+                "test",
+                "Test",
+                Array.Empty<PlatformBuildProfileDefinition>(),
+                Array.Empty<PlatformGraphicsProfileDefinition>(),
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                componentMemberDefinitions: [
+                    new PlatformComponentMemberDefinition(
+                        "helengine.RigidBody3DComponent",
+                        "PlatformValue",
+                        "Platform Value",
                         PlatformComponentMemberValueKind.Int32,
                         "0",
                         0)
