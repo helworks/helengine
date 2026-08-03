@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SharpDX" Version="4.2.0" />
+    <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
+    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
+    <PackageReference Include="SharpDX.D3DCompiler" Version="4.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.vfx\helengine.vfx.csproj" />
+    <ProjectReference Include="..\helengine.vfx.io\helengine.vfx.io.csproj" />
+    <ProjectReference Include="..\helengine.shader\helengine.shader.csproj" />
+    <ProjectReference Include="..\helengine.shader.compilation\helengine.shader.compilation.csproj" />
+    <ProjectReference Include="..\helengine.directx11\helengine.directx11.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="shaders\**\*.hlsl">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
