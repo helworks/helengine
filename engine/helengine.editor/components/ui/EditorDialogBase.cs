@@ -561,6 +561,8 @@ namespace helengine.editor {
             };
             ResizeBottomRightInteractable.CursorEvent += HandleBottomRightResizeCursor;
             ResizeBottomRightHost.AddComponent(ResizeBottomRightInteractable);
+
+            InitializeHierarchy();
         }
 
         /// <summary>

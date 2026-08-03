@@ -217,6 +217,7 @@ namespace helengine.editor {
 
             Size = new int2(600, 600);
             RefreshRenderOrderBias();
+            InitializeHierarchy();
         }
 
         /// <summary>
