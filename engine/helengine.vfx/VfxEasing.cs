@@ -1,8 +1,14 @@
 namespace helengine.vfx {
     /// <summary>
-    /// Pure easing curve math. Must stay in sync with the identical formulas in RainbowExpand.hlsl.
+    /// Pure easing curve math. Must stay in sync with the identical formulas in VfxCommon.hlsli.
     /// </summary>
     public static class VfxEasing {
+        /// <summary>
+        /// Applies an easing curve to a normalized progress value.
+        /// </summary>
+        /// <param name="kind">Curve to apply.</param>
+        /// <param name="t">Normalized progress; values outside [0, 1] are clamped before the curve is applied.</param>
+        /// <returns>Eased progress in [0, 1].</returns>
         public static float Apply(VfxEasingKind kind, float t) {
             float clamped = Math.Clamp(t, 0f, 1f);
             switch (kind) {

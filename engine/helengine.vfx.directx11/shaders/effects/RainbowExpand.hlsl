@@ -1,58 +1,9 @@
-cbuffer VfxFrameConstants : register(b0)
-{
-    float NormalizedTime;
-    float2 Resolution;
-    float Reserved;
-    float4 Params0; // x: HueCyclesPerClip, y: StartScale, z: EndScale, w: Easing kind (0=Linear,1=EaseIn,2=EaseOut,3=EaseInOut)
-    float4 Params1; // xyz: BackgroundColor, w: unused
-    float4 Params2; // unused
-    float4 Params3; // unused
-};
+#include "../common/VfxCommon.hlsli"
 
-Texture2D SourceTexture : register(t0);
-Texture2D MaskTexture : register(t1);
-SamplerState LinearClampSampler : register(s0);
-
-struct PSInput
-{
-    float4 Position : SV_POSITION;
-    float2 UV : TEXCOORD0;
-};
-
-// Big-triangle fullscreen technique: 3 vertices, no vertex buffer, clipped to the viewport.
-PSInput FullscreenVS(uint vertexId : SV_VertexID)
-{
-    PSInput output;
-    float2 ndc = float2((vertexId << 1) & 2, vertexId & 2) * 2.0 - 1.0;
-    output.Position = float4(ndc, 0, 1);
-    output.UV = float2((ndc.x + 1.0) * 0.5, 0.5 - (ndc.y * 0.5));
-    return output;
-}
-
-// Must stay in sync with helengine.vfx.VfxEasing.Apply.
-float ApplyEasing(float t, float easingKind)
-{
-    float clamped = saturate(t);
-    if (easingKind < 0.5) // Linear
-    {
-        return clamped;
-    }
-    if (easingKind < 1.5) // EaseIn
-    {
-        return clamped * clamped;
-    }
-    if (easingKind < 2.5) // EaseOut
-    {
-        return 1.0 - ((1.0 - clamped) * (1.0 - clamped));
-    }
-    // EaseInOut
-    if (clamped < 0.5)
-    {
-        return 2.0 * clamped * clamped;
-    }
-    float inverted = (-2.0 * clamped) + 2.0;
-    return 1.0 - ((inverted * inverted) / 2.0);
-}
+// Params0 // x: HueCyclesPerClip, y: StartScale, z: EndScale, w: Easing kind (0=Linear,1=EaseIn,2=EaseOut,3=EaseInOut)
+// Params1 // xyz: BackgroundColor, w: unused
+// Params2 // unused
+// Params3 // unused
 
 float3 HueRotate(float3 color, float hueDegrees)
 {
@@ -90,7 +41,10 @@ float4 RainbowExpandPS(PSInput input) : SV_TARGET
 
     float alpha = MaskTexture.Sample(LinearClampSampler, sampleUV).a;
     float3 sourceColor = SourceTexture.Sample(LinearClampSampler, sampleUV).rgb;
-    float3 huedColor = HueRotate(sourceColor, 360.0 * hueCyclesPerClip * t);
+    // The YIQ-style rotation matrix is not gamut-preserving: on linear HDR input (values above 1.0)
+    // some hue angles produce negative channel values, which would otherwise be written straight
+    // into the exported EXR. Clamp to a physically meaningful non-negative radiance.
+    float3 huedColor = max(HueRotate(sourceColor, 360.0 * hueCyclesPerClip * t), 0.0);
 
     float3 finalColor = lerp(backgroundColor, huedColor, alpha);
     return float4(finalColor, 1.0);

@@ -12,10 +12,16 @@
     <ProjectReference Include="..\helengine.vfx.directx11\helengine.vfx.directx11.csproj" />
   </ItemGroup>
 
+  <!-- Content items normally flow transitively across ProjectReference, but the repo-wide
+       Directory.Build.props sets UseCommonOutputDirectory for every non-test engine project, which
+       switches that transitive copy off. This executable therefore has to link the shader tree in
+       itself so AppContext.BaseDirectory still contains the shaders the runner compiles. Test
+       projects do not set UseCommonOutputDirectory and get the same files transitively. -->
   <ItemGroup>
-    <None Include="..\helengine.vfx.directx11\shaders\**\*.hlsl">
+    <None Include="..\helengine.vfx.directx11\shaders\**\*.hlsl*">
       <Link>shaders\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
 </Project>

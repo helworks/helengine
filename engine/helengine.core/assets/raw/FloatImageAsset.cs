@@ -4,6 +4,9 @@ namespace helengine {
     /// row-major with the top row first.
     /// </summary>
     public class FloatImageAsset : Asset, IDisposable {
+        /// <summary>
+        /// Tracks whether the pixel buffer has already been released back to native ownership.
+        /// </summary>
         bool IsDisposedValue;
 
         /// <summary>

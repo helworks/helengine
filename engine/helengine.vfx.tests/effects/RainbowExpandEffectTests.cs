@@ -3,7 +3,15 @@ using helengine.vfx.effects;
 using Xunit;
 
 namespace helengine.vfx.tests.effects {
+    /// <summary>
+    /// Covers RainbowExpand's parameter parsing: the slot layout its shader depends on, the documented
+    /// defaults, and the rejection of values the shader could not interpret.
+    /// </summary>
     public class RainbowExpandEffectTests {
+        /// <summary>
+        /// With no parameters supplied, the resolved slots must match the defaults advertised in the
+        /// effect's parameter descriptors and in CLI help output.
+        /// </summary>
         [Fact]
         public void ResolveParameterSlots_Defaults_MatchDocumentedDefaults() {
             var effect = new RainbowExpandEffect();
@@ -20,6 +28,9 @@ namespace helengine.vfx.tests.effects {
             Assert.Equal(0f, slots[6]);
         }
 
+        /// <summary>
+        /// Confirms every supplied parameter lands in the slot index its shader reads.
+        /// </summary>
         [Fact]
         public void ResolveParameterSlots_ExplicitValues_AreParsed() {
             var effect = new RainbowExpandEffect();
@@ -42,6 +53,9 @@ namespace helengine.vfx.tests.effects {
             Assert.Equal(0.3f, slots[6], 3);
         }
 
+        /// <summary>
+        /// An easing name that does not exist must fail rather than fall back to Linear.
+        /// </summary>
         [Fact]
         public void ResolveParameterSlots_InvalidEasing_Throws() {
             var effect = new RainbowExpandEffect();
@@ -50,6 +64,10 @@ namespace helengine.vfx.tests.effects {
             Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
         }
 
+        /// <summary>
+        /// A numeric easing value outside the declared enum range must fail; Enum.TryParse alone would
+        /// happily accept it and hand the shader an undefined branch selector.
+        /// </summary>
         [Fact]
         public void ResolveParameterSlots_OutOfRangeEasingNumeric_Throws() {
             var effect = new RainbowExpandEffect();
@@ -58,6 +76,10 @@ namespace helengine.vfx.tests.effects {
             Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
         }
 
+        /// <summary>
+        /// A background color that is not three parseable numbers must fail rather than silently
+        /// compositing against black.
+        /// </summary>
         [Fact]
         public void ResolveParameterSlots_InvalidBackgroundColor_Throws() {
             var effect = new RainbowExpandEffect();

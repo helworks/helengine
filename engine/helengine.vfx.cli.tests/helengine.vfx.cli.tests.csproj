@@ -22,10 +22,6 @@
     <ProjectReference Include="..\helengine.vfx.cli\helengine.vfx.cli.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\helengine.vfx.directx11\shaders\**\*.hlsl">
-      <Link>shaders\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+  <!-- The shader tree is contributed transitively by helengine.vfx.directx11's Content items. -->
+
 </Project>

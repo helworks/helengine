@@ -21,9 +21,13 @@
     <ProjectReference Include="..\helengine.directx11\helengine.directx11.csproj" />
   </ItemGroup>
 
+  <!-- Content (unlike None) flows transitively across ProjectReference, so consuming projects get
+       the shader tree in their own output without declaring this glob themselves. The *.hlsl* glob
+       deliberately also matches the shared .hlsli includes. -->
   <ItemGroup>
-    <None Include="shaders\**\*.hlsl">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <None Remove="shaders\**\*.hlsl*" />
+    <Content Include="shaders\**\*.hlsl*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>
