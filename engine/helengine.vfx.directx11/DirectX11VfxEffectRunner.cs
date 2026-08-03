@@ -21,6 +21,7 @@ namespace helengine.vfx.directx11 {
         readonly PixelShader pixelShader;
         readonly SamplerState sampler;
         readonly D3DBuffer constantBuffer;
+        readonly RasterizerState rasterizerState;
 
         Texture2D renderTarget;
         RenderTargetView renderTargetView;
@@ -59,6 +60,12 @@ namespace helengine.vfx.directx11 {
                 Usage = ResourceUsage.Dynamic,
                 BindFlags = BindFlags.ConstantBuffer,
                 CpuAccessFlags = CpuAccessFlags.Write
+            });
+
+            rasterizerState = new RasterizerState(device, new RasterizerStateDescription {
+                CullMode = CullMode.None,
+                FillMode = FillMode.Solid,
+                IsDepthClipEnabled = true
             });
         }
 
@@ -200,6 +207,7 @@ namespace helengine.vfx.directx11 {
 
         void DrawFrame(ShaderResourceView sourceView, ShaderResourceView maskView) {
             context.OutputMerger.SetRenderTargets(renderTargetView);
+            context.Rasterizer.State = rasterizerState;
             context.Rasterizer.SetViewport(0, 0, targetWidth, targetHeight, 0f, 1f);
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             context.InputAssembler.InputLayout = null;
@@ -236,6 +244,7 @@ namespace helengine.vfx.directx11 {
             stagingTexture?.Dispose();
             renderTargetView?.Dispose();
             renderTarget?.Dispose();
+            rasterizerState.Dispose();
             constantBuffer.Dispose();
             sampler.Dispose();
             pixelShader.Dispose();
