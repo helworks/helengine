@@ -23,11 +23,13 @@ namespace helengine {
         /// <summary>
         /// Backing list of items displayed by the combo box.
         /// </summary>
-        readonly List<string> items;
+        [NativeOwnedMember]
+        List<string> items;
         /// <summary>
         /// Cached visuals for each item row.
         /// </summary>
-        readonly List<ComboBoxItemVisual> itemVisuals;
+        [NativeOwnedMember]
+        List<ComboBoxItemVisual> itemVisuals;
         /// <summary>
         /// Tracks whether custom render orders were supplied for the combo-box visuals.
         /// </summary>
@@ -447,6 +449,28 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Releases item-visual wrappers and list containers owned by this combo-box component.
+        /// </summary>
+        public override void Dispose() {
+            if (itemVisuals != null) {
+                for (int itemIndex = 0; itemIndex < itemVisuals.Count; itemIndex++) {
+                    itemVisuals[itemIndex].CursorEvent -= HandleItemCursorEvent;
+                    NativeOwnership.Delete(itemVisuals[itemIndex]);
+                }
+
+                itemVisuals.Clear();
+            }
+            NativeOwnership.Release(ref itemVisuals);
+
+            if (items != null) {
+                items.Clear();
+            }
+            NativeOwnership.Release(ref items);
+
+            base.Dispose();
+        }
+
+        /// <summary>
         /// Validates that item entries are non-null.
         /// </summary>
         /// <param name="items">Item list to validate.</param>
@@ -728,11 +752,26 @@ namespace helengine {
             }
 
             for (int i = itemVisuals.Count; i < count; i++) {
-                ComboBoxItemVisual entry = CreateItemVisual();
-                entry.CursorEvent += HandleItemCursorEvent;
-                listRoot.AddChild(entry.Root);
-                itemVisuals.Add(entry);
+                AppendItemVisual();
             }
+        }
+
+        /// <summary>
+        /// Creates, attaches, and transfers one item-visual wrapper outside the collection-growth loop's ownership state.
+        /// </summary>
+        void AppendItemVisual() {
+            ComboBoxItemVisual entry = CreateItemVisual();
+            entry.CursorEvent += HandleItemCursorEvent;
+            listRoot.AddChild(entry.Root);
+            AddOwnedItemVisual(entry);
+        }
+
+        /// <summary>
+        /// Transfers one item-visual wrapper into the collection released by this component.
+        /// </summary>
+        /// <param name="entry">Item-visual wrapper whose cleanup responsibility moves to this component.</param>
+        void AddOwnedItemVisual([NativeTakesOwnership] ComboBoxItemVisual entry) {
+            itemVisuals.Add(entry);
         }
 
         /// <summary>

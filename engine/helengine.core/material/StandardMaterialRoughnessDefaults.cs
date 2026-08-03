@@ -18,6 +18,7 @@ namespace helengine {
         /// </summary>
         /// <param name="roughness">Authored roughness value that will be clamped to the supported zero-to-one range.</param>
         /// <returns>Sixteen-byte packed constant-buffer payload.</returns>
+        [NativeOwnedReturn]
         public static byte[] CreateConstantBufferData(float roughness) {
             float normalized = Math.Clamp(roughness, 0f, 1f);
             byte[] data = new byte[16];
@@ -32,6 +33,7 @@ namespace helengine {
         /// Creates one default roughness constant-buffer payload.
         /// </summary>
         /// <returns>Sixteen-byte packed constant-buffer payload for the default roughness.</returns>
+        [NativeOwnedReturn]
         public static byte[] CreateDefaultConstantBufferData() {
             return CreateConstantBufferData(DefaultRoughness);
         }

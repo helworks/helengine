@@ -194,6 +194,7 @@ namespace helengine.editor.tests {
             string globalUsingsContents = File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools", "GlobalUsings.g.cs"));
             Assert.Contains("<TargetFramework>net9.0</TargetFramework>", projectFileContents, StringComparison.Ordinal);
             Assert.Contains("helengine.core", projectFileContents, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("<Reference Include=\"helengine.nativeownership\">", projectFileContents, StringComparison.Ordinal);
             Assert.Contains("helengine.editor", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("..\\gameplay\\gameplay.csproj", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("global using helengine;", globalUsingsContents, StringComparison.Ordinal);

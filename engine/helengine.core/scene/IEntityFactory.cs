@@ -16,6 +16,7 @@ namespace helengine {
         /// <param name="parent">Parent that will own the created child.</param>
         /// <param name="name">Display name requested for the created child.</param>
         /// <returns>Created child entity.</returns>
+        [NativeBorrowedReturn]
         Entity CreateChild(Entity parent, string name);
     }
 }

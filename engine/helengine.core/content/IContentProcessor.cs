@@ -12,7 +12,8 @@ namespace helengine {
         /// Reads content from the supplied stream and returns the processed value as an object.
         /// </summary>
         /// <param name="stream">Stream containing the source data to parse.</param>
-        /// <returns>Processed content value.</returns>
+        /// <returns>Processed content value whose cleanup responsibility transfers to the caller.</returns>
+        [NativeOwnedReturn]
         object ReadObject(Stream stream);
     }
 
@@ -25,7 +26,8 @@ namespace helengine {
         /// Reads content from the supplied stream and returns the processed value.
         /// </summary>
         /// <param name="stream">Stream containing the source data to parse.</param>
-        /// <returns>Processed content value.</returns>
+        /// <returns>Processed content value whose cleanup responsibility transfers to the caller.</returns>
+        [NativeOwnedReturn]
         T Read(Stream stream);
     }
 }

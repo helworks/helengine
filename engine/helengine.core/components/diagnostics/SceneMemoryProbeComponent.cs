@@ -326,7 +326,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the current authored step and validates that the step entry is present.
         /// </summary>
-        /// <returns>Current authored step.</returns>
+        /// <returns>The component-owned authored step borrowed for the current update.</returns>
+        [NativeBorrowedReturn]
         SceneMemoryProbeStep ResolveCurrentStep() {
             if (CurrentStepIndexValue < 0 || CurrentStepIndexValue >= ResolveStepCount()) {
                 throw new InvalidOperationException("Scene memory probe attempted to resolve one step outside the authored step range.");

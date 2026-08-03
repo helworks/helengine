@@ -27,14 +27,16 @@ namespace helengine {
         /// <param name="parent">Parent that will own the created child.</param>
         /// <param name="name">Display name requested for the created child.</param>
         /// <returns>Created child entity.</returns>
+        [NativeBorrowedReturn]
         public Entity CreateChild(Entity parent, string name) {
             if (parent == null) {
                 throw new ArgumentNullException(nameof(parent));
             }
 
             Entity entity = Create(name);
+            int childIndex = parent.Children.Count;
             parent.AddChild(entity);
-            return entity;
+            return parent.Children[childIndex];
         }
     }
 }

@@ -7,17 +7,19 @@ namespace helengine {
         /// Initializes a new runtime model with an empty submesh collection.
         /// </summary>
         protected RuntimeModel() {
-            SubmeshesValue = Array.Empty<RuntimeSubmesh>();
+            SubmeshesValue = new RuntimeSubmesh[0];
         }
 
         /// <summary>
         /// Runtime submesh draw ranges exposed by this model resource.
         /// </summary>
+        [NativeOwnedMember]
         RuntimeSubmesh[] SubmeshesValue;
 
         /// <summary>
         /// Raw model geometry retained only when a renderer supports load-time mesh preparation.
         /// </summary>
+        [NativeOwnedMember]
         ModelAsset RawModelAssetValue;
 
         /// <summary>
@@ -25,7 +27,6 @@ namespace helengine {
         /// </summary>
         public RuntimeSubmesh[] Submeshes {
             get => SubmeshesValue;
-            private set => SubmeshesValue = value;
         }
 
         /// <summary>
@@ -47,13 +48,8 @@ namespace helengine {
         /// Releases model-owned submesh containers that native builds cannot reclaim through the top-level object delete alone.
         /// </summary>
         public virtual void Dispose() {
-            if (!ReferenceEquals(SubmeshesValue, Array.Empty<RuntimeSubmesh>())) {
-                NativeOwnership.DeleteItemsAndRelease(ref SubmeshesValue);
-            }
-
-            SubmeshesValue = null;
-            NativeOwnership.Delete(RawModelAssetValue);
-            RawModelAssetValue = null;
+            NativeOwnership.DeleteItemsAndRelease(ref SubmeshesValue);
+            NativeOwnership.DisposeAndRelease(ref RawModelAssetValue);
         }
 
         /// <summary>
@@ -75,7 +71,8 @@ namespace helengine {
                 copiedSubmeshes[submeshIndex] = submesh;
             }
 
-            Submeshes = copiedSubmeshes;
+            NativeOwnership.DeleteItemsAndRelease(ref SubmeshesValue);
+            SubmeshesValue = copiedSubmeshes;
         }
 
         /// <summary>
@@ -92,14 +89,13 @@ namespace helengine {
         /// Transfers ownership of one raw model asset retained for later load-time geometry preparation.
         /// </summary>
         /// <param name="rawModelAsset">Raw model asset whose ownership transfers to this runtime model.</param>
-        public void SetRawModelAsset(ModelAsset rawModelAsset) {
+        public void SetRawModelAsset([NativeTakesOwnership] ModelAsset rawModelAsset) {
             if (rawModelAsset == null) {
                 throw new ArgumentNullException(nameof(rawModelAsset));
             }
 
-            ModelAsset previousRawModelAsset = RawModelAssetValue;
+            NativeOwnership.DisposeAndDelete(RawModelAssetValue);
             RawModelAssetValue = rawModelAsset;
-            NativeOwnership.Delete(previousRawModelAsset);
         }
     }
 }

@@ -2,18 +2,19 @@ namespace helengine {
     /// <summary>
     /// Describes a compiled shader variant and its define set.
     /// </summary>
-    public class ShaderVariant {
+    public class ShaderVariant : IDisposable {
         /// <summary>
         /// Stores the define list backing the variant.
         /// </summary>
-        readonly string[] defines;
+        [NativeOwnedMember]
+        string[] DefinesValue;
 
         /// <summary>
         /// Initializes a new shader variant description.
         /// </summary>
         /// <param name="name">Variant identifier used for selection.</param>
         /// <param name="defines">Preprocessor defines used for this variant.</param>
-        public ShaderVariant(string name, string[] defines) {
+        public ShaderVariant(string name, [NativeTakesOwnership] string[] defines) {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Variant name must be provided.", nameof(name));
             }
@@ -23,7 +24,7 @@ namespace helengine {
             }
 
             Name = name;
-            this.defines = defines;
+            DefinesValue = defines;
         }
 
         /// <summary>
@@ -34,10 +35,18 @@ namespace helengine {
         /// <summary>
         /// Gets the define list used to compile this variant.
         /// </summary>
-        public IReadOnlyList<string> Defines {
+        [NativeBorrowedReturn]
+        public string[] Defines {
             get {
-                return defines;
+                return DefinesValue;
             }
+        }
+
+        /// <summary>
+        /// Releases the owned define-array container while leaving aliased define strings with their original owners.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref DefinesValue);
         }
     }
 }

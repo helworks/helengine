@@ -70,7 +70,7 @@ namespace helengine.editor.tests.managers.scene {
         /// Initializes the lightweight editor core services required by canvas-plane selection tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 

@@ -1,4 +1,6 @@
+using helengine.directx11;
 using helengine.editor.tests.testing;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -10,8 +12,12 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by the viewport 2D selection tests.
         /// </summary>
         public EditorViewportPicker2DSelectionTests() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         }
 
         /// <summary>

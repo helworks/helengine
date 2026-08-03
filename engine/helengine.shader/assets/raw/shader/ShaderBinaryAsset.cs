@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Represents serialized data for a compiled shader binary.
     /// </summary>
-    public class ShaderBinaryAsset {
+    public class ShaderBinaryAsset : IDisposable {
         /// <summary>
         /// Name of the shader program this binary represents.
         /// </summary>
@@ -26,6 +26,7 @@ namespace helengine {
         /// <summary>
         /// Compiled shader bytecode payload.
         /// </summary>
+        [NativeOwnedMember]
         public byte[] Bytecode;
 
         /// <summary>
@@ -56,10 +57,28 @@ namespace helengine {
                 Stage = binary.Stage,
                 TargetName = binary.Target,
                 Variant = binary.Variant,
-                Bytecode = binary.Bytecode
+                Bytecode = CopyBytecode(binary.Bytecode)
             };
 
             return asset;
+        }
+
+        /// <summary>
+        /// Releases the bytecode array owned by this serialized shader binary.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref Bytecode);
+        }
+
+        /// <summary>
+        /// Copies embedded bytecode so the serialized asset owns storage independent from its runtime source.
+        /// </summary>
+        /// <param name="source">Borrowed runtime bytecode payload to copy.</param>
+        /// <returns>New bytecode storage owned by the serialized shader asset.</returns>
+        static byte[] CopyBytecode([NativeNoEscape] byte[] source) {
+            byte[] copy = new byte[source.Length];
+            Array.Copy(source, copy, source.Length);
+            return copy;
         }
 
         /// <summary>

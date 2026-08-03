@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Resolves packaged file-backed scene asset references into runtime assets for player builds.
     /// </summary>
-    public sealed class RuntimeSceneAssetReferenceResolver {
+    public sealed class RuntimeSceneAssetReferenceResolver : IDisposable {
         /// <summary>
         /// Content manager used to load packaged runtime assets.
         /// </summary>
@@ -11,42 +11,50 @@ namespace helengine {
         /// <summary>
         /// Tracks scene-owned runtime textures resolved during the active scene materialization scope.
         /// </summary>
+        [NativeOwnedMember]
         List<RuntimeTexture> ActiveOwnedTextures;
 
         /// <summary>
         /// Tracks scene-owned font assets resolved during the active scene materialization scope.
         /// </summary>
+        [NativeOwnedMember]
         List<FontAsset> ActiveOwnedFonts;
 
         /// <summary>
         /// Tracks scene-owned audio assets resolved during the active scene materialization scope.
         /// </summary>
+        [NativeOwnedMember]
         List<AudioAsset> ActiveOwnedAudio;
 
         /// <summary>
         /// Reuses packaged font assets resolved by absolute path during the active scene materialization scope.
         /// </summary>
+        [NativeOwnedMember]
         Dictionary<string, FontAsset> ActiveResolvedFontsByPath;
 
         /// <summary>
         /// Tracks scene-owned runtime models resolved during the active scene materialization scope.
         /// </summary>
+        [NativeOwnedMember]
         List<RuntimeModel> ActiveOwnedModels;
 
         /// <summary>
         /// Tracks scene-owned runtime materials resolved during the active scene materialization scope.
         /// </summary>
+        [NativeOwnedMember]
         List<RuntimeMaterial> ActiveOwnedMaterials;
 
         /// <summary>
         /// Reuses generated runtime models during the active scene materialization scope so repeated generated references share one runtime model instance.
         /// </summary>
-        readonly Dictionary<string, RuntimeModel> ActiveGeneratedModelsByKey;
+        [NativeOwnedMember]
+        Dictionary<string, RuntimeModel> ActiveGeneratedModelsByKey;
 
         /// <summary>
         /// Reuses generated runtime materials during the active scene materialization scope so repeated generated references share one runtime material instance.
         /// </summary>
-        readonly Dictionary<string, RuntimeMaterial> ActiveGeneratedMaterialsByKey;
+        [NativeOwnedMember]
+        Dictionary<string, RuntimeMaterial> ActiveGeneratedMaterialsByKey;
 
         /// <summary>
         /// Gets the last recorded text-load stage that passed through this resolver.
@@ -103,7 +111,8 @@ namespace helengine {
         /// Resolves one packaged model reference into a runtime model instance.
         /// </summary>
         /// <param name="reference">Packaged scene asset reference to resolve.</param>
-        /// <returns>Runtime model instance rebuilt from packaged data.</returns>
+        /// <returns>A scene-owned runtime model borrowed by the materialized component.</returns>
+        [NativeBorrowedReturn]
         public RuntimeModel ResolveModel(SceneAssetReference reference) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
@@ -112,7 +121,6 @@ namespace helengine {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 string generatedAssetKey = BuildGeneratedAssetCacheKey(reference);
                 if (ActiveGeneratedModelsByKey.TryGetValue(generatedAssetKey, out RuntimeModel generatedRuntimeModel)) {
-                    TrackOwnedModel(generatedRuntimeModel);
                     return generatedRuntimeModel;
                 }
 
@@ -120,15 +128,13 @@ namespace helengine {
 #if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED
                 RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource);
                 ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
-                TrackOwnedModel(generatedModel);
-                return generatedModel;
+                return TrackOwnedModel(generatedModel);
 #else
                 ModelAsset generatedModelAsset = AssetContentManager.Load<ModelAsset>(generatedFullPath, RuntimeContentProcessorIds.ModelAsset);
                 try {
                     RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromRaw(generatedModelAsset);
                     ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
-                    TrackOwnedModel(generatedModel);
-                    return generatedModel;
+                    return TrackOwnedModel(generatedModel);
                 } finally {
                     ReleaseTransientModelAsset(generatedModelAsset);
                 }
@@ -138,14 +144,12 @@ namespace helengine {
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED
             RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromCooked(fullPath, AssetContentManager.ContentStreamSource);
-            TrackOwnedModel(runtimeModel);
-            return runtimeModel;
+            return TrackOwnedModel(runtimeModel);
 #else
             ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, RuntimeContentProcessorIds.ModelAsset);
             try {
                 RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
-                TrackOwnedModel(runtimeModel);
-                return runtimeModel;
+                return TrackOwnedModel(runtimeModel);
             } finally {
                 ReleaseTransientModelAsset(modelAsset);
             }
@@ -156,7 +160,8 @@ namespace helengine {
         /// Resolves one packaged material reference into a runtime material instance.
         /// </summary>
         /// <param name="reference">Packaged scene asset reference to resolve.</param>
-        /// <returns>Runtime material instance rebuilt from packaged data.</returns>
+        /// <returns>A scene-owned runtime material borrowed by the materialized component.</returns>
+        [NativeBorrowedReturn]
         public RuntimeMaterial ResolveMaterial(SceneAssetReference reference) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
@@ -165,7 +170,6 @@ namespace helengine {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 string generatedAssetKey = BuildGeneratedAssetCacheKey(reference);
                 if (ActiveGeneratedMaterialsByKey.TryGetValue(generatedAssetKey, out RuntimeMaterial generatedRuntimeMaterial)) {
-                    TrackOwnedMaterial(generatedRuntimeMaterial);
                     return generatedRuntimeMaterial;
                 }
 
@@ -173,29 +177,25 @@ namespace helengine {
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
                 RuntimeMaterial generatedCookedRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource);
                 ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);
-                TrackOwnedMaterial(generatedCookedRuntimeMaterial);
-                return generatedCookedRuntimeMaterial;
+                return TrackOwnedMaterial(generatedCookedRuntimeMaterial);
 #else
                 RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
                     AssetContentManager,
                     generatedFullPath);
                 ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
-                TrackOwnedMaterial(generatedRawRuntimeMaterial);
-                return generatedRawRuntimeMaterial;
+                return TrackOwnedMaterial(generatedRawRuntimeMaterial);
 #endif
             }
 
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
             RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(fullPath, AssetContentManager.ContentStreamSource);
-            TrackOwnedMaterial(runtimeMaterial);
-            return runtimeMaterial;
+            return TrackOwnedMaterial(runtimeMaterial);
 #else
             RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
                 AssetContentManager,
                 fullPath);
-            TrackOwnedMaterial(runtimeMaterial);
-            return runtimeMaterial;
+            return TrackOwnedMaterial(runtimeMaterial);
 #endif
         }
 
@@ -203,7 +203,8 @@ namespace helengine {
         /// Resolves one packaged font reference into a runtime font asset instance.
         /// </summary>
         /// <param name="reference">Packaged scene asset reference to resolve.</param>
-        /// <returns>Runtime font asset instance rebuilt from packaged data.</returns>
+        /// <returns>A scene-owned font asset borrowed by the materialized component.</returns>
+        [NativeBorrowedReturn]
         public FontAsset ResolveFont(SceneAssetReference reference) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
@@ -226,15 +227,15 @@ namespace helengine {
             if (ActiveResolvedFontsByPath != null) {
                 ActiveResolvedFontsByPath.Add(fullPath, fontAsset);
             }
-            TrackOwnedFont(fontAsset);
-            return fontAsset;
+            return TrackOwnedFont(fontAsset);
         }
 
         /// <summary>
         /// Resolves one packaged texture reference into a runtime texture instance.
         /// </summary>
         /// <param name="reference">Packaged scene asset reference to resolve.</param>
-        /// <returns>Runtime texture instance rebuilt from packaged data.</returns>
+        /// <returns>A scene-owned runtime texture borrowed by the materialized component.</returns>
+        [NativeBorrowedReturn]
         public RuntimeTexture ResolveTexture(SceneAssetReference reference) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
@@ -246,10 +247,13 @@ namespace helengine {
 #if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
             LastTextureLoadStage = "ResolveTextureBeforeBuild";
             RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(fullPath, AssetContentManager.ContentStreamSource);
+            Core.Instance.ReportSceneTransitionStage("Ownership:ResolveTextureAfterBuild");
             LastTextureLoadStage = "ResolveTextureAfterBuild";
-            TrackOwnedTexture(runtimeTexture);
+            RuntimeTexture trackedRuntimeTexture = TrackOwnedTexture(runtimeTexture);
+            Core.Instance.ReportSceneTransitionStage("Ownership:ResolveTextureAfterTrack");
             LastTextureLoadStage = "ResolveTextureTracked";
-            return runtimeTexture;
+            Core.Instance.ReportSceneTransitionStage("Ownership:ResolveTextureBeforeReturn");
+            return trackedRuntimeTexture;
 #else
             LastTextureLoadStage = "ResolveTextureBeforeContentLoad";
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(fullPath, RuntimeContentProcessorIds.TextureAsset);
@@ -257,9 +261,9 @@ namespace helengine {
                 LastTextureLoadStage = "ResolveTextureBeforeBuild";
                 RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
                 LastTextureLoadStage = "ResolveTextureAfterBuild";
-                TrackOwnedTexture(runtimeTexture);
+                RuntimeTexture trackedRuntimeTexture = TrackOwnedTexture(runtimeTexture);
                 LastTextureLoadStage = "ResolveTextureTracked";
-                return runtimeTexture;
+                return trackedRuntimeTexture;
             } finally {
                 ReleaseTransientTextureAsset(textureAsset);
             }
@@ -284,7 +288,8 @@ namespace helengine {
         /// Resolves one packaged audio reference into an audio asset instance.
         /// </summary>
         /// <param name="reference">Packaged scene asset reference to resolve.</param>
-        /// <returns>Audio asset loaded from packaged content.</returns>
+        /// <returns>A scene-owned audio asset borrowed by the materialized component.</returns>
+        [NativeBorrowedReturn]
         public AudioAsset ResolveAudio(SceneAssetReference reference) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
@@ -292,19 +297,29 @@ namespace helengine {
 
             string fullPath = ResolveFileBackedAssetPath(reference);
             AudioAsset audioAsset = AssetContentManager.Load<AudioAsset>(fullPath, RuntimeContentProcessorIds.AudioAsset);
-            TrackOwnedAudio(audioAsset);
-            return audioAsset;
+            return TrackOwnedAudio(audioAsset);
         }
 
         /// <summary>
         /// Starts one scene-owned asset tracking scope for the next packaged scene materialization.
         /// </summary>
         public void BeginOwnedAssetTracking() {
-            if (ActiveOwnedTextures != null || ActiveOwnedFonts != null || ActiveOwnedAudio != null || ActiveOwnedModels != null || ActiveOwnedMaterials != null) {
+            if (ActiveOwnedTextures != null ||
+                ActiveOwnedFonts != null ||
+                ActiveOwnedAudio != null ||
+                ActiveResolvedFontsByPath != null ||
+                ActiveOwnedModels != null ||
+                ActiveOwnedMaterials != null) {
                 throw new InvalidOperationException("Runtime scene asset tracking is already active.");
             }
 
             ResetGeneratedRuntimeAssetCaches();
+            NativeOwnership.Release(ref ActiveOwnedTextures);
+            NativeOwnership.Release(ref ActiveOwnedFonts);
+            NativeOwnership.Release(ref ActiveOwnedAudio);
+            NativeOwnership.Release(ref ActiveResolvedFontsByPath);
+            NativeOwnership.Release(ref ActiveOwnedModels);
+            NativeOwnership.Release(ref ActiveOwnedMaterials);
             ActiveOwnedTextures = new List<RuntimeTexture>();
             ActiveOwnedFonts = new List<FontAsset>();
             ActiveOwnedAudio = new List<AudioAsset>();
@@ -322,46 +337,46 @@ namespace helengine {
                 throw new InvalidOperationException("Runtime scene asset tracking is not active.");
             }
 
-            List<RuntimeTexture> ownedTextures = ActiveOwnedTextures;
-            List<FontAsset> ownedFonts = ActiveOwnedFonts;
-            List<AudioAsset> ownedAudio = ActiveOwnedAudio;
-            List<RuntimeModel> ownedModels = ActiveOwnedModels;
-            List<RuntimeMaterial> ownedMaterials = ActiveOwnedMaterials;
-            Dictionary<string, FontAsset> resolvedFontsByPath = ActiveResolvedFontsByPath;
-            ActiveOwnedTextures = null;
-            ActiveOwnedFonts = null;
-            ActiveOwnedAudio = null;
-            ActiveResolvedFontsByPath = null;
-            ActiveOwnedModels = null;
-            ActiveOwnedMaterials = null;
+            List<RuntimeTexture> ownedTextures = new List<RuntimeTexture>(ActiveOwnedTextures);
+            List<FontAsset> ownedFonts = new List<FontAsset>(ActiveOwnedFonts);
+            List<AudioAsset> ownedAudio = new List<AudioAsset>(ActiveOwnedAudio);
+            List<RuntimeModel> ownedModels = new List<RuntimeModel>(ActiveOwnedModels);
+            List<RuntimeMaterial> ownedMaterials = new List<RuntimeMaterial>(ActiveOwnedMaterials);
+            NativeOwnership.Release(ref ActiveOwnedTextures);
+            NativeOwnership.Release(ref ActiveOwnedFonts);
+            NativeOwnership.Release(ref ActiveOwnedAudio);
+            NativeOwnership.Release(ref ActiveResolvedFontsByPath);
+            NativeOwnership.Release(ref ActiveOwnedModels);
+            NativeOwnership.Release(ref ActiveOwnedMaterials);
             ResetGeneratedRuntimeAssetCaches();
-            NativeOwnership.Delete(resolvedFontsByPath);
-            return new RuntimeSceneOwnedAssetSet(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials);
+            return RuntimeSceneOwnedAssetSet.CreateOwned(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials);
         }
 
         /// <summary>
         /// Cancels the active scene-owned asset tracking scope after one failed materialization attempt.
         /// </summary>
         public void CancelOwnedAssetTracking() {
-            List<RuntimeTexture> activeOwnedTextures = ActiveOwnedTextures;
-            List<FontAsset> activeOwnedFonts = ActiveOwnedFonts;
-            List<AudioAsset> activeOwnedAudio = ActiveOwnedAudio;
-            Dictionary<string, FontAsset> activeResolvedFontsByPath = ActiveResolvedFontsByPath;
-            List<RuntimeModel> activeOwnedModels = ActiveOwnedModels;
-            List<RuntimeMaterial> activeOwnedMaterials = ActiveOwnedMaterials;
-            ActiveOwnedTextures = null;
-            ActiveOwnedFonts = null;
-            ActiveOwnedAudio = null;
-            ActiveResolvedFontsByPath = null;
-            ActiveOwnedModels = null;
-            ActiveOwnedMaterials = null;
+            NativeOwnership.Release(ref ActiveOwnedTextures);
+            NativeOwnership.Release(ref ActiveOwnedFonts);
+            NativeOwnership.Release(ref ActiveOwnedAudio);
+            NativeOwnership.Release(ref ActiveResolvedFontsByPath);
+            NativeOwnership.Release(ref ActiveOwnedModels);
+            NativeOwnership.Release(ref ActiveOwnedMaterials);
             ResetGeneratedRuntimeAssetCaches();
-            NativeOwnership.Delete(activeOwnedTextures);
-            NativeOwnership.Delete(activeOwnedFonts);
-            NativeOwnership.Delete(activeOwnedAudio);
-            NativeOwnership.Delete(activeResolvedFontsByPath);
-            NativeOwnership.Delete(activeOwnedModels);
-            NativeOwnership.Delete(activeOwnedMaterials);
+        }
+
+        /// <summary>
+        /// Releases active tracking containers and generated-reference caches owned by this resolver.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref ActiveOwnedTextures);
+            NativeOwnership.Release(ref ActiveOwnedFonts);
+            NativeOwnership.Release(ref ActiveOwnedAudio);
+            NativeOwnership.Release(ref ActiveResolvedFontsByPath);
+            NativeOwnership.Release(ref ActiveOwnedModels);
+            NativeOwnership.Release(ref ActiveOwnedMaterials);
+            NativeOwnership.Release(ref ActiveGeneratedModelsByKey);
+            NativeOwnership.Release(ref ActiveGeneratedMaterialsByKey);
         }
 
         /// <summary>
@@ -381,13 +396,7 @@ namespace helengine {
                 return;
             }
 
-            byte[] colors = asset.Colors;
-            byte[] paletteColors = asset.PaletteColors;
-            asset.Colors = null;
-            asset.PaletteColors = null;
-            DeleteTransientArray(colors);
-            DeleteTransientArray(paletteColors);
-            NativeOwnership.Delete(asset);
+            NativeOwnership.DisposeAndDelete(asset);
         }
 
         /// <summary>
@@ -399,31 +408,7 @@ namespace helengine {
                 return;
             }
 
-            float3[] positions = asset.Positions;
-            float3[] normals = asset.Normals;
-            float2[] texCoords = asset.TexCoords;
-            ushort[] indices16 = asset.Indices16;
-            uint[] indices32 = asset.Indices32;
-            ModelSubmeshAsset[] submeshes = asset.Submeshes;
-            asset.Positions = null;
-            asset.Normals = null;
-            asset.TexCoords = null;
-            asset.Indices16 = null;
-            asset.Indices32 = null;
-            asset.Submeshes = null;
-            if (submeshes != null) {
-                for (int index = 0; index < submeshes.Length; index++) {
-                    NativeOwnership.Delete(submeshes[index]);
-                }
-            }
-
-            DeleteTransientArray(positions);
-            DeleteTransientArray(normals);
-            DeleteTransientArray(texCoords);
-            DeleteTransientArray(indices16);
-            DeleteTransientArray(indices32);
-            DeleteTransientArray(submeshes);
-            NativeOwnership.Delete(asset);
+            NativeOwnership.DisposeAndDelete(asset);
         }
 
         /// <summary>
@@ -465,7 +450,7 @@ namespace helengine {
 
                     DeleteTransientArray(overrideEncodedBytes);
                     DeleteTransientArray(overrideChunks);
-                    NativeOwnership.Delete(platformOverride);
+                    NativeOwnership.Delete(platformOverrides[index]);
                 }
             }
 
@@ -580,63 +565,87 @@ namespace helengine {
         /// Tracks one runtime asset so the owning scene can release it during unload.
         /// </summary>
         /// <param name="asset">Runtime asset resolved during scene materialization.</param>
-        void TrackOwnedTexture(RuntimeTexture asset) {
-            if (asset == null || ActiveOwnedTextures == null) {
-                return;
+        /// <returns>A borrowed alias to the runtime texture now owned by the active scene load.</returns>
+        [NativeBorrowedReturn]
+        RuntimeTexture TrackOwnedTexture([NativeTakesOwnership] RuntimeTexture asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+            if (ActiveOwnedTextures == null) {
+                throw new InvalidOperationException("Runtime texture ownership can only be transferred during active scene asset tracking.");
             }
 
             if (!ActiveOwnedTextures.Contains(asset)) {
                 ActiveOwnedTextures.Add(asset);
             }
+            return asset;
         }
 
         /// <summary>
         /// Tracks one scene-owned font asset so the owning scene can release it during unload.
         /// </summary>
         /// <param name="asset">Font asset resolved during scene materialization.</param>
-        void TrackOwnedFont(FontAsset asset) {
-            if (asset == null || ActiveOwnedFonts == null) {
-                return;
+        /// <returns>A borrowed alias to the font asset now owned by the active scene load.</returns>
+        [NativeBorrowedReturn]
+        FontAsset TrackOwnedFont([NativeTakesOwnership] FontAsset asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+            if (ActiveOwnedFonts == null) {
+                throw new InvalidOperationException("Font ownership can only be transferred during active scene asset tracking.");
             }
 
             if (!ActiveOwnedFonts.Contains(asset)) {
                 ActiveOwnedFonts.Add(asset);
             }
+            return asset;
         }
 
         /// <summary>
         /// Tracks one scene-owned audio asset so the owning scene can release it during unload.
         /// </summary>
         /// <param name="asset">Audio asset resolved during scene materialization.</param>
-        void TrackOwnedAudio(AudioAsset asset) {
-            if (asset == null || ActiveOwnedAudio == null) {
-                return;
+        /// <returns>A borrowed alias to the audio asset now owned by the active scene load.</returns>
+        [NativeBorrowedReturn]
+        AudioAsset TrackOwnedAudio([NativeTakesOwnership] AudioAsset asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+            if (ActiveOwnedAudio == null) {
+                throw new InvalidOperationException("Audio ownership can only be transferred during active scene asset tracking.");
             }
 
             if (!ActiveOwnedAudio.Contains(asset)) {
                 ActiveOwnedAudio.Add(asset);
             }
+            return asset;
         }
 
         /// <summary>
         /// Tracks one scene-owned runtime model so the owning scene can release it during unload.
         /// </summary>
         /// <param name="asset">Runtime model resolved during scene materialization.</param>
-        void TrackOwnedModel(RuntimeModel asset) {
-            if (asset == null || ActiveOwnedModels == null) {
-                return;
+        /// <returns>A borrowed alias to the runtime model now owned by the active scene load.</returns>
+        [NativeBorrowedReturn]
+        RuntimeModel TrackOwnedModel([NativeTakesOwnership] RuntimeModel asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+            if (ActiveOwnedModels == null) {
+                throw new InvalidOperationException("Runtime model ownership can only be transferred during active scene asset tracking.");
             }
 
             if (!ActiveOwnedModels.Contains(asset)) {
                 ActiveOwnedModels.Add(asset);
             }
+            return asset;
         }
 
         /// <summary>
         /// Tracks a runtime model created after ordinary reference resolution but before the active scene load completes.
         /// </summary>
         /// <param name="asset">Prepared runtime model owned by the active scene load.</param>
-        public void TrackAdditionalOwnedModel(RuntimeModel asset) {
+        public void TrackAdditionalOwnedModel([NativeTakesOwnership] RuntimeModel asset) {
             TrackOwnedModel(asset);
         }
 
@@ -644,14 +653,20 @@ namespace helengine {
         /// Tracks one scene-owned runtime material so the owning scene can release it during unload.
         /// </summary>
         /// <param name="asset">Runtime material resolved during scene materialization.</param>
-        void TrackOwnedMaterial(RuntimeMaterial asset) {
-            if (asset == null || ActiveOwnedMaterials == null) {
-                return;
+        /// <returns>A borrowed alias to the runtime material now owned by the active scene load.</returns>
+        [NativeBorrowedReturn]
+        RuntimeMaterial TrackOwnedMaterial([NativeTakesOwnership] RuntimeMaterial asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+            if (ActiveOwnedMaterials == null) {
+                throw new InvalidOperationException("Runtime material ownership can only be transferred during active scene asset tracking.");
             }
 
             if (!ActiveOwnedMaterials.Contains(asset)) {
                 ActiveOwnedMaterials.Add(asset);
             }
+            return asset;
         }
     }
 }

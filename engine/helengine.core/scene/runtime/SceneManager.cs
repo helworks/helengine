@@ -265,9 +265,24 @@ namespace helengine {
                 CreateEmptyOwnedAssetSet(),
                 dontUnload);
             RecordTraceState("TrackExternallyLoadedSceneBeforeTrack", sceneId);
-            LoadedSceneRecords.Add(loadedSceneRecord);
-            LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
+            TrackLoadedSceneRecord(loadedSceneRecord);
             RecordTraceState("TrackExternallyLoadedSceneAfterTrack", sceneId);
+        }
+
+        /// <summary>
+        /// Transfers one loaded scene record into the manager's owning load-order collection and indexes the same record by scene identifier.
+        /// </summary>
+        /// <param name="loadedSceneRecord">New record whose native lifetime becomes owned by this scene manager.</param>
+        /// <returns>The tracked record borrowed from the manager's owning collection.</returns>
+        [NativeBorrowedReturn]
+        LoadedSceneRecord TrackLoadedSceneRecord([NativeTakesOwnership] LoadedSceneRecord loadedSceneRecord) {
+            if (loadedSceneRecord == null) {
+                throw new ArgumentNullException(nameof(loadedSceneRecord));
+            }
+
+            LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
+            LoadedSceneRecords.Add(loadedSceneRecord);
+            return LoadedSceneRecords[LoadedSceneRecords.Count - 1];
         }
 
         /// <summary>
@@ -282,18 +297,17 @@ namespace helengine {
             if (!LoadedSceneRecordsById.TryGetValue(sceneId, out LoadedSceneRecord loadedSceneRecord)) {
                 return false;
             }
+            int loadedSceneRecordIndex = LoadedSceneRecords.IndexOf(loadedSceneRecord);
+            if (loadedSceneRecordIndex < 0) {
+                throw new InvalidOperationException($"Runtime scene '{sceneId}' is indexed without a load-order record.");
+            }
 
             RecordTraceState("TryUntrackExternallyLoadedSceneBeforeRemove", sceneId);
             LoadedSceneRecordsById.Remove(loadedSceneRecord.SceneId);
-            LoadedSceneRecords.Remove(loadedSceneRecord);
+            NativeOwnership.DisposeAndDelete(loadedSceneRecord.OwnedAssets);
+            NativeOwnership.Delete(LoadedSceneRecords[loadedSceneRecordIndex]);
+            LoadedSceneRecords.RemoveAt(loadedSceneRecordIndex);
             RecordTraceState("TryUntrackExternallyLoadedSceneAfterRemove", sceneId);
-            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedTextures);
-            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedFonts);
-            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedAudio);
-            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedModels);
-            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets.OwnedMaterials);
-            NativeOwnership.Delete(loadedSceneRecord.OwnedAssets);
-            NativeOwnership.Delete(loadedSceneRecord);
             return true;
         }
 
@@ -363,13 +377,12 @@ namespace helengine {
         /// </summary>
         void DiscardPendingLoadOperationsForSingleLoad() {
             for (int operationIndex = PendingOperations.Count - 1; operationIndex >= 0; operationIndex--) {
-                PendingSceneOperation operation = PendingOperations[operationIndex];
-                if (operation.OperationKind != PendingSceneOperationKind.Load) {
+                if (PendingOperations[operationIndex].OperationKind != PendingSceneOperationKind.Load) {
                     continue;
                 }
 
+                NativeOwnership.Delete(PendingOperations[operationIndex]);
                 PendingOperations.RemoveAt(operationIndex);
-                NativeOwnership.Delete(operation);
             }
         }
 
@@ -393,27 +406,28 @@ namespace helengine {
             IsCommittingPendingOperations = true;
             try {
                 for (int operationIndex = 0; operationIndex < operationCountToCommit; operationIndex++) {
-                    PendingSceneOperation operation = PendingOperations[0];
+                    string operationSceneId = PendingOperations[0].SceneId;
+                    PendingSceneOperationKind operationKind = PendingOperations[0].OperationKind;
+                    SceneLoadMode operationLoadMode = PendingOperations[0].LoadMode;
+                    NativeOwnership.Delete(PendingOperations[0]);
                     PendingOperations.RemoveAt(0);
-                    RecordTraceState("CommitPendingOperationsAtFrameBoundaryOperation", operation.SceneId);
-                    if (operation.OperationKind == PendingSceneOperationKind.Load && shouldFlushReleasedAssetsAtFrameBoundary) {
+                    RecordTraceState("CommitPendingOperationsAtFrameBoundaryOperation", operationSceneId);
+                    if (operationKind == PendingSceneOperationKind.Load && shouldFlushReleasedAssetsAtFrameBoundary) {
                         FlushReleasedAssets();
                         shouldFlushReleasedAssetsAtFrameBoundary = false;
                     }
-                    if (operation.OperationKind == PendingSceneOperationKind.Load) {
-                        LoadSceneImmediate(operation.SceneId, operation.LoadMode);
+                    if (operationKind == PendingSceneOperationKind.Load) {
+                        LoadSceneImmediate(operationSceneId, operationLoadMode);
                         if (IsSceneTransitionActiveValue
-                            && operation.LoadMode == SceneLoadMode.Single
-                            && string.Equals(operation.SceneId, TransitionTargetSceneIdValue, StringComparison.OrdinalIgnoreCase)) {
+                            && operationLoadMode == SceneLoadMode.Single
+                            && string.Equals(operationSceneId, TransitionTargetSceneIdValue, StringComparison.OrdinalIgnoreCase)) {
                             SceneTransitionProgressValue = 1f;
                             IsSceneTransitionActiveValue = false;
                         }
                     } else {
-                        UnloadSceneImmediate(operation.SceneId);
+                        UnloadSceneImmediate(operationSceneId);
                         shouldFlushReleasedAssetsAtFrameBoundary = true;
                     }
-
-                    NativeOwnership.Delete(operation);
                 }
             } finally {
                 IsCommittingPendingOperations = false;
@@ -460,7 +474,7 @@ namespace helengine {
 
             SceneLoadingEventArgs sceneLoadingEventArgs = new SceneLoadingEventArgs(sceneId, sceneContentPath);
             try {
-                SceneLoading?.Invoke(this, sceneLoadingEventArgs);
+                DispatchSceneLoading(sceneLoadingEventArgs);
             } finally {
                 NativeOwnership.Delete(sceneLoadingEventArgs);
             }
@@ -474,18 +488,17 @@ namespace helengine {
                     RecordTraceState("LoadSceneImmediateAfterSceneLoadServiceLoad", sceneId);
                     LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(sceneId, sceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets, dontUnload);
                     RecordTraceState("LoadSceneImmediateBeforeLoadedSceneRecordTrack", sceneId);
-                    LoadedSceneRecords.Add(loadedSceneRecord);
+                    LoadedSceneRecord trackedSceneRecord = TrackLoadedSceneRecord(loadedSceneRecord);
                     RecordTraceState("LoadSceneImmediateAfterLoadedSceneRecordListAdd", sceneId);
-                    LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
                     RecordTraceState("LoadSceneImmediateAfterLoadedSceneRecordDictionaryAdd", sceneId);
-                    RegisterOwnedAssets(loadedSceneRecord.OwnedAssets, sceneId);
+                    RegisterOwnedAssets(trackedSceneRecord.OwnedAssets, sceneId);
                     RecordTraceState("LoadSceneImmediateBeforeSceneLoadedEvent", sceneId);
                     SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(
-                        loadedSceneRecord.SceneId,
-                        loadedSceneRecord.CookedRelativePath,
-                        loadedSceneRecord.RootEntities);
+                        trackedSceneRecord.SceneId,
+                        trackedSceneRecord.CookedRelativePath,
+                        trackedSceneRecord.RootEntities);
                     try {
-                        SceneLoaded?.Invoke(this, sceneLoadedEventArgs);
+                        DispatchSceneLoaded(sceneLoadedEventArgs);
                         Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
                     } finally {
                         Core.Instance?.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
@@ -525,7 +538,7 @@ namespace helengine {
                 ResetPhysicsTimingForSingleLoad();
                 SceneLoadingEventArgs sceneLoadingEventArgs = new SceneLoadingEventArgs(TransitionTargetSceneIdValue, TransitionSceneContentPath);
                 try {
-                    SceneLoading?.Invoke(this, sceneLoadingEventArgs);
+                    DispatchSceneLoading(sceneLoadingEventArgs);
                 } finally {
                     NativeOwnership.Delete(sceneLoadingEventArgs);
                 }
@@ -545,12 +558,11 @@ namespace helengine {
             RuntimeSceneLoadResult loadResult = TransitionLoadOperation.Result;
             bool dontUnload = TransitionSceneAsset.SceneSettings != null && TransitionSceneAsset.SceneSettings.DontUnload;
             LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(TransitionTargetSceneIdValue, TransitionSceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets, dontUnload);
-            LoadedSceneRecords.Add(loadedSceneRecord);
-            LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
-            RegisterOwnedAssets(loadedSceneRecord.OwnedAssets, TransitionTargetSceneIdValue);
-            SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(loadedSceneRecord.SceneId, loadedSceneRecord.CookedRelativePath, loadedSceneRecord.RootEntities);
+            LoadedSceneRecord trackedSceneRecord = TrackLoadedSceneRecord(loadedSceneRecord);
+            RegisterOwnedAssets(trackedSceneRecord.OwnedAssets, TransitionTargetSceneIdValue);
+            SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(trackedSceneRecord.SceneId, trackedSceneRecord.CookedRelativePath, trackedSceneRecord.RootEntities);
             try {
-                SceneLoaded?.Invoke(this, sceneLoadedEventArgs);
+                DispatchSceneLoaded(sceneLoadedEventArgs);
                 Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
             } finally {
                 Core.Instance?.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
@@ -577,45 +589,44 @@ namespace helengine {
             if (!LoadedSceneRecordsById.TryGetValue(sceneId, out LoadedSceneRecord loadedSceneRecord)) {
                 throw new InvalidOperationException($"Runtime scene '{sceneId}' is not currently loaded.");
             }
+            int loadedSceneRecordIndex = LoadedSceneRecords.IndexOf(loadedSceneRecord);
+            if (loadedSceneRecordIndex < 0) {
+                throw new InvalidOperationException($"Runtime scene '{sceneId}' is indexed without a load-order record.");
+            }
+            string loadedSceneId = loadedSceneRecord.SceneId;
+            string loadedSceneCookedRelativePath = loadedSceneRecord.CookedRelativePath;
 
             SceneUnloadingEventArgs sceneUnloadingEventArgs = new SceneUnloadingEventArgs(
-                loadedSceneRecord.SceneId,
-                loadedSceneRecord.CookedRelativePath,
+                loadedSceneId,
+                loadedSceneCookedRelativePath,
                 loadedSceneRecord.RootEntities);
             try {
-                SceneUnloading?.Invoke(this, sceneUnloadingEventArgs);
+                DispatchSceneUnloading(sceneUnloadingEventArgs);
             } finally {
                 NativeOwnership.Delete(sceneUnloadingEventArgs);
             }
-            RecordTraceState("UnloadSceneImmediateBeforeDisposeSceneRoots", loadedSceneRecord.SceneId);
-            IReadOnlyList<Entity> releasedRootEntities = loadedSceneRecord.RootEntities;
-            RuntimeSceneOwnedAssetSet releasedOwnedAssets = loadedSceneRecord.OwnedAssets;
-            DisposeSceneRoots(releasedRootEntities);
-            RecordTraceState("UnloadSceneImmediateBeforeReleaseOwnedAssets", loadedSceneRecord.SceneId);
-            ReleaseOwnedAssets(releasedOwnedAssets);
-            RecordTraceState("UnloadSceneImmediateAfterReleaseOwnedAssets", loadedSceneRecord.SceneId);
-            RecordTraceState("UnloadSceneImmediateBeforeRemoveRecordById", loadedSceneRecord.SceneId);
-            LoadedSceneRecordsById.Remove(loadedSceneRecord.SceneId);
-            RecordTraceState("UnloadSceneImmediateBeforeRemoveRecord", loadedSceneRecord.SceneId);
-            LoadedSceneRecords.Remove(loadedSceneRecord);
-            RecordTraceState("UnloadSceneImmediateBeforeSceneUnloadedEvent", loadedSceneRecord.SceneId);
+            RecordTraceState("UnloadSceneImmediateBeforeDisposeSceneRoots", loadedSceneId);
+            DisposeSceneRoots(loadedSceneRecord.RootEntities);
+            RecordTraceState("UnloadSceneImmediateBeforeReleaseOwnedAssets", loadedSceneId);
+            ReleaseOwnedAssets(loadedSceneRecord.OwnedAssets);
+            RecordTraceState("UnloadSceneImmediateAfterReleaseOwnedAssets", loadedSceneId);
+            RecordTraceState("UnloadSceneImmediateBeforeRemoveRecordById", loadedSceneId);
+            LoadedSceneRecordsById.Remove(loadedSceneId);
+            RecordTraceState("UnloadSceneImmediateBeforeRemoveRecord", loadedSceneId);
+            NativeOwnership.Delete(loadedSceneRecord.RootEntities);
+            NativeOwnership.DisposeAndDelete(loadedSceneRecord.OwnedAssets);
+            NativeOwnership.Delete(LoadedSceneRecords[loadedSceneRecordIndex]);
+            LoadedSceneRecords.RemoveAt(loadedSceneRecordIndex);
+            RecordTraceState("UnloadSceneImmediateBeforeSceneUnloadedEvent", loadedSceneId);
             SceneUnloadedEventArgs sceneUnloadedEventArgs = new SceneUnloadedEventArgs(
-                loadedSceneRecord.SceneId,
-                loadedSceneRecord.CookedRelativePath);
+                loadedSceneId,
+                loadedSceneCookedRelativePath);
             try {
-                SceneUnloaded?.Invoke(this, sceneUnloadedEventArgs);
+                DispatchSceneUnloaded(sceneUnloadedEventArgs);
             } finally {
                 NativeOwnership.Delete(sceneUnloadedEventArgs);
             }
-            RecordTraceState("UnloadSceneImmediateEnd", loadedSceneRecord.SceneId);
-            NativeOwnership.Delete(releasedRootEntities);
-            NativeOwnership.Delete(releasedOwnedAssets.OwnedTextures);
-            NativeOwnership.Delete(releasedOwnedAssets.OwnedFonts);
-            NativeOwnership.Delete(releasedOwnedAssets.OwnedAudio);
-            NativeOwnership.Delete(releasedOwnedAssets.OwnedModels);
-            NativeOwnership.Delete(releasedOwnedAssets.OwnedMaterials);
-            NativeOwnership.Delete(releasedOwnedAssets);
-            NativeOwnership.Delete(loadedSceneRecord);
+            RecordTraceState("UnloadSceneImmediateEnd", loadedSceneId);
         }
 
         /// <summary>
@@ -713,9 +724,8 @@ namespace helengine {
             }
 
             for (int index = rootEntities.Count - 1; index >= 0; index--) {
-                Entity rootEntity = rootEntities[index];
-                ReportEntityDisposalStage("BeforeRootDispose", rootEntity, -1);
-                NativeOwnership.DisposeAndDelete(rootEntity);
+                ReportEntityDisposalStage("BeforeRootDispose", rootEntities[index], -1);
+                NativeOwnership.DisposeAndDelete(rootEntities[index]);
                 ReportEntityDisposalStage("AfterRootDispose", null, -1);
             }
         }
@@ -734,9 +744,8 @@ namespace helengine {
                 }
 
                 for (int index = rootEntities.Count - 1; index >= 0; index--) {
-                    Entity rootEntity = rootEntities[index];
-                    ReportEntityDisposalStage("BeforeUntrackedRootDispose", rootEntity, -1);
-                    NativeOwnership.DisposeAndDelete(rootEntity);
+                    ReportEntityDisposalStage("BeforeUntrackedRootDispose", rootEntities[index], -1);
+                    NativeOwnership.DisposeAndDelete(rootEntities[index]);
                     ReportEntityDisposalStage("AfterUntrackedRootDispose", null, -1);
                 }
             } finally {
@@ -1313,6 +1322,38 @@ namespace helengine {
                 Array.Empty<AudioAsset>(),
                 Array.Empty<RuntimeModel>(),
                 Array.Empty<RuntimeMaterial>());
+        }
+
+        /// <summary>
+        /// Dispatches the scene-loading event while retaining ownership of the event arguments in the calling scope.
+        /// </summary>
+        /// <param name="eventArgs">Arguments borrowed by scene-loading subscribers for the duration of dispatch.</param>
+        void DispatchSceneLoading([NativeNoEscape] SceneLoadingEventArgs eventArgs) {
+            SceneLoading?.Invoke(this, eventArgs);
+        }
+
+        /// <summary>
+        /// Dispatches the scene-loaded event while retaining ownership of the event arguments in the calling scope.
+        /// </summary>
+        /// <param name="eventArgs">Arguments borrowed by scene-loaded subscribers for the duration of dispatch.</param>
+        void DispatchSceneLoaded([NativeNoEscape] SceneLoadedEventArgs eventArgs) {
+            SceneLoaded?.Invoke(this, eventArgs);
+        }
+
+        /// <summary>
+        /// Dispatches the scene-unloading event while retaining ownership of the event arguments in the calling scope.
+        /// </summary>
+        /// <param name="eventArgs">Arguments borrowed by scene-unloading subscribers for the duration of dispatch.</param>
+        void DispatchSceneUnloading([NativeNoEscape] SceneUnloadingEventArgs eventArgs) {
+            SceneUnloading?.Invoke(this, eventArgs);
+        }
+
+        /// <summary>
+        /// Dispatches the scene-unloaded event while retaining ownership of the event arguments in the calling scope.
+        /// </summary>
+        /// <param name="eventArgs">Arguments borrowed by scene-unloaded subscribers for the duration of dispatch.</param>
+        void DispatchSceneUnloaded([NativeNoEscape] SceneUnloadedEventArgs eventArgs) {
+            SceneUnloaded?.Invoke(this, eventArgs);
         }
 
         /// <summary>

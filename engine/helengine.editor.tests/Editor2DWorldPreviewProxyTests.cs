@@ -10,7 +10,7 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by preview-proxy registry tests.
         /// </summary>
         public Editor2DWorldPreviewProxyTests() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 

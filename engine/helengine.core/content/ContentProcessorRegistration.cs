@@ -22,7 +22,10 @@ namespace helengine {
         /// <param name="processorId">Stable identifier used to select the processor.</param>
         /// <param name="processor">Processor instance that parses the content.</param>
         /// <param name="extensions">Optional supported file extensions, including or omitting the leading dot.</param>
-        public ContentProcessorRegistration(string processorId, IContentProcessor processor, string[] extensions) {
+        public ContentProcessorRegistration(
+            string processorId,
+            [NativeTakesOwnership] IContentProcessor processor,
+            string[] extensions) {
             if (string.IsNullOrWhiteSpace(processorId)) {
                 throw new ArgumentException("Processor id must be provided.", nameof(processorId));
             }

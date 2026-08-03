@@ -15,6 +15,15 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Initializes a big-endian reader that assumes native ownership of the supplied stream.
+        /// </summary>
+        /// <param name="stream">Stream whose lifetime transfers to this reader.</param>
+        /// <param name="streamOwnership">Required owned-stream marker that makes the transfer explicit.</param>
+        internal BinaryReaderBE([NativeTakesOwnership] Stream stream, EngineBinaryStreamOwnership streamOwnership)
+            : base(stream, streamOwnership) {
+        }
+
+        /// <summary>
         /// Gets the endianness handled by this reader.
         /// </summary>
         public override EngineBinaryEndianness Endianness => EngineBinaryEndianness.BigEndian;

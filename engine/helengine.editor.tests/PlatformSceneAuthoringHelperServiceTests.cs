@@ -1,3 +1,5 @@
+using helengine.editor.tests.testing;
+
 namespace helengine.editor.tests;
 
 /// <summary>
@@ -114,7 +116,7 @@ public sealed class PlatformSceneAuthoringHelperServiceTests : IDisposable {
     /// Initializes the minimal runtime services required for editor entities created by these tests.
     /// </summary>
     void InitializeCore() {
-        Core core = new Core();
+        Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
         core.Initialize(null, new helengine.editor.tests.testing.TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
     }
 }

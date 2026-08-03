@@ -3,7 +3,7 @@ using helengine.editor.windows;
 
 namespace helengine.tools.textureimportsettingssetter {
     /// <summary>
-    /// Updates one texture asset's per-platform import settings and refreshes its cached import output.
+    /// Updates one texture asset's per-platform import settings so the next platform cook uses the requested texture limits.
     /// </summary>
     internal static class Program {
         /// <summary>
@@ -26,11 +26,9 @@ namespace helengine.tools.textureimportsettingssetter {
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets")));
             AssetImportManager importManager = new AssetImportManager(projectRootPath, contentManager);
-            TextureImporterRegistration registration = new TextureImporterRegistration("gdi", new GDITextureImporter(), new[] { ".png" });
-            registration.Register(importManager);
             importManager.CurrentPlatformId = "windows";
 
-            AssetImportSettings settings = importManager.LoadOrCreateImportSettings(textureSourcePath);
+            TextureAssetImportSettings settings = importManager.LoadOrCreateTextureImportSettings(textureSourcePath);
             if (settings == null) {
                 throw new InvalidOperationException("Texture import settings could not be created.");
             }
@@ -39,13 +37,8 @@ namespace helengine.tools.textureimportsettingssetter {
                 EnsureTexturePlatformSettings(settings, entry.Key).MaxResolution = entry.Value;
             }
 
-            importManager.SaveImportSettings(textureSourcePath, settings);
-            TextureAsset textureAsset = importManager.ImportTexture(textureSourcePath);
-            if (textureAsset == null) {
-                throw new InvalidOperationException("Texture import did not return a texture asset.");
-            }
-
-            Console.WriteLine(textureAsset.Id ?? string.Empty);
+            importManager.SaveTextureImportSettings(textureSourcePath, settings);
+            Console.WriteLine(textureSourcePath);
             return 0;
         }
 
@@ -92,7 +85,7 @@ namespace helengine.tools.textureimportsettingssetter {
         /// <param name="settings">Import settings to update.</param>
         /// <param name="platformId">Platform id whose texture settings should be created or returned.</param>
         /// <returns>Texture processor settings for the requested platform.</returns>
-        static TextureAssetProcessorSettings EnsureTexturePlatformSettings(AssetImportSettings settings, string platformId) {
+        static TextureAssetProcessorSettings EnsureTexturePlatformSettings(TextureAssetImportSettings settings, string platformId) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
@@ -101,20 +94,16 @@ namespace helengine.tools.textureimportsettingssetter {
             }
 
             if (settings.Processor == null) {
-                settings.Processor = new AssetProcessorSettings();
+                settings.Processor = new TextureAssetProcessorPlatformSettings();
             }
             if (settings.Processor.Platforms == null) {
-                settings.Processor.Platforms = new Dictionary<string, AssetPlatformProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                settings.Processor.Platforms = new Dictionary<string, TextureAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
             }
-            if (!settings.Processor.Platforms.TryGetValue(platformId, out AssetPlatformProcessorSettings platformSettings) || platformSettings == null) {
-                platformSettings = new AssetPlatformProcessorSettings();
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out TextureAssetProcessorSettings platformSettings) || platformSettings == null) {
+                platformSettings = new TextureAssetProcessorSettings();
                 settings.Processor.Platforms[platformId] = platformSettings;
             }
-            if (platformSettings.Texture == null) {
-                platformSettings.Texture = new TextureAssetProcessorSettings();
-            }
-
-            return platformSettings.Texture;
+            return platformSettings;
         }
     }
 }

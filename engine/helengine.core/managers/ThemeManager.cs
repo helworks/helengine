@@ -117,18 +117,31 @@ namespace helengine {
         /// <summary>
         /// Theme palette container.
         /// </summary>
-        public sealed class ThemePalette {
+        public sealed class ThemePalette : IDisposable {
+            /// <summary>
+            /// Stores the color set owned by this palette.
+            /// </summary>
+            [NativeOwnedMember]
+            ThemeColors ColorsValue;
+
             /// <summary>
             /// Gets the palette colors.
             /// </summary>
-            public ThemeColors Colors { get; }
+            public ThemeColors Colors => ColorsValue;
 
             /// <summary>
             /// Creates a palette from the provided colors.
             /// </summary>
             /// <param name="colors">Theme colors.</param>
-            public ThemePalette(ThemeColors colors) {
-                Colors = colors ?? throw new ArgumentNullException(nameof(colors));
+            public ThemePalette([NativeTakesOwnership] ThemeColors colors) {
+                ColorsValue = colors ?? throw new ArgumentNullException(nameof(colors));
+            }
+
+            /// <summary>
+            /// Releases the color set owned by this palette.
+            /// </summary>
+            public void Dispose() {
+                NativeOwnership.Release(ref ColorsValue);
             }
         }
 

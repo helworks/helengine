@@ -154,7 +154,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Initialize_WithPlatformInfo_StoresPlatformInfo() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
 
             core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), TestPlatformInfo.Shared);
 
@@ -166,7 +166,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Initialize_WithoutPlatformInfo_ThrowsArgumentNullException() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
 
             Assert.Throws<ArgumentNullException>(() => core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), (PlatformInfo)null));
         }
@@ -219,6 +219,7 @@ namespace helengine.editor.tests {
         /// <returns>Initialized core instance ready for update calls.</returns>
         Core CreateCore(CoreInitializationOptions options = null) {
             CoreInitializationOptions resolvedOptions = options ?? new CoreInitializationOptions();
+            resolvedOptions.ContentStreamSource ??= new FakeContentStreamSource();
             Core core = new Core(resolvedOptions);
             core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), TestPlatformInfo.Shared, resolvedOptions);
             return core;

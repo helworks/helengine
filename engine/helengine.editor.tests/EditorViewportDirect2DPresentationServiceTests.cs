@@ -10,7 +10,7 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by direct 2D presentation tests.
         /// </summary>
         public EditorViewportDirect2DPresentationServiceTests() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 

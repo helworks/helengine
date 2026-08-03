@@ -271,6 +271,8 @@ namespace helengine.editor {
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.core\" HintPath=\"{EscapeXml(typeof(Core).Assembly.Location)}\" />");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.shader\" HintPath=\"{EscapeXml(typeof(ShaderRuntimeMaterial).Assembly.Location)}\" />");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.input\" HintPath=\"{EscapeXml(typeof(InputSystem).Assembly.Location)}\" />");
+            projectBuilder.AppendLine($"    <Reference Include=\"helengine.nativeownership\" HintPath=\"{EscapeXml(typeof(NativeBorrowedReturnAttribute).Assembly.Location)}\" />");
+            projectBuilder.AppendLine($"    <Reference Include=\"helengine.physics\" HintPath=\"{EscapeXml(typeof(RigidBody3DComponent).Assembly.Location)}\" />");
             projectBuilder.AppendLine("  </ItemGroup>");
             projectBuilder.AppendLine("  <ItemGroup>");
             projectBuilder.AppendLine($"    <Compile Include=\"{EscapeXml(generatedGlobalUsingsPath)}\" />");
@@ -281,6 +283,8 @@ namespace helengine.editor {
                 string nestedCompileGlob = Path.Combine(ResolveProjectPath(moduleEntry.NestedModuleFolderPaths[index]), "**", "*.cs");
                 projectBuilder.AppendLine($"    <Compile Remove=\"{EscapeXml(nestedCompileGlob)}\" />");
             }
+            string testCompileGlob = Path.Combine(ResolveProjectPath(moduleEntry.FolderPath), "**", "*.tests", "**", "*.cs");
+            projectBuilder.AppendLine($"    <Compile Remove=\"{EscapeXml(testCompileGlob)}\" />");
 
             projectBuilder.AppendLine("  </ItemGroup>");
             projectBuilder.AppendLine("</Project>");

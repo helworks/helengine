@@ -16,10 +16,10 @@ namespace helengine {
             int elementCount = ResolveElementCount(asset);
             if (asset.Submeshes != null && asset.Submeshes.Length > 0) {
                 ValidateSubmeshes(asset.Submeshes, elementCount);
-                return asset.Submeshes;
+                return asset.Submeshes.ToArray();
             }
             if (elementCount == 0) {
-                return Array.Empty<ModelSubmeshAsset>();
+                return new ModelSubmeshAsset[0];
             }
 
             return new[] {

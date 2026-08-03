@@ -10,4 +10,8 @@
     <Compile Include="..\helengine.input\*.cs" Link="input\%(Filename)%(Extension)" />
     <Compile Remove="..\helengine.input\TypeForwarders.cs" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.nativeownership\helengine.nativeownership.csproj" />
+  </ItemGroup>
 </Project>

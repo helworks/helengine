@@ -32,7 +32,6 @@ namespace helengine.editor.tests {
         [Fact]
         public void Suppressed_scene_camera_does_not_reregister_after_property_and_enabled_state_changes() {
             EditorEntity entity = new EditorEntity();
-            entity.InitComponents();
 
             CameraComponent camera = new CameraComponent {
                 CameraDrawOrder = 4,

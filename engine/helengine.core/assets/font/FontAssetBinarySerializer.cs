@@ -67,7 +67,7 @@ namespace helengine {
         /// <param name="stream">Source stream positioned at the payload.</param>
         /// <param name="header">Previously decoded HELE header.</param>
         /// <returns>Deserialized font asset.</returns>
-        public static FontAsset Deserialize(Stream stream, EngineBinaryHeader header) {
+        public static FontAsset Deserialize(Stream stream, [NativeNoEscape] EngineBinaryHeader header) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -82,30 +82,36 @@ namespace helengine {
 
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
             string cookedAtlasTextureRelativePath = string.Empty;
-            TextureAsset sourceTexture = new TextureAsset();
             FontInfo fontInfo;
             float lineHeight;
             int atlasWidth;
             int atlasHeight;
+            ulong sourceTextureRuntimeAssetId;
+            ushort sourceTextureWidth;
+            ushort sourceTextureHeight;
+            TextureAssetColorFormat sourceTextureColorFormat;
+            TextureAssetAlphaPrecision sourceTextureAlphaPrecision;
+            byte[] sourceTexturePaletteColors;
+            byte[] sourceTextureColors;
 
             if (header.Version >= ExternalCookedAtlasPathVersion) {
                 cookedAtlasTextureRelativePath = reader.ReadString();
 
-                sourceTexture.RuntimeAssetId = header.Version >= RuntimeTextureIdVersion
+                sourceTextureRuntimeAssetId = header.Version >= RuntimeTextureIdVersion
                     ? (ulong)reader.ReadInt64()
                     : 0ul;
-                sourceTexture.Width = reader.ReadUInt16();
-                sourceTexture.Height = reader.ReadUInt16();
-                sourceTexture.ColorFormat = header.Version >= TextureColorFormatVersion
+                sourceTextureWidth = reader.ReadUInt16();
+                sourceTextureHeight = reader.ReadUInt16();
+                sourceTextureColorFormat = header.Version >= TextureColorFormatVersion
                     ? ReadTextureAssetColorFormat(reader)
                     : TextureAssetColorFormat.Rgba32;
-                sourceTexture.AlphaPrecision = header.Version >= PaletteTextureMetadataVersion
+                sourceTextureAlphaPrecision = header.Version >= PaletteTextureMetadataVersion
                     ? ReadTextureAssetAlphaPrecision(reader)
-                    : GetDefaultTextureAssetAlphaPrecision(sourceTexture.ColorFormat);
-                sourceTexture.PaletteColors = header.Version >= PaletteTextureMetadataVersion
+                    : GetDefaultTextureAssetAlphaPrecision(sourceTextureColorFormat);
+                sourceTexturePaletteColors = header.Version >= PaletteTextureMetadataVersion
                     ? reader.ReadByteArray()
-                    : Array.Empty<byte>();
-                sourceTexture.Colors = reader.ReadByteArray();
+                    : new byte[0];
+                sourceTextureColors = reader.ReadByteArray();
 
                 fontInfo = new FontInfo(
                     reader.ReadString(),
@@ -125,22 +131,32 @@ namespace helengine {
                 atlasWidth = reader.ReadInt32();
                 atlasHeight = reader.ReadInt32();
 
-                sourceTexture.RuntimeAssetId = header.Version >= RuntimeTextureIdVersion
+                sourceTextureRuntimeAssetId = header.Version >= RuntimeTextureIdVersion
                     ? (ulong)reader.ReadInt64()
                     : 0ul;
-                sourceTexture.Width = reader.ReadUInt16();
-                sourceTexture.Height = reader.ReadUInt16();
-                sourceTexture.ColorFormat = header.Version >= TextureColorFormatVersion
+                sourceTextureWidth = reader.ReadUInt16();
+                sourceTextureHeight = reader.ReadUInt16();
+                sourceTextureColorFormat = header.Version >= TextureColorFormatVersion
                     ? ReadTextureAssetColorFormat(reader)
                     : TextureAssetColorFormat.Rgba32;
-                sourceTexture.AlphaPrecision = header.Version >= PaletteTextureMetadataVersion
+                sourceTextureAlphaPrecision = header.Version >= PaletteTextureMetadataVersion
                     ? ReadTextureAssetAlphaPrecision(reader)
-                    : GetDefaultTextureAssetAlphaPrecision(sourceTexture.ColorFormat);
-                sourceTexture.PaletteColors = header.Version >= PaletteTextureMetadataVersion
+                    : GetDefaultTextureAssetAlphaPrecision(sourceTextureColorFormat);
+                sourceTexturePaletteColors = header.Version >= PaletteTextureMetadataVersion
                     ? reader.ReadByteArray()
-                    : Array.Empty<byte>();
-                sourceTexture.Colors = reader.ReadByteArray();
+                    : new byte[0];
+                sourceTextureColors = reader.ReadByteArray();
             }
+
+            TextureAsset sourceTexture = new TextureAsset {
+                RuntimeAssetId = sourceTextureRuntimeAssetId,
+                Width = sourceTextureWidth,
+                Height = sourceTextureHeight,
+                ColorFormat = sourceTextureColorFormat,
+                AlphaPrecision = sourceTextureAlphaPrecision,
+                PaletteColors = sourceTexturePaletteColors,
+                Colors = sourceTextureColors
+            };
 
             int characterCount = reader.ReadInt32();
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar>(characterCount);
@@ -155,25 +171,25 @@ namespace helengine {
                 characters.Add(character, fontChar);
             }
 
-            RuntimeTexture texture = null;
-            TextureAsset storedSourceTextureAsset = null;
             if (sourceTexture.Width > 0 && sourceTexture.Height > 0 && sourceTexture.Colors != null && sourceTexture.Colors.Length > 0) {
-                texture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTexture);
-                storedSourceTextureAsset = sourceTexture;
+                RuntimeTexture texture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTexture);
+                return new FontAsset(fontInfo, texture, characters, lineHeight, atlasWidth, atlasHeight) {
+                    SourceTextureAsset = sourceTexture,
+                    CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
+                };
             }
 
-            FontAsset asset = new FontAsset(fontInfo, texture, characters, lineHeight, atlasWidth, atlasHeight) {
-                SourceTextureAsset = storedSourceTextureAsset,
+            NativeOwnership.DisposeAndDelete(sourceTexture);
+            return new FontAsset(fontInfo, null, characters, lineHeight, atlasWidth, atlasHeight) {
                 CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
             };
-            return asset;
         }
 
         /// <summary>
         /// Validates that the provided header matches the packaged font format.
         /// </summary>
         /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
+        static void ValidateHeader([NativeNoEscape] EngineBinaryHeader header) {
             if (header.FormatId != FormatId) {
                 throw new InvalidOperationException($"Unsupported font binary format id '{header.FormatId}'.");
             }

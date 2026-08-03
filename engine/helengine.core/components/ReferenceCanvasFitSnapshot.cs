@@ -247,7 +247,8 @@ namespace helengine {
         /// Finds the first attached layout component.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
-        /// <returns>Attached layout component when one exists; otherwise null.</returns>
+        /// <returns>An entity-owned layout component borrowed by the snapshot when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static LayoutComponent FindLayoutComponent(Entity entity) {
             if (entity.Components == null) {
                 return null;
@@ -266,7 +267,8 @@ namespace helengine {
         /// Finds the first attached rounded-rectangle component.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
-        /// <returns>Attached rounded-rectangle component when one exists; otherwise null.</returns>
+        /// <returns>An entity-owned rounded-rectangle component borrowed by the snapshot when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static RoundedRectComponent FindRoundedRectComponent(Entity entity) {
             if (entity.Components == null) {
                 return null;
@@ -285,7 +287,8 @@ namespace helengine {
         /// Finds the first attached text component.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
-        /// <returns>Attached text component when one exists; otherwise null.</returns>
+        /// <returns>An entity-owned text component borrowed by the snapshot when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static TextComponent FindTextComponent(Entity entity) {
             if (entity.Components == null) {
                 return null;
@@ -304,7 +307,8 @@ namespace helengine {
         /// Finds the first attached sprite component.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
-        /// <returns>Attached sprite component when one exists; otherwise null.</returns>
+        /// <returns>An entity-owned sprite component borrowed by the snapshot when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static SpriteComponent FindSpriteComponent(Entity entity) {
             if (entity.Components == null) {
                 return null;
@@ -323,7 +327,8 @@ namespace helengine {
         /// Finds the first attached clip-rectangle component.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
-        /// <returns>Attached clip-rectangle component when one exists; otherwise null.</returns>
+        /// <returns>An entity-owned clip-rectangle component borrowed by the snapshot when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static ClipRectComponent FindClipRectComponent(Entity entity) {
             if (entity.Components == null) {
                 return null;
@@ -342,7 +347,8 @@ namespace helengine {
         /// Finds the first attached interactable component.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
-        /// <returns>Attached interactable component when one exists; otherwise null.</returns>
+        /// <returns>An entity-owned interactable component borrowed by the snapshot when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static InteractableComponent FindInteractableComponent(Entity entity) {
             if (entity.Components == null) {
                 return null;
@@ -361,7 +367,8 @@ namespace helengine {
         /// Finds the first attached scroll component.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
-        /// <returns>Attached scroll component when one exists; otherwise null.</returns>
+        /// <returns>An entity-owned scroll component borrowed by the snapshot when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static ScrollComponent FindScrollComponent(Entity entity) {
             if (entity.Components == null) {
                 return null;

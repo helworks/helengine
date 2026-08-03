@@ -507,8 +507,9 @@ namespace helengine {
             rowHost.LayerMask = Parent.LayerMask;
             rowHost.InitChildren();
             rowHost.InitComponents();
+            int childIndex = OverlayHost.Children.Count;
             OverlayHost.AddChild(rowHost);
-            return rowHost;
+            return OverlayHost.Children[childIndex];
         }
 
         /// <summary>
@@ -525,8 +526,9 @@ namespace helengine {
             textComponent.Color = new byte4(255, 255, 255, 255);
             textComponent.Font = Font;
             textComponent.FontScale = FontScale;
+            int componentIndex = rowHost.Components.Count;
             rowHost.AddComponent(textComponent);
-            return textComponent;
+            return (TextComponent)rowHost.Components[componentIndex];
         }
 
         /// <summary>

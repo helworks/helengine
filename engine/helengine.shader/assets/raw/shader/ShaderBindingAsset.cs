@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Represents serialized data for a shader resource binding.
     /// </summary>
-    public class ShaderBindingAsset {
+    public class ShaderBindingAsset : IDisposable {
         /// <summary>
         /// Resource name as declared in the shader.
         /// </summary>
@@ -31,6 +31,7 @@ namespace helengine {
         /// <summary>
         /// Constant buffer members associated with the binding.
         /// </summary>
+        [NativeOwnedMember]
         public ShaderConstantMemberAsset[] Members;
 
         /// <summary>
@@ -64,6 +65,13 @@ namespace helengine {
             };
 
             return asset;
+        }
+
+        /// <summary>
+        /// Deletes constant-member metadata and releases the member array owned by this serialized binding.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.DeleteItemsAndRelease(ref Members);
         }
 
         /// <summary>

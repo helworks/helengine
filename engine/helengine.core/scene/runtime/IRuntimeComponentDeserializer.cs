@@ -13,7 +13,8 @@ namespace helengine {
         /// </summary>
         /// <param name="record">Packaged scene record to deserialize.</param>
         /// <param name="referenceResolver">Resolver used to rebuild packaged asset references.</param>
-        /// <returns>Loaded runtime component instance.</returns>
+        /// <returns>A newly materialized component whose cleanup responsibility transfers to the caller.</returns>
+        [NativeOwnedReturn]
         Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver);
     }
 }

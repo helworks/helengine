@@ -12,7 +12,7 @@ namespace helengine {
         /// Appends debug key/value pairs to the supplied collection.
         /// </summary>
         /// <param name="items">Collection to append to.</param>
-        void AppendInfo(List<(string Key, string Value)> items);
+        void AppendInfo([NativeNoEscape] List<(string Key, string Value)> items);
     }
 
     /// <summary>

@@ -79,10 +79,19 @@ namespace helengine {
                     PayloadRecordKind,
                     PayloadValueKind));
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, endianness, true)) {
-                writePayload(writer);
+                InvokeWritePayload(writePayload, writer);
             }
 
             return new EngineSerializedPayload(formatId, stream.ToArray());
+        }
+
+        /// <summary>
+        /// Invokes one serialization callback while retaining ownership of the scoped binary writer in the caller.
+        /// </summary>
+        /// <param name="writePayload">Callback that writes payload fields.</param>
+        /// <param name="writer">Binary writer borrowed by the callback for the duration of invocation.</param>
+        static void InvokeWritePayload(Action<EngineBinaryWriter> writePayload, [NativeNoEscape] EngineBinaryWriter writer) {
+            writePayload(writer);
         }
 
         /// <summary>
@@ -110,7 +119,7 @@ namespace helengine {
 
             try {
                 ValidateHeader(header, expectedBinaryFormatId, expectedVersion);
-                return EngineBinaryReader.Create(stream, header.Endianness, false);
+                return EngineBinaryReader.CreateOwned(stream, header.Endianness);
             } catch {
                 stream.Dispose();
                 throw;
@@ -152,7 +161,7 @@ namespace helengine {
         /// <param name="header">Header to validate.</param>
         /// <param name="expectedBinaryFormatId">Expected binary serializer format identifier.</param>
         /// <param name="expectedVersion">Expected binary serializer version.</param>
-        static void ValidateHeader(EngineBinaryHeader header, ushort expectedBinaryFormatId, byte expectedVersion) {
+        static void ValidateHeader([NativeNoEscape] EngineBinaryHeader header, ushort expectedBinaryFormatId, byte expectedVersion) {
             if (header == null) {
                 throw new ArgumentNullException(nameof(header));
             }
@@ -169,7 +178,7 @@ namespace helengine {
         /// Validates the shared nested-payload record and value kinds used by the engine payload container.
         /// </summary>
         /// <param name="header">Header to validate.</param>
-        static void ValidateHeaderKinds(EngineBinaryHeader header) {
+        static void ValidateHeaderKinds([NativeNoEscape] EngineBinaryHeader header) {
             if (header == null) {
                 throw new ArgumentNullException(nameof(header));
             }

@@ -47,7 +47,8 @@ namespace helengine.editor.tests {
         /// <returns>Initialized core ready for input tests.</returns>
         Core CreateCore(StandardPlatformInputConfiguration configuration) {
             Core core = new Core(new CoreInitializationOptions {
-                StandardPlatformInputConfiguration = configuration
+                StandardPlatformInputConfiguration = configuration,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             TestInputBackend input = new TestInputBackend();
             core.Initialize(null, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));

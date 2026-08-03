@@ -1,4 +1,6 @@
+using helengine.directx11;
 using helengine.editor.tests.testing;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests.managers.asset {
@@ -16,8 +18,12 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         public EngineGeneratedAssetProviderTests() {
             RenderManager3D = new TestRenderManager3D();
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(RenderManager3D, null, null, new PlatformInfo("test", "test-version"));
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         }
 
         /// <summary>

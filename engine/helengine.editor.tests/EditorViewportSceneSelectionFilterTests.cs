@@ -113,7 +113,7 @@ namespace helengine.editor.tests {
         /// Initializes the global core instance used by the current test.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
     }

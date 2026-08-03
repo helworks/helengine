@@ -623,7 +623,10 @@ namespace helengine.editor {
             builder.AppendLine("    <Reference Include=\"helengine.input\">");
             builder.AppendLine("      <HintPath>" + EscapeXml(typeof(InputSystem).Assembly.Location) + "</HintPath>");
             builder.AppendLine("    </Reference>");
-            builder.AppendLine("    <Reference Include=\"helengine.physics3d\">");
+            builder.AppendLine("    <Reference Include=\"helengine.nativeownership\">");
+            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(NativeBorrowedReturnAttribute).Assembly.Location) + "</HintPath>");
+            builder.AppendLine("    </Reference>");
+            builder.AppendLine("    <Reference Include=\"helengine.physics\">");
             builder.AppendLine("      <HintPath>" + EscapeXml(typeof(RigidBody3DComponent).Assembly.Location) + "</HintPath>");
             builder.AppendLine("    </Reference>");
             if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {

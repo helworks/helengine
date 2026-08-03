@@ -21,7 +21,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the camera currently targeted by the viewport owner, or null when no camera is bound.
         /// </summary>
-        /// <returns>Bound camera for rendering decisions, or null when no camera is currently targeted.</returns>
+        /// <returns>A hierarchy-owned camera borrowed for rendering decisions, or null when no camera is currently targeted.</returns>
+        [NativeBorrowedReturn]
         CameraComponent GetBoundCameraComponent();
     }
 }

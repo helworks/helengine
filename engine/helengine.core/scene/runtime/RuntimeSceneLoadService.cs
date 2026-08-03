@@ -85,13 +85,19 @@ namespace helengine {
         /// </summary>
         /// <param name="sceneAsset">Packaged scene asset payload to materialize.</param>
         /// <returns>Loaded runtime entities together with scene-owned runtime assets.</returns>
+        [NativeOwnedReturn]
         public RuntimeSceneLoadResult LoadTracked(SceneAsset sceneAsset) {
             RuntimeSceneLoadOperation operation = CreateTrackedLoadOperation(sceneAsset);
             while (!operation.IsCompleted) {
                 operation.Advance();
             }
 
-            return operation.Result;
+            RuntimeSceneLoadResult result = new RuntimeSceneLoadResult(
+                operation.Result.RootEntities,
+                operation.Result.OwnedAssets);
+            NativeOwnership.Delete(operation.Result);
+            NativeOwnership.Delete(operation);
+            return result;
         }
 
         /// <summary>

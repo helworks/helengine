@@ -262,7 +262,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
         TestInputBackend InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             var input = new TestInputBackend();
             core.Initialize(null, null, input, new PlatformInfo("test", "test-version"));
             return input;

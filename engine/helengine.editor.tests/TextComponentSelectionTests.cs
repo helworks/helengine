@@ -194,7 +194,7 @@ namespace helengine.editor.tests {
         /// Initializes the minimal core services required by text interaction tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 

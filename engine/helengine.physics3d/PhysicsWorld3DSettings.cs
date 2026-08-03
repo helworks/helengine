@@ -9,7 +9,7 @@ namespace helengine {
         /// <param name="profile">Runtime profile that constrains this world.</param>
         /// <param name="broadphaseKind">Broadphase strategy used for dynamic-body candidate generation.</param>
         /// <param name="solverIterations">Iterative contact-solver passes applied each fixed step.</param>
-        public PhysicsWorld3DSettings(PhysicsWorld3DProfile profile, BroadphaseKind3D broadphaseKind, int solverIterations) {
+        public PhysicsWorld3DSettings([NativeTakesOwnership] PhysicsWorld3DProfile profile, BroadphaseKind3D broadphaseKind, int solverIterations) {
             Profile = profile ?? throw new ArgumentNullException(nameof(profile));
             if (solverIterations <= 0) {
                 throw new ArgumentOutOfRangeException(nameof(solverIterations), "Solver iteration counts must be greater than zero.");
@@ -39,7 +39,7 @@ namespace helengine {
         /// </summary>
         /// <param name="profile">Runtime profile that constrains this world.</param>
         /// <returns>Settings initialized from the profile defaults.</returns>
-        public static PhysicsWorld3DSettings CreateDefault(PhysicsWorld3DProfile profile) {
+        public static PhysicsWorld3DSettings CreateDefault([NativeTakesOwnership] PhysicsWorld3DProfile profile) {
             if (profile == null) {
                 throw new ArgumentNullException(nameof(profile));
             }

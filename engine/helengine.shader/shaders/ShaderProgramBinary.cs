@@ -2,11 +2,12 @@ namespace helengine {
     /// <summary>
     /// Describes a compiled shader program binary for a target backend.
     /// </summary>
-    public class ShaderProgramBinary {
+    public class ShaderProgramBinary : IDisposable {
         /// <summary>
         /// Stores the embedded bytecode when the binary is packaged in memory.
         /// </summary>
-        readonly byte[] bytecode;
+        [NativeOwnedMember]
+        byte[] BytecodeValue;
 
         /// <summary>
         /// Initializes a new shader program binary descriptor.
@@ -43,7 +44,7 @@ namespace helengine {
             Target = target;
             Variant = variant;
             Path = path;
-            bytecode = null;
+            BytecodeValue = null;
         }
 
         /// <summary>
@@ -59,7 +60,7 @@ namespace helengine {
             ShaderStage stage,
             string target,
             string variant,
-            byte[] bytecode) {
+            [NativeNoEscape] byte[] bytecode) {
             if (string.IsNullOrWhiteSpace(programName)) {
                 throw new ArgumentException("Program name must be provided.", nameof(programName));
             }
@@ -85,7 +86,7 @@ namespace helengine {
             Target = target;
             Variant = variant;
             Path = string.Empty;
-            this.bytecode = bytecode;
+            BytecodeValue = CopyBytecode(bytecode);
         }
 
         /// <summary>
@@ -116,10 +117,29 @@ namespace helengine {
         /// <summary>
         /// Gets the embedded bytecode payload when available.
         /// </summary>
+        [NativeBorrowedReturn]
         public byte[] Bytecode {
             get {
-                return bytecode;
+                return BytecodeValue;
             }
+        }
+
+        /// <summary>
+        /// Releases embedded bytecode storage owned by this binary descriptor.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref BytecodeValue);
+        }
+
+        /// <summary>
+        /// Copies embedded bytecode so the binary descriptor owns storage independent from its source asset or compiler result.
+        /// </summary>
+        /// <param name="source">Borrowed bytecode payload to copy.</param>
+        /// <returns>New bytecode array owned by the binary descriptor.</returns>
+        static byte[] CopyBytecode([NativeNoEscape] byte[] source) {
+            byte[] copy = new byte[source.Length];
+            Array.Copy(source, copy, source.Length);
+            return copy;
         }
     }
 }

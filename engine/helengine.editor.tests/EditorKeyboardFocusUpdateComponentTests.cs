@@ -15,7 +15,7 @@ namespace helengine.editor.tests {
         /// Initializes one keyboard-focus update component test fixture with a live core and deterministic input backend.
         /// </summary>
         public EditorKeyboardFocusUpdateComponentTests() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             InputBackend = new TestInputBackend();
             core.Initialize(null, new TestRenderManager2D(), InputBackend, new PlatformInfo("test", "test-version"));
         }

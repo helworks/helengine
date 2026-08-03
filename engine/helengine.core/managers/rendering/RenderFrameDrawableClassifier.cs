@@ -13,9 +13,11 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(drawable));
             }
 
-            RuntimeSubmesh[] submeshes = ResolveSubmeshes(drawable.Model);
-            RenderFrameDrawableSubmission[] submissions = new RenderFrameDrawableSubmission[submeshes.Length];
-            for (int submeshIndex = 0; submeshIndex < submeshes.Length; submeshIndex++) {
+            int submeshCount = drawable.Model == null || drawable.Model.Submeshes == null || drawable.Model.Submeshes.Length == 0
+                ? 1
+                : drawable.Model.Submeshes.Length;
+            RenderFrameDrawableSubmission[] submissions = new RenderFrameDrawableSubmission[submeshCount];
+            for (int submeshIndex = 0; submeshIndex < submeshCount; submeshIndex++) {
                 RuntimeMaterial material = ResolveMaterial(drawable, submeshIndex);
                 submissions[submeshIndex] = new RenderFrameDrawableSubmission(
                     drawable,
@@ -29,30 +31,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves the runtime submeshes that should become render submissions for the supplied model.
-        /// </summary>
-        /// <param name="model">Runtime model referenced by the drawable.</param>
-        /// <returns>Runtime submeshes that should become render submissions.</returns>
-        static RuntimeSubmesh[] ResolveSubmeshes(RuntimeModel model) {
-            if (model == null || model.Submeshes == null || model.Submeshes.Length == 0) {
-                return new[] {
-                    new RuntimeSubmesh {
-                        MaterialSlotName = string.Empty,
-                        IndexStart = 0,
-                        IndexCount = 0
-                    }
-                };
-            }
-
-            return model.Submeshes;
-        }
-
-        /// <summary>
         /// Resolves the runtime material bound to one submesh slot.
         /// </summary>
         /// <param name="drawable">Drawable that owns the material slots.</param>
         /// <param name="submeshIndex">Zero-based submesh index to resolve.</param>
-        /// <returns>Runtime material bound to the requested submesh slot.</returns>
+        /// <returns>A drawable-owned runtime material borrowed for frame classification.</returns>
+        [NativeBorrowedReturn]
         static RuntimeMaterial ResolveMaterial(IDrawable3D drawable, int submeshIndex) {
             if (drawable == null) {
                 throw new ArgumentNullException(nameof(drawable));

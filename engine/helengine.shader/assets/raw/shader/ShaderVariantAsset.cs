@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Represents serialized data for a shader compile variant.
     /// </summary>
-    public class ShaderVariantAsset {
+    public class ShaderVariantAsset : IDisposable {
         /// <summary>
         /// Variant identifier used for selection.
         /// </summary>
@@ -11,6 +11,7 @@ namespace helengine {
         /// <summary>
         /// Define list used for the variant.
         /// </summary>
+        [NativeOwnedMember]
         public string[] Defines;
 
         /// <summary>
@@ -39,6 +40,13 @@ namespace helengine {
             };
 
             return asset;
+        }
+
+        /// <summary>
+        /// Releases the define-array container owned by this serialized variant while preserving its string values.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref Defines);
         }
 
         /// <summary>

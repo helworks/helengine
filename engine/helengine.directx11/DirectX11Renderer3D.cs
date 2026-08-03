@@ -606,6 +606,7 @@ namespace helengine.directx11 {
         /// <param name="materialAssetPath">Runtime asset path to the serialized material asset.</param>
         /// <param name="materialAsset">Raw material asset definition.</param>
         /// <returns>Runtime material instance.</returns>
+        [NativeOwnedReturn]
         public override RuntimeMaterial BuildMaterialFromRawAsset(
             ContentManager assetContentManager,
             string materialAssetPath) {
@@ -618,7 +619,10 @@ namespace helengine.directx11 {
         /// <param name="materialAsset">Raw material asset definition.</param>
         /// <param name="shaderAsset">Shader asset used by the material.</param>
         /// <returns>Runtime material instance.</returns>
-        public virtual RuntimeMaterial BuildMaterialFromRaw(ShaderMaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        [NativeOwnedReturn]
+        public virtual RuntimeMaterial BuildMaterialFromRaw(
+            [NativeNoEscape] ShaderMaterialAsset materialAsset,
+            [NativeNoEscape] ShaderAsset shaderAsset) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }

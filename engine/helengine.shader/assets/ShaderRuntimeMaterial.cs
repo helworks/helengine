@@ -11,6 +11,7 @@ namespace helengine {
         /// <summary>
         /// Property values bound to this material.
         /// </summary>
+        [NativeOwnedMember]
         MaterialPropertyBlock PropertiesValue;
 
         /// <summary>
@@ -29,6 +30,7 @@ namespace helengine {
         /// <summary>
         /// Gets the material-scoped property block that stores texture and constant-buffer values for the layout.
         /// </summary>
+        [NativeBorrowedReturn]
         public MaterialPropertyBlock Properties => PropertiesValue;
 
         /// <summary>
@@ -92,6 +94,7 @@ namespace helengine {
         /// Resolves the runtime texture that should be sampled for this material after applying inherited defaults.
         /// </summary>
         /// <returns>Resolved runtime texture for the draw, or null when the active material layout has no assigned texture.</returns>
+        [NativeBorrowedReturn]
         public RuntimeTexture ResolveTexture() {
             if (Properties.TryGetFirstTexture(out RuntimeTexture propertyTexture)) {
                 return propertyTexture;
@@ -175,23 +178,27 @@ namespace helengine {
         /// <param name="layout">Resolved material layout to apply.</param>
         void ApplyResolvedLayout(MaterialLayout layout) {
             MaterialLayout previousLayout = Layout;
-            MaterialPropertyBlock previousProperties = Properties;
+            MaterialPropertyBlock replacementProperties = new MaterialPropertyBlock(layout);
+            RestoreTextureBindings(layout, previousLayout, PropertiesValue, replacementProperties);
+            RestoreConstantBufferBindings(layout, previousLayout, PropertiesValue, replacementProperties);
+            NativeOwnership.DisposeAndRelease(ref PropertiesValue);
             LayoutValue = layout;
-            PropertiesValue = new MaterialPropertyBlock(layout);
-            RestoreTextureBindings(previousLayout, previousProperties);
-            RestoreConstantBufferBindings(previousLayout, previousProperties);
-            NativeOwnership.DisposeAndDelete(previousProperties);
+            PropertiesValue = replacementProperties;
         }
 
         /// <summary>
         /// Restores matching texture bindings when a material layout changes.
         /// </summary>
+        /// <param name="resolvedLayout">New layout whose texture bindings are being populated.</param>
         /// <param name="previousLayout">Layout previously assigned to the runtime material.</param>
         /// <param name="previousProperties">Property values associated with the previous layout.</param>
+        /// <param name="replacementProperties">New property block that receives matching texture values.</param>
         void RestoreTextureBindings(
+            MaterialLayout resolvedLayout,
             MaterialLayout previousLayout,
-            MaterialPropertyBlock previousProperties) {
-            if (Layout.TextureBindings.Length == 0) {
+            MaterialPropertyBlock previousProperties,
+            MaterialPropertyBlock replacementProperties) {
+            if (resolvedLayout.TextureBindings.Length == 0) {
                 return;
             } else if (previousLayout == null || previousProperties == null) {
                 return;
@@ -199,8 +206,8 @@ namespace helengine {
                 return;
             }
 
-            for (int textureIndex = 0; textureIndex < Layout.TextureBindings.Length; textureIndex++) {
-                MaterialLayoutBinding binding = Layout.TextureBindings[textureIndex];
+            for (int textureIndex = 0; textureIndex < resolvedLayout.TextureBindings.Length; textureIndex++) {
+                MaterialLayoutBinding binding = resolvedLayout.TextureBindings[textureIndex];
                 int previousBindingIndex = previousLayout.FindTextureBindingIndex(binding.Name);
                 if (previousBindingIndex < 0) {
                     continue;
@@ -211,23 +218,29 @@ namespace helengine {
                     continue;
                 }
 
-                Properties.SetTexture(textureIndex, previousTexture);
+                replacementProperties.SetTexture(textureIndex, previousTexture);
             }
         }
 
         /// <summary>
         /// Restores matching constant-buffer payloads when a material layout changes.
         /// </summary>
+        /// <param name="resolvedLayout">New layout whose constant-buffer bindings are being populated.</param>
         /// <param name="previousLayout">Layout previously assigned to the runtime material.</param>
         /// <param name="previousProperties">Property values associated with the previous layout.</param>
-        void RestoreConstantBufferBindings(MaterialLayout previousLayout, MaterialPropertyBlock previousProperties) {
-            if (Layout.ConstantBufferBindings.Length == 0 || previousLayout == null || previousProperties == null) {
+        /// <param name="replacementProperties">New property block that receives matching constant-buffer values.</param>
+        void RestoreConstantBufferBindings(
+            MaterialLayout resolvedLayout,
+            MaterialLayout previousLayout,
+            MaterialPropertyBlock previousProperties,
+            MaterialPropertyBlock replacementProperties) {
+            if (resolvedLayout.ConstantBufferBindings.Length == 0 || previousLayout == null || previousProperties == null) {
                 return;
             } else if (previousLayout.ConstantBufferBindings.Length == 0) {
                 return;
             }
 
-            Properties.CopyMatchingValuesFrom(previousProperties);
+            replacementProperties.CopyMatchingValuesFrom(previousProperties);
         }
 
         /// <summary>

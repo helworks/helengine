@@ -42,7 +42,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             TestInputBackend inputBackend = new TestInputBackend();
             inputBackend.SetKeyboardState(new KeyboardState(Keys.LeftControl));
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), inputBackend, new PlatformInfo("test", "test-version"));
             core.Input.EarlyUpdate();
 

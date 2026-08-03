@@ -9,7 +9,7 @@ namespace helengine {
         /// <param name="stream">Stream containing the encoded asset.</param>
         /// <returns>Deserialized asset instance.</returns>
         /// <exception cref="ArgumentNullException">Thrown when the stream is null.</exception>
-        public static Asset Deserialize(Stream stream) {
+        public static Asset Deserialize([NativeNoEscape] Stream stream) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }

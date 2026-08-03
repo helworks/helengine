@@ -12,7 +12,15 @@ namespace helengine {
         float3 scale;
         float4 orientation;
         ushort layerMask;
+        /// <summary>
+        /// Stores the component container owned and released by this entity.
+        /// </summary>
+        [NativeOwnedMember]
         List<Component> components;
+        /// <summary>
+        /// Stores the child-entity container owned and released by this entity.
+        /// </summary>
+        [NativeOwnedMember]
         List<Entity> children;
 
         /// <summary>
@@ -194,7 +202,6 @@ namespace helengine {
                 ThrowIfDisposed();
                 return components;
             }
-            internal set { components = value; }
         }
 
         /// <summary>
@@ -205,7 +212,6 @@ namespace helengine {
                 ThrowIfDisposed();
                 return children;
             }
-            internal set { children = value; }
         }
 
         /// <summary>
@@ -287,6 +293,11 @@ namespace helengine {
         /// </summary>
         public void InitChildren() {
             ThrowIfDisposed();
+            if (children != null) {
+                throw new InvalidOperationException("Children collection has already been initialized.");
+            }
+
+            NativeOwnership.Release(ref children);
             children = new List<Entity>();
         }
 
@@ -294,7 +305,7 @@ namespace helengine {
         /// Adds a child entity, enforcing that it does not already have a parent.
         /// </summary>
         /// <param name="entity">Child entity to add.</param>
-        public void AddChild(Entity entity) {
+        public void AddChild([NativeTakesOwnership] Entity entity) {
             ThrowIfDisposed();
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
@@ -381,6 +392,11 @@ namespace helengine {
         /// </summary>
         public void InitComponents() {
             ThrowIfDisposed();
+            if (components != null) {
+                throw new InvalidOperationException("Component collection has already been initialized.");
+            }
+
+            NativeOwnership.Release(ref components);
             components = new List<Component>();
         }
 
@@ -388,7 +404,7 @@ namespace helengine {
         /// Adds a component to the entity and triggers its attach callback.
         /// </summary>
         /// <param name="comp">Component to add.</param>
-        public void AddComponent(Component comp) {
+        public void AddComponent([NativeTakesOwnership] Component comp) {
             ThrowIfDisposed();
             if (comp == null) {
                 throw new ArgumentNullException(nameof(comp));
@@ -591,6 +607,8 @@ namespace helengine {
         /// </summary>
         public void Dispose() {
             if (isDisposing) {
+                NativeOwnership.Release(ref components);
+                NativeOwnership.Release(ref children);
                 return;
             }
 
@@ -606,38 +624,31 @@ namespace helengine {
                     detachedComponents.Add(component);
                 }
 
-                List<Component> disposedComponents = components;
                 ReportDisposalStage("BeforeComponentsListDelete", -1);
-                components = null;
-                NativeOwnership.Delete(disposedComponents);
             }
+            NativeOwnership.Release(ref components);
 
             if (children != null) {
                 while (children.Count > 0) {
                     ReportDisposalStage("BeforeChildRemove", -1);
-                    Entity child = children[children.Count - 1];
-                    RemoveChild(child);
-                    ReportChildDisposalStage("BeforeChildDispose", child);
-                    NativeOwnership.DisposeAndDelete(child);
+                    ReportChildDisposalStage("BeforeChildDispose", children[children.Count - 1]);
+                    NativeOwnership.DisposeAndDelete(children[children.Count - 1]);
                     ReportDisposalStage("AfterChildDispose", -1);
                 }
 
-                List<Entity> disposedChildren = children;
                 ReportDisposalStage("BeforeChildrenListDelete", -1);
-                children = null;
-                NativeOwnership.Delete(disposedChildren);
             }
+            NativeOwnership.Release(ref children);
 
             if (detachedComponents != null) {
                 for (int i = 0; i < detachedComponents.Count; i++) {
-                    Component component = detachedComponents[i];
                     ReportDisposalStage("BeforeComponentDispose", i);
-                    component.Dispose();
+                    NativeOwnership.DisposeAndDelete(detachedComponents[i]);
                     ReportDisposalStage("AfterComponentDispose", i);
-                    NativeOwnership.Delete(component);
                     ReportDisposalStage("AfterComponentDelete", i);
                 }
             }
+            NativeOwnership.Delete(detachedComponents);
 
             if (Parent != null) {
                 ReportDisposalStage("BeforeParentDetach", -1);

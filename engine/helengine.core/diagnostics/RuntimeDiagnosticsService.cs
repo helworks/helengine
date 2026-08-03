@@ -41,7 +41,8 @@ namespace helengine {
         /// <summary>
         /// Captures one runtime diagnostics snapshot and overlays the currently loaded scene ids.
         /// </summary>
-        /// <returns>Portable runtime diagnostics snapshot for the current frame.</returns>
+        /// <returns>A portable runtime diagnostics snapshot whose cleanup responsibility transfers to the caller.</returns>
+        [NativeOwnedReturn]
         public RuntimeMemoryDiagnosticsSnapshot CaptureSnapshot() {
             RuntimeMemoryDiagnosticsSnapshot snapshot = RuntimeDiagnosticsProvider != null
                 ? RuntimeDiagnosticsProvider.CaptureSnapshot()
@@ -54,17 +55,22 @@ namespace helengine {
             List<string> trackedSceneIds = snapshot.TrackedSceneIds ?? new List<string>();
             trackedSceneIds.Clear();
             if (RuntimeSceneManager != null) {
-                List<string> loadedSceneIds = RuntimeSceneManager.GetLoadedSceneIds();
-                for (int index = 0; index < loadedSceneIds.Count; index++) {
-                    trackedSceneIds.Add(loadedSceneIds[index]);
-                }
-
-                NativeOwnership.Delete(loadedSceneIds);
+                AppendLoadedSceneIds(trackedSceneIds);
             }
 
             snapshot.TrackedSceneIds = trackedSceneIds;
             AppendEngineCollectionMetrics(snapshot);
             return snapshot;
+        }
+
+        /// <summary>
+        /// Copies scene-manager identifiers into a caller-owned list and releases the temporary snapshot container.
+        /// </summary>
+        /// <param name="trackedSceneIds">Destination list that remains owned by the diagnostics snapshot.</param>
+        void AppendLoadedSceneIds([NativeNoEscape] List<string> trackedSceneIds) {
+            List<string> loadedSceneIds = RuntimeSceneManager.GetLoadedSceneIds();
+            trackedSceneIds.AddRange(loadedSceneIds);
+            NativeOwnership.Delete(loadedSceneIds);
         }
 
         /// <summary>

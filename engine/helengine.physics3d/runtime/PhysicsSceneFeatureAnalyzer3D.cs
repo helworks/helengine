@@ -89,12 +89,16 @@ namespace helengine {
             }
 
             PhysicsSceneFeatureCounterState3D counterState = new PhysicsSceneFeatureCounterState3D();
-            SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
-            for (int index = 0; index < rootEntityAssets.Length; index++) {
-                AccumulateEntityAssetFeatures(rootEntityAssets[index], counterState);
-            }
+            try {
+                SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
+                for (int index = 0; index < rootEntityAssets.Length; index++) {
+                    AccumulateEntityAssetFeatures(rootEntityAssets[index], counterState);
+                }
 
-            return BuildFeatureFlags(counterState);
+                return BuildFeatureFlags(counterState);
+            } finally {
+                NativeOwnership.Delete(counterState);
+            }
         }
 
         /// <summary>
@@ -108,11 +112,15 @@ namespace helengine {
             }
 
             PhysicsSceneFeatureCounterState3D counterState = new PhysicsSceneFeatureCounterState3D();
-            for (int index = 0; index < rootEntityAssets.Count; index++) {
-                AccumulateEntityAssetFeatures(rootEntityAssets[index], counterState);
-            }
+            try {
+                for (int index = 0; index < rootEntityAssets.Count; index++) {
+                    AccumulateEntityAssetFeatures(rootEntityAssets[index], counterState);
+                }
 
-            return BuildFeatureFlags(counterState);
+                return BuildFeatureFlags(counterState);
+            } finally {
+                NativeOwnership.Delete(counterState);
+            }
         }
 
         /// <summary>
@@ -126,11 +134,15 @@ namespace helengine {
             }
 
             PhysicsSceneFeatureCounterState3D counterState = new PhysicsSceneFeatureCounterState3D();
-            for (int index = 0; index < rootEntities.Count; index++) {
-                AccumulateEntityFeatures(rootEntities[index], counterState);
-            }
+            try {
+                for (int index = 0; index < rootEntities.Count; index++) {
+                    AccumulateEntityFeatures(rootEntities[index], counterState);
+                }
 
-            return BuildFeatureFlags(counterState);
+                return BuildFeatureFlags(counterState);
+            } finally {
+                NativeOwnership.Delete(counterState);
+            }
         }
 
         /// <summary>
@@ -138,7 +150,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entityAsset">Current serialized entity being analyzed.</param>
         /// <param name="counterState">Mutable counter state that collects scene capabilities.</param>
-        static void AccumulateEntityAssetFeatures(SceneEntityAsset entityAsset, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateEntityAssetFeatures(SceneEntityAsset entityAsset, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (entityAsset == null) {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
@@ -215,7 +227,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Current entity being analyzed.</param>
         /// <param name="counterState">Mutable counter state that collects scene capabilities.</param>
-        static void AccumulateEntityFeatures(Entity entity, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateEntityFeatures(Entity entity, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
@@ -275,7 +287,7 @@ namespace helengine {
         /// <param name="rigidBody">Authored rigid body component.</param>
         /// <param name="boxCollider">Authored box collider component.</param>
         /// <param name="counterState">Mutable counter state.</param>
-        static void AccumulateBoxBodyFeatures(RigidBody3DComponent rigidBody, BoxCollider3DComponent boxCollider, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateBoxBodyFeatures(RigidBody3DComponent rigidBody, BoxCollider3DComponent boxCollider, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (rigidBody == null) {
                 throw new ArgumentNullException(nameof(rigidBody));
             }
@@ -303,7 +315,7 @@ namespace helengine {
         /// <param name="rigidBody">Authored rigid body component.</param>
         /// <param name="sphereCollider">Authored sphere collider component.</param>
         /// <param name="counterState">Mutable counter state.</param>
-        static void AccumulateSphereBodyFeatures(RigidBody3DComponent rigidBody, SphereCollider3DComponent sphereCollider, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateSphereBodyFeatures(RigidBody3DComponent rigidBody, SphereCollider3DComponent sphereCollider, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (rigidBody == null) {
                 throw new ArgumentNullException(nameof(rigidBody));
             }
@@ -328,7 +340,7 @@ namespace helengine {
         /// <param name="rigidBody">Authored rigid body component.</param>
         /// <param name="capsuleCollider">Authored capsule collider component.</param>
         /// <param name="counterState">Mutable counter state.</param>
-        static void AccumulateCapsuleBodyFeatures(RigidBody3DComponent rigidBody, CapsuleCollider3DComponent capsuleCollider, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateCapsuleBodyFeatures(RigidBody3DComponent rigidBody, CapsuleCollider3DComponent capsuleCollider, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (rigidBody == null) {
                 throw new ArgumentNullException(nameof(rigidBody));
             }
@@ -353,7 +365,7 @@ namespace helengine {
         /// <param name="rigidBody">Authored rigid body component.</param>
         /// <param name="staticMeshCollider">Authored static-mesh collider component.</param>
         /// <param name="counterState">Mutable counter state.</param>
-        static void AccumulateStaticMeshBodyFeatures(RigidBody3DComponent rigidBody, StaticMeshCollider3DComponent staticMeshCollider, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateStaticMeshBodyFeatures(RigidBody3DComponent rigidBody, StaticMeshCollider3DComponent staticMeshCollider, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (rigidBody == null) {
                 throw new ArgumentNullException(nameof(rigidBody));
             }
@@ -376,7 +388,7 @@ namespace helengine {
         /// <param name="bodyKind">Serialized rigid-body participation mode.</param>
         /// <param name="isTrigger">True when the collider is configured as a trigger.</param>
         /// <param name="counterState">Mutable counter state.</param>
-        static void AccumulateSerializedBoxBodyFeatures(BodyKind3D bodyKind, bool isTrigger, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateSerializedBoxBodyFeatures(BodyKind3D bodyKind, bool isTrigger, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (counterState == null) {
                 throw new ArgumentNullException(nameof(counterState));
             }
@@ -398,7 +410,7 @@ namespace helengine {
         /// <param name="bodyKind">Serialized rigid-body participation mode.</param>
         /// <param name="isTrigger">True when the collider is configured as a trigger.</param>
         /// <param name="counterState">Mutable counter state.</param>
-        static void AccumulateSerializedSphereBodyFeatures(BodyKind3D bodyKind, bool isTrigger, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateSerializedSphereBodyFeatures(BodyKind3D bodyKind, bool isTrigger, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (counterState == null) {
                 throw new ArgumentNullException(nameof(counterState));
             }
@@ -417,7 +429,7 @@ namespace helengine {
         /// <param name="bodyKind">Serialized rigid-body participation mode.</param>
         /// <param name="isTrigger">True when the collider is configured as a trigger.</param>
         /// <param name="counterState">Mutable counter state.</param>
-        static void AccumulateSerializedCapsuleBodyFeatures(BodyKind3D bodyKind, bool isTrigger, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateSerializedCapsuleBodyFeatures(BodyKind3D bodyKind, bool isTrigger, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (counterState == null) {
                 throw new ArgumentNullException(nameof(counterState));
             }
@@ -435,7 +447,7 @@ namespace helengine {
         /// </summary>
         /// <param name="isTrigger">True when the collider is configured as a trigger.</param>
         /// <param name="counterState">Mutable counter state.</param>
-        static void AccumulateSerializedStaticMeshBodyFeatures(bool isTrigger, PhysicsSceneFeatureCounterState3D counterState) {
+        static void AccumulateSerializedStaticMeshBodyFeatures(bool isTrigger, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (counterState == null) {
                 throw new ArgumentNullException(nameof(counterState));
             }
@@ -451,7 +463,7 @@ namespace helengine {
         /// </summary>
         /// <param name="counterState">Intermediate counter state.</param>
         /// <returns>Required scene feature flags.</returns>
-        static PhysicsSceneFeatureFlags3D BuildFeatureFlags(PhysicsSceneFeatureCounterState3D counterState) {
+        static PhysicsSceneFeatureFlags3D BuildFeatureFlags([NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
             if (counterState == null) {
                 throw new ArgumentNullException(nameof(counterState));
             }

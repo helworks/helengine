@@ -3,7 +3,7 @@ namespace helengine {
     /// Declares that one source-level method should lower to one native free-function call during generated C++ emission.
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
-    internal sealed class NativeFreeFunctionAttribute : Attribute {
+    public sealed class NativeFreeFunctionAttribute : Attribute {
         /// <summary>
         /// Gets the native free-function name that generated C++ should call.
         /// </summary>

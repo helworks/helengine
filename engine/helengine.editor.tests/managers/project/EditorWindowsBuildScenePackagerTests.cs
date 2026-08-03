@@ -245,6 +245,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             TestAnimationClipAssetScriptComponent packagedComponent = Assert.IsType<TestAnimationClipAssetScriptComponent>(
                 deserializer.Deserialize(packagedRecord, resolver));
 
@@ -899,6 +900,7 @@ namespace helengine.editor.tests {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             TextComponent loadedTextComponent = Assert.IsType<TextComponent>(
@@ -1079,6 +1081,7 @@ namespace helengine.editor.tests {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1118,6 +1121,7 @@ namespace helengine.editor.tests {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1196,6 +1200,7 @@ namespace helengine.editor.tests {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1279,6 +1284,7 @@ namespace helengine.editor.tests {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1337,6 +1343,7 @@ namespace helengine.editor.tests {
             InitializeRuntimeCore(BuildRootPath);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath)));
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             Entity loadedRoot = Assert.Single(loadService.Load(packagedScene));
             CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
@@ -1409,6 +1416,7 @@ namespace helengine.editor.tests {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1459,6 +1467,7 @@ namespace helengine.editor.tests {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1510,6 +1519,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1561,6 +1571,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -1812,6 +1823,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
@@ -1993,6 +2005,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
@@ -2119,6 +2132,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(
                 resolver,
                 CreateRuntimeComponentRegistry(
@@ -2289,6 +2303,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
@@ -2341,6 +2356,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
@@ -2398,6 +2414,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             SpriteComponent loadedSpriteComponent = Assert.IsType<SpriteComponent>(
@@ -2458,6 +2475,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
@@ -3228,6 +3246,7 @@ namespace helengine.editor.tests {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 runtimeContentManager);
+            resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 

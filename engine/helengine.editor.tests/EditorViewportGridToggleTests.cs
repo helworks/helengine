@@ -53,7 +53,7 @@ namespace helengine.editor.tests {
         /// </summary>
         void InitializeCore() {
             TestInputBackend inputManager = new TestInputBackend();
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });

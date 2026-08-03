@@ -573,7 +573,8 @@ public class ObjectManager {
     /// Resolves the nearest viewport component that governs one drawable owner's subtree, when present.
     /// </summary>
     /// <param name="entity">Drawable owner whose ancestor chain should be inspected.</param>
-    /// <returns>Nearest viewport component for the subtree, or null when no viewport owns the drawable.</returns>
+    /// <returns>An entity-owned viewport component borrowed for queue selection, or null when no viewport owns the drawable.</returns>
+    [NativeBorrowedReturn]
     ICameraBoundViewportOwner ResolveNearestViewportComponent(Entity entity) {
         Entity current = entity;
         while (current != null) {

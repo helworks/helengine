@@ -71,6 +71,7 @@ namespace helengine {
         /// </summary>
         /// <param name="bindingIndex">Texture-binding index to read.</param>
         /// <returns>Assigned runtime texture, or <c>null</c> when the binding is unset.</returns>
+        [NativeBorrowedReturn]
         public RuntimeTexture GetTexture(int bindingIndex) {
             ValidateTextureBindingIndex(bindingIndex);
             return TextureValues[bindingIndex];

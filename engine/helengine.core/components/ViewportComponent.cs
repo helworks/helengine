@@ -475,7 +475,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the active camera that should currently drive this viewport.
         /// </summary>
-        /// <returns>Camera currently driving this viewport, or null when no binding is available.</returns>
+        /// <returns>A hierarchy-owned camera borrowed by the viewport, or null when no binding is available.</returns>
+        [NativeBorrowedReturn]
         CameraComponent ResolveBoundCameraComponent() {
             if (BindingModeValue == ExplicitCameraBindingMode) {
                 return ExplicitBoundCameraComponentValue;
@@ -492,7 +493,8 @@ namespace helengine {
         /// Resolves the camera currently targeted by this viewport when the viewport is camera-bound.
         /// Returns null when the viewport is screen-bound, fixed-size, or does not currently resolve a target camera.
         /// </summary>
-        /// <returns>Resolved camera binding for rendering and layout decisions, or null when no camera is bound.</returns>
+        /// <returns>A hierarchy-owned camera borrowed for rendering and layout decisions, or null when no camera is bound.</returns>
+        [NativeBorrowedReturn]
         public CameraComponent GetBoundCameraComponent() {
             RefreshSubscriptions();
             return ResolveBoundCameraComponent();
@@ -528,7 +530,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the nearest ancestor camera component in the current entity chain.
         /// </summary>
-        /// <returns>Nearest ancestor camera component when one exists; otherwise null.</returns>
+        /// <returns>An entity-owned ancestor camera component borrowed by the viewport when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         CameraComponent ResolveAncestorCameraComponent() {
             Entity current = Parent;
 

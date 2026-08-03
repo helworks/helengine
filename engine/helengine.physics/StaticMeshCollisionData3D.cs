@@ -32,6 +32,7 @@ namespace helengine {
         /// <summary>
         /// Gets the local-space triangle vertices.
         /// </summary>
+        [NativeBorrowedReturn]
         public float3[] Vertices {
             get {
                 return VerticesValue ?? throw new InvalidOperationException("Static mesh collision vertices must be initialized before use.");
@@ -47,6 +48,7 @@ namespace helengine {
         /// <summary>
         /// Gets the triangle indices grouped in triples.
         /// </summary>
+        [NativeBorrowedReturn]
         public int[] Indices {
             get {
                 return IndicesValue ?? throw new InvalidOperationException("Static mesh collision indices must be initialized before use.");

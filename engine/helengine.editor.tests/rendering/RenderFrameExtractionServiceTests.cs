@@ -13,7 +13,8 @@ namespace helengine.editor.tests.rendering {
         public void Extract_WhenOneCameraExists_ReturnsFrameForThatCamera() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             TestRenderManager3D renderManager = new TestRenderManager3D();
@@ -41,7 +42,8 @@ namespace helengine.editor.tests.rendering {
         public void Extract_WhenOpaqueAndTransparentDrawablesExist_ReturnsBothSubmissionsWithTransparencyFlags() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
@@ -69,7 +71,8 @@ namespace helengine.editor.tests.rendering {
         public void Extract_WhenOpaqueAndTransparentDrawablesExist_ReturnsOnlyOpaqueShadowCasterSubmissions() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
@@ -95,7 +98,8 @@ namespace helengine.editor.tests.rendering {
         public void Extract_WhenOpaqueDrawableDisablesShadowCasting_ExcludesItFromShadowCasterSubmissions() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
@@ -120,7 +124,8 @@ namespace helengine.editor.tests.rendering {
         public void Extract_WhenDrawableUsesLineListSubmesh_ExcludesItFromShadowCasterSubmissions() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
@@ -154,7 +159,8 @@ namespace helengine.editor.tests.rendering {
         public void Extract_WhenDrawableHasNoMaterial_TreatsItAsOpaque() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
@@ -180,7 +186,8 @@ namespace helengine.editor.tests.rendering {
         public void Extract_WhenDrawableContainsMixedSubmeshMaterials_SplitsOpaqueAndTransparentSubmissions() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
@@ -221,10 +228,11 @@ namespace helengine.editor.tests.rendering {
         /// Ensures extracted frames include light submissions with stable authored light types and computed relative importance.
         /// </summary>
         [Fact]
-        public void Extract_WhenVisibleLightsExist_ReturnsLightSubmissionsWithImportance() {
+    public void Extract_WhenVisibleLightsExist_ReturnsLightSubmissionsWithImportance() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent camera = new CameraComponent();
@@ -248,6 +256,33 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal(LightType.Directional, frame.LightSubmissions[0].LightType);
             Assert.Equal(LightType.Point, frame.LightSubmissions[1].LightType);
             Assert.True(frame.LightSubmissions[0].Importance > frame.LightSubmissions[1].Importance);
+        }
+
+        /// <summary>
+        /// Ensures each camera frame owns an independent submission-list container while sharing immutable submission records.
+        /// </summary>
+        [Fact]
+        public void Extract_WhenMultipleCamerasExist_CopiesSubmissionContainersPerFrame() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource(),
+                RenderList3DInitialCapacity = 4,
+                RenderList2DInitialCapacity = 4
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CameraComponent firstCamera = new CameraComponent();
+            CameraComponent secondCamera = new CameraComponent();
+            DirectionalLightComponent light = new DirectionalLightComponent();
+            RenderFrameExtractionService extractionService = new RenderFrameExtractionService();
+
+            RenderFrameExtractionResult result = extractionService.Extract(
+                new[] { firstCamera, secondCamera },
+                Array.Empty<IDrawable3D>(),
+                new LightComponent[] { light },
+                new RendererBackendCapabilityProfile(true, false, true, true, 32, 4));
+
+            Assert.NotSame(result.Frames[0].LightSubmissions, result.Frames[1].LightSubmissions);
+            Assert.NotSame(result.Frames[0].LightSubmissions[0], result.Frames[1].LightSubmissions[0]);
+            Assert.Same(result.Frames[0].LightSubmissions[0].Light, result.Frames[1].LightSubmissions[0].Light);
         }
 
         /// <summary>

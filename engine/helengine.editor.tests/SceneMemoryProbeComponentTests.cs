@@ -33,9 +33,9 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenCurrentStepIsWait_DoesNotAdvanceUntilDurationElapses() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/bootstrap.hasset", 1u);
             TestClockDrivenCore core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
                 ProbeName = "wait-probe",
@@ -72,11 +72,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenCurrentStepLoadsSingleScene_LoadsRequestedSceneOnce() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
-            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
+            WriteSceneAsset("cooked/scenes/bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/testplayablescene.hasset", 2u);
             TestClockDrivenCore core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
                 ProbeName = "single-load",
@@ -111,11 +111,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenCurrentStepLoadsAdditiveScene_LoadsRequestedSceneAdditively() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
-            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
+            WriteSceneAsset("cooked/scenes/bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/testplayablescene.hasset", 2u);
             TestClockDrivenCore core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
                 ProbeName = "additive-load",
@@ -143,11 +143,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenCurrentStepUnloadsScene_UnloadsRequestedSceneOnce() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u, true);
-            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
+            WriteSceneAsset("cooked/scenes/bootstrap.hasset", 1u, true);
+            WriteSceneAsset("cooked/scenes/testplayablescene.hasset", 2u);
             TestClockDrivenCore core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Additive);
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
@@ -183,9 +183,9 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenFinalStepCompletesAndLoopIsEnabled_RestartsFromFirstStep() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/bootstrap.hasset", 1u);
             TestClockDrivenCore core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")));
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
                 ProbeName = "looping",
@@ -222,7 +222,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenProbeRuns_LogsStableSceneMemoryProbeLines() {
-            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/bootstrap.hasset", 1u);
             RuntimeMemoryDiagnosticsSnapshot snapshot = new RuntimeMemoryDiagnosticsSnapshot {
                 ResidentBytes = 4096u,
                 CommittedBytes = 8192u
@@ -233,7 +233,7 @@ namespace helengine.editor.tests {
             TestClockDrivenCore core = CreateCore(
                 renderManager3D,
                 new TestRenderManager2D(),
-                CreateSceneCatalog(new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset")),
+                CreateSceneCatalog(new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")),
                 diagnosticsProvider);
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             core.Draw();

@@ -12,7 +12,8 @@ namespace helengine.editor.tests {
         public EditorViewportDirect2DScenePresenterComponentTests() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
@@ -32,8 +33,6 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenSceneViewportIs1280By720_UsesMatchingWorldPresented2DSize() {
             EditorEntity sceneCameraEntity = new EditorEntity();
-            sceneCameraEntity.InitComponents();
-            sceneCameraEntity.InitChildren();
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 1280f, 720f)
             };
@@ -57,8 +56,6 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenTextHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
             EditorEntity sceneCameraEntity = new EditorEntity();
-            sceneCameraEntity.InitComponents();
-            sceneCameraEntity.InitChildren();
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 640f, 360f),
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -93,8 +90,6 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenViewportOwnedSpriteHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
             EditorEntity sceneCameraEntity = new EditorEntity();
-            sceneCameraEntity.InitComponents();
-            sceneCameraEntity.InitChildren();
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 640f, 360f),
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -140,8 +135,6 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenRoundedRectHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
             EditorEntity sceneCameraEntity = new EditorEntity();
-            sceneCameraEntity.InitComponents();
-            sceneCameraEntity.InitChildren();
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 640f, 360f),
                 LayerMask = EditorLayerMasks.SceneObjects

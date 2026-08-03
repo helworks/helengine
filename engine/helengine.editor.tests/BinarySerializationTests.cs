@@ -108,6 +108,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures each decoded empty array has an independent caller-owned lifetime for generated native cleanup.
+        /// </summary>
+        [Fact]
+        public void EngineBinaryReader_ReadArray_WhenPayloadsAreEmpty_ReturnsDistinctArrays() {
+            using MemoryStream stream = new MemoryStream(new byte[8]);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+
+            int[] first = reader.ReadArray(binaryReader => binaryReader.ReadInt32());
+            int[] second = reader.ReadArray(binaryReader => binaryReader.ReadInt32());
+
+            Assert.Empty(first);
+            Assert.Empty(second);
+            Assert.NotSame(first, second);
+        }
+
+        /// <summary>
+        /// Ensures each decoded empty byte payload has an independent caller-owned lifetime for generated native cleanup.
+        /// </summary>
+        [Fact]
+        public void EngineBinaryReader_ReadByteArray_WhenPayloadsAreEmpty_ReturnsDistinctArrays() {
+            using MemoryStream stream = new MemoryStream(new byte[8]);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+
+            byte[] first = reader.ReadByteArray();
+            byte[] second = reader.ReadByteArray();
+
+            Assert.Empty(first);
+            Assert.Empty(second);
+            Assert.NotSame(first, second);
+        }
+
+        /// <summary>
         /// Ensures scene assets round-trip through the HELE asset serializer and emit the expected file header.
         /// </summary>
         [Fact]

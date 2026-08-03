@@ -2,16 +2,18 @@ namespace helengine {
     /// <summary>
     /// Groups shader programs and binaries for a single shader module.
     /// </summary>
-    public class ShaderModuleDefinition {
+    public class ShaderModuleDefinition : IDisposable {
         /// <summary>
         /// Stores the shader program definitions for this module.
         /// </summary>
-        readonly ShaderProgramDefinition[] programs;
+        [NativeOwnedMember]
+        ShaderProgramDefinition[] ProgramsValue;
 
         /// <summary>
         /// Stores the compiled binaries for this module.
         /// </summary>
-        readonly ShaderProgramBinary[] binaries;
+        [NativeOwnedMember]
+        ShaderProgramBinary[] BinariesValue;
 
         /// <summary>
         /// Initializes a new shader module definition.
@@ -21,8 +23,8 @@ namespace helengine {
         /// <param name="binaries">Compiled binaries for all targets and variants.</param>
         public ShaderModuleDefinition(
             string name,
-            ShaderProgramDefinition[] programs,
-            ShaderProgramBinary[] binaries) {
+            [NativeTakesOwnership] ShaderProgramDefinition[] programs,
+            [NativeTakesOwnership] ShaderProgramBinary[] binaries) {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Module name must be provided.", nameof(name));
             }
@@ -40,8 +42,8 @@ namespace helengine {
             }
 
             Name = name;
-            this.programs = programs;
-            this.binaries = binaries;
+            ProgramsValue = programs;
+            BinariesValue = binaries;
         }
 
         /// <summary>
@@ -52,19 +54,29 @@ namespace helengine {
         /// <summary>
         /// Gets the shader program definitions.
         /// </summary>
-        public IReadOnlyList<ShaderProgramDefinition> Programs {
+        [NativeBorrowedReturn]
+        public ShaderProgramDefinition[] Programs {
             get {
-                return programs;
+                return ProgramsValue;
             }
         }
 
         /// <summary>
         /// Gets the compiled binaries for the module.
         /// </summary>
-        public IReadOnlyList<ShaderProgramBinary> Binaries {
+        [NativeBorrowedReturn]
+        public ShaderProgramBinary[] Binaries {
             get {
-                return binaries;
+                return BinariesValue;
             }
+        }
+
+        /// <summary>
+        /// Disposes every nested shader definition and releases the arrays owned by this module definition.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.DisposeItemsAndRelease(ref ProgramsValue);
+            NativeOwnership.DisposeItemsAndRelease(ref BinariesValue);
         }
 
         /// <summary>
@@ -77,8 +89,8 @@ namespace helengine {
                 throw new ArgumentException("Program name must be provided.", nameof(programName));
             }
 
-            for (int i = 0; i < programs.Length; i++) {
-                ShaderProgramDefinition program = programs[i];
+            for (int i = 0; i < ProgramsValue.Length; i++) {
+                ShaderProgramDefinition program = ProgramsValue[i];
                 if (string.Equals(program.Name, programName, StringComparison.Ordinal)) {
                     return program;
                 }
@@ -98,8 +110,8 @@ namespace helengine {
                 throw new ArgumentException("Program name must be provided.", nameof(programName));
             }
 
-            for (int i = 0; i < programs.Length; i++) {
-                ShaderProgramDefinition candidate = programs[i];
+            for (int i = 0; i < ProgramsValue.Length; i++) {
+                ShaderProgramDefinition candidate = ProgramsValue[i];
                 if (string.Equals(candidate.Name, programName, StringComparison.Ordinal)) {
                     program = candidate;
                     return true;
@@ -117,6 +129,7 @@ namespace helengine {
         /// <param name="target">Target backend identifier.</param>
         /// <param name="variant">Variant name.</param>
         /// <returns>Matching binary descriptor.</returns>
+        [NativeBorrowedReturn]
         public ShaderProgramBinary GetBinary(string programName, string target, string variant) {
             ShaderProgramBinary binary;
             if (TryGetBinary(programName, target, variant, out binary)) {
@@ -147,8 +160,8 @@ namespace helengine {
                 throw new ArgumentException("Variant must be provided.", nameof(variant));
             }
 
-            for (int i = 0; i < binaries.Length; i++) {
-                ShaderProgramBinary candidate = binaries[i];
+            for (int i = 0; i < BinariesValue.Length; i++) {
+                ShaderProgramBinary candidate = BinariesValue[i];
                 if (!string.Equals(candidate.ProgramName, programName, StringComparison.Ordinal)) {
                     continue;
                 }
@@ -166,5 +179,6 @@ namespace helengine {
             binary = null;
             return false;
         }
+
     }
 }

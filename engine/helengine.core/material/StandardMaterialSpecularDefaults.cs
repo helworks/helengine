@@ -18,6 +18,7 @@ namespace helengine {
         /// </summary>
         /// <param name="specular">Authored specular value that will be clamped to the supported zero-to-one range.</param>
         /// <returns>Sixteen-byte packed constant-buffer payload.</returns>
+        [NativeOwnedReturn]
         public static byte[] CreateConstantBufferData(float specular) {
             float normalized = Math.Clamp(specular, 0f, 1f);
             byte[] data = new byte[16];
@@ -32,6 +33,7 @@ namespace helengine {
         /// Creates one default specular constant-buffer payload.
         /// </summary>
         /// <returns>Sixteen-byte packed constant-buffer payload for the default specular.</returns>
+        [NativeOwnedReturn]
         public static byte[] CreateDefaultConstantBufferData() {
             return CreateConstantBufferData(DefaultSpecular);
         }

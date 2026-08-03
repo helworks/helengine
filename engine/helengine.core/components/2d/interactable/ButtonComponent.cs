@@ -372,7 +372,9 @@ namespace helengine {
             textEntity.Enabled = true;
             textEntity.InitComponents();
 
-            entity.InitChildren();
+            if (entity.Children == null) {
+                entity.InitChildren();
+            }
             entity.AddChild(textEntity);
 
             // Create text component

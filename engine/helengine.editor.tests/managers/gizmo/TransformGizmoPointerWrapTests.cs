@@ -99,7 +99,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
         TestInputBackend InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             TestInputBackend input = new TestInputBackend();
             core.InputSystem.SetMouseClientBounds(new int2(500, 400));
             core.Initialize(null, null, input, new PlatformInfo("test", "test-version"));

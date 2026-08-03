@@ -1,5 +1,6 @@
 using helengine;
 using helengine.editor;
+using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests.managers.gizmo {
@@ -106,7 +107,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Initializes a minimal core so test entities can be constructed safely.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 

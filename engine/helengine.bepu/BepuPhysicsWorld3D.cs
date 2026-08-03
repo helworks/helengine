@@ -3,6 +3,7 @@ using BepuPhysics.Collidables;
 using BepuPhysics.Constraints;
 using BepuUtilities;
 using BepuUtilities.Memory;
+using System.Diagnostics;
 
 namespace helengine {
     /// <summary>
@@ -74,6 +75,31 @@ namespace helengine {
         readonly int SolveSubstepCountValue;
 
         /// <summary>
+        /// Stopwatch reused to measure non-overlapping fixed-step phases without allocating per frame.
+        /// </summary>
+        readonly Stopwatch ProfilerStopwatch;
+
+        /// <summary>
+        /// Duration of the most recent BEPU simulation timestep in milliseconds.
+        /// </summary>
+        double LastTimestepMillisecondsValue;
+
+        /// <summary>
+        /// Duration of the most recent runtime-to-entity synchronization pass in milliseconds.
+        /// </summary>
+        double LastEntitySynchronizationMillisecondsValue;
+
+        /// <summary>
+        /// Duration of the most recent trigger-overlap collection pass in milliseconds.
+        /// </summary>
+        double LastTriggerCollectionMillisecondsValue;
+
+        /// <summary>
+        /// Number of dynamic BEPU bodies awake after the most recent fixed step.
+        /// </summary>
+        int AwakeDynamicBodyCountValue;
+
+        /// <summary>
         /// Active BEPU simulation owned by the world.
         /// </summary>
         Simulation SimulationValue;
@@ -99,6 +125,7 @@ namespace helengine {
             TriggerEventsValue = new List<TriggerEvent3D>();
             ActiveTriggerPairsValue = new List<TriggerPairKey3D>();
             CurrentTriggerPairsValue = new List<TriggerPairKey3D>();
+            ProfilerStopwatch = new Stopwatch();
             ResetSimulation();
         }
 
@@ -121,6 +148,7 @@ namespace helengine {
             TriggerEventsValue = new List<TriggerEvent3D>();
             ActiveTriggerPairsValue = new List<TriggerPairKey3D>();
             CurrentTriggerPairsValue = new List<TriggerPairKey3D>();
+            ProfilerStopwatch = new Stopwatch();
             ResetSimulation();
         }
 
@@ -173,6 +201,26 @@ namespace helengine {
         /// Gets the configured BEPU substep count used by the active world.
         /// </summary>
         public int SolveSubstepCount => SolveSubstepCountValue;
+
+        /// <summary>
+        /// Gets the duration of the most recent BEPU simulation timestep in milliseconds.
+        /// </summary>
+        public double LastTimestepMilliseconds => LastTimestepMillisecondsValue;
+
+        /// <summary>
+        /// Gets the duration of the most recent entity synchronization pass in milliseconds.
+        /// </summary>
+        public double LastEntitySynchronizationMilliseconds => LastEntitySynchronizationMillisecondsValue;
+
+        /// <summary>
+        /// Gets the duration of the most recent trigger-overlap collection pass in milliseconds.
+        /// </summary>
+        public double LastTriggerCollectionMilliseconds => LastTriggerCollectionMillisecondsValue;
+
+        /// <summary>
+        /// Gets the number of dynamic BEPU bodies awake after the most recent fixed step.
+        /// </summary>
+        public int AwakeDynamicBodyCount => AwakeDynamicBodyCountValue;
 
         /// <summary>
         /// Gets or sets the optional sink that receives synchronous scene-binding records at each supported body-registration boundary.
@@ -267,11 +315,42 @@ namespace helengine {
             }
 
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeBepuTimestepPhaseId);
+            ProfilerStopwatch.Restart();
             SimulationValue.Timestep((float)stepSeconds);
+            ProfilerStopwatch.Stop();
+            LastTimestepMillisecondsValue = ProfilerStopwatch.Elapsed.TotalMilliseconds;
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterBepuTimestepBeforeSyncPhaseId);
+            ProfilerStopwatch.Restart();
             SynchronizeBodiesBackToEntities();
+            ProfilerStopwatch.Stop();
+            LastEntitySynchronizationMillisecondsValue = ProfilerStopwatch.Elapsed.TotalMilliseconds;
+            ProfilerStopwatch.Restart();
             CollectTriggerEvents();
+            ProfilerStopwatch.Stop();
+            LastTriggerCollectionMillisecondsValue = ProfilerStopwatch.Elapsed.TotalMilliseconds;
+            AwakeDynamicBodyCountValue = CountAwakeDynamicBodies();
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterBepuSyncPhaseId);
+        }
+
+        /// <summary>
+        /// Counts dynamic body handles whose BEPU body remains awake after the current timestep.
+        /// </summary>
+        /// <returns>Number of awake dynamic bodies.</returns>
+        int CountAwakeDynamicBodies() {
+            int awakeDynamicBodyCount = 0;
+            IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
+            for (int index = 0; index < handles.Count; index++) {
+                BepuBodyHandle3D handle = handles[index];
+                if (!handle.HasBodyHandle || !handle.IsDynamic) {
+                    continue;
+                }
+
+                if (SimulationValue.Bodies[handle.BodyHandle].Awake) {
+                    awakeDynamicBodyCount++;
+                }
+            }
+
+            return awakeDynamicBodyCount;
         }
 
         /// <summary>
@@ -750,6 +829,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
         /// <returns>Rigid body component when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         RigidBody3DComponent ResolveRigidBody(Entity entity) {
             List<Component> components = entity.Components;
             for (int index = 0; index < components.Count; index++) {
@@ -766,6 +846,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
         /// <returns>Box collider component when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         BoxCollider3DComponent ResolveBoxCollider(Entity entity) {
             List<Component> components = entity.Components;
             for (int index = 0; index < components.Count; index++) {
@@ -782,6 +863,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
         /// <returns>Sphere collider component when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         SphereCollider3DComponent ResolveSphereCollider(Entity entity) {
             List<Component> components = entity.Components;
             for (int index = 0; index < components.Count; index++) {
@@ -798,6 +880,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
         /// <returns>Static mesh collider component when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         StaticMeshCollider3DComponent ResolveStaticMeshCollider(Entity entity) {
             List<Component> components = entity.Components;
             for (int index = 0; index < components.Count; index++) {

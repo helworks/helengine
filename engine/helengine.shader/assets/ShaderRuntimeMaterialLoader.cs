@@ -20,6 +20,7 @@ namespace helengine {
         /// <param name="assetContentManager">Content manager that can deserialize the cooked shader package.</param>
         /// <param name="materialAssetPath">Runtime asset path to the serialized material asset.</param>
         /// <returns>Runtime material instance.</returns>
+        [NativeOwnedReturn]
         public static RuntimeMaterial BuildMaterialFromRawAsset(
             IShaderRenderManager3D renderManager3D,
             ContentManager assetContentManager,

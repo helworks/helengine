@@ -96,7 +96,8 @@ namespace helengine {
         /// Resolves one runtime component deserializer by serialized component type id.
         /// </summary>
         /// <param name="componentTypeId">Serialized component type id.</param>
-        /// <returns>Matching deserializer.</returns>
+        /// <returns>A registry-owned deserializer borrowed by the caller.</returns>
+        [NativeBorrowedReturn]
         public IRuntimeComponentDeserializer GetDeserializer(string componentTypeId) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));

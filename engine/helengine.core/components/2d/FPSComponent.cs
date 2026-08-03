@@ -372,12 +372,12 @@ namespace helengine {
         /// Removes the overlay hierarchy and unregisters the component from frame sampling.
         /// </summary>
         void TearDownOverlay() {
-            Entity overlayHost = OverlayHost;
+            if (OverlayHost != null) {
+                NativeOwnership.DisposeAndDelete(OverlayHost);
+            }
+
             ReleaseOverlayReferences();
             ClearPublishedOverlayTextRows();
-            if (overlayHost != null) {
-                NativeOwnership.DisposeAndDelete(overlayHost);
-            }
         }
 
         /// <summary>
@@ -752,10 +752,9 @@ namespace helengine {
         /// </summary>
         /// <param name="lineIndex">Zero-based extra overlay row index to remove.</param>
         void RemoveAdditionalLineRowAt(int lineIndex) {
-            Entity rowHost = AdditionalLineRowHosts[lineIndex];
+            NativeOwnership.DisposeAndDelete(AdditionalLineRowHosts[lineIndex]);
             AdditionalLineRowHosts.RemoveAt(lineIndex);
             AdditionalLineTextComponents.RemoveAt(lineIndex);
-            NativeOwnership.DisposeAndDelete(rowHost);
         }
 
         /// <summary>
@@ -771,7 +770,6 @@ namespace helengine {
             rowHost.LayerMask = Parent.LayerMask;
             rowHost.InitChildren();
             rowHost.InitComponents();
-            OverlayHost.AddChild(rowHost);
 
             TextComponent textComponent = new TextComponent();
             textComponent.Color = new byte4(255, 255, 255, 255);
@@ -779,10 +777,14 @@ namespace helengine {
             textComponent.Font = Font;
             textComponent.FontScale = ResolveEffectiveFontScale();
             textComponent.Text = lineText;
+            int componentIndex = rowHost.Components.Count;
             rowHost.AddComponent(textComponent);
 
-            AdditionalLineRowHosts.Add(rowHost);
-            AdditionalLineTextComponents.Add(textComponent);
+            int childIndex = OverlayHost.Children.Count;
+            OverlayHost.AddChild(rowHost);
+            Entity attachedRowHost = OverlayHost.Children[childIndex];
+            AdditionalLineRowHosts.Add(attachedRowHost);
+            AdditionalLineTextComponents.Add((TextComponent)attachedRowHost.Components[componentIndex]);
         }
 
         /// <summary>

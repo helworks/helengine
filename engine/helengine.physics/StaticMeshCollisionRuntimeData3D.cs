@@ -32,6 +32,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the engine-owned serialized runtime payload.
         /// </summary>
+        [NativeBorrowedReturn]
         public EngineSerializedPayload Payload {
             get {
                 return PayloadValue ?? throw new InvalidOperationException("Static mesh runtime payload must be initialized before use.");

@@ -2,26 +2,30 @@ namespace helengine {
     /// <summary>
     /// Describes a single shader entry point and its binding layout metadata.
     /// </summary>
-    public class ShaderProgramDefinition {
+    public class ShaderProgramDefinition : IDisposable {
         /// <summary>
         /// Stores the binding list for the shader program.
         /// </summary>
-        readonly ShaderBinding[] bindings;
+        [NativeOwnedMember]
+        ShaderBinding[] BindingsValue;
 
         /// <summary>
         /// Stores the input signature elements for the shader program.
         /// </summary>
-        readonly ShaderVertexElement[] inputs;
+        [NativeOwnedMember]
+        ShaderVertexElement[] InputsValue;
 
         /// <summary>
         /// Stores the output signature elements for the shader program.
         /// </summary>
-        readonly ShaderVertexElement[] outputs;
+        [NativeOwnedMember]
+        ShaderVertexElement[] OutputsValue;
 
         /// <summary>
         /// Stores the variant definitions for the shader program.
         /// </summary>
-        readonly ShaderVariant[] variants;
+        [NativeOwnedMember]
+        ShaderVariant[] VariantsValue;
 
         /// <summary>
         /// Initializes a new shader program definition.
@@ -37,10 +41,10 @@ namespace helengine {
             string name,
             ShaderStage stage,
             string entryPoint,
-            ShaderBinding[] bindings,
-            ShaderVertexElement[] inputs,
-            ShaderVertexElement[] outputs,
-            ShaderVariant[] variants) {
+            [NativeTakesOwnership] ShaderBinding[] bindings,
+            [NativeTakesOwnership] ShaderVertexElement[] inputs,
+            [NativeTakesOwnership] ShaderVertexElement[] outputs,
+            [NativeTakesOwnership] ShaderVariant[] variants) {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Program name must be provided.", nameof(name));
             }
@@ -68,10 +72,10 @@ namespace helengine {
             Name = name;
             Stage = stage;
             EntryPoint = entryPoint;
-            this.bindings = bindings;
-            this.inputs = inputs;
-            this.outputs = outputs;
-            this.variants = variants;
+            BindingsValue = bindings;
+            InputsValue = inputs;
+            OutputsValue = outputs;
+            VariantsValue = variants;
         }
 
         /// <summary>
@@ -92,37 +96,51 @@ namespace helengine {
         /// <summary>
         /// Gets the resource bindings used by the program.
         /// </summary>
-        public IReadOnlyList<ShaderBinding> Bindings {
+        [NativeBorrowedReturn]
+        public ShaderBinding[] Bindings {
             get {
-                return bindings;
+                return BindingsValue;
             }
         }
 
         /// <summary>
         /// Gets the input signature elements.
         /// </summary>
-        public IReadOnlyList<ShaderVertexElement> Inputs {
+        [NativeBorrowedReturn]
+        public ShaderVertexElement[] Inputs {
             get {
-                return inputs;
+                return InputsValue;
             }
         }
 
         /// <summary>
         /// Gets the output signature elements.
         /// </summary>
-        public IReadOnlyList<ShaderVertexElement> Outputs {
+        [NativeBorrowedReturn]
+        public ShaderVertexElement[] Outputs {
             get {
-                return outputs;
+                return OutputsValue;
             }
         }
 
         /// <summary>
         /// Gets the compile-time variants for this program.
         /// </summary>
-        public IReadOnlyList<ShaderVariant> Variants {
+        [NativeBorrowedReturn]
+        public ShaderVariant[] Variants {
             get {
-                return variants;
+                return VariantsValue;
             }
+        }
+
+        /// <summary>
+        /// Disposes nested binding and variant metadata and releases every array owned by this program definition.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.DisposeItemsAndRelease(ref BindingsValue);
+            NativeOwnership.DeleteItemsAndRelease(ref InputsValue);
+            NativeOwnership.DeleteItemsAndRelease(ref OutputsValue);
+            NativeOwnership.DisposeItemsAndRelease(ref VariantsValue);
         }
     }
 }

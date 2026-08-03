@@ -14,6 +14,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Content stream positioned at the serialized payload.</param>
         /// <returns>Deserialized shader-owned payload.</returns>
+        [NativeOwnedReturn]
         public abstract T Read(Stream stream);
 
         /// <summary>
@@ -21,6 +22,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Content stream positioned at the serialized payload.</param>
         /// <returns>Deserialized shader-owned payload boxed as an object.</returns>
+        [NativeOwnedReturn]
         object IContentProcessor.ReadObject(Stream stream) {
             return Read(stream);
         }

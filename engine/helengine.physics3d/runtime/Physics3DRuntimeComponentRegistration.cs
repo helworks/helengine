@@ -10,5 +10,15 @@ namespace helengine {
         public static void Register(Core core) {
             BepuRuntimeComponentRegistration.Register(core);
         }
+
+        /// <summary>
+        /// Registers the packaged-scene component deserializers and reserves a BEPU-backed runtime with the requested solve schedule.
+        /// </summary>
+        /// <param name="core">Initialized core that owns the runtime scene loader.</param>
+        /// <param name="solveVelocityIterationCount">Velocity-iteration count applied to each fixed simulation step.</param>
+        /// <param name="solveSubstepCount">Substep count applied to each fixed simulation step.</param>
+        public static void Register(Core core, int solveVelocityIterationCount, int solveSubstepCount) {
+            BepuRuntimeComponentRegistration.Register(core, solveVelocityIterationCount, solveSubstepCount);
+        }
     }
 }

@@ -216,7 +216,7 @@ namespace helengine.editor.tests {
         /// Initializes the lightweight core services required by pointer hit-resolution tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
@@ -227,7 +227,7 @@ namespace helengine.editor.tests {
         /// <param name="windowHeight">Window height exposed to viewport resolution.</param>
         /// <returns>Render manager used to drive future window-resize notifications.</returns>
         TestRenderManager3D InitializeCoreWithWindow(int windowWidth, int windowHeight) {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             TestRenderManager3D renderManager = new TestRenderManager3D();
             core.Initialize(renderManager, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             renderManager.OnWindowResize(IntPtr.Zero, windowWidth, windowHeight);

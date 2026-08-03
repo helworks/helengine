@@ -63,7 +63,7 @@ namespace helengine {
         /// Registers a content processor together with its supported extensions.
         /// </summary>
         /// <param name="registration">Registration describing the processor and its extensions.</param>
-        public void RegisterProcessor(ContentProcessorRegistration registration) {
+        public void RegisterProcessor([NativeTakesOwnership] ContentProcessorRegistration registration) {
             if (registration == null) {
                 throw new ArgumentNullException(nameof(registration));
             }
@@ -95,7 +95,10 @@ namespace helengine {
         /// <param name="processorId">Stable identifier used to select the processor explicitly.</param>
         /// <param name="processor">Processor instance that parses the content.</param>
         /// <param name="extensions">Optional supported file extensions, including or omitting the leading dot. Use <c>*</c> to match any extension.</param>
-        public void RegisterProcessor<T>(string processorId, IContentProcessor<T> processor, string[] extensions = null) {
+        public void RegisterProcessor<T>(
+            string processorId,
+            [NativeTakesOwnership] IContentProcessor<T> processor,
+            string[] extensions = null) {
             if (processor == null) {
                 throw new ArgumentNullException(nameof(processor));
             }
@@ -165,7 +168,8 @@ namespace helengine {
         /// <typeparam name="T">Requested output type.</typeparam>
         /// <param name="assetPath">Runtime asset path to load.</param>
         /// <param name="processorId">Optional explicit processor identifier.</param>
-        /// <returns>Typed processor instance.</returns>
+        /// <returns>A registration-owned processor instance borrowed for the duration of the content load.</returns>
+        [NativeBorrowedReturn]
         IContentProcessor<T> ResolveProcessor<T>(string assetPath, string processorId) {
             ContentProcessorRegistration registration = string.IsNullOrWhiteSpace(processorId)
                 ? ResolveDefaultProcessorRegistration(typeof(T), assetPath)
@@ -183,7 +187,8 @@ namespace helengine {
         /// </summary>
         /// <param name="requestedType">Requested output type.</param>
         /// <param name="assetPath">Runtime asset path being loaded.</param>
-        /// <returns>Matching processor registration.</returns>
+        /// <returns>A content-manager-owned processor registration borrowed by the caller.</returns>
+        [NativeBorrowedReturn]
         ContentProcessorRegistration ResolveDefaultProcessorRegistration(Type requestedType, string assetPath) {
             if (requestedType == null) {
                 throw new ArgumentNullException(nameof(requestedType));
@@ -220,7 +225,8 @@ namespace helengine {
         /// </summary>
         /// <param name="requestedType">Requested output type.</param>
         /// <param name="processorId">Explicit processor identifier.</param>
-        /// <returns>Matching processor registration.</returns>
+        /// <returns>A content-manager-owned processor registration borrowed by the caller.</returns>
+        [NativeBorrowedReturn]
         ContentProcessorRegistration ResolveExplicitProcessorRegistration(Type requestedType, string processorId) {
             if (requestedType == null) {
                 throw new ArgumentNullException(nameof(requestedType));
@@ -244,7 +250,8 @@ namespace helengine {
         /// Gets or creates the default registration map for one output type.
         /// </summary>
         /// <param name="outputType">Output type whose registration map is required.</param>
-        /// <returns>Registration map keyed by normalized extension.</returns>
+        /// <returns>A content-manager-owned registration map keyed by normalized extension.</returns>
+        [NativeBorrowedReturn]
         Dictionary<string, ContentProcessorRegistration> GetOrCreateTypeRegistrationMap(Type outputType) {
             if (outputType == null) {
                 throw new ArgumentNullException(nameof(outputType));

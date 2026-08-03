@@ -6,7 +6,8 @@ namespace helengine {
         /// <summary>
         /// Captures the current platform diagnostics snapshot.
         /// </summary>
-        /// <returns>Current platform diagnostics snapshot.</returns>
+        /// <returns>A newly captured diagnostics snapshot whose cleanup responsibility transfers to the caller.</returns>
+        [NativeOwnedReturn]
         RuntimeMemoryDiagnosticsSnapshot CaptureSnapshot();
     }
 }

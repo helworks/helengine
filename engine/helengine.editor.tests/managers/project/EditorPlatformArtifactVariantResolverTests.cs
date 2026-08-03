@@ -14,8 +14,8 @@ public sealed class EditorPlatformArtifactVariantResolverTests {
         public void Resolve_WhenArtifactsShareIdentityAndDifferByVariant_ProducesSharedArtifactEntry() {
             EditorPlatformArtifactVariantResolver resolver = new();
             PlatformBuildArtifact[] artifacts = [
-            new PlatformBuildArtifact("cooked/scenes/Bootstrap.hasset", "scene-startup", "hash-123", "scene", "windows"),
-            new PlatformBuildArtifact("cooked/scenes/Bootstrap.hasset", "scene-startup", "hash-123", "scene", "linux")
+            new PlatformBuildArtifact("cooked/scenes/bootstrap.hasset", "scene-startup", "hash-123", "scene", "windows"),
+            new PlatformBuildArtifact("cooked/scenes/bootstrap.hasset", "scene-startup", "hash-123", "scene", "linux")
         ];
 
         EditorResolvedArtifactSet resolved = resolver.Resolve(artifacts);

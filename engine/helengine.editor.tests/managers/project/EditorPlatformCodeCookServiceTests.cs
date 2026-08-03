@@ -67,6 +67,12 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
         Assert.Contains("runtime-specialization=windows-loose-files", toolRunner.Invocations[0].Arguments);
         Assert.Contains("--endianness", toolRunner.Invocations[0].Arguments);
         Assert.Contains("little", toolRunner.Invocations[0].Arguments);
+        int projectArgumentIndex = Array.IndexOf(toolRunner.Invocations[0].Arguments.ToArray(), "--project");
+        string generatedProjectContents = File.ReadAllText(toolRunner.Invocations[0].Arguments[projectArgumentIndex + 1]);
+        Assert.Contains("Reference Include=\"helengine.nativeownership\"", generatedProjectContents, StringComparison.Ordinal);
+        Assert.Contains("Reference Include=\"helengine.physics\"", generatedProjectContents, StringComparison.Ordinal);
+        Assert.Contains("<Compile Remove=", generatedProjectContents, StringComparison.Ordinal);
+        Assert.Contains("*.tests", generatedProjectContents, StringComparison.Ordinal);
     }
 
     [Fact]

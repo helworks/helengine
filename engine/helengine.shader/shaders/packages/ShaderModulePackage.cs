@@ -53,6 +53,7 @@ namespace helengine {
         /// <param name="programName">Program name to locate.</param>
         /// <param name="variant">Variant name to locate.</param>
         /// <returns>Matching binary descriptor.</returns>
+        [NativeBorrowedReturn]
         public ShaderProgramBinary GetBinary(string programName, string variant) {
             return Definition.GetBinary(programName, targetName, variant);
         }

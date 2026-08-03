@@ -157,7 +157,7 @@ namespace helengine {
             uint count = CountBits(_keys0) + CountBits(_keys1) + CountBits(_keys2) + CountBits(_keys3)
                     + CountBits(_keys4) + CountBits(_keys5) + CountBits(_keys6) + CountBits(_keys7);
             if (count == 0)
-                return empty;
+                return new Keys[0];
             Keys[] keys = new Keys[count];
 
             int index = 0;

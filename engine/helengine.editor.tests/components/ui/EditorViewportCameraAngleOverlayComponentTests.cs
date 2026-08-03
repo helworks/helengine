@@ -51,7 +51,7 @@ namespace helengine.editor.tests.components.ui {
         /// Initializes a fresh core so camera components can be constructed in isolation tests.
         /// </summary>
         static void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(null, null, new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });

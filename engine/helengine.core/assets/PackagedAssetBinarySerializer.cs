@@ -100,7 +100,7 @@ namespace helengine {
         /// <param name="stream">Source stream positioned at the payload.</param>
         /// <param name="header">Previously decoded HELE header.</param>
         /// <returns>Deserialized asset instance.</returns>
-        public static Asset Deserialize(Stream stream, EngineBinaryHeader header) {
+        public static Asset Deserialize([NativeNoEscape] Stream stream, [NativeNoEscape] EngineBinaryHeader header) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             } else if (header == null) {
@@ -120,7 +120,7 @@ namespace helengine {
         /// <param name="stream">Source stream positioned at the payload.</param>
         /// <param name="header">Previously decoded HELE header.</param>
         /// <returns>Deserialized scene asset.</returns>
-        public static SceneAsset DeserializeSceneAsset(Stream stream, EngineBinaryHeader header) {
+        public static SceneAsset DeserializeSceneAsset(Stream stream, [NativeNoEscape] EngineBinaryHeader header) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             } else if (header == null) {
@@ -142,7 +142,7 @@ namespace helengine {
         /// Validates that the provided header matches the packaged runtime asset format.
         /// </summary>
         /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
+        static void ValidateHeader([NativeNoEscape] EngineBinaryHeader header) {
             if (header.FormatId != FormatId) {
                 throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
             } else if (header.RecordKind != (ushort)RecordKind) {
@@ -158,7 +158,7 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <param name="valueKind">Format-specific value kind identifier.</param>
         /// <returns>Deserialized asset instance.</returns>
-        static Asset ReadAssetPayload(EngineBinaryReader reader, EditorAssetBinaryValueKind valueKind, byte version) {
+        static Asset ReadAssetPayload([NativeNoEscape] EngineBinaryReader reader, EditorAssetBinaryValueKind valueKind, byte version) {
             switch (valueKind) {
                 case EditorAssetBinaryValueKind.TextureAsset:
                     return ReadTextureAsset(reader, version);
@@ -187,21 +187,32 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized texture asset.</returns>
         static TextureAsset ReadTextureAsset(EngineBinaryReader reader, byte version) {
-            TextureAsset asset = new TextureAsset();
-            ReadAssetIdentity(reader, asset, version);
-            asset.Width = reader.ReadUInt16();
-            asset.Height = reader.ReadUInt16();
-            asset.ColorFormat = version >= TextureColorFormatVersion
+            string assetId = reader.ReadString();
+            ulong runtimeAssetId = version > PreviousVersionWithoutRuntimeAssetId
+                ? (ulong)reader.ReadInt64()
+                : 0ul;
+            ushort width = reader.ReadUInt16();
+            ushort height = reader.ReadUInt16();
+            TextureAssetColorFormat colorFormat = version >= TextureColorFormatVersion
                 ? ReadTextureAssetColorFormat(reader)
                 : TextureAssetColorFormat.Rgba32;
-            asset.AlphaPrecision = version >= TexturePaletteMetadataVersion
+            TextureAssetAlphaPrecision alphaPrecision = version >= TexturePaletteMetadataVersion
                 ? ReadTextureAssetAlphaPrecision(reader)
-                : GetDefaultTextureAssetAlphaPrecision(asset.ColorFormat);
-            asset.PaletteColors = version >= TexturePaletteMetadataVersion
+                : GetDefaultTextureAssetAlphaPrecision(colorFormat);
+            byte[] paletteColors = version >= TexturePaletteMetadataVersion
                 ? reader.ReadByteArray()
-                : Array.Empty<byte>();
-            asset.Colors = reader.ReadByteArray();
-            return asset;
+                : new byte[0];
+            byte[] colors = reader.ReadByteArray();
+            return new TextureAsset {
+                Id = assetId,
+                RuntimeAssetId = runtimeAssetId,
+                Width = width,
+                Height = height,
+                ColorFormat = colorFormat,
+                AlphaPrecision = alphaPrecision,
+                PaletteColors = paletteColors,
+                Colors = colors
+            };
         }
 
         /// <summary>
@@ -279,18 +290,30 @@ namespace helengine {
                 throw new InvalidOperationException($"Unsupported asset binary version '{version}'.");
             }
 
-            ModelAsset asset = new ModelAsset();
-            ReadAssetIdentity(reader, asset, version);
-            asset.Positions = reader.ReadArray(ReadFloat3);
-            asset.Normals = reader.ReadArray(ReadFloat3);
-            asset.TexCoords = reader.ReadArray(ReadFloat2);
-            asset.Indices16 = reader.ReadArray(ReadUInt16Value);
-            asset.Indices32 = reader.ReadArray(ReadUInt32Value);
-            asset.Submeshes = reader.ReadArray(ReadModelSubmeshAsset);
+            string assetId = reader.ReadString();
+            ulong runtimeAssetId = version > PreviousVersionWithoutRuntimeAssetId
+                ? (ulong)reader.ReadInt64()
+                : 0ul;
+            float3[] positions = reader.ReadArray(ReadFloat3);
+            float3[] normals = reader.ReadArray(ReadFloat3);
+            float2[] texCoords = reader.ReadArray(ReadFloat2);
+            ushort[] indices16 = reader.ReadArray(ReadUInt16Value);
+            uint[] indices32 = reader.ReadArray(ReadUInt32Value);
+            ModelSubmeshAsset[] submeshes = reader.ReadArray(ReadModelSubmeshAsset);
             if (version <= ModelPlatformPackedMeshTailVersion) {
-                reader.ReadByteArray();
+                ReadAndDiscardLegacyPackedMeshTail(reader);
             }
-            return asset;
+
+            return new ModelAsset {
+                Id = assetId,
+                RuntimeAssetId = runtimeAssetId,
+                Positions = positions,
+                Normals = normals,
+                TexCoords = texCoords,
+                Indices16 = indices16,
+                Indices32 = indices32,
+                Submeshes = submeshes
+            };
         }
 
         /// <summary>
@@ -345,9 +368,8 @@ namespace helengine {
             }
             materialAsset.CastsShadows = reader.ReadByte() != 0;
             materialAsset.ReceivesShadows = reader.ReadByte() != 0;
-            MaterialRenderState defaultRenderState = materialAsset.RenderState;
+            NativeOwnership.Delete(materialAsset.RenderState);
             materialAsset.RenderState = ReadMaterialRenderState(reader);
-            NativeOwnership.Delete(defaultRenderState);
             if (version <= LegacyMaterialFieldVersion) {
                 reader.ReadArray(ReadLegacyMaterialConstantBufferAsset);
             }
@@ -424,6 +446,15 @@ namespace helengine {
                 ByteOffset = reader.ReadInt32(),
                 ByteLength = reader.ReadInt32()
             };
+        }
+
+        /// <summary>
+        /// Reads and releases the obsolete platform-packed mesh tail preserved by legacy model payloads.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the legacy byte-array tail.</param>
+        static void ReadAndDiscardLegacyPackedMeshTail([NativeNoEscape] EngineBinaryReader reader) {
+            byte[] legacyPackedMeshTail = reader.ReadByteArray();
+            NativeOwnership.Delete(legacyPackedMeshTail);
         }
 
         /// <summary>
@@ -579,7 +610,7 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset.</returns>
-        static SceneAsset ReadSceneAsset(EngineBinaryReader reader, byte version) {
+        static SceneAsset ReadSceneAsset([NativeNoEscape] EngineBinaryReader reader, byte version) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             } else if (version < LegacyVersion || version > CurrentVersion) {
@@ -771,7 +802,7 @@ namespace helengine {
             } else if (length < -1) {
                 throw new InvalidOperationException("Array length cannot be negative.");
             } else if (length == 0) {
-                return Array.Empty<SceneEntityAsset>();
+                return new SceneEntityAsset[0];
             }
 
             SceneEntityAsset[] values = new SceneEntityAsset[length];
@@ -938,7 +969,7 @@ namespace helengine {
             } else if (length < -1) {
                 throw new InvalidOperationException("Array length cannot be negative.");
             } else if (length == 0) {
-                return Array.Empty<SceneComponentAssetRecord>();
+                return new SceneComponentAssetRecord[0];
             }
 
             SceneComponentAssetRecord[] values = new SceneComponentAssetRecord[length];
@@ -964,7 +995,7 @@ namespace helengine {
             } else if (length < -1) {
                 throw new InvalidOperationException("Array length cannot be negative.");
             } else if (length == 0) {
-                return Array.Empty<SceneEntityAsset>();
+                return new SceneEntityAsset[0];
             }
 
             SceneEntityAsset[] values = new SceneEntityAsset[length];

@@ -100,7 +100,8 @@ namespace helengine {
         /// Returns one tracked bus, creating it on first use.
         /// </summary>
         /// <param name="busId">Stable bus identifier.</param>
-        /// <returns>Tracked audio bus.</returns>
+        /// <returns>A manager-owned audio bus that callers may borrow for immediate state updates.</returns>
+        [NativeBorrowedReturn]
         AudioBus GetOrCreateBus(string busId) {
             if (string.IsNullOrWhiteSpace(busId)) {
                 busId = "master";

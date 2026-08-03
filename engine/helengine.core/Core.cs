@@ -618,7 +618,8 @@ namespace helengine {
         /// <summary>
         /// Gets the default content manager configured for the current core instance.
         /// </summary>
-        /// <returns>Cached content manager backed by the configured content stream source.</returns>
+        /// <returns>A core-owned content manager borrowed by the caller and backed by the configured content stream source.</returns>
+        [NativeBorrowedReturn]
         public ContentManager GetContentManager() {
             return GetContentManager(InitializationOptions.ContentStreamSource);
         }
@@ -627,7 +628,8 @@ namespace helengine {
         /// Gets a cached content manager for a specific content stream source, creating it the first time that source is requested.
         /// </summary>
         /// <param name="streamSource">Source used to open runtime content streams.</param>
-        /// <returns>Cached content manager for the requested source.</returns>
+        /// <returns>A core-owned content manager borrowed by the caller for the requested source.</returns>
+        [NativeBorrowedReturn]
         public ContentManager GetContentManager(IContentStreamSource streamSource) {
             if (streamSource == null) {
                 throw new ArgumentNullException(nameof(streamSource));

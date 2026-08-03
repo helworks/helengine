@@ -391,7 +391,8 @@ namespace helengine {
         /// <param name="positions">Current mutable vertex positions.</param>
         /// <param name="maximumEdgeLength">Largest permitted output edge length.</param>
         /// <param name="measurementScale">Static scale used only to measure output edge lengths.</param>
-        /// <returns>One oversized geometric edge, or null when every edge fits.</returns>
+        /// <returns>A newly allocated oversized geometric edge owned by the caller, or null when every edge fits.</returns>
+        [NativeOwnedReturn]
         static ModelTessellationGeometricEdgeKey FindOversizedEdge(List<ModelTessellationTriangle> triangles, List<float3> positions, double maximumEdgeLength, float3 measurementScale) {
             double maximumEdgeLengthSquared = maximumEdgeLength * maximumEdgeLength;
             double longestOversizedEdgeLengthSquared = maximumEdgeLengthSquared;
@@ -588,22 +589,32 @@ namespace helengine {
                 }
             }
 
-            asset.Positions = positions.ToArray();
-            asset.Normals = normals.ToArray();
-            asset.TexCoords = texCoords.ToArray();
-            asset.Submeshes = outputSubmeshes;
+            float3[] outputPositions = positions.ToArray();
+            float3[] outputNormals = normals.ToArray();
+            float2[] outputTexCoords = texCoords.ToArray();
+            ushort[] outputIndices16 = null;
+            uint[] outputIndices32 = null;
             if (positions.Count <= ushort.MaxValue) {
-                ushort[] indices16 = new ushort[outputIndices.Count];
+                outputIndices16 = new ushort[outputIndices.Count];
                 for (int index = 0; index < outputIndices.Count; index++) {
-                    indices16[index] = (ushort)outputIndices[index];
+                    outputIndices16[index] = (ushort)outputIndices[index];
                 }
-
-                asset.Indices16 = indices16;
-                asset.Indices32 = null;
             } else {
-                asset.Indices16 = null;
-                asset.Indices32 = outputIndices.ToArray();
+                outputIndices32 = outputIndices.ToArray();
             }
+
+            NativeOwnership.Release(ref asset.Positions);
+            NativeOwnership.Release(ref asset.Normals);
+            NativeOwnership.Release(ref asset.TexCoords);
+            NativeOwnership.DeleteItemsAndRelease(ref asset.Submeshes);
+            NativeOwnership.Release(ref asset.Indices16);
+            NativeOwnership.Release(ref asset.Indices32);
+            asset.Positions = outputPositions;
+            asset.Normals = outputNormals;
+            asset.TexCoords = outputTexCoords;
+            asset.Submeshes = outputSubmeshes;
+            asset.Indices16 = outputIndices16;
+            asset.Indices32 = outputIndices32;
         }
 
         /// <summary>

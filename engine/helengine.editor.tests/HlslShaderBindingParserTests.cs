@@ -38,7 +38,7 @@ namespace helengine.editor.tests {
             ShaderBinding binding = bindings[0];
             Assert.Equal("MaterialBuffer", binding.Name);
             Assert.Equal(96, binding.Size);
-            Assert.Equal(4, binding.Members.Count);
+            Assert.Equal(4, binding.Members.Length);
             Assert.Equal(0, binding.Members[0].Offset);
             Assert.Equal(16, binding.Members[1].Offset);
             Assert.Equal(20, binding.Members[2].Offset);

@@ -3,7 +3,14 @@ namespace helengine {
     /// Renders a 3D mesh using the 3D render manager.
     /// </summary>
     public class MeshComponent : Component, IDrawable3D {
+        /// <summary>
+        /// Stores the render ordering key currently registered with the 3D object manager.
+        /// </summary>
         byte renderOrder3D;
+        /// <summary>
+        /// Stores the material-slot array owned by this component while each referenced runtime material remains scene-owned.
+        /// </summary>
+        [NativeOwnedMember]
         RuntimeMaterial[] MaterialsBySlot;
 
         /// <summary>
@@ -21,10 +28,10 @@ namespace helengine {
                     throw new ArgumentNullException(nameof(value));
                 }
 
-                RuntimeMaterial[] previousMaterials = MaterialsBySlot;
-                MaterialsBySlot = new RuntimeMaterial[value.Length];
-                Array.Copy(value, MaterialsBySlot, value.Length);
-                NativeOwnership.Release(ref previousMaterials);
+                RuntimeMaterial[] copiedMaterials = new RuntimeMaterial[value.Length];
+                Array.Copy(value, copiedMaterials, value.Length);
+                NativeOwnership.Release(ref MaterialsBySlot);
+                MaterialsBySlot = copiedMaterials;
             }
         }
 

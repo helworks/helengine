@@ -34,7 +34,7 @@ namespace helengine {
         /// </summary>
         /// <param name="data">Raw model data.</param>
         /// <returns>Runtime model instance.</returns>
-        public abstract RuntimeModel BuildModelFromRaw(ModelAsset data);
+        public abstract RuntimeModel BuildModelFromRaw([NativeNoEscape] ModelAsset data);
 
         /// <summary>
         /// Builds a runtime model from one platform-owned cooked model payload.
@@ -69,6 +69,7 @@ namespace helengine {
         /// <param name="assetContentManager">Content manager that can load companion assets needed by the renderer.</param>
         /// <param name="materialAssetPath">Runtime asset path to the serialized material asset.</param>
         /// <returns>Runtime material instance.</returns>
+        [NativeOwnedReturn]
         public virtual RuntimeMaterial BuildMaterialFromRawAsset(
             ContentManager assetContentManager,
             string materialAssetPath) {

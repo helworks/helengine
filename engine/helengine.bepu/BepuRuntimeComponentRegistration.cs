@@ -25,6 +25,19 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Hooks scene-load binding while reserving one BEPU-backed runtime world with the requested solve schedule for the first compatible scene.
+        /// </summary>
+        /// <param name="core">Initialized core that owns the runtime scene loader.</param>
+        /// <param name="solveVelocityIterationCount">Velocity-iteration count applied to each fixed simulation step.</param>
+        /// <param name="solveSubstepCount">Substep count applied to each fixed simulation step.</param>
+        public static void Register(Core core, int solveVelocityIterationCount, int solveSubstepCount) {
+            ValidateCore(core);
+            RuntimeCore = core;
+            RuntimeWorld = BepuPhysicsWorld3D.CreateWithSolveSchedule(solveVelocityIterationCount, solveSubstepCount);
+            RegisterSceneBinding(core);
+        }
+
+        /// <summary>
         /// Creates one BEPU-backed physics world for attachment to a runtime core.
         /// </summary>
         /// <param name="core">Initialized core that owns the runtime physics attachment.</param>

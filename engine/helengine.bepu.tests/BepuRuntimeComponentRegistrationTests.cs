@@ -38,7 +38,7 @@ namespace helengine.bepu.tests {
         /// Ensures one physics scene lazily creates and attaches the default BEPU-backed world.
         /// </summary>
         [Fact]
-        public void HandleLoadedScene_WhenSceneHasPhysics_AttachesDefaultSolveScheduleWorld() {
+    public void HandleLoadedScene_WhenSceneHasPhysics_AttachesDefaultSolveScheduleWorld() {
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
@@ -51,8 +51,41 @@ namespace helengine.bepu.tests {
             Assert.Equal(4, world.SolveVelocityIterationCount);
             Assert.Equal(1, world.SolveSubstepCount);
             Assert.Equal(1, world.RegisteredBodyCount);
-            Assert.Equal("AfterBepuSceneBinding", core.LastSceneTransitionStage);
-        }
+        Assert.Equal("AfterBepuSceneBinding", core.LastSceneTransitionStage);
+    }
+
+    /// <summary>
+    /// Ensures an explicit runtime registration solve schedule is preserved when the first physics scene loads.
+    /// </summary>
+    [Fact]
+    public void HandleLoadedScene_WhenRegistrationSpecifiesSolveSchedule_AttachesConfiguredWorld() {
+        Core core = new Core(new CoreInitializationOptions {
+            ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+        });
+        core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+
+        BepuRuntimeComponentRegistration.Register(core, 1, 1);
+        BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateStaticBoxPhysicsEntity()]);
+
+        BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+        Assert.Equal(1, world.SolveVelocityIterationCount);
+        Assert.Equal(1, world.SolveSubstepCount);
+    }
+
+    /// <summary>
+    /// Ensures one stepped BEPU world exposes non-negative profiler timing samples and its awake-body count.
+    /// </summary>
+    [Fact]
+    public void Step_WhenPhysicsWorldAdvances_RecordsProfilerBreakdown() {
+        BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateWithSolveSchedule(1, 1);
+
+        world.Step(1.0d / 20.0d);
+
+        Assert.True(world.LastTimestepMilliseconds >= 0d);
+        Assert.True(world.LastEntitySynchronizationMilliseconds >= 0d);
+        Assert.True(world.LastTriggerCollectionMilliseconds >= 0d);
+        Assert.Equal(0, world.AwakeDynamicBodyCount);
+    }
 
         /// <summary>
         /// Ensures one non-physics scene detaches the lazy runtime after one physics scene was previously loaded.

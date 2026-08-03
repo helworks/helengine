@@ -144,8 +144,10 @@ namespace helengine {
             asset.NormalTextureAssetId = reader.ReadString();
             asset.EmissiveTextureAssetId = reader.ReadString();
             asset.RoughnessTextureAssetId = version >= 3 ? reader.ReadString() : string.Empty;
+            NativeOwnership.Release(ref asset.RenderState);
             asset.RenderState = ReadMaterialRenderState(reader);
-            asset.ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>();
+            NativeOwnership.DisposeItemsAndRelease(ref asset.ConstantBuffers);
+            asset.ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? new MaterialConstantBufferAsset[0];
             asset.CastsShadows = reader.ReadByte() != 0;
             asset.ReceivesShadows = reader.ReadByte() != 0;
             return asset;

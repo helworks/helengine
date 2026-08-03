@@ -7,10 +7,7 @@ namespace helengine {
         /// Initializes a new shader material asset with default render state and no authored constant-buffer payloads.
         /// </summary>
         public ShaderMaterialAsset() {
-            RenderState = new MaterialRenderState();
-            ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>();
-            CastsShadows = true;
-            ReceivesShadows = true;
+            ConstantBuffers = new MaterialConstantBufferAsset[0];
             ShaderAssetId = string.Empty;
             VertexProgram = string.Empty;
             PixelProgram = string.Empty;
@@ -62,23 +59,17 @@ namespace helengine {
         public string RoughnessTextureAssetId;
 
         /// <summary>
-        /// Gets or sets the fixed-function render state used while drawing the material.
-        /// </summary>
-        public new MaterialRenderState RenderState;
-
-        /// <summary>
         /// Gets or sets the authored default constant-buffer payloads keyed by shader binding name.
         /// </summary>
+        [NativeOwnedMember]
         public MaterialConstantBufferAsset[] ConstantBuffers;
 
         /// <summary>
-        /// Gets or sets whether the material contributes geometry to shadow-map passes.
+        /// Releases every authored constant-buffer payload before releasing the inherited material state.
         /// </summary>
-        public new bool CastsShadows;
-
-        /// <summary>
-        /// Gets or sets whether the material receives shadow attenuation during lighting.
-        /// </summary>
-        public new bool ReceivesShadows;
+        public override void Dispose() {
+            NativeOwnership.DisposeItemsAndRelease(ref ConstantBuffers);
+            base.Dispose();
+        }
     }
 }

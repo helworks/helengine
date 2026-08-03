@@ -35,7 +35,7 @@ public sealed class EntityHierarchyTransformTests {
     /// </summary>
     /// <returns>Initialized test core.</returns>
     static Core InitializeCore() {
-        Core core = new Core();
+        Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
         core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         return core;
     }

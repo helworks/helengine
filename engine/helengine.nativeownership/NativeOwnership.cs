@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Describes explicit native-ownership transitions that the C++ backend must lower into deterministic delete and dispose operations.
     /// </summary>
-    internal static class NativeOwnership {
+    public static class NativeOwnership {
         /// <summary>
         /// Releases one managed reference in source code while signaling the native backend to delete the target object.
         /// </summary>

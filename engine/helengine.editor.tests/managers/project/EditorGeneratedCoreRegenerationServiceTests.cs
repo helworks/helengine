@@ -599,13 +599,32 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated-core scratch data stays inside the isolated platform build workspace instead of using the shared system temp directory.
+    /// </summary>
+    [Fact]
+    public void Resolve_generated_core_scratch_root_uses_build_workspace_sibling() {
+        string buildWorkspaceRootPath = Path.Combine(RootPath, "platform-build-workspace");
+        string generatedCoreRootPath = Path.Combine(buildWorkspaceRootPath, "generated-core");
+
+        string scratchRootPath = EditorGeneratedCoreRegenerationService.ResolveGeneratedCoreScratchRootPath(
+            generatedCoreRootPath,
+            "ps2");
+
+        Assert.Equal(
+            Path.Combine(buildWorkspaceRootPath, "generated-core-scratch", "ps2"),
+            scratchRootPath);
+    }
+
+    /// <summary>
     /// Verifies regeneration failure does not leave one generated-core scratch workspace behind in the system temp folder.
     /// </summary>
     [Fact]
     public void Regenerate_when_codegen_tool_is_missing_deletes_scratch_workspace() {
         string platformId = "temp-cleanup-failure-" + Guid.NewGuid().ToString("N");
-        string platformScratchRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformId);
         string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-failure-output");
+        string platformScratchRootPath = EditorGeneratedCoreRegenerationService.ResolveGeneratedCoreScratchRootPath(
+            generatedCoreRootPath,
+            platformId);
         EditorGeneratedCoreRegenerationService service = new();
 
         try {
@@ -631,8 +650,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     [Fact]
     public void Regenerate_when_codegen_succeeds_deletes_scratch_workspace() {
         string platformId = "temp-cleanup-success-" + Guid.NewGuid().ToString("N");
-        string platformScratchRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformId);
         string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-success-output");
+        string platformScratchRootPath = EditorGeneratedCoreRegenerationService.ResolveGeneratedCoreScratchRootPath(
+            generatedCoreRootPath,
+            platformId);
         string codegenRootPath = Path.Combine(RootPath, "fake-codegen");
         string fakeCodegenPath = CreateFakeCodegenTool(codegenRootPath);
         EditorGeneratedCoreRegenerationService service = new();

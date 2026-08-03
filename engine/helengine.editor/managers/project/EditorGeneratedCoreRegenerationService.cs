@@ -81,7 +81,8 @@ namespace helengine.editor {
             string bundledRuntimeSupportRootPath = Path.Combine(
                 Path.GetDirectoryName(fullCodegenToolPath) ?? throw new InvalidOperationException($"Unable to resolve the codegen tool directory from '{fullCodegenToolPath}'."),
                 ".net.cpp");
-            string tempRoot = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformDefinition.PlatformId, Guid.NewGuid().ToString("N"));
+            string scratchRootPath = ResolveGeneratedCoreScratchRootPath(generatedCoreOutputRoot, platformDefinition.PlatformId);
+            string tempRoot = Path.Combine(scratchRootPath, Guid.NewGuid().ToString("N"));
             string shaderOutputRoot = Path.Combine(tempRoot, "shader");
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
@@ -602,6 +603,26 @@ namespace helengine.editor {
             if (result.ExitCode != 0) {
                 throw new InvalidOperationException($"Process '{fileName} {displayArguments}' failed with exit code {result.ExitCode}.");
             }
+        }
+
+        /// <summary>
+        /// Resolves the platform-owned scratch root beside the generated-core output so concurrent builds remain isolated inside their own workspaces.
+        /// </summary>
+        /// <param name="generatedCoreOutputRoot">Absolute generated-core output directory owned by the active platform build workspace.</param>
+        /// <param name="platformId">Stable platform identifier used to separate scratch trees within the workspace.</param>
+        /// <returns>The workspace-owned directory under which one regeneration run may create its unique scratch directory.</returns>
+        internal static string ResolveGeneratedCoreScratchRootPath(string generatedCoreOutputRoot, string platformId) {
+            if (string.IsNullOrWhiteSpace(generatedCoreOutputRoot)) {
+                throw new ArgumentException("Generated core output root must be provided.", nameof(generatedCoreOutputRoot));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform identifier must be provided.", nameof(platformId));
+            }
+
+            string fullGeneratedCoreOutputRoot = Path.GetFullPath(generatedCoreOutputRoot);
+            string buildWorkspaceRootPath = Path.GetDirectoryName(fullGeneratedCoreOutputRoot)
+                ?? throw new InvalidOperationException($"Unable to resolve the build workspace containing generated-core output '{fullGeneratedCoreOutputRoot}'.");
+            return Path.Combine(buildWorkspaceRootPath, "generated-core-scratch", platformId);
         }
 
         /// <summary>

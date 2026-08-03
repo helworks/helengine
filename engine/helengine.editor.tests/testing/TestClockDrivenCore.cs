@@ -17,7 +17,7 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         /// <param name="measuredUpdateSeconds">Queued measured update times returned by subsequent update calls.</param>
         public TestClockDrivenCore(IEnumerable<double> measuredUpdateSeconds)
-            : this(new CoreInitializationOptions(), measuredUpdateSeconds) {
+            : this(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() }, measuredUpdateSeconds) {
         }
 
         /// <summary>

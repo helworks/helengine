@@ -72,7 +72,7 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by checkbox interaction tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 

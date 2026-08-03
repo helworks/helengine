@@ -333,11 +333,15 @@ namespace helengine {
                 isSelectingText = true;
                 UpdateTextDisplay();
             } else if (state == PointerInteraction.Hover && isSelectingText) {
+#if DESKTOP_PLATFORM
                 if (Core.Instance.Input.GetMouseLeftButtonState() != ButtonState.Pressed) {
                     isSelectingText = false;
                 } else {
+#endif
                     EditState.SetSelection(EditState.SelectionAnchorPosition, ResolveCursorPositionFromClick(relPos.X));
+#if DESKTOP_PLATFORM
                 }
+#endif
 
                 UpdateTextDisplay();
             } else if (state == PointerInteraction.Release) {

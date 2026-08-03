@@ -32,8 +32,8 @@ namespace helengine {
         /// <param name="lineHeight">Line height in pixels.</param>
         /// <param name="atlasWidth">Atlas width in pixels.</param>
         /// <param name="atlasHeight">Atlas height in pixels.</param>
-        public FontAsset(FontInfo fontInfo, RuntimeTexture tex,
-            Dictionary<char, FontChar> chars, float lineHeight, int atlasWidth, int atlasHeight) {
+        public FontAsset([NativeTakesOwnership] FontInfo fontInfo, RuntimeTexture tex,
+            [NativeTakesOwnership] Dictionary<char, FontChar> chars, float lineHeight, int atlasWidth, int atlasHeight) {
             LineHeight = lineHeight;
             FontInfo = fontInfo;
             Texture = tex;
@@ -68,6 +68,7 @@ namespace helengine {
         /// <summary>
         /// Gets the basic font metrics.
         /// </summary>
+        [NativeOwnedMember]
         public FontInfo FontInfo { get; protected set; }
 
         /// <summary>
@@ -78,6 +79,7 @@ namespace helengine {
         /// <summary>
         /// Gets the glyph map keyed by character.
         /// </summary>
+        [NativeOwnedMember]
         public Dictionary<char, FontChar> Characters { get; protected set; }
 
         /// <summary>
@@ -98,6 +100,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the raw atlas texture data used to build this font asset.
         /// </summary>
+        [NativeOwnedMember]
         public TextureAsset SourceTextureAsset { get; set; }
 
         /// <summary>
@@ -114,7 +117,7 @@ namespace helengine {
         /// Replaces the source atlas payload after import-time texture processing and rescales font metrics to match the processed atlas size.
         /// </summary>
         /// <param name="processedSourceTextureAsset">Processed source atlas that should become the authoritative texture payload.</param>
-        public void ApplyProcessedSourceTextureAsset(TextureAsset processedSourceTextureAsset) {
+        public void ApplyProcessedSourceTextureAsset([NativeTakesOwnership] TextureAsset processedSourceTextureAsset) {
             if (processedSourceTextureAsset == null) {
                 throw new ArgumentNullException(nameof(processedSourceTextureAsset));
             } else if (processedSourceTextureAsset.Width < 1 || processedSourceTextureAsset.Height < 1) {
@@ -157,6 +160,8 @@ namespace helengine {
                 AtlasHeight = processedSourceTextureAsset.Height;
             }
 
+            NativeOwnership.DisposeAndDelete(SourceTextureAsset);
+            SourceTextureAsset = null;
             SourceTextureAsset = processedSourceTextureAsset;
             if (Texture != null) {
                 Texture.Width = processedSourceTextureAsset.Width;
@@ -169,7 +174,7 @@ namespace helengine {
         /// </summary>
         /// <param name="runtimeTexture">Runtime texture rebuilt from the cooked atlas payload.</param>
         /// <param name="processedSourceTextureAsset">Cooked atlas payload that should become the authoritative source texture data.</param>
-        public void AttachProcessedTexture(RuntimeTexture runtimeTexture, TextureAsset processedSourceTextureAsset) {
+        public void AttachProcessedTexture(RuntimeTexture runtimeTexture, [NativeTakesOwnership] TextureAsset processedSourceTextureAsset) {
             if (runtimeTexture == null) {
                 throw new ArgumentNullException(nameof(runtimeTexture));
             } else if (processedSourceTextureAsset == null) {
@@ -202,40 +207,22 @@ namespace helengine {
         /// Releases scene-owned references held by this font asset.
         /// </summary>
         public void Dispose() {
-            if (IsDisposed) {
-                return;
-            }
-
             Dictionary<char, FontChar> characters = Characters;
-            FontInfo fontInfo = FontInfo;
-            TextureAsset sourceTextureAsset = SourceTextureAsset;
-            byte[] sourceTextureColors = sourceTextureAsset == null ? null : sourceTextureAsset.Colors;
-            byte[] sourceTexturePaletteColors = sourceTextureAsset == null ? null : sourceTextureAsset.PaletteColors;
-            bool sourceTextureColorsUsesSharedEmptyArray = ReferenceEquals(sourceTextureColors, Array.Empty<byte>());
-            bool sourceTexturePaletteColorsUsesSharedEmptyArray = ReferenceEquals(sourceTexturePaletteColors, Array.Empty<byte>());
-            LiveInstanceCountValue--;
-            DisposedInstanceCountValue++;
-            LiveCharacterCountValue -= characters == null ? 0 : characters.Count;
-            Texture = null;
-            Characters = null;
-            FontInfo = null;
-            SourceTextureAsset = null;
-            if (sourceTextureAsset != null) {
-                sourceTextureAsset.Colors = null;
-                sourceTextureAsset.PaletteColors = null;
+            if (!IsDisposed) {
+                LiveInstanceCountValue--;
+                DisposedInstanceCountValue++;
+                LiveCharacterCountValue -= characters == null ? 0 : characters.Count;
             }
+            Texture = null;
             if (characters != null) {
                 characters.Clear();
             }
-            NativeOwnership.Delete(characters);
-            NativeOwnership.Delete(fontInfo);
-            if (!sourceTextureColorsUsesSharedEmptyArray) {
-                NativeOwnership.Delete(sourceTextureColors);
-            }
-            if (!sourceTexturePaletteColorsUsesSharedEmptyArray) {
-                NativeOwnership.Delete(sourceTexturePaletteColors);
-            }
-            NativeOwnership.Delete(sourceTextureAsset);
+            NativeOwnership.Delete(Characters);
+            Characters = null;
+            NativeOwnership.Delete(FontInfo);
+            FontInfo = null;
+            NativeOwnership.DisposeAndDelete(SourceTextureAsset);
+            SourceTextureAsset = null;
             IsDisposed = true;
         }
 

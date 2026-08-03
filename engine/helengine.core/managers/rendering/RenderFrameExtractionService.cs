@@ -30,18 +30,11 @@ namespace helengine {
             List<RenderFrameDrawableSubmission> drawableSubmissions = new List<RenderFrameDrawableSubmission>(drawables.Count);
             List<RenderFrameShadowCasterSubmission> shadowCasterSubmissions = new List<RenderFrameShadowCasterSubmission>(drawables.Count);
             for (int drawableIndex = 0; drawableIndex < drawables.Count; drawableIndex++) {
-                IDrawable3D drawable = drawables[drawableIndex];
-                RenderFrameDrawableSubmission[] submissions = classifier.Classify(drawable);
-                for (int submissionIndex = 0; submissionIndex < submissions.Length; submissionIndex++) {
-                    RenderFrameDrawableSubmission submission = submissions[submissionIndex];
-                    drawableSubmissions.Add(submission);
-                    if (!submission.IsTransparent && ShouldCastShadows(submission.Material) && SupportsShadowCasting(submission)) {
-                        shadowCasterSubmissions.Add(new RenderFrameShadowCasterSubmission(
-                            submission.Drawable,
-                            submission.SubmeshIndex,
-                            submission.Material));
-                    }
-                }
+                AppendDrawableSubmissions(
+                    classifier,
+                    drawables[drawableIndex],
+                    drawableSubmissions,
+                    shadowCasterSubmissions);
             }
 
             RenderFrameLightClassifier lightClassifier = new RenderFrameLightClassifier();
@@ -50,16 +43,54 @@ namespace helengine {
                 lightSubmissions[lightIndex] = lightClassifier.Classify(lights[lightIndex]);
             }
 
+            RenderFrameDrawableSubmission[] drawableSubmissionArray = drawableSubmissions.ToArray();
+            RenderFrameShadowCasterSubmission[] shadowCasterSubmissionArray = shadowCasterSubmissions.ToArray();
+            NativeOwnership.Delete(drawableSubmissions);
+            NativeOwnership.Delete(shadowCasterSubmissions);
+            NativeOwnership.Delete(classifier);
+            NativeOwnership.Delete(lightClassifier);
+
             RenderFrame[] frames = new RenderFrame[cameras.Count];
             for (int index = 0; index < cameras.Count; index++) {
                 frames[index] = new RenderFrame(
                     cameras[index],
-                    drawableSubmissions.ToArray(),
+                    drawableSubmissionArray,
                     lightSubmissions,
-                    shadowCasterSubmissions.ToArray());
+                    shadowCasterSubmissionArray);
             }
 
+            NativeOwnership.DeleteItemsAndRelease(ref drawableSubmissionArray);
+            NativeOwnership.DeleteItemsAndRelease(ref lightSubmissions);
+            NativeOwnership.DeleteItemsAndRelease(ref shadowCasterSubmissionArray);
+
             return new RenderFrameExtractionResult(frames, backendCapabilities);
+        }
+
+        /// <summary>
+        /// Classifies one drawable, appends its frame records, and releases the temporary classification array.
+        /// </summary>
+        /// <param name="classifier">Borrowed classifier used to create submission records.</param>
+        /// <param name="drawable">Borrowed drawable to classify.</param>
+        /// <param name="drawableSubmissions">Borrowed destination list receiving drawable records.</param>
+        /// <param name="shadowCasterSubmissions">Borrowed destination list receiving eligible shadow records.</param>
+        static void AppendDrawableSubmissions(
+            [NativeNoEscape] RenderFrameDrawableClassifier classifier,
+            IDrawable3D drawable,
+            [NativeNoEscape] List<RenderFrameDrawableSubmission> drawableSubmissions,
+            [NativeNoEscape] List<RenderFrameShadowCasterSubmission> shadowCasterSubmissions) {
+            RenderFrameDrawableSubmission[] submissions = classifier.Classify(drawable);
+            for (int submissionIndex = 0; submissionIndex < submissions.Length; submissionIndex++) {
+                RenderFrameDrawableSubmission submission = submissions[submissionIndex];
+                drawableSubmissions.Add(submission);
+                if (!submission.IsTransparent && ShouldCastShadows(submission.Material) && SupportsShadowCasting(submission)) {
+                    shadowCasterSubmissions.Add(new RenderFrameShadowCasterSubmission(
+                        submission.Drawable,
+                        submission.SubmeshIndex,
+                        submission.Material));
+                }
+            }
+
+            NativeOwnership.Delete(submissions);
         }
 
         static bool ShouldCastShadows(RuntimeMaterial material) {

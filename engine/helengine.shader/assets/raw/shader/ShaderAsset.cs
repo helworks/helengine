@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Represents a serialized shader module package for a specific target backend.
     /// </summary>
-    public class ShaderAsset : Asset {
+    public class ShaderAsset : Asset, IDisposable {
         /// <summary>
         /// Friendly module name for the shader package.
         /// </summary>
@@ -16,11 +16,13 @@ namespace helengine {
         /// <summary>
         /// Shader program definitions included in the package.
         /// </summary>
+        [NativeOwnedMember]
         public ShaderProgramAsset[] Programs;
 
         /// <summary>
         /// Compiled shader binaries included in the package.
         /// </summary>
+        [NativeOwnedMember]
         public ShaderBinaryAsset[] Binaries;
 
         /// <summary>
@@ -59,6 +61,14 @@ namespace helengine {
             };
 
             return asset;
+        }
+
+        /// <summary>
+        /// Disposes nested shader assets and releases the program and binary arrays owned by this serialized package.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.DisposeItemsAndRelease(ref Programs);
+            NativeOwnership.DisposeItemsAndRelease(ref Binaries);
         }
 
         /// <summary>
@@ -156,5 +166,6 @@ namespace helengine {
 
             return assets.ToArray();
         }
+
     }
 }

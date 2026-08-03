@@ -2,20 +2,23 @@ namespace helengine {
     /// <summary>
     /// Generates nine-slice atlas data for UI rendering, including fill and border UVs.
     /// </summary>
-    public class NineSliceAtlas {
+    public class NineSliceAtlas : IDisposable {
         /// <summary>
         /// Gets the generated texture for the atlas.
         /// </summary>
+        [NativeOwnedMember]
         public TextureAsset Texture { get; private set; }
 
         /// <summary>
         /// Gets the fill UV rectangles for the 3x3 grid.
         /// </summary>
+        [NativeOwnedMember]
         public float4[] FillUV { get; private set; } = new float4[9];
 
         /// <summary>
         /// Gets the border UV rectangles for the 3x3 grid.
         /// </summary>
+        [NativeOwnedMember]
         public float4[] BorderUV { get; private set; } = new float4[9];
 
         /// <summary>
@@ -44,9 +47,24 @@ namespace helengine {
         public int Height { get; private set; }
 
         /// <summary>
-        /// Prevents direct instantiation; use <see cref="Generate(int, int, int, int)"/> to build an atlas.
+        /// Initializes an atlas that assumes ownership of its generated texture payload.
         /// </summary>
-        private NineSliceAtlas() { }
+        /// <param name="texture">Generated texture whose native lifetime transfers to this atlas.</param>
+        NineSliceAtlas([NativeTakesOwnership] TextureAsset texture) {
+            Texture = texture ?? throw new ArgumentNullException(nameof(texture));
+        }
+
+        /// <summary>
+        /// Releases the generated texture and UV arrays owned by this atlas.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.DisposeAndDelete(Texture);
+            Texture = null;
+            NativeOwnership.Delete(FillUV);
+            FillUV = null;
+            NativeOwnership.Delete(BorderUV);
+            BorderUV = null;
+        }
 
         /// <summary>
         /// Generates a nine-slice atlas with specified corner radius and border thickness.
@@ -135,8 +153,7 @@ namespace helengine {
                 Height = (ushort)atlasH
             };
 
-            var atlas = new NineSliceAtlas();
-            atlas.Texture = tex;
+            var atlas = new NineSliceAtlas(tex);
             atlas.CornerSize = s;
             atlas.EdgeThickness = e;
             atlas.Padding = pad;

@@ -11,7 +11,8 @@ namespace helengine {
         /// <param name="camera">Camera whose viewport and layer mask scope the hit test.</param>
         /// <param name="pointerX">Pointer X coordinate in window space.</param>
         /// <param name="pointerY">Pointer Y coordinate in window space.</param>
-        /// <returns>Top-most interactable under the pointer, or null when nothing matches.</returns>
+        /// <returns>A list-owned interactable borrowed by the input router, or null when nothing matches.</returns>
+        [NativeBorrowedReturn]
         public static IInteractable2D ResolveTopInteractableAt(
             List<IInteractable2D> interactables,
             List<IDrawable2D> drawables2D,
@@ -162,7 +163,8 @@ namespace helengine {
         /// Resolves the nearest viewport owner governing one interactable subtree.
         /// </summary>
         /// <param name="entity">Interactable owner whose ancestors should be inspected.</param>
-        /// <returns>Nearest viewport owner, or null when none applies.</returns>
+        /// <returns>An entity-owned viewport owner borrowed for pointer routing, or null when none applies.</returns>
+        [NativeBorrowedReturn]
         static ICameraBoundViewportOwner FindNearestViewportOwner(Entity entity) {
             Entity current = entity;
             while (current != null) {

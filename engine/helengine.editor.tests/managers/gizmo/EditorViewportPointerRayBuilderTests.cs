@@ -37,7 +37,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Initializes a minimal core for viewport ray tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(null, null, new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 

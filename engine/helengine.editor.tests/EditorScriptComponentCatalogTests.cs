@@ -11,7 +11,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildDescriptors_WhenAssemblyContainsScriptComponent_ExposesDescriptorAndAddAction() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             EditorComponentAddDescriptor descriptor = EditorScriptComponentCatalog.BuildDescriptor(typeof(TestScriptComponent));
             Assert.NotNull(descriptor);

@@ -432,7 +432,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the selected ancestor bounds provider for the configured layout-space mode.
         /// </summary>
-        /// <returns>Resolved provider when one exists; otherwise null.</returns>
+        /// <returns>A hierarchy-owned provider borrowed by the layout component when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         IAnchorBoundsProvider ResolveAnchorBoundsProvider() {
             if (Parent == null) {
                 return null;
@@ -481,7 +482,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the nearest provider in the legacy inherited mode.
         /// </summary>
-        /// <returns>Nearest ancestor bounds provider when one exists; otherwise null.</returns>
+        /// <returns>A hierarchy-owned ancestor bounds provider borrowed by the layout component when one exists; otherwise null.</returns>
+        [NativeBorrowedReturn]
         IAnchorBoundsProvider ResolveInheritedBoundsProvider() {
             Entity current = Parent != null ? Parent.Parent : null;
 
@@ -507,7 +509,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the nearest reference-canvas layout provider from the current ancestor chain.
         /// </summary>
-        /// <returns>Resolved reference-canvas provider when found; otherwise null.</returns>
+        /// <returns>A hierarchy-owned reference-canvas provider borrowed by the layout component when found; otherwise null.</returns>
+        [NativeBorrowedReturn]
         IAnchorBoundsProvider ResolveAncestorReferenceCanvasProvider() {
             Entity current = Parent != null ? Parent.Parent : null;
             while (current != null) {
@@ -528,7 +531,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the nearest viewport layout provider from the current ancestor chain.
         /// </summary>
-        /// <returns>Resolved viewport provider when found; otherwise null.</returns>
+        /// <returns>A hierarchy-owned viewport provider borrowed by the layout component when found; otherwise null.</returns>
+        [NativeBorrowedReturn]
         IAnchorBoundsProvider ResolveAncestorViewportProvider() {
             Entity current = Parent != null ? Parent.Parent : null;
             while (current != null) {
@@ -549,7 +553,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the immediate parent layout provider when one exists.
         /// </summary>
-        /// <returns>Layout provider attached to the immediate parent entity when found; otherwise null.</returns>
+        /// <returns>A parent-entity-owned layout provider borrowed by this component when found; otherwise null.</returns>
+        [NativeBorrowedReturn]
         IAnchorBoundsProvider ResolveImmediateParentLayoutProvider() {
             Entity parentEntity = Parent != null ? Parent.Parent : null;
             if (parentEntity == null || parentEntity.Components == null) {

@@ -97,7 +97,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Initializes one active core instance with deterministic input and render services for drag testing.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             InputBackendValue = new TestInputBackend();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), InputBackendValue, new PlatformInfo("test", "test-version"));
         }

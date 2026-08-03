@@ -92,12 +92,12 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void Update_WhenInitialSceneIdIsPresent_LoadsResolvedSceneIdOnce() {
-            WriteSceneAsset("cooked/scenes/MainMenuScene.hasset", 1u);
-            WriteSceneAsset("cooked/scenes/AlternateMainMenuScene.hasset", 2u);
+            WriteSceneAsset("cooked/scenes/mainmenuscene.hasset", 1u);
+            WriteSceneAsset("cooked/scenes/alternatemainmenuscene.hasset", 2u);
 
             Core core = CreateCore(CreateSceneCatalog(
-                new RuntimeSceneCatalogEntry("MainMenuScene", "cooked/scenes/MainMenuScene.hasset"),
-                new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/AlternateMainMenuScene.hasset")));
+                new RuntimeSceneCatalogEntry("MainMenuScene", "cooked/scenes/mainmenuscene.hasset"),
+                new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/alternatemainmenuscene.hasset")));
 
             SceneMapComponent sceneMapComponent = new SceneMapComponent {
                 InitialSceneId = "MainMenuScene"
@@ -118,13 +118,13 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void LoadScene_WhenPersistentBootSceneRoutesRepeatedCubeReturns_PreservesMappedMenuAcrossMultipleCycles() {
             WriteSceneAsset(
-                "cooked/scenes/StartupScene.hasset",
+                "cooked/scenes/startupscene.hasset",
                 1u,
                 true,
                 CreateRuntimeSceneMapComponentRecord(
                     "MainMenuScene",
                     CreateMapping("MainMenuScene", "AlternateMainMenuScene")));
-            WriteSceneAsset("cooked/scenes/AlternateMainMenuScene.hasset", 2u);
+            WriteSceneAsset("cooked/scenes/alternatemainmenuscene.hasset", 2u);
             WriteSceneAsset(
                 "cooked/scenes/cube_test.hasset",
                 3u,
@@ -134,8 +134,8 @@ namespace helengine.editor.tests.serialization.scene {
             inputBackend.SetGamepadStates(new[] { CreateConnectedGamepadState() });
             Core core = CreateCore(
                 CreateSceneCatalog(
-                    new RuntimeSceneCatalogEntry("StartupScene", "cooked/scenes/StartupScene.hasset"),
-                    new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/AlternateMainMenuScene.hasset"),
+                    new RuntimeSceneCatalogEntry("StartupScene", "cooked/scenes/startupscene.hasset"),
+                    new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/alternatemainmenuscene.hasset"),
                     new RuntimeSceneCatalogEntry("cube_test", "cooked/scenes/cube_test.hasset")),
                 inputBackend);
 
@@ -174,14 +174,14 @@ namespace helengine.editor.tests.serialization.scene {
             WriteShaderAsset("cooked/shaders/ForwardStandardShader.dx11.hasset", "ForwardStandardShader");
             WriteShaderAsset("cooked/shaders/ForwardStandardShader.vulkan.hasset", "ForwardStandardShader");
             WriteSceneAsset(
-                "cooked/scenes/StartupScene.hasset",
+                "cooked/scenes/startupscene.hasset",
                 1u,
                 true,
                 CreateRuntimeSceneMapComponentRecord(
                     "MainMenuScene",
                     CreateMapping("MainMenuScene", "AlternateMainMenuScene")));
             WriteSceneAsset(
-                "cooked/scenes/AlternateMainMenuScene.hasset",
+                "cooked/scenes/alternatemainmenuscene.hasset",
                 2u,
                 false,
                 CreateTextComponentRecord("fonts/default.hefont"));
@@ -195,8 +195,8 @@ namespace helengine.editor.tests.serialization.scene {
             inputBackend.SetGamepadStates(new[] { CreateConnectedGamepadState() });
             Core core = CreateCore(
                 CreateSceneCatalog(
-                    new RuntimeSceneCatalogEntry("StartupScene", "cooked/scenes/StartupScene.hasset"),
-                    new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/AlternateMainMenuScene.hasset"),
+                    new RuntimeSceneCatalogEntry("StartupScene", "cooked/scenes/startupscene.hasset"),
+                    new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/alternatemainmenuscene.hasset"),
                     new RuntimeSceneCatalogEntry("cube_test", "cooked/scenes/cube_test.hasset")),
                 inputBackend);
 
@@ -236,14 +236,14 @@ namespace helengine.editor.tests.serialization.scene {
             WriteShaderAsset("cooked/shaders/ForwardStandardShader.dx11.hasset", "ForwardStandardShader");
             WriteShaderAsset("cooked/shaders/ForwardStandardShader.vulkan.hasset", "ForwardStandardShader");
             WriteSceneAsset(
-                "cooked/scenes/StartupScene.hasset",
+                "cooked/scenes/startupscene.hasset",
                 1u,
                 true,
                 CreateRuntimeSceneMapComponentRecord(
                     "MainMenuScene",
                     CreateMapping("MainMenuScene", "AlternateMainMenuScene")));
             WriteSceneAsset(
-                "cooked/scenes/AlternateMainMenuScene.hasset",
+                "cooked/scenes/alternatemainmenuscene.hasset",
                 2u,
                 false,
                 CreateFpsComponentRecord("generated/editor/fonts/ui.hefont", "editor", "ui-font"));
@@ -260,8 +260,8 @@ namespace helengine.editor.tests.serialization.scene {
             inputBackend.SetGamepadStates(new[] { CreateConnectedGamepadState() });
             Core core = CreateCore(
                 CreateSceneCatalog(
-                    new RuntimeSceneCatalogEntry("StartupScene", "cooked/scenes/StartupScene.hasset"),
-                    new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/AlternateMainMenuScene.hasset"),
+                    new RuntimeSceneCatalogEntry("StartupScene", "cooked/scenes/startupscene.hasset"),
+                    new RuntimeSceneCatalogEntry("AlternateMainMenuScene", "cooked/scenes/alternatemainmenuscene.hasset"),
                     new RuntimeSceneCatalogEntry("cube_test", "cooked/scenes/cube_test.hasset")),
                 inputBackend);
 

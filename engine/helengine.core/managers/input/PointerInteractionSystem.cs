@@ -210,7 +210,8 @@ namespace helengine {
         /// <param name="interactable">Interactable being evaluated.</param>
         /// <param name="x">Pointer X coordinate in window space.</param>
         /// <param name="y">Pointer Y coordinate in window space.</param>
-        /// <returns>Matching camera, or null when no camera covers the point.</returns>
+        /// <returns>An object-manager-owned camera borrowed for pointer routing, or null when no camera covers the point.</returns>
+        [NativeBorrowedReturn]
         ICamera FindCameraForInteractableAt(IInteractable2D interactable, int x, int y) {
             if (interactable == null) {
                 return null;

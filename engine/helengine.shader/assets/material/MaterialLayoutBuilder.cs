@@ -98,31 +98,52 @@ namespace helengine {
             }
 
             for (int bindingIndex = 0; bindingIndex < program.Bindings.Length; bindingIndex++) {
-                ShaderBindingAsset binding = program.Bindings[bindingIndex];
-                if (binding == null) {
-                    throw new InvalidOperationException("Shader program bindings contain a null entry.");
-                }
-
-                if (IsEngineManagedBinding(binding)) {
-                    continue;
-                }
-
-                MaterialLayoutBinding layoutBinding = new MaterialLayoutBinding(
-                    binding.Name,
-                    binding.Type,
-                    binding.Set,
-                    binding.Slot,
-                    binding.Size);
-                string bindingKey = BuildBindingKey(layoutBinding);
-                if (bindingByKey.TryGetValue(bindingKey, out MaterialLayoutBinding existingBinding)) {
-                    ValidateMatchingBinding(existingBinding, layoutBinding);
-                    NativeOwnership.Delete(layoutBinding);
-                    continue;
-                }
-
-                bindingByKey[bindingKey] = layoutBinding;
-                AddBindingToCategory(layoutBinding, textureBindings, constantBufferBindings, samplerBindings);
+                AddBinding(
+                    program.Bindings[bindingIndex],
+                    textureBindings,
+                    constantBufferBindings,
+                    samplerBindings,
+                    bindingByKey);
             }
+        }
+
+        /// <summary>
+        /// Adds one shader binding while terminating duplicate cleanup and retained-layout ownership on separate control-flow paths.
+        /// </summary>
+        /// <param name="binding">Shader binding to validate and convert.</param>
+        /// <param name="textureBindings">Texture-binding list being built.</param>
+        /// <param name="constantBufferBindings">Constant-buffer binding list being built.</param>
+        /// <param name="samplerBindings">Sampler-binding list being built.</param>
+        /// <param name="bindingByKey">Lookup used to merge duplicate bindings across stages.</param>
+        static void AddBinding(
+            ShaderBindingAsset binding,
+            [NativeNoEscape] List<MaterialLayoutBinding> textureBindings,
+            [NativeNoEscape] List<MaterialLayoutBinding> constantBufferBindings,
+            [NativeNoEscape] List<MaterialLayoutBinding> samplerBindings,
+            [NativeNoEscape] Dictionary<string, MaterialLayoutBinding> bindingByKey) {
+            if (binding == null) {
+                throw new InvalidOperationException("Shader program bindings contain a null entry.");
+            }
+
+            if (IsEngineManagedBinding(binding)) {
+                return;
+            }
+
+            MaterialLayoutBinding layoutBinding = new MaterialLayoutBinding(
+                binding.Name,
+                binding.Type,
+                binding.Set,
+                binding.Slot,
+                binding.Size);
+            string bindingKey = BuildBindingKey(layoutBinding);
+            if (bindingByKey.TryGetValue(bindingKey, out MaterialLayoutBinding existingBinding)) {
+                ValidateMatchingBinding(existingBinding, layoutBinding);
+                NativeOwnership.Delete(layoutBinding);
+                return;
+            }
+
+            bindingByKey.Add(bindingKey, layoutBinding);
+            AddBindingToCategory(layoutBinding, textureBindings, constantBufferBindings, samplerBindings);
         }
 
         /// <summary>
@@ -189,7 +210,7 @@ namespace helengine {
         /// <param name="constantBufferBindings">Constant-buffer binding list being built.</param>
         /// <param name="samplerBindings">Sampler-binding list being built.</param>
         static void AddBindingToCategory(
-            MaterialLayoutBinding binding,
+            [NativeTakesOwnership] MaterialLayoutBinding binding,
             [NativeNoEscape] List<MaterialLayoutBinding> textureBindings,
             [NativeNoEscape] List<MaterialLayoutBinding> constantBufferBindings,
             [NativeNoEscape] List<MaterialLayoutBinding> samplerBindings) {
@@ -208,8 +229,10 @@ namespace helengine {
                 return;
             }
 
+            ShaderResourceType unsupportedResourceType = binding.ResourceType;
+            NativeOwnership.Delete(binding);
             throw new InvalidOperationException(
-                $"Shader resource type '{binding.ResourceType}' is not supported by the material layout builder.");
+                $"Shader resource type '{unsupportedResourceType}' is not supported by the material layout builder.");
         }
     }
 }

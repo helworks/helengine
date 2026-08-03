@@ -1,6 +1,8 @@
 using helengine;
+using helengine.directx11;
 using helengine.editor;
 using helengine.editor.tests.testing;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests.managers.gizmo {
@@ -8,6 +10,16 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies the dedicated material factory used by translation gizmo plane handles.
     /// </summary>
     public class TransformGizmoPlaneMaterialFactoryTests {
+        /// <summary>
+        /// Configures the built-in shader backends required to compile gizmo plane material shaders.
+        /// </summary>
+        public TransformGizmoPlaneMaterialFactoryTests() {
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+        }
+
         /// <summary>
         /// Ensures normal and highlighted plane materials use alpha-blended overlay render state.
         /// </summary>

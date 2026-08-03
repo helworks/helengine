@@ -2,11 +2,12 @@ namespace helengine {
     /// <summary>
     /// Describes a shader resource binding in generated metadata.
     /// </summary>
-    public class ShaderBinding {
+    public class ShaderBinding : IDisposable {
         /// <summary>
         /// Stores constant buffer member metadata when this binding is a constant buffer.
         /// </summary>
-        readonly ShaderConstantMember[] members;
+        [NativeOwnedMember]
+        ShaderConstantMember[] MembersValue;
 
         /// <summary>
         /// Initializes a new shader binding description.
@@ -17,7 +18,13 @@ namespace helengine {
         /// <param name="slot">Binding slot within the set or space.</param>
         /// <param name="size">Size in bytes for constant buffers; otherwise zero.</param>
         /// <param name="members">Constant buffer members; provide an empty array for non-constant buffers.</param>
-        public ShaderBinding(string name, ShaderResourceType type, int set, int slot, int size, ShaderConstantMember[] members) {
+        public ShaderBinding(
+            string name,
+            ShaderResourceType type,
+            int set,
+            int slot,
+            int size,
+            [NativeTakesOwnership] ShaderConstantMember[] members) {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Binding name must be provided.", nameof(name));
             }
@@ -43,7 +50,7 @@ namespace helengine {
             Set = set;
             Slot = slot;
             Size = size;
-            this.members = members;
+            MembersValue = members;
         }
 
         /// <summary>
@@ -74,10 +81,18 @@ namespace helengine {
         /// <summary>
         /// Gets the constant buffer member list.
         /// </summary>
-        public IReadOnlyList<ShaderConstantMember> Members {
+        [NativeBorrowedReturn]
+        public ShaderConstantMember[] Members {
             get {
-                return members;
+                return MembersValue;
             }
+        }
+
+        /// <summary>
+        /// Deletes constant-member metadata and releases the array owned by this binding.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.DeleteItemsAndRelease(ref MembersValue);
         }
     }
 }

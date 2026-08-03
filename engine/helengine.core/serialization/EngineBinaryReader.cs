@@ -8,7 +8,13 @@ namespace helengine {
         /// <summary>
         /// Underlying stream supplying the payload bytes.
         /// </summary>
-        readonly Stream BaseStream;
+        Stream BaseStream;
+
+        /// <summary>
+        /// Holds the underlying stream only when this reader has explicitly assumed native cleanup responsibility for it.
+        /// </summary>
+        [NativeOwnedMember]
+        Stream OwnedBaseStream;
 
         /// <summary>
         /// Indicates whether disposing the reader should leave the underlying stream open.
@@ -26,7 +32,25 @@ namespace helengine {
             }
 
             BaseStream = stream;
+            OwnedBaseStream = null;
             LeaveOpen = leaveOpen;
+        }
+
+        /// <summary>
+        /// Initializes a binary reader that assumes native ownership of the supplied stream.
+        /// </summary>
+        /// <param name="stream">Stream whose lifetime transfers to this reader.</param>
+        /// <param name="streamOwnership">Required owned-stream marker that makes the transfer explicit at construction.</param>
+        private protected EngineBinaryReader([NativeTakesOwnership] Stream stream, EngineBinaryStreamOwnership streamOwnership) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            } else if (streamOwnership != EngineBinaryStreamOwnership.Owned) {
+                throw new ArgumentException("The ownership constructor requires an owned stream marker.", nameof(streamOwnership));
+            }
+
+            OwnedBaseStream = stream;
+            BaseStream = OwnedBaseStream;
+            LeaveOpen = false;
         }
 
         /// <summary>
@@ -48,6 +72,25 @@ namespace helengine {
                 return new BinaryReaderLE(stream, leaveOpen);
             } else if (endianness == EngineBinaryEndianness.BigEndian) {
                 return new BinaryReaderBE(stream, leaveOpen);
+            }
+
+            throw new InvalidOperationException($"Unsupported binary payload endianness '{(byte)endianness}'.");
+        }
+
+        /// <summary>
+        /// Creates a reader that assumes native cleanup responsibility for the supplied stream.
+        /// </summary>
+        /// <param name="stream">Stream whose lifetime transfers to the returned reader.</param>
+        /// <param name="endianness">Endianness used to decode the payload.</param>
+        /// <returns>Owned reader that disposes and deletes the transferred stream during teardown.</returns>
+        [NativeOwnedReturn]
+        public static EngineBinaryReader CreateOwned([NativeTakesOwnership] Stream stream, EngineBinaryEndianness endianness) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            } else if (endianness == EngineBinaryEndianness.LittleEndian) {
+                return new BinaryReaderLE(stream, EngineBinaryStreamOwnership.Owned);
+            } else if (endianness == EngineBinaryEndianness.BigEndian) {
+                return new BinaryReaderBE(stream, EngineBinaryStreamOwnership.Owned);
             }
 
             throw new InvalidOperationException($"Unsupported binary payload endianness '{(byte)endianness}'.");
@@ -177,7 +220,7 @@ namespace helengine {
             } else if (length < -1) {
                 throw new InvalidOperationException("Byte array length cannot be negative.");
             } else if (length == 0) {
-                return Array.Empty<byte>();
+                return new byte[0];
             }
 
             return ReadBytes(length);
@@ -211,6 +254,7 @@ namespace helengine {
         /// <typeparam name="T">Element type stored in the array.</typeparam>
         /// <param name="readElement">Delegate that reads one element.</param>
         /// <returns>Decoded array.</returns>
+        [NativeOwnedReturn]
         public T[] ReadArray<T>(Func<EngineBinaryReader, T> readElement) {
             if (readElement == null) {
                 throw new ArgumentNullException(nameof(readElement));
@@ -222,7 +266,7 @@ namespace helengine {
             } else if (length < -1) {
                 throw new InvalidOperationException("Array length cannot be negative.");
             } else if (length == 0) {
-                return Array.Empty<T>();
+                return new T[0];
             }
 
             T[] values = new T[length];
@@ -237,7 +281,11 @@ namespace helengine {
         /// Releases the reader and optionally the underlying stream.
         /// </summary>
         public void Dispose() {
-            if (!LeaveOpen) {
+            if (OwnedBaseStream != null) {
+                BaseStream = null;
+            }
+            NativeOwnership.DisposeAndRelease(ref OwnedBaseStream);
+            if (!LeaveOpen && BaseStream != null) {
                 BaseStream.Dispose();
             }
         }
@@ -261,7 +309,7 @@ namespace helengine {
         /// Fills the supplied byte span from the stream or throws when the stream ends early.
         /// </summary>
         /// <param name="buffer">Destination span to fill.</param>
-        protected void ReadRequiredBytes(Span<byte> buffer) {
+        protected void ReadRequiredBytes([NativeNoEscape] Span<byte> buffer) {
             int totalBytesRead = 0;
             while (totalBytesRead < buffer.Length) {
                 int bytesRead = BaseStream.Read(buffer.Slice(totalBytesRead));

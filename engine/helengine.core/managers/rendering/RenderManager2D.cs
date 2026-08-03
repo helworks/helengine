@@ -8,7 +8,7 @@ namespace helengine {
         /// </summary>
         /// <param name="data">Raw texture data.</param>
         /// <returns>Runtime texture instance.</returns>
-        public abstract RuntimeTexture BuildTextureFromRaw(TextureAsset data);
+        public abstract RuntimeTexture BuildTextureFromRaw([NativeNoEscape] TextureAsset data);
 
         /// <summary>
         /// Builds a runtime texture from one platform-owned cooked texture payload.

@@ -106,7 +106,7 @@ namespace helengine {
         /// Initializes a new 3D physics world.
         /// </summary>
         /// <param name="settings">Effective world settings resolved from profile defaults and local overrides.</param>
-        public PhysicsWorld3D(PhysicsWorld3DSettings settings) {
+        public PhysicsWorld3D([NativeTakesOwnership] PhysicsWorld3DSettings settings) {
             Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             BodyStatesValue = new List<BodyState3D>();
             ControllerStatesValue = new List<CharacterControllerState3D>();
@@ -177,7 +177,7 @@ namespace helengine {
             TriggerEventsValue.Clear();
             ActiveTriggerPairsValue.Clear();
             CurrentTriggerPairsValue.Clear();
-            BoxBoxContactConstraintsValue.Clear();
+            ClearBoxBoxContactConstraints();
             for (int index = 0; index < rootEntities.Count; index++) {
                 CollectBodyStates(rootEntities[index]);
             }
@@ -649,6 +649,7 @@ namespace helengine {
         void PruneStaleBoxBoxContactConstraints() {
             for (int index = BoxBoxContactConstraintsValue.Count - 1; index >= 0; index--) {
                 if (!BoxBoxContactConstraintsValue[index].WasTouchedThisStep) {
+                    NativeOwnership.Delete(BoxBoxContactConstraintsValue[index]);
                     BoxBoxContactConstraintsValue.RemoveAt(index);
                 }
             }
@@ -660,6 +661,7 @@ namespace helengine {
         /// <param name="first">First box body state.</param>
         /// <param name="second">Second box body state.</param>
         /// <returns>Persistent contact constraint cache for the body pair.</returns>
+        [NativeBorrowedReturn]
         BoxBoxContactConstraint3D ResolveBoxBoxContactConstraint(BodyState3D first, BodyState3D second) {
             for (int index = 0; index < BoxBoxContactConstraintsValue.Count; index++) {
                 BoxBoxContactConstraint3D existingConstraint = BoxBoxContactConstraintsValue[index];
@@ -669,8 +671,31 @@ namespace helengine {
             }
 
             BoxBoxContactConstraint3D constraint = new BoxBoxContactConstraint3D(first.Entity, second.Entity);
+            TrackBoxBoxContactConstraint(constraint);
+            return BoxBoxContactConstraintsValue[BoxBoxContactConstraintsValue.Count - 1];
+        }
+
+        /// <summary>
+        /// Transfers one newly created box-box constraint into the persistent world cache.
+        /// </summary>
+        /// <param name="constraint">Constraint whose native lifetime transfers to the cache.</param>
+        void TrackBoxBoxContactConstraint([NativeTakesOwnership] BoxBoxContactConstraint3D constraint) {
+            if (constraint == null) {
+                throw new ArgumentNullException(nameof(constraint));
+            }
+
             BoxBoxContactConstraintsValue.Add(constraint);
-            return constraint;
+        }
+
+        /// <summary>
+        /// Deletes every persistent box-box constraint before clearing the cache container.
+        /// </summary>
+        void ClearBoxBoxContactConstraints() {
+            for (int index = 0; index < BoxBoxContactConstraintsValue.Count; index++) {
+                NativeOwnership.Delete(BoxBoxContactConstraintsValue[index]);
+            }
+
+            BoxBoxContactConstraintsValue.Clear();
         }
 
         /// <summary>
@@ -1746,6 +1771,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity whose rigid body should be found.</param>
         /// <returns>Attached rigid body when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static RigidBody3DComponent FindRigidBody(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
@@ -1768,6 +1794,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity whose box collider should be found.</param>
         /// <returns>Attached box collider when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static BoxCollider3DComponent FindBoxCollider(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
@@ -1790,6 +1817,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity whose sphere collider should be found.</param>
         /// <returns>Attached sphere collider when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static SphereCollider3DComponent FindSphereCollider(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
@@ -1812,6 +1840,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity whose capsule collider should be found.</param>
         /// <returns>Attached capsule collider when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static CapsuleCollider3DComponent FindCapsuleCollider(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
@@ -1834,6 +1863,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity whose static mesh collider should be found.</param>
         /// <returns>Attached static mesh collider when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static StaticMeshCollider3DComponent FindStaticMeshCollider(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
@@ -1881,6 +1911,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity whose character-controller component should be found.</param>
         /// <returns>Attached character-controller component when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static CharacterController3DComponent FindCharacterController(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
@@ -1932,6 +1963,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity whose kinematic motion component should be found.</param>
         /// <returns>Attached kinematic motion component when present; otherwise null.</returns>
+        [NativeBorrowedReturn]
         static KinematicMotion3DComponent FindKinematicMotion(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));

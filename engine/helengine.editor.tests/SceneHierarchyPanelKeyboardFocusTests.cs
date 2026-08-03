@@ -257,7 +257,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Input manager bound to the created core.</returns>
         TestInputBackend InitializeCore() {
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             TestInputBackend input = new TestInputBackend();
             core.Initialize(null, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
             core.InputSystem.SetKeyboardActive(true);

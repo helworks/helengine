@@ -6,6 +6,7 @@ namespace helengine {
         /// <summary>
         /// Child materials that inherit generic render-state values from this material.
         /// </summary>
+        [NativeOwnedMember]
         readonly List<RuntimeMaterial> ChildMaterialsValue;
         /// <summary>
         /// Parent material that this material inherits from, when this material acts as an override instance.
@@ -14,6 +15,7 @@ namespace helengine {
         /// <summary>
         /// Fixed-function render state applied while drawing this material.
         /// </summary>
+        [NativeOwnedMember]
         MaterialRenderState RenderStateValue;
         /// <summary>
         /// Generic primary texture override consumed by fixed-function or platform-owned runtime material paths.
@@ -36,10 +38,7 @@ namespace helengine {
         /// <summary>
         /// Gets the fixed-function render state used while drawing the material.
         /// </summary>
-        public MaterialRenderState RenderState {
-            get => RenderStateValue;
-            private set => RenderStateValue = value;
-        }
+        public MaterialRenderState RenderState => RenderStateValue;
 
         /// <summary>
         /// Gets or sets the lighting model expected by this runtime material.
@@ -133,7 +132,8 @@ namespace helengine {
         /// <summary>
         /// Resolves the top-most material in the parent chain.
         /// </summary>
-        /// <returns>Root material that owns the concrete shader resource for rendering.</returns>
+        /// <returns>The hierarchy-owned root material borrowed for rendering.</returns>
+        [NativeBorrowedReturn]
         public RuntimeMaterial ResolveRootMaterial() {
             RuntimeMaterial material = this;
             while (material.ParentMaterialValue != null) {
@@ -154,9 +154,8 @@ namespace helengine {
                 throw new InvalidOperationException("Parented runtime materials inherit their render state from the parent material.");
             }
 
-            MaterialRenderState previousRenderState = RenderState;
-            RenderState = renderState.Clone();
-            NativeOwnership.Delete(previousRenderState);
+            NativeOwnership.Delete(RenderStateValue);
+            RenderStateValue = renderState.Clone();
             SynchronizeChildMaterials();
         }
 
@@ -217,9 +216,8 @@ namespace helengine {
                 return;
             }
 
-            MaterialRenderState previousRenderState = RenderState;
-            RenderState = ParentMaterialValue.RenderState.Clone();
-            NativeOwnership.Delete(previousRenderState);
+            NativeOwnership.Delete(RenderStateValue);
+            RenderStateValue = ParentMaterialValue.RenderState.Clone();
             SynchronizeChildMaterials();
         }
 

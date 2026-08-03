@@ -133,8 +133,6 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            RootHost.InitComponents();
-            RootHost.InitChildren();
             parent.AddChild(RootHost);
 
             TitleHost = new EditorEntity {
@@ -142,7 +140,6 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            TitleHost.InitComponents();
             RootHost.AddChild(TitleHost);
 
             TitleText = new TextComponent {
@@ -329,8 +326,6 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            RowHost.InitComponents();
-            RowHost.InitChildren();
             parent.AddChild(RowHost);
 
             LabelHost = new EditorEntity {
@@ -338,7 +333,6 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            LabelHost.InitComponents();
             RowHost.AddChild(LabelHost);
 
             LabelText = new TextComponent {
@@ -355,7 +349,6 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            ControlHost.InitComponents();
             RowHost.AddChild(ControlHost);
 
             switch (setting.SettingKind) {

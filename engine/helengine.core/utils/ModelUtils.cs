@@ -35,9 +35,6 @@ namespace helengine {
         /// <param name="scale">Cube scale.</param>
         /// <returns>Generated model asset.</returns>
         public static ModelAsset GenerateCubeMesh(float3 position, float3 scale) {
-            ModelAsset modelData = new ModelAsset();
-            modelData.Id = GeneratedCubeModelId;
-
             float3[] positions = [
                 // Back face
                 new float3(-0.5f, -0.5f, -0.5f), new float3(0.5f, -0.5f, -0.5f), new float3(0.5f, 0.5f, -0.5f), new float3(-0.5f, 0.5f, -0.5f),
@@ -91,12 +88,13 @@ namespace helengine {
                 positions[i] = positions[i] * scale + position;
             }
 
-            modelData.Positions = positions;
-            modelData.TexCoords = texCoords;
-            modelData.Normals = normals;
-            modelData.Indices16 = indices;
-
-            return modelData;
+            return new ModelAsset {
+                Id = GeneratedCubeModelId,
+                Positions = positions,
+                TexCoords = texCoords,
+                Normals = normals,
+                Indices16 = indices
+            };
         }
 
         /// <summary>
@@ -106,9 +104,6 @@ namespace helengine {
         /// <param name="scale">Sphere scale.</param>
         /// <returns>Generated model asset.</returns>
         public static ModelAsset GenerateSphereMesh(float3 position, float3 scale) {
-            ModelAsset modelData = new ModelAsset();
-            modelData.Id = GeneratedSphereModelId;
-
             int vertexCount = (SphereLatitudeSegmentCount + 1) * (SphereLongitudeSegmentCount + 1);
             int indexCount = SphereLatitudeSegmentCount * SphereLongitudeSegmentCount * 6;
             float3[] positions = new float3[vertexCount];
@@ -156,12 +151,13 @@ namespace helengine {
                 }
             }
 
-            modelData.Positions = positions;
-            modelData.TexCoords = texCoords;
-            modelData.Normals = normals;
-            modelData.Indices16 = indices;
-
-            return modelData;
+            return new ModelAsset {
+                Id = GeneratedSphereModelId,
+                Positions = positions,
+                TexCoords = texCoords,
+                Normals = normals,
+                Indices16 = indices
+            };
         }
 
         /// <summary>
@@ -171,9 +167,6 @@ namespace helengine {
         /// <param name="scale">Scale to apply.</param>
         /// <returns>Generated model asset.</returns>
         public static ModelAsset GeneratePlaneMesh(float3 position, float3 scale) {
-            ModelAsset modelData = new ModelAsset();
-            modelData.Id = GeneratedPlaneModelId;
-
             float3[] positions = [
                 // Top face aligned to the XZ plane
                 new float3(-1, 0, -1), new float3(1, 0, -1), new float3(1, 0, 1), new float3(-1, 0, 1)
@@ -196,12 +189,13 @@ namespace helengine {
                 positions[i] = positions[i] * scale + position;
             }
 
-            modelData.Positions = positions;
-            modelData.TexCoords = texCoords;
-            modelData.Normals = normals;
-            modelData.Indices16 = indices;
-
-            return modelData;
+            return new ModelAsset {
+                Id = GeneratedPlaneModelId,
+                Positions = positions,
+                TexCoords = texCoords,
+                Normals = normals,
+                Indices16 = indices
+            };
         }
 
     }

@@ -2,15 +2,15 @@ namespace helengine {
     /// <summary>
     /// Represents serialized metadata for a shader entry point.
     /// </summary>
-    public class ShaderProgramAsset {
+    public class ShaderProgramAsset : IDisposable {
         /// <summary>
         /// Initializes a new shader program asset with empty collections.
         /// </summary>
         public ShaderProgramAsset() {
-            Bindings = Array.Empty<ShaderBindingAsset>();
-            Inputs = Array.Empty<ShaderVertexElementAsset>();
-            Outputs = Array.Empty<ShaderVertexElementAsset>();
-            Variants = Array.Empty<ShaderVariantAsset>();
+            Bindings = new ShaderBindingAsset[0];
+            Inputs = new ShaderVertexElementAsset[0];
+            Outputs = new ShaderVertexElementAsset[0];
+            Variants = new ShaderVariantAsset[0];
         }
 
         /// <summary>
@@ -31,21 +31,25 @@ namespace helengine {
         /// <summary>
         /// Resource bindings used by the program.
         /// </summary>
+        [NativeOwnedMember]
         public ShaderBindingAsset[] Bindings;
 
         /// <summary>
         /// Input signature elements.
         /// </summary>
+        [NativeOwnedMember]
         public ShaderVertexElementAsset[] Inputs;
 
         /// <summary>
         /// Output signature elements.
         /// </summary>
+        [NativeOwnedMember]
         public ShaderVertexElementAsset[] Outputs;
 
         /// <summary>
         /// Compile-time variants available for the program.
         /// </summary>
+        [NativeOwnedMember]
         public ShaderVariantAsset[] Variants;
 
         /// <summary>
@@ -83,6 +87,16 @@ namespace helengine {
             };
 
             return asset;
+        }
+
+        /// <summary>
+        /// Disposes nested binding and variant assets and releases every metadata array owned by this serialized program.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.DisposeItemsAndRelease(ref Bindings);
+            NativeOwnership.DeleteItemsAndRelease(ref Inputs);
+            NativeOwnership.DeleteItemsAndRelease(ref Outputs);
+            NativeOwnership.DisposeItemsAndRelease(ref Variants);
         }
 
         /// <summary>

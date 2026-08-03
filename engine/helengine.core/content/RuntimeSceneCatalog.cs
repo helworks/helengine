@@ -2,11 +2,18 @@ namespace helengine {
     /// <summary>
     /// Describes the runtime scene catalog emitted by the editor build graph.
     /// </summary>
-    public sealed class RuntimeSceneCatalog {
+    public sealed class RuntimeSceneCatalog : IDisposable {
         /// <summary>
         /// Scene entries keyed by scene id.
         /// </summary>
-        readonly Dictionary<string, RuntimeSceneCatalogEntry> EntriesBySceneId;
+        [NativeOwnedMember]
+        Dictionary<string, RuntimeSceneCatalogEntry> EntriesBySceneId;
+
+        /// <summary>
+        /// Ordered scene-entry container owned by this catalog.
+        /// </summary>
+        [NativeOwnedMember]
+        RuntimeSceneCatalogEntry[] EntriesValue;
 
         /// <summary>
         /// Initializes one runtime scene catalog.
@@ -32,14 +39,14 @@ namespace helengine {
                 entriesBySceneId.Add(entry.SceneId, entry);
             }
 
-            Entries = copiedEntries;
+            EntriesValue = copiedEntries;
             EntriesBySceneId = entriesBySceneId;
         }
 
         /// <summary>
         /// Gets the ordered runtime scene entries.
         /// </summary>
-        public RuntimeSceneCatalogEntry[] Entries { get; }
+        public RuntimeSceneCatalogEntry[] Entries => EntriesValue;
 
         /// <summary>
         /// Attempts to resolve one runtime scene entry by scene id.
@@ -53,6 +60,14 @@ namespace helengine {
             }
 
             return EntriesBySceneId.TryGetValue(sceneId, out entry);
+        }
+
+        /// <summary>
+        /// Releases the array and dictionary containers owned by this immutable runtime catalog.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref EntriesValue);
+            NativeOwnership.Release(ref EntriesBySceneId);
         }
     }
 }

@@ -59,7 +59,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RemoveCamera_WhenCameraWasRegisteredMultipleTimes_RemovesAllRegistrations() {
             Core core = new();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             ObjectManager objectManager = core.ObjectManager;
             CameraComponent camera = new();
 
@@ -77,7 +77,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RegisterCamera_WhenCameraWasRegisteredMultipleTimes_KeepsSingleRegistration() {
             Core core = new();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             ObjectManager objectManager = core.ObjectManager;
             CameraComponent camera = new();
 
@@ -93,7 +93,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RegisterEntity_WhenEntityWasRegisteredMultipleTimes_KeepsSingleRegistration() {
             Core core = new();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             ObjectManager objectManager = core.ObjectManager;
             Entity entity = new();
 

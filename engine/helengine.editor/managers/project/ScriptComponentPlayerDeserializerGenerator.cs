@@ -225,12 +225,6 @@ namespace helengine.editor {
             builder.AppendLine("auto __ctor_arg_00000003 = false;");
             builder.AppendLine("return new ::MemoryStream(__ctor_arg_00000001, __ctor_arg_00000003);");
             builder.AppendLine("})();");
-            builder.AppendLine("auto __usingDisposeGuard_00000004 = he_cpp_make_scope_exit([&]() {");
-            builder.AppendLine("if (stream != nullptr) {");
-            builder.AppendLine("stream->Dispose();");
-            builder.AppendLine("delete stream;");
-            builder.AppendLine("}");
-            builder.AppendLine("});");
             builder.AppendLine("{");
             builder.AppendLine("::EngineBinaryReader *reader = EngineBinaryReader::Create(stream, EngineBinaryEndianness::LittleEndian, true);");
             builder.AppendLine("auto __usingDisposeGuard_00000005 = he_cpp_make_scope_exit([&]() {");

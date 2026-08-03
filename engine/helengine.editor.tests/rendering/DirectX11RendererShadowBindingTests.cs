@@ -91,7 +91,8 @@ namespace helengine.editor.tests.rendering {
         void InitializeCore() {
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
-                RenderList2DInitialCapacity = 4
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }

@@ -1,6 +1,8 @@
 using System.Reflection;
 using helengine;
+using helengine.directx11;
 using helengine.editor;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests.managers.gizmo {
@@ -8,6 +10,16 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies shader compilation for the transform-gizmo axis-label billboard material.
     /// </summary>
     public class TransformGizmoAxisLabelMaterialFactoryTests {
+        /// <summary>
+        /// Configures the built-in shader backends required to compile axis-label shader assets.
+        /// </summary>
+        public TransformGizmoAxisLabelMaterialFactoryTests() {
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+        }
+
         /// <summary>
         /// Ensures the axis-label shader source compiles into a DirectX11 shader asset.
         /// </summary>

@@ -10,7 +10,11 @@ namespace helengine {
         /// <param name="materialAsset">Shader-owned raw material asset definition.</param>
         /// <param name="shaderAsset">Resolved shader asset consumed by the material.</param>
         /// <returns>Runtime material instance.</returns>
-        public static RuntimeMaterial BuildMaterialFromRaw(this RenderManager3D renderManager3D, ShaderMaterialAsset materialAsset, ShaderAsset shaderAsset) {
+        [NativeOwnedReturn]
+        public static RuntimeMaterial BuildMaterialFromRaw(
+            this RenderManager3D renderManager3D,
+            [NativeNoEscape] ShaderMaterialAsset materialAsset,
+            [NativeNoEscape] ShaderAsset shaderAsset) {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
