@@ -48,7 +48,7 @@ namespace helengine.vfx.effects {
 
         static VfxEasingKind ResolveEasing(IReadOnlyDictionary<string, string> values) {
             string text = values.TryGetValue("Easing", out string raw) ? raw : "Linear";
-            if (!Enum.TryParse(text, ignoreCase: true, out VfxEasingKind kind)) {
+            if (!Enum.TryParse(text, ignoreCase: true, out VfxEasingKind kind) || !Enum.IsDefined(typeof(VfxEasingKind), kind)) {
                 throw new ArgumentException($"Parameter 'Easing' must be one of Linear, EaseIn, EaseOut, EaseInOut, got '{text}'.");
             }
             return kind;

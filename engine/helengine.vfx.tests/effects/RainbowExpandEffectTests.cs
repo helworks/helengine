@@ -51,6 +51,14 @@ namespace helengine.vfx.tests.effects {
         }
 
         [Fact]
+        public void ResolveParameterSlots_OutOfRangeEasingNumeric_Throws() {
+            var effect = new RainbowExpandEffect();
+            var values = new Dictionary<string, string> { ["Easing"] = "42" };
+
+            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+        }
+
+        [Fact]
         public void ResolveParameterSlots_InvalidBackgroundColor_Throws() {
             var effect = new RainbowExpandEffect();
             var values = new Dictionary<string, string> { ["BackgroundColor"] = "not,a,color" };
