@@ -26,5 +26,6 @@ scratch/
 *.vpk
 /.codex-temp/
 /.codex-test/
+/.validation/
 /tmp-*/
 /tmp_*/
