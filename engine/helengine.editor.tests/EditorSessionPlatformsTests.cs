@@ -58,12 +58,12 @@ namespace helengine.editor.tests {
 
             PlatformsDialog dialog = GetPrivateField<PlatformsDialog>(session, "platformsDialog");
             ComboBoxComponent activePlatformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ActivePlatformComboBox");
-            List<CheckBoxComponent> checkBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "PlatformCheckBoxes");
+            List<bool> platformEnabledStates = GetPrivateField<List<bool>>(dialog, "PlatformEnabledStates");
             Assert.True(dialog.Enabled);
             Assert.Equal("windows", activePlatformComboBox.SelectedItem);
-            Assert.Equal(2, checkBoxes.Count);
-            Assert.True(checkBoxes[0].IsChecked);
-            Assert.True(checkBoxes[1].IsChecked);
+            Assert.Equal(2, platformEnabledStates.Count);
+            Assert.True(platformEnabledStates[0]);
+            Assert.True(platformEnabledStates[1]);
         }
 
         /// <summary>

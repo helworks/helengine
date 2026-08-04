@@ -49,11 +49,13 @@ namespace helengine.editor.tests {
                 "ps2");
 
             ComboBoxComponent activePlatformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ActivePlatformComboBox");
-            List<CheckBoxComponent> platformCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "PlatformCheckBoxes");
+            List<bool> platformEnabledStates = GetPrivateField<List<bool>>(dialog, "PlatformEnabledStates");
+            List<PlatformsDialogRow> platformRows = GetPrivateField<List<PlatformsDialogRow>>(dialog, "PlatformRows");
 
             Assert.Equal("ps2", activePlatformComboBox.SelectedItem);
             Assert.Equal(2, activePlatformComboBox.Items.Count);
-            Assert.Equal(3, platformCheckBoxes.Count);
+            Assert.Equal(new[] { true, true, false }, platformEnabledStates);
+            Assert.Equal(3, platformRows.Count(row => row.PlatformIndex >= 0));
         }
 
         /// <summary>
@@ -64,8 +66,8 @@ namespace helengine.editor.tests {
             PlatformsDialog dialog = new PlatformsDialog(CreateFont());
             dialog.Show(new[] { "windows", "ps2" }, new[] { "windows", "ps2" }, "ps2");
 
-            List<CheckBoxComponent> checkBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "PlatformCheckBoxes");
-            checkBoxes[1].IsChecked = false;
+            PlatformsDialogRow ps2Row = FindRowForPlatform(dialog, "ps2");
+            InvokePrivate(dialog, "HandlePlatformCheckBoxChanged", ps2Row.CheckBox, false);
 
             InvokePrivate(dialog, "HandleSaveClicked");
 
@@ -75,10 +77,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures platform rows are parented under the modal content root and positioned immediately during Show.
+        /// Ensures platform rows are parented under the scrollable platform list viewport and positioned immediately during Show.
         /// </summary>
         [Fact]
-        public void Show_WhenOpened_ParentsPlatformRowsUnderDialogContentRootAndLaysThemOutImmediately() {
+        public void Show_WhenOpened_ParentsPlatformRowsUnderPlatformListViewportAndLaysThemOutImmediately() {
             PlatformsDialog dialog = new PlatformsDialog(CreateFont());
 
             dialog.Show(
@@ -87,26 +89,29 @@ namespace helengine.editor.tests {
                 "ps2");
 
             EditorEntity dialogContentRoot = GetProtectedProperty<EditorEntity>(dialog, "DialogContentRoot");
-            List<EditorEntity> platformCheckBoxHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts");
-            List<EditorEntity> platformLabelHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts");
+            EditorEntity platformListRoot = GetPrivateField<EditorEntity>(dialog, "PlatformListRoot");
+            List<PlatformsDialogRow> platformRows = GetPrivateField<List<PlatformsDialogRow>>(dialog, "PlatformRows");
             EditorEntity platformsLabelHost = GetPrivateField<EditorEntity>(dialog, "PlatformsLabelHost");
             EditorEntity activePlatformComboBoxHost = GetPrivateField<EditorEntity>(dialog, "ActivePlatformComboBoxHost");
 
-            Assert.Equal(3, platformCheckBoxHosts.Count);
-            Assert.Equal(3, platformLabelHosts.Count);
+            List<PlatformsDialogRow> boundRows = platformRows.Where(row => row.PlatformIndex >= 0).OrderBy(row => row.PlatformIndex).ToList();
+
+            Assert.Equal(3, boundRows.Count);
             Assert.Same(dialogContentRoot, platformsLabelHost.Parent);
             Assert.Same(dialogContentRoot, activePlatformComboBoxHost.Parent);
-            Assert.All(platformCheckBoxHosts, host => Assert.Same(dialogContentRoot, host.Parent));
-            Assert.All(platformLabelHosts, host => Assert.Same(dialogContentRoot, host.Parent));
-            Assert.All(platformCheckBoxHosts, host => Assert.True(host.LocalPosition.Y > 0f));
-            Assert.All(platformLabelHosts, host => Assert.True(host.LocalPosition.Y > 0f));
+            Assert.Same(dialogContentRoot, platformListRoot.Parent);
+            Assert.True(platformListRoot.LocalPosition.Y > 0f);
+            Assert.All(boundRows, row => Assert.Same(platformListRoot, row.CheckBoxHost.Parent));
+            Assert.All(boundRows, row => Assert.Same(platformListRoot, row.LabelHost.Parent));
+            Assert.All(boundRows, row => Assert.True(row.CheckBoxHost.Enabled));
+            Assert.All(boundRows, row => Assert.True(row.LabelHost.Enabled));
         }
 
         /// <summary>
-        /// Ensures platform rows do not require a later UpdateLayout pass to leave origin coordinates.
+        /// Ensures platform rows do not require a later UpdateLayout pass to leave the list viewport at its default origin.
         /// </summary>
         [Fact]
-        public void Show_WhenOpened_DoesNotLeavePlatformRowsAtDefaultOriginUntilLaterLayout() {
+        public void Show_WhenOpened_DoesNotLeavePlatformListViewportAtDefaultOriginUntilLaterLayout() {
             PlatformsDialog dialog = new PlatformsDialog(CreateFont());
 
             dialog.Show(
@@ -114,18 +119,82 @@ namespace helengine.editor.tests {
                 new[] { "windows" },
                 "windows");
 
-            List<EditorEntity> platformCheckBoxHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts");
-            List<EditorEntity> platformLabelHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts");
+            EditorEntity platformListRoot = GetPrivateField<EditorEntity>(dialog, "PlatformListRoot");
 
-            Assert.All(platformCheckBoxHosts, host => Assert.NotEqual(float3.Zero, host.LocalPosition));
-            Assert.All(platformLabelHosts, host => Assert.NotEqual(float3.Zero, host.LocalPosition));
+            Assert.NotEqual(float3.Zero, platformListRoot.LocalPosition);
         }
 
         /// <summary>
-        /// Ensures hiding the dialog unregisters dynamic platform rows instead of leaving orphaned checkbox and label entities in the main UI graph.
+        /// Ensures the platform list scrolls once the number of available platforms exceeds the visible row count.
         /// </summary>
         [Fact]
-        public void Hide_WhenClosed_UnregistersDynamicPlatformRowsWithoutLeavingTopLevelUiEntities() {
+        public void Show_WhenPlatformCountExceedsVisibleRowCount_ScrollsToRevealRemainingPlatforms() {
+            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+
+            // Uses only glyphs present in CreateFont(); avoids digits, which the test font does not define.
+            char[] suffixLetters = { 'a', 'c', 'f', 'g', 'i', 'l', 'n', 'o', 'r', 's', 't', 'u', 'w', 'x' };
+            string[] availablePlatformIds = Enumerable.Range(0, PlatformsDialog.PlatformVisibleRowCount + 3)
+                .Select(index => $"platform{suffixLetters[index]}")
+                .ToArray();
+
+            dialog.Show(availablePlatformIds, new[] { availablePlatformIds[0] }, availablePlatformIds[0]);
+
+            List<PlatformsDialogRow> platformRows = GetPrivateField<List<PlatformsDialogRow>>(dialog, "PlatformRows");
+            Assert.Equal(PlatformsDialog.PlatformVisibleRowCount, platformRows.Count(row => row.PlatformIndex >= 0));
+
+            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(dialog, "PlatformListScrollComponent");
+            bool scrolled = scrollComponent.ScrollTo(3);
+            Assert.True(scrolled);
+
+            List<PlatformsDialogRow> boundRows = platformRows.Where(row => row.PlatformIndex >= 0).OrderBy(row => row.PlatformIndex).ToList();
+            Assert.Equal(3, boundRows[0].PlatformIndex);
+            Assert.Equal(availablePlatformIds[3], boundRows[0].LabelText.Text);
+        }
+
+        /// <summary>
+        /// Ensures the platform list scrollbar stays hidden when every platform fits within the visible row count.
+        /// </summary>
+        [Fact]
+        public void Show_WhenPlatformCountIsWithinVisibleRowCount_HidesScrollBar() {
+            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+
+            dialog.Show(new[] { "windows", "ps2", "linux" }, new[] { "windows" }, "windows");
+
+            ScrollBarComponent scrollBar = GetPrivateField<ScrollBarComponent>(dialog, "PlatformListScrollBar");
+            Assert.False(scrollBar.IsVisible);
+        }
+
+        /// <summary>
+        /// Ensures the platform list scrollbar appears and dragging it scrolls the list once platforms exceed the visible row count.
+        /// </summary>
+        [Fact]
+        public void Show_WhenPlatformCountExceedsVisibleRowCount_ShowsDraggableScrollBarThatScrollsTheList() {
+            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+
+            // Uses only glyphs present in CreateFont(); avoids digits, which the test font does not define.
+            char[] suffixLetters = { 'a', 'c', 'f', 'g', 'i', 'l', 'n', 'o', 'r', 's', 't', 'u', 'w', 'x' };
+            string[] availablePlatformIds = Enumerable.Range(0, PlatformsDialog.PlatformVisibleRowCount + 3)
+                .Select(index => $"platform{suffixLetters[index]}")
+                .ToArray();
+
+            dialog.Show(availablePlatformIds, new[] { availablePlatformIds[0] }, availablePlatformIds[0]);
+
+            ScrollBarComponent scrollBar = GetPrivateField<ScrollBarComponent>(dialog, "PlatformListScrollBar");
+            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(dialog, "PlatformListScrollComponent");
+            Assert.True(scrollBar.IsVisible);
+            Assert.Equal(0, scrollComponent.ScrollOffset);
+
+            int2 pressAtTrackBottom = new int2(0, scrollBar.Size.Y - 1);
+            InvokePrivate(scrollBar, "HandleCursorEvent", pressAtTrackBottom, int2.Zero, PointerInteraction.Press);
+
+            Assert.Equal(scrollComponent.MaximumScrollOffset, scrollComponent.ScrollOffset);
+        }
+
+        /// <summary>
+        /// Ensures hiding the dialog disables pooled platform rows for reuse instead of leaving them bound to stale platforms.
+        /// </summary>
+        [Fact]
+        public void Hide_WhenClosed_DisablesPooledPlatformRowsWithoutDisposingThem() {
             PlatformsDialog dialog = new PlatformsDialog(CreateFont());
 
             dialog.Show(
@@ -133,20 +202,32 @@ namespace helengine.editor.tests {
                 new[] { "windows", "ps2" },
                 "windows");
 
-            List<EditorEntity> platformCheckBoxHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts"));
-            List<EditorEntity> platformLabelHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts"));
+            List<PlatformsDialogRow> platformRows = new List<PlatformsDialogRow>(GetPrivateField<List<PlatformsDialogRow>>(dialog, "PlatformRows"));
+            Assert.NotEmpty(platformRows);
 
             dialog.Hide();
 
-            Assert.Empty(GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts"));
-            Assert.Empty(GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts"));
-            Assert.All(platformCheckBoxHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
-            Assert.All(platformLabelHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
-            Assert.All(platformCheckBoxHosts, host => Assert.Empty(host.Components));
-            Assert.All(platformLabelHosts, host => Assert.Empty(host.Components));
-            Assert.All(platformCheckBoxHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
-            Assert.All(platformCheckBoxHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, interactable => ReferenceEquals(interactable.Parent, host)));
-            Assert.All(platformLabelHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
+            List<bool> platformEnabledStates = GetPrivateField<List<bool>>(dialog, "PlatformEnabledStates");
+            Assert.Empty(platformEnabledStates);
+            Assert.All(platformRows, row => Assert.Equal(-1, row.PlatformIndex));
+            Assert.All(platformRows, row => Assert.False(row.CheckBoxHost.Enabled));
+            Assert.All(platformRows, row => Assert.False(row.LabelHost.Enabled));
+            Assert.All(platformRows, row => Assert.Contains(row.CheckBoxHost, Core.Instance.ObjectManager.Entities));
+            Assert.All(platformRows, row => Assert.Contains(row.LabelHost, Core.Instance.ObjectManager.Entities));
+        }
+
+        /// <summary>
+        /// Finds the pooled row currently bound to the supplied platform id.
+        /// </summary>
+        /// <param name="dialog">Dialog under test.</param>
+        /// <param name="platformId">Platform id to locate.</param>
+        /// <returns>Row bound to the requested platform.</returns>
+        PlatformsDialogRow FindRowForPlatform(PlatformsDialog dialog, string platformId) {
+            List<string> availablePlatformIds = GetPrivateField<List<string>>(dialog, "AvailablePlatformIds");
+            List<PlatformsDialogRow> platformRows = GetPrivateField<List<PlatformsDialogRow>>(dialog, "PlatformRows");
+            int platformIndex = availablePlatformIds.IndexOf(platformId);
+
+            return platformRows.Single(row => row.PlatformIndex == platformIndex);
         }
 
         /// <summary>
@@ -188,9 +269,10 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="target">Target object that owns the method.</param>
         /// <param name="methodName">Name of the method to invoke.</param>
-        void InvokePrivate(object target, string methodName) {
+        /// <param name="args">Arguments passed to the invoked method.</param>
+        void InvokePrivate(object target, string methodName, params object[] args) {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
-            method.Invoke(target, Array.Empty<object>());
+            method.Invoke(target, args);
         }
 
         /// <summary>

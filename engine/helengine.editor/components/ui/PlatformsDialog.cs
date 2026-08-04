@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed panel height used by the dialog.
         /// </summary>
-        public const int PanelHeight = 300;
+        public const int PanelHeight = 420;
 
         /// <summary>
         /// Padding applied inside the dialog panel.
@@ -37,6 +37,21 @@ namespace helengine.editor {
         /// Height reserved for each platform row.
         /// </summary>
         public const int PlatformRowHeight = 24;
+
+        /// <summary>
+        /// Number of platform rows visible before the platform list scrolls.
+        /// </summary>
+        public const int PlatformVisibleRowCount = 8;
+
+        /// <summary>
+        /// Width of the platform list's vertical scrollbar.
+        /// </summary>
+        public const int PlatformListScrollBarWidth = 8;
+
+        /// <summary>
+        /// Width permanently reserved to the right of the platform list for its scrollbar, including a small gap.
+        /// </summary>
+        public const int PlatformListScrollBarGutter = 14;
 
         /// <summary>
         /// Height reserved for the active-platform combo box.
@@ -69,24 +84,34 @@ namespace helengine.editor {
         readonly TextComponent PlatformsLabelText;
 
         /// <summary>
-        /// Hosts created for each platform label row.
+        /// Viewport host that clips and scrolls the platform row list.
         /// </summary>
-        readonly List<EditorEntity> PlatformLabelHosts;
+        readonly EditorEntity PlatformListRoot;
 
         /// <summary>
-        /// Text components used to render the platform labels.
+        /// Scroll controller used to page through platform rows beyond the visible row count.
         /// </summary>
-        readonly List<TextComponent> PlatformLabelTexts;
+        readonly ScrollComponent PlatformListScrollComponent;
 
         /// <summary>
-        /// Hosts created for each platform checkbox row.
+        /// Host entity for the platform list's vertical scrollbar.
         /// </summary>
-        readonly List<EditorEntity> PlatformCheckBoxHosts;
+        readonly EditorEntity PlatformListScrollBarHost;
 
         /// <summary>
-        /// Checkbox components used to select project-supported platforms.
+        /// Draggable scrollbar reflecting and driving <see cref="PlatformListScrollComponent"/>.
         /// </summary>
-        readonly List<CheckBoxComponent> PlatformCheckBoxes;
+        readonly ScrollBarComponent PlatformListScrollBar;
+
+        /// <summary>
+        /// Pooled, recycled visuals used to render whichever platform rows are currently visible.
+        /// </summary>
+        readonly List<PlatformsDialogRow> PlatformRows;
+
+        /// <summary>
+        /// Enabled state for each available platform, indexed in parallel with <see cref="AvailablePlatformIds"/>.
+        /// </summary>
+        readonly List<bool> PlatformEnabledStates;
 
         /// <summary>
         /// Host entity for the active-platform label.
@@ -184,10 +209,8 @@ namespace helengine.editor {
             DialogIsResizable = false;
             SetDialogMinimumSize(PanelWidth, PanelHeight);
 
-            PlatformLabelHosts = new List<EditorEntity>(8);
-            PlatformLabelTexts = new List<TextComponent>(8);
-            PlatformCheckBoxHosts = new List<EditorEntity>(8);
-            PlatformCheckBoxes = new List<CheckBoxComponent>(8);
+            PlatformRows = new List<PlatformsDialogRow>(PlatformVisibleRowCount);
+            PlatformEnabledStates = new List<bool>(8);
             AvailablePlatformIds = new List<string>(8);
             EnabledPlatformIds = new List<string>(8);
 
@@ -195,6 +218,22 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(PlatformsLabelHost);
             PlatformsLabelText = CreateLabelText("Enabled platforms");
             PlatformsLabelHost.AddComponent(PlatformsLabelText);
+
+            PlatformListRoot = CreateInternalHost();
+            DialogPanelRoot.AddChild(PlatformListRoot);
+
+            PlatformListScrollComponent = new ScrollComponent();
+            PlatformListScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            PlatformListScrollComponent.ScrollOffsetChanged += HandlePlatformListScrollOffsetChanged;
+            PlatformListRoot.AddComponent(PlatformListScrollComponent);
+
+            PlatformListScrollBarHost = CreateInternalHost();
+            DialogPanelRoot.AddChild(PlatformListScrollBarHost);
+
+            PlatformListScrollBar = new ScrollBarComponent(new int2(GetPlatformListScrollBarWidthPixels(), GetPlatformListViewportHeightPixels()));
+            PlatformListScrollBar.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            PlatformListScrollBarHost.AddComponent(PlatformListScrollBar);
+            PlatformListScrollBar.Target = PlatformListScrollComponent;
 
             ActivePlatformLabelHost = CreateInternalHost();
             DialogPanelRoot.AddChild(ActivePlatformLabelHost);
@@ -270,9 +309,12 @@ namespace helengine.editor {
             StatusText.Text = string.Empty;
             ActivePlatformComboBox.IsOpen = false;
             ActivePlatformComboBox.SetItems(Array.Empty<string>(), -1);
-            ClearPlatformRows();
+            DisableAllPlatformRows();
             AvailablePlatformIds.Clear();
             EnabledPlatformIds.Clear();
+            PlatformEnabledStates.Clear();
+            PlatformListScrollComponent.ItemCount = 0;
+            PlatformListScrollComponent.ResetScrollOffset();
         }
 
         /// <summary>
@@ -324,8 +366,8 @@ namespace helengine.editor {
         /// <param name="availablePlatformIds">Available platform identifiers shown in row order.</param>
         /// <param name="supportedPlatformIds">Enabled project platform identifiers.</param>
         void RebuildPlatformRows(IReadOnlyList<string> availablePlatformIds, IReadOnlyList<string> supportedPlatformIds) {
-            ClearPlatformRows();
             AvailablePlatformIds.Clear();
+            PlatformEnabledStates.Clear();
 
             for (int index = 0; index < availablePlatformIds.Count; index++) {
                 string platformId = availablePlatformIds[index];
@@ -335,33 +377,96 @@ namespace helengine.editor {
 
                 string normalizedPlatformId = platformId.Trim();
                 AvailablePlatformIds.Add(normalizedPlatformId);
-                CreatePlatformRow(normalizedPlatformId, ContainsPlatform(supportedPlatformIds, normalizedPlatformId));
+                PlatformEnabledStates.Add(ContainsPlatform(supportedPlatformIds, normalizedPlatformId));
+            }
+
+            PlatformListScrollComponent.ResetScrollOffset();
+            UpdatePlatformRowsLayout();
+        }
+
+        /// <summary>
+        /// Ensures the recycled row pool contains at least the requested number of rows.
+        /// </summary>
+        /// <param name="count">Minimum number of pooled rows required.</param>
+        void EnsurePlatformRowPool(int count) {
+            for (int index = PlatformRows.Count; index < count; index++) {
+                PlatformsDialogRow row = new PlatformsDialogRow(DialogFont, LayerMask, GetPlatformCheckBoxSize(), DialogTextOrder);
+                PlatformListRoot.AddChild(row.CheckBoxHost);
+                PlatformListRoot.AddChild(row.LabelHost);
+                row.CheckBox.CheckedChanged += HandlePlatformCheckBoxChanged;
+                PlatformRows.Add(row);
             }
         }
 
         /// <summary>
-        /// Creates one visual row for the supplied platform identifier.
+        /// Refreshes the visible platform rows for the current scroll offset and available-platform set.
         /// </summary>
-        /// <param name="platformId">Platform identifier rendered by the new row.</param>
-        /// <param name="isChecked">True when the row starts enabled.</param>
-        void CreatePlatformRow(string platformId, bool isChecked) {
-            EditorEntity checkBoxHost = CreateInternalHost();
-            DialogPanelRoot.AddChild(checkBoxHost);
-            PlatformCheckBoxHosts.Add(checkBoxHost);
+        void UpdatePlatformRowsLayout() {
+            int viewportWidth = GetPlatformListContentWidth();
+            int viewportHeight = GetPlatformListViewportHeightPixels();
+            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+                PlatformListScrollComponent,
+                new int2(viewportWidth, viewportHeight),
+                GetPlatformRowHeightPixels(),
+                AvailablePlatformIds.Count);
+            PlatformListScrollComponent.ClampScrollOffset();
+            PlatformListScrollBar.Refresh();
 
-            CheckBoxComponent checkBox = new CheckBoxComponent(GetPlatformCheckBoxSize(), DialogFont, isChecked);
-            checkBox.CheckedChanged += HandlePlatformCheckBoxChanged;
-            checkBoxHost.AddComponent(checkBox);
-            checkBox.SetRenderOrders(DialogTextOrder, DialogTextOrder);
-            PlatformCheckBoxes.Add(checkBox);
+            int visibleRowCount = PlatformListScrollComponent.VisibleItemCount;
+            EnsurePlatformRowPool(visibleRowCount);
 
-            EditorEntity labelHost = CreateInternalHost();
-            DialogPanelRoot.AddChild(labelHost);
-            PlatformLabelHosts.Add(labelHost);
+            int scrollOffset = PlatformListScrollComponent.ScrollOffset;
+            int checkBoxColumnWidth = GetPlatformCheckBoxColumnWidthPixels();
+            int rowHeight = GetPlatformRowHeightPixels();
 
-            TextComponent labelText = CreateLabelText(platformId);
-            labelHost.AddComponent(labelText);
-            PlatformLabelTexts.Add(labelText);
+            for (int rowIndex = 0; rowIndex < PlatformRows.Count; rowIndex++) {
+                PlatformsDialogRow row = PlatformRows[rowIndex];
+                int platformIndex = scrollOffset + rowIndex;
+                if (rowIndex >= visibleRowCount || platformIndex >= AvailablePlatformIds.Count) {
+                    DisablePlatformRow(row);
+                    continue;
+                }
+
+                row.PlatformIndex = platformIndex;
+                int rowTop = rowIndex * rowHeight;
+
+                row.CheckBoxHost.Enabled = true;
+                row.CheckBoxHost.Position = new float3(0, rowTop, 0.1f);
+                row.CheckBox.IsChecked = PlatformEnabledStates[platformIndex];
+
+                row.LabelHost.Enabled = true;
+                row.LabelHost.Position = new float3(checkBoxColumnWidth, rowTop, 0.1f);
+                row.LabelText.Text = AvailablePlatformIds[platformIndex];
+                row.LabelText.Size = new int2(viewportWidth - checkBoxColumnWidth, rowHeight);
+            }
+        }
+
+        /// <summary>
+        /// Refreshes the visible platform rows when the platform-list scroll offset changes.
+        /// </summary>
+        /// <param name="scrollComponent">Platform-list scroll controller that triggered the update.</param>
+        /// <param name="scrollOffset">Current platform-list scroll offset.</param>
+        void HandlePlatformListScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            UpdatePlatformRowsLayout();
+        }
+
+        /// <summary>
+        /// Clears one pooled platform row so it no longer maps to a visible platform entry.
+        /// </summary>
+        /// <param name="row">Row bundle to disable.</param>
+        void DisablePlatformRow(PlatformsDialogRow row) {
+            row.PlatformIndex = -1;
+            row.CheckBoxHost.Enabled = false;
+            row.LabelHost.Enabled = false;
+        }
+
+        /// <summary>
+        /// Disables every pooled platform row.
+        /// </summary>
+        void DisableAllPlatformRows() {
+            for (int index = 0; index < PlatformRows.Count; index++) {
+                DisablePlatformRow(PlatformRows[index]);
+            }
         }
 
         /// <summary>
@@ -371,8 +476,8 @@ namespace helengine.editor {
         void RebuildActivePlatformItems(string preferredPlatformId) {
             EnabledPlatformIds.Clear();
 
-            for (int index = 0; index < PlatformCheckBoxes.Count; index++) {
-                if (PlatformCheckBoxes[index].IsChecked) {
+            for (int index = 0; index < AvailablePlatformIds.Count; index++) {
+                if (PlatformEnabledStates[index]) {
                     EnabledPlatformIds.Add(AvailablePlatformIds[index]);
                 }
             }
@@ -402,13 +507,35 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Handles checkbox changes by rebuilding the active-platform combo box without implicit fallback.
+        /// Handles checkbox changes by updating the bound platform's enabled state and rebuilding the active-platform combo box without implicit fallback.
         /// </summary>
         /// <param name="checkBox">Checkbox that changed.</param>
         /// <param name="isChecked">New checkbox value.</param>
         void HandlePlatformCheckBoxChanged(CheckBoxComponent checkBox, bool isChecked) {
+            PlatformsDialogRow row = FindRowForCheckBox(checkBox);
+            if (row == null || row.PlatformIndex < 0) {
+                return;
+            }
+
+            PlatformEnabledStates[row.PlatformIndex] = isChecked;
+
             string preferredPlatformId = ActivePlatformComboBox.HasSelection ? ActivePlatformComboBox.SelectedItem : string.Empty;
             RebuildActivePlatformItems(preferredPlatformId);
+        }
+
+        /// <summary>
+        /// Finds the pooled row currently hosting the supplied checkbox.
+        /// </summary>
+        /// <param name="checkBox">Checkbox to locate.</param>
+        /// <returns>Row hosting the checkbox, or null when not found.</returns>
+        PlatformsDialogRow FindRowForCheckBox(CheckBoxComponent checkBox) {
+            for (int index = 0; index < PlatformRows.Count; index++) {
+                if (PlatformRows[index].CheckBox == checkBox) {
+                    return PlatformRows[index];
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -416,36 +543,15 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Enabled platform identifiers in row order.</returns>
         List<string> CollectSelectedPlatformIds() {
-            List<string> selectedPlatformIds = new List<string>(PlatformCheckBoxes.Count);
+            List<string> selectedPlatformIds = new List<string>(AvailablePlatformIds.Count);
 
-            for (int index = 0; index < PlatformCheckBoxes.Count; index++) {
-                if (PlatformCheckBoxes[index].IsChecked) {
+            for (int index = 0; index < AvailablePlatformIds.Count; index++) {
+                if (PlatformEnabledStates[index]) {
                     selectedPlatformIds.Add(AvailablePlatformIds[index]);
                 }
             }
 
             return selectedPlatformIds;
-        }
-
-        /// <summary>
-        /// Removes all dynamic platform rows from the dialog.
-        /// </summary>
-        void ClearPlatformRows() {
-            for (int index = 0; index < PlatformCheckBoxes.Count; index++) {
-                PlatformCheckBoxes[index].CheckedChanged -= HandlePlatformCheckBoxChanged;
-            }
-
-            for (int index = 0; index < PlatformLabelHosts.Count; index++) {
-                PlatformLabelHosts[index].Dispose();
-            }
-            for (int index = 0; index < PlatformCheckBoxHosts.Count; index++) {
-                PlatformCheckBoxHosts[index].Dispose();
-            }
-
-            PlatformLabelHosts.Clear();
-            PlatformLabelTexts.Clear();
-            PlatformCheckBoxHosts.Clear();
-            PlatformCheckBoxes.Clear();
         }
 
         /// <summary>
@@ -460,14 +566,16 @@ namespace helengine.editor {
             PlatformsLabelHost.Position = new float3(contentLeft, platformsLabelTop, 0.1f);
             PlatformsLabelText.Size = new int2(contentWidth, GetLabelHeight());
 
-            for (int index = 0; index < PlatformCheckBoxHosts.Count; index++) {
-                int rowTop = firstPlatformRowTop + (index * GetPlatformRowHeightPixels());
-                PlatformCheckBoxHosts[index].Position = new float3(contentLeft, rowTop, 0.1f);
-                PlatformLabelHosts[index].Position = new float3(contentLeft + GetPlatformCheckBoxColumnWidthPixels(), rowTop, 0.1f);
-                PlatformLabelTexts[index].Size = new int2(contentWidth - GetPlatformCheckBoxColumnWidthPixels(), GetPlatformRowHeightPixels());
-            }
+            PlatformListRoot.Position = new float3(contentLeft, firstPlatformRowTop, 0.1f);
 
-            int activeLabelTop = firstPlatformRowTop + (PlatformCheckBoxHosts.Count * GetPlatformRowHeightPixels()) + GetSectionSpacingPixels();
+            int scrollBarWidth = GetPlatformListScrollBarWidthPixels();
+            int scrollBarLeft = contentLeft + contentWidth - scrollBarWidth;
+            PlatformListScrollBarHost.Position = new float3(scrollBarLeft, firstPlatformRowTop, 0.1f);
+            PlatformListScrollBar.Size = new int2(scrollBarWidth, GetPlatformListViewportHeightPixels());
+
+            UpdatePlatformRowsLayout();
+
+            int activeLabelTop = firstPlatformRowTop + GetPlatformListViewportHeightPixels() + GetSectionSpacingPixels();
             ActivePlatformLabelHost.Position = new float3(contentLeft, activeLabelTop, 0.1f);
             ActivePlatformLabelText.Size = new int2(contentWidth, GetLabelHeight());
 
@@ -582,6 +690,38 @@ namespace helengine.editor {
         /// <returns>Scaled platform row height in pixels.</returns>
         int GetPlatformRowHeightPixels() {
             return DialogMetrics.ScalePixels(PlatformRowHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled height of the platform list viewport, sized to the configured visible row count.
+        /// </summary>
+        /// <returns>Scaled platform list viewport height in pixels.</returns>
+        int GetPlatformListViewportHeightPixels() {
+            return GetPlatformRowHeightPixels() * PlatformVisibleRowCount;
+        }
+
+        /// <summary>
+        /// Gets the scaled content width available to platform rows, with the scrollbar gutter permanently reserved.
+        /// </summary>
+        /// <returns>Scaled platform list content width in pixels.</returns>
+        int GetPlatformListContentWidth() {
+            return GetContentWidth() - GetPlatformListScrollBarGutterPixels();
+        }
+
+        /// <summary>
+        /// Gets the scaled width permanently reserved to the right of the platform list for its scrollbar.
+        /// </summary>
+        /// <returns>Scaled platform list scrollbar gutter width in pixels.</returns>
+        int GetPlatformListScrollBarGutterPixels() {
+            return DialogMetrics.ScalePixels(PlatformListScrollBarGutter);
+        }
+
+        /// <summary>
+        /// Gets the scaled width of the platform list's vertical scrollbar.
+        /// </summary>
+        /// <returns>Scaled platform list scrollbar width in pixels.</returns>
+        int GetPlatformListScrollBarWidthPixels() {
+            return DialogMetrics.ScalePixels(PlatformListScrollBarWidth);
         }
 
         /// <summary>
