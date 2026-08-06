@@ -475,6 +475,14 @@ namespace helengine {
                     : glyphWidth;
                 offsetX += advanceWidth;
             }
+
+            if (effectPasses != null) {
+                for (int passIndex = 0; passIndex < effectPasses.Count; passIndex++) {
+                    NativeOwnership.Delete(effectPasses[passIndex]);
+                }
+
+                NativeOwnership.Delete(effectPasses);
+            }
         }
 
         /// <summary>
