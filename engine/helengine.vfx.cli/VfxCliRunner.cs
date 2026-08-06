@@ -37,9 +37,13 @@ namespace helengine.vfx.cli {
                 return 1;
             }
 
-            // Parameter names and values are validated here, before the Direct3D11 device exists, so a
-            // typo costs nothing and reports cleanly rather than surfacing as a stack trace after
+            // Input roles and parameter values are validated here, before the Direct3D11 device exists,
+            // so a typo costs nothing and reports cleanly rather than surfacing as a stack trace after
             // device creation and shader compilation.
+            if (!VfxCliInputValidator.TryValidate(effect, parsedArgs.InputFolders, out string inputError)) {
+                Console.Error.WriteLine(inputError);
+                return 1;
+            }
             if (!VfxCliParameterValidator.TryValidate(effect, parsedArgs.ParameterValues, out string parameterError)) {
                 Console.Error.WriteLine(parameterError);
                 return 1;
@@ -47,9 +51,11 @@ namespace helengine.vfx.cli {
 
             VfxClip clip;
             try {
-                ImageSequence source = ExrSequenceReader.ReadSequence(parsedArgs.SourceFolder);
-                ImageSequence mask = ExrSequenceReader.ReadSequence(parsedArgs.MaskFolder);
-                clip = new VfxClip(source, mask);
+                var sequences = new Dictionary<string, ImageSequence>(StringComparer.Ordinal);
+                foreach (string role in effect.InputRoles) {
+                    sequences[role] = ExrSequenceReader.ReadSequence(parsedArgs.InputFolders[role]);
+                }
+                clip = new VfxClip(sequences);
             } catch (Exception ex) when (ex is InvalidOperationException || ex is DirectoryNotFoundException) {
                 Console.Error.WriteLine(ex.Message);
                 return 1;

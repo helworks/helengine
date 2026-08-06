@@ -34,6 +34,21 @@ namespace helengine.vfx {
         string PixelEntryPoint { get; }
 
         /// <summary>
+        /// Names of the image sequences this effect requires as input, in the order they are bound to
+        /// the shader's texture registers (index 0 to register t0, index 1 to t1, and so on). The
+        /// caller supplies one folder per role; <see cref="VfxClip"/> groups the resulting sequences by
+        /// these same names.
+        /// </summary>
+        IReadOnlyList<string> InputRoles { get; }
+
+        /// <summary>
+        /// Subset of <see cref="InputRoles"/> whose frames must carry a real alpha channel. A role
+        /// listed here that turns out to have no stored alpha is rejected before the GPU run starts,
+        /// rather than silently treated as fully opaque.
+        /// </summary>
+        IReadOnlyList<string> AlphaRequiredInputRoles { get; }
+
+        /// <summary>
         /// Resolves named parameter values (as raw CLI strings) into the fixed
         /// VfxFrameConstants.ParamSlotCount-length float array this effect's shader expects.
         /// </summary>

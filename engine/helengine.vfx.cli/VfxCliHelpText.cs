@@ -33,7 +33,9 @@ namespace helengine.vfx.cli {
             }
 
             var builder = new StringBuilder();
-            builder.AppendLine($"Effect '{effect.Id}' ({effect.DisplayName}) parameters:");
+            builder.AppendLine($"Effect '{effect.Id}' ({effect.DisplayName})");
+            builder.AppendLine($"  Required --input role(s): {string.Join(", ", effect.InputRoles)}");
+            builder.AppendLine("Parameters:");
             builder.Append(BuildParameterList(effect));
             return builder.ToString();
         }

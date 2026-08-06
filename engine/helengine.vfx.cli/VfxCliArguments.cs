@@ -7,17 +7,13 @@ namespace helengine.vfx.cli {
         /// One-line invocation summary printed whenever arguments are missing or malformed.
         /// </summary>
         public const string UsageLine =
-            "Usage: helengine.vfx.cli --source <folder> --mask <folder> --effect <id> --out <folder> [--param name=value ...]";
+            "Usage: helengine.vfx.cli --input <Role>=<folder> [--input <Role>=<folder> ...] --effect <id> --out <folder> [--param name=value ...]";
 
         /// <summary>
-        /// Folder holding the source color EXR sequence. Null when only help was requested.
+        /// Input folder paths keyed by the role name the selected effect expects (e.g. "Source",
+        /// "Mask"). Empty when only help was requested.
         /// </summary>
-        public string SourceFolder { get; private set; }
-
-        /// <summary>
-        /// Folder holding the matte EXR sequence. Null when only help was requested.
-        /// </summary>
-        public string MaskFolder { get; private set; }
+        public IReadOnlyDictionary<string, string> InputFolders { get; private set; }
 
         /// <summary>
         /// Id of the effect to run, or the effect to describe when help was requested.
@@ -36,7 +32,7 @@ namespace helengine.vfx.cli {
 
         /// <summary>
         /// True when the caller asked for help instead of an export run; the export-specific
-        /// arguments are then optional and may be null.
+        /// arguments are then optional and may be null or empty.
         /// </summary>
         public bool ShowHelp { get; private set; }
 
@@ -49,8 +45,7 @@ namespace helengine.vfx.cli {
         /// <param name="error">Receives a caller-facing error message on failure, null on success.</param>
         /// <returns>True when the arguments parsed successfully.</returns>
         public static bool TryParse(string[] args, out VfxCliArguments parsed, out string error) {
-            string sourceFolder = null;
-            string maskFolder = null;
+            var inputFolders = new Dictionary<string, string>(StringComparer.Ordinal);
             string effectId = null;
             string outputFolder = null;
             bool showHelp = false;
@@ -58,11 +53,15 @@ namespace helengine.vfx.cli {
 
             for (int i = 0; i < args.Length; i++) {
                 switch (args[i]) {
-                    case "--source":
-                        if (!TryReadValue(args, ref i, out sourceFolder, out error)) { parsed = null; return false; }
-                        break;
-                    case "--mask":
-                        if (!TryReadValue(args, ref i, out maskFolder, out error)) { parsed = null; return false; }
+                    case "--input":
+                        if (!TryReadValue(args, ref i, out string inputText, out error)) { parsed = null; return false; }
+                        string[] inputParts = inputText.Split('=', 2);
+                        if (inputParts.Length != 2) {
+                            parsed = null;
+                            error = $"Invalid --input value '{inputText}'. Expected Role=folder.";
+                            return false;
+                        }
+                        inputFolders[inputParts[0]] = inputParts[1];
                         break;
                     case "--effect":
                         if (!TryReadValue(args, ref i, out effectId, out error)) { parsed = null; return false; }
@@ -91,15 +90,14 @@ namespace helengine.vfx.cli {
                 }
             }
 
-            if (!showHelp && (sourceFolder == null || maskFolder == null || effectId == null || outputFolder == null)) {
+            if (!showHelp && (inputFolders.Count == 0 || effectId == null || outputFolder == null)) {
                 parsed = null;
                 error = UsageLine;
                 return false;
             }
 
             parsed = new VfxCliArguments {
-                SourceFolder = sourceFolder,
-                MaskFolder = maskFolder,
+                InputFolders = inputFolders,
                 EffectId = effectId,
                 OutputFolder = outputFolder,
                 ParameterValues = parameterValues,

@@ -203,7 +203,7 @@ namespace helengine.vfx.cli.tests {
         static void RunEffect(string sourceFolder, string maskFolder, string outputFolder, IReadOnlyDictionary<string, string> parameters) {
             ImageSequence source = ExrSequenceReader.ReadSequence(sourceFolder);
             ImageSequence mask = ExrSequenceReader.ReadSequence(maskFolder);
-            VfxClip clip = new VfxClip(source, mask);
+            VfxClip clip = new VfxClip(new Dictionary<string, ImageSequence> { ["Source"] = source, ["Mask"] = mask });
             IVfxEffect effect = new RainbowExpandEffect();
 
             using (DirectX11VfxDevice device = new DirectX11VfxDevice())

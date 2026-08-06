@@ -1,23 +1,13 @@
 #include "../common/VfxCommon.hlsli"
 
+// Bound by DirectX11VfxEffectRunner in RainbowExpandEffect.InputRoles order: Source then Mask.
+Texture2D SourceTexture : register(t0);
+Texture2D MaskTexture : register(t1);
+
 // Params0 // x: HueCyclesPerClip, y: StartScale, z: EndScale, w: Easing kind (0=Linear,1=EaseIn,2=EaseOut,3=EaseInOut)
 // Params1 // xyz: BackgroundColor, w: unused
 // Params2 // unused
 // Params3 // unused
-
-float3 HueRotate(float3 color, float hueDegrees)
-{
-    float angle = radians(hueDegrees);
-    float cosA = cos(angle);
-    float sinA = sin(angle);
-
-    float3x3 rotation = float3x3(
-        0.299 + (0.701 * cosA) + (0.168 * sinA), 0.587 - (0.587 * cosA) + (0.330 * sinA), 0.114 - (0.114 * cosA) - (0.497 * sinA),
-        0.299 - (0.299 * cosA) - (0.328 * sinA), 0.587 + (0.413 * cosA) + (0.035 * sinA), 0.114 - (0.114 * cosA) + (0.292 * sinA),
-        0.299 - (0.300 * cosA) + (1.250 * sinA), 0.587 - (0.588 * cosA) - (1.050 * sinA), 0.114 + (0.886 * cosA) - (0.203 * sinA));
-
-    return mul(rotation, color);
-}
 
 float4 RainbowExpandPS(PSInput input) : SV_TARGET
 {

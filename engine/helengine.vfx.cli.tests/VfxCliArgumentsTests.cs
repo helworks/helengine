@@ -3,34 +3,35 @@ using Xunit;
 
 namespace helengine.vfx.cli.tests {
     /// <summary>
-    /// Covers command-line parsing: the flags the export run requires, the repeatable --param syntax,
-    /// and the help form that deliberately relaxes the required-argument check.
+    /// Covers command-line parsing: the repeatable --input Role=folder and --param name=value syntax,
+    /// the required flags an export run needs, and the help form that deliberately relaxes them.
     /// </summary>
     public class VfxCliArgumentsTests {
         /// <summary>
-        /// All four required flags present must parse into the corresponding properties.
+        /// Every --input occurrence must accumulate into the input-folder dictionary, keyed by role.
         /// </summary>
         [Fact]
         public void TryParse_AllRequiredArguments_Succeeds() {
-            string[] args = { "--source", "src", "--mask", "mask", "--effect", "rainbow-expand", "--out", "out" };
+            string[] args = { "--input", "Source=src", "--input", "Mask=mask", "--effect", "rainbow-expand", "--out", "out" };
 
             bool result = VfxCliArguments.TryParse(args, out VfxCliArguments parsed, out string error);
 
             Assert.True(result);
             Assert.Null(error);
-            Assert.Equal("src", parsed.SourceFolder);
-            Assert.Equal("mask", parsed.MaskFolder);
+            Assert.Equal("src", parsed.InputFolders["Source"]);
+            Assert.Equal("mask", parsed.InputFolders["Mask"]);
             Assert.Equal("rainbow-expand", parsed.EffectId);
             Assert.Equal("out", parsed.OutputFolder);
             Assert.False(parsed.ShowHelp);
         }
 
         /// <summary>
-        /// A missing required flag must fail with usage text rather than running with a null folder.
+        /// A run with no --input at all, or a missing --effect/--out, must fail with usage text rather
+        /// than running with an empty input set or a null folder.
         /// </summary>
         [Fact]
         public void TryParse_MissingRequiredArgument_Fails() {
-            string[] args = { "--source", "src", "--mask", "mask", "--effect", "rainbow-expand" };
+            string[] args = { "--input", "Source=src", "--input", "Mask=mask", "--effect", "rainbow-expand" };
 
             bool result = VfxCliArguments.TryParse(args, out VfxCliArguments parsed, out string error);
 
@@ -40,11 +41,27 @@ namespace helengine.vfx.cli.tests {
         }
 
         /// <summary>
+        /// An --input value without an equals sign is ambiguous and must be rejected.
+        /// </summary>
+        [Fact]
+        public void TryParse_MalformedInput_Fails() {
+            string[] args = { "--input", "NoEqualsSign", "--effect", "rainbow-expand", "--out", "out" };
+
+            bool result = VfxCliArguments.TryParse(args, out VfxCliArguments parsed, out string error);
+
+            Assert.False(result);
+            Assert.Null(parsed);
+        }
+
+        /// <summary>
         /// Every --param occurrence must accumulate into the parameter dictionary.
         /// </summary>
         [Fact]
         public void TryParse_ParamArguments_AreCollected() {
-            string[] args = { "--source", "src", "--mask", "mask", "--effect", "rainbow-expand", "--out", "out", "--param", "HueCyclesPerClip=2", "--param", "StartScale=0.5" };
+            string[] args = {
+                "--input", "Source=src", "--input", "Mask=mask", "--effect", "rainbow-expand", "--out", "out",
+                "--param", "HueCyclesPerClip=2", "--param", "StartScale=0.5"
+            };
 
             bool result = VfxCliArguments.TryParse(args, out VfxCliArguments parsed, out string error);
 
@@ -58,7 +75,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryParse_MalformedParam_Fails() {
-            string[] args = { "--source", "src", "--mask", "mask", "--effect", "rainbow-expand", "--out", "out", "--param", "NoEqualsSign" };
+            string[] args = { "--input", "Source=src", "--input", "Mask=mask", "--effect", "rainbow-expand", "--out", "out", "--param", "NoEqualsSign" };
 
             bool result = VfxCliArguments.TryParse(args, out VfxCliArguments parsed, out string error);
 

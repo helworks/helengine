@@ -37,6 +37,16 @@ namespace helengine.vfx.tests {
         public string PixelEntryPoint => "FakePS";
 
         /// <summary>
+        /// Placeholder input roles; never resolved because no test runs this effect on a device.
+        /// </summary>
+        public IReadOnlyList<string> InputRoles { get; } = new List<string> { "Source", "Mask" };
+
+        /// <summary>
+        /// No role requires alpha for this fake.
+        /// </summary>
+        public IReadOnlyList<string> AlphaRequiredInputRoles { get; } = new List<string>();
+
+        /// <summary>
         /// Returns an all-zero slot bank of the required length.
         /// </summary>
         /// <param name="parameterValues">Ignored; the fake declares no parameters.</param>

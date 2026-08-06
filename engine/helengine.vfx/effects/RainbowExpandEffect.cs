@@ -31,6 +31,17 @@ namespace helengine.vfx.effects {
         public string PixelEntryPoint => "RainbowExpandPS";
 
         /// <summary>
+        /// Requires the subject's color plate and its matte, bound to t0 and t1 respectively.
+        /// </summary>
+        public IReadOnlyList<string> InputRoles { get; } = new List<string> { "Source", "Mask" };
+
+        /// <summary>
+        /// The matte must carry real alpha; the color plate does not need one since it is only ever
+        /// sampled for RGB.
+        /// </summary>
+        public IReadOnlyList<string> AlphaRequiredInputRoles { get; } = new List<string> { "Mask" };
+
+        /// <summary>
         /// Parameters this effect accepts, in the order they are documented to users.
         /// </summary>
         public IReadOnlyList<VfxEffectParameterDescriptor> Parameters { get; } = new List<VfxEffectParameterDescriptor> {
@@ -53,10 +64,10 @@ namespace helengine.vfx.effects {
             }
 
             float[] slots = new float[VfxFrameConstants.ParamSlotCount];
-            slots[0] = ResolveFloat(parameterValues, "HueCyclesPerClip", "1");
-            slots[1] = ResolveFloat(parameterValues, "StartScale", "1");
-            slots[2] = ResolveFloat(parameterValues, "EndScale", "2");
-            slots[3] = (float)ResolveEasing(parameterValues);
+            slots[0] = VfxEffectParameterParsing.ResolveFloat(parameterValues, "HueCyclesPerClip", "1");
+            slots[1] = VfxEffectParameterParsing.ResolveFloat(parameterValues, "StartScale", "1");
+            slots[2] = VfxEffectParameterParsing.ResolveFloat(parameterValues, "EndScale", "2");
+            slots[3] = (float)VfxEffectParameterParsing.ResolveEasing(parameterValues, "Easing", "Linear");
 
             ResolveColor(parameterValues, "BackgroundColor", "0,0,0", out float red, out float green, out float blue);
             slots[4] = red;
@@ -64,35 +75,6 @@ namespace helengine.vfx.effects {
             slots[6] = blue;
 
             return slots;
-        }
-
-        /// <summary>
-        /// Parses a scalar parameter, falling back to its documented default when the caller omitted it.
-        /// </summary>
-        /// <param name="values">Raw name/value pairs supplied by the caller.</param>
-        /// <param name="name">Parameter name to read.</param>
-        /// <param name="defaultValueText">Textual default used when the parameter is absent.</param>
-        /// <returns>The parsed scalar value.</returns>
-        static float ResolveFloat(IReadOnlyDictionary<string, string> values, string name, string defaultValueText) {
-            string text = values.TryGetValue(name, out string raw) ? raw : defaultValueText;
-            if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed)) {
-                throw new ArgumentException($"Parameter '{name}' must be a number, got '{text}'.");
-            }
-            return parsed;
-        }
-
-        /// <summary>
-        /// Parses the easing parameter, accepting either an easing name or its numeric value and
-        /// rejecting numbers that do not map to a declared easing kind.
-        /// </summary>
-        /// <param name="values">Raw name/value pairs supplied by the caller.</param>
-        /// <returns>The selected easing curve.</returns>
-        static VfxEasingKind ResolveEasing(IReadOnlyDictionary<string, string> values) {
-            string text = values.TryGetValue("Easing", out string raw) ? raw : "Linear";
-            if (!Enum.TryParse(text, ignoreCase: true, out VfxEasingKind kind) || !Enum.IsDefined(typeof(VfxEasingKind), kind)) {
-                throw new ArgumentException($"Parameter 'Easing' must be one of Linear, EaseIn, EaseOut, EaseInOut, got '{text}'.");
-            }
-            return kind;
         }
 
         /// <summary>

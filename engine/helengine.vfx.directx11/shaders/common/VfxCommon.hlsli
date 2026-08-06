@@ -21,9 +21,10 @@ cbuffer VfxFrameConstants : register(b0)
     float4 Params3;
 };
 
-// Bound by DirectX11VfxEffectRunner.DrawFrame in this exact register order.
-Texture2D SourceTexture : register(t0);
-Texture2D MaskTexture : register(t1);
+// Shared sampler for every input texture. Effects declare their own Texture2D inputs (register t0,
+// t1, ...) directly in their own shader file, in the same order as their IVfxEffect.InputRoles, since
+// different effects need different numbers and kinds of input textures; do not reintroduce a
+// hardcoded shared set of texture declarations here.
 SamplerState LinearClampSampler : register(s0);
 
 struct PSInput
@@ -48,6 +49,34 @@ PSInput FullscreenVS(uint vertexId : SV_VertexID)
     // FloatImageAsset stores the top row first, so V is flipped relative to NDC Y.
     output.UV = float2((ndc.x + 1.0) * 0.5, 0.5 - (ndc.y * 0.5));
     return output;
+}
+
+// Rotates a linear RGB color's hue by the given angle using a YIQ-style rotation matrix. Shared by
+// every effect that hue-shifts its subject; do not copy this into an effect file.
+//
+// This matrix is not gamut-preserving: on HDR input (values above 1.0) some hue angles produce
+// negative channel values. Callers must clamp the result to non-negative before using it further,
+// otherwise negative values get written straight into the exported EXR.
+float3 HueRotate(float3 color, float hueDegrees)
+{
+    float angle = radians(hueDegrees);
+    float cosA = cos(angle);
+    float sinA = sin(angle);
+
+    float3x3 rotation = float3x3(
+        0.299 + (0.701 * cosA) + (0.168 * sinA), 0.587 - (0.587 * cosA) + (0.330 * sinA), 0.114 - (0.114 * cosA) - (0.497 * sinA),
+        0.299 - (0.299 * cosA) - (0.328 * sinA), 0.587 + (0.413 * cosA) + (0.035 * sinA), 0.114 - (0.114 * cosA) + (0.292 * sinA),
+        0.299 - (0.300 * cosA) + (1.250 * sinA), 0.587 - (0.588 * cosA) - (1.050 * sinA), 0.114 + (0.886 * cosA) - (0.203 * sinA));
+
+    return mul(rotation, color);
+}
+
+// Pushes a color away from (multiplier > 1) or toward (multiplier < 1) its own luma, i.e. a
+// saturation multiplier. 1.0 leaves the color unchanged; 0.0 collapses it to grayscale.
+float3 BoostSaturation(float3 color, float saturationMultiplier)
+{
+    float luma = dot(color, float3(0.299, 0.587, 0.114));
+    return luma + ((color - luma) * saturationMultiplier);
 }
 
 // Must stay in sync with helengine.vfx.VfxEasing.Apply, including the numeric easing kind order

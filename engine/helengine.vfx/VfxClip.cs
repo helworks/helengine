@@ -1,56 +1,77 @@
 namespace helengine.vfx {
     /// <summary>
-    /// Pairs a source color image sequence with a matching alpha mask image sequence.
+    /// Groups the named input image sequences one effect run needs (e.g. a subject's color plate and
+    /// matte, or a subject plus a 3D render's color and depth), keyed by the same role names the effect
+    /// declares in <see cref="IVfxEffect.InputRoles"/>.
     /// </summary>
     public class VfxClip {
         /// <summary>
-        /// Sequence carrying the subject's color data.
+        /// Every input sequence, keyed by role name.
         /// </summary>
-        public ImageSequence Source { get; }
+        public IReadOnlyDictionary<string, ImageSequence> Sequences { get; }
 
         /// <summary>
-        /// Sequence carrying the matte whose alpha channel keys the subject out of its plate.
+        /// Number of frames the clip spans; guaranteed identical across every sequence.
         /// </summary>
-        public ImageSequence Mask { get; }
+        public int FrameCount { get; }
 
         /// <summary>
-        /// Number of frames the clip spans; guaranteed identical for source and mask.
+        /// Pixel width of the clip; guaranteed identical across every sequence.
         /// </summary>
-        public int FrameCount => Source.FrameCount;
+        public int Width { get; }
 
         /// <summary>
-        /// Pixel width of the clip; guaranteed identical for source and mask.
+        /// Pixel height of the clip; guaranteed identical across every sequence.
         /// </summary>
-        public int Width => Source.Width;
+        public int Height { get; }
 
         /// <summary>
-        /// Pixel height of the clip; guaranteed identical for source and mask.
+        /// Groups a set of named sequences into one clip, rejecting any frame-count or resolution
+        /// mismatch between them up front.
         /// </summary>
-        public int Height => Source.Height;
-
-        /// <summary>
-        /// Pairs a source and mask sequence, rejecting any frame-count or resolution mismatch up front.
-        /// </summary>
-        /// <param name="source">Sequence carrying the subject's color data.</param>
-        /// <param name="mask">Sequence carrying the matte alpha for the same frames.</param>
-        public VfxClip(ImageSequence source, ImageSequence mask) {
-            if (source == null) {
-                throw new ArgumentNullException(nameof(source));
+        /// <param name="sequences">Input sequences keyed by role name; must contain at least one entry.</param>
+        public VfxClip(IReadOnlyDictionary<string, ImageSequence> sequences) {
+            if (sequences == null) {
+                throw new ArgumentNullException(nameof(sequences));
             }
-            if (mask == null) {
-                throw new ArgumentNullException(nameof(mask));
-            }
-            if (source.FrameCount != mask.FrameCount) {
-                throw new InvalidOperationException(
-                    $"Source sequence has {source.FrameCount} frames but mask sequence has {mask.FrameCount} frames. They must match.");
-            }
-            if (source.Width != mask.Width || source.Height != mask.Height) {
-                throw new InvalidOperationException(
-                    $"Source sequence resolution {source.Width}x{source.Height} does not match mask sequence resolution {mask.Width}x{mask.Height}.");
+            if (sequences.Count == 0) {
+                throw new ArgumentException("VfxClip must be given at least one input sequence.", nameof(sequences));
             }
 
-            Source = source;
-            Mask = mask;
+            string firstRole = null;
+            ImageSequence firstSequence = null;
+            foreach (KeyValuePair<string, ImageSequence> entry in sequences) {
+                if (firstSequence == null) {
+                    firstRole = entry.Key;
+                    firstSequence = entry.Value;
+                    continue;
+                }
+                if (entry.Value.FrameCount != firstSequence.FrameCount) {
+                    throw new InvalidOperationException(
+                        $"Input '{entry.Key}' has {entry.Value.FrameCount} frames but input '{firstRole}' has {firstSequence.FrameCount} frames. Every input sequence must match.");
+                }
+                if (entry.Value.Width != firstSequence.Width || entry.Value.Height != firstSequence.Height) {
+                    throw new InvalidOperationException(
+                        $"Input '{entry.Key}' resolution {entry.Value.Width}x{entry.Value.Height} does not match input '{firstRole}' resolution {firstSequence.Width}x{firstSequence.Height}.");
+                }
+            }
+
+            Sequences = sequences;
+            FrameCount = firstSequence.FrameCount;
+            Width = firstSequence.Width;
+            Height = firstSequence.Height;
+        }
+
+        /// <summary>
+        /// Looks up one input sequence by its role name.
+        /// </summary>
+        /// <param name="role">Role name to look up, matching an entry in <see cref="IVfxEffect.InputRoles"/>.</param>
+        /// <returns>The sequence registered for that role.</returns>
+        public ImageSequence GetSequence(string role) {
+            if (!Sequences.TryGetValue(role, out ImageSequence sequence)) {
+                throw new InvalidOperationException($"VfxClip has no input sequence for role '{role}'.");
+            }
+            return sequence;
         }
     }
 }

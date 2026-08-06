@@ -42,7 +42,7 @@ namespace helengine.vfx.directx11 {
         readonly PixelShader EffectPixelShader;
 
         /// <summary>
-        /// Bilinear, clamped sampler bound to s0 for both the source and mask textures.
+        /// Bilinear, clamped sampler bound to s0, shared by every input texture.
         /// </summary>
         readonly SamplerState LinearClampSampler;
 
@@ -177,7 +177,7 @@ namespace helengine.vfx.directx11 {
         /// <summary>
         /// Processes every frame of a clip through the effect and writes the results out as EXR files.
         /// </summary>
-        /// <param name="clip">Source/mask clip to process.</param>
+        /// <param name="clip">Input clip to process, carrying one sequence per <see cref="IVfxEffect.InputRoles"/> entry.</param>
         /// <param name="effect">Effect to run; must be the same effect this runner compiled.</param>
         /// <param name="parameterValues">Raw parameter name/value pairs for the effect.</param>
         /// <param name="outputFolder">Folder the processed frames are written into; created when missing.</param>
@@ -205,40 +205,45 @@ namespace helengine.vfx.directx11 {
             EnsureRenderTarget(clip.Width, clip.Height);
 
             float[] paramSlots = effect.ResolveParameterSlots(parameterValues);
+            var alphaRequiredRoles = new HashSet<string>(effect.AlphaRequiredInputRoles, StringComparer.Ordinal);
+            int roleCount = effect.InputRoles.Count;
 
             for (int frameIndex = 0; frameIndex < clip.FrameCount; frameIndex++) {
-                string sourcePath = clip.Source.FramePaths[frameIndex];
-                string maskPath = clip.Mask.FramePaths[frameIndex];
-
-                FloatImageAsset sourceFrame = ExrFrameReader.ReadFrame(sourcePath);
-                FloatImageAsset maskFrame = ExrFrameReader.ReadFrame(maskPath, out int maskChannelCount);
+                var inputTextures = new Texture2D[roleCount];
+                var inputViews = new ShaderResourceView[roleCount];
                 try {
-                    ValidateFrameResolution(sourceFrame, sourcePath, clip.Width, clip.Height);
-                    ValidateFrameResolution(maskFrame, maskPath, clip.Width, clip.Height);
-                    ValidateMaskCarriesAlpha(maskPath, maskChannelCount);
-                } catch {
-                    sourceFrame.Dispose();
-                    maskFrame.Dispose();
-                    throw;
+                    for (int roleIndex = 0; roleIndex < roleCount; roleIndex++) {
+                        string role = effect.InputRoles[roleIndex];
+                        string framePath = clip.GetSequence(role).FramePaths[frameIndex];
+
+                        FloatImageAsset frame = ExrFrameReader.ReadFrame(framePath, out int channelCount);
+                        try {
+                            ValidateFrameResolution(frame, framePath, clip.Width, clip.Height);
+                            if (alphaRequiredRoles.Contains(role)) {
+                                ValidateFrameCarriesAlpha(framePath, channelCount);
+                            }
+                            inputTextures[roleIndex] = CreateInputTexture(frame);
+                        } finally {
+                            frame.Dispose();
+                        }
+                        inputViews[roleIndex] = new ShaderResourceView(GraphicsDevice, inputTextures[roleIndex]);
+                    }
+
+                    float normalizedTime = clip.FrameCount > 1 ? (float)frameIndex / (clip.FrameCount - 1) : 0f;
+                    UpdateConstantBuffer(normalizedTime, clip.Width, clip.Height, paramSlots);
+
+                    DrawFrame(inputViews);
+
+                    FloatImageAsset outputFrame = ReadBackFrame(clip.Width, clip.Height);
+                    string outputPath = Path.Combine(outputFolder, string.Format(frameFileNamePattern, frameIndex));
+                    ExrFrameWriter.WriteFrame(outputFrame, outputPath);
+                    outputFrame.Dispose();
+                } finally {
+                    for (int roleIndex = 0; roleIndex < roleCount; roleIndex++) {
+                        inputViews[roleIndex]?.Dispose();
+                        inputTextures[roleIndex]?.Dispose();
+                    }
                 }
-
-                using Texture2D sourceTexture = CreateInputTexture(sourceFrame);
-                using ShaderResourceView sourceView = new ShaderResourceView(GraphicsDevice, sourceTexture);
-                using Texture2D maskTexture = CreateInputTexture(maskFrame);
-                using ShaderResourceView maskView = new ShaderResourceView(GraphicsDevice, maskTexture);
-
-                sourceFrame.Dispose();
-                maskFrame.Dispose();
-
-                float normalizedTime = clip.FrameCount > 1 ? (float)frameIndex / (clip.FrameCount - 1) : 0f;
-                UpdateConstantBuffer(normalizedTime, clip.Width, clip.Height, paramSlots);
-
-                DrawFrame(sourceView, maskView);
-
-                FloatImageAsset outputFrame = ReadBackFrame(clip.Width, clip.Height);
-                string outputPath = Path.Combine(outputFolder, string.Format(frameFileNamePattern, frameIndex));
-                ExrFrameWriter.WriteFrame(outputFrame, outputPath);
-                outputFrame.Dispose();
             }
         }
 
@@ -262,22 +267,22 @@ namespace helengine.vfx.directx11 {
         }
 
         /// <summary>
-        /// Rejects a mask frame that carries no alpha channel. Such a frame would be expanded to a
-        /// fully opaque alpha of 1, which makes the compositing lerp a no-op and silently disables
-        /// masking for the whole export.
+        /// Rejects a frame that carries no alpha channel for an input role the effect declared as
+        /// alpha-required. Such a frame would be expanded to a fully opaque alpha of 1, which silently
+        /// disables whatever compositing that role's alpha was supposed to drive.
         /// </summary>
-        /// <param name="maskPath">Path the mask frame was read from, used in the error message.</param>
-        /// <param name="maskChannelCount">Channel count the mask file actually stored.</param>
-        static void ValidateMaskCarriesAlpha(string maskPath, int maskChannelCount) {
+        /// <param name="framePath">Path the frame was read from, used in the error message.</param>
+        /// <param name="channelCount">Channel count the frame actually stored.</param>
+        static void ValidateFrameCarriesAlpha(string framePath, int channelCount) {
             // 4+ channels are RGBA; exactly 2 channels are gray+alpha. Both carry a real alpha
             // channel. 1 and 3 channel frames do not, and get an alpha of 1 synthesized on read.
-            if (maskChannelCount >= 4 || maskChannelCount == 2) {
+            if (channelCount >= 4 || channelCount == 2) {
                 return;
             }
 
             throw new InvalidOperationException(
-                $"Mask frame '{maskPath}' stores {maskChannelCount} channel(s) and carries no alpha data. "
-                + "Mask sequences must be RGBA (or gray+alpha) EXR frames, otherwise every pixel would be treated as fully opaque and masking would silently do nothing.");
+                $"Frame '{framePath}' stores {channelCount} channel(s) and carries no alpha data. "
+                + "This effect requires this input role to be RGBA (or gray+alpha) EXR frames, otherwise every pixel would be treated as fully opaque and compositing would silently do nothing.");
         }
 
         /// <summary>
@@ -364,9 +369,9 @@ namespace helengine.vfx.directx11 {
         /// Issues the single fullscreen-triangle draw that processes one frame, then unbinds the
         /// input views so the next frame's textures can be created without a lingering reference.
         /// </summary>
-        /// <param name="sourceView">Shader resource view for the source color frame, bound to t0.</param>
-        /// <param name="maskView">Shader resource view for the mask frame, bound to t1.</param>
-        void DrawFrame(ShaderResourceView sourceView, ShaderResourceView maskView) {
+        /// <param name="inputViews">Shader resource views for this frame's inputs, bound to t0, t1, ...
+        /// in the same order as <see cref="IVfxEffect.InputRoles"/>.</param>
+        void DrawFrame(ShaderResourceView[] inputViews) {
             ImmediateContext.OutputMerger.SetRenderTargets(RenderTargetColorView);
             ImmediateContext.Rasterizer.State = NoCullRasterizerState;
             ImmediateContext.Rasterizer.SetViewport(0, 0, TargetWidth, TargetHeight, 0f, 1f);
@@ -375,14 +380,16 @@ namespace helengine.vfx.directx11 {
             ImmediateContext.VertexShader.Set(EffectVertexShader);
             ImmediateContext.PixelShader.Set(EffectPixelShader);
             ImmediateContext.PixelShader.SetConstantBuffer(0, FrameConstantBuffer);
-            ImmediateContext.PixelShader.SetShaderResource(0, sourceView);
-            ImmediateContext.PixelShader.SetShaderResource(1, maskView);
+            for (int i = 0; i < inputViews.Length; i++) {
+                ImmediateContext.PixelShader.SetShaderResource(i, inputViews[i]);
+            }
             ImmediateContext.PixelShader.SetSampler(0, LinearClampSampler);
 
             ImmediateContext.Draw(3, 0);
 
-            ImmediateContext.PixelShader.SetShaderResource(0, null);
-            ImmediateContext.PixelShader.SetShaderResource(1, null);
+            for (int i = 0; i < inputViews.Length; i++) {
+                ImmediateContext.PixelShader.SetShaderResource(i, null);
+            }
         }
 
         /// <summary>
