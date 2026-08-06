@@ -45,6 +45,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Releases one collection's native ownership claim over its stored elements so another verified owner can assume cleanup responsibility, while leaving managed source semantics unchanged.
+        /// </summary>
+        /// <typeparam name="T">Collection type whose element-ownership claim should be released.</typeparam>
+        /// <param name="collection">Collection whose native element ownership should detach.</param>
+        public static void DetachOwned<T>([NativeNoEscape] T collection) where T : class {
+        }
+
+        /// <summary>
         /// Deletes every reference stored in one managed array before clearing the array reference itself.
         /// </summary>
         /// <typeparam name="T">Reference type stored in the array.</typeparam>

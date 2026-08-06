@@ -485,9 +485,10 @@ namespace helengine {
                 oppositeIndex = parent.SecondIndex;
             }
 
+            int parentSubmeshIndex = parent.SubmeshIndex;
             int midpointIndex = GetOrCreateMidpointIndex(firstIndex, secondIndex, positions, normals, texCoords, midpointIndices);
-            triangles[triangleIndex] = new ModelTessellationTriangle(firstIndex, midpointIndex, oppositeIndex, parent.SubmeshIndex);
-            triangles.Add(new ModelTessellationTriangle(midpointIndex, secondIndex, oppositeIndex, parent.SubmeshIndex));
+            triangles[triangleIndex] = new ModelTessellationTriangle(firstIndex, midpointIndex, oppositeIndex, parentSubmeshIndex);
+            triangles.Add(new ModelTessellationTriangle(midpointIndex, secondIndex, oppositeIndex, parentSubmeshIndex));
         }
 
         /// <summary>

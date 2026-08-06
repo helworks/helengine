@@ -584,10 +584,6 @@ namespace helengine {
         /// Deletes the current snapshot records while preserving the reusable snapshot list.
         /// </summary>
         void ReleaseLayoutSnapshotItems() {
-            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                NativeOwnership.Delete(LayoutSnapshotsValue[snapshotIndex]);
-            }
-
             LayoutSnapshotsValue.Clear();
         }
 

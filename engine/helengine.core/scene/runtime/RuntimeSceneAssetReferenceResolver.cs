@@ -126,15 +126,16 @@ namespace helengine {
 
                 string generatedFullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED
-                RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource);
+                RuntimeModel generatedModel = TrackOwnedModel(
+                    Core.Instance.RenderManager3D.BuildModelFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource));
                 ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
-                return TrackOwnedModel(generatedModel);
+                return generatedModel;
 #else
                 ModelAsset generatedModelAsset = AssetContentManager.Load<ModelAsset>(generatedFullPath, RuntimeContentProcessorIds.ModelAsset);
                 try {
-                    RuntimeModel generatedModel = Core.Instance.RenderManager3D.BuildModelFromRaw(generatedModelAsset);
+                    RuntimeModel generatedModel = TrackOwnedModel(Core.Instance.RenderManager3D.BuildModelFromRaw(generatedModelAsset));
                     ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
-                    return TrackOwnedModel(generatedModel);
+                    return generatedModel;
                 } finally {
                     ReleaseTransientModelAsset(generatedModelAsset);
                 }
@@ -175,15 +176,17 @@ namespace helengine {
 
                 string generatedFullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
-                RuntimeMaterial generatedCookedRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource);
+                RuntimeMaterial generatedCookedRuntimeMaterial = TrackOwnedMaterial(
+                    Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource));
                 ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);
-                return TrackOwnedMaterial(generatedCookedRuntimeMaterial);
+                return generatedCookedRuntimeMaterial;
 #else
-                RuntimeMaterial generatedRawRuntimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
-                    AssetContentManager,
-                    generatedFullPath);
+                RuntimeMaterial generatedRawRuntimeMaterial = TrackOwnedMaterial(
+                    Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
+                        AssetContentManager,
+                        generatedFullPath));
                 ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
-                return TrackOwnedMaterial(generatedRawRuntimeMaterial);
+                return generatedRawRuntimeMaterial;
 #endif
             }
 

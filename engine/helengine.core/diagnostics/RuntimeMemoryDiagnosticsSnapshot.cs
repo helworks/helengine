@@ -48,10 +48,6 @@ namespace helengine {
         /// </summary>
         public void Dispose() {
             if (DetailMetrics != null) {
-                for (int index = 0; index < DetailMetrics.Count; index++) {
-                    NativeOwnership.Delete(DetailMetrics[index]);
-                }
-
                 DetailMetrics.Clear();
                 NativeOwnership.Delete(DetailMetrics);
                 DetailMetrics = null;

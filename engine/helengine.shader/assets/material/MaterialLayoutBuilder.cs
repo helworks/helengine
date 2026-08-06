@@ -34,7 +34,7 @@ namespace helengine {
             AddBindings(pixelProgram, textureBindings, constantBufferBindings, samplerBindings, bindingByKey);
 
             MaterialRenderState renderState = materialAsset.RenderState ?? throw new InvalidOperationException("Material render state must be provided.");
-            return new MaterialLayout(
+            MaterialLayout layout = new MaterialLayout(
                 materialAsset.ShaderAssetId ?? string.Empty,
                 materialAsset.VertexProgram ?? string.Empty,
                 materialAsset.PixelProgram ?? string.Empty,
@@ -43,6 +43,7 @@ namespace helengine {
                 textureBindings.ToArray(),
                 constantBufferBindings.ToArray(),
                 samplerBindings.ToArray());
+            return layout;
         }
 
         /// <summary>
@@ -142,8 +143,21 @@ namespace helengine {
                 return;
             }
 
-            bindingByKey.Add(bindingKey, layoutBinding);
+            CacheBorrowedBinding(bindingByKey, bindingKey, layoutBinding);
             AddBindingToCategory(layoutBinding, textureBindings, constantBufferBindings, samplerBindings);
+        }
+
+        /// <summary>
+        /// Caches one non-owning binding alias in the cross-stage dedup lookup while cleanup responsibility stays on the layout path.
+        /// </summary>
+        /// <param name="bindingByKey">Lookup used to merge duplicate bindings across stages.</param>
+        /// <param name="bindingKey">Stable dedup key for the binding.</param>
+        /// <param name="layoutBinding">Binding whose borrowed alias should be cached.</param>
+        static void CacheBorrowedBinding(
+            [NativeNoEscape] Dictionary<string, MaterialLayoutBinding> bindingByKey,
+            string bindingKey,
+            [NativeRetainsBorrow] MaterialLayoutBinding layoutBinding) {
+            bindingByKey.Add(bindingKey, layoutBinding);
         }
 
         /// <summary>

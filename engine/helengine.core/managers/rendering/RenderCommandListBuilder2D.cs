@@ -477,10 +477,6 @@ namespace helengine {
             }
 
             if (effectPasses != null) {
-                for (int passIndex = 0; passIndex < effectPasses.Count; passIndex++) {
-                    NativeOwnership.Delete(effectPasses[passIndex]);
-                }
-
                 NativeOwnership.Delete(effectPasses);
             }
         }

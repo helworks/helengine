@@ -45,6 +45,8 @@ namespace helengine {
 
             RenderFrameDrawableSubmission[] drawableSubmissionArray = drawableSubmissions.ToArray();
             RenderFrameShadowCasterSubmission[] shadowCasterSubmissionArray = shadowCasterSubmissions.ToArray();
+            NativeOwnership.DetachOwned(drawableSubmissions);
+            NativeOwnership.DetachOwned(shadowCasterSubmissions);
             NativeOwnership.Delete(drawableSubmissions);
             NativeOwnership.Delete(shadowCasterSubmissions);
             NativeOwnership.Delete(classifier);
