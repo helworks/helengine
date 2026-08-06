@@ -6,5 +6,6 @@ using helengine.vfx.effects;
 // invocation is handled by VfxCliRunner.
 VfxEffectRegistry.Register(new RainbowExpandEffect());
 VfxEffectRegistry.Register(new RainbowAuraEffect());
+VfxEffectRegistry.Register(new DepthCompositeEffect());
 
 return VfxCliRunner.Run(args);
