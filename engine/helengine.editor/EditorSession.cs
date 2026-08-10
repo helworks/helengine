@@ -120,6 +120,10 @@ namespace helengine.editor {
         /// </summary>
         EditorProjectPlatformsService projectPlatformsService;
         /// <summary>
+        /// Service used to persist project-shared build environments.
+        /// </summary>
+        EditorProjectEnvironmentsService projectEnvironmentsService;
+        /// <summary>
         /// Importer registrations supplied by the editor host.
         /// </summary>
         readonly IReadOnlyList<IAssetImporterRegistration> Importers;
@@ -332,6 +336,10 @@ namespace helengine.editor {
         /// </summary>
         PlatformsDialog platformsDialog;
         /// <summary>
+        /// Modal dialog used to edit project-defined build environments.
+        /// </summary>
+        EnvironmentsDialog environmentsDialog;
+        /// <summary>
         /// Modal dialog used to edit per-platform build and graphics profiles.
         /// </summary>
         ProfilesDialog profilesDialog;
@@ -539,6 +547,7 @@ namespace helengine.editor {
             ProjectName = ResolveProjectName(projectDocument);
             ProjectVersion = ResolveProjectVersion(projectDocument);
             projectPlatformsService = new EditorProjectPlatformsService(this.projectPath);
+            projectEnvironmentsService = new EditorProjectEnvironmentsService(this.projectPath);
             ProjectSupportedPlatforms = projectPlatformsService.Load().SupportedPlatforms.AsReadOnly();
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
@@ -651,6 +660,7 @@ namespace helengine.editor {
             openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, this.projectPath);
             reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
             platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
+            environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
             profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
             buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
             buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
@@ -693,6 +703,7 @@ namespace helengine.editor {
             titleBar.SceneSettingsRequested += HandleSceneSettingsRequested;
             titleBar.PreferencesRequested += HandlePreferencesRequested;
             titleBar.BuildRequested += HandleBuildRequested;
+            titleBar.EnvironmentsRequested += HandleEnvironmentsRequested;
             titleBar.PlatformsRequested += HandlePlatformsRequested;
             titleBar.ProfilesRequested += HandleProfilesRequested;
             titleBar.BuildScriptsRequested += HandleBuildScriptsRequested;
@@ -1115,6 +1126,7 @@ namespace helengine.editor {
             openFileDialog.UpdateLayout(width, height);
             reparentEntityDialog.UpdateLayout(width, height);
             platformsDialog.UpdateLayout(width, height);
+            environmentsDialog.UpdateLayout(width, height);
             profilesDialog.UpdateLayout(width, height);
             buildDialog.UpdateLayout(width, height);
             buildDialogCopySettingsDialog.UpdateLayout(width, height);
@@ -1216,6 +1228,10 @@ namespace helengine.editor {
                 platformsDialog.ConfirmRequested += HandlePlatformsDialogConfirmed;
                 platformsDialog.CancelRequested += HandlePlatformsDialogCancelRequested;
             }
+            if (environmentsDialog != null) {
+                environmentsDialog.ConfirmRequested += HandleEnvironmentsDialogConfirmed;
+                environmentsDialog.CancelRequested += HandleEnvironmentsDialogCancelRequested;
+            }
             if (profilesDialog != null) {
                 profilesDialog.ConfirmRequested += HandleProfilesDialogConfirmed;
                 profilesDialog.CancelRequested += HandleProfilesDialogCancelRequested;
@@ -1264,6 +1280,10 @@ namespace helengine.editor {
             if (platformsDialog != null) {
                 platformsDialog.ConfirmRequested -= HandlePlatformsDialogConfirmed;
                 platformsDialog.CancelRequested -= HandlePlatformsDialogCancelRequested;
+            }
+            if (environmentsDialog != null) {
+                environmentsDialog.ConfirmRequested -= HandleEnvironmentsDialogConfirmed;
+                environmentsDialog.CancelRequested -= HandleEnvironmentsDialogCancelRequested;
             }
             if (profilesDialog != null) {
                 profilesDialog.ConfirmRequested -= HandleProfilesDialogConfirmed;
@@ -1358,6 +1378,7 @@ namespace helengine.editor {
             }
             reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
             platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
+            environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
             profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
             buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
             buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
@@ -1385,6 +1406,9 @@ namespace helengine.editor {
             }
             if (platformsDialog != null) {
                 platformsDialog.Dispose();
+            }
+            if (environmentsDialog != null) {
+                environmentsDialog.Dispose();
             }
             if (profilesDialog != null) {
                 profilesDialog.Dispose();
@@ -1492,6 +1516,7 @@ namespace helengine.editor {
             titleBar.SceneSettingsRequested -= HandleSceneSettingsRequested;
             titleBar.PreferencesRequested -= HandlePreferencesRequested;
             titleBar.BuildRequested -= HandleBuildRequested;
+            titleBar.EnvironmentsRequested -= HandleEnvironmentsRequested;
             titleBar.PlatformsRequested -= HandlePlatformsRequested;
             titleBar.ProfilesRequested -= HandleProfilesRequested;
             titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested;
@@ -2522,6 +2547,10 @@ namespace helengine.editor {
                 return true;
             }
 
+            if (environmentsDialog != null && environmentsDialog.Enabled) {
+                return true;
+            }
+
             if (profilesDialog != null && profilesDialog.Enabled) {
                 return true;
             }
@@ -2655,6 +2684,37 @@ namespace helengine.editor {
             if (platformsDialog != null) {
                 platformsDialog.Show(availablePlatforms, projectPlatforms.SupportedPlatforms, ActiveProjectPlatform);
             }
+        }
+
+        /// <summary>
+        /// Opens the project environment registry dialog.
+        /// </summary>
+        void HandleEnvironmentsRequested() {
+            if (environmentsDialog == null || projectEnvironmentsService == null) {
+                return;
+            }
+
+            environmentsDialog.Show(projectEnvironmentsService.Load());
+        }
+
+        /// <summary>
+        /// Persists a confirmed project environment registry and closes its dialog.
+        /// </summary>
+        /// <param name="selection">Confirmed environment registry selection.</param>
+        void HandleEnvironmentsDialogConfirmed(EnvironmentsDialogSelection selection) {
+            if (selection == null) {
+                throw new ArgumentNullException(nameof(selection));
+            }
+
+            projectEnvironmentsService.Save(selection.Document);
+            environmentsDialog.Hide();
+        }
+
+        /// <summary>
+        /// Cancels the project environment registry workflow.
+        /// </summary>
+        void HandleEnvironmentsDialogCancelRequested() {
+            environmentsDialog.Hide();
         }
 
         /// <summary>

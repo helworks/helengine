@@ -189,6 +189,14 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity UiMenuButtonEntity;
         /// <summary>
+        /// Entity that hosts the Tools menu trigger button.
+        /// </summary>
+        readonly EditorEntity ToolsMenuButtonEntity;
+        /// <summary>
+        /// Width reserved for the Tools menu trigger button.
+        /// </summary>
+        int ToolsMenuButtonWidth;
+        /// <summary>
         /// Width reserved for the UI menu trigger button.
         /// </summary>
         int UiMenuButtonWidth;
@@ -224,6 +232,14 @@ namespace helengine.editor {
         /// Items displayed by the Build context menu.
         /// </summary>
         readonly IReadOnlyList<ContextMenuItem> BuildMenuItems;
+        /// <summary>
+        /// Context menu shown when the Tools button is activated.
+        /// </summary>
+        readonly ContextMenu ToolsMenu;
+        /// <summary>
+        /// Items displayed by the Tools context menu.
+        /// </summary>
+        readonly IReadOnlyList<ContextMenuItem> ToolsMenuItems;
         /// <summary>
         /// Context menu shown when the UI button is activated.
         /// </summary>
@@ -413,6 +429,8 @@ namespace helengine.editor {
             AddMenuButtonWidth = addMenuButtonWidth;
             BuildMenuButtonEntity = CreateTitleBarButton("Build", ToggleBuildMenu, HandleBuildMenuButtonHovered, false, true, out int buildMenuButtonWidth);
             BuildMenuButtonWidth = buildMenuButtonWidth;
+            ToolsMenuButtonEntity = CreateTitleBarButton("Tools", ToggleToolsMenu, HandleToolsMenuButtonHovered, false, true, out int toolsMenuButtonWidth);
+            ToolsMenuButtonWidth = toolsMenuButtonWidth;
             UiMenuButtonEntity = CreateTitleBarButton("UI", ToggleUiMenu, HandleUiMenuButtonHovered, false, true, out int uiMenuButtonWidth);
             UiMenuButtonWidth = uiMenuButtonWidth;
 
@@ -461,6 +479,9 @@ namespace helengine.editor {
             BuildMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
             RootEntity.AddChild(BuildMenu.Entity);
             BuildMenuItems = BuildBuildMenuItems();
+            ToolsMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            RootEntity.AddChild(ToolsMenu.Entity);
+            ToolsMenuItems = BuildToolsMenuItems();
             UiMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
             RootEntity.AddChild(UiMenu.Entity);
             UiMenuItems = BuildUiMenuItems();
@@ -550,6 +571,7 @@ namespace helengine.editor {
             FileMenuButtonWidth = ComputeButtonWidth("File");
             AddMenuButtonWidth = ComputeButtonWidth("Add");
             BuildMenuButtonWidth = ComputeButtonWidth("Build");
+            ToolsMenuButtonWidth = ComputeButtonWidth("Tools");
             UiMenuButtonWidth = ComputeButtonWidth("UI");
             MinimizeButtonWidth = ComputeButtonWidth("-");
             MaximizeButtonWidth = ComputeButtonWidth("Max");
@@ -558,6 +580,7 @@ namespace helengine.editor {
             UpdateTitleBarButtonChrome(FileMenuButtonEntity, FileMenuButtonWidth, true, false, font);
             UpdateTitleBarButtonChrome(AddMenuButtonEntity, AddMenuButtonWidth, true, true, font);
             UpdateTitleBarButtonChrome(BuildMenuButtonEntity, BuildMenuButtonWidth, false, true, font);
+            UpdateTitleBarButtonChrome(ToolsMenuButtonEntity, ToolsMenuButtonWidth, false, true, font);
             UpdateTitleBarButtonChrome(UiMenuButtonEntity, UiMenuButtonWidth, false, true, font);
             for (int index = 0; index < ProjectMenuStates.Count; index++) {
                 EditorTitleBarProjectMenuState projectMenuState = ProjectMenuStates[index];
@@ -670,6 +693,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action BuildRequested;
         /// <summary>
+        /// Raised when the user selects the Environments command.
+        /// </summary>
+        public event Action EnvironmentsRequested;
+        /// <summary>
         /// Raised when the user selects the Profiles command.
         /// </summary>
         public event Action ProfilesRequested;
@@ -712,7 +739,9 @@ namespace helengine.editor {
             AddMenuButtonEntity.Position = new float3(addButtonX, GetContentTopOffset(), 0f);
             float buildButtonX = addButtonX + AddMenuButtonWidth + ButtonSpacing;
             BuildMenuButtonEntity.Position = new float3(buildButtonX, GetContentTopOffset(), 0f);
-            float uiButtonX = buildButtonX + BuildMenuButtonWidth + ButtonSpacing;
+            float toolsButtonX = buildButtonX + BuildMenuButtonWidth + ButtonSpacing;
+            ToolsMenuButtonEntity.Position = new float3(toolsButtonX, GetContentTopOffset(), 0f);
+            float uiButtonX = toolsButtonX + ToolsMenuButtonWidth + ButtonSpacing;
             UiMenuButtonEntity.Position = new float3(uiButtonX, GetContentTopOffset(), 0f);
             float lastMenuButtonRightEdge = uiButtonX + UiMenuButtonWidth;
             for (int index = 0; index < ProjectMenuStates.Count; index++) {
@@ -736,6 +765,7 @@ namespace helengine.editor {
             AddMenu.UpdateLayout(HostSize);
             LightMenu.UpdateLayout(HostSize);
             BuildMenu.UpdateLayout(HostSize);
+            ToolsMenu.UpdateLayout(HostSize);
             UiMenu.UpdateLayout(HostSize);
             UiShowMenu.UpdateLayout(HostSize);
             UiSaveMenu.UpdateLayout(HostSize);
@@ -857,6 +887,16 @@ namespace helengine.editor {
                 new ContextMenuItem("Build...", RaiseBuildRequested),
                 new ContextMenuItem("Build Scripts...", RaiseBuildScriptsRequested),
                 new ContextMenuItem("Open in IDE...", RaiseOpenInIDERequested)
+            };
+        }
+
+        /// <summary>
+        /// Creates the Tools menu items shown beside the Build button.
+        /// </summary>
+        /// <returns>Immutable collection of Tools menu items.</returns>
+        IReadOnlyList<ContextMenuItem> BuildToolsMenuItems() {
+            return new ContextMenuItem[] {
+                new ContextMenuItem("Environments...", RaiseEnvironmentsRequested)
             };
         }
 
@@ -1327,6 +1367,7 @@ namespace helengine.editor {
             AddMenu.Hide();
             LightMenu.Hide();
             BuildMenu.Hide();
+            ToolsMenu.Hide();
             UiMenu.Hide();
             UiShowMenu.Hide();
             UiSaveMenu.Hide();
@@ -1368,6 +1409,18 @@ namespace helengine.editor {
             }
 
             ShowBuildMenu();
+        }
+
+        /// <summary>
+        /// Shows or hides the Tools menu anchored beneath the Tools button.
+        /// </summary>
+        void ToggleToolsMenu() {
+            if (ToolsMenu.IsVisible) {
+                ToolsMenu.Hide();
+                return;
+            }
+
+            ShowToolsMenu();
         }
 
         /// <summary>
@@ -1419,6 +1472,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Switches to the Tools menu when hovering across an already active menu strip.
+        /// </summary>
+        void HandleToolsMenuButtonHovered() {
+            if (!IsAnyOtherTopLevelMenuVisible("tools")) {
+                return;
+            }
+
+            ShowToolsMenu();
+        }
+
+        /// <summary>
         /// Switches to the UI menu when hovering across an already active menu strip.
         /// </summary>
         void HandleUiMenuButtonHovered() {
@@ -1466,6 +1530,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Shows the Tools menu and closes any other title-bar menu.
+        /// </summary>
+        void ShowToolsMenu() {
+            HideMenus();
+            ToolsMenu.Show(ToolsMenuItems, GetToolsMenuPosition(), HostSize);
+        }
+
+        /// <summary>
         /// Shows the UI menu and closes any other title-bar menu.
         /// </summary>
         void ShowUiMenu() {
@@ -1507,6 +1579,7 @@ namespace helengine.editor {
 
             FileMenu.Hide();
             BuildMenu.Hide();
+            ToolsMenu.Hide();
             UiMenu.Hide();
             UiShowMenu.Hide();
             UiSaveMenu.Hide();
@@ -1526,6 +1599,7 @@ namespace helengine.editor {
             AddMenu.Hide();
             LightMenu.Hide();
             BuildMenu.Hide();
+            ToolsMenu.Hide();
             UiSaveMenu.Hide();
             UiLoadMenu.Hide();
             UiShowMenu.Show(UiShowMenuItems, GetUiShowMenuPosition(), HostSize);
@@ -1543,6 +1617,7 @@ namespace helengine.editor {
             AddMenu.Hide();
             LightMenu.Hide();
             BuildMenu.Hide();
+            ToolsMenu.Hide();
             UiShowMenu.Hide();
             UiLoadMenu.Hide();
             UiSaveMenu.Show(UiSaveMenuItems, GetUiSaveMenuPosition(), HostSize);
@@ -1560,6 +1635,7 @@ namespace helengine.editor {
             AddMenu.Hide();
             LightMenu.Hide();
             BuildMenu.Hide();
+            ToolsMenu.Hide();
             UiShowMenu.Hide();
             UiSaveMenu.Hide();
             UiLoadMenu.Show(UiLoadMenuItems, GetUiLoadMenuPosition(), HostSize);
@@ -1606,6 +1682,15 @@ namespace helengine.editor {
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetBuildMenuPosition() {
             int x = (int)Math.Round(BuildMenuButtonEntity.Position.X);
+            return new int2(x, Height);
+        }
+
+        /// <summary>
+        /// Computes the top-left position used to open the Tools menu.
+        /// </summary>
+        /// <returns>Menu position relative to the title bar root.</returns>
+        int2 GetToolsMenuPosition() {
+            int x = (int)Math.Round(ToolsMenuButtonEntity.Position.X);
             return new int2(x, Height);
         }
 
@@ -1912,6 +1997,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Raises the Environments command event.
+        /// </summary>
+        void RaiseEnvironmentsRequested() {
+            HideMenus();
+            if (EnvironmentsRequested != null) {
+                EnvironmentsRequested();
+            }
+        }
+
+        /// <summary>
         /// Raises the Profiles command event.
         /// </summary>
         void RaiseProfilesRequested() {
@@ -1994,6 +2089,9 @@ namespace helengine.editor {
             if (!string.Equals(excludedTopLevelMenuId, "build", StringComparison.OrdinalIgnoreCase) && BuildMenu.IsVisible) {
                 return true;
             }
+            if (!string.Equals(excludedTopLevelMenuId, "tools", StringComparison.OrdinalIgnoreCase) && ToolsMenu.IsVisible) {
+                return true;
+            }
             if (!string.Equals(excludedTopLevelMenuId, "ui", StringComparison.OrdinalIgnoreCase) && UiMenu.IsVisible) {
                 return true;
             }
@@ -2047,7 +2145,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when at least one title-bar menu is visible.</returns>
         bool AreAnyMenusVisible() {
-            if (FileMenu.IsVisible || AddMenu.IsVisible || LightMenu.IsVisible || BuildMenu.IsVisible || UiMenu.IsVisible || UiShowMenu.IsVisible || UiSaveMenu.IsVisible || UiLoadMenu.IsVisible) {
+            if (FileMenu.IsVisible || AddMenu.IsVisible || LightMenu.IsVisible || BuildMenu.IsVisible || ToolsMenu.IsVisible || UiMenu.IsVisible || UiShowMenu.IsVisible || UiSaveMenu.IsVisible || UiLoadMenu.IsVisible) {
                 return true;
             }
 
