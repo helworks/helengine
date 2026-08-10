@@ -9,6 +9,11 @@ namespace helengine {
         public string PlatformId { get; set; } = string.Empty;
 
         /// <summary>
+        /// Gets or sets the optional environment identifier nested under <see cref="PlatformId"/>.
+        /// </summary>
+        public string EnvironmentId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets or sets a value indicating whether the entity should exist on the owning platform.
         /// </summary>
         public bool Exists { get; set; }

@@ -11,7 +11,8 @@ namespace helengine.editor {
         /// <summary>
         /// Current wrapped payload format version.
         /// </summary>
-        const int WrappedPayloadVersion = 3;
+        const int LegacyWrappedPayloadVersion = 3;
+        const int WrappedPayloadVersion = 4;
 
         /// <summary>
         /// Wraps one serialized component record with editor-only platform override metadata when overrides exist.
@@ -174,6 +175,7 @@ namespace helengine.editor {
             }
 
             writer.WriteString(overrideState.PlatformId);
+            writer.WriteString(overrideState.EnvironmentId ?? string.Empty);
             writer.WriteByteArray(overrideState.Payload);
 
             List<KeyValuePair<string, SceneAssetReference>> assetReferences = GetOverrideAssetReferences(overrideState);
@@ -217,7 +219,7 @@ namespace helengine.editor {
         IReadOnlyList<EntityComponentPlatformOverrideState> ReadWrappedOverrides(byte[] payload) {
             using MemoryStream stream = new MemoryStream(payload, writable: false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            ReadAndValidateHeader(reader);
+            int payloadVersion = ReadAndValidateHeader(reader);
             reader.ReadByteArray();
 
             int overrideCount = reader.ReadInt32();
@@ -226,8 +228,15 @@ namespace helengine.editor {
             }
 
             List<EntityComponentPlatformOverrideState> overrides = new List<EntityComponentPlatformOverrideState>(overrideCount);
+            HashSet<EditorOverrideScope> scopes = new HashSet<EditorOverrideScope>();
             for (int index = 0; index < overrideCount; index++) {
-                overrides.Add(ReadOverrideState(reader));
+                EntityComponentPlatformOverrideState overrideState = ReadOverrideState(reader, payloadVersion >= WrappedPayloadVersion);
+                EditorOverrideScope scope = new EditorOverrideScope(overrideState.PlatformId, overrideState.EnvironmentId);
+                if (!scopes.Add(scope)) {
+                    throw new InvalidOperationException($"Duplicate component override scope '{scope}'.");
+                }
+
+                overrides.Add(overrideState);
             }
 
             return overrides;
@@ -237,7 +246,7 @@ namespace helengine.editor {
         /// Reads and validates the wrapped payload header.
         /// </summary>
         /// <param name="reader">Source reader positioned at the wrapped payload start.</param>
-        void ReadAndValidateHeader(EngineBinaryReader reader) {
+        int ReadAndValidateHeader(EngineBinaryReader reader) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -247,9 +256,11 @@ namespace helengine.editor {
             }
 
             int version = reader.ReadInt32();
-            if (version != WrappedPayloadVersion) {
+            if (version != LegacyWrappedPayloadVersion && version != WrappedPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported component platform override payload version '{version}'.");
             }
+
+            return version;
         }
 
         /// <summary>
@@ -308,7 +319,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reader">Source reader positioned at one override entry.</param>
         /// <returns>Decoded platform override payload metadata.</returns>
-        EntityComponentPlatformOverrideState ReadOverrideState(EngineBinaryReader reader) {
+        EntityComponentPlatformOverrideState ReadOverrideState(EngineBinaryReader reader, bool hasEnvironmentId) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -320,6 +331,7 @@ namespace helengine.editor {
 
             EntityComponentPlatformOverrideState overrideState = new EntityComponentPlatformOverrideState {
                 PlatformId = platformId,
+                EnvironmentId = hasEnvironmentId ? reader.ReadString() : string.Empty,
                 Payload = reader.ReadByteArray() ?? Array.Empty<byte>()
             };
 

@@ -8,17 +8,17 @@ namespace helengine {
         /// </summary>
         readonly Dictionary<Component, EntityComponentSaveState> SaveStatesByComponent;
         /// <summary>
-        /// Entity existence override payloads keyed by their owning platform id.
+        /// Entity existence override payloads grouped by platform and nested environment id.
         /// </summary>
-        readonly Dictionary<string, SceneEntityPlatformExistenceOverrideAsset> ExistenceOverridesByPlatformId;
+        readonly EditorOverrideScopeMap<SceneEntityPlatformExistenceOverrideAsset> ExistenceOverridesByScope;
         /// <summary>
-        /// Transform override payloads keyed by their owning platform id.
+        /// Transform override payloads grouped by platform and nested environment id.
         /// </summary>
-        readonly Dictionary<string, SceneEntityPlatformTransformOverrideAsset> TransformOverridesByPlatformId;
+        readonly EditorOverrideScopeMap<SceneEntityPlatformTransformOverrideAsset> TransformOverridesByScope;
         /// <summary>
-        /// Component existence override payloads keyed by their owning platform id.
+        /// Component existence override payloads grouped by platform and nested environment id.
         /// </summary>
-        readonly Dictionary<string, EntityPlatformComponentOverrideState> ComponentOverridesByPlatformId;
+        readonly EditorOverrideScopeMap<EntityPlatformComponentOverrideState> ComponentOverridesByScope;
 
         /// <summary>
         /// Stable id used to reference the owning entity from serialized scene data.
@@ -55,9 +55,9 @@ namespace helengine {
         /// </summary>
         public EntitySaveComponent() {
             SaveStatesByComponent = new Dictionary<Component, EntityComponentSaveState>();
-            ExistenceOverridesByPlatformId = new Dictionary<string, SceneEntityPlatformExistenceOverrideAsset>(StringComparer.OrdinalIgnoreCase);
-            TransformOverridesByPlatformId = new Dictionary<string, SceneEntityPlatformTransformOverrideAsset>(StringComparer.OrdinalIgnoreCase);
-            ComponentOverridesByPlatformId = new Dictionary<string, EntityPlatformComponentOverrideState>(StringComparer.OrdinalIgnoreCase);
+            ExistenceOverridesByScope = new EditorOverrideScopeMap<SceneEntityPlatformExistenceOverrideAsset>();
+            TransformOverridesByScope = new EditorOverrideScopeMap<SceneEntityPlatformTransformOverrideAsset>();
+            ComponentOverridesByScope = new EditorOverrideScopeMap<EntityPlatformComponentOverrideState>();
             ActiveTransformPlatformId = string.Empty;
         }
 
@@ -110,14 +110,22 @@ namespace helengine {
         /// <param name="platformId">Platform identifier that owns the override payload.</param>
         /// <param name="overrideState">Override payload metadata to store.</param>
         public void SetExistencePlatformOverride(string platformId, SceneEntityPlatformExistenceOverrideAsset overrideState) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            } else if (overrideState == null) {
+            SetExistencePlatformOverride(new EditorOverrideScope(platformId), overrideState);
+        }
+
+        /// <summary>
+        /// Stores one platform or nested environment entity existence override payload.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope that owns the payload.</param>
+        /// <param name="overrideState">Override payload metadata to store.</param>
+        public void SetExistencePlatformOverride(EditorOverrideScope scope, SceneEntityPlatformExistenceOverrideAsset overrideState) {
+            if (overrideState == null) {
                 throw new ArgumentNullException(nameof(overrideState));
             }
 
-            overrideState.PlatformId = platformId;
-            ExistenceOverridesByPlatformId[platformId] = overrideState;
+            overrideState.PlatformId = scope.PlatformId;
+            overrideState.EnvironmentId = scope.EnvironmentId;
+            ExistenceOverridesByScope.Set(scope, overrideState);
         }
 
         /// <summary>
@@ -126,19 +134,20 @@ namespace helengine {
         /// <param name="platformId">Platform identifier whose entity existence override payload should be returned.</param>
         /// <returns>Mutable platform entity existence override payload metadata.</returns>
         public SceneEntityPlatformExistenceOverrideAsset GetOrCreateExistencePlatformOverride(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            return GetOrCreateExistencePlatformOverride(new EditorOverrideScope(platformId));
+        }
 
-            if (!ExistenceOverridesByPlatformId.TryGetValue(platformId, out SceneEntityPlatformExistenceOverrideAsset overrideState)) {
-                overrideState = new SceneEntityPlatformExistenceOverrideAsset {
-                    PlatformId = platformId,
-                    Exists = true
-                };
-                ExistenceOverridesByPlatformId.Add(platformId, overrideState);
-            }
-
-            return overrideState;
+        /// <summary>
+        /// Gets the existing platform or nested environment entity existence override or creates one when needed.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope whose payload should be returned.</param>
+        /// <returns>Mutable entity existence override payload.</returns>
+        public SceneEntityPlatformExistenceOverrideAsset GetOrCreateExistencePlatformOverride(EditorOverrideScope scope) {
+            return ExistenceOverridesByScope.GetOrCreate(scope, () => new SceneEntityPlatformExistenceOverrideAsset {
+                PlatformId = scope.PlatformId,
+                EnvironmentId = scope.EnvironmentId,
+                Exists = true
+            });
         }
 
         /// <summary>
@@ -148,11 +157,17 @@ namespace helengine {
         /// <param name="overrideState">Resolved platform entity existence override payload when one exists.</param>
         /// <returns>True when one platform entity existence override exists for the supplied platform.</returns>
         public bool TryGetExistencePlatformOverride(string platformId, out SceneEntityPlatformExistenceOverrideAsset overrideState) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            return TryGetExistencePlatformOverride(new EditorOverrideScope(platformId), out overrideState);
+        }
 
-            return ExistenceOverridesByPlatformId.TryGetValue(platformId, out overrideState);
+        /// <summary>
+        /// Attempts to read one platform or nested environment entity existence override.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope to resolve.</param>
+        /// <param name="overrideState">Resolved override payload when one exists.</param>
+        /// <returns>True when one override exists at the supplied scope.</returns>
+        public bool TryGetExistencePlatformOverride(EditorOverrideScope scope, out SceneEntityPlatformExistenceOverrideAsset overrideState) {
+            return ExistenceOverridesByScope.TryGet(scope, out overrideState);
         }
 
         /// <summary>
@@ -160,11 +175,15 @@ namespace helengine {
         /// </summary>
         /// <param name="platformId">Platform identifier whose entity existence override payload should be removed.</param>
         public void RemoveExistencePlatformOverride(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            RemoveExistencePlatformOverride(new EditorOverrideScope(platformId));
+        }
 
-            ExistenceOverridesByPlatformId.Remove(platformId);
+        /// <summary>
+        /// Removes one platform or nested environment entity existence override.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope to remove.</param>
+        public void RemoveExistencePlatformOverride(EditorOverrideScope scope) {
+            ExistenceOverridesByScope.Remove(scope);
         }
 
         /// <summary>
@@ -172,7 +191,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Platform entity existence override payload metadata stored for the entity.</returns>
         public IEnumerable<SceneEntityPlatformExistenceOverrideAsset> EnumerateExistencePlatformOverrides() {
-            return ExistenceOverridesByPlatformId.Values;
+            return ExistenceOverridesByScope.EnumerateValues();
         }
 
         /// <summary>
@@ -181,14 +200,22 @@ namespace helengine {
         /// <param name="platformId">Platform identifier that owns the override payload.</param>
         /// <param name="overrideState">Override payload metadata to store.</param>
         public void SetTransformPlatformOverride(string platformId, SceneEntityPlatformTransformOverrideAsset overrideState) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            } else if (overrideState == null) {
+            SetTransformPlatformOverride(new EditorOverrideScope(platformId), overrideState);
+        }
+
+        /// <summary>
+        /// Stores one platform or nested environment transform override payload.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope that owns the payload.</param>
+        /// <param name="overrideState">Override payload metadata to store.</param>
+        public void SetTransformPlatformOverride(EditorOverrideScope scope, SceneEntityPlatformTransformOverrideAsset overrideState) {
+            if (overrideState == null) {
                 throw new ArgumentNullException(nameof(overrideState));
             }
 
-            overrideState.PlatformId = platformId;
-            TransformOverridesByPlatformId[platformId] = overrideState;
+            overrideState.PlatformId = scope.PlatformId;
+            overrideState.EnvironmentId = scope.EnvironmentId;
+            TransformOverridesByScope.Set(scope, overrideState);
         }
 
         /// <summary>
@@ -197,18 +224,19 @@ namespace helengine {
         /// <param name="platformId">Platform identifier whose transform override payload should be returned.</param>
         /// <returns>Mutable platform transform override payload metadata.</returns>
         public SceneEntityPlatformTransformOverrideAsset GetOrCreateTransformPlatformOverride(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            return GetOrCreateTransformPlatformOverride(new EditorOverrideScope(platformId));
+        }
 
-            if (!TransformOverridesByPlatformId.TryGetValue(platformId, out SceneEntityPlatformTransformOverrideAsset overrideState)) {
-                overrideState = new SceneEntityPlatformTransformOverrideAsset {
-                    PlatformId = platformId
-                };
-                TransformOverridesByPlatformId.Add(platformId, overrideState);
-            }
-
-            return overrideState;
+        /// <summary>
+        /// Gets the existing platform or nested environment transform override or creates one when needed.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope whose payload should be returned.</param>
+        /// <returns>Mutable transform override payload.</returns>
+        public SceneEntityPlatformTransformOverrideAsset GetOrCreateTransformPlatformOverride(EditorOverrideScope scope) {
+            return TransformOverridesByScope.GetOrCreate(scope, () => new SceneEntityPlatformTransformOverrideAsset {
+                PlatformId = scope.PlatformId,
+                EnvironmentId = scope.EnvironmentId
+            });
         }
 
         /// <summary>
@@ -218,11 +246,17 @@ namespace helengine {
         /// <param name="overrideState">Resolved platform transform override payload when one exists.</param>
         /// <returns>True when one platform transform override exists for the supplied platform.</returns>
         public bool TryGetTransformPlatformOverride(string platformId, out SceneEntityPlatformTransformOverrideAsset overrideState) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            return TryGetTransformPlatformOverride(new EditorOverrideScope(platformId), out overrideState);
+        }
 
-            return TransformOverridesByPlatformId.TryGetValue(platformId, out overrideState);
+        /// <summary>
+        /// Attempts to read one platform or nested environment transform override.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope to resolve.</param>
+        /// <param name="overrideState">Resolved override payload when one exists.</param>
+        /// <returns>True when one override exists at the supplied scope.</returns>
+        public bool TryGetTransformPlatformOverride(EditorOverrideScope scope, out SceneEntityPlatformTransformOverrideAsset overrideState) {
+            return TransformOverridesByScope.TryGet(scope, out overrideState);
         }
 
         /// <summary>
@@ -230,11 +264,15 @@ namespace helengine {
         /// </summary>
         /// <param name="platformId">Platform identifier whose transform override payload should be removed.</param>
         public void RemoveTransformPlatformOverride(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            RemoveTransformPlatformOverride(new EditorOverrideScope(platformId));
+        }
 
-            TransformOverridesByPlatformId.Remove(platformId);
+        /// <summary>
+        /// Removes one platform or nested environment transform override.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope to remove.</param>
+        public void RemoveTransformPlatformOverride(EditorOverrideScope scope) {
+            TransformOverridesByScope.Remove(scope);
         }
 
         /// <summary>
@@ -242,7 +280,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Platform transform override payload metadata stored for the entity.</returns>
         public IEnumerable<SceneEntityPlatformTransformOverrideAsset> EnumerateTransformPlatformOverrides() {
-            return TransformOverridesByPlatformId.Values;
+            return TransformOverridesByScope.EnumerateValues();
         }
 
         /// <summary>
@@ -251,18 +289,19 @@ namespace helengine {
         /// <param name="platformId">Platform identifier whose component override payload should be returned.</param>
         /// <returns>Mutable platform component existence override payload metadata.</returns>
         public EntityPlatformComponentOverrideState GetOrCreateComponentPlatformOverride(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            return GetOrCreateComponentPlatformOverride(new EditorOverrideScope(platformId));
+        }
 
-            if (!ComponentOverridesByPlatformId.TryGetValue(platformId, out EntityPlatformComponentOverrideState overrideState)) {
-                overrideState = new EntityPlatformComponentOverrideState {
-                    PlatformId = platformId
-                };
-                ComponentOverridesByPlatformId.Add(platformId, overrideState);
-            }
-
-            return overrideState;
+        /// <summary>
+        /// Gets the existing platform or nested environment component existence override or creates one when needed.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope whose payload should be returned.</param>
+        /// <returns>Mutable component existence override payload.</returns>
+        public EntityPlatformComponentOverrideState GetOrCreateComponentPlatformOverride(EditorOverrideScope scope) {
+            return ComponentOverridesByScope.GetOrCreate(scope, () => new EntityPlatformComponentOverrideState {
+                PlatformId = scope.PlatformId,
+                EnvironmentId = scope.EnvironmentId
+            });
         }
 
         /// <summary>
@@ -272,11 +311,17 @@ namespace helengine {
         /// <param name="overrideState">Resolved platform component override payload when one exists.</param>
         /// <returns>True when one platform component override exists for the supplied platform.</returns>
         public bool TryGetComponentPlatformOverride(string platformId, out EntityPlatformComponentOverrideState overrideState) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            return TryGetComponentPlatformOverride(new EditorOverrideScope(platformId), out overrideState);
+        }
 
-            return ComponentOverridesByPlatformId.TryGetValue(platformId, out overrideState);
+        /// <summary>
+        /// Attempts to read one platform or nested environment component existence override.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope to resolve.</param>
+        /// <param name="overrideState">Resolved override payload when one exists.</param>
+        /// <returns>True when one override exists at the supplied scope.</returns>
+        public bool TryGetComponentPlatformOverride(EditorOverrideScope scope, out EntityPlatformComponentOverrideState overrideState) {
+            return ComponentOverridesByScope.TryGet(scope, out overrideState);
         }
 
         /// <summary>
@@ -284,11 +329,15 @@ namespace helengine {
         /// </summary>
         /// <param name="platformId">Platform identifier whose component override payload should be removed.</param>
         public void RemoveComponentPlatformOverride(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            RemoveComponentPlatformOverride(new EditorOverrideScope(platformId));
+        }
 
-            ComponentOverridesByPlatformId.Remove(platformId);
+        /// <summary>
+        /// Removes one platform or nested environment component existence override.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope to remove.</param>
+        public void RemoveComponentPlatformOverride(EditorOverrideScope scope) {
+            ComponentOverridesByScope.Remove(scope);
         }
 
         /// <summary>
@@ -296,7 +345,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Platform component override payload metadata stored for the entity.</returns>
         public IEnumerable<EntityPlatformComponentOverrideState> EnumerateComponentPlatformOverrides() {
-            return ComponentOverridesByPlatformId.Values;
+            return ComponentOverridesByScope.EnumerateValues();
         }
     }
 }

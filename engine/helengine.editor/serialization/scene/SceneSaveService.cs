@@ -346,6 +346,7 @@ namespace helengine.editor {
 
                 overrideAssets.Add(new SceneEntityPlatformExistenceOverrideAsset {
                     PlatformId = overrideState.PlatformId,
+                    EnvironmentId = overrideState.EnvironmentId ?? string.Empty,
                     Exists = overrideState.Exists
                 });
             }
@@ -371,6 +372,7 @@ namespace helengine.editor {
 
                 overrideAssets.Add(new SceneEntityPlatformTransformOverrideAsset {
                     PlatformId = overrideState.PlatformId,
+                    EnvironmentId = overrideState.EnvironmentId ?? string.Empty,
                     HasLocalPositionOverride = overrideState.HasLocalPositionOverride,
                     LocalPosition = overrideState.LocalPosition,
                     HasLocalScaleOverride = overrideState.HasLocalScaleOverride,
@@ -416,6 +418,7 @@ namespace helengine.editor {
 
                 overrideAssets.Add(new SceneEntityPlatformComponentOverrideAsset {
                     PlatformId = overrideState.PlatformId,
+                    EnvironmentId = overrideState.EnvironmentId ?? string.Empty,
                     RemovedComponentKeys = removedComponentKeys.ToArray(),
                     AddedComponents = addedComponents.ToArray()
                 });

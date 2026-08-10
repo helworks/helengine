@@ -14,16 +14,16 @@ namespace helengine {
         readonly Dictionary<string, SceneAssetReference> AssetReferencesByName;
 
         /// <summary>
-        /// Editor-only platform override metadata keyed by target platform id.
+        /// Editor-only override metadata grouped by platform and nested environment id.
         /// </summary>
-        readonly Dictionary<string, EntityComponentPlatformOverrideState> PlatformOverridesById;
+        readonly EditorOverrideScopeMap<EntityComponentPlatformOverrideState> PlatformOverridesByScope;
 
         /// <summary>
         /// Initializes a new empty component save-state container.
         /// </summary>
         public EntityComponentSaveState() {
             AssetReferencesByName = new Dictionary<string, SceneAssetReference>(StringComparer.Ordinal);
-            PlatformOverridesById = new Dictionary<string, EntityComponentPlatformOverrideState>(StringComparer.OrdinalIgnoreCase);
+            PlatformOverridesByScope = new EditorOverrideScopeMap<EntityComponentPlatformOverrideState>();
         }
 
         /// <summary>
@@ -78,14 +78,22 @@ namespace helengine {
         /// <param name="platformId">Platform identifier that owns the override payload.</param>
         /// <param name="overrideState">Override payload metadata to store.</param>
         public void SetPlatformOverride(string platformId, EntityComponentPlatformOverrideState overrideState) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            } else if (overrideState == null) {
+            SetScopedPlatformOverride(new EditorOverrideScope(platformId), overrideState);
+        }
+
+        /// <summary>
+        /// Stores one platform or nested environment override payload for this component.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope that owns the payload.</param>
+        /// <param name="overrideState">Override payload metadata to store.</param>
+        public void SetScopedPlatformOverride(EditorOverrideScope scope, EntityComponentPlatformOverrideState overrideState) {
+            if (overrideState == null) {
                 throw new ArgumentNullException(nameof(overrideState));
             }
 
-            overrideState.PlatformId = platformId;
-            PlatformOverridesById[platformId] = overrideState;
+            overrideState.PlatformId = scope.PlatformId;
+            overrideState.EnvironmentId = scope.EnvironmentId;
+            PlatformOverridesByScope.Set(scope, overrideState);
         }
 
         /// <summary>
@@ -94,18 +102,19 @@ namespace helengine {
         /// <param name="platformId">Platform identifier whose override payload should be returned.</param>
         /// <returns>Mutable platform override payload metadata.</returns>
         public EntityComponentPlatformOverrideState GetOrCreatePlatformOverride(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            return GetOrCreateScopedPlatformOverride(new EditorOverrideScope(platformId));
+        }
 
-            if (!PlatformOverridesById.TryGetValue(platformId, out EntityComponentPlatformOverrideState overrideState)) {
-                overrideState = new EntityComponentPlatformOverrideState {
-                    PlatformId = platformId
-                };
-                PlatformOverridesById.Add(platformId, overrideState);
-            }
-
-            return overrideState;
+        /// <summary>
+        /// Gets the existing platform or nested environment override payload or creates one when needed.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope whose payload should be returned.</param>
+        /// <returns>Mutable override payload metadata.</returns>
+        public EntityComponentPlatformOverrideState GetOrCreateScopedPlatformOverride(EditorOverrideScope scope) {
+            return PlatformOverridesByScope.GetOrCreate(scope, () => new EntityComponentPlatformOverrideState {
+                PlatformId = scope.PlatformId,
+                EnvironmentId = scope.EnvironmentId
+            });
         }
 
         /// <summary>
@@ -115,11 +124,17 @@ namespace helengine {
         /// <param name="overrideState">Resolved platform override payload metadata when one exists.</param>
         /// <returns>True when one platform override payload exists for the supplied platform.</returns>
         public bool TryGetPlatformOverride(string platformId, out EntityComponentPlatformOverrideState overrideState) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            return TryGetScopedPlatformOverride(new EditorOverrideScope(platformId), out overrideState);
+        }
 
-            return PlatformOverridesById.TryGetValue(platformId, out overrideState);
+        /// <summary>
+        /// Attempts to read one platform or nested environment override payload.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope to resolve.</param>
+        /// <param name="overrideState">Resolved override payload when one exists.</param>
+        /// <returns>True when one override payload exists at the supplied scope.</returns>
+        public bool TryGetScopedPlatformOverride(EditorOverrideScope scope, out EntityComponentPlatformOverrideState overrideState) {
+            return PlatformOverridesByScope.TryGet(scope, out overrideState);
         }
 
         /// <summary>
@@ -128,11 +143,16 @@ namespace helengine {
         /// <param name="platformId">Platform identifier whose override payload should be checked.</param>
         /// <returns>True when one override exists for the supplied platform.</returns>
         public bool HasPlatformOverride(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            return HasScopedPlatformOverride(new EditorOverrideScope(platformId));
+        }
 
-            return PlatformOverridesById.ContainsKey(platformId);
+        /// <summary>
+        /// Returns whether one platform or nested environment override exists.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope to check.</param>
+        /// <returns>True when an override exists at the supplied scope.</returns>
+        public bool HasScopedPlatformOverride(EditorOverrideScope scope) {
+            return PlatformOverridesByScope.TryGet(scope, out _);
         }
 
         /// <summary>
@@ -140,11 +160,15 @@ namespace helengine {
         /// </summary>
         /// <param name="platformId">Platform identifier whose override payload should be removed.</param>
         public void RemovePlatformOverride(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
+            RemoveScopedPlatformOverride(new EditorOverrideScope(platformId));
+        }
 
-            PlatformOverridesById.Remove(platformId);
+        /// <summary>
+        /// Removes one platform or nested environment override payload.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope to remove.</param>
+        public void RemoveScopedPlatformOverride(EditorOverrideScope scope) {
+            PlatformOverridesByScope.Remove(scope);
         }
 
         /// <summary>
@@ -152,7 +176,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Platform override payload metadata stored for this component.</returns>
         public IEnumerable<EntityComponentPlatformOverrideState> EnumeratePlatformOverrides() {
-            return PlatformOverridesById.Values;
+            return PlatformOverridesByScope.EnumerateValues();
         }
     }
 }

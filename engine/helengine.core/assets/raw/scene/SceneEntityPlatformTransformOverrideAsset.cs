@@ -9,6 +9,11 @@ namespace helengine {
         public string PlatformId { get; set; } = string.Empty;
 
         /// <summary>
+        /// Gets or sets the optional environment identifier nested under <see cref="PlatformId"/>.
+        /// </summary>
+        public string EnvironmentId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets or sets a value indicating whether the local-position override is authored for this platform.
         /// </summary>
         public bool HasLocalPositionOverride { get; set; }

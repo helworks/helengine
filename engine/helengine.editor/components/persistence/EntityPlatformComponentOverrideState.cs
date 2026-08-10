@@ -20,12 +20,18 @@ namespace helengine {
             RemovedComponentKeys = new HashSet<string>(StringComparer.Ordinal);
             AddedComponentsByKey = new Dictionary<string, EntityPlatformAddedComponentState>(StringComparer.Ordinal);
             PlatformId = string.Empty;
+            EnvironmentId = string.Empty;
         }
 
         /// <summary>
         /// Gets or sets the platform identifier that owns the component existence overrides.
         /// </summary>
         public string PlatformId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the optional environment identifier nested under <see cref="PlatformId"/>.
+        /// </summary>
+        public string EnvironmentId { get; set; }
 
         /// <summary>
         /// Gets a value indicating whether any removed common components are tracked for the platform.

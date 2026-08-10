@@ -9,6 +9,11 @@ namespace helengine {
         public string PlatformId { get; set; }
 
         /// <summary>
+        /// Gets or sets the optional environment identifier nested under <see cref="PlatformId"/>.
+        /// </summary>
+        public string EnvironmentId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets or sets the stable keys for common components removed on the owning platform.
         /// </summary>
         public string[] RemovedComponentKeys { get; set; } = Array.Empty<string>();

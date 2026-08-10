@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 20;
+        public const byte CurrentVersion = 21;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -53,7 +53,7 @@ namespace helengine.files {
         /// <summary>
         /// Version marker written into scene entity payloads that include stable ids, static state, layer masks, and enabled state.
         /// </summary>
-        const byte SceneEntityPayloadVersion = 7;
+        const byte SceneEntityPayloadVersion = 8;
 
         /// <summary>
         /// First asset version that stores animation clip platform override payloads and editor-only frame identifiers.
@@ -1086,7 +1086,7 @@ namespace helengine.files {
             }
 
             byte payloadVersion = reader.ReadByte();
-            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != 4 && payloadVersion != 5 && payloadVersion != 6 && payloadVersion != SceneEntityPayloadVersion) {
+            if (payloadVersion != 1 && payloadVersion != 2 && payloadVersion != 3 && payloadVersion != 4 && payloadVersion != 5 && payloadVersion != 6 && payloadVersion != 7 && payloadVersion != SceneEntityPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
@@ -1105,13 +1105,13 @@ namespace helengine.files {
             float4 localOrientation = reader.ReadFloat4();
             SceneComponentAssetRecord[] components = ReadSceneComponentAssetRecordArray(reader, payloadVersion) ?? Array.Empty<SceneComponentAssetRecord>();
             SceneEntityPlatformExistenceOverrideAsset[] platformExistenceOverrides = payloadVersion >= 7
-                ? reader.ReadArray(ReadSceneEntityPlatformExistenceOverrideAsset) ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>()
+                ? reader.ReadArray(currentReader => ReadSceneEntityPlatformExistenceOverrideAsset(currentReader, payloadVersion)) ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>()
                 : Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
             SceneEntityPlatformTransformOverrideAsset[] platformTransformOverrides = payloadVersion >= 2
-                ? reader.ReadArray(ReadSceneEntityPlatformTransformOverrideAsset) ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>()
+                ? reader.ReadArray(currentReader => ReadSceneEntityPlatformTransformOverrideAsset(currentReader, payloadVersion)) ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>()
                 : Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
             SceneEntityPlatformComponentOverrideAsset[] platformComponentOverrides = payloadVersion >= 3
-                ? reader.ReadArray(ReadSceneEntityPlatformComponentOverrideAsset) ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>()
+                ? reader.ReadArray(currentReader => ReadSceneEntityPlatformComponentOverrideAsset(currentReader, payloadVersion)) ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>()
                 : Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
 
             return new SceneEntityAsset {
@@ -1210,6 +1210,7 @@ namespace helengine.files {
             }
 
             writer.WriteString(asset.PlatformId);
+            writer.WriteString(asset.EnvironmentId ?? string.Empty);
             writer.WriteByte(asset.Exists ? (byte)1 : (byte)0);
         }
 
@@ -1218,13 +1219,14 @@ namespace helengine.files {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene entity existence override.</returns>
-        static SceneEntityPlatformExistenceOverrideAsset ReadSceneEntityPlatformExistenceOverrideAsset(EngineBinaryReader reader) {
+        static SceneEntityPlatformExistenceOverrideAsset ReadSceneEntityPlatformExistenceOverrideAsset(EngineBinaryReader reader, byte payloadVersion) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
 
             return new SceneEntityPlatformExistenceOverrideAsset {
                 PlatformId = reader.ReadString(),
+                EnvironmentId = payloadVersion >= 8 ? reader.ReadString() : string.Empty,
                 Exists = reader.ReadByte() != 0
             };
         }
@@ -1242,6 +1244,7 @@ namespace helengine.files {
             }
 
             writer.WriteString(asset.PlatformId);
+            writer.WriteString(asset.EnvironmentId ?? string.Empty);
             writer.WriteByte(asset.HasLocalPositionOverride ? (byte)1 : (byte)0);
             writer.WriteFloat3(asset.LocalPosition);
             writer.WriteByte(asset.HasLocalScaleOverride ? (byte)1 : (byte)0);
@@ -1255,13 +1258,14 @@ namespace helengine.files {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene entity transform override.</returns>
-        static SceneEntityPlatformTransformOverrideAsset ReadSceneEntityPlatformTransformOverrideAsset(EngineBinaryReader reader) {
+        static SceneEntityPlatformTransformOverrideAsset ReadSceneEntityPlatformTransformOverrideAsset(EngineBinaryReader reader, byte payloadVersion) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
 
             return new SceneEntityPlatformTransformOverrideAsset {
                 PlatformId = reader.ReadString(),
+                EnvironmentId = payloadVersion >= 8 ? reader.ReadString() : string.Empty,
                 HasLocalPositionOverride = reader.ReadByte() != 0,
                 LocalPosition = reader.ReadFloat3(),
                 HasLocalScaleOverride = reader.ReadByte() != 0,
@@ -1284,6 +1288,7 @@ namespace helengine.files {
             }
 
             writer.WriteString(asset.PlatformId);
+            writer.WriteString(asset.EnvironmentId ?? string.Empty);
             writer.WriteArray(asset.RemovedComponentKeys, WriteStringValue);
             writer.WriteArray(asset.AddedComponents, WriteSceneEntityPlatformAddedComponentAsset);
         }
@@ -1310,13 +1315,14 @@ namespace helengine.files {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene entity component existence override.</returns>
-        static SceneEntityPlatformComponentOverrideAsset ReadSceneEntityPlatformComponentOverrideAsset(EngineBinaryReader reader) {
+        static SceneEntityPlatformComponentOverrideAsset ReadSceneEntityPlatformComponentOverrideAsset(EngineBinaryReader reader, byte payloadVersion) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
 
             return new SceneEntityPlatformComponentOverrideAsset {
                 PlatformId = reader.ReadString(),
+                EnvironmentId = payloadVersion >= 8 ? reader.ReadString() : string.Empty,
                 RemovedComponentKeys = reader.ReadArray(ReadStringValue) ?? Array.Empty<string>(),
                 AddedComponents = reader.ReadArray(ReadSceneEntityPlatformAddedComponentAssetValue) ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>()
             };

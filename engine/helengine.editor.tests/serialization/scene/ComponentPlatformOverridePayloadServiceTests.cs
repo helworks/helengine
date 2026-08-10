@@ -43,6 +43,29 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures component override payloads retain their nested environment scope independently of the platform payload.
+        /// </summary>
+        [Fact]
+        public void WrapAndReadOverrideStates_WhenEnvironmentOverrideExists_RoundTripsNestedScope() {
+            ComponentPlatformOverridePayloadService service = new ComponentPlatformOverridePayloadService();
+            SceneComponentAssetRecord baseRecord = new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.TestComponent",
+                Payload = new byte[] { 4, 5, 6 }
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetScopedPlatformOverride(new EditorOverrideScope("windows", "debug"), new EntityComponentPlatformOverrideState {
+                Payload = new byte[] { 9, 8, 7 }
+            });
+
+            SceneComponentAssetRecord wrappedRecord = service.Wrap(baseRecord, saveState);
+            EntityComponentPlatformOverrideState loadedOverride = Assert.Single(service.ReadOverrideStates(wrappedRecord));
+
+            Assert.Equal("windows", loadedOverride.PlatformId);
+            Assert.Equal("debug", loadedOverride.EnvironmentId);
+            Assert.Equal(new byte[] { 9, 8, 7 }, loadedOverride.Payload);
+        }
+
+        /// <summary>
         /// Ensures older wrapped override payload versions are rejected instead of being normalized to the current schema.
         /// </summary>
         [Fact]

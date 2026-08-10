@@ -90,6 +90,64 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures environment-scoped entity metadata is nested below its owning platform and does not leak into another scope.
+        /// </summary>
+        [Fact]
+        public void EntitySaveComponent_WhenEnvironmentOverrideIsStored_ResolvesOnlyWithinOwningPlatform() {
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            EditorOverrideScope windows = new EditorOverrideScope("windows");
+            EditorOverrideScope windowsDebug = new EditorOverrideScope("windows", "debug");
+            EditorOverrideScope linuxDebug = new EditorOverrideScope("linux", "debug");
+
+            saveComponent.SetExistencePlatformOverride(windows, new SceneEntityPlatformExistenceOverrideAsset {
+                Exists = true
+            });
+            saveComponent.SetExistencePlatformOverride(windowsDebug, new SceneEntityPlatformExistenceOverrideAsset {
+                Exists = false
+            });
+
+            Assert.True(saveComponent.TryGetExistencePlatformOverride(windowsDebug, out SceneEntityPlatformExistenceOverrideAsset windowsDebugOverride));
+            Assert.False(windowsDebugOverride.Exists);
+            Assert.False(saveComponent.TryGetExistencePlatformOverride(linuxDebug, out _));
+            Assert.True(saveComponent.TryGetExistencePlatformOverride("windows", out SceneEntityPlatformExistenceOverrideAsset platformOverride));
+            Assert.True(platformOverride.Exists);
+            Assert.Equal(2, saveComponent.EnumerateExistencePlatformOverrides().Count());
+        }
+
+        /// <summary>
+        /// Ensures component property overrides can be stored at platform and nested environment scopes independently.
+        /// </summary>
+        [Fact]
+        public void EntityComponentSaveState_WhenEnvironmentOverrideIsStored_PreservesPlatformOverride() {
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            EditorOverrideScope windows = new EditorOverrideScope("windows");
+            EditorOverrideScope windowsDebug = new EditorOverrideScope("windows", "debug");
+            EntityComponentPlatformOverrideState platformOverride = new EntityComponentPlatformOverrideState {
+                Payload = new byte[] { 1 }
+            };
+            EntityComponentPlatformOverrideState environmentOverride = new EntityComponentPlatformOverrideState {
+                Payload = new byte[] { 2 }
+            };
+
+            saveState.SetScopedPlatformOverride(windows, platformOverride);
+            saveState.SetScopedPlatformOverride(windowsDebug, environmentOverride);
+
+            Assert.True(saveState.TryGetScopedPlatformOverride(windows, out EntityComponentPlatformOverrideState resolvedPlatformOverride));
+            Assert.Equal(new byte[] { 1 }, resolvedPlatformOverride.Payload);
+            Assert.True(saveState.TryGetScopedPlatformOverride(windowsDebug, out EntityComponentPlatformOverrideState resolvedEnvironmentOverride));
+            Assert.Equal(new byte[] { 2 }, resolvedEnvironmentOverride.Payload);
+            Assert.Equal(2, saveState.EnumeratePlatformOverrides().Count());
+        }
+
+        /// <summary>
+        /// Ensures malformed nested scopes are rejected at construction time.
+        /// </summary>
+        [Fact]
+        public void EditorOverrideScope_WhenPlatformIsMissing_Throws() {
+            Assert.Throws<ArgumentException>(() => new EditorOverrideScope(string.Empty, "debug"));
+        }
+
+        /// <summary>
         /// Reads the active component rows from the properties view.
         /// </summary>
         /// <param name="view">View whose active rows should be inspected.</param>

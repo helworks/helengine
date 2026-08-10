@@ -789,6 +789,45 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures nested environment entity overrides round-trip beneath their owning platform.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenEntityHasNestedEnvironmentOverrides_RoundTripsScopeMetadata() {
+            EditorEntity entity = CreateUserEntity("EnvironmentScopedEntity", float3.Zero, float3.One, float4.Identity);
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            EditorOverrideScope scope = new EditorOverrideScope("windows", "debug");
+            saveComponent.SetExistencePlatformOverride(scope, new SceneEntityPlatformExistenceOverrideAsset {
+                Exists = false
+            });
+            saveComponent.SetTransformPlatformOverride(scope, new SceneEntityPlatformTransformOverrideAsset {
+                HasLocalPositionOverride = true,
+                LocalPosition = new float3(7f, 8f, 9f)
+            });
+
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "NestedEnvironmentOverrides.helen");
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset rootEntity = Assert.Single(asset.RootEntities);
+            Assert.Equal("debug", Assert.Single(rootEntity.PlatformExistenceOverrides).EnvironmentId);
+            Assert.Equal("debug", Assert.Single(rootEntity.PlatformTransformOverrides).EnvironmentId);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
+            EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
+            Assert.True(loadedSaveComponent.TryGetExistencePlatformOverride(scope, out SceneEntityPlatformExistenceOverrideAsset loadedExistence));
+            Assert.False(loadedExistence.Exists);
+            Assert.True(loadedSaveComponent.TryGetTransformPlatformOverride(scope, out SceneEntityPlatformTransformOverrideAsset loadedTransform));
+            Assert.Equal(new float3(7f, 8f, 9f), loadedTransform.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures sparse component platform overrides persist their explicit property paths and rebuild platform edits from the current common component after reload.
         /// </summary>
         [Fact]

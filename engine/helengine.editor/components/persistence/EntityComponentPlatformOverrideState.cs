@@ -33,6 +33,11 @@ namespace helengine {
         public string PlatformId { get; set; }
 
         /// <summary>
+        /// Gets or sets the optional environment identifier nested under <see cref="PlatformId"/>.
+        /// </summary>
+        public string EnvironmentId { get; set; }
+
+        /// <summary>
         /// Gets or sets the serialized component payload used by the override.
         /// </summary>
         public byte[] Payload { get; set; }

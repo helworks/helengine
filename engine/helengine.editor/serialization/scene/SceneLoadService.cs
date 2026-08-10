@@ -231,8 +231,15 @@ namespace helengine.editor {
             }
 
             EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(component);
+            HashSet<EditorOverrideScope> scopes = new HashSet<EditorOverrideScope>();
             for (int index = 0; index < overrideStates.Count; index++) {
-                saveState.SetPlatformOverride(overrideStates[index].PlatformId, overrideStates[index]);
+                EntityComponentPlatformOverrideState overrideState = overrideStates[index];
+                EditorOverrideScope scope = new EditorOverrideScope(overrideState.PlatformId, overrideState.EnvironmentId);
+                if (!scopes.Add(scope)) {
+                    throw new InvalidOperationException($"Duplicate component override scope '{scope}'.");
+                }
+
+                saveState.SetScopedPlatformOverride(scope, overrideState);
             }
         }
 
@@ -268,14 +275,21 @@ namespace helengine.editor {
             }
 
             SceneEntityPlatformExistenceOverrideAsset[] overrideAssets = entityAsset.PlatformExistenceOverrides ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
+            HashSet<EditorOverrideScope> scopes = new HashSet<EditorOverrideScope>();
             for (int index = 0; index < overrideAssets.Length; index++) {
                 SceneEntityPlatformExistenceOverrideAsset overrideAsset = overrideAssets[index];
                 if (overrideAsset == null || string.IsNullOrWhiteSpace(overrideAsset.PlatformId)) {
                     continue;
                 }
 
-                saveComponent.SetExistencePlatformOverride(overrideAsset.PlatformId, new SceneEntityPlatformExistenceOverrideAsset {
-                    PlatformId = overrideAsset.PlatformId,
+                EditorOverrideScope scope = new EditorOverrideScope(overrideAsset.PlatformId, overrideAsset.EnvironmentId);
+                if (!scopes.Add(scope)) {
+                    throw new InvalidOperationException($"Duplicate entity existence override scope '{scope}'.");
+                }
+
+                saveComponent.SetExistencePlatformOverride(scope, new SceneEntityPlatformExistenceOverrideAsset {
+                    PlatformId = scope.PlatformId,
+                    EnvironmentId = scope.EnvironmentId,
                     Exists = overrideAsset.Exists
                 });
             }
@@ -294,14 +308,21 @@ namespace helengine.editor {
             }
 
             SceneEntityPlatformTransformOverrideAsset[] overrideAssets = entityAsset.PlatformTransformOverrides ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
+            HashSet<EditorOverrideScope> scopes = new HashSet<EditorOverrideScope>();
             for (int index = 0; index < overrideAssets.Length; index++) {
                 SceneEntityPlatformTransformOverrideAsset overrideAsset = overrideAssets[index];
                 if (overrideAsset == null || string.IsNullOrWhiteSpace(overrideAsset.PlatformId)) {
                     continue;
                 }
 
-                saveComponent.SetTransformPlatformOverride(overrideAsset.PlatformId, new SceneEntityPlatformTransformOverrideAsset {
-                    PlatformId = overrideAsset.PlatformId,
+                EditorOverrideScope scope = new EditorOverrideScope(overrideAsset.PlatformId, overrideAsset.EnvironmentId);
+                if (!scopes.Add(scope)) {
+                    throw new InvalidOperationException($"Duplicate entity transform override scope '{scope}'.");
+                }
+
+                saveComponent.SetTransformPlatformOverride(scope, new SceneEntityPlatformTransformOverrideAsset {
+                    PlatformId = scope.PlatformId,
+                    EnvironmentId = scope.EnvironmentId,
                     HasLocalPositionOverride = overrideAsset.HasLocalPositionOverride,
                     LocalPosition = overrideAsset.LocalPosition,
                     HasLocalScaleOverride = overrideAsset.HasLocalScaleOverride,
@@ -325,13 +346,19 @@ namespace helengine.editor {
             }
 
             SceneEntityPlatformComponentOverrideAsset[] overrideAssets = entityAsset.PlatformComponentOverrides ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+            HashSet<EditorOverrideScope> scopes = new HashSet<EditorOverrideScope>();
             for (int platformIndex = 0; platformIndex < overrideAssets.Length; platformIndex++) {
                 SceneEntityPlatformComponentOverrideAsset overrideAsset = overrideAssets[platformIndex];
                 if (overrideAsset == null || string.IsNullOrWhiteSpace(overrideAsset.PlatformId)) {
                     continue;
                 }
 
-                EntityPlatformComponentOverrideState componentOverrideState = saveComponent.GetOrCreateComponentPlatformOverride(overrideAsset.PlatformId);
+                EditorOverrideScope scope = new EditorOverrideScope(overrideAsset.PlatformId, overrideAsset.EnvironmentId);
+                if (!scopes.Add(scope)) {
+                    throw new InvalidOperationException($"Duplicate entity component override scope '{scope}'.");
+                }
+
+                EntityPlatformComponentOverrideState componentOverrideState = saveComponent.GetOrCreateComponentPlatformOverride(scope);
                 string[] removedComponentKeys = overrideAsset.RemovedComponentKeys ?? Array.Empty<string>();
                 for (int removedIndex = 0; removedIndex < removedComponentKeys.Length; removedIndex++) {
                     if (!string.IsNullOrWhiteSpace(removedComponentKeys[removedIndex])) {
