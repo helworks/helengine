@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current texture asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 5;
+        public const byte CurrentVersion = 6;
 
         /// <summary>
         /// Payload endianness used by the current texture asset import settings format.
@@ -61,10 +61,19 @@ namespace helengine.editor {
                 }
 
                 writer.WriteString(entry.Key);
-                writer.WriteInt32(entry.Value.MaxResolution);
-                writer.WriteString(entry.Value.ColorFormatId);
-                writer.WriteByte((byte)entry.Value.AlphaPrecision);
-                writer.WriteString(entry.Value.IndexingMethodId ?? string.Empty);
+                WriteTextureSettings(writer, entry.Value, entry.Key);
+            }
+            writer.WriteInt32(settings.Processor.Environments?.Count ?? 0);
+            if (settings.Processor.Environments != null) {
+                foreach (KeyValuePair<string, Dictionary<string, TextureAssetProcessorSettings>> platformEnvironment in settings.Processor.Environments) {
+                    writer.WriteString(platformEnvironment.Key);
+                    writer.WriteInt32(platformEnvironment.Value?.Count ?? 0);
+                    if (platformEnvironment.Value == null) continue;
+                    foreach (KeyValuePair<string, TextureAssetProcessorSettings> environmentEntry in platformEnvironment.Value) {
+                        writer.WriteString(environmentEntry.Key);
+                        WriteTextureSettings(writer, environmentEntry.Value, environmentEntry.Key);
+                    }
+                }
             }
         }
 
@@ -103,23 +112,25 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Texture asset import settings cannot contain a blank processor platform id.");
                 }
 
-                TextureAssetProcessorSettings platformSettings = new TextureAssetProcessorSettings {
-                    MaxResolution = reader.ReadInt32()
-                };
-                if (platformSettings.MaxResolution < 0) {
-                    throw new InvalidOperationException($"Texture asset import settings cannot contain a negative texture max resolution for platform '{platformId}'.");
-                }
-                platformSettings.ColorFormatId = header.Version >= CurrentVersion
-                    ? reader.ReadString()
-                    : ReadLegacyTextureAssetColorFormat(reader).ToString();
-                platformSettings.AlphaPrecision = header.Version >= 3
-                    ? ReadTextureAssetAlphaPrecision(reader)
-                    : TextureAssetAlphaPrecision.A8;
-                platformSettings.IndexingMethodId = header.Version >= CurrentVersion
-                    ? reader.ReadString()
-                    : string.Empty;
+                TextureAssetProcessorSettings platformSettings = ReadTextureSettings(reader, header.Version, platformId);
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
+            }
+
+            if (header.Version >= 6) {
+                int environmentPlatformCount = reader.ReadInt32();
+                if (environmentPlatformCount < 0) throw new InvalidOperationException("Texture asset import settings environment platform count cannot be negative.");
+                for (int index = 0; index < environmentPlatformCount; index++) {
+                    string platformId = reader.ReadString();
+                    int environmentCount = reader.ReadInt32();
+                    if (environmentCount < 0) throw new InvalidOperationException("Texture asset import settings environment count cannot be negative.");
+                    Dictionary<string, TextureAssetProcessorSettings> environments = new Dictionary<string, TextureAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                    for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
+                        string environmentId = reader.ReadString();
+                        environments.Add(environmentId, ReadTextureSettings(reader, header.Version, environmentId));
+                    }
+                    settings.Processor.Environments.Add(platformId, environments);
+                }
             }
 
             return settings;
@@ -199,6 +210,25 @@ namespace helengine.editor {
                 || alphaPrecision == TextureAssetAlphaPrecision.Binary
                 || alphaPrecision == TextureAssetAlphaPrecision.A4
                 || alphaPrecision == TextureAssetAlphaPrecision.A8;
+        }
+
+        static void WriteTextureSettings(EngineBinaryWriter writer, TextureAssetProcessorSettings settings, string ownerId) {
+            if (settings == null || settings.MaxResolution < 0 || string.IsNullOrWhiteSpace(settings.ColorFormatId) || !IsSupportedAlphaPrecision(settings.AlphaPrecision)) {
+                throw new InvalidOperationException($"Texture asset import settings are invalid for '{ownerId}'.");
+            }
+            writer.WriteInt32(settings.MaxResolution);
+            writer.WriteString(settings.ColorFormatId);
+            writer.WriteByte((byte)settings.AlphaPrecision);
+            writer.WriteString(settings.IndexingMethodId ?? string.Empty);
+        }
+
+        static TextureAssetProcessorSettings ReadTextureSettings(EngineBinaryReader reader, byte version, string ownerId) {
+            TextureAssetProcessorSettings settings = new TextureAssetProcessorSettings { MaxResolution = reader.ReadInt32() };
+            if (settings.MaxResolution < 0) throw new InvalidOperationException($"Texture asset import settings cannot contain a negative max resolution for '{ownerId}'.");
+            settings.ColorFormatId = version >= 5 ? reader.ReadString() : ReadLegacyTextureAssetColorFormat(reader).ToString();
+            settings.AlphaPrecision = version >= 3 ? ReadTextureAssetAlphaPrecision(reader) : TextureAssetAlphaPrecision.A8;
+            settings.IndexingMethodId = version >= 5 ? reader.ReadString() : string.Empty;
+            return settings;
         }
     }
 }

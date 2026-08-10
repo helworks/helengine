@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current model asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 2;
+        public const byte CurrentVersion = 3;
 
         /// <summary>
         /// Payload endianness used by the current model asset import settings format.
@@ -55,10 +55,19 @@ namespace helengine.editor {
                 }
 
                 writer.WriteString(entry.Key);
-                writer.WriteByte(entry.Value.FlipWinding ? (byte)1 : (byte)0);
-                writer.WriteByte(entry.Value.Tessellate ? (byte)1 : (byte)0);
-                ValidateTessellationMaxEdgeLength(entry.Value.TessellationMaxEdgeLength);
-                writer.WriteDouble(entry.Value.TessellationMaxEdgeLength);
+                WriteModelSettings(writer, entry.Value);
+            }
+            writer.WriteInt32(settings.Processor.Environments?.Count ?? 0);
+            if (settings.Processor.Environments != null) {
+                foreach (KeyValuePair<string, Dictionary<string, ModelAssetProcessorSettings>> platformEnvironment in settings.Processor.Environments) {
+                    writer.WriteString(platformEnvironment.Key);
+                    writer.WriteInt32(platformEnvironment.Value?.Count ?? 0);
+                    if (platformEnvironment.Value == null) continue;
+                    foreach (KeyValuePair<string, ModelAssetProcessorSettings> environmentEntry in platformEnvironment.Value) {
+                        writer.WriteString(environmentEntry.Key);
+                        WriteModelSettings(writer, environmentEntry.Value);
+                    }
+                }
             }
         }
 
@@ -91,16 +100,25 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Model asset import settings cannot contain a blank processor platform id.");
                 }
 
-                ModelAssetProcessorSettings platformSettings = new ModelAssetProcessorSettings {
-                    FlipWinding = ReadBooleanByte(reader)
-                };
-                if (header.Version >= 2) {
-                    platformSettings.Tessellate = ReadBooleanByte(reader);
-                    platformSettings.TessellationMaxEdgeLength = reader.ReadDouble();
-                    ValidateTessellationMaxEdgeLength(platformSettings.TessellationMaxEdgeLength);
-                }
+                ModelAssetProcessorSettings platformSettings = ReadModelSettings(reader, header.Version);
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
+            }
+
+            if (header.Version >= 3) {
+                int environmentPlatformCount = reader.ReadInt32();
+                if (environmentPlatformCount < 0) throw new InvalidOperationException("Model asset import settings environment platform count cannot be negative.");
+                for (int index = 0; index < environmentPlatformCount; index++) {
+                    string platformId = reader.ReadString();
+                    int environmentCount = reader.ReadInt32();
+                    if (environmentCount < 0) throw new InvalidOperationException("Model asset import settings environment count cannot be negative.");
+                    Dictionary<string, ModelAssetProcessorSettings> environments = new Dictionary<string, ModelAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                    for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
+                        string environmentId = reader.ReadString();
+                        environments.Add(environmentId, ReadModelSettings(reader, header.Version));
+                    }
+                    settings.Processor.Environments.Add(platformId, environments);
+                }
             }
 
             return settings;
@@ -152,6 +170,24 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported model asset import settings boolean value '{value}'.");
+        }
+
+        static void WriteModelSettings(EngineBinaryWriter writer, ModelAssetProcessorSettings settings) {
+            if (settings == null) throw new InvalidOperationException("Model processor settings cannot be null.");
+            writer.WriteByte(settings.FlipWinding ? (byte)1 : (byte)0);
+            writer.WriteByte(settings.Tessellate ? (byte)1 : (byte)0);
+            ValidateTessellationMaxEdgeLength(settings.TessellationMaxEdgeLength);
+            writer.WriteDouble(settings.TessellationMaxEdgeLength);
+        }
+
+        static ModelAssetProcessorSettings ReadModelSettings(EngineBinaryReader reader, byte version) {
+            ModelAssetProcessorSettings settings = new ModelAssetProcessorSettings { FlipWinding = ReadBooleanByte(reader) };
+            if (version >= 2) {
+                settings.Tessellate = ReadBooleanByte(reader);
+                settings.TessellationMaxEdgeLength = reader.ReadDouble();
+                ValidateTessellationMaxEdgeLength(settings.TessellationMaxEdgeLength);
+            }
+            return settings;
         }
     }
 }

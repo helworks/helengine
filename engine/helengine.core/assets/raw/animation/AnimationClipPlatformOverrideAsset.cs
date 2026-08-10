@@ -9,6 +9,11 @@ namespace helengine {
         public string PlatformId { get; set; } = string.Empty;
 
         /// <summary>
+        /// Gets or sets the optional nested environment identifier under <see cref="PlatformId"/>.
+        /// </summary>
+        public string EnvironmentId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets or sets how this platform resolves relative to the base clip.
         /// </summary>
         public AnimationClipPlatformOverrideMode Mode { get; set; }

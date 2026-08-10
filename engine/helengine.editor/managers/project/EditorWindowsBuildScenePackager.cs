@@ -234,6 +234,11 @@ namespace helengine.editor {
         readonly string SelectedGraphicsProfileId;
 
         /// <summary>
+        /// Selected nested environment id for the current packaging operation.
+        /// </summary>
+        readonly string SelectedEnvironmentId;
+
+        /// <summary>
         /// Resolver used to obtain processed `ModelAsset` payloads for file-backed source models.
         /// </summary>
         readonly EditorFileSystemModelResolver FileSystemModelResolver;
@@ -471,7 +476,8 @@ namespace helengine.editor {
             IPlatformAssetBuilder materialBuilder,
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
-            IScriptTypeResolver scriptTypeResolver = null)
+            IScriptTypeResolver scriptTypeResolver = null,
+            string selectedEnvironmentId = "")
             : this(
                 projectRootPath,
                 importers,
@@ -481,7 +487,9 @@ namespace helengine.editor {
                 materialBuilder,
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
-                scriptTypeResolver) {
+                scriptTypeResolver,
+                null,
+                selectedEnvironmentId) {
         }
 
         /// <summary>
@@ -507,7 +515,8 @@ namespace helengine.editor {
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
             IScriptTypeResolver scriptTypeResolver,
-            ITextComponentSpriteBakeService textComponentSpriteBakeService = null) {
+            ITextComponentSpriteBakeService textComponentSpriteBakeService = null,
+            string selectedEnvironmentId = "") {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -532,10 +541,12 @@ namespace helengine.editor {
             MaterialBuilder = materialBuilder;
             SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
+            SelectedEnvironmentId = selectedEnvironmentId?.Trim() ?? string.Empty;
 
             ContentManager importContentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager = new AssetImportManager(ProjectRootPath, importContentManager);
             AssetImportManager.CurrentPlatformId = TargetPlatformId;
+            AssetImportManager.CurrentEnvironmentId = SelectedEnvironmentId;
             PlatformFontVariantCacheService = new EditorPlatformFontVariantCacheService(AssetImportManager);
             Importers = importers;
             for (int index = 0; index < Importers.Count; index++) {
@@ -920,18 +931,26 @@ namespace helengine.editor {
             }
 
             SceneEntityPlatformExistenceOverrideAsset[] existenceOverrides = entityAsset.PlatformExistenceOverrides ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
+            SceneEntityPlatformExistenceOverrideAsset platformOverride = null;
             for (int index = 0; index < existenceOverrides.Length; index++) {
                 SceneEntityPlatformExistenceOverrideAsset existenceOverride = existenceOverrides[index];
                 if (existenceOverride == null || string.IsNullOrWhiteSpace(existenceOverride.PlatformId)) {
                     continue;
                 }
 
-                if (string.Equals(existenceOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (!string.Equals(existenceOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (!string.IsNullOrWhiteSpace(SelectedEnvironmentId)
+                    && string.Equals(existenceOverride.EnvironmentId, SelectedEnvironmentId, StringComparison.OrdinalIgnoreCase)) {
                     return existenceOverride;
+                }
+                if (string.IsNullOrWhiteSpace(existenceOverride.EnvironmentId)) {
+                    platformOverride = existenceOverride;
                 }
             }
 
-            return null;
+            return platformOverride;
         }
 
         /// <summary>
@@ -950,18 +969,26 @@ namespace helengine.editor {
             }
 
             SceneEntityPlatformTransformOverrideAsset[] transformOverrides = entityAsset.PlatformTransformOverrides ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
+            SceneEntityPlatformTransformOverrideAsset platformOverride = null;
             for (int index = 0; index < transformOverrides.Length; index++) {
                 SceneEntityPlatformTransformOverrideAsset transformOverride = transformOverrides[index];
                 if (transformOverride == null || string.IsNullOrWhiteSpace(transformOverride.PlatformId)) {
                     continue;
                 }
 
-                if (string.Equals(transformOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (!string.Equals(transformOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (!string.IsNullOrWhiteSpace(SelectedEnvironmentId)
+                    && string.Equals(transformOverride.EnvironmentId, SelectedEnvironmentId, StringComparison.OrdinalIgnoreCase)) {
                     return transformOverride;
+                }
+                if (string.IsNullOrWhiteSpace(transformOverride.EnvironmentId)) {
+                    platformOverride = transformOverride;
                 }
             }
 
-            return null;
+            return platformOverride;
         }
 
         /// <summary>
@@ -980,18 +1007,26 @@ namespace helengine.editor {
             }
 
             SceneEntityPlatformComponentOverrideAsset[] componentOverrides = entityAsset.PlatformComponentOverrides ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+            SceneEntityPlatformComponentOverrideAsset platformOverride = null;
             for (int index = 0; index < componentOverrides.Length; index++) {
                 SceneEntityPlatformComponentOverrideAsset componentOverride = componentOverrides[index];
                 if (componentOverride == null || string.IsNullOrWhiteSpace(componentOverride.PlatformId)) {
                     continue;
                 }
 
-                if (string.Equals(componentOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (!string.Equals(componentOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (!string.IsNullOrWhiteSpace(SelectedEnvironmentId)
+                    && string.Equals(componentOverride.EnvironmentId, SelectedEnvironmentId, StringComparison.OrdinalIgnoreCase)) {
                     return componentOverride;
+                }
+                if (string.IsNullOrWhiteSpace(componentOverride.EnvironmentId)) {
+                    platformOverride = componentOverride;
                 }
             }
 
-            return null;
+            return platformOverride;
         }
 
         /// <summary>
@@ -1129,7 +1164,9 @@ namespace helengine.editor {
                 return false;
             }
 
-            AnimationClipAsset resolvedAnimationClip = AnimationClipPlatformResolutionService.ResolveForPlatform(animationClipAsset, TargetPlatformId);
+            AnimationClipAsset resolvedAnimationClip = AnimationClipPlatformResolutionService.ResolveForScope(
+                animationClipAsset,
+                new EditorOverrideScope(TargetPlatformId, SelectedEnvironmentId));
             string copiedRelativePath = NormalizeRelativePath(reference.RelativePath);
             WriteAsset(Path.Combine(buildRootPath, copiedRelativePath), resolvedAnimationClip);
             rewrittenReference = CreateFileSystemReference(copiedRelativePath);
@@ -2336,7 +2373,13 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(materialSettings));
             }
 
-            MaterialAssetProcessorSettings platformMaterialSettings = materialSettings.Processor.Platforms[TargetPlatformId];
+            if (!MaterialAssetSettingsService.TryResolvePlatformSettings(
+                materialSettings,
+                TargetPlatformId,
+                SelectedEnvironmentId,
+                out MaterialAssetProcessorSettings platformMaterialSettings)) {
+                throw new InvalidOperationException($"Material '{reference.RelativePath}' is missing material settings for target platform '{TargetPlatformId}'.");
+            }
             if (platformMaterialSettings == null) {
                 throw new InvalidOperationException($"Material '{reference.RelativePath}' is missing material settings for target platform '{TargetPlatformId}'.");
             } else if (string.IsNullOrWhiteSpace(platformMaterialSettings.SchemaId)) {

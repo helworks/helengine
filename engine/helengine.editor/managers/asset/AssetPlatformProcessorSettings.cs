@@ -8,12 +8,18 @@ namespace helengine.editor {
         /// </summary>
         public AssetPlatformProcessorSettings() {
             Sections = new Dictionary<string, AssetPlatformSettingsSection>(StringComparer.OrdinalIgnoreCase);
+            Environments = new Dictionary<string, AssetPlatformProcessorSettings>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
         /// Gets or sets the registered section payloads keyed by section id.
         /// </summary>
         public Dictionary<string, AssetPlatformSettingsSection> Sections { get; set; }
+
+        /// <summary>
+        /// Gets or sets sparse processor settings overrides keyed by nested environment id.
+        /// </summary>
+        public Dictionary<string, AssetPlatformProcessorSettings> Environments { get; set; }
 
         /// <summary>
         /// Gets or sets the processor settings that affect texture asset generation.

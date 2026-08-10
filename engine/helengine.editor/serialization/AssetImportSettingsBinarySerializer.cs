@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 10;
+        public const byte CurrentVersion = 11;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -66,16 +66,16 @@ namespace helengine.editor {
                 }
 
                 writer.WriteString(entry.Key);
-                writer.WriteInt32(entry.Value.Sections.Count);
-                foreach (KeyValuePair<string, AssetPlatformSettingsSection> sectionEntry in entry.Value.Sections) {
-                    if (string.IsNullOrWhiteSpace(sectionEntry.Key)) {
-                        throw new InvalidOperationException($"Asset import settings cannot contain a blank processor section id for platform '{entry.Key}'.");
-                    } else if (sectionEntry.Value == null) {
-                        throw new InvalidOperationException($"Asset import settings cannot contain a null processor section for platform '{entry.Key}'.");
+                SerializePlatformSettings(writer, entry.Value, $"platform '{entry.Key}'");
+                writer.WriteInt32(entry.Value.Environments?.Count ?? 0);
+                if (entry.Value.Environments != null) {
+                    foreach (KeyValuePair<string, AssetPlatformProcessorSettings> environmentEntry in entry.Value.Environments) {
+                        if (string.IsNullOrWhiteSpace(environmentEntry.Key) || environmentEntry.Value == null) {
+                            throw new InvalidOperationException($"Asset import settings cannot contain an invalid environment override for platform '{entry.Key}'.");
+                        }
+                        writer.WriteString(environmentEntry.Key);
+                        SerializePlatformSettings(writer, environmentEntry.Value, $"environment '{environmentEntry.Key}' on platform '{entry.Key}'");
                     }
-
-                    writer.WriteString(sectionEntry.Key);
-                    AssetPlatformSettingsSectionRegistry.Shared.SerializeSection(writer, sectionEntry.Key, sectionEntry.Value.Settings);
                 }
             }
         }
@@ -110,21 +110,21 @@ namespace helengine.editor {
                 }
 
                 AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
-                int sectionCount = reader.ReadInt32();
-                if (sectionCount < 0) {
-                    throw new InvalidOperationException("Asset import settings section count cannot be negative.");
-                }
-
-                for (int sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
-                    string sectionId = reader.ReadString();
-                    if (string.IsNullOrWhiteSpace(sectionId)) {
-                        throw new InvalidOperationException("Asset import settings cannot contain a blank processor section id.");
-                    } else if (platformSettings.Sections.ContainsKey(sectionId)) {
-                        throw new InvalidOperationException($"Asset import settings cannot contain duplicate processor section id '{sectionId}' for platform '{platformId}'.");
+                DeserializePlatformSettings(reader, platformSettings, header.Version, $"platform '{platformId}'");
+                if (header.Version >= 11) {
+                    int environmentCount = reader.ReadInt32();
+                    if (environmentCount < 0) {
+                        throw new InvalidOperationException("Asset import settings environment count cannot be negative.");
                     }
-
-                    object sectionSettings = AssetPlatformSettingsSectionRegistry.Shared.DeserializeSection(reader, sectionId, header.Version);
-                    platformSettings.Sections.Add(sectionId, new AssetPlatformSettingsSection(sectionId, sectionSettings));
+                    for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
+                        string environmentId = reader.ReadString();
+                        if (string.IsNullOrWhiteSpace(environmentId) || platformSettings.Environments.ContainsKey(environmentId)) {
+                            throw new InvalidOperationException($"Asset import settings cannot contain duplicate or blank environment id for platform '{platformId}'.");
+                        }
+                        AssetPlatformProcessorSettings environmentSettings = new AssetPlatformProcessorSettings();
+                        DeserializePlatformSettings(reader, environmentSettings, header.Version, $"environment '{environmentId}' on platform '{platformId}'");
+                        platformSettings.Environments.Add(environmentId, environmentSettings);
+                    }
                 }
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
@@ -148,6 +148,36 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected asset import settings value kind '{header.ValueKind}'.");
             } else if (header.Version < 9 || header.Version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset import settings binary version '{header.Version}'.");
+            }
+        }
+
+        static void SerializePlatformSettings(EngineBinaryWriter writer, AssetPlatformProcessorSettings settings, string ownerLabel) {
+            if (settings == null || settings.Sections == null) {
+                throw new InvalidOperationException($"Asset import settings must include registered processor settings sections for {ownerLabel}.");
+            }
+
+            writer.WriteInt32(settings.Sections.Count);
+            foreach (KeyValuePair<string, AssetPlatformSettingsSection> sectionEntry in settings.Sections) {
+                if (string.IsNullOrWhiteSpace(sectionEntry.Key) || sectionEntry.Value == null) {
+                    throw new InvalidOperationException($"Asset import settings contains an invalid processor section for {ownerLabel}.");
+                }
+                writer.WriteString(sectionEntry.Key);
+                AssetPlatformSettingsSectionRegistry.Shared.SerializeSection(writer, sectionEntry.Key, sectionEntry.Value.Settings);
+            }
+        }
+
+        static void DeserializePlatformSettings(EngineBinaryReader reader, AssetPlatformProcessorSettings settings, byte version, string ownerLabel) {
+            int sectionCount = reader.ReadInt32();
+            if (sectionCount < 0) {
+                throw new InvalidOperationException($"Asset import settings section count cannot be negative for {ownerLabel}.");
+            }
+            for (int sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+                string sectionId = reader.ReadString();
+                if (string.IsNullOrWhiteSpace(sectionId) || settings.Sections.ContainsKey(sectionId)) {
+                    throw new InvalidOperationException($"Asset import settings contains a duplicate or blank processor section for {ownerLabel}.");
+                }
+                object sectionSettings = AssetPlatformSettingsSectionRegistry.Shared.DeserializeSection(reader, sectionId, version);
+                settings.Sections.Add(sectionId, new AssetPlatformSettingsSection(sectionId, sectionSettings));
             }
         }
     }

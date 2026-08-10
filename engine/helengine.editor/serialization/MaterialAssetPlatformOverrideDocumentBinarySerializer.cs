@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the material override payload layout.
         /// </summary>
-        public const byte CurrentVersion = 1;
+        public const byte CurrentVersion = 2;
 
         /// <summary>
         /// Payload endianness used by the current material override format.
@@ -46,6 +46,7 @@ namespace helengine.editor {
 
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
             writer.WriteString(document.PlatformId);
+            writer.WriteString(document.EnvironmentId ?? string.Empty);
             writer.WriteByte(document.Processor.HasSchemaIdOverride ? (byte)1 : (byte)0);
             writer.WriteString(document.Processor.SchemaId ?? string.Empty);
             writer.WriteInt32(document.Processor.FieldValues.Count);
@@ -80,6 +81,7 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(document.PlatformId)) {
                 throw new InvalidOperationException("Material platform override cannot contain a blank platform id.");
             }
+            document.EnvironmentId = header.Version >= 2 ? reader.ReadString() : string.Empty;
 
             document.Processor.HasSchemaIdOverride = ReadBooleanByte(reader);
             document.Processor.SchemaId = reader.ReadString();
@@ -114,7 +116,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected material platform override record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetPlatformOverrideDocument) {
                 throw new InvalidOperationException($"Unexpected material platform override value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
+            } else if (header.Version < 1 || header.Version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported material platform override binary version '{header.Version}'.");
             }
         }

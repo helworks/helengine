@@ -174,6 +174,11 @@ namespace helengine.editor {
         public string CurrentPlatformId { get; set; }
 
         /// <summary>
+        /// Gets or sets the active nested environment whose processor settings should drive asset generation.
+        /// </summary>
+        public string CurrentEnvironmentId { get; set; }
+
+        /// <summary>
         /// Registers a texture importer and records its supported extensions.
         /// </summary>
         /// <param name="registration">Importer registration data.</param>
@@ -4047,12 +4052,10 @@ namespace helengine.editor {
                 return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
             }
 
-            AssetPlatformProcessorSettings platformSettings;
-            if (!settings.Processor.Platforms.TryGetValue(normalizedPlatformId, out platformSettings) || platformSettings == null || platformSettings.Texture == null) {
-                return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
-            }
-
-            return platformSettings.Texture;
+            AssetPlatformProcessorSettings platformSettings = AssetProcessorSettingsScopeResolver.Resolve(
+                settings.Processor,
+                new EditorOverrideScope(normalizedPlatformId, CurrentEnvironmentId));
+            return platformSettings.Texture ?? CreateDefaultTextureProcessorSettings(normalizedPlatformId);
         }
 
         /// <summary>
@@ -4078,6 +4081,14 @@ namespace helengine.editor {
             TextureAssetProcessorSettings platformSettings;
             if (!settings.Processor.Platforms.TryGetValue(normalizedPlatformId, out platformSettings) || platformSettings == null) {
                 return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(CurrentEnvironmentId)
+                && settings.Processor.Environments.TryGetValue(normalizedPlatformId, out Dictionary<string, TextureAssetProcessorSettings> environments)
+                && environments != null
+                && environments.TryGetValue(CurrentEnvironmentId, out TextureAssetProcessorSettings environmentSettings)
+                && environmentSettings != null) {
+                return environmentSettings;
             }
 
             return platformSettings;
@@ -4337,12 +4348,9 @@ namespace helengine.editor {
                 return new ModelAssetProcessorSettings();
             }
 
-            AssetPlatformProcessorSettings platformSettings;
-            if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null || platformSettings.Model == null) {
-                return new ModelAssetProcessorSettings();
-            }
-
-            return platformSettings.Model;
+            return AssetProcessorSettingsScopeResolver.Resolve(
+                settings.Processor,
+                new EditorOverrideScope(platformId, CurrentEnvironmentId)).Model;
         }
 
         /// <summary>
@@ -4369,6 +4377,14 @@ namespace helengine.editor {
                 return new ModelAssetProcessorSettings();
             }
 
+            if (!string.IsNullOrWhiteSpace(CurrentEnvironmentId)
+                && settings.Processor.Environments.TryGetValue(platformId, out Dictionary<string, ModelAssetProcessorSettings> environments)
+                && environments != null
+                && environments.TryGetValue(CurrentEnvironmentId, out ModelAssetProcessorSettings environmentSettings)
+                && environmentSettings != null) {
+                return environmentSettings;
+            }
+
             return platformSettings;
         }
 
@@ -4391,12 +4407,9 @@ namespace helengine.editor {
                 return CreateDefaultTextureProcessorSettings(platformId);
             }
 
-            AssetPlatformProcessorSettings platformSettings;
-            if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null || platformSettings.Texture == null) {
-                return CreateDefaultTextureProcessorSettings(platformId);
-            }
-
-            return platformSettings.Texture;
+            return AssetProcessorSettingsScopeResolver.Resolve(
+                settings.Processor,
+                new EditorOverrideScope(platformId, CurrentEnvironmentId)).Texture;
         }
 
         /// <summary>
@@ -4423,6 +4436,14 @@ namespace helengine.editor {
                 return CreateDefaultTextureProcessorSettings(platformId);
             }
 
+            if (!string.IsNullOrWhiteSpace(CurrentEnvironmentId)
+                && settings.Processor.Environments.TryGetValue(platformId, out Dictionary<string, TextureAssetProcessorSettings> environments)
+                && environments != null
+                && environments.TryGetValue(CurrentEnvironmentId, out TextureAssetProcessorSettings environmentSettings)
+                && environmentSettings != null) {
+                return environmentSettings;
+            }
+
             return platformSettings;
         }
 
@@ -4447,6 +4468,14 @@ namespace helengine.editor {
 
             if (!settings.Processor.Platforms.TryGetValue(platformId, out AudioAssetProcessorSettings platformSettings) || platformSettings == null) {
                 return CreateDefaultAudioProcessorSettings(platformId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(CurrentEnvironmentId)
+                && settings.Processor.Environments.TryGetValue(platformId, out Dictionary<string, AudioAssetProcessorSettings> environments)
+                && environments != null
+                && environments.TryGetValue(CurrentEnvironmentId, out AudioAssetProcessorSettings environmentSettings)
+                && environmentSettings != null) {
+                return environmentSettings;
             }
 
             return platformSettings;
@@ -4476,6 +4505,14 @@ namespace helengine.editor {
                 return CreateDefaultAudioProcessorSettings(normalizedPlatformId);
             }
 
+            if (!string.IsNullOrWhiteSpace(CurrentEnvironmentId)
+                && settings.Processor.Environments.TryGetValue(normalizedPlatformId, out Dictionary<string, AudioAssetProcessorSettings> environments)
+                && environments != null
+                && environments.TryGetValue(CurrentEnvironmentId, out AudioAssetProcessorSettings environmentSettings)
+                && environmentSettings != null) {
+                return environmentSettings;
+            }
+
             return platformSettings;
         }
 
@@ -4494,11 +4531,9 @@ namespace helengine.editor {
                 return CreateDefaultFontProcessorSettings();
             }
 
-            if (!settings.Processor.Platforms.TryGetValue(platformId, out AssetPlatformProcessorSettings platformSettings) || platformSettings == null) {
-                return CreateDefaultFontProcessorSettings();
-            }
-
-            return platformSettings.Font;
+            return AssetProcessorSettingsScopeResolver.Resolve(
+                settings.Processor,
+                new EditorOverrideScope(platformId, CurrentEnvironmentId)).Font;
         }
 
         /// <summary>
@@ -4521,9 +4556,10 @@ namespace helengine.editor {
                 return CreateDefaultFontAtlasTextureProcessorSettings(normalizedPlatformId);
             }
 
-            if (!settings.Processor.Platforms.TryGetValue(normalizedPlatformId, out AssetPlatformProcessorSettings platformSettings)
-                || platformSettings == null
-                || platformSettings.Sections == null
+            AssetPlatformProcessorSettings platformSettings = AssetProcessorSettingsScopeResolver.Resolve(
+                settings.Processor,
+                new EditorOverrideScope(normalizedPlatformId, CurrentEnvironmentId));
+            if (platformSettings.Sections == null
                 || !platformSettings.Sections.TryGetValue(FontAtlasTextureAssetPlatformSettingsSectionDefinition.SectionIdValue, out AssetPlatformSettingsSection section)
                 || section == null
                 || section.Settings == null) {

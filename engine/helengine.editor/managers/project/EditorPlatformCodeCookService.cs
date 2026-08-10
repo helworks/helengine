@@ -29,7 +29,8 @@ namespace helengine.editor {
             PlatformCodegenProfileDefinition codegenProfile,
             IReadOnlyList<string> inferredRootModuleIds,
             IReadOnlyDictionary<string, string> selectedOptionValues,
-            string outputRootPath) {
+            string outputRootPath,
+            string selectedEnvironmentId = "") {
             if (manifestDocument == null) {
                 throw new ArgumentNullException(nameof(manifestDocument));
             }
@@ -63,8 +64,8 @@ namespace helengine.editor {
                 }
 
                 string moduleRootPath = Path.Combine(outputRootPath, moduleEntry.ModuleId);
-                string projectFilePath = WriteModuleProjectFile(moduleEntry, moduleRootPath, platformId);
-                IReadOnlyList<string> platformSymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId);
+                string projectFilePath = WriteModuleProjectFile(moduleEntry, moduleRootPath, platformId, selectedEnvironmentId);
+                IReadOnlyList<string> platformSymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId, selectedEnvironmentId);
                 string languageToken = "cpp";
                 string endiannessToken = codegenProfile.Endianness == helengine.baseplatform.Profiles.PlatformSerializationEndianness.BigEndian
                     ? "big"
@@ -232,7 +233,7 @@ namespace helengine.editor {
             return EnumerateModuleScriptFiles(moduleEntry).Any();
         }
 
-        string WriteModuleProjectFile(EditorCodeModuleManifestEntry moduleEntry, string moduleRootPath, string platformId) {
+        string WriteModuleProjectFile(EditorCodeModuleManifestEntry moduleEntry, string moduleRootPath, string platformId, string selectedEnvironmentId = "") {
             if (moduleEntry == null) {
                 throw new ArgumentNullException(nameof(moduleEntry));
             }
@@ -248,7 +249,7 @@ namespace helengine.editor {
             string generatedGlobalUsingsPath = WriteGeneratedGlobalUsingsFile(projectRootPath, moduleEntry);
             string intermediateRootPath = Path.Combine(projectRootPath, "obj");
             string outputPath = Path.Combine(projectRootPath, moduleEntry.ModuleId + ".csproj");
-            IReadOnlyList<string> platformSymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId);
+            IReadOnlyList<string> platformSymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId, selectedEnvironmentId);
             StringBuilder projectBuilder = new();
             projectBuilder.AppendLine("<Project Sdk=\"Microsoft.NET.Sdk\">");
             projectBuilder.AppendLine("  <PropertyGroup>");

@@ -9,7 +9,7 @@ namespace helengine.editor {
         /// <param name="importerId">Importer identifier selected in the view.</param>
         /// <param name="selectedPlatformId">Platform currently selected in the processor tabs.</param>
         /// <param name="processorSettings">Pending processor settings to persist.</param>
-        public AssetImportSettingsApplyRequest(string importerId, string selectedPlatformId, AssetProcessorSettings processorSettings) {
+        public AssetImportSettingsApplyRequest(string importerId, string selectedPlatformId, AssetProcessorSettings processorSettings, string selectedEnvironmentId = null) {
             if (string.IsNullOrWhiteSpace(importerId)) {
                 throw new ArgumentException("Importer id must be provided.", nameof(importerId));
             } else if (string.IsNullOrWhiteSpace(selectedPlatformId)) {
@@ -20,6 +20,7 @@ namespace helengine.editor {
 
             ImporterId = importerId;
             SelectedPlatformId = selectedPlatformId;
+            SelectedEnvironmentId = selectedEnvironmentId ?? string.Empty;
             ProcessorSettings = processorSettings;
         }
 
@@ -32,6 +33,11 @@ namespace helengine.editor {
         /// Gets the processor platform tab selected when the request was raised.
         /// </summary>
         public string SelectedPlatformId { get; }
+
+        /// <summary>
+        /// Gets the nested environment tab selected when the request was raised, or empty for platform-only editing.
+        /// </summary>
+        public string SelectedEnvironmentId { get; }
 
         /// <summary>
         /// Gets the pending processor settings to persist.

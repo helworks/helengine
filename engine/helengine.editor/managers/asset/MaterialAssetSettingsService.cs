@@ -275,9 +275,19 @@ namespace helengine.editor {
                     continue;
                 }
 
-                MaterialAssetProcessorSettings platformSettings = CloneProcessorSettings(commonDocument.Processor);
+                MaterialAssetProcessorSettings platformSettings = settings.Processor.Platforms.TryGetValue(overrideDocument.PlatformId, out MaterialAssetProcessorSettings inheritedPlatformSettings)
+                    ? CloneProcessorSettings(inheritedPlatformSettings)
+                    : CloneProcessorSettings(commonDocument.Processor);
                 ApplyOverrideSettings(platformSettings, overrideDocument.Processor);
-                settings.Processor.Platforms[overrideDocument.PlatformId] = platformSettings;
+                if (string.IsNullOrWhiteSpace(overrideDocument.EnvironmentId)) {
+                    settings.Processor.Platforms[overrideDocument.PlatformId] = platformSettings;
+                } else {
+                    if (!settings.Processor.Environments.TryGetValue(overrideDocument.PlatformId, out Dictionary<string, MaterialAssetProcessorSettings> environments)) {
+                        environments = new Dictionary<string, MaterialAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                        settings.Processor.Environments[overrideDocument.PlatformId] = environments;
+                    }
+                    environments[overrideDocument.EnvironmentId] = platformSettings;
+                }
             }
 
             return settings.Processor.Platforms.Count > 0;
@@ -317,6 +327,13 @@ namespace helengine.editor {
         /// <param name="platformSettings">Merged platform material settings when the shared settings file exists.</param>
         /// <returns>True when the shared settings file exists and a merged effective payload could be produced.</returns>
         public bool TryLoadPlatformSettings(string materialAssetPath, string platformId, out MaterialAssetProcessorSettings platformSettings) {
+            return TryLoadPlatformSettings(materialAssetPath, platformId, string.Empty, out platformSettings);
+        }
+
+        /// <summary>
+        /// Attempts to load one material settings payload through platform and nested environment inheritance.
+        /// </summary>
+        public bool TryLoadPlatformSettings(string materialAssetPath, string platformId, string environmentId, out MaterialAssetProcessorSettings platformSettings) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -338,6 +355,13 @@ namespace helengine.editor {
                 ApplyOverrideSettings(platformSettings, overrideDocument.Processor);
             }
 
+            if (!string.IsNullOrWhiteSpace(environmentId)) {
+                string environmentOverridePath = GetPlatformOverridePath(materialAssetPath, platformId, environmentId);
+                if (TryLoadOverrideDocument(environmentOverridePath, out MaterialAssetPlatformOverrideDocument environmentOverrideDocument)) {
+                    ApplyOverrideSettings(platformSettings, environmentOverrideDocument.Processor);
+                }
+            }
+
             return true;
         }
 
@@ -348,6 +372,13 @@ namespace helengine.editor {
         /// <param name="platformId">Platform whose effective material payload should be resolved.</param>
         /// <returns>Shader-owned runtime-facing material asset built from the authored base document plus any platform override.</returns>
         public ShaderMaterialAsset LoadMaterialAsset(string materialAssetPath, string platformId) {
+            return LoadMaterialAsset(materialAssetPath, platformId, string.Empty);
+        }
+
+        /// <summary>
+        /// Loads one authored material asset for a platform and nested environment scope.
+        /// </summary>
+        public ShaderMaterialAsset LoadMaterialAsset(string materialAssetPath, string platformId, string environmentId) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -360,7 +391,7 @@ namespace helengine.editor {
             }
 
             MaterialAssetProcessorSettings platformSettings;
-            if (!TryLoadPlatformSettings(materialAssetPath, platformId, out platformSettings)) {
+            if (!TryLoadPlatformSettings(materialAssetPath, platformId, environmentId, out platformSettings)) {
                 throw new InvalidOperationException($"Material settings for platform '{platformId}' could not be loaded from '{materialAssetPath}'.");
             }
 
@@ -616,7 +647,61 @@ namespace helengine.editor {
                 settings.Processor.Platforms[platformId] = platformSettings;
             }
 
+            IReadOnlyList<string> overridePaths = EnumerateOverridePaths(materialAssetPath);
+            for (int index = 0; index < overridePaths.Count; index++) {
+                if (!TryLoadOverrideDocument(overridePaths[index], out MaterialAssetPlatformOverrideDocument environmentDocument)
+                    || string.IsNullOrWhiteSpace(environmentDocument.EnvironmentId)
+                    || !settings.Processor.Platforms.TryGetValue(environmentDocument.PlatformId, out MaterialAssetProcessorSettings platformSettings)
+                    || platformSettings == null) {
+                    continue;
+                }
+
+                MaterialAssetProcessorSettings environmentSettings = CloneProcessorSettings(platformSettings);
+                ApplyOverrideSettings(environmentSettings, environmentDocument.Processor);
+                if (!settings.Processor.Environments.TryGetValue(environmentDocument.PlatformId, out Dictionary<string, MaterialAssetProcessorSettings> environments)) {
+                    environments = new Dictionary<string, MaterialAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                    settings.Processor.Environments[environmentDocument.PlatformId] = environments;
+                }
+
+                environments[environmentDocument.EnvironmentId] = environmentSettings;
+            }
+
             return settings;
+        }
+
+        /// <summary>
+        /// Resolves one material processor payload for a platform and optional nested environment.
+        /// </summary>
+        public bool TryResolvePlatformSettings(
+            MaterialAssetImportSettings settings,
+            string platformId,
+            string environmentId,
+            out MaterialAssetProcessorSettings platformSettings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            platformSettings = null;
+            if (settings.Processor == null
+                || settings.Processor.Platforms == null
+                || !settings.Processor.Platforms.TryGetValue(platformId, out MaterialAssetProcessorSettings baseSettings)
+                || baseSettings == null) {
+                return false;
+            }
+
+            platformSettings = baseSettings;
+            if (!string.IsNullOrWhiteSpace(environmentId)
+                && settings.Processor.Environments != null
+                && settings.Processor.Environments.TryGetValue(platformId, out Dictionary<string, MaterialAssetProcessorSettings> environments)
+                && environments != null
+                && environments.TryGetValue(environmentId, out MaterialAssetProcessorSettings environmentSettings)
+                && environmentSettings != null) {
+                platformSettings = environmentSettings;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -708,6 +793,24 @@ namespace helengine.editor {
                 overrideDocuments[platformId] = overrideDocument;
             }
 
+            if (settings.Processor.Environments != null) {
+                foreach (KeyValuePair<string, Dictionary<string, MaterialAssetProcessorSettings>> platformEnvironment in settings.Processor.Environments) {
+                    if (platformEnvironment.Value == null) continue;
+                    foreach (KeyValuePair<string, MaterialAssetProcessorSettings> environmentEntry in platformEnvironment.Value) {
+                        MaterialAssetPlatformOverrideDocument environmentDocument = BuildOverrideDocument(
+                            platformEnvironment.Key,
+                            environmentEntry.Value,
+                            settings.Processor.Platforms.TryGetValue(platformEnvironment.Key, out MaterialAssetProcessorSettings platformBase)
+                                ? platformBase
+                                : commonDocument.Processor);
+                        environmentDocument.EnvironmentId = environmentEntry.Key;
+                        if (HasOverrideValues(environmentDocument.Processor)) {
+                            overrideDocuments[platformEnvironment.Key + "\u001f" + environmentEntry.Key] = environmentDocument;
+                        }
+                    }
+                }
+            }
+
             return overrideDocuments;
         }
 
@@ -786,7 +889,9 @@ namespace helengine.editor {
 
             HashSet<string> writtenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (KeyValuePair<string, MaterialAssetPlatformOverrideDocument> entry in overrideDocuments) {
-                string overridePath = GetPlatformOverridePath(materialAssetPath, entry.Key);
+                string overridePath = string.IsNullOrWhiteSpace(entry.Value.EnvironmentId)
+                    ? GetPlatformOverridePath(materialAssetPath, entry.Value.PlatformId)
+                    : GetPlatformOverridePath(materialAssetPath, entry.Value.PlatformId, entry.Value.EnvironmentId);
                 string directoryPath = Path.GetDirectoryName(overridePath);
                 if (!string.IsNullOrWhiteSpace(directoryPath)) {
                     Directory.CreateDirectory(directoryPath);
@@ -1119,6 +1224,16 @@ namespace helengine.editor {
             }
 
             return materialAssetPath + "." + platformId + AssetImportManager.SettingsExtension;
+        }
+
+        /// <summary>
+        /// Builds the nested environment material override path for one platform.
+        /// </summary>
+        string GetPlatformOverridePath(string materialAssetPath, string platformId, string environmentId) {
+            if (string.IsNullOrWhiteSpace(environmentId)) {
+                return GetPlatformOverridePath(materialAssetPath, platformId);
+            }
+            return materialAssetPath + "." + platformId + "." + environmentId + AssetImportManager.SettingsExtension;
         }
 
         /// <summary>

@@ -8,11 +8,15 @@ namespace helengine.editor {
         /// </summary>
         public AudioAssetProcessorPlatformSettings() {
             Platforms = new Dictionary<string, AudioAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+            Environments = new Dictionary<string, Dictionary<string, AudioAssetProcessorSettings>>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
         /// Gets or sets the platform-specific audio processor settings.
         /// </summary>
         public Dictionary<string, AudioAssetProcessorSettings> Platforms { get; set; }
+
+        /// <summary>Gets or sets audio settings keyed by platform and nested environment id.</summary>
+        public Dictionary<string, Dictionary<string, AudioAssetProcessorSettings>> Environments { get; set; }
     }
 }

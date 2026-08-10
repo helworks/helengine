@@ -692,7 +692,8 @@ namespace helengine.editor {
             IReadOnlyList<string> importerIds,
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId,
-            IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = null) {
+            IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = null,
+            IReadOnlyList<string> environmentIds = null) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
@@ -715,7 +716,7 @@ namespace helengine.editor {
             DeactivateSelectedEntityTransformProjection();
             currentEntry = entry;
             HideRemoveComponentDialog();
-            importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, entry.EntryKind, platformDefinitionsById);
+            importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, entry.EntryKind, platformDefinitionsById, environmentIds);
             MaterialView.Hide();
             AnimationClipView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;

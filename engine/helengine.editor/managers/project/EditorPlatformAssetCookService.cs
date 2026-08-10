@@ -64,7 +64,8 @@ namespace helengine.editor {
             IPlatformAssetBuilder materialBuilder = null,
             string selectedBuildProfileId = "",
             string selectedGraphicsProfileId = "",
-            IReadOnlyDictionary<string, string> scenePathOverrides = null) {
+            IReadOnlyDictionary<string, string> scenePathOverrides = null,
+            string selectedEnvironmentId = "") {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
             }
@@ -95,7 +96,8 @@ namespace helengine.editor {
                 effectiveMaterialBuilder,
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
-                ScriptTypeResolver);
+                ScriptTypeResolver,
+                selectedEnvironmentId);
             List<string> orderedCanonicalScenePaths = ResolveOrderedScenePaths(orderedSceneIds, null);
             List<string> orderedSceneIdentityPaths = ResolvePackagedSceneIdentityPaths(orderedSceneIds, orderedCanonicalScenePaths);
             List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds, scenePathOverrides);

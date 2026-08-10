@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 21;
+        public const byte CurrentVersion = 22;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -59,6 +59,7 @@ namespace helengine.files {
         /// First asset version that stores animation clip platform override payloads and editor-only frame identifiers.
         /// </summary>
         const byte AnimationClipPlatformOverrideVersion = 19;
+        const byte AnimationClipNestedEnvironmentOverrideVersion = 22;
 
         /// <summary>
         /// Payload endianness used by the current editor asset format.
@@ -747,6 +748,7 @@ namespace helengine.files {
         /// <param name="asset">Override asset to serialize.</param>
         static void WriteAnimationClipPlatformOverrideAsset(EngineBinaryWriter writer, AnimationClipPlatformOverrideAsset asset) {
             writer.WriteString(asset.PlatformId ?? string.Empty);
+            writer.WriteString(asset.EnvironmentId ?? string.Empty);
             writer.WriteByte((byte)asset.Mode);
             writer.WriteArray(asset.PositionTracks, WritePlatformPositionKeyframeTrackAsset);
             writer.WriteArray(asset.PositionOffsetTracks, WritePlatformPositionKeyframeTrackAsset);
@@ -763,6 +765,7 @@ namespace helengine.files {
         static AnimationClipPlatformOverrideAsset ReadAnimationClipPlatformOverrideAsset(EngineBinaryReader reader, byte version) {
             return new AnimationClipPlatformOverrideAsset {
                 PlatformId = reader.ReadString(),
+                EnvironmentId = version >= AnimationClipNestedEnvironmentOverrideVersion ? reader.ReadString() : string.Empty,
                 Mode = (AnimationClipPlatformOverrideMode)reader.ReadByte(),
                 PositionTracks = reader.ReadArray(currentReader => ReadPlatformPositionKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<PlatformPositionKeyframeTrackAsset>(),
                 PositionOffsetTracks = reader.ReadArray(currentReader => ReadPlatformPositionKeyframeTrackAsset(currentReader, version)) ?? Array.Empty<PlatformPositionKeyframeTrackAsset>(),

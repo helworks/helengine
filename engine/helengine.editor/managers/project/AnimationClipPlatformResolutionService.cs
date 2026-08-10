@@ -27,19 +27,44 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one animation clip through platform then nested environment inheritance.
+        /// </summary>
+        public AnimationClipAsset ResolveForScope(AnimationClipAsset clip, EditorOverrideScope scope) {
+            if (scope.IsPlatformOnly) {
+                return ResolveForPlatform(clip, scope.PlatformId);
+            }
+
+            AnimationClipAsset platformClip = ResolveForPlatform(clip, scope.PlatformId);
+            AnimationClipPlatformOverrideAsset environmentOverride = ResolvePlatformOverride(clip, scope.PlatformId, scope.EnvironmentId);
+            if (environmentOverride == null || environmentOverride.Mode == AnimationClipPlatformOverrideMode.InheritBase) {
+                return platformClip;
+            }
+            if (environmentOverride.Mode == AnimationClipPlatformOverrideMode.ReplaceWholeClip) {
+                return ResolveReplaceWholeClip(platformClip, environmentOverride);
+            }
+
+            return ResolveOverrideFrames(platformClip, environmentOverride);
+        }
+
+        /// <summary>
         /// Resolves the override payload that belongs to the requested platform when one exists.
         /// </summary>
         /// <param name="clip">Clip whose platform overrides should be inspected.</param>
         /// <param name="platformId">Platform identifier to locate.</param>
         /// <returns>Matching override payload, or null when the platform inherits the base clip.</returns>
         AnimationClipPlatformOverrideAsset ResolvePlatformOverride(AnimationClipAsset clip, string platformId) {
+            return ResolvePlatformOverride(clip, platformId, string.Empty);
+        }
+
+        AnimationClipPlatformOverrideAsset ResolvePlatformOverride(AnimationClipAsset clip, string platformId, string environmentId) {
             if (clip.PlatformOverrides == null) {
                 return null;
             }
 
             for (int index = 0; index < clip.PlatformOverrides.Length; index++) {
                 AnimationClipPlatformOverrideAsset currentOverride = clip.PlatformOverrides[index];
-                if (currentOverride == null || !string.Equals(currentOverride.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                if (currentOverride == null || !string.Equals(currentOverride.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(currentOverride.EnvironmentId ?? string.Empty, environmentId ?? string.Empty, StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }
 

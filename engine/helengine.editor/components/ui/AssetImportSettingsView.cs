@@ -135,9 +135,17 @@ namespace helengine.editor {
         /// </summary>
         readonly PlatformTabStripView PlatformTabStrip;
         /// <summary>
+        /// Optional nested environment strip shown after the platform-side plus affordance is used.
+        /// </summary>
+        readonly PlatformTabStripView EnvironmentTabStrip;
+        /// <summary>
         /// Supported platform identifiers shown in the current tab row.
         /// </summary>
         readonly List<string> SupportedPlatformIds;
+        /// <summary>
+        /// Project environment ids available to this import-settings surface.
+        /// </summary>
+        readonly List<string> SupportedEnvironmentIds;
         /// <summary>
         /// Platform definitions available for the current import-settings session, keyed by platform identifier.
         /// </summary>
@@ -324,6 +332,14 @@ namespace helengine.editor {
         /// </summary>
         string CurrentPlatformId;
         /// <summary>
+        /// Currently selected nested environment, or empty while platform-only editing is active.
+        /// </summary>
+        string CurrentEnvironmentId;
+        /// <summary>
+        /// Whether the current platform has opted into nested environment editing.
+        /// </summary>
+        bool EnvironmentOverridesEnabled;
+        /// <summary>
         /// Currently displayed asset kind.
         /// </summary>
         AssetEntryKind CurrentEntryKind;
@@ -374,6 +390,7 @@ namespace helengine.editor {
             Font = font;
             ImporterIds = new List<string>(8);
             SupportedPlatformIds = new List<string>(4);
+            SupportedEnvironmentIds = new List<string>(4) { "debug", "release" };
             PlatformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.Ordinal);
             TextureColorFormatValues = new List<string>(Enum.GetNames<TextureAssetColorFormat>());
             TextureAlphaPrecisionValues = new List<string>(Enum.GetNames<TextureAssetAlphaPrecision>());
@@ -431,7 +448,12 @@ namespace helengine.editor {
             ProcessorPanelRoot.AddComponent(ProcessorPanelBackground);
 
             PlatformTabStrip = new PlatformTabStripView(font, layerMask, PlatformTabWidth, ControlHeight, PlatformTabSpacing, ControlHeight);
+            PlatformTabStrip.SetEnvironmentAddButtonVisible(true);
+            PlatformTabStrip.EnvironmentOverrideRequested += HandleEnvironmentOverrideRequested;
             RootEntity.AddChild(PlatformTabStrip.Root);
+            EnvironmentTabStrip = new PlatformTabStripView(font, layerMask, PlatformTabWidth, ControlHeight, PlatformTabSpacing, ControlHeight);
+            EnvironmentTabStrip.Root.Enabled = false;
+            RootEntity.AddChild(EnvironmentTabStrip.Root);
 
             FlipWindingLabelHost = new EditorEntity();
             FlipWindingLabelHost.LayerMask = layerMask;
@@ -714,7 +736,8 @@ namespace helengine.editor {
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId,
             AssetEntryKind entryKind,
-            IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = null) {
+            IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = null,
+            IReadOnlyList<string> environmentIds = null) {
             if (importerIds == null) {
                 throw new ArgumentNullException(nameof(importerIds));
             } else if (string.IsNullOrWhiteSpace(importerId)) {
@@ -731,6 +754,7 @@ namespace helengine.editor {
 
             SetImporterIds(importerIds);
             SetSupportedPlatforms(supportedPlatforms);
+            SetSupportedEnvironments(environmentIds);
             SetPlatformDefinitions(platformDefinitionsById);
 
             ActiveImporterId = importerId;
@@ -740,6 +764,9 @@ namespace helengine.editor {
             EnsurePlatformSettingsExist(ActiveProcessorSettings);
             EnsurePlatformSettingsExist(PendingProcessorSettings);
             CurrentPlatformId = ResolveSelectedPlatformId(activePlatformId);
+            CurrentEnvironmentId = string.Empty;
+            EnvironmentOverridesEnabled = false;
+            EnvironmentTabStrip.Root.Enabled = false;
             CurrentEntryKind = entryKind;
 
             int selectedIndex = FindImporterIndex(ActiveImporterId);
@@ -767,6 +794,9 @@ namespace helengine.editor {
             SupportedPlatformIds.Clear();
             PlatformDefinitionsById.Clear();
             CurrentPlatformId = string.Empty;
+            CurrentEnvironmentId = string.Empty;
+            EnvironmentOverridesEnabled = false;
+            EnvironmentTabStrip.Root.Enabled = false;
         }
 
         /// <summary>
@@ -804,9 +834,14 @@ namespace helengine.editor {
             currentTop += labelHeight + RowSpacing;
             int tabStripTop = currentTop;
             PlatformTabStrip.UpdateLayout(0, tabStripTop, width);
+            int visibleTabHeight = ControlHeight;
+            if (EnvironmentTabStrip.Root.Enabled) {
+                EnvironmentTabStrip.UpdateLayout(0, tabStripTop + ControlHeight, width);
+                visibleTabHeight += ControlHeight;
+            }
 
-            int processorPanelTop = tabStripTop + ControlHeight - ProcessorPanelTopOverlap;
-            int processorPanelContentTop = tabStripTop + ControlHeight + ProcessorPanelPadding;
+            int processorPanelTop = tabStripTop + visibleTabHeight - ProcessorPanelTopOverlap;
+            int processorPanelContentTop = tabStripTop + visibleTabHeight + ProcessorPanelPadding;
             currentTop = processorPanelContentTop;
             if (IsModelProcessorVisible) {
                 int labelOffsetY = (int)Math.Round((ControlHeight - labelHeight) / 2d);
@@ -918,8 +953,51 @@ namespace helengine.editor {
             }
 
             CurrentPlatformId = platformId;
+            if (EnvironmentOverridesEnabled) {
+                CurrentEnvironmentId = ResolveSelectedEnvironmentId(CurrentEnvironmentId);
+                EnvironmentTabStrip.SetPlatforms(SupportedEnvironmentIds, CurrentEnvironmentId, HandleEnvironmentTabClicked);
+            }
             UpdateControlState();
             UpdateStatusText();
+        }
+
+        /// <summary>
+        /// Opts the selected platform into nested environment processor settings.
+        /// </summary>
+        void HandleEnvironmentOverrideRequested(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId) || SupportedEnvironmentIds.Count == 0) {
+                return;
+            }
+            CurrentPlatformId = platformId.Trim();
+            EnvironmentOverridesEnabled = true;
+            CurrentEnvironmentId = ResolveSelectedEnvironmentId(CurrentEnvironmentId);
+            EnvironmentTabStrip.SetPlatforms(SupportedEnvironmentIds, CurrentEnvironmentId, HandleEnvironmentTabClicked);
+            EnvironmentTabStrip.Root.Enabled = true;
+            UpdateControlState();
+            UpdateStatusText();
+        }
+
+        /// <summary>
+        /// Selects a nested environment in the processor settings view.
+        /// </summary>
+        void HandleEnvironmentTabClicked(string environmentId) {
+            if (string.IsNullOrWhiteSpace(environmentId)) {
+                return;
+            }
+            CurrentEnvironmentId = environmentId.Trim();
+            UpdateControlState();
+            UpdateStatusText();
+        }
+
+        /// <summary>
+        /// Resolves one valid environment id for the current project registry.
+        /// </summary>
+        string ResolveSelectedEnvironmentId(string environmentId) {
+            if (!string.IsNullOrWhiteSpace(environmentId)
+                && SupportedEnvironmentIds.Contains(environmentId, StringComparer.OrdinalIgnoreCase)) {
+                return environmentId.Trim();
+            }
+            return SupportedEnvironmentIds[0];
         }
 
         /// <summary>
@@ -1072,7 +1150,8 @@ namespace helengine.editor {
                 AssetImportSettingsApplyRequest request = new AssetImportSettingsApplyRequest(
                     PendingImporterId,
                     CurrentPlatformId,
-                    CloneProcessorSettings(PendingProcessorSettings));
+                    CloneProcessorSettings(PendingProcessorSettings),
+                    EnvironmentOverridesEnabled ? CurrentEnvironmentId : string.Empty);
                 ApplyRequested(request);
             }
         }
@@ -1225,6 +1304,28 @@ namespace helengine.editor {
                 }
 
                 SupportedPlatformIds.Add(platformId);
+            }
+        }
+
+        /// <summary>
+        /// Copies project environment identifiers and repairs the built-in defaults when older callers omit them.
+        /// </summary>
+        void SetSupportedEnvironments(IReadOnlyList<string> environmentIds) {
+            SupportedEnvironmentIds.Clear();
+            IReadOnlyList<string> source = environmentIds ?? new[] { "debug", "release" };
+            for (int index = 0; index < source.Count; index++) {
+                string environmentId = source[index];
+                if (string.IsNullOrWhiteSpace(environmentId)
+                    || SupportedEnvironmentIds.Contains(environmentId.Trim(), StringComparer.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                SupportedEnvironmentIds.Add(environmentId.Trim());
+            }
+            if (!SupportedEnvironmentIds.Contains("debug", StringComparer.OrdinalIgnoreCase)) {
+                SupportedEnvironmentIds.Insert(0, "debug");
+            }
+            if (!SupportedEnvironmentIds.Contains("release", StringComparer.OrdinalIgnoreCase)) {
+                SupportedEnvironmentIds.Insert(Math.Min(1, SupportedEnvironmentIds.Count), "release");
             }
         }
 
@@ -1551,6 +1652,15 @@ namespace helengine.editor {
                 PendingProcessorSettings.Platforms[platformId] = platformSettings;
             }
 
+            if (EnvironmentOverridesEnabled && !string.IsNullOrWhiteSpace(CurrentEnvironmentId)) {
+                if (!platformSettings.Environments.TryGetValue(CurrentEnvironmentId, out AssetPlatformProcessorSettings environmentSettings)
+                    || environmentSettings == null) {
+                    environmentSettings = AssetProcessorSettingsScopeResolver.ClonePlatform(platformSettings);
+                    platformSettings.Environments[CurrentEnvironmentId] = environmentSettings;
+                }
+                return environmentSettings;
+            }
+
             return platformSettings;
         }
 
@@ -1611,6 +1721,13 @@ namespace helengine.editor {
 
                 clone.Sections[pair.Key] = AssetPlatformSettingsSectionRegistry.Shared.CloneSection(pair.Key, pair.Value);
             }
+            if (platformSettings.Environments != null) {
+                foreach (KeyValuePair<string, AssetPlatformProcessorSettings> environment in platformSettings.Environments) {
+                    if (!string.IsNullOrWhiteSpace(environment.Key) && environment.Value != null) {
+                        clone.Environments[environment.Key] = ClonePlatformProcessorSettings(environment.Value);
+                    }
+                }
+            }
 
             return clone;
         }
@@ -1664,8 +1781,38 @@ namespace helengine.editor {
                 if (!AssetPlatformSettingsSectionRegistry.Shared.SectionsEqual(leftPlatform, rightPlatform)) {
                     return false;
                 }
+                if (!EnvironmentSettingsMatch(leftPlatform.Environments, rightPlatform.Environments)) {
+                    return false;
+                }
             }
 
+            return true;
+        }
+
+        /// <summary>
+        /// Compares nested environment processor settings for one platform.
+        /// </summary>
+        bool EnvironmentSettingsMatch(
+            Dictionary<string, AssetPlatformProcessorSettings> left,
+            Dictionary<string, AssetPlatformProcessorSettings> right) {
+            HashSet<string> environmentIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (left != null) {
+                foreach (string id in left.Keys) environmentIds.Add(id);
+            }
+            if (right != null) {
+                foreach (string id in right.Keys) environmentIds.Add(id);
+            }
+            foreach (string environmentId in environmentIds) {
+                AssetPlatformProcessorSettings leftSettings = left != null && left.TryGetValue(environmentId, out AssetPlatformProcessorSettings leftValue)
+                    ? leftValue
+                    : new AssetPlatformProcessorSettings();
+                AssetPlatformProcessorSettings rightSettings = right != null && right.TryGetValue(environmentId, out AssetPlatformProcessorSettings rightValue)
+                    ? rightValue
+                    : new AssetPlatformProcessorSettings();
+                if (!AssetPlatformSettingsSectionRegistry.Shared.SectionsEqual(leftSettings, rightSettings)) {
+                    return false;
+                }
+            }
             return true;
         }
 

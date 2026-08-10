@@ -455,6 +455,9 @@ namespace helengine.editor {
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace) {
             IReadOnlyList<string> platformCodegenSymbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(builderDefinition);
+            platformCodegenSymbols = EditorPlatformPreprocessorSymbolService.CombineEnvironmentSymbols(
+                platformCodegenSymbols,
+                queueItem.SelectedEnvironmentId);
             PhysicsSceneFeatureFlags3D physics3DFeatureFlags = Physics3DCodegenFeatureSymbolService.ResolveFeatureFlags(queueItem.SelectedSceneIds ?? []);
             IReadOnlyList<string> physics3DCodegenSymbols = physics3DFeatureFlags == PhysicsSceneFeatureFlags3D.None
                 ? []
@@ -502,7 +505,8 @@ namespace helengine.editor {
                 builder,
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
-                scenePathOverrides);
+                scenePathOverrides,
+                queueItem.SelectedEnvironmentId);
         }
 
         /// <summary>
@@ -625,7 +629,8 @@ namespace helengine.editor {
                 selectedCodegenProfile,
                 inferredRootModuleIds,
                 selectedCodegenOptionValues,
-                workspace.CodeRootPath);
+                workspace.CodeRootPath,
+                queueItem.SelectedEnvironmentId);
         }
 
         /// <summary>

@@ -3972,7 +3972,7 @@ namespace helengine.editor {
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
                     AssetProcessorSettings processorSettings = CreateModelImportViewProcessorSettings(settings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                     }
                 } else if (entry.EntryKind == AssetEntryKind.Image) {
                     TextureAssetImportSettings settings;
@@ -3986,7 +3986,7 @@ namespace helengine.editor {
 
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                     }
                 } else {
                     AssetImportSettings settings;
@@ -4000,7 +4000,7 @@ namespace helengine.editor {
 
                     assetImportManager.SaveImportSettings(entry.FullPath, settings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                     }
                 }
                 RefreshPreviewSource();
@@ -4077,17 +4077,20 @@ namespace helengine.editor {
                     settings.Importer.ImporterId = request.ImporterId;
                     ApplyModelImportRequestProcessorSettings(settings, request.ProcessorSettings);
                     SetActiveProjectPlatform(request.SelectedPlatformId);
+                    assetImportManager.CurrentEnvironmentId = request.SelectedEnvironmentId;
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
                 } else if (entry.EntryKind == AssetEntryKind.Image) {
                     TextureAssetImportSettings settings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
                     settings.Importer.ImporterId = request.ImporterId;
                     SetActiveProjectPlatform(request.SelectedPlatformId);
+                    assetImportManager.CurrentEnvironmentId = request.SelectedEnvironmentId;
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
                 } else {
                     AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
                     settings.Importer.ImporterId = request.ImporterId;
                     settings.Processor = request.ProcessorSettings;
                     SetActiveProjectPlatform(request.SelectedPlatformId);
+                    assetImportManager.CurrentEnvironmentId = request.SelectedEnvironmentId;
                     assetImportManager.SaveImportSettings(entry.FullPath, settings);
                 }
 
@@ -4099,17 +4102,17 @@ namespace helengine.editor {
                     ModelAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
                     AssetProcessorSettings processorSettings = CreateModelImportViewProcessorSettings(refreshedSettings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                     }
                 } else if (entry.EntryKind == AssetEntryKind.Image) {
                     TextureAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                     }
                 } else {
                     AssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, refreshedSettings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, refreshedSettings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                     }
                 }
             } catch (Exception ex) {
@@ -4140,9 +4143,19 @@ namespace helengine.editor {
                     continue;
                 }
 
-                processorSettings.Platforms[pair.Key] = new AssetPlatformProcessorSettings {
+                AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings {
                     Model = CloneModelProcessorSettings(pair.Value)
                 };
+                processorSettings.Platforms[pair.Key] = platformSettings;
+                if (settings.Processor.Environments != null
+                    && settings.Processor.Environments.TryGetValue(pair.Key, out Dictionary<string, ModelAssetProcessorSettings> environments)
+                    && environments != null) {
+                    foreach (KeyValuePair<string, ModelAssetProcessorSettings> environment in environments) {
+                        platformSettings.Environments[environment.Key] = new AssetPlatformProcessorSettings {
+                            Model = CloneModelProcessorSettings(environment.Value)
+                        };
+                    }
+                }
             }
 
             return processorSettings;
@@ -4167,6 +4180,13 @@ namespace helengine.editor {
                 }
 
                 settings.Processor.Platforms[pair.Key] = CloneModelProcessorSettings(pair.Value?.Model);
+                if (pair.Value?.Environments != null) {
+                    Dictionary<string, ModelAssetProcessorSettings> environments = new Dictionary<string, ModelAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                    foreach (KeyValuePair<string, AssetPlatformProcessorSettings> environment in pair.Value.Environments) {
+                        environments[environment.Key] = CloneModelProcessorSettings(environment.Value?.Model);
+                    }
+                    settings.Processor.Environments[pair.Key] = environments;
+                }
             }
         }
 
@@ -4886,7 +4906,7 @@ namespace helengine.editor {
                     }
 
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
-                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, CreateModelImportViewProcessorSettings(settings), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, CreateModelImportViewProcessorSettings(settings), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                 } else if (entry.EntryKind == AssetEntryKind.Image) {
                     TextureAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateTextureImportSettings(entry.FullPath, out settings)) {
@@ -4895,7 +4915,7 @@ namespace helengine.editor {
                     }
 
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
-                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                 } else {
                     AssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
@@ -4904,7 +4924,7 @@ namespace helengine.editor {
                     }
 
                     assetImportManager.SaveImportSettings(entry.FullPath, settings);
-                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById());
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                 }
             } catch (Exception ex) {
                 panel.ShowImportError(entry, ex.Message);

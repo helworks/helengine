@@ -9,12 +9,18 @@ namespace helengine.editor {
         public MaterialAssetPlatformOverrideDocument() {
             Processor = new MaterialAssetProcessorOverrideSettings();
             PlatformId = string.Empty;
+            EnvironmentId = string.Empty;
         }
 
         /// <summary>
         /// Gets or sets the platform identifier targeted by this override document.
         /// </summary>
         public string PlatformId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the optional nested environment id under <see cref="PlatformId"/>.
+        /// </summary>
+        public string EnvironmentId { get; set; }
 
         /// <summary>
         /// Gets or sets the partial processor override payload for the target platform.

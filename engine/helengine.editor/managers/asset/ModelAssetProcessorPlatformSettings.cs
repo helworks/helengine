@@ -8,11 +8,15 @@ namespace helengine.editor {
         /// </summary>
         public ModelAssetProcessorPlatformSettings() {
             Platforms = new Dictionary<string, ModelAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+            Environments = new Dictionary<string, Dictionary<string, ModelAssetProcessorSettings>>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
         /// Gets or sets the platform-specific model processor settings.
         /// </summary>
         public Dictionary<string, ModelAssetProcessorSettings> Platforms { get; set; }
+
+        /// <summary>Gets or sets model settings keyed by platform and nested environment id.</summary>
+        public Dictionary<string, Dictionary<string, ModelAssetProcessorSettings>> Environments { get; set; }
     }
 }

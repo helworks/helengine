@@ -46,15 +46,60 @@ namespace helengine.editor {
         /// <param name="platformId">Stable platform identifier for the active build.</param>
         /// <returns>Ordered shared gameplay symbols.</returns>
         public static IReadOnlyList<string> ResolveGameplaySymbols(string platformId) {
+            return ResolveGameplaySymbols(platformId, string.Empty);
+        }
+
+        /// <summary>
+        /// Resolves gameplay symbols for one platform and nested project environment.
+        /// </summary>
+        public static IReadOnlyList<string> ResolveGameplaySymbols(string platformId, string environmentId) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
+            List<string> symbols = [];
             if (string.Equals(platformId, "windows", StringComparison.OrdinalIgnoreCase)) {
-                return ["DESKTOP_PLATFORM"];
+                symbols.Add("DESKTOP_PLATFORM");
             }
 
-            return [];
+            AddEnvironmentSymbol(symbols, environmentId);
+            return symbols;
+        }
+
+        /// <summary>
+        /// Adds the selected environment symbol to an existing generated-core symbol set.
+        /// </summary>
+        public static IReadOnlyList<string> CombineEnvironmentSymbols(
+            IReadOnlyList<string> symbols,
+            string environmentId) {
+            if (symbols == null) {
+                throw new ArgumentNullException(nameof(symbols));
+            }
+
+            List<string> combined = [.. symbols];
+            AddEnvironmentSymbol(combined, environmentId);
+            return combined;
+        }
+
+        /// <summary>
+        /// Builds the stable preprocessor symbol for one project environment.
+        /// </summary>
+        public static string BuildEnvironmentSymbol(string environmentId) {
+            if (string.IsNullOrWhiteSpace(environmentId)) {
+                throw new ArgumentException("Environment id must be provided.", nameof(environmentId));
+            }
+
+            char[] characters = environmentId.Trim().ToUpperInvariant().ToCharArray();
+            for (int index = 0; index < characters.Length; index++) {
+                char character = characters[index];
+                if ((character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9')) {
+                    continue;
+                }
+
+                characters[index] = '_';
+            }
+
+            return "HELENGINE_ENV_" + new string(characters);
         }
 
         /// <summary>
@@ -203,6 +248,17 @@ namespace helengine.editor {
                 if (!destination.Contains(symbol, StringComparer.Ordinal)) {
                     destination.Add(symbol);
                 }
+            }
+        }
+
+        static void AddEnvironmentSymbol(List<string> destination, string environmentId) {
+            if (string.IsNullOrWhiteSpace(environmentId)) {
+                return;
+            }
+
+            string symbol = BuildEnvironmentSymbol(environmentId);
+            if (!destination.Contains(symbol, StringComparer.Ordinal)) {
+                destination.Add(symbol);
             }
         }
     }
