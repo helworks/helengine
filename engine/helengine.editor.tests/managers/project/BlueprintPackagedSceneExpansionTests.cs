@@ -71,6 +71,58 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures blueprint packaging preserves environment-scoped existence overrides on cloned roots.
+        /// </summary>
+        [Fact]
+        public void Expand_WhenBlueprintRootHasEnvironmentExistenceOverride_PreservesEnvironmentId() {
+            WriteBlueprintAsset("Blueprints/EnvironmentBlueprint.hblueprint", null, new SceneEntityAsset {
+                Id = 1u,
+                Name = "Blueprint Root",
+                LayerMask = EditorLayerMasks.SceneObjects,
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                PlatformExistenceOverrides = [
+                    new SceneEntityPlatformExistenceOverrideAsset {
+                        PlatformId = "windows",
+                        EnvironmentId = "release",
+                        Exists = false
+                    }
+                ],
+                Children = Array.Empty<SceneEntityAsset>()
+            });
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "Scenes/EnvironmentScene.helen",
+                RootEntities = [
+                    new SceneEntityAsset {
+                        Id = 100u,
+                        Name = "Instance Root",
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = [
+                            SerializeComponent(new BlueprintInstanceComponent {
+                                BlueprintAssetPath = "Blueprints/EnvironmentBlueprint.hblueprint"
+                            })
+                        ],
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                ]
+            };
+
+            BlueprintPackagedSceneExpansionService service = new BlueprintPackagedSceneExpansionService(ProjectRootPath, new ComponentPersistenceRegistry());
+
+            service.Expand(sceneAsset);
+
+            SceneEntityAsset expandedBlueprintRoot = Assert.Single(Assert.Single(sceneAsset.RootEntities).Children);
+            SceneEntityPlatformExistenceOverrideAsset existenceOverride = Assert.Single(expandedBlueprintRoot.PlatformExistenceOverrides);
+            Assert.Equal("windows", existenceOverride.PlatformId);
+            Assert.Equal("release", existenceOverride.EnvironmentId);
+            Assert.False(existenceOverride.Exists);
+        }
+
+        /// <summary>
         /// Ensures nested blueprint instances inside blueprint source content are rejected during packaging.
         /// </summary>
         [Fact]

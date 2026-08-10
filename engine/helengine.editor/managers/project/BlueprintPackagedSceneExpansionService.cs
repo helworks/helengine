@@ -519,6 +519,7 @@ namespace helengine.editor {
 
             return new SceneEntityPlatformExistenceOverrideAsset {
                 PlatformId = overrideAsset.PlatformId,
+                EnvironmentId = overrideAsset.EnvironmentId,
                 Exists = overrideAsset.Exists
             };
         }
