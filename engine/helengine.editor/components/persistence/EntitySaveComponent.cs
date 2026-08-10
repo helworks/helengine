@@ -31,6 +31,11 @@ namespace helengine {
         public string ActiveTransformPlatformId { get; set; }
 
         /// <summary>
+        /// Gets or sets the nested environment currently projected into the live entity transform.
+        /// </summary>
+        public string ActiveTransformEnvironmentId { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether the common transform snapshot is available while one platform override is projected into the live entity.
         /// </summary>
         public bool HasCommonTransformSnapshot { get; set; }
@@ -59,6 +64,7 @@ namespace helengine {
             TransformOverridesByScope = new EditorOverrideScopeMap<SceneEntityPlatformTransformOverrideAsset>();
             ComponentOverridesByScope = new EditorOverrideScopeMap<EntityPlatformComponentOverrideState>();
             ActiveTransformPlatformId = string.Empty;
+            ActiveTransformEnvironmentId = string.Empty;
         }
 
         /// <summary>

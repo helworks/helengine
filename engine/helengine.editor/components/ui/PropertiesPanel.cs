@@ -231,6 +231,10 @@ namespace helengine.editor {
         /// </summary>
         readonly PlatformTabStripView ComponentPlatformTabStrip;
         /// <summary>
+        /// Optional nested environment tab strip shown below the selected platform.
+        /// </summary>
+        readonly PlatformTabStripView ComponentEnvironmentTabStrip;
+        /// <summary>
         /// Row entity for the per-platform entity existence checkbox.
         /// </summary>
         readonly EditorEntity ExistsRow;
@@ -351,6 +355,10 @@ namespace helengine.editor {
         /// </summary>
         string SelectedComponentPlatformId;
         /// <summary>
+        /// Currently selected nested environment id shown by the inspector.
+        /// </summary>
+        string SelectedComponentEnvironmentId;
+        /// <summary>
         /// Currently selected entity, if any.
         /// </summary>
         Entity SelectedEntity;
@@ -358,6 +366,18 @@ namespace helengine.editor {
         /// Component platform ids currently available to the inspector, always including the shared common platform first.
         /// </summary>
         IReadOnlyList<string> CurrentComponentPlatformIds;
+        /// <summary>
+        /// Project environment ids currently available to the inspector.
+        /// </summary>
+        IReadOnlyList<string> CurrentComponentEnvironmentIds;
+        /// <summary>
+        /// Platforms that have opted into nested environment overrides in this inspector session.
+        /// </summary>
+        readonly HashSet<string> ComponentEnvironmentOverridePlatforms;
+        /// <summary>
+        /// Scope currently projected by the transform and component inspectors.
+        /// </summary>
+        EditorOverrideScope CurrentComponentScope => new EditorOverrideScope(SelectedComponentPlatformId, SelectedComponentEnvironmentId);
         /// <summary>
         /// Platform definitions currently available to the inspector for synthetic component-member discovery.
         /// </summary>
@@ -616,15 +636,31 @@ namespace helengine.editor {
                 0,
                 ComponentPlatformArrowButtonWidth);
             ComponentPlatformTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, textOrder);
+            ComponentPlatformTabStrip.SetEnvironmentAddButtonVisible(true);
+            ComponentPlatformTabStrip.EnvironmentOverrideRequested += HandleComponentEnvironmentOverrideRequested;
             TransformRoot.AddChild(ComponentPlatformTabStrip.Root);
             ComponentPlatformTabStrip.Root.Enabled = false;
+            ComponentEnvironmentTabStrip = new PlatformTabStripView(
+                font,
+                EditorLayerMasks.PropertiesPanelContent,
+                ComponentPlatformTabWidth,
+                ComponentPlatformTabHeight,
+                0,
+                ComponentPlatformArrowButtonWidth);
+            ComponentEnvironmentTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, textOrder);
+            ComponentEnvironmentTabStrip.Root.Enabled = false;
+            ComponentEnvironmentTabStrip.EnvironmentOverrideRequested += HandleComponentEnvironmentOverrideRequested;
+            TransformRoot.AddChild(ComponentEnvironmentTabStrip.Root);
 
             PositionTextCache = new string[3];
             RotationTextCache = new string[3];
             ScaleTextCache = new string[3];
             NameTextCache = string.Empty;
             SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
+            SelectedComponentEnvironmentId = string.Empty;
             CurrentComponentPlatformIds = new[] { ComponentPlatformEditingService.CommonPlatformId };
+            CurrentComponentEnvironmentIds = new[] { "debug", "release" };
+            ComponentEnvironmentOverridePlatforms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             CurrentPlatformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
 
             HookNameEvents(NameField);
@@ -887,6 +923,17 @@ namespace helengine.editor {
             Entity entity,
             IReadOnlyList<string> supportedPlatformIds,
             IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById) {
+            ShowEntityProperties(entity, supportedPlatformIds, platformDefinitionsById, CurrentComponentEnvironmentIds);
+        }
+
+        /// <summary>
+        /// Shows entity properties using project platforms, platform definitions, and project environments.
+        /// </summary>
+        public void ShowEntityProperties(
+            Entity entity,
+            IReadOnlyList<string> supportedPlatformIds,
+            IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById,
+            IReadOnlyList<string> environmentIds) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
@@ -902,11 +949,16 @@ namespace helengine.editor {
             AnimationClipView.Hide();
             SelectedEntity = entity;
             CurrentComponentPlatformIds = ResolveComponentPlatformIds(supportedPlatformIds);
+            CurrentComponentEnvironmentIds = NormalizeEnvironmentIds(environmentIds);
+            ComponentEnvironmentOverridePlatforms.Clear();
             CurrentPlatformDefinitionsById = platformDefinitionsById ?? new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
             SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
+            SelectedComponentEnvironmentId = string.Empty;
             bool isBlueprintInherited = BlueprintEditorReadOnlyService.IsInheritedEntity(entity);
             ActivateSelectedEntityTransformPlatform();
             ComponentPlatformTabStrip.SetPlatforms(CurrentComponentPlatformIds, SelectedComponentPlatformId, HandleComponentPlatformTabChanged);
+            ComponentPlatformTabStrip.SetEnvironmentAddButtonVisible(true);
+            ComponentEnvironmentTabStrip.Root.Enabled = false;
             ComponentPlatformTabStrip.Root.Enabled = !isBlueprintInherited;
             ApplyLines(isBlueprintInherited
                 ? [
@@ -916,7 +968,7 @@ namespace helengine.editor {
                 : Array.Empty<string>());
             SyncTransformFields(entity);
             ComponentView.SetPlatformDefinitions(CurrentPlatformDefinitionsById);
-            ComponentView.ShowComponents(entity, SelectedComponentPlatformId, isBlueprintInherited);
+            ComponentView.ShowComponents(entity, SelectedComponentPlatformId, SelectedComponentEnvironmentId, isBlueprintInherited);
             SetTransformVisible(!isBlueprintInherited);
             LayoutLines();
         }
@@ -978,7 +1030,7 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Platform-specific component removal requires an entity save component.");
                 }
 
-                ComponentPlatformEditingService.RemoveComponent(pendingComponent, saveComponent, SelectedComponentPlatformId);
+                ComponentPlatformEditingService.RemoveComponent(pendingComponent, saveComponent, CurrentComponentScope);
             }
 
             RecordSelectedEntityStateChange(previousEntityState);
@@ -1007,12 +1059,69 @@ namespace helengine.editor {
 
             PersistSelectedEntityTransformPlatform();
             SelectedComponentPlatformId = platformId;
+            SelectedComponentEnvironmentId = ComponentEnvironmentOverridePlatforms.Contains(platformId)
+                ? ResolveEnvironmentId(SelectedComponentEnvironmentId)
+                : string.Empty;
+            if (!string.IsNullOrWhiteSpace(SelectedComponentEnvironmentId)) {
+                ComponentEnvironmentTabStrip.SetPlatforms(CurrentComponentEnvironmentIds, SelectedComponentEnvironmentId, HandleComponentEnvironmentTabChanged);
+                ComponentEnvironmentTabStrip.SetSelectedPlatform(SelectedComponentEnvironmentId);
+            }
+            ComponentEnvironmentTabStrip.Root.Enabled = !string.IsNullOrWhiteSpace(SelectedComponentEnvironmentId);
             ActivateSelectedEntityTransformPlatform();
             ComponentPlatformTabStrip.SetSelectedPlatform(platformId);
             SyncTransformFields(SelectedEntity);
             ComponentView.SetPlatformDefinitions(CurrentPlatformDefinitionsById);
-            ComponentView.ShowComponents(SelectedEntity, platformId);
+            ComponentView.ShowComponents(SelectedEntity, platformId, SelectedComponentEnvironmentId);
             LayoutLines();
+        }
+
+        /// <summary>
+        /// Enables nested environment editing for the selected platform after the platform-side plus affordance is pressed.
+        /// </summary>
+        void HandleComponentEnvironmentOverrideRequested(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)
+                || string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            ComponentEnvironmentOverridePlatforms.Add(platformId.Trim());
+            SelectedComponentPlatformId = platformId.Trim();
+            SelectedComponentEnvironmentId = ResolveEnvironmentId(SelectedComponentEnvironmentId);
+            ComponentEnvironmentTabStrip.SetPlatforms(CurrentComponentEnvironmentIds, SelectedComponentEnvironmentId, HandleComponentEnvironmentTabChanged);
+            ComponentEnvironmentTabStrip.SetSelectedPlatform(SelectedComponentEnvironmentId);
+            ComponentEnvironmentTabStrip.Root.Enabled = true;
+            ActivateSelectedEntityTransformPlatform();
+            SyncTransformFields(SelectedEntity);
+            ComponentView.ShowComponents(SelectedEntity, SelectedComponentPlatformId, SelectedComponentEnvironmentId);
+            LayoutLines();
+        }
+
+        /// <summary>
+        /// Handles selection of one nested environment under the active platform.
+        /// </summary>
+        void HandleComponentEnvironmentTabChanged(string environmentId) {
+            if (string.IsNullOrWhiteSpace(environmentId) || SelectedEntity == null) {
+                return;
+            }
+
+            PersistSelectedEntityTransformPlatform();
+            SelectedComponentEnvironmentId = environmentId.Trim();
+            ActivateSelectedEntityTransformPlatform();
+            SyncTransformFields(SelectedEntity);
+            ComponentView.ShowComponents(SelectedEntity, SelectedComponentPlatformId, SelectedComponentEnvironmentId);
+            LayoutLines();
+        }
+
+        /// <summary>
+        /// Returns a valid environment selection for the current project registry.
+        /// </summary>
+        string ResolveEnvironmentId(string environmentId) {
+            if (!string.IsNullOrWhiteSpace(environmentId)
+                && CurrentComponentEnvironmentIds.Contains(environmentId, StringComparer.OrdinalIgnoreCase)) {
+                return environmentId.Trim();
+            }
+
+            return CurrentComponentEnvironmentIds.Count > 0 ? CurrentComponentEnvironmentIds[0] : string.Empty;
         }
 
         /// <summary>
@@ -1388,6 +1497,7 @@ namespace helengine.editor {
                 }
                 AddComponentButtonRoot.Enabled = false;
                 ComponentPlatformTabStrip.Root.Enabled = false;
+                ComponentEnvironmentTabStrip.Root.Enabled = false;
                 ExistsRow.Enabled = false;
             }
 
@@ -1413,10 +1523,10 @@ namespace helengine.editor {
             rowTop += TransformRowHeight;
             if (ShouldShowComponentPlatformTabs()) {
                 rowTop += ComponentPlatformTabTopSpacing;
-                LayoutComponentPlatformTabs(rowTop, maxWidth);
-                rowTop += ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
+                rowTop += LayoutComponentPlatformTabs(rowTop, maxWidth) + ComponentPlatformTabBottomSpacing;
             } else {
                 ComponentPlatformTabStrip.Root.Enabled = false;
+                ComponentEnvironmentTabStrip.Root.Enabled = false;
             }
             if (ShouldShowEntityExistenceRow()) {
                 LayoutExistsRow(labelWidth, rowTop);
@@ -1578,7 +1688,7 @@ namespace helengine.editor {
                 && !string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
                 EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
                 if (saveComponent != null) {
-                    exists = ExistencePlatformEditingService.ResolveExists(saveComponent, SelectedComponentPlatformId);
+                    exists = ExistencePlatformEditingService.ResolveExists(saveComponent, CurrentComponentScope);
                 }
             }
 
@@ -1595,9 +1705,9 @@ namespace helengine.editor {
                 && !string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase);
 
             EntitySaveComponent saveComponent = canShowOverrides ? FindEntitySaveComponent(SelectedEntity) : null;
-            bool positionOverrideActive = saveComponent != null && TransformPlatformEditingService.IsPositionOverrideActive(saveComponent, SelectedComponentPlatformId);
-            bool rotationOverrideActive = saveComponent != null && TransformPlatformEditingService.IsRotationOverrideActive(saveComponent, SelectedComponentPlatformId);
-            bool scaleOverrideActive = saveComponent != null && TransformPlatformEditingService.IsScaleOverrideActive(saveComponent, SelectedComponentPlatformId);
+            bool positionOverrideActive = saveComponent != null && TransformPlatformEditingService.IsScopePositionOverrideActive(saveComponent, CurrentComponentScope);
+            bool rotationOverrideActive = saveComponent != null && TransformPlatformEditingService.IsScopeRotationOverrideActive(saveComponent, CurrentComponentScope);
+            bool scaleOverrideActive = saveComponent != null && TransformPlatformEditingService.IsScopeScaleOverrideActive(saveComponent, CurrentComponentScope);
 
             UpdateTransformRowOverrideChrome(PositionOverrideOutline, PositionRevertButtonHost, positionOverrideActive);
             UpdateTransformRowOverrideChrome(RotationOverrideOutline, RotationRevertButtonHost, rotationOverrideActive);
@@ -1792,7 +1902,7 @@ namespace helengine.editor {
                 return;
             }
 
-            TransformPlatformEditingService.ActivatePlatform(SelectedEntity, saveComponent, SelectedComponentPlatformId);
+            TransformPlatformEditingService.ActivateScope(SelectedEntity, saveComponent, CurrentComponentScope);
         }
 
         /// <summary>
@@ -1808,7 +1918,7 @@ namespace helengine.editor {
                 return;
             }
 
-            TransformPlatformEditingService.PersistActivePlatform(SelectedEntity, saveComponent);
+            TransformPlatformEditingService.PersistActiveScope(SelectedEntity, saveComponent);
         }
 
         /// <summary>
@@ -1824,7 +1934,7 @@ namespace helengine.editor {
                 return;
             }
 
-            TransformPlatformEditingService.RestoreCommon(SelectedEntity, saveComponent);
+            TransformPlatformEditingService.RestoreCommonScope(SelectedEntity, saveComponent);
         }
 
         /// <summary>
@@ -1868,11 +1978,11 @@ namespace helengine.editor {
 
             SerializedEditorEntityState previousEntityState = CaptureSelectedEntityHistoryState();
             if (fieldKind == TransformOverrideFieldKind.Position) {
-                TransformPlatformEditingService.ClearPositionOverride(SelectedEntity, saveComponent, SelectedComponentPlatformId);
+                TransformPlatformEditingService.ClearScopeOverride(SelectedEntity, saveComponent, CurrentComponentScope, "position");
             } else if (fieldKind == TransformOverrideFieldKind.Rotation) {
-                TransformPlatformEditingService.ClearRotationOverride(SelectedEntity, saveComponent, SelectedComponentPlatformId);
+                TransformPlatformEditingService.ClearScopeOverride(SelectedEntity, saveComponent, CurrentComponentScope, "rotation");
             } else if (fieldKind == TransformOverrideFieldKind.Scale) {
-                TransformPlatformEditingService.ClearScaleOverride(SelectedEntity, saveComponent, SelectedComponentPlatformId);
+                TransformPlatformEditingService.ClearScopeOverride(SelectedEntity, saveComponent, CurrentComponentScope, "scale");
             }
 
             SyncTransformFields(SelectedEntity);
@@ -1966,7 +2076,7 @@ namespace helengine.editor {
             }
 
             SerializedEditorEntityState previousEntityState = CaptureSelectedEntityHistoryState();
-            ExistencePlatformEditingService.SetExists(saveComponent, SelectedComponentPlatformId, isChecked);
+            ExistencePlatformEditingService.SetExists(saveComponent, CurrentComponentScope, isChecked);
             SyncExistsField();
             LayoutLines();
             RecordSelectedEntityStateChange(previousEntityState);
@@ -2215,7 +2325,10 @@ namespace helengine.editor {
             int rowSpacing = LineSpacing + 2;
             int tabStripHeight = 0;
             if (ShouldShowComponentPlatformTabs()) {
-                tabStripHeight = ComponentPlatformTabTopSpacing + ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
+                int visibleTabCount = ComponentEnvironmentTabStrip.Root.Enabled ? 2 : 1;
+                tabStripHeight = ComponentPlatformTabTopSpacing
+                    + (ComponentPlatformTabHeight * visibleTabCount)
+                    + ComponentPlatformTabBottomSpacing;
             }
             int existenceRowCount = ShouldShowEntityExistenceRow() ? 1 : 0;
             int rowCount = 4 + existenceRowCount;
@@ -2229,13 +2342,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="top">Top offset within the transform root.</param>
         /// <param name="maxWidth">Maximum width available to the strip.</param>
-        void LayoutComponentPlatformTabs(int top, int maxWidth) {
+        int LayoutComponentPlatformTabs(int top, int maxWidth) {
             ComponentPlatformTabStrip.Root.Enabled = ShouldShowComponentPlatformTabs();
             if (!ComponentPlatformTabStrip.Root.Enabled) {
-                return;
+                ComponentEnvironmentTabStrip.Root.Enabled = false;
+                return 0;
             }
 
             ComponentPlatformTabStrip.UpdateLayout(ContentPadding, top, Math.Max(1, maxWidth));
+            if (ComponentEnvironmentTabStrip.Root.Enabled) {
+                ComponentEnvironmentTabStrip.UpdateLayout(ContentPadding, top + ComponentPlatformTabHeight, Math.Max(1, maxWidth));
+                return ComponentPlatformTabHeight * 2;
+            }
+
+            return ComponentPlatformTabHeight;
         }
 
         /// <summary>
@@ -2308,7 +2428,7 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Platform-specific component addition requires an entity save component.");
                 }
 
-                ComponentPlatformEditingService.AddPlatformOnlyComponent(descriptor, saveComponent, SelectedComponentPlatformId);
+                ComponentPlatformEditingService.AddScopeOnlyComponent(descriptor, saveComponent, CurrentComponentScope);
             }
 
             RecordSelectedEntityStateChange(previousEntityState);
@@ -2405,6 +2525,31 @@ namespace helengine.editor {
             }
 
             return platformIds;
+        }
+
+        /// <summary>
+        /// Normalizes project environment ids while keeping debug and release available as protected defaults.
+        /// </summary>
+        IReadOnlyList<string> NormalizeEnvironmentIds(IReadOnlyList<string> environmentIds) {
+            List<string> normalized = new List<string>(4);
+            IReadOnlyList<string> source = environmentIds ?? Array.Empty<string>();
+            for (int index = 0; index < source.Count; index++) {
+                string environmentId = source[index];
+                if (string.IsNullOrWhiteSpace(environmentId)
+                    || normalized.Contains(environmentId.Trim(), StringComparer.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                normalized.Add(environmentId.Trim());
+            }
+
+            if (!normalized.Contains("debug", StringComparer.OrdinalIgnoreCase)) {
+                normalized.Insert(0, "debug");
+            }
+            if (!normalized.Contains("release", StringComparer.OrdinalIgnoreCase)) {
+                normalized.Insert(Math.Min(1, normalized.Count), "release");
+            }
+
+            return normalized;
         }
 
         /// <summary>

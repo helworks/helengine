@@ -52,6 +52,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reads tessellation settings inherited by a platform or nested environment scope.
+        /// </summary>
+        public MeshComponentTessellationSettings GetForScope(EntityComponentSaveState saveState, EditorOverrideScope scope) {
+            if (scope.IsPlatformOnly) {
+                return GetForPlatform(saveState, scope.PlatformId);
+            }
+
+            MeshComponentTessellationSettings platformSettings = GetForPlatform(saveState, scope.PlatformId);
+            if (!saveState.TryGetScopedPlatformOverride(scope, out EntityComponentPlatformOverrideState environmentState)) {
+                return platformSettings;
+            }
+
+            return new MeshComponentTessellationSettings(
+                ReadTessellateOr(environmentState, platformSettings.Tessellate),
+                ReadTessellationMaxEdgeLengthOr(environmentState, platformSettings.TessellationMaxEdgeLength),
+                ReadBakeScaleOr(environmentState, platformSettings.BakeScale),
+                ReadBooleanOr(environmentState, TessellateAtCookTimeMemberName, platformSettings.TessellateAtCookTime),
+                ReadBooleanOr(environmentState, BakeScaleAtCookTimeMemberName, platformSettings.BakeScaleAtCookTime));
+        }
+
+        /// <summary>
         /// Stores editor-only MeshComponent tessellation settings in the selected platform override metadata.
         /// </summary>
         /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
@@ -68,6 +89,27 @@ namespace helengine.editor {
             overrideState.SetMemberValue(
                 TessellationMaxEdgeLengthMemberName,
                 settings.TessellationMaxEdgeLength.ToString("R", CultureInfo.InvariantCulture));
+            overrideState.SetMemberValue(BakeScaleMemberName, settings.BakeScale.ToString(CultureInfo.InvariantCulture));
+            overrideState.SetMemberValue(TessellateAtCookTimeMemberName, settings.TessellateAtCookTime.ToString(CultureInfo.InvariantCulture));
+            overrideState.SetMemberValue(BakeScaleAtCookTimeMemberName, settings.BakeScaleAtCookTime.ToString(CultureInfo.InvariantCulture));
+        }
+
+        /// <summary>
+        /// Stores tessellation settings at a platform or nested environment scope.
+        /// </summary>
+        public void SetForScope(EntityComponentSaveState saveState, EditorOverrideScope scope, MeshComponentTessellationSettings settings) {
+            if (scope.IsPlatformOnly) {
+                SetForPlatform(saveState, scope.PlatformId, settings);
+                return;
+            }
+            ValidateSaveStateAndPlatformId(saveState, scope.PlatformId);
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreateScopedPlatformOverride(scope);
+            overrideState.SetMemberValue(TessellateMemberName, settings.Tessellate.ToString(CultureInfo.InvariantCulture));
+            overrideState.SetMemberValue(TessellationMaxEdgeLengthMemberName, settings.TessellationMaxEdgeLength.ToString("R", CultureInfo.InvariantCulture));
             overrideState.SetMemberValue(BakeScaleMemberName, settings.BakeScale.ToString(CultureInfo.InvariantCulture));
             overrideState.SetMemberValue(TessellateAtCookTimeMemberName, settings.TessellateAtCookTime.ToString(CultureInfo.InvariantCulture));
             overrideState.SetMemberValue(BakeScaleAtCookTimeMemberName, settings.BakeScaleAtCookTime.ToString(CultureInfo.InvariantCulture));
@@ -140,6 +182,30 @@ namespace helengine.editor {
 
             MeshComponentTessellationSettings.ValidateTessellationMaxEdgeLength(tessellationMaxEdgeLength);
             return tessellationMaxEdgeLength;
+        }
+
+        bool ReadTessellateOr(EntityComponentPlatformOverrideState overrideState, bool fallback) {
+            return overrideState.TryGetMemberValue(TessellateMemberName, out string value)
+                ? bool.Parse(value)
+                : fallback;
+        }
+
+        double ReadTessellationMaxEdgeLengthOr(EntityComponentPlatformOverrideState overrideState, double fallback) {
+            return overrideState.TryGetMemberValue(TessellationMaxEdgeLengthMemberName, out string value)
+                ? double.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)
+                : fallback;
+        }
+
+        bool ReadBakeScaleOr(EntityComponentPlatformOverrideState overrideState, bool fallback) {
+            return overrideState.TryGetMemberValue(BakeScaleMemberName, out string value)
+                ? bool.Parse(value)
+                : fallback;
+        }
+
+        bool ReadBooleanOr(EntityComponentPlatformOverrideState overrideState, string memberName, bool fallback) {
+            return overrideState.TryGetMemberValue(memberName, out string value)
+                ? bool.Parse(value)
+                : fallback;
         }
 
         /// <summary>

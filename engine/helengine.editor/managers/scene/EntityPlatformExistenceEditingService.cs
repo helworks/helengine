@@ -21,16 +21,27 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            string normalizedPlatformId = NormalizePlatformId(platformId);
-            if (IsCommonPlatformId(normalizedPlatformId)) {
-                return true;
+            return ResolveExists(saveComponent, new EditorOverrideScope(platformId));
+        }
+
+        /// <summary>
+        /// Resolves common, platform, and nested environment existence state in order.
+        /// </summary>
+        public bool ResolveExists(EntitySaveComponent saveComponent, EditorOverrideScope scope) {
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            if (!saveComponent.TryGetExistencePlatformOverride(normalizedPlatformId, out SceneEntityPlatformExistenceOverrideAsset overrideState)) {
-                return true;
+            bool exists = true;
+            if (saveComponent.TryGetExistencePlatformOverride(new EditorOverrideScope(scope.PlatformId), out SceneEntityPlatformExistenceOverrideAsset platformOverride)) {
+                exists = platformOverride.Exists;
+            }
+            if (!scope.IsPlatformOnly
+                && saveComponent.TryGetExistencePlatformOverride(scope, out SceneEntityPlatformExistenceOverrideAsset environmentOverride)) {
+                exists = environmentOverride.Exists;
             }
 
-            return overrideState.Exists;
+            return exists;
         }
 
         /// <summary>
@@ -67,19 +78,33 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            string normalizedPlatformId = NormalizePlatformId(platformId);
-            if (IsCommonPlatformId(normalizedPlatformId)) {
+            SetExists(saveComponent, new EditorOverrideScope(platformId), exists);
+        }
+
+        /// <summary>
+        /// Stores a sparse platform or nested environment existence override relative to its parent scope.
+        /// </summary>
+        public void SetExists(EntitySaveComponent saveComponent, EditorOverrideScope scope, bool exists) {
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+
+            if (IsCommonPlatformId(scope.PlatformId)) {
                 return;
             }
 
-            if (exists) {
-                saveComponent.RemoveExistencePlatformOverride(normalizedPlatformId);
+            bool parentExists = scope.IsPlatformOnly
+                ? true
+                : ResolveExists(saveComponent, new EditorOverrideScope(scope.PlatformId));
+            if (exists == parentExists) {
+                saveComponent.RemoveExistencePlatformOverride(scope);
                 return;
             }
 
-            saveComponent.SetExistencePlatformOverride(normalizedPlatformId, new SceneEntityPlatformExistenceOverrideAsset {
-                PlatformId = normalizedPlatformId,
-                Exists = false
+            saveComponent.SetExistencePlatformOverride(scope, new SceneEntityPlatformExistenceOverrideAsset {
+                PlatformId = scope.PlatformId,
+                EnvironmentId = scope.EnvironmentId,
+                Exists = exists
             });
         }
 

@@ -249,6 +249,10 @@ namespace helengine.editor {
         /// </summary>
         string CurrentPlatformId;
         /// <summary>
+        /// Nested environment id currently being edited by the component inspector.
+        /// </summary>
+        string CurrentEnvironmentId;
+        /// <summary>
         /// Supported platform definitions keyed by stable platform identifier.
         /// </summary>
         IReadOnlyDictionary<string, PlatformDefinition> PlatformDefinitionsById;
@@ -368,6 +372,7 @@ namespace helengine.editor {
             SceneMapDraftTargetsByComponent = new Dictionary<Component, string>();
             TextOrder = RenderOrder2D.PanelForeground;
             CurrentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
+            CurrentEnvironmentId = string.Empty;
             PlatformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -413,12 +418,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Shows component properties for one platform and optional nested environment scope.
+        /// </summary>
+        public void ShowComponents(Entity entity, string platformId, string environmentId, bool isReadOnly = false) {
+            CurrentEnvironmentId = environmentId ?? string.Empty;
+            ShowComponentsCore(entity, platformId, isReadOnly);
+        }
+
+        /// <summary>
         /// Shows component properties for the specified entity in one selected platform context and optional read-only mode.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
         /// <param name="platformId">Platform context displayed by the inspector.</param>
         /// <param name="isReadOnly">True when editable controls should be replaced by read-only rows.</param>
         public void ShowComponents(Entity entity, string platformId, bool isReadOnly) {
+            CurrentEnvironmentId = string.Empty;
+            ShowComponentsCore(entity, platformId, isReadOnly);
+        }
+
+        /// <summary>
+        /// Builds the component inspector for the current platform/environment scope.
+        /// </summary>
+        void ShowComponentsCore(Entity entity, string platformId, bool isReadOnly) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -436,7 +457,7 @@ namespace helengine.editor {
             EntitySaveComponent saveComponent = ResolveEntitySaveComponent(entity);
             bool hasCommonComponents = entity.Components != null && entity.Components.Count > 0;
             IReadOnlyList<EntityPlatformAddedComponentState> addedComponents = saveComponent != null
-                ? PlatformEditingService.GetAddedComponents(saveComponent, platformId)
+                ? PlatformEditingService.GetAddedComponents(saveComponent, CurrentScope(platformId))
                 : Array.Empty<EntityPlatformAddedComponentState>();
             if (!hasCommonComponents && addedComponents.Count < 1) {
                 RootEntity.Enabled = false;
@@ -456,7 +477,7 @@ namespace helengine.editor {
                         continue;
                     }
 
-                    if (PlatformEditingService.IsComponentRemoved(commonComponent, saveComponent, platformId)) {
+                    if (PlatformEditingService.IsComponentRemoved(commonComponent, saveComponent, CurrentScope(platformId))) {
                         ComponentSectionView removedSection = AcquireSection(commonComponent, commonComponent, saveComponent, platformId, false, true);
                         if (ShouldPreserveRemovedExistenceRow(commonComponent, platformId)) {
                             AddExistenceRow(removedSection, commonComponent, commonComponent, saveComponent, platformId);
@@ -504,6 +525,7 @@ namespace helengine.editor {
             LayoutHeightValue = 0;
             CurrentEntity = null;
             CurrentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
+            CurrentEnvironmentId = string.Empty;
             IsReadOnlyMode = false;
             HasLayoutState = false;
         }
@@ -526,7 +548,25 @@ namespace helengine.editor {
                 return commonComponent;
             }
 
-            return PlatformEditingService.ResolveEditableComponent(commonComponent, saveComponent, platformId);
+            return PlatformEditingService.ResolveEditableComponent(commonComponent, saveComponent, CurrentScope(platformId));
+        }
+
+        /// <summary>
+        /// Resolves the effective component for the active platform and nested environment.
+        /// </summary>
+        Component ResolveEditableComponent(Component commonComponent, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
+            if (saveComponent == null) {
+                return commonComponent;
+            }
+
+            return PlatformEditingService.ResolveEditableComponent(commonComponent, saveComponent, scope);
+        }
+
+        /// <summary>
+        /// Builds one editor override scope from a platform id and the current environment selection.
+        /// </summary>
+        EditorOverrideScope CurrentScope(string platformId) {
+            return new EditorOverrideScope(platformId, CurrentEnvironmentId);
         }
 
         /// <summary>
@@ -1537,7 +1577,7 @@ namespace helengine.editor {
 
             bool exists = true;
             if (row.CommonComponent != null && row.SaveComponent != null && !string.IsNullOrWhiteSpace(row.EditingPlatformId)) {
-                exists = !PlatformEditingService.IsComponentRemoved(row.CommonComponent, row.SaveComponent, row.EditingPlatformId);
+                exists = !PlatformEditingService.IsComponentRemoved(row.CommonComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId));
             }
 
             UpdateBooleanField(row, exists);
@@ -1567,11 +1607,11 @@ namespace helengine.editor {
             if (CanRowShowOverrideChrome(row)) {
                 string propertyPath = BuildRowPropertyPath(row);
                 if (!string.IsNullOrWhiteSpace(propertyPath)) {
-                    isOverrideActive = PlatformEditingService.IsPropertyOverrideActive(
+                    isOverrideActive = PlatformEditingService.IsScopePropertyOverrideActive(
                         row.CommonComponent,
                         row.TargetComponent,
                         row.SaveComponent,
-                        row.EditingPlatformId,
+                        CurrentScope(row.EditingPlatformId),
                         propertyPath);
                 }
             }
@@ -1678,7 +1718,7 @@ namespace helengine.editor {
             }
 
             SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
-            PlatformEditingService.ClearPropertyOverride(row.CommonComponent, row.SaveComponent, row.EditingPlatformId, propertyPath);
+            PlatformEditingService.ClearScopePropertyOverride(row.CommonComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId), propertyPath);
             RebuildCurrentComponentView();
             RecordRowMutation(row, previousEntityState);
         }
@@ -1948,7 +1988,7 @@ namespace helengine.editor {
 
             MeshComponentTessellationSettings settings = new MeshComponentTessellationSettings();
             if (row.SaveComponent.TryGetComponentState(row.CommonComponent, out EntityComponentSaveState saveState)) {
-                settings = MeshComponentTessellationSettingsService.GetForPlatform(saveState, row.EditingPlatformId);
+                settings = MeshComponentTessellationSettingsService.GetForScope(saveState, CurrentScope(row.EditingPlatformId));
             }
 
             if (string.Equals(row.EditorOnlyMemberName, MeshComponentTessellationSettingsService.TessellateMemberName, StringComparison.Ordinal)) {
@@ -2505,11 +2545,11 @@ namespace helengine.editor {
 
             SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
             if (isChecked) {
-                PlatformEditingService.RevertComponentExistenceOverride(existenceComponent, row.SaveComponent, row.EditingPlatformId);
+                PlatformEditingService.RevertComponentExistenceOverride(existenceComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId));
                 PendingRemovedExistenceRowComponent = null;
                 PendingRemovedExistenceRowPlatformId = null;
             } else {
-                PlatformEditingService.RemoveComponent(existenceComponent, row.SaveComponent, row.EditingPlatformId);
+                PlatformEditingService.RemoveComponent(existenceComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId));
                 PendingRemovedExistenceRowComponent = existenceComponent;
                 PendingRemovedExistenceRowPlatformId = row.EditingPlatformId;
             }
@@ -2631,7 +2671,7 @@ namespace helengine.editor {
                 return;
             }
 
-            Component editableOverrideComponent = PlatformEditingService.EnsurePlatformOverrideComponent(row.CommonComponent, row.SaveComponent, row.EditingPlatformId);
+            Component editableOverrideComponent = PlatformEditingService.EnsureScopeOverrideComponent(row.CommonComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId));
             RetargetRowsForEditableComponent(row.CommonComponent, row.EditingPlatformId, editableOverrideComponent);
         }
 
@@ -2760,8 +2800,8 @@ namespace helengine.editor {
             }
 
             EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
-            MeshComponentTessellationSettingsService.SetForPlatform(saveState, row.EditingPlatformId, updatedSettings);
-            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride(row.EditingPlatformId);
+            MeshComponentTessellationSettingsService.SetForScope(saveState, CurrentScope(row.EditingPlatformId), updatedSettings);
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreateScopedPlatformOverride(CurrentScope(row.EditingPlatformId));
             overrideState.SetPropertyOverride(row.EditorOnlyMemberName);
             RefreshRowOverrideChrome(row);
         }
@@ -2809,7 +2849,7 @@ namespace helengine.editor {
                 return new MeshComponentTessellationSettings();
             }
 
-            return MeshComponentTessellationSettingsService.GetForPlatform(saveState, row.EditingPlatformId);
+            return MeshComponentTessellationSettingsService.GetForScope(saveState, CurrentScope(row.EditingPlatformId));
         }
 
         /// <summary>
@@ -2861,10 +2901,10 @@ namespace helengine.editor {
 
             PlatformComponentMemberDefinition definition = row.PlatformComponentMemberDescriptor.Definition;
             EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
-            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride(row.EditingPlatformId);
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreateScopedPlatformOverride(CurrentScope(row.EditingPlatformId));
             overrideState.SetPropertyOverride(definition.MemberName);
             overrideState.SetMemberValue(definition.MemberName, PlatformComponentMemberValueUtility.SerializeValue(definition, value));
-            PlatformEditingService.PersistPlatformOverride(row.CommonComponent, row.TargetComponent, row.SaveComponent, row.EditingPlatformId);
+            PlatformEditingService.PersistScopeOverride(row.CommonComponent, row.TargetComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId));
             RefreshRowOverrideChrome(row);
         }
 
@@ -2888,9 +2928,9 @@ namespace helengine.editor {
 
             string propertyPath = BuildRowPropertyPath(row);
             if (!string.IsNullOrWhiteSpace(propertyPath)) {
-                PlatformEditingService.MarkPropertyOverride(row.CommonComponent, row.SaveComponent, row.EditingPlatformId, propertyPath);
+                PlatformEditingService.MarkScopePropertyOverride(row.CommonComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId), propertyPath);
             }
-            PlatformEditingService.PersistPlatformOverride(row.CommonComponent, row.TargetComponent, row.SaveComponent, row.EditingPlatformId);
+            PlatformEditingService.PersistScopeOverride(row.CommonComponent, row.TargetComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId));
             RefreshRowOverrideChrome(row);
         }
 
@@ -3989,7 +4029,7 @@ namespace helengine.editor {
             }
 
             SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
-            PlatformEditingService.RevertComponentExistenceOverride(section.TargetComponent, section.SaveComponent, section.EditingPlatformId);
+            PlatformEditingService.RevertComponentExistenceOverride(section.TargetComponent, section.SaveComponent, CurrentScope(section.EditingPlatformId));
             RebuildCurrentComponentView();
             RecordCurrentEntityMutation(previousEntityState);
         }
@@ -4480,17 +4520,17 @@ namespace helengine.editor {
                 PlatformEditingService.StoreAddedComponentAssetReference(
                     row.TargetComponent,
                     row.SaveComponent,
-                    row.EditingPlatformId ?? ComponentPlatformEditingService.CommonPlatformId,
+                    CurrentScope(row.EditingPlatformId ?? ComponentPlatformEditingService.CommonPlatformId),
                     propertyPath,
                     assetReference);
                 return;
             }
 
-            PlatformEditingService.StoreAssetReference(
+            PlatformEditingService.StoreScopeAssetReference(
                 row.CommonComponent,
                 row.TargetComponent,
                 row.SaveComponent,
-                row.EditingPlatformId ?? ComponentPlatformEditingService.CommonPlatformId,
+                CurrentScope(row.EditingPlatformId ?? ComponentPlatformEditingService.CommonPlatformId),
                 propertyPath,
                 assetReference);
         }
