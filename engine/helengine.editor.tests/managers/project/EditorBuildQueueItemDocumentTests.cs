@@ -73,6 +73,29 @@ namespace helengine.editor.tests {
             Assert.Equal("false", queueItem.SelectedGraphicsOptionValues["fullscreen-enabled"]);
             Assert.Equal("true", queueItem.SelectedCodegenOptionValues["write-conversion-report"]);
             Assert.Equal("windows-no-shaders", queueItem.SelectedCodegenOptionValues[PlatformCodegenSettingIds.PresetId]);
+            Assert.Equal("debug", queueItem.SelectedEnvironmentId);
+        }
+
+        /// <summary>
+        /// Ensures a custom environment is snapshotted into a queue item independently of later UI selection changes.
+        /// </summary>
+        [Fact]
+        public void Create_WhenPlatformConfigSelectsCustomEnvironment_SnapshotsEnvironmentId() {
+            WriteScene("Scenes/A.helen");
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "windows",
+                SelectedEnvironmentId = "qa",
+                SelectedSceneIds = ["A"]
+            };
+
+            EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(
+                sceneCatalogService,
+                platformConfig,
+                EditorPlatformBuildSelectionModel.From(CreateSelectionModel()),
+                Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal("qa", queueItem.SelectedEnvironmentId);
         }
 
         /// <summary>

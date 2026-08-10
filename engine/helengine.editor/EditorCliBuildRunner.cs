@@ -119,6 +119,17 @@ namespace helengine.editor {
                 if (!string.IsNullOrWhiteSpace(options.BuildProfileId)) {
                     platformConfig.SelectedBuildProfileId = options.BuildProfileId;
                 }
+                if (options.EnvironmentWasExplicitlyProvided) {
+                    EditorProjectEnvironmentsDocument environments = new EditorProjectEnvironmentsService(bootstrap.ProjectRootPath).Load();
+                    if (!environments.Environments.Any(environment => string.Equals(environment.Id, options.EnvironmentId, StringComparison.OrdinalIgnoreCase))) {
+                        string availableEnvironmentIds = string.Join(", ", environments.Environments.Select(environment => environment.Id));
+                        return EditorBuildExecutionResult.Failure($"Unknown build environment '{options.EnvironmentId}'. Available environments: {availableEnvironmentIds}.");
+                    }
+
+                    platformConfig.SelectedEnvironmentId = options.EnvironmentId;
+                } else {
+                    platformConfig.SelectedEnvironmentId = string.Empty;
+                }
 
                 EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(
                     bootstrap.SceneCatalogService,

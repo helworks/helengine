@@ -81,6 +81,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the selected platform owns the optional nested-environment add request.
+        /// </summary>
+        [Fact]
+        public void EnvironmentAddButton_WhenVisible_RaisesSelectedPlatformRequest() {
+            PlatformTabStripView view = new PlatformTabStripView(CreateFont(), 1, 88, 24, 6, 24);
+            string requestedPlatformId = null;
+            view.EnvironmentOverrideRequested += platformId => requestedPlatformId = platformId;
+            view.SetPlatforms(["windows", "ps2"], "windows", _ => { });
+            view.SetEnvironmentAddButtonVisible(true);
+
+            ButtonComponent addButton = GetPrivateField<ButtonComponent>(view, "EnvironmentAddButton");
+            addButton.ActivateFromKey(Keys.Enter);
+
+            Assert.Equal("windows", requestedPlatformId);
+        }
+
+        /// <summary>
         /// Clears shared keyboard focus state after each test.
         /// </summary>
         public void Dispose() {

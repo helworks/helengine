@@ -65,6 +65,14 @@ namespace helengine.editor {
         /// </summary>
         readonly ButtonComponent RightArrowButton;
         /// <summary>
+        /// Host entity for the optional nested-environment add button.
+        /// </summary>
+        readonly EditorEntity EnvironmentAddHost;
+        /// <summary>
+        /// Button that opts the selected platform into nested environment overrides.
+        /// </summary>
+        readonly ButtonComponent EnvironmentAddButton;
+        /// <summary>
         /// Platform identifiers currently represented by the strip.
         /// </summary>
         readonly List<string> PlatformIds;
@@ -125,6 +133,10 @@ namespace helengine.editor {
         /// Tracks whether the strip currently overflows horizontally.
         /// </summary>
         bool HasOverflowValue;
+        /// <summary>
+        /// Tracks whether the optional environment add affordance is visible.
+        /// </summary>
+        bool EnvironmentAddButtonVisibleValue;
 
         /// <summary>
         /// Initializes a new platform tab strip view.
@@ -217,6 +229,16 @@ namespace helengine.editor {
             RightArrowButton = CreateArrowButton(">", HandleRightArrowClicked);
             RightArrowHost.AddComponent(RightArrowButton);
 
+            EnvironmentAddHost = new EditorEntity {
+                LayerMask = layerMask,
+                Position = float3.Zero,
+                InternalEntity = true,
+                Enabled = false
+            };
+            RootValue.AddChild(EnvironmentAddHost);
+            EnvironmentAddButton = CreateArrowButton("+", HandleEnvironmentAddClicked);
+            EnvironmentAddHost.AddComponent(EnvironmentAddButton);
+
             EditorKeyboardFocusService.RegisterGroup(this);
         }
 
@@ -254,6 +276,16 @@ namespace helengine.editor {
         /// Gets a value indicating whether the strip currently overflows horizontally.
         /// </summary>
         public bool HasOverflow => HasOverflowValue;
+
+        /// <summary>
+        /// Gets whether the optional nested-environment add affordance is visible.
+        /// </summary>
+        public bool EnvironmentAddButtonVisible => EnvironmentAddButtonVisibleValue;
+
+        /// <summary>
+        /// Raised when the user requests nested environment overrides for the selected platform.
+        /// </summary>
+        public event Action<string> EnvironmentOverrideRequested;
 
         /// <summary>
         /// Gets the root focus group that owns this strip.
@@ -336,6 +368,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Shows or hides the nested-environment add affordance at the right of the strip.
+        /// </summary>
+        /// <param name="visible">True to show the add button.</param>
+        public void SetEnvironmentAddButtonVisible(bool visible) {
+            EnvironmentAddButtonVisibleValue = visible;
+            EnvironmentAddHost.Enabled = visible && PlatformIds.Count > 0;
+            LayoutTabs();
+            UpdateOverflowState();
+        }
+
+        /// <summary>
         /// Updates the strip layout using the supplied top-left position and available width.
         /// </summary>
         /// <param name="left">Left position in pixels.</param>
@@ -365,6 +408,7 @@ namespace helengine.editor {
             TextRenderOrder = textOrder;
             LeftArrowButton.SetRenderOrders(backgroundOrder, textOrder);
             RightArrowButton.SetRenderOrders(backgroundOrder, textOrder);
+            EnvironmentAddButton.SetRenderOrders(backgroundOrder, textOrder);
 
             for (int i = 0; i < Tabs.Count; i++) {
                 Tabs[i].SetRenderOrders(backgroundOrder, textOrder);
@@ -500,6 +544,7 @@ namespace helengine.editor {
             TabsContentWidthPixels = 0;
             ViewportWidthPixels = 0;
             HasOverflowValue = false;
+            EnvironmentAddHost.Enabled = false;
         }
 
         /// <summary>
@@ -612,18 +657,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Raises the nested-environment request for the selected platform.
+        /// </summary>
+        void HandleEnvironmentAddClicked() {
+            if (!EnvironmentAddButtonVisibleValue || string.IsNullOrWhiteSpace(SelectedPlatformIdValue)) {
+                return;
+            }
+
+            EnvironmentOverrideRequested?.Invoke(SelectedPlatformIdValue);
+        }
+
+        /// <summary>
         /// Recomputes arrow visibility, viewport bounds, and scrolling content placement.
         /// </summary>
         void LayoutTabs() {
             int availableWidth = LayoutWidthPixels > 0 ? LayoutWidthPixels : Math.Max(1, GetTabsContentWidthPixels());
+            int environmentButtonWidth = EnvironmentAddButtonVisibleValue ? ArrowButtonWidthValue + ArrowViewportSpacing : 0;
+            int tabsAvailableWidth = Math.Max(1, availableWidth - environmentButtonWidth);
             TabsContentWidthPixels = GetTabsContentWidthPixels();
-            HasOverflowValue = TabsContentWidthPixels > availableWidth;
+            HasOverflowValue = TabsContentWidthPixels > tabsAvailableWidth;
 
             int viewportLeft = 0;
-            int viewportWidth = availableWidth;
+            int viewportWidth = tabsAvailableWidth;
             if (HasOverflowValue) {
                 viewportLeft = ArrowButtonWidthValue + ArrowViewportSpacing;
-                viewportWidth = availableWidth - ((ArrowButtonWidthValue + ArrowViewportSpacing) * 2);
+                viewportWidth = tabsAvailableWidth - ((ArrowButtonWidthValue + ArrowViewportSpacing) * 2);
             }
 
             ViewportWidthPixels = Math.Max(1, viewportWidth);
@@ -632,7 +690,9 @@ namespace helengine.editor {
             LeftArrowHost.Enabled = HasOverflowValue;
             RightArrowHost.Enabled = HasOverflowValue;
             LeftArrowHost.Position = new float3(0f, 0f, 0.1f);
-            RightArrowHost.Position = new float3(availableWidth - ArrowButtonWidthValue, 0f, 0.1f);
+            RightArrowHost.Position = new float3(tabsAvailableWidth - ArrowButtonWidthValue, 0f, 0.1f);
+            EnvironmentAddHost.Position = new float3(availableWidth - ArrowButtonWidthValue, 0f, 0.1f);
+            EnvironmentAddHost.Enabled = EnvironmentAddButtonVisibleValue && PlatformIds.Count > 0;
 
             ViewportRoot.Position = new float3(viewportLeft, 0f, 0.1f);
             ViewportClipRect.Size = new int2(ViewportWidthPixels, TabHeightValue);
@@ -689,7 +749,8 @@ namespace helengine.editor {
         /// </summary>
         void UpdateOverflowState() {
             int availableWidth = LayoutWidthPixels > 0 ? LayoutWidthPixels : Math.Max(1, TabsContentWidthPixels);
-            HasOverflowValue = TabsContentWidthPixels > availableWidth;
+            int environmentButtonWidth = EnvironmentAddButtonVisibleValue ? ArrowButtonWidthValue + ArrowViewportSpacing : 0;
+            HasOverflowValue = TabsContentWidthPixels > Math.Max(1, availableWidth - environmentButtonWidth);
         }
 
         /// <summary>

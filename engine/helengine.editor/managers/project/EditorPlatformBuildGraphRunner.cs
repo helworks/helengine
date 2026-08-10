@@ -1398,7 +1398,8 @@ namespace helengine.editor {
                 selectedCodegenOptionValues,
                 generatedCoreRootPath,
                 selectedMediaProfileId,
-                selectedStorageProfileId);
+                selectedStorageProfileId,
+                queueItem.SelectedEnvironmentId);
         }
 
         /// <summary>

@@ -126,6 +126,12 @@ namespace helengine.editor {
                     platform.SelectedStorageProfileId ??= string.Empty;
                     platform.SelectedMediaProfileId ??= string.Empty;
                     platform.SelectedCodegenOptionValues ??= [];
+                    if (string.IsNullOrWhiteSpace(platform.SelectedEnvironmentId)) {
+                        platform.SelectedEnvironmentId = "release";
+                        changed = true;
+                    } else {
+                        platform.SelectedEnvironmentId = platform.SelectedEnvironmentId.Trim();
+                    }
                     changed |= NormalizePlatform(platform);
                 }
 
@@ -146,6 +152,12 @@ namespace helengine.editor {
                     queueItem.SelectedStorageProfileId ??= string.Empty;
                     queueItem.SelectedMediaProfileId ??= string.Empty;
                     queueItem.SelectedCodegenOptionValues ??= [];
+                    if (string.IsNullOrWhiteSpace(queueItem.SelectedEnvironmentId)) {
+                        queueItem.SelectedEnvironmentId = "release";
+                        changed = true;
+                    } else {
+                        queueItem.SelectedEnvironmentId = queueItem.SelectedEnvironmentId.Trim();
+                    }
                     changed |= NormalizeQueueItem(queueItem);
                 }
 
@@ -206,13 +218,16 @@ namespace helengine.editor {
             for (int index = 0; index < document.Platforms.Count; index++) {
                 EditorBuildPlatformConfigDocument platform = document.Platforms[index];
                 if (platform != null) {
-                    NormalizePlatform(platform);
+                NormalizePlatform(platform);
                 }
             }
 
             for (int index = 0; index < document.QueueItems.Count; index++) {
                 EditorBuildQueueItemDocument queueItem = document.QueueItems[index];
                 if (queueItem != null) {
+                    queueItem.SelectedEnvironmentId = string.IsNullOrWhiteSpace(queueItem.SelectedEnvironmentId)
+                        ? "release"
+                        : queueItem.SelectedEnvironmentId.Trim();
                     NormalizeQueueItem(queueItem);
                 }
             }
@@ -233,6 +248,9 @@ namespace helengine.editor {
                 platform.DebugBuild);
             bool changed = !string.Equals(platform.SelectedBuildProfileId, normalizedBuildProfileId, StringComparison.Ordinal);
             platform.SelectedBuildProfileId = normalizedBuildProfileId;
+            platform.SelectedEnvironmentId = string.IsNullOrWhiteSpace(platform.SelectedEnvironmentId)
+                ? "release"
+                : platform.SelectedEnvironmentId.Trim();
             return changed;
         }
 
@@ -251,6 +269,9 @@ namespace helengine.editor {
                 queueItem.DebugBuild);
             bool changed = !string.Equals(queueItem.SelectedBuildProfileId, normalizedBuildProfileId, StringComparison.Ordinal);
             queueItem.SelectedBuildProfileId = normalizedBuildProfileId;
+            queueItem.SelectedEnvironmentId = string.IsNullOrWhiteSpace(queueItem.SelectedEnvironmentId)
+                ? "release"
+                : queueItem.SelectedEnvironmentId.Trim();
             return changed;
         }
 

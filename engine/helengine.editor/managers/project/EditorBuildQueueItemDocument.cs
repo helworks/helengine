@@ -41,6 +41,11 @@ namespace helengine.editor {
         public bool DebugBuild { get; set; }
 
         /// <summary>
+        /// Gets or sets the environment identifier snapshotted when this queue item was created.
+        /// </summary>
+        public string SelectedEnvironmentId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets or sets how the queued build should finish after the normal export/package phases complete.
         /// </summary>
         public EditorBuildExecutionMode ExecutionMode { get; set; } = EditorBuildExecutionMode.Runtime;
@@ -127,6 +132,7 @@ namespace helengine.editor {
                 SelectedSceneIds = orderedSceneIds,
                 OutputDirectoryPath = Path.GetFullPath(outputDirectoryPath),
                 DebugBuild = platformConfig.DebugBuild,
+                SelectedEnvironmentId = ResolveSelectedEnvironmentId(platformConfig, platformConfig.SelectedBuildProfileId),
                 ExecutionMode = EditorBuildExecutionMode.Runtime,
                 SelectedBuildProfileId = platformConfig.SelectedBuildProfileId,
                 SelectedGraphicsProfileId = platformConfig.SelectedGraphicsProfileId,
@@ -137,6 +143,20 @@ namespace helengine.editor {
                 SelectedMediaProfileId = platformConfig.SelectedMediaProfileId,
                 SelectedCodegenOptionValues = new Dictionary<string, string>(platformConfig.SelectedCodegenOptionValues ?? new Dictionary<string, string>())
             };
+        }
+
+        /// <summary>
+        /// Resolves the environment captured by a queue item, preserving legacy profile behavior.
+        /// </summary>
+        static string ResolveSelectedEnvironmentId(EditorBuildPlatformConfigDocument platformConfig, string selectedBuildProfileId) {
+            if (!string.IsNullOrWhiteSpace(platformConfig.SelectedEnvironmentId)) {
+                return platformConfig.SelectedEnvironmentId.Trim();
+            }
+
+            return string.Equals(selectedBuildProfileId, "debug", StringComparison.OrdinalIgnoreCase)
+                || platformConfig.DebugBuild
+                ? "debug"
+                : "release";
         }
 
         /// <summary>

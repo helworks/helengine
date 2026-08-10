@@ -198,6 +198,14 @@ namespace helengine.editor {
         /// </summary>
         readonly PlatformTabStripView PlatformTabStrip;
         /// <summary>
+        /// Host for the active build environment selector.
+        /// </summary>
+        readonly EditorEntity EnvironmentComboBoxHost;
+        /// <summary>
+        /// Combo box used to select the environment after the platform tab.
+        /// </summary>
+        readonly ComboBoxComponent EnvironmentComboBox;
+        /// <summary>
         /// Host entities created for the currently rendered map labels.
         /// </summary>
         readonly List<EditorEntity> MapLabelHosts;
@@ -370,6 +378,10 @@ namespace helengine.editor {
         /// </summary>
         readonly List<string> SupportedPlatformIds;
         /// <summary>
+        /// Environment identifiers available to the current project.
+        /// </summary>
+        readonly List<string> SupportedEnvironmentIds;
+        /// <summary>
         /// Current mutable build configuration driving the dialog.
         /// </summary>
         EditorBuildConfigDocument CurrentBuildConfig;
@@ -401,6 +413,10 @@ namespace helengine.editor {
         /// Platform id shown by the currently active tab.
         /// </summary>
         string ActivePlatformId;
+        /// <summary>
+        /// Environment identifiers currently shown in the selector.
+        /// </summary>
+        IReadOnlyList<string> ActiveEnvironmentIds;
         /// <summary>
         /// Raised when the user wants to add one queued build from the active platform tab.
         /// </summary>
@@ -460,6 +476,8 @@ namespace helengine.editor {
             SceneRows = new List<BuildDialogSceneRow>(16);
             SceneIds = new List<string>(32);
             SupportedPlatformIds = new List<string>(8);
+            SupportedEnvironmentIds = new List<string>(4) { "debug", "release" };
+            ActiveEnvironmentIds = SupportedEnvironmentIds;
 
             BuildColumnRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -477,6 +495,21 @@ namespace helengine.editor {
                 GetPlatformTabHeightPixels());
             PlatformTabStrip.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BuildColumnRoot.AddChild(PlatformTabStrip.Root);
+
+            EnvironmentComboBoxHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildColumnRoot.AddChild(EnvironmentComboBoxHost);
+            EnvironmentComboBox = new ComboBoxComponent(
+                new int2(DialogMetrics.ScalePixels(140), GetPlatformTabHeightPixels()),
+                DialogFont,
+                SupportedEnvironmentIds,
+                1);
+            ConfigureDialogComboBox(EnvironmentComboBox);
+            EnvironmentComboBox.SelectionChanged += HandleEnvironmentSelectionChanged;
+            EnvironmentComboBoxHost.AddComponent(EnvironmentComboBox);
 
             SceneListRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -797,6 +830,19 @@ namespace helengine.editor {
             string activePlatformId,
             EditorBuildConfigDocument buildConfig,
             EditorPlatformBuildSelectionModel selectionModel) {
+            Show(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel, null);
+        }
+
+        /// <summary>
+        /// Shows the dialog with the project-defined environment choices used by the active platform.
+        /// </summary>
+        public void Show(
+            IReadOnlyList<string> supportedPlatformIds,
+            IReadOnlyList<string> sceneIds,
+            string activePlatformId,
+            EditorBuildConfigDocument buildConfig,
+            EditorPlatformBuildSelectionModel selectionModel,
+            IReadOnlyList<string> environmentIds) {
             if (supportedPlatformIds == null) {
                 throw new ArgumentNullException(nameof(supportedPlatformIds));
             }
@@ -811,7 +857,7 @@ namespace helengine.editor {
 
             ResetDialogPositioning();
             Enabled = true;
-            BindDialogState(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel, true);
+            BindDialogState(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel, true, environmentIds);
             CenterDialogIfNeeded();
             ApplyVisibleDialogState();
         }
@@ -830,12 +876,25 @@ namespace helengine.editor {
             string activePlatformId,
             EditorBuildConfigDocument buildConfig,
             EditorPlatformBuildSelectionModel selectionModel) {
+            Refresh(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel, null);
+        }
+
+        /// <summary>
+        /// Refreshes the dialog while retaining the project-defined environment choices.
+        /// </summary>
+        public void Refresh(
+            IReadOnlyList<string> supportedPlatformIds,
+            IReadOnlyList<string> sceneIds,
+            string activePlatformId,
+            EditorBuildConfigDocument buildConfig,
+            EditorPlatformBuildSelectionModel selectionModel,
+            IReadOnlyList<string> environmentIds) {
             if (!Enabled) {
-                Show(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel);
+                Show(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel, environmentIds);
                 return;
             }
 
-            BindDialogState(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel, true);
+            BindDialogState(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel, true, environmentIds);
             CenterDialogIfNeeded();
             ApplyVisibleDialogState();
         }
@@ -908,7 +967,8 @@ namespace helengine.editor {
                 platformConfig.SelectedMediaProfileId,
                 platformConfig.SelectedBuildOptionValues,
                 platformConfig.SelectedGraphicsOptionValues,
-                platformConfig.SelectedCodegenOptionValues));
+                platformConfig.SelectedCodegenOptionValues,
+                platformConfig.SelectedEnvironmentId));
         }
 
         /// <summary>
@@ -995,7 +1055,8 @@ namespace helengine.editor {
             string activePlatformId,
             EditorBuildConfigDocument buildConfig,
             EditorPlatformBuildSelectionModel selectionModel,
-            bool resetScrollOffsets) {
+            bool resetScrollOffsets,
+            IReadOnlyList<string> environmentIds) {
             if (supportedPlatformIds == null) {
                 throw new ArgumentNullException(nameof(supportedPlatformIds));
             }
@@ -1010,6 +1071,7 @@ namespace helengine.editor {
 
             CopyPlatforms(supportedPlatformIds);
             CopyScenes(sceneIds);
+            CopyEnvironments(environmentIds);
             CurrentBuildConfig = buildConfig;
             ActivePlatformSelectionModel = selectionModel;
             if (resetScrollOffsets) {
@@ -1025,6 +1087,8 @@ namespace helengine.editor {
             RebuildQueueRows();
             RebuildBuildLogs();
             LayoutStaticControls();
+            RebuildQueueRows();
+            RebuildBuildLogs();
         }
 
         /// <summary>
@@ -1251,12 +1315,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Stores the selected environment on the active platform configuration.
+        /// </summary>
+        void HandleEnvironmentSelectionChanged(int index, string environmentId) {
+            if (string.IsNullOrWhiteSpace(environmentId) || CurrentBuildConfig == null || string.IsNullOrWhiteSpace(ActivePlatformId)) {
+                return;
+            }
+
+            SyncActivePlatformConfig();
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            platformConfig.SelectedEnvironmentId = environmentId.Trim();
+        }
+
+        /// <summary>
         /// Rebuilds the scene checklist for the current active platform.
         /// </summary>
         void RebuildActivePlatformSceneRows() {
             DisplayedSceneIds.Clear();
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            EnsurePlatformSelectionDefaults(platformConfig);
             EnsureSceneOrderEntries(platformConfig);
             List<string> orderedSceneIds = BuildDisplayedSceneIds(platformConfig);
             for (int index = 0; index < orderedSceneIds.Count; index++) {
@@ -1268,7 +1346,29 @@ namespace helengine.editor {
             OutputDirectoryField.Text = platformConfig.OutputDirectoryPath ?? "";
             OutputDirectoryField.SetInvalidState(false);
             DebugBuildCheckBox.IsChecked = platformConfig.DebugBuild;
+            EnvironmentComboBox.SetItems(ActiveEnvironmentIds, ResolveEnvironmentIndex(platformConfig.SelectedEnvironmentId));
             SetSceneListInvalidState(false);
+        }
+
+        /// <summary>
+        /// Resolves the environment selector index, falling back to release for legacy build settings.
+        /// </summary>
+        int ResolveEnvironmentIndex(string environmentId) {
+            if (!string.IsNullOrWhiteSpace(environmentId)) {
+                for (int index = 0; index < ActiveEnvironmentIds.Count; index++) {
+                    if (string.Equals(ActiveEnvironmentIds[index], environmentId, StringComparison.OrdinalIgnoreCase)) {
+                        return index;
+                    }
+                }
+            }
+
+            for (int index = 0; index < ActiveEnvironmentIds.Count; index++) {
+                if (string.Equals(ActiveEnvironmentIds[index], "release", StringComparison.OrdinalIgnoreCase)) {
+                    return index;
+                }
+            }
+
+            return ActiveEnvironmentIds.Count > 0 ? 0 : -1;
         }
 
         /// <summary>
@@ -1295,14 +1395,42 @@ namespace helengine.editor {
         /// </summary>
         void RebuildQueueRows() {
             int queueItemCount = CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count;
-            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+            EditorScrollComponentLayout.ConfigureExplicitVisibleItems(
                 QueueScrollComponent,
                 new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight()),
                 GetQueueCardHeight(),
-                queueItemCount);
+                queueItemCount,
+                ResolveRoundedVisibleItemCount(GetQueueRowsViewportHeight(), GetQueueCardHeight(), queueItemCount));
             QueueScrollComponent.ClampScrollOffset();
             EnsureQueueRowCount(QueueScrollComponent.VisibleItemCount);
             UpdateQueueRowsLayout();
+        }
+
+        /// <summary>
+        /// Copies the project environment identifiers into the dialog state, preserving the protected defaults when no registry is supplied.
+        /// </summary>
+        void CopyEnvironments(IReadOnlyList<string> environmentIds) {
+            SupportedEnvironmentIds.Clear();
+            if (environmentIds != null) {
+                for (int index = 0; index < environmentIds.Count; index++) {
+                    string environmentId = environmentIds[index];
+                    if (string.IsNullOrWhiteSpace(environmentId)
+                        || SupportedEnvironmentIds.Contains(environmentId, StringComparer.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+
+                    SupportedEnvironmentIds.Add(environmentId.Trim());
+                }
+            }
+
+            if (!SupportedEnvironmentIds.Contains("debug", StringComparer.OrdinalIgnoreCase)) {
+                SupportedEnvironmentIds.Insert(0, "debug");
+            }
+            if (!SupportedEnvironmentIds.Contains("release", StringComparer.OrdinalIgnoreCase)) {
+                SupportedEnvironmentIds.Insert(Math.Min(1, SupportedEnvironmentIds.Count), "release");
+            }
+
+            ActiveEnvironmentIds = SupportedEnvironmentIds;
         }
 
         /// <summary>
@@ -1310,11 +1438,12 @@ namespace helengine.editor {
         /// </summary>
         void RebuildBuildLogs() {
             List<string> buildLogLines = BuildBuildLogLines();
-            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+            EditorScrollComponentLayout.ConfigureExplicitVisibleItems(
                 BuildLogsScrollComponent,
                 new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight()),
                 GetBuildLogLineHeightPixels(),
-                buildLogLines.Count);
+                buildLogLines.Count,
+                ResolveRoundedVisibleItemCount(GetBuildLogsTextViewportHeight(), GetBuildLogLineHeightPixels(), buildLogLines.Count));
             BuildLogsScrollComponent.ClampScrollOffset();
             UpdateBuildLogsText(buildLogLines);
         }
@@ -1392,11 +1521,12 @@ namespace helengine.editor {
         /// </summary>
         void UpdateQueueRowsLayout() {
             int queueItemCount = CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count;
-            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+            EditorScrollComponentLayout.ConfigureExplicitVisibleItems(
                 QueueScrollComponent,
                 new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight()),
                 GetQueueCardHeight(),
-                queueItemCount);
+                queueItemCount,
+                ResolveRoundedVisibleItemCount(GetQueueRowsViewportHeight(), GetQueueCardHeight(), queueItemCount));
             int visibleRowCount = QueueScrollComponent.VisibleItemCount;
             EnsureQueueRowCount(visibleRowCount);
 
@@ -1452,11 +1582,12 @@ namespace helengine.editor {
                 buildLogLines = BuildBuildLogLines();
             }
 
-            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+            EditorScrollComponentLayout.ConfigureExplicitVisibleItems(
                 BuildLogsScrollComponent,
                 new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight()),
                 GetBuildLogLineHeightPixels(),
-                buildLogLines.Count);
+                buildLogLines.Count,
+                ResolveRoundedVisibleItemCount(GetBuildLogsTextViewportHeight(), GetBuildLogLineHeightPixels(), buildLogLines.Count));
             int visibleLineCount = BuildLogsScrollComponent.VisibleItemCount;
             BuildLogsText.Size = new int2(GetBuildLogsTextViewportWidth(), Math.Max(GetBuildLogLineHeightPixels(), GetBuildLogsTextViewportHeight()));
             BuildLogsText.Text = BuildBuildLogText(buildLogLines, BuildLogsScrollComponent.ScrollOffset, visibleLineCount);
@@ -1568,7 +1699,10 @@ namespace helengine.editor {
             int outputLabelY = outputFieldY - DialogMetrics.ScalePixels(20);
             int copySettingsButtonY = outputLabelY - DialogMetrics.ScalePixels(16) - GetFooterButtonHeightPixels();
             int debugBuildY = outputFieldY + GetOutputFieldHeightPixels() + DialogMetrics.ScalePixels(16);
-            PlatformTabStrip.UpdateLayout(0, 0, GetBuildColumnWidth());
+            int environmentComboBoxWidth = GetEnvironmentComboBoxWidthPixels();
+            PlatformTabStrip.UpdateLayout(0, 0, Math.Max(1, GetBuildColumnWidth() - environmentComboBoxWidth - DialogMetrics.ScalePixels(8)));
+            EnvironmentComboBoxHost.Position = new float3(GetBuildColumnWidth() - environmentComboBoxWidth, 0f, 0.1f);
+            EnvironmentComboBox.Size = new int2(environmentComboBoxWidth, GetPlatformTabHeightPixels());
             int sceneListTop = GetPlatformTabHeightPixels() + GetSceneListTopMarginPixels();
             int sceneListHeight = Math.Max(1, copySettingsButtonY - DialogMetrics.ScalePixels(12) - sceneListTop);
 
@@ -1628,6 +1762,11 @@ namespace helengine.editor {
             }
 
             List<string> segments = new List<string>();
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedEnvironmentId)
+                && !string.Equals(queueItem.SelectedEnvironmentId, "debug", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(queueItem.SelectedEnvironmentId, "release", StringComparison.OrdinalIgnoreCase)) {
+                segments.Add("env " + queueItem.SelectedEnvironmentId);
+            }
             if (!string.IsNullOrWhiteSpace(queueItem.SelectedBuildProfileId)) {
                 segments.Add("build " + queueItem.SelectedBuildProfileId);
             }
@@ -1690,11 +1829,15 @@ namespace helengine.editor {
             int queueRowsTopY = GetQueueHeaderHeightPixels() + GetQueueListPaddingPixels();
 
             QueueItemsRoot.Position = new float3(0f, queueRowsTopY, 0.1f);
-            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+            EditorScrollComponentLayout.ConfigureExplicitVisibleItems(
                 QueueScrollComponent,
                 new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight()),
                 GetQueueCardHeight(),
-                CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count);
+                CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count,
+                ResolveRoundedVisibleItemCount(
+                    GetQueueRowsViewportHeight(),
+                    GetQueueCardHeight(),
+                    CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count));
             UpdateQueueRowsLayout();
         }
 
@@ -1723,12 +1866,25 @@ namespace helengine.editor {
             BuildLogsProgressFill.Size = new int2(progressFillWidth, Math.Max(1, GetBuildLogsProgressBarHeightPixels() - (DialogMetrics.ScalePixels(1) * 2)));
 
             BuildLogsTextHost.Position = new float3(GetBuildLogsPaddingPixels(), logTextY, 0.1f);
-            EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
+            int buildLogLineCount = CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : BuildBuildLogLines().Count;
+            EditorScrollComponentLayout.ConfigureExplicitVisibleItems(
                 BuildLogsScrollComponent,
                 new int2(GetBuildLogsTextViewportWidth(), logTextHeight),
                 GetBuildLogLineHeightPixels(),
-                CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : BuildBuildLogLines().Count);
+                buildLogLineCount,
+                ResolveRoundedVisibleItemCount(logTextHeight, GetBuildLogLineHeightPixels(), buildLogLineCount));
             UpdateBuildLogsText(null);
+        }
+
+        /// <summary>
+        /// Resolves a clipped-list visible count so a partially visible final row is still rendered.
+        /// </summary>
+        int ResolveRoundedVisibleItemCount(int viewportHeight, int itemExtent, int itemCount) {
+            if (itemCount <= 0) {
+                return 1;
+            }
+
+            return Math.Min(itemCount, Math.Max(1, (viewportHeight + itemExtent - 1) / itemExtent));
         }
 
         /// <summary>
@@ -1763,7 +1919,18 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="platformConfig">Active platform configuration to normalize.</param>
         void EnsurePlatformSelectionDefaults(EditorBuildPlatformConfigDocument platformConfig) {
-            if (platformConfig == null || ActivePlatformSelectionModel == null) {
+            if (platformConfig == null) {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(platformConfig.SelectedEnvironmentId)) {
+                platformConfig.SelectedEnvironmentId = string.Equals(platformConfig.SelectedBuildProfileId, "debug", StringComparison.OrdinalIgnoreCase)
+                    || platformConfig.DebugBuild
+                    ? "debug"
+                    : "release";
+            }
+
+            if (ActivePlatformSelectionModel == null) {
                 return;
             }
 
@@ -2494,6 +2661,13 @@ namespace helengine.editor {
         /// <returns>Scaled platform-tab width in pixels.</returns>
         int GetPlatformTabWidthPixels() {
             return DialogMetrics.ScalePixels(PlatformTabWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled width of the build environment selector.
+        /// </summary>
+        int GetEnvironmentComboBoxWidthPixels() {
+            return DialogMetrics.ScalePixels(140);
         }
 
         /// <summary>

@@ -45,8 +45,29 @@ namespace helengine.editor.tests {
             Assert.Equal("C:/dev/helengine/sample.heproj", options.ProjectPath);
             Assert.Equal("windows", options.PlatformId);
             Assert.Equal("release", options.BuildProfileId);
+            Assert.Equal("release", options.EnvironmentId);
             Assert.Equal("C:/dev/out", options.OutputDirectoryPath);
             Assert.True(options.UseCommonOutputDirectory);
+        }
+
+        /// <summary>
+        /// Ensures an explicit arbitrary environment is retained by headless build parsing.
+        /// </summary>
+        [Fact]
+        public void TryParseBuildOptions_WhenEnvironmentIsProvided_PreservesEnvironmentId() {
+            bool parsed = EditorCliArgumentParser.TryParseBuildOptions(
+                [
+                    "--project", "project.heproj",
+                    "--build", "windows",
+                    "--environment", "qa",
+                    "--output", "out"
+                ],
+                out EditorCliBuildOptions options,
+                out string errorMessage);
+
+            Assert.True(parsed);
+            Assert.Equal(string.Empty, errorMessage);
+            Assert.Equal("qa", options.EnvironmentId);
         }
 
         /// <summary>

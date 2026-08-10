@@ -401,6 +401,34 @@ namespace helengine.editor.tests {
             Assert.True(raisedRequest.DebugBuild);
         }
 
+        [Fact]
+        public void HandleAddToBuildClicked_WhenEnvironmentIsSelected_SnapshotsTheEnvironmentId() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialogAddRequest raisedRequest = null;
+            dialog.AddRequested += request => raisedRequest = request;
+            dialog.Show(
+                ["windows"],
+                ["Scenes/City.helen"],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = ["Scenes/City.helen"],
+                            OutputDirectoryPath = @"C:\\builds\\windows",
+                            SelectedEnvironmentId = "qa"
+                        }
+                    ]
+                },
+                null,
+                ["debug", "release", "qa"]);
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.NotNull(raisedRequest);
+            Assert.Equal("qa", raisedRequest.SelectedEnvironmentId);
+        }
+
         /// <summary>
         /// Ensures Add to Build still raises a request when legacy runtime-module data exists in the persisted config.
         /// </summary>

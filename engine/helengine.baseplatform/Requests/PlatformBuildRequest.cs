@@ -70,7 +70,8 @@ public class PlatformBuildRequest {
         IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
         string generatedCoreCppRootPath = "",
         string selectedMediaProfileId = "",
-        string selectedStorageProfileId = "") {
+        string selectedStorageProfileId = "",
+        string selectedEnvironmentId = "release") {
         if (manifest == null) {
             throw new ArgumentNullException(nameof(manifest));
         } else if (targetVariants == null) {
@@ -133,6 +134,7 @@ public class PlatformBuildRequest {
         GeneratedCoreCppRootPath = generatedCoreCppRootPath ?? string.Empty;
         SelectedMediaProfileId = selectedMediaProfileId ?? string.Empty;
         SelectedStorageProfileId = selectedStorageProfileId ?? string.Empty;
+        SelectedEnvironmentId = string.IsNullOrWhiteSpace(selectedEnvironmentId) ? "release" : selectedEnvironmentId.Trim();
     }
 
     /// <summary>
@@ -204,4 +206,9 @@ public class PlatformBuildRequest {
     /// Gets the selected builder-provided storage profile identifier.
     /// </summary>
     public string SelectedStorageProfileId { get; }
+
+    /// <summary>
+    /// Gets the selected editor/cooker environment identifier.
+    /// </summary>
+    public string SelectedEnvironmentId { get; }
 }

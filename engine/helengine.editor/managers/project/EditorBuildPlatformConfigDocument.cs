@@ -29,6 +29,11 @@ namespace helengine.editor {
         public bool DebugBuild { get; set; }
 
         /// <summary>
+        /// Gets or sets the selected nested build environment identifier. Empty means profile-derived selection.
+        /// </summary>
+        public string SelectedEnvironmentId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets or sets the selected builder-provided build profile id.
         /// </summary>
         public string SelectedBuildProfileId { get; set; } = string.Empty;

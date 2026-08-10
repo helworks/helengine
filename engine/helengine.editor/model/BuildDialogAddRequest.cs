@@ -24,6 +24,11 @@ namespace helengine.editor {
         public bool DebugBuild { get; }
 
         /// <summary>
+        /// Gets the environment identifier selected for this queued build.
+        /// </summary>
+        public string SelectedEnvironmentId { get; }
+
+        /// <summary>
         /// Gets the selected builder-provided build profile id.
         /// </summary>
         public string SelectedBuildProfileId { get; }
@@ -78,6 +83,7 @@ namespace helengine.editor {
         /// <param name="selectedBuildOptionValues">Selected builder-provided build option values.</param>
         /// <param name="selectedGraphicsOptionValues">Selected builder-provided graphics option values.</param>
         /// <param name="selectedCodegenOptionValues">Selected builder-provided codegen option values.</param>
+        /// <param name="selectedEnvironmentId">Selected project environment identifier.</param>
         public BuildDialogAddRequest(string platformId, IReadOnlyList<string> selectedSceneIds, string outputDirectoryPath, bool debugBuild = false)
             : this(platformId, selectedSceneIds, outputDirectoryPath, debugBuild, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, null, null, null) {
         }
@@ -109,7 +115,8 @@ namespace helengine.editor {
             string selectedMediaProfileId,
             IReadOnlyDictionary<string, string> selectedBuildOptionValues,
             IReadOnlyDictionary<string, string> selectedGraphicsOptionValues,
-            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
+            string selectedEnvironmentId = "release") {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id is required.", nameof(platformId));
             }
@@ -131,6 +138,7 @@ namespace helengine.editor {
             SelectedSceneIds = copiedSceneIds;
             OutputDirectoryPath = outputDirectoryPath;
             DebugBuild = debugBuild;
+            SelectedEnvironmentId = string.IsNullOrWhiteSpace(selectedEnvironmentId) ? "release" : selectedEnvironmentId.Trim();
             SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
             SelectedCodegenProfileId = selectedCodegenProfileId ?? string.Empty;
