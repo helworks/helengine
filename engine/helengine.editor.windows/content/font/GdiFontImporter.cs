@@ -29,8 +29,9 @@ namespace helengine.editor {
             }
 
             string temporaryFontFilePath = string.Empty;
+            GCHandle pinnedFontBytes = GCHandle.Alloc(bytes, GCHandleType.Pinned);
             try {
-                using PrivateFontCollection fontCollection = LoadFontCollection(bytes, ref temporaryFontFilePath);
+                using PrivateFontCollection fontCollection = LoadFontCollection(bytes, pinnedFontBytes.AddrOfPinnedObject(), ref temporaryFontFilePath);
                 using System.Drawing.Font font = new System.Drawing.Font(
                     fontCollection.Families[0],
                     settings.PixelSize,
@@ -38,6 +39,7 @@ namespace helengine.editor {
                     System.Drawing.GraphicsUnit.Pixel);
                 return GDIFontProcessor.ImportFont(font);
             } finally {
+                pinnedFontBytes.Free();
                 if (!string.IsNullOrWhiteSpace(temporaryFontFilePath) && File.Exists(temporaryFontFilePath)) {
                     File.Delete(temporaryFontFilePath);
                 }
@@ -50,35 +52,31 @@ namespace helengine.editor {
         /// <param name="bytes">Source font bytes copied from the importer stream.</param>
         /// <param name="temporaryFontFilePath">Receives the temporary font-file path when the fallback path is used.</param>
         /// <returns>Private font collection that exposes at least one installable font family.</returns>
-        static PrivateFontCollection LoadFontCollection(byte[] bytes, ref string temporaryFontFilePath) {
+        static PrivateFontCollection LoadFontCollection(byte[] bytes, nint nativeBuffer, ref string temporaryFontFilePath) {
             if (bytes == null) {
                 throw new ArgumentNullException(nameof(bytes));
             } else if (bytes.Length == 0) {
                 throw new InvalidOperationException("Font source stream must contain data.");
+            } else if (nativeBuffer == nint.Zero) {
+                throw new ArgumentException("Font source memory must be pinned before GDI loads it.", nameof(nativeBuffer));
             }
 
-            nint nativeBuffer = Marshal.AllocCoTaskMem(bytes.Length);
-            try {
-                Marshal.Copy(bytes, 0, nativeBuffer, bytes.Length);
-                PrivateFontCollection fontCollection = new PrivateFontCollection();
-                fontCollection.AddMemoryFont(nativeBuffer, bytes.Length);
-                if (fontCollection.Families.Length > 0) {
-                    return fontCollection;
-                }
-
-                fontCollection.Dispose();
-                temporaryFontFilePath = CreateTemporaryFontFile(bytes);
-                PrivateFontCollection fallbackFontCollection = new PrivateFontCollection();
-                fallbackFontCollection.AddFontFile(temporaryFontFilePath);
-                if (fallbackFontCollection.Families.Length == 0) {
-                    fallbackFontCollection.Dispose();
-                    throw new InvalidOperationException("Source font did not produce any installable font families.");
-                }
-
-                return fallbackFontCollection;
-            } finally {
-                Marshal.FreeCoTaskMem(nativeBuffer);
+            PrivateFontCollection fontCollection = new PrivateFontCollection();
+            fontCollection.AddMemoryFont(nativeBuffer, bytes.Length);
+            if (fontCollection.Families.Length > 0) {
+                return fontCollection;
             }
+
+            fontCollection.Dispose();
+            temporaryFontFilePath = CreateTemporaryFontFile(bytes);
+            PrivateFontCollection fallbackFontCollection = new PrivateFontCollection();
+            fallbackFontCollection.AddFontFile(temporaryFontFilePath);
+            if (fallbackFontCollection.Families.Length == 0) {
+                fallbackFontCollection.Dispose();
+                throw new InvalidOperationException("Source font did not produce any installable font families.");
+            }
+
+            return fallbackFontCollection;
         }
 
         /// <summary>
