@@ -25,6 +25,10 @@ namespace helengine {
         /// </summary>
         IPhysicsRuntime PhysicsRuntimeValue;
         /// <summary>
+        /// Stores whether fixed-step physics simulation is currently paused.
+        /// </summary>
+        bool PhysicsSimulationIsPausedValue;
+        /// <summary>
         /// Clipboard service used by textbox shortcut commands.
         /// </summary>
         ITextClipboardService TextClipboardServiceValue;
@@ -85,6 +89,7 @@ namespace helengine {
             ContentManagerLock = new object();
             Instance = this;
             InitializationOptions = options;
+            PhysicsSimulationIsPausedValue = false;
             Input = new InputSystem();
             StandardPlatformInput = new StandardPlatformInput(Input);
             PointerInteractionSystem = new PointerInteractionSystem(this, Input);
@@ -322,6 +327,21 @@ namespace helengine {
         /// Gets the fixed-step scheduler that converts host frame time into physics simulation steps.
         /// </summary>
         public PhysicsFixedStepScheduler PhysicsScheduler => PhysicsSchedulerValue;
+
+        /// <summary>
+        /// Gets or sets whether fixed-step physics simulation is paused without retaining elapsed-time debt.
+        /// </summary>
+        public bool PhysicsSimulationIsPaused {
+            get => PhysicsSimulationIsPausedValue;
+            set {
+                if (PhysicsSimulationIsPausedValue == value) {
+                    return;
+                }
+
+                PhysicsSimulationIsPausedValue = value;
+                ResetPhysicsTimingState();
+            }
+        }
 
         /// <summary>
         /// Gets the total fixed-step physics time predicted to be consumed during the current update based on the scheduler accumulator and catch-up cap.
@@ -939,7 +959,7 @@ namespace helengine {
         /// <param name="elapsedSeconds">Elapsed host frame time in seconds for the current update.</param>
         /// <returns>Total fixed-step physics seconds expected to run during this update.</returns>
         double ResolvePredictedPhysicsStepSeconds(double elapsedSeconds) {
-            if (PhysicsRuntimeValue == null) {
+            if (PhysicsRuntimeValue == null || PhysicsSimulationIsPausedValue) {
                 return 0d;
             }
 
@@ -994,7 +1014,7 @@ namespace helengine {
         void UpdatePhysics(double elapsedSeconds) {
             LastPhysicsUpdateMilliseconds = 0d;
             LastPhysicsStepCount = 0;
-            if (PhysicsRuntimeValue == null) {
+            if (PhysicsRuntimeValue == null || PhysicsSimulationIsPausedValue) {
 #if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
                 RuntimeProfilerMetricsValue.SetFixedUpdateCount(0);
 #endif
