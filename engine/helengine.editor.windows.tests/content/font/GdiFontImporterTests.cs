@@ -27,6 +27,22 @@ public sealed class GdiFontImporterTests {
     }
 
     /// <summary>
+    /// Ensures the importer retains the source font bytes long enough for GDI to rasterize the requested family.
+    /// </summary>
+    [Fact]
+    public void ImportFont_WhenUsingVendorTrueTypeSource_PreservesSourceFamilyName() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string sourceFontPath = Path.Combine(repositoryRootPath, "vendor", "bepuphysics2", "Demos", "Content", "Carlito-Regular.ttf");
+
+        using FileStream stream = new FileStream(sourceFontPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        FontAsset fontAsset = new GdiFontImporter().ImportFont(stream, new FontAssetProcessorSettings {
+            PixelSize = 32
+        });
+
+        Assert.Equal("Carlito", fontAsset.FontInfo.Name);
+    }
+
+    /// <summary>
     /// Ensures importing the same source font with two different pixel sizes changes the emitted font metrics.
     /// </summary>
     [Fact]
