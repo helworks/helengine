@@ -23,6 +23,37 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Initializes one build-graph workspace with independently managed graph, generated-core, and native roots.
+        /// </summary>
+        /// <param name="executionRootPath">Resettable build-graph execution root.</param>
+        /// <param name="generatedCoreRootPath">Resettable generated-core output root.</param>
+        /// <param name="builderWorkingRootPath">Persistent native builder working root.</param>
+        public EditorPlatformBuildGraphWorkspace(
+            string executionRootPath,
+            string generatedCoreRootPath,
+            string builderWorkingRootPath) {
+            if (string.IsNullOrWhiteSpace(executionRootPath)) {
+                throw new ArgumentException("Execution root path must be provided.", nameof(executionRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated-core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(builderWorkingRootPath)) {
+                throw new ArgumentException("Builder working root path must be provided.", nameof(builderWorkingRootPath));
+            }
+
+            ExecutionRootPath = Path.GetFullPath(executionRootPath);
+            GeneratedCoreRootPath = Path.GetFullPath(generatedCoreRootPath);
+            BuilderWorkingRootPath = Path.GetFullPath(builderWorkingRootPath);
+            CookRootPath = Path.Combine(ExecutionRootPath, "cooked");
+            CodeRootPath = Path.Combine(ExecutionRootPath, "code");
+            VariantRootPath = Path.Combine(ExecutionRootPath, "variants");
+            LayoutRootPath = Path.Combine(ExecutionRootPath, "layout");
+            PackageRootPath = Path.Combine(ExecutionRootPath, "package");
+            LogsRootPath = Path.Combine(ExecutionRootPath, "logs");
+        }
+
+        /// <summary>
         /// Gets the top-level execution root path.
         /// </summary>
         public string ExecutionRootPath { get; }

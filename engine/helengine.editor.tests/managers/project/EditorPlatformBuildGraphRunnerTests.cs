@@ -23,6 +23,62 @@ public class EditorPlatformBuildGraphRunnerTests {
         EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
     }
 
+    /// <summary>
+    /// Ensures stable graph reset removes resettable state without deleting persistent native builder state.
+    /// </summary>
+    [Fact]
+    public void ResetExecutionDirectories_WhenNativeRootIsExternal_PreservesNativeState() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-stable-reset-tests", Guid.NewGuid().ToString("N"));
+        string executionRootPath = Path.Combine(rootPath, "build-graph");
+        string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+        string nativeRootPath = Path.Combine(rootPath, "native");
+        ConstructorInfo workspaceConstructor = typeof(EditorPlatformBuildGraphWorkspace).GetConstructor([
+            typeof(string),
+            typeof(string),
+            typeof(string)
+        ]);
+        Assert.NotNull(workspaceConstructor);
+        EditorPlatformBuildGraphWorkspace workspace = (EditorPlatformBuildGraphWorkspace)workspaceConstructor.Invoke([
+            executionRootPath,
+            generatedCoreRootPath,
+            nativeRootPath
+        ]);
+        MethodInfo resetMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+            "ResetExecutionDirectories",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(resetMethod);
+
+        try {
+            Directory.CreateDirectory(workspace.ExecutionRootPath);
+            Directory.CreateDirectory(workspace.GeneratedCoreRootPath);
+            Directory.CreateDirectory(workspace.BuilderWorkingRootPath);
+            string graphSentinelPath = Path.Combine(workspace.ExecutionRootPath, "stale-graph.txt");
+            string generatedCoreSentinelPath = Path.Combine(workspace.GeneratedCoreRootPath, "stale-core.txt");
+            string nativeSentinelPath = Path.Combine(workspace.BuilderWorkingRootPath, "native-cache.txt");
+            File.WriteAllText(graphSentinelPath, "stale");
+            File.WriteAllText(generatedCoreSentinelPath, "stale");
+            File.WriteAllText(nativeSentinelPath, "persistent");
+
+            resetMethod.Invoke(null, [
+                workspace.ExecutionRootPath,
+                workspace.GeneratedCoreRootPath,
+                workspace.CookRootPath,
+                workspace.PackageRootPath,
+                workspace.BuilderWorkingRootPath
+            ]);
+
+            Assert.False(File.Exists(graphSentinelPath));
+            Assert.False(File.Exists(generatedCoreSentinelPath));
+            Assert.True(File.Exists(nativeSentinelPath));
+            Assert.True(Directory.Exists(workspace.ExecutionRootPath));
+            Assert.True(Directory.Exists(workspace.GeneratedCoreRootPath));
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
     [Fact]
     public void Execute_DelegatesToInjectedBuildGraphRunner() {
         FakeEditorPlatformBuildGraphRunner runner = new();

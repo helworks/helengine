@@ -32,6 +32,13 @@ namespace helengine.editor {
             }
 
             string executionRootPath = IsolationPathResolver.ResolveWorkspaceExecutionRootPath(platformId, queueItemId, Guid.NewGuid().ToString("N"));
+            if (IsolationPathResolver.UsesStableCacheRoot()) {
+                return new EditorPlatformBuildGraphWorkspace(
+                    executionRootPath,
+                    IsolationPathResolver.ResolveGeneratedCoreRootPath(platformId),
+                    IsolationPathResolver.ResolveNativeRootPath(platformId));
+            }
+
             return new EditorPlatformBuildGraphWorkspace(executionRootPath);
         }
     }
