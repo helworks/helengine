@@ -285,7 +285,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Ensures plane handles keep their authored placement ratio within the gizmo when camera-distance scaling changes.
         /// </summary>
         [Fact]
-        public void Update_WhenCameraDistanceChanges_RepositionsPlaneHandleWithTheScaledGizmo() {
+        public void Update_WhenCameraDistanceChanges_KeepsPlaneHandleAtAuthoredInset() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
@@ -308,11 +308,8 @@ namespace helengine.editor.tests.managers.gizmo {
             sceneCamera.Parent.Position = new float3(0f, 2f, -20f);
             UpdateFollowComponent(gizmoRoot);
 
-            float scaleRatio = gizmoRoot.Scale.X / initialRootScale;
-            float3 expectedPlaneLocalPosition = initialPlaneLocalPosition * scaleRatio;
-
             Assert.True(gizmoRoot.Scale.X > initialRootScale);
-            AssertVectorEquals(expectedPlaneLocalPosition, planeHandle.LocalPosition);
+            AssertVectorEquals(initialPlaneLocalPosition, planeHandle.LocalPosition);
         }
 
         /// <summary>

@@ -259,7 +259,7 @@ namespace helengine.editor {
                 float scale = (float)scaleValue;
                 GizmoRoot.Scale = new float3(scale, scale, scale);
                 float4 yawFacingOrientation = TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedPosition, cameraEntity.Position);
-                ApplyFacingToHandles(yawFacingOrientation, scale);
+                ApplyFacingToHandles(yawFacingOrientation);
                 UpdateAxisTipOffsets();
             }
 
@@ -567,8 +567,7 @@ namespace helengine.editor {
         /// Applies snapped yaw facing transforms to direct gizmo-handle children.
         /// </summary>
         /// <param name="yawFacingOrientation">Quaternion representing the snapped world-space Y-axis yaw orientation.</param>
-        /// <param name="scale">Current gizmo world scale used to keep plane-handle offsets aligned with the scaled gizmo.</param>
-        void ApplyFacingToHandles(float4 yawFacingOrientation, float scale) {
+        void ApplyFacingToHandles(float4 yawFacingOrientation) {
             if (GizmoRoot.Children == null) {
                 throw new InvalidOperationException("Gizmo root children must be initialized.");
             }
@@ -588,13 +587,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                float3 resolvedBasePosition = basePosition;
-                if (TryFindTransformHandleComponent(handle, out TransformGizmoHandleComponent handleComponent) &&
-                    handleComponent.ConstraintType == TransformGizmoHandleConstraintType.Plane) {
-                    resolvedBasePosition *= scale;
-                }
-
-                handle.LocalPosition = float4.RotateVector(resolvedBasePosition, yawFacingOrientation);
+                handle.LocalPosition = float4.RotateVector(basePosition, yawFacingOrientation);
                 float4.Concatenate(ref baseOrientation, ref yawFacingOrientation, out float4 resolvedOrientation);
                 handle.LocalOrientation = resolvedOrientation;
             }
