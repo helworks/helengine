@@ -6,6 +6,11 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorProjectPlatformsService {
         /// <summary>
+        /// Platform identifier of the editor host, seeded into projects that do not declare supported platforms yet.
+        /// </summary>
+        public const string ActiveEditorPlatformId = "windows";
+
+        /// <summary>
         /// Gets the JSON formatting rules used for the project platform settings document.
         /// </summary>
         static JsonSerializerOptions JsonSerializerOptions { get; } = new() {
@@ -40,7 +45,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads the project platform settings document, creating a default empty document when the file is missing or invalid.
+        /// Loads the project platform settings document, seeding the active editor platform when the file is missing,
+        /// invalid, or declares no platforms, since an empty platform list would prevent the project from opening.
         /// </summary>
         /// <returns>Validated project platform settings document for the current project.</returns>
         public EditorProjectPlatformsDocument Load() {
@@ -52,6 +58,11 @@ namespace helengine.editor {
             }
 
             Normalize(document);
+            if (document.SupportedPlatforms.Count == 0) {
+                document.SupportedPlatforms.Add(ActiveEditorPlatformId);
+                Save(document);
+            }
+
             return document;
         }
 
@@ -97,10 +108,10 @@ namespace helengine.editor {
         /// <summary>
         /// Creates one default project platform settings document for a newly initialized project.
         /// </summary>
-        /// <returns>Default project platform settings document with no preferred platform.</returns>
+        /// <returns>Default project platform settings document seeded with the active editor platform so the project can open.</returns>
         EditorProjectPlatformsDocument CreateDefaultDocument() {
             return new EditorProjectPlatformsDocument {
-                SupportedPlatforms = []
+                SupportedPlatforms = [ActiveEditorPlatformId]
             };
         }
 

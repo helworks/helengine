@@ -50,32 +50,68 @@ public sealed class EditorProjectPlatformsServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures the service seeds one generic empty document when the project settings file is missing.
+    /// Ensures the service seeds the active editor platform when the project settings file is missing so a fresh project can open without crashing.
     /// </summary>
     [Fact]
-    public void Load_WhenPlatformsFileIsMissing_CreatesDefaultEmptyDocument() {
+    public void Load_WhenPlatformsFileIsMissing_CreatesDefaultDocumentWithActiveEditorPlatform() {
         EditorProjectPlatformsService service = CreateService();
 
         EditorProjectPlatformsDocument document = service.Load();
 
-        Assert.Empty(document.SupportedPlatforms);
+        Assert.Equal(new[] { EditorProjectPlatformsService.ActiveEditorPlatformId }, document.SupportedPlatforms);
         Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "settings", "platforms.json")));
     }
 
     /// <summary>
-    /// Ensures the service persists empty supported-platform lists without injecting a preferred platform.
+    /// Ensures the seeded default document persists to disk so later loads keep the active editor platform.
     /// </summary>
     [Fact]
-    public void Save_WhenSupportedPlatformsIsEmpty_PersistsEmptyDocument() {
+    public void Load_WhenPlatformsFileIsMissing_PersistsSeededDefaultForLaterLoads() {
+        EditorProjectPlatformsService service = CreateService();
+
+        service.Load();
+        EditorProjectPlatformsDocument reloaded = CreateService().Load();
+
+        Assert.Equal(new[] { EditorProjectPlatformsService.ActiveEditorPlatformId }, reloaded.SupportedPlatforms);
+    }
+
+    /// <summary>
+    /// Ensures an existing platforms file with an empty platform list self-heals to the active editor platform, since an
+    /// empty list would prevent the editor from opening the project at all.
+    /// </summary>
+    [Fact]
+    public void Load_WhenPlatformsFileHasEmptyPlatformList_SelfHealsToActiveEditorPlatform() {
+        string settingsDirectoryPath = Path.Combine(TempProjectRootPath, "settings");
+        Directory.CreateDirectory(settingsDirectoryPath);
+        File.WriteAllText(
+            Path.Combine(settingsDirectoryPath, "platforms.json"),
+            """
+            {
+              "supportedPlatforms": []
+            }
+            """);
+        EditorProjectPlatformsService service = CreateService();
+
+        EditorProjectPlatformsDocument document = service.Load();
+
+        Assert.Equal(new[] { EditorProjectPlatformsService.ActiveEditorPlatformId }, document.SupportedPlatforms);
+    }
+
+    /// <summary>
+    /// Ensures the self-healed platform list is persisted back to disk so later loads no longer see the broken empty list.
+    /// </summary>
+    [Fact]
+    public void Load_AfterSavingEmptyDocument_SelfHealsAndPersistsActiveEditorPlatform() {
         EditorProjectPlatformsService service = CreateService();
         EditorProjectPlatformsDocument document = new EditorProjectPlatformsDocument {
             SupportedPlatforms = []
         };
 
         service.Save(document);
+        service.Load();
+        EditorProjectPlatformsDocument reloaded = CreateService().Load();
 
-        EditorProjectPlatformsDocument reloaded = service.Load();
-        Assert.Empty(reloaded.SupportedPlatforms);
+        Assert.Equal(new[] { EditorProjectPlatformsService.ActiveEditorPlatformId }, reloaded.SupportedPlatforms);
     }
 
     /// <summary>
