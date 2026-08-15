@@ -20,6 +20,31 @@ function Get-BuildPlatformCanonicalDirectoryPath {
     return $FullPath.TrimEnd($DirectorySeparators)
 }
 
+function Join-BuildPlatformStrictDescendantPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ParentPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ChildPath
+    )
+
+    $CanonicalParentPath = Get-BuildPlatformCanonicalDirectoryPath -Path $ParentPath
+    $CanonicalCandidatePath = Get-BuildPlatformCanonicalDirectoryPath -Path (Join-Path $CanonicalParentPath $ChildPath)
+    $ParentPrefix = $CanonicalParentPath
+    if (-not $ParentPrefix.EndsWith([System.IO.Path]::DirectorySeparatorChar) -and
+        -not $ParentPrefix.EndsWith([System.IO.Path]::AltDirectorySeparatorChar)) {
+        $ParentPrefix += [System.IO.Path]::DirectorySeparatorChar
+    }
+
+    if ($CanonicalCandidatePath.Equals($CanonicalParentPath, [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not $CanonicalCandidatePath.StartsWith($ParentPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Path '$CanonicalCandidatePath' must be a strict descendant of '$CanonicalParentPath'."
+    }
+
+    return $CanonicalCandidatePath
+}
+
 function Get-BuildPlatformProjectHash {
     param(
         [Parameter(Mandatory = $true)]
@@ -31,7 +56,8 @@ function Get-BuildPlatformProjectHash {
     }
 
     $FullProjectRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $ProjectRootPath
-    $ProjectRootBytes = [System.Text.Encoding]::UTF8.GetBytes($FullProjectRootPath)
+    $ProjectIdentityPath = $FullProjectRootPath.ToLowerInvariant()
+    $ProjectRootBytes = [System.Text.Encoding]::UTF8.GetBytes($ProjectIdentityPath)
     $Sha256 = [System.Security.Cryptography.SHA256]::Create()
     try {
         $HashBytes = $Sha256.ComputeHash($ProjectRootBytes)
@@ -55,6 +81,9 @@ function Get-BuildPlatformSafeSegment {
     if ([string]::IsNullOrWhiteSpace($Value)) {
         throw "Path segment must be provided."
     }
+    if ($Value -eq "." -or $Value -eq "..") {
+        throw "Path segment '$Value' is not allowed."
+    }
 
     $InvalidCharacters = [System.IO.Path]::GetInvalidFileNameChars()
     $Builder = New-Object System.Text.StringBuilder
@@ -65,7 +94,11 @@ function Get-BuildPlatformSafeSegment {
             $null = $Builder.Append($Character)
         }
     }
-    return $Builder.ToString()
+    $SafeSegment = $Builder.ToString()
+    if ($SafeSegment -eq "." -or $SafeSegment -eq "..") {
+        throw "Path segment '$Value' resolves to a traversal segment."
+    }
+    return $SafeSegment
 }
 
 function Resolve-BuildPlatformCacheLayout {
@@ -95,17 +128,29 @@ function Resolve-BuildPlatformCacheLayout {
     $PlatformSegment = Get-BuildPlatformSafeSegment -Value $Platform
     $ConfigurationSegment = Get-BuildPlatformSafeSegment -Value $Configuration.ToLowerInvariant()
     $ProfileSegment = Get-BuildPlatformSafeSegment -Value $BuildProfile
-    $ProjectCacheRootPath = Join-Path $FullCacheRootPath ("projects\" + $ProjectHash)
+    $LocksRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $FullCacheRootPath -ChildPath "locks"
+    $LockPath = Join-BuildPlatformStrictDescendantPath -ParentPath $LocksRootPath -ChildPath ($ProjectHash + ".lock")
+    $ProjectsRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $FullCacheRootPath -ChildPath "projects"
+    $ProjectCacheRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectsRootPath -ChildPath $ProjectHash
+    $MetadataPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectCacheRootPath -ChildPath "cache-metadata.json"
+    $EditorRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectCacheRootPath -ChildPath "editor"
+    $EditorConfigurationRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorRootPath -ChildPath $ConfigurationSegment
+    $EditorArtifactsPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorConfigurationRootPath -ChildPath "artifacts"
+    $EditorPublishPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorConfigurationRootPath -ChildPath "publish"
+    $PlatformsRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectCacheRootPath -ChildPath "platforms"
+    $PlatformRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $PlatformsRootPath -ChildPath $PlatformSegment
+    $PlatformConfigurationRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $PlatformRootPath -ChildPath $ConfigurationSegment
+    $PlatformCacheRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $PlatformConfigurationRootPath -ChildPath $ProfileSegment
 
     return [pscustomobject]@{
         CacheRootPath = $FullCacheRootPath
         ProjectHash = $ProjectHash
         ProjectCacheRootPath = $ProjectCacheRootPath
-        LockPath = Join-Path $FullCacheRootPath ("locks\" + $ProjectHash + ".lock")
-        EditorArtifactsPath = Join-Path $ProjectCacheRootPath ("editor\" + $ConfigurationSegment + "\artifacts")
-        EditorPublishPath = Join-Path $ProjectCacheRootPath ("editor\" + $ConfigurationSegment + "\publish")
-        PlatformCacheRootPath = Join-Path $ProjectCacheRootPath ("platforms\" + $PlatformSegment + "\" + $ConfigurationSegment + "\" + $ProfileSegment)
-        MetadataPath = Join-Path $ProjectCacheRootPath "cache-metadata.json"
+        LockPath = $LockPath
+        EditorArtifactsPath = $EditorArtifactsPath
+        EditorPublishPath = $EditorPublishPath
+        PlatformCacheRootPath = $PlatformCacheRootPath
+        MetadataPath = $MetadataPath
     }
 }
 

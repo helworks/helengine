@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $WrapperPath = Join-Path $RepositoryRoot "scripts\build-platform.ps1"
-$TestBuildRootPath = "C:\dev\helworks\builds\helengine\tests"
+$TestBuildRootPath = Join-Path ([System.IO.Path]::GetTempPath()) "helengine-build-platform-tests"
 $TestRootPath = Join-Path $TestBuildRootPath ("build-platform-profile-behavior-" + [Guid]::NewGuid().ToString("N"))
 $FakeToolsPath = Join-Path $TestRootPath "fake-tools"
 $CapturePath = Join-Path $TestRootPath "dotnet-invocations.txt"

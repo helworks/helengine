@@ -6,7 +6,9 @@ $ErrorActionPreference = "Stop"
 
 $RepositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $WrapperPath = Join-Path $RepositoryRoot "scripts\build-platform.ps1"
-$TestBuildRootPath = "C:\dev\helworks\builds\helengine\tests"
+$CacheModulePath = Join-Path $RepositoryRoot "scripts\build-platform\BuildPlatformCache.psm1"
+Import-Module $CacheModulePath -Force
+$TestBuildRootPath = Join-Path ([System.IO.Path]::GetTempPath()) "helengine-build-platform-tests"
 $TestRootPath = Join-Path $TestBuildRootPath ("build-platform-workspace-" + [Guid]::NewGuid().ToString("N"))
 $FakeToolsPath = Join-Path $TestRootPath "fake-tools"
 $CapturePath = Join-Path $TestRootPath "dotnet-invocations.txt"
@@ -102,8 +104,8 @@ function Get-ExpectedProjectHash {
         [string]$ProjectRootPath
     )
 
-    $CanonicalProjectRootPath = [System.IO.Path]::GetFullPath($ProjectRootPath)
-    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($CanonicalProjectRootPath)
+    $CanonicalProjectIdentityPath = [System.IO.Path]::GetFullPath($ProjectRootPath).ToLowerInvariant()
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($CanonicalProjectIdentityPath)
     $Sha256 = [System.Security.Cryptography.SHA256]::Create()
     try {
         $HashBytes = $Sha256.ComputeHash($Bytes)
@@ -130,6 +132,45 @@ function Assert-Success {
     if ($Result.ExitCode -ne 0) {
         throw "$CaseName failed with exit code $($Result.ExitCode). $($Result.Output -join [Environment]::NewLine)"
     }
+}
+
+foreach ($DotSegment in @(".", "..")) {
+    $SafeSegmentWasRejected = $false
+    try {
+        $null = Get-BuildPlatformSafeSegment -Value $DotSegment
+    } catch {
+        $SafeSegmentWasRejected = $true
+    }
+    if (-not $SafeSegmentWasRejected) {
+        throw "Get-BuildPlatformSafeSegment accepted traversal segment '$DotSegment'."
+    }
+
+    foreach ($LayoutParameterName in @("Platform", "Configuration", "BuildProfile")) {
+        $LayoutArguments = @{
+            CacheRootPath = $CacheRootPath
+            ProjectRootPath = Split-Path -Parent $ProjectPath
+            Platform = "windows"
+            Configuration = "Release"
+            BuildProfile = "profiler"
+        }
+        $LayoutArguments[$LayoutParameterName] = $DotSegment
+        $LayoutWasRejected = $false
+        try {
+            $null = Resolve-BuildPlatformCacheLayout @LayoutArguments
+        } catch {
+            $LayoutWasRejected = $true
+        }
+        if (-not $LayoutWasRejected) {
+            throw "Resolve-BuildPlatformCacheLayout accepted '$DotSegment' for $LayoutParameterName."
+        }
+    }
+}
+
+$MixedCaseProjectRootPath = Join-Path $TestRootPath "MixedCaseProject"
+$LowerCaseProjectHash = Get-BuildPlatformProjectHash -ProjectRootPath $MixedCaseProjectRootPath.ToLowerInvariant()
+$UpperCaseProjectHash = Get-BuildPlatformProjectHash -ProjectRootPath $MixedCaseProjectRootPath.ToUpperInvariant()
+if ($LowerCaseProjectHash -cne $UpperCaseProjectHash) {
+    throw "Windows project hash identity changed with caller casing: '$LowerCaseProjectHash' and '$UpperCaseProjectHash'."
 }
 
 try {
