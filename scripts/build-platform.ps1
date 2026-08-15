@@ -40,6 +40,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformCache.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformEnvironment.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformProcess.psm1") -Force
 
 function Get-CanonicalDirectoryPath {
@@ -157,12 +158,7 @@ if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
     $DotNetExecutablePath = "dotnet"
 }
 
-$OriginalHelEngineBuildEnvironment = @{}
-foreach ($EnvironmentVariable in Get-ChildItem Env: | Where-Object { $_.Name -like "HELENGINE_BUILD_*" }) {
-    $OriginalHelEngineBuildEnvironment[$EnvironmentVariable.Name] = $EnvironmentVariable.Value
-}
-$OriginalHelEngineSourceRootExists = Test-Path -LiteralPath "Env:HELENGINE_SOURCE_ROOT"
-$OriginalHelEngineSourceRootPath = $env:HELENGINE_SOURCE_ROOT
+$OriginalBuildPlatformEnvironmentState = Save-BuildPlatformEnvironmentState
 
 try {
     if ([string]::IsNullOrWhiteSpace($EditorProject)) {
@@ -213,9 +209,9 @@ try {
     Write-Host "Output: $ResolvedOutputPath"
     Write-Host "State file: $StateFilePath"
 
-    $env:HELENGINE_BUILD_CACHE_ROOT = $Layout.CacheRootPath
-    $env:HELENGINE_BUILD_CONFIGURATION = $Configuration.ToLowerInvariant()
-    $env:HELENGINE_BUILD_PROFILE = $ResolvedBuildProfile
+    [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", $Layout.CacheRootPath, [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", $Configuration.ToLowerInvariant(), [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", $ResolvedBuildProfile, [EnvironmentVariableTarget]::Process)
 
     $DotNetSharedPropertyArguments = @(
         "--artifacts-path",
@@ -309,7 +305,7 @@ try {
 
     Write-Host ("Executing: " + ($DisplayArguments -join " "))
 
-    $env:HELENGINE_SOURCE_ROOT = $ResolvedHelEngineRootPath
+    [Environment]::SetEnvironmentVariable("HELENGINE_SOURCE_ROOT", $ResolvedHelEngineRootPath, [EnvironmentVariableTarget]::Process)
 
     $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
     if ($DotNetExitCode -ne 0) {
@@ -322,15 +318,5 @@ try {
     [Console]::Error.WriteLine($_.Exception.Message)
     exit 10
 } finally {
-    foreach ($EnvironmentVariable in Get-ChildItem Env: | Where-Object { $_.Name -like "HELENGINE_BUILD_*" }) {
-        Remove-Item -LiteralPath ("Env:" + $EnvironmentVariable.Name) -ErrorAction SilentlyContinue
-    }
-    foreach ($EnvironmentVariableName in $OriginalHelEngineBuildEnvironment.Keys) {
-        Set-Item -LiteralPath ("Env:" + $EnvironmentVariableName) -Value $OriginalHelEngineBuildEnvironment[$EnvironmentVariableName]
-    }
-    if ($OriginalHelEngineSourceRootExists) {
-        $env:HELENGINE_SOURCE_ROOT = $OriginalHelEngineSourceRootPath
-    } else {
-        Remove-Item -LiteralPath "Env:HELENGINE_SOURCE_ROOT" -ErrorAction SilentlyContinue
-    }
+    Restore-BuildPlatformEnvironmentState -State $OriginalBuildPlatformEnvironmentState
 }

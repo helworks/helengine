@@ -7,12 +7,18 @@ $ErrorActionPreference = "Stop"
 $RepositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $WrapperPath = Join-Path $RepositoryRoot "scripts\build-platform.ps1"
 $CacheModulePath = Join-Path $RepositoryRoot "scripts\build-platform\BuildPlatformCache.psm1"
+$EnvironmentModulePath = Join-Path $RepositoryRoot "scripts\build-platform\BuildPlatformEnvironment.psm1"
 Import-Module $CacheModulePath -Force
+if (-not (Test-Path -LiteralPath $EnvironmentModulePath -PathType Leaf)) {
+    throw "The explicit build environment state module was not found at '$EnvironmentModulePath'."
+}
+Import-Module $EnvironmentModulePath -Force
 $TestBuildRootPath = Join-Path ([System.IO.Path]::GetTempPath()) "helengine-build-platform-tests"
 $TestRootPath = Join-Path $TestBuildRootPath ("build-platform-workspace-" + [Guid]::NewGuid().ToString("N"))
 $FakeToolsPath = Join-Path $TestRootPath "fake-tools"
 $CapturePath = Join-Path $TestRootPath "dotnet-invocations.txt"
 $EnvironmentCapturePath = Join-Path $TestRootPath "editor-environment.txt"
+$EnvironmentEnumerationGuardPath = Join-Path $TestRootPath "reject-environment-enumeration.ps1"
 $RobocopyMarkerPath = Join-Path $TestRootPath "robocopy-invoked.txt"
 $ProjectPath = Join-Path $TestRootPath "authored-project\project.heproj"
 $EditorProjectPath = Join-Path $TestRootPath "editor\editor.csproj"
@@ -134,6 +140,57 @@ function Assert-Success {
     }
 }
 
+$TrackedEnvironmentVariableNames = @(
+    "HELENGINE_BUILD_CACHE_ROOT",
+    "HELENGINE_BUILD_CONFIGURATION",
+    "HELENGINE_BUILD_PROFILE",
+    "HELENGINE_SOURCE_ROOT"
+)
+$TestProcessEnvironmentBefore = @{}
+foreach ($EnvironmentVariableName in $TrackedEnvironmentVariableNames) {
+    $TestProcessEnvironmentBefore[$EnvironmentVariableName] = [Environment]::GetEnvironmentVariable(
+        $EnvironmentVariableName,
+        [EnvironmentVariableTarget]::Process
+    )
+}
+try {
+    [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", "InheritedCacheRoot", [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", "InheritedConfiguration", [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", $null, [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable("HELENGINE_SOURCE_ROOT", "InheritedSourceRoot", [EnvironmentVariableTarget]::Process)
+
+    $SavedEnvironmentState = Save-BuildPlatformEnvironmentState
+    foreach ($EnvironmentVariableName in $TrackedEnvironmentVariableNames) {
+        [Environment]::SetEnvironmentVariable($EnvironmentVariableName, "MutatedValue", [EnvironmentVariableTarget]::Process)
+    }
+    Restore-BuildPlatformEnvironmentState -State $SavedEnvironmentState
+
+    foreach ($ExpectedEnvironmentValue in @{
+            HELENGINE_BUILD_CACHE_ROOT = "InheritedCacheRoot"
+            HELENGINE_BUILD_CONFIGURATION = "InheritedConfiguration"
+            HELENGINE_SOURCE_ROOT = "InheritedSourceRoot"
+        }.GetEnumerator()) {
+        $ActualEnvironmentValue = [Environment]::GetEnvironmentVariable(
+            $ExpectedEnvironmentValue.Key,
+            [EnvironmentVariableTarget]::Process
+        )
+        if ($ActualEnvironmentValue -cne $ExpectedEnvironmentValue.Value) {
+            throw "Environment restoration changed $($ExpectedEnvironmentValue.Key) from '$($ExpectedEnvironmentValue.Value)' to '$ActualEnvironmentValue'."
+        }
+    }
+    if ($null -ne [Environment]::GetEnvironmentVariable("HELENGINE_BUILD_PROFILE", [EnvironmentVariableTarget]::Process)) {
+        throw "Environment restoration did not remove originally absent HELENGINE_BUILD_PROFILE."
+    }
+} finally {
+    foreach ($EnvironmentVariableName in $TrackedEnvironmentVariableNames) {
+        [Environment]::SetEnvironmentVariable(
+            $EnvironmentVariableName,
+            $TestProcessEnvironmentBefore[$EnvironmentVariableName],
+            [EnvironmentVariableTarget]::Process
+        )
+    }
+}
+
 foreach ($DotSegment in @(".", "..")) {
     $SafeSegmentWasRejected = $false
     try {
@@ -166,6 +223,40 @@ foreach ($DotSegment in @(".", "..")) {
     }
 }
 
+foreach ($AliasedSegment in @(
+        "profile.",
+        "profile ",
+        "CON",
+        "con.cache",
+        "PrN.json",
+        "AUX",
+        "nul.bin",
+        "COM1",
+        "com9.cache",
+        "LPT1",
+        "lPt9.log"
+    )) {
+    $AliasedSegmentWasRejected = $false
+    try {
+        $null = Get-BuildPlatformSafeSegment -Value $AliasedSegment
+    } catch {
+        $AliasedSegmentWasRejected = $true
+    }
+    if (-not $AliasedSegmentWasRejected) {
+        throw "Get-BuildPlatformSafeSegment accepted Windows alias '$AliasedSegment'."
+    }
+}
+
+$OrdinarySanitizedSegment = Get-BuildPlatformSafeSegment -Value "preview/profile"
+if ($OrdinarySanitizedSegment -cne "preview_profile") {
+    throw "Ordinary invalid-character sanitization changed to '$OrdinarySanitizedSegment'."
+}
+foreach ($OrdinarySegment in @("console", "COM10", "LPT0")) {
+    if ((Get-BuildPlatformSafeSegment -Value $OrdinarySegment) -cne $OrdinarySegment) {
+        throw "Ordinary segment '$OrdinarySegment' was rejected or changed."
+    }
+}
+
 $MixedCaseProjectRootPath = Join-Path $TestRootPath "MixedCaseProject"
 $LowerCaseProjectHash = Get-BuildPlatformProjectHash -ProjectRootPath $MixedCaseProjectRootPath.ToLowerInvariant()
 $UpperCaseProjectHash = Get-BuildPlatformProjectHash -ProjectRootPath $MixedCaseProjectRootPath.ToUpperInvariant()
@@ -179,6 +270,37 @@ try {
     $null = New-Item -ItemType Directory -Path (Split-Path -Parent $EditorProjectPath) -Force
     Set-Content -LiteralPath $ProjectPath -Value "{}" -NoNewline
     Set-Content -LiteralPath $EditorProjectPath -Value "<Project />" -NoNewline
+    Set-Content -LiteralPath $EnvironmentEnumerationGuardPath -Value @'
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)] [string]$WrapperPath,
+    [Parameter(Mandatory = $true)] [string]$Project,
+    [Parameter(Mandatory = $true)] [string]$Platform,
+    [Parameter(Mandatory = $true)] [string]$Output,
+    [Parameter(Mandatory = $true)] [string]$Configuration,
+    [Parameter(Mandatory = $true)] [string]$BuildProfile,
+    [Parameter(Mandatory = $true)] [string]$EditorProject,
+    [Parameter(Mandatory = $true)] [string]$CacheRoot
+)
+
+function Get-ChildItem {
+    param([Parameter(Position = 0)] [object]$Path)
+
+    if ([string]$Path -eq "Env:") {
+        throw "ENV_PROVIDER_ENUMERATION_ATTEMPTED"
+    }
+    return Microsoft.PowerShell.Management\Get-ChildItem -Path $Path
+}
+
+& $WrapperPath `
+    -Project $Project `
+    -Platform $Platform `
+    -Output $Output `
+    -Configuration $Configuration `
+    -BuildProfile $BuildProfile `
+    -EditorProject $EditorProject `
+    -CacheRoot $CacheRoot
+'@ -NoNewline
     Set-Content -LiteralPath (Join-Path $FakeToolsPath "dotnet.cmd") -Value @'
 @echo off
 setlocal EnableExtensions
@@ -221,6 +343,24 @@ exit /b 8
         $env:HELENGINE_WORKSPACE_ENVIRONMENT_CAPTURE = $EnvironmentCapturePath
         $env:HELENGINE_WORKSPACE_ROBOCOPY_MARKER = $RobocopyMarkerPath
         $env:HELENGINE_DOTNET_EXECUTABLE_PATH = Join-Path $FakeToolsPath "dotnet.cmd"
+
+        $EnumerationGuardOutput = @(& powershell.exe `
+            -NoProfile `
+            -ExecutionPolicy Bypass `
+            -File $EnvironmentEnumerationGuardPath `
+            -WrapperPath $WrapperPath `
+            -Project $ProjectPath `
+            -Platform "windows" `
+            -Output $OutputArgumentPath `
+            -Configuration "Release" `
+            -BuildProfile "profiler" `
+            -EditorProject $EditorProjectPath `
+            -CacheRoot $CacheRootPath 2>&1)
+        $EnumerationGuardExitCode = $LASTEXITCODE
+        if ($EnumerationGuardExitCode -ne 0) {
+            throw "The wrapper failed when environment provider enumeration was unavailable (exit $EnumerationGuardExitCode): $($EnumerationGuardOutput -join [Environment]::NewLine)"
+        }
+        Clear-Content -LiteralPath $CapturePath
 
         $WorkspaceOnlyResult = Invoke-ControlledWrapper -CachePath "" -WorkspacePath $CacheRootPath
         if (Test-Path -LiteralPath $RobocopyMarkerPath) {

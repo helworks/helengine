@@ -84,6 +84,10 @@ function Get-BuildPlatformSafeSegment {
     if ($Value -eq "." -or $Value -eq "..") {
         throw "Path segment '$Value' is not allowed."
     }
+    if ($Value.EndsWith(".", [System.StringComparison]::Ordinal) -or
+        $Value.EndsWith(" ", [System.StringComparison]::Ordinal)) {
+        throw "Path segment '$Value' has a trailing Windows alias character."
+    }
 
     $InvalidCharacters = [System.IO.Path]::GetInvalidFileNameChars()
     $Builder = New-Object System.Text.StringBuilder
@@ -97,6 +101,17 @@ function Get-BuildPlatformSafeSegment {
     $SafeSegment = $Builder.ToString()
     if ($SafeSegment -eq "." -or $SafeSegment -eq "..") {
         throw "Path segment '$Value' resolves to a traversal segment."
+    }
+    if ($SafeSegment.EndsWith(".", [System.StringComparison]::Ordinal) -or
+        $SafeSegment.EndsWith(" ", [System.StringComparison]::Ordinal)) {
+        throw "Path segment '$Value' resolves to a trailing Windows alias character."
+    }
+
+    $ReservedDevicePattern = '^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)'
+    $ReservedDeviceOptions = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant
+    if ([regex]::IsMatch($SafeSegment, $ReservedDevicePattern, $ReservedDeviceOptions)) {
+        throw "Path segment '$Value' uses a reserved Windows device basename."
     }
     return $SafeSegment
 }
