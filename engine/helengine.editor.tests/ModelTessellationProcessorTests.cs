@@ -75,6 +75,129 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures every output triangle of a multi-triangle quad face keeps the same winding as its source triangles,
+        /// covering the shared-edge conformity path that single-triangle tests cannot exercise.
+        /// </summary>
+        [Fact]
+        public void Apply_WhenQuadHasTwoAdjacentTriangles_PreservesWindingAcrossAllOutputTriangles() {
+            ModelAsset asset = CreateQuadAsset();
+
+            ModelTessellationProcessor.Apply(asset, 1.0d);
+
+            ModelAssetIndexData indexData = ModelAssetIndexData.Resolve(asset);
+            Assert.True(indexData.IndexCount > 6);
+            for (int index = 0; index < indexData.IndexCount; index += 3) {
+                uint firstIndex = GetIndex(indexData, index);
+                uint secondIndex = GetIndex(indexData, index + 1);
+                uint thirdIndex = GetIndex(indexData, index + 2);
+                float3 first = asset.Positions[firstIndex];
+                float3 second = asset.Positions[secondIndex];
+                float3 third = asset.Positions[thirdIndex];
+                float3 edgeA = new float3(second.X - first.X, second.Y - first.Y, second.Z - first.Z);
+                float3 edgeB = new float3(third.X - first.X, third.Y - first.Y, third.Z - first.Z);
+                float crossZ = (edgeA.X * edgeB.Y) - (edgeA.Y * edgeB.X);
+                Assert.True(crossZ > 0f, $"Triangle at index {index} has flipped winding (crossZ={crossZ}).");
+            }
+        }
+
+        /// <summary>
+        /// Ensures winding survives tessellation of a unit-local quad measured under a highly non-uniform world
+        /// scale, matching a 5x1x5 box face where one in-plane axis needs many more splits than the other.
+        /// </summary>
+        [Fact]
+        public void Apply_WhenQuadHasNonUniformMeasurementScale_PreservesWindingAcrossAllOutputTriangles() {
+            ModelAsset asset = CreateUnitQuadAsset();
+
+            ModelTessellationProcessor.Apply(asset, 1.0d, new float3(5f, 1f, 5f));
+
+            ModelAssetIndexData indexData = ModelAssetIndexData.Resolve(asset);
+            Assert.True(indexData.IndexCount > 6);
+            for (int index = 0; index < indexData.IndexCount; index += 3) {
+                uint firstIndex = GetIndex(indexData, index);
+                uint secondIndex = GetIndex(indexData, index + 1);
+                uint thirdIndex = GetIndex(indexData, index + 2);
+                float3 first = asset.Positions[firstIndex];
+                float3 second = asset.Positions[secondIndex];
+                float3 third = asset.Positions[thirdIndex];
+                float3 edgeA = new float3(second.X - first.X, second.Y - first.Y, second.Z - first.Z);
+                float3 edgeB = new float3(third.X - first.X, third.Y - first.Y, third.Z - first.Z);
+                float crossZ = (edgeA.X * edgeB.Y) - (edgeA.Y * edgeB.X);
+                Assert.True(crossZ > 0f, $"Triangle at index {index} has flipped winding (crossZ={crossZ}).");
+            }
+        }
+
+        /// <summary>
+        /// Creates one flat unit-local quad face (as authored on a unit cube) made of two adjacent triangles
+        /// sharing a diagonal, spanning local X and Y in [-0.5, 0.5].
+        /// </summary>
+        /// <returns>Indexed model asset with complete vertex attributes.</returns>
+        static ModelAsset CreateUnitQuadAsset() {
+            return new ModelAsset {
+                Positions = new[] {
+                    new float3(-0.5f, -0.5f, 0f),
+                    new float3(0.5f, -0.5f, 0f),
+                    new float3(0.5f, 0.5f, 0f),
+                    new float3(-0.5f, 0.5f, 0f)
+                },
+                Normals = new[] {
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(1f, 1f),
+                    new float2(0f, 1f)
+                },
+                Indices16 = new ushort[] { 0, 1, 2, 0, 2, 3 },
+                Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        MaterialSlotName = "default",
+                        IndexStart = 0,
+                        IndexCount = 6
+                    }
+                }
+            };
+        }
+
+        /// <summary>
+        /// Creates one flat quad face made of two adjacent triangles sharing a diagonal, matching a cube face.
+        /// </summary>
+        /// <returns>Indexed model asset with complete vertex attributes.</returns>
+        static ModelAsset CreateQuadAsset() {
+            return new ModelAsset {
+                Positions = new[] {
+                    new float3(0f, 0f, 0f),
+                    new float3(2f, 0f, 0f),
+                    new float3(2f, 2f, 0f),
+                    new float3(0f, 2f, 0f)
+                },
+                Normals = new[] {
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(1f, 1f),
+                    new float2(0f, 1f)
+                },
+                Indices16 = new ushort[] { 0, 1, 2, 0, 2, 3 },
+                Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        MaterialSlotName = "default",
+                        IndexStart = 0,
+                        IndexCount = 6
+                    }
+                }
+            };
+        }
+
+        /// <summary>
         /// Ensures load-time preparation can mutate a private model copy without changing the shared source geometry.
         /// </summary>
         [Fact]
