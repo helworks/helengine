@@ -180,7 +180,9 @@ namespace helengine.editor {
             DragSecondaryDirection = secondaryDirection;
             DragPlaneNormal = planeNormal;
             DragStartEntityPosition = selectionStartPosition;
-            EditorEntityHistoryMutationService.TryCaptureEntityState(selectedEntity, out SerializedEditorEntityState dragStartEntityState);
+            if (!EditorEntityHistoryMutationService.TryCaptureEntityState(selectedEntity, out SerializedEditorEntityState dragStartEntityState)) {
+                Logger.WriteWarning("Translation drag could not capture undo state for the selected entity; this move will not be undoable.");
+            }
             DragStartEntityState = dragStartEntityState;
             EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
             EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredHandle);
@@ -252,6 +254,7 @@ namespace helengine.editor {
         void EndDrag() {
             if (DragChanged) {
                 if (!EditorEntityHistoryMutationService.TryRecordEntityStateChange(DraggedEntity, DragStartEntityState)) {
+                    Logger.WriteWarning("Translation drag move was not recorded into undo history; Ctrl+Z will not revert it.");
                     EditorSceneMutationService.MarkSceneMutated();
                 }
             }

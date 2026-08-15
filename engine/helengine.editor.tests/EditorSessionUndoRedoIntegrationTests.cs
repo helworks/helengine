@@ -256,6 +256,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures one gizmo-drag style entity move (capture state, mutate position, record change) can be undone and redone
+        /// through the global shortcut handlers, mirroring the translation gizmo drag component's history calls.
+        /// </summary>
+        [Fact]
+        public void Gizmo_drag_style_entity_move_can_be_undone_and_redone_through_the_global_shortcuts() {
+            EditorSession session = CreateSessionForUndoRedo();
+
+            InvokePrivate(session, "HandleAddEmptyRequested");
+            EditorEntity movedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            float3 originalPosition = movedEntity.Position;
+            float3 draggedPosition = new float3(5f, 0f, 3f);
+
+            Assert.True(EditorEntityHistoryMutationService.TryCaptureEntityState(movedEntity, out SerializedEditorEntityState dragStartState));
+            movedEntity.Position = draggedPosition;
+            Assert.True(EditorEntityHistoryMutationService.TryRecordEntityStateChange(movedEntity, dragStartState));
+
+            InvokePrivate(session, "HandleGlobalUndoShortcut");
+
+            EditorEntity restoredEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            Assert.Equal(originalPosition.X, restoredEntity.Position.X, 3);
+            Assert.Equal(originalPosition.Y, restoredEntity.Position.Y, 3);
+            Assert.Equal(originalPosition.Z, restoredEntity.Position.Z, 3);
+
+            InvokePrivate(session, "HandleGlobalRedoShortcut");
+
+            EditorEntity redoneEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            Assert.Equal(draggedPosition.X, redoneEntity.Position.X, 3);
+            Assert.Equal(draggedPosition.Y, redoneEntity.Position.Y, 3);
+            Assert.Equal(draggedPosition.Z, redoneEntity.Position.Z, 3);
+        }
+
+        /// <summary>
         /// Ensures modal editor workflows block the global delete shortcut so scene entities are not removed behind open dialogs.
         /// </summary>
         [Fact]
@@ -458,6 +490,7 @@ namespace helengine.editor.tests {
         EditorEntity CreateUserSceneEntity(uint entityId, string name) {
             EditorEntity entity = new EditorEntity {
                 Name = name,
+                IsSceneOwned = true,
                 LayerMask = EditorLayerMasks.SceneObjects
             };
             EntitySaveComponent saveComponent = Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
@@ -579,9 +612,12 @@ namespace helengine.editor.tests {
 
         /// <summary>
         /// Advances the shared input backend through one neutral frame so the next keyboard state is observed as a press transition.
+        /// Closes any still-open chord frame first; otherwise the neutral state is never captured and the next chord
+        /// compares against the previous chord's keys instead of the neutral frame.
         /// </summary>
         void AdvanceToNeutralFrame() {
             InputBackend.SetKeyboardState(new KeyboardState());
+            InputBackend.Update();
             InputBackend.EarlyUpdate();
             InputBackend.Update();
         }

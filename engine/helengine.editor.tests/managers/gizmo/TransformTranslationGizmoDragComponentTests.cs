@@ -23,6 +23,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorSelectionService.ClearSelection();
             EditorGizmoHoverService.ClearHoveredHandle();
             EditorInputCaptureService.Reset();
+            EditorEntityHistoryMutationService.Reset();
 
             if (SceneCameraValue != null) {
                 EditorViewportToolService.ClearToolMode(SceneCameraValue);
@@ -91,6 +92,33 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.True(expectedPresentedWorldPosition.Y < 0f);
             Assert.True(selectedEntity.Position.Y > 0f);
             AssertFloat3ApproximatelyEqual(expectedStoredWorldPosition, selectedEntity.Position, 0.001f);
+        }
+
+        /// <summary>
+        /// Ensures a completed drag that moved the entity records the pre-drag snapshot into undo/redo history so Ctrl+Z can revert the move.
+        /// </summary>
+        [Fact]
+        public void Update_WhenDragWithChangesEnds_RecordsEntityStateChangeIntoUndoHistory() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera();
+            EditorEntity selectedEntity = new EditorEntity {
+                LocalPosition = new float3(0f, 0f, 25f)
+            };
+            Entity handleEntity = CreateHandleEntity();
+            TransformTranslationGizmoDragComponent component = CreateDragComponent(sceneCamera);
+            SerializedEditorEntityState dragStartState = new SerializedEditorEntityState();
+            SerializedEditorEntityState recordedState = null;
+            EditorEntityHistoryMutationService.RecordEntityStateChange = (entity, previousState) => recordedState = previousState;
+
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InitializeActivePlaneDrag(component, selectedEntity, handleEntity, new float3(0f, 0f, 25f), float3.Zero);
+            SetPrivateField(component, "DragStartEntityState", dragStartState);
+            SetPrivateField(component, "DragChanged", true);
+
+            CompleteDragFrame(component, CreateMouseState(250, 200, ButtonState.Released));
+
+            Assert.Same(dragStartState, recordedState);
         }
 
         /// <summary>
