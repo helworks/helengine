@@ -6,13 +6,15 @@ $ErrorActionPreference = "Stop"
 
 $RepositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $WrapperPath = Join-Path $RepositoryRoot "scripts\build-platform.ps1"
-$TestRootPath = Join-Path $RepositoryRoot ("scripts\tests\build-platform-profile-behavior-" + [Guid]::NewGuid().ToString("N"))
+$TestBuildRootPath = "C:\dev\helworks\builds\helengine\tests"
+$TestRootPath = Join-Path $TestBuildRootPath ("build-platform-profile-behavior-" + [Guid]::NewGuid().ToString("N"))
 $FakeToolsPath = Join-Path $TestRootPath "fake-tools"
 $CapturePath = Join-Path $TestRootPath "dotnet-invocations.txt"
 $ProjectPath = Join-Path $TestRootPath "project\project.heproj"
 $EditorProjectPath = Join-Path $TestRootPath "editor\editor.csproj"
 $OutputPath = Join-Path $TestRootPath "output"
-$WorkspaceTempPath = Join-Path $TestRootPath "temp"
+$CacheRootPath = Join-Path $TestRootPath "cache"
+$EnvironmentCapturePath = Join-Path $TestRootPath "editor-environment.txt"
 
 function Invoke-ControlledWrapper {
     param(
@@ -26,7 +28,8 @@ function Invoke-ControlledWrapper {
         -Output $OutputPath `
         -Configuration "Release" `
         -BuildProfile "profiler" `
-        -EditorProject $EditorProjectPath 2>&1
+        -EditorProject $EditorProjectPath `
+        -CacheRoot $CacheRootPath 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "The controlled wrapper failed with exit code $LASTEXITCODE. $WrapperOutput"
     }
@@ -36,7 +39,6 @@ try {
     $null = New-Item -ItemType Directory -Path $FakeToolsPath -Force
     $null = New-Item -ItemType Directory -Path (Split-Path -Parent $ProjectPath) -Force
     $null = New-Item -ItemType Directory -Path (Split-Path -Parent $EditorProjectPath) -Force
-    $null = New-Item -ItemType Directory -Path $WorkspaceTempPath -Force
     Set-Content -LiteralPath $ProjectPath -Value "{}" -NoNewline
     Set-Content -LiteralPath $EditorProjectPath -Value "<Project />" -NoNewline
     Set-Content -LiteralPath (Join-Path $FakeToolsPath "dotnet.cmd") -Value @'
@@ -54,33 +56,36 @@ if not "%OutputPath%"=="" (
     if not exist "%OutputPath%" mkdir "%OutputPath%"
     type nul > "%OutputPath%\helengine.editor.app.dll"
 )
+echo %* | findstr /C:"--build windows" >nul
+if not errorlevel 1 echo %HELENGINE_BUILD_PROFILE%> "%HELENGINE_PROFILE_BEHAVIOR_ENVIRONMENT_CAPTURE%"
 exit /b 0
 '@ -NoNewline
 
     $OriginalPath = $env:PATH
-    $OriginalTemp = $env:TEMP
-    $OriginalTmp = $env:TMP
     $OriginalCapturePath = $env:HELENGINE_PROFILE_BEHAVIOR_CAPTURE
+    $OriginalEnvironmentCapturePath = $env:HELENGINE_PROFILE_BEHAVIOR_ENVIRONMENT_CAPTURE
     $OriginalDotNetExecutablePath = $env:HELENGINE_DOTNET_EXECUTABLE_PATH
     try {
         $env:PATH = $FakeToolsPath + ";" + $OriginalPath
-        $env:TEMP = $WorkspaceTempPath
-        $env:TMP = $WorkspaceTempPath
         $env:HELENGINE_PROFILE_BEHAVIOR_CAPTURE = $CapturePath
+        $env:HELENGINE_PROFILE_BEHAVIOR_ENVIRONMENT_CAPTURE = $EnvironmentCapturePath
         $env:HELENGINE_DOTNET_EXECUTABLE_PATH = Join-Path $FakeToolsPath "dotnet.cmd"
 
         Invoke-ControlledWrapper -ScriptPath $WrapperPath
     } finally {
         $env:PATH = $OriginalPath
-        $env:TEMP = $OriginalTemp
-        $env:TMP = $OriginalTmp
         $env:HELENGINE_PROFILE_BEHAVIOR_CAPTURE = $OriginalCapturePath
+        $env:HELENGINE_PROFILE_BEHAVIOR_ENVIRONMENT_CAPTURE = $OriginalEnvironmentCapturePath
         $env:HELENGINE_DOTNET_EXECUTABLE_PATH = $OriginalDotNetExecutablePath
     }
 
     $EditorInvocation = Get-Content -LiteralPath $CapturePath | Where-Object { $_ -match '--build-profile' } | Select-Object -Last 1
     if ($EditorInvocation -notmatch '--build-profile profiler') {
         throw "Expected the editor invocation to receive '--build-profile profiler', but captured '$EditorInvocation'."
+    }
+    $EditorBuildProfile = (Get-Content -LiteralPath $EnvironmentCapturePath -Raw).Trim()
+    if ($EditorBuildProfile -cne "profiler") {
+        throw "Expected the fake editor process to inherit HELENGINE_BUILD_PROFILE=profiler, but captured '$EditorBuildProfile'."
     }
 
     Write-Output "PROFILE_BEHAVIOR_TEST_PASS"

@@ -19,7 +19,19 @@ param(
     [string]$EditorProject = "",
 
     [Parameter()]
+    [string]$CacheRoot = "",
+
+    [Parameter()]
     [string]$WorkspaceRoot = "",
+
+    [Parameter()]
+    [TimeSpan]$LockTimeout = [TimeSpan]::FromHours(2),
+
+    [Parameter()]
+    [switch]$Clean,
+
+    [Parameter()]
+    [int]$PruneCacheOlderThanDays = 0,
 
     [Parameter()]
     [string[]]$AdditionalArgs = @()
@@ -27,128 +39,25 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformCache.psm1") -Force
 
-function Get-SafePathSegment {
+function Get-CanonicalDirectoryPath {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Value
+        [string]$Path
     )
 
-    if ([string]::IsNullOrWhiteSpace($Value)) {
-        throw "Path segment must be provided."
+    $FullPath = [System.IO.Path]::GetFullPath($Path)
+    $RootPath = [System.IO.Path]::GetPathRoot($FullPath)
+    if ($FullPath.Length -le $RootPath.Length) {
+        return $RootPath
     }
 
-    $InvalidCharacters = [System.IO.Path]::GetInvalidFileNameChars()
-    $Builder = New-Object System.Text.StringBuilder
-    foreach ($Character in $Value.ToCharArray()) {
-        if ($InvalidCharacters -contains $Character) {
-            $null = $Builder.Append('_')
-        } else {
-            $null = $Builder.Append($Character)
-        }
-    }
-
-    return $Builder.ToString()
-}
-
-function Get-ProjectIsolationHash {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ProjectRootPath
+    $DirectorySeparators = [char[]]@(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
     )
-
-    if ([string]::IsNullOrWhiteSpace($ProjectRootPath)) {
-        throw "Project root path must be provided."
-    }
-
-    $FullProjectRootPath = [System.IO.Path]::GetFullPath($ProjectRootPath)
-    $ProjectRootBytes = [System.Text.Encoding]::UTF8.GetBytes($FullProjectRootPath)
-    $Sha256 = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        $HashBytes = $Sha256.ComputeHash($ProjectRootBytes)
-    } finally {
-        $Sha256.Dispose()
-    }
-    $Builder = New-Object System.Text.StringBuilder
-    for ($Index = 0; $Index -lt 16; $Index++) {
-        $null = $Builder.Append($HashBytes[$Index].ToString("x2"))
-    }
-
-    return $Builder.ToString()
-}
-
-function Copy-ProjectIntoIsolatedWorkspace {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$SourceProjectRootPath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$DestinationProjectRootPath
-    )
-
-    if ([string]::IsNullOrWhiteSpace($SourceProjectRootPath)) {
-        throw "Source project root path must be provided."
-    } elseif ([string]::IsNullOrWhiteSpace($DestinationProjectRootPath)) {
-        throw "Destination project root path must be provided."
-    }
-
-    if (-not (Test-Path -LiteralPath $SourceProjectRootPath -PathType Container)) {
-        throw "Source project root directory was not found at '$SourceProjectRootPath'."
-    }
-    if (Test-Path -LiteralPath $DestinationProjectRootPath) {
-        throw "Destination project workspace already exists at '$DestinationProjectRootPath'."
-    }
-
-    $ExcludedDirectoryPaths = @(
-        (Join-Path $SourceProjectRootPath ".git"),
-        (Join-Path $SourceProjectRootPath ".vs"),
-        (Join-Path $SourceProjectRootPath ".worktrees"),
-        (Join-Path $SourceProjectRootPath "_codex_backups"),
-        (Join-Path $SourceProjectRootPath "cache"),
-        (Join-Path $SourceProjectRootPath "output"),
-        (Join-Path $SourceProjectRootPath "builds"),
-        (Join-Path $SourceProjectRootPath "build-logs"),
-        (Join-Path $SourceProjectRootPath "tmp"),
-        (Join-Path $SourceProjectRootPath "user_settings\generated_code")
-    )
-    $ArtifactDirectoryPatterns = @(
-        "3ds-build*",
-        "ps2-build*",
-        "switch-build*",
-        "vita-build*",
-        "wiiu-build*"
-    )
-    $ArtifactDirectoryPaths = @()
-    foreach ($ArtifactDirectoryPattern in $ArtifactDirectoryPatterns) {
-        $ArtifactDirectoryPaths += Get-ChildItem -LiteralPath $SourceProjectRootPath -Directory -Filter $ArtifactDirectoryPattern |
-            Select-Object -ExpandProperty FullName
-    }
-    $RobocopyArguments = @(
-        $SourceProjectRootPath,
-        $DestinationProjectRootPath,
-        "/E",
-        "/COPY:DAT",
-        "/DCOPY:DAT",
-        "/R:1",
-        "/W:1",
-        "/NFL",
-        "/NDL",
-        "/NJH",
-        "/NJS",
-        "/NP",
-        "/XD"
-    ) + $ExcludedDirectoryPaths + $ArtifactDirectoryPaths + @(
-        "/XF",
-        "*.iso",
-        "*.gcm",
-        "*.vpk"
-    )
-
-    & robocopy @RobocopyArguments
-    $RobocopyExitCode = $LASTEXITCODE
-    if ($RobocopyExitCode -gt 7) {
-        throw "Project workspace copy failed with robocopy exit code $RobocopyExitCode."
-    }
+    return $FullPath.TrimEnd($DirectorySeparators)
 }
 
 function Get-EditorArtifactsOutputPath {
@@ -294,6 +203,23 @@ if ([string]::IsNullOrWhiteSpace($Project)) { [Console]::Error.WriteLine("Projec
 if ([string]::IsNullOrWhiteSpace($Platform)) { [Console]::Error.WriteLine("Platform is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Output)) { [Console]::Error.WriteLine("Output is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Configuration)) { [Console]::Error.WriteLine("Configuration is required."); exit 2 }
+if ($PruneCacheOlderThanDays -lt 0) { [Console]::Error.WriteLine("PruneCacheOlderThanDays must be zero or positive."); exit 2 }
+
+if (-not [string]::IsNullOrWhiteSpace($CacheRoot) -and
+    -not [string]::IsNullOrWhiteSpace($WorkspaceRoot) -and
+    (Get-CanonicalDirectoryPath -Path $CacheRoot) -ine (Get-CanonicalDirectoryPath -Path $WorkspaceRoot)) {
+    [Console]::Error.WriteLine("CacheRoot and deprecated WorkspaceRoot must resolve to the same path when both are supplied.")
+    exit 2
+}
+
+$SelectedCacheRoot = if (-not [string]::IsNullOrWhiteSpace($CacheRoot)) {
+    $CacheRoot
+} elseif (-not [string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
+    Write-Warning "WorkspaceRoot is deprecated; use CacheRoot."
+    $WorkspaceRoot
+} else {
+    "C:\dev\helworks\builds\helengine\cache"
+}
 
 if (-not [string]::IsNullOrWhiteSpace($BuildProfile)) {
     $ResolvedBuildProfile = $BuildProfile
@@ -308,6 +234,13 @@ $DotNetExecutablePath = $env:HELENGINE_DOTNET_EXECUTABLE_PATH
 if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
     $DotNetExecutablePath = "dotnet"
 }
+
+$OriginalHelEngineBuildEnvironment = @{}
+foreach ($EnvironmentVariable in Get-ChildItem Env: | Where-Object { $_.Name -like "HELENGINE_BUILD_*" }) {
+    $OriginalHelEngineBuildEnvironment[$EnvironmentVariable.Name] = $EnvironmentVariable.Value
+}
+$OriginalHelEngineSourceRootExists = Test-Path -LiteralPath "Env:HELENGINE_SOURCE_ROOT"
+$OriginalHelEngineSourceRootPath = $env:HELENGINE_SOURCE_ROOT
 
 try {
     if ([string]::IsNullOrWhiteSpace($EditorProject)) {
@@ -332,34 +265,35 @@ try {
     }
 
     $ResolvedProjectRootPath = Split-Path -Parent $ResolvedProjectPath
-    $ProjectIsolationHash = Get-ProjectIsolationHash -ProjectRootPath $ResolvedProjectRootPath
-    $PlatformIsolationSegment = Get-SafePathSegment -Value $Platform
     $ResolvedHelEngineRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-    if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
-        $ResolvedWorkspaceRootPath = Join-Path (Split-Path -Parent $ResolvedHelEngineRootPath) "b"
-    } else {
-        $ResolvedWorkspaceRootPath = [System.IO.Path]::GetFullPath($WorkspaceRoot)
-    }
-
-    $env:HELENGINE_BUILD_WORKSPACE_ROOT = $ResolvedWorkspaceRootPath
-
-    $BuildExecutionId = [Guid]::NewGuid().ToString("N")
-    $BuildInvocationRootPath = Join-Path $ResolvedWorkspaceRootPath ($ProjectIsolationHash + "\" + $PlatformIsolationSegment + "\" + $BuildExecutionId)
-    $IsolatedProjectRootPath = Join-Path $BuildInvocationRootPath "project"
-    $IsolatedProjectPath = Join-Path $IsolatedProjectRootPath (Split-Path -Leaf $ResolvedProjectPath)
-    Copy-ProjectIntoIsolatedWorkspace -SourceProjectRootPath $ResolvedProjectRootPath -DestinationProjectRootPath $IsolatedProjectRootPath
-    if (-not (Test-Path -LiteralPath $IsolatedProjectPath -PathType Leaf)) {
-        throw "Isolated project file was not copied to '$IsolatedProjectPath'."
-    }
-
-    $EditorIsolationRootPath = Join-Path $BuildInvocationRootPath "editor-app"
-    $EditorArtifactsPath = Join-Path $EditorIsolationRootPath "artifacts"
-    $EditorPublishPath = Join-Path $EditorIsolationRootPath "publish"
-
-    $ResolvedOutputPath = [System.IO.Path]::GetFullPath($Output)
+    $ResolvedOutputPath = Get-CanonicalDirectoryPath -Path $Output
     if (-not (Test-Path -LiteralPath $ResolvedOutputPath -PathType Container)) {
         $null = New-Item -ItemType Directory -Path $ResolvedOutputPath -Force
     }
+
+    $Layout = Resolve-BuildPlatformCacheLayout `
+        -CacheRootPath $SelectedCacheRoot `
+        -ProjectRootPath $ResolvedProjectRootPath `
+        -Platform $Platform `
+        -Configuration $Configuration `
+        -BuildProfile $ResolvedBuildProfile
+    Write-BuildPlatformCacheMetadata -Layout $Layout -ProjectRootPath $ResolvedProjectRootPath
+
+    $EditorArtifactsPath = $Layout.EditorArtifactsPath
+    $EditorPublishPath = $Layout.EditorPublishPath
+    $EditorCachePath = Split-Path -Parent $EditorArtifactsPath
+    $StateFilePath = Join-Path $ResolvedOutputPath ".helengine-build-state.json"
+
+    Write-Host "Authored project: $ResolvedProjectPath"
+    Write-Host "Lock: $($Layout.LockPath)"
+    Write-Host "Editor cache: $EditorCachePath"
+    Write-Host "Platform cache: $($Layout.PlatformCacheRootPath)"
+    Write-Host "Output: $ResolvedOutputPath"
+    Write-Host "State file: $StateFilePath"
+
+    $env:HELENGINE_BUILD_CACHE_ROOT = $Layout.CacheRootPath
+    $env:HELENGINE_BUILD_CONFIGURATION = $Configuration.ToLowerInvariant()
+    $env:HELENGINE_BUILD_PROFILE = $ResolvedBuildProfile
 
     $DotNetSharedPropertyArguments = @(
         "--artifacts-path",
@@ -383,7 +317,7 @@ try {
 
     $EditorRunArguments = @(
         "--project",
-        $IsolatedProjectPath,
+        $ResolvedProjectPath,
         "--build",
         $Platform
     )
@@ -453,21 +387,28 @@ try {
 
     Write-Host ("Executing: " + ($DisplayArguments -join " "))
 
-    $OriginalHelEngineSourceRootPath = $env:HELENGINE_SOURCE_ROOT
-    try {
-        $env:HELENGINE_SOURCE_ROOT = $ResolvedHelEngineRootPath
+    $env:HELENGINE_SOURCE_ROOT = $ResolvedHelEngineRootPath
 
-        $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
-        if ($DotNetExitCode -ne 0) {
-            [Console]::Error.WriteLine("Editor platform build failed with exit code $DotNetExitCode.")
-            exit $DotNetExitCode
-        }
-    } finally {
-        $env:HELENGINE_SOURCE_ROOT = $OriginalHelEngineSourceRootPath
+    $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
+    if ($DotNetExitCode -ne 0) {
+        [Console]::Error.WriteLine("Editor platform build failed with exit code $DotNetExitCode.")
+        exit $DotNetExitCode
     }
 
     exit 0
 } catch {
     [Console]::Error.WriteLine($_.Exception.Message)
     exit 10
+} finally {
+    foreach ($EnvironmentVariable in Get-ChildItem Env: | Where-Object { $_.Name -like "HELENGINE_BUILD_*" }) {
+        Remove-Item -LiteralPath ("Env:" + $EnvironmentVariable.Name) -ErrorAction SilentlyContinue
+    }
+    foreach ($EnvironmentVariableName in $OriginalHelEngineBuildEnvironment.Keys) {
+        Set-Item -LiteralPath ("Env:" + $EnvironmentVariableName) -Value $OriginalHelEngineBuildEnvironment[$EnvironmentVariableName]
+    }
+    if ($OriginalHelEngineSourceRootExists) {
+        $env:HELENGINE_SOURCE_ROOT = $OriginalHelEngineSourceRootPath
+    } else {
+        Remove-Item -LiteralPath "Env:HELENGINE_SOURCE_ROOT" -ErrorAction SilentlyContinue
+    }
 }

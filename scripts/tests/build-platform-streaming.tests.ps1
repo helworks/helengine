@@ -14,12 +14,6 @@ foreach ($RequiredToken in @(
         "BeginErrorReadLine",
         "Register-ObjectEvent",
         "WaitForExit()",
-        "Copy-ProjectIntoIsolatedWorkspace",
-        '[Guid]::NewGuid().ToString("N")',
-        '$IsolatedProjectPath',
-        'ps2-build*',
-        'vita-build*',
-        '"*.iso"',
         "--build-profile"
     )) {
     if (-not $Source.Contains($RequiredToken)) {
