@@ -12,6 +12,7 @@ $WindowsBuilderAssemblyPath = Join-Path $WindowsPlatformSourcePath "builder\bin\
 $CodegenToolPath = "C:\dev\helworks\csharpcodegen\codegen\bin\Release\net9.0\codegen.exe"
 $TemporaryRootPath = [System.IO.Path]::GetFullPath("C:\tmp")
 $TestRootPath = Join-Path $TemporaryRootPath ("hbp-" + [Guid]::NewGuid().ToString("N"))
+$TestRootCreated = $false
 $ProjectRootPath = Join-Path $TestRootPath "authored-project"
 $ProjectPath = Join-Path $ProjectRootPath "project.heproj"
 $CacheRootPath = Join-Path $TestRootPath "cache"
@@ -171,6 +172,8 @@ try {
     if (Test-Path -LiteralPath $TestRootPath) {
         throw "Disposable native smoke root '$TestRootPath' unexpectedly already exists."
     }
+    $null = New-Item -ItemType Directory -Path $TestRootPath -ErrorAction Stop
+    $TestRootCreated = $true
 
     $FixtureRelativePaths = @(
         "project.heproj",
@@ -261,10 +264,12 @@ try {
     Write-Output "NATIVE_CACHE_SMOKE_TEST_PASS"
 } finally {
     $env:HELENGINE_ENGINE_USER_SETTINGS_ROOT = $OriginalEngineUserSettingsRoot
-    if (Test-Path -LiteralPath $TestRootPath) {
+    if ($TestRootCreated) {
         if (-not (Test-StrictDescendantPath -ParentPath $TemporaryRootPath -CandidatePath $TestRootPath)) {
             throw "Refusing to remove disposable native smoke root '$TestRootPath' outside temporary root '$TemporaryRootPath'."
         }
-        Remove-Item -LiteralPath $TestRootPath -Recurse -Force
+        if (Test-Path -LiteralPath $TestRootPath) {
+            Remove-Item -LiteralPath $TestRootPath -Recurse -Force
+        }
     }
 }
