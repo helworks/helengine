@@ -222,9 +222,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"{ProfileEnvironmentVariableName} must be configured when stable build cache mode is enabled.");
             }
 
-            string projectsRootPath = CombineStrictDescendantPath(ResolveCanonicalDirectoryPath(cacheRootPath), "projects");
-            string projectRootPath = CombineStrictDescendantPath(projectsRootPath, StableProjectHashSegment);
-            string platformsRootPath = CombineStrictDescendantPath(projectRootPath, "platforms");
+            string versionRootPath = CombineStrictDescendantPath(ResolveCanonicalDirectoryPath(cacheRootPath), "v2");
+            string projectRootPath = CombineStrictDescendantPath(versionRootPath, StableProjectHashSegment);
+            string platformsRootPath = CombineStrictDescendantPath(projectRootPath, "b");
             string platformRootPath = CombineStrictDescendantPath(platformsRootPath, SanitizeStablePathSegment(platformId));
             string configurationRootPath = CombineStrictDescendantPath(platformRootPath, SanitizeStablePathSegment(configuration));
             return CombineStrictDescendantPath(configurationRootPath, SanitizeStablePathSegment(profile));

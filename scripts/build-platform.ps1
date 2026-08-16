@@ -202,6 +202,7 @@ try {
     $Layout = Resolve-BuildPlatformCacheLayout `
         -CacheRootPath $SelectedCacheRoot `
         -ProjectRootPath $ResolvedProjectRootPath `
+        -EditorProjectPath $ResolvedEditorProject `
         -Platform $Platform `
         -Configuration $Configuration `
         -BuildProfile $ResolvedBuildProfile

@@ -24,6 +24,7 @@ $EnvironmentCleanupGuardPath = Join-Path $TestRootPath "capture-environment-clea
 $RobocopyMarkerPath = Join-Path $TestRootPath "robocopy-invoked.txt"
 $ProjectPath = Join-Path $TestRootPath "authored-project\project.heproj"
 $EditorProjectPath = Join-Path $TestRootPath "editor\editor.csproj"
+$EditorProjectBPath = Join-Path $TestRootPath "editor-b\editor.csproj"
 $CacheRootPath = Join-Path $TestRootPath "cache"
 $EquivalentWorkspaceRootPath = $CacheRootPath + [System.IO.Path]::DirectorySeparatorChar
 $OutputPath = Join-Path $TestRootPath "output"
@@ -334,6 +335,7 @@ foreach ($DotSegment in @(".", "..")) {
         $LayoutArguments = @{
             CacheRootPath = $CacheRootPath
             ProjectRootPath = Split-Path -Parent $ProjectPath
+            EditorProjectPath = $EditorProjectPath
             Platform = "windows"
             Configuration = "Release"
             BuildProfile = "profiler"
@@ -396,8 +398,45 @@ try {
     $null = New-Item -ItemType Directory -Path $FakeToolsPath -Force
     $null = New-Item -ItemType Directory -Path (Split-Path -Parent $ProjectPath) -Force
     $null = New-Item -ItemType Directory -Path (Split-Path -Parent $EditorProjectPath) -Force
+    $null = New-Item -ItemType Directory -Path (Split-Path -Parent $EditorProjectBPath) -Force
     Set-Content -LiteralPath $ProjectPath -Value "{}" -NoNewline
     Set-Content -LiteralPath $EditorProjectPath -Value "<Project />" -NoNewline
+    Set-Content -LiteralPath $EditorProjectBPath -Value "<Project />" -NoNewline
+    $ProjectRootPath = Split-Path -Parent $ProjectPath
+    $LayoutA = Resolve-BuildPlatformCacheLayout `
+        -CacheRootPath $CacheRootPath `
+        -ProjectRootPath $ProjectRootPath `
+        -EditorProjectPath $EditorProjectPath `
+        -Platform windows `
+        -Configuration Release `
+        -BuildProfile profiler
+    $LayoutARepeat = Resolve-BuildPlatformCacheLayout `
+        -CacheRootPath $CacheRootPath `
+        -ProjectRootPath $ProjectRootPath `
+        -EditorProjectPath $EditorProjectPath `
+        -Platform windows `
+        -Configuration Release `
+        -BuildProfile profiler
+    $LayoutB = Resolve-BuildPlatformCacheLayout `
+        -CacheRootPath $CacheRootPath `
+        -ProjectRootPath $ProjectRootPath `
+        -EditorProjectPath $EditorProjectBPath `
+        -Platform windows `
+        -Configuration Release `
+        -BuildProfile profiler
+    $LegacyVerbosePath = Join-Path $CacheRootPath ("projects\" + $LayoutA.ProjectHash + "\platforms\windows\release\profiler")
+    if ($LayoutA.EditorArtifactsPath -cne $LayoutARepeat.EditorArtifactsPath) {
+        throw "Editor cache was not stable."
+    }
+    if ($LayoutA.EditorArtifactsPath -ceq $LayoutB.EditorArtifactsPath) {
+        throw "Different editor checkouts shared artifacts."
+    }
+    if ($LayoutA.PlatformCacheRootPath -cne $LayoutB.PlatformCacheRootPath) {
+        throw "Editor identity leaked into platform cache identity."
+    }
+    if ($LayoutA.PlatformCacheRootPath.Length -ge $LegacyVerbosePath.Length) {
+        throw "The v2 platform path was not compacted."
+    }
     Set-Content -LiteralPath $EnvironmentEnumerationGuardPath -Value @'
 [CmdletBinding()]
 param(
@@ -588,13 +627,14 @@ exit /b 8
         $CanonicalOutputPath = [System.IO.Path]::GetFullPath($OutputPath)
         $CanonicalCacheRootPath = [System.IO.Path]::GetFullPath($CacheRootPath)
         $ProjectHash = Get-ExpectedProjectHash -ProjectRootPath $CanonicalProjectRootPath
-        $ProjectCacheRootPath = Join-Path $CanonicalCacheRootPath ("projects\" + $ProjectHash)
-        $ExpectedEditorCachePath = Join-Path $ProjectCacheRootPath "editor\release"
-        $ExpectedEditorArtifactsPath = Join-Path $ExpectedEditorCachePath "artifacts"
-        $ExpectedEditorPublishPath = Join-Path $ExpectedEditorCachePath "publish"
-        $ExpectedPlatformCachePath = Join-Path $ProjectCacheRootPath "platforms\windows\release\profiler"
-        $ExpectedLockPath = Join-Path $CanonicalCacheRootPath ("locks\" + $ProjectHash + ".lock")
-        $ExpectedMetadataPath = Join-Path $ProjectCacheRootPath "cache-metadata.json"
+        $EditorProjectHash = Get-ExpectedProjectHash -ProjectRootPath $EditorProjectPath
+        $ProjectCacheRootPath = Join-Path $CanonicalCacheRootPath ("v2\" + $ProjectHash)
+        $ExpectedEditorCachePath = Join-Path $ProjectCacheRootPath ("e\" + $EditorProjectHash + "\release")
+        $ExpectedEditorArtifactsPath = Join-Path $ExpectedEditorCachePath "a"
+        $ExpectedEditorPublishPath = Join-Path $ExpectedEditorCachePath "p"
+        $ExpectedPlatformCachePath = Join-Path $ProjectCacheRootPath "b\windows\release\profiler"
+        $ExpectedLockPath = Join-Path $CanonicalCacheRootPath ("v2\l\" + $ProjectHash + ".lock")
+        $ExpectedMetadataPath = Join-Path $ProjectCacheRootPath "m.json"
         $ExpectedStatePath = Join-Path $CanonicalOutputPath ".helengine-build-state.json"
 
         $InitialInvocations = @(Get-Content -LiteralPath $CapturePath)
@@ -622,7 +662,7 @@ exit /b 8
         }
 
         $GuidLikeInvocationDirectories = @(Get-ChildItem -LiteralPath $CacheRootPath -Recurse -Directory |
-            Where-Object { $_.Name -match '^[0-9a-f]{32}$' -and $_.Parent.Name -ne 'projects' })
+            Where-Object { $_.Name -match '^[0-9a-f]{32}$' -and $_.Parent.Name -ne 'v2' -and $_.Parent.Name -ne 'e' })
         if ($GuidLikeInvocationDirectories.Count -ne 0) {
             throw "The cache contains a GUID-like invocation directory: '$($GuidLikeInvocationDirectories.FullName -join "', '")'."
         }

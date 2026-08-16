@@ -95,7 +95,7 @@ function Write-CacheMetadata {
     [ordered]@{
         projectRootPath = [System.IO.Path]::GetFullPath($ProjectRootPath)
         lastUsedUtc = $LastUsedUtc.ToUniversalTime().ToString("o")
-    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $ProjectCacheRootPath "cache-metadata.json") -Encoding UTF8
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $ProjectCacheRootPath "m.json") -Encoding UTF8
 }
 
 function Invoke-Wrapper {
@@ -179,21 +179,24 @@ exit 0
     $LayoutA = Resolve-BuildPlatformCacheLayout `
         -CacheRootPath $CacheRootPath `
         -ProjectRootPath $ProjectARootPath `
+        -EditorProjectPath $EditorProjectPath `
         -Platform "ps2" `
         -Configuration "Debug" `
         -BuildProfile "profiler"
     $LayoutB = Resolve-BuildPlatformCacheLayout `
         -CacheRootPath $CacheRootPath `
         -ProjectRootPath $ProjectBRootPath `
+        -EditorProjectPath $EditorProjectPath `
         -Platform "windows" `
         -Configuration "Release" `
         -BuildProfile "default"
 
     $SelectedEditorSentinel = Join-Path $LayoutA.EditorArtifactsPath "selected-editor.txt"
     $SelectedPlatformSentinel = Join-Path $LayoutA.PlatformCacheRootPath "selected-platform.txt"
-    $OtherConfigurationSentinel = Join-Path $LayoutA.ProjectCacheRootPath "editor\release\other-configuration.txt"
-    $OtherProfileSentinel = Join-Path $LayoutA.ProjectCacheRootPath "platforms\ps2\debug\default\other-profile.txt"
-    $OtherPlatformSentinel = Join-Path $LayoutA.ProjectCacheRootPath "platforms\windows\debug\profiler\other-platform.txt"
+    $EditorProjectHash = Get-BuildPlatformPathHash -Path $EditorProjectPath
+    $OtherConfigurationSentinel = Join-Path $LayoutA.ProjectCacheRootPath ("e\" + $EditorProjectHash + "\release\other-configuration.txt")
+    $OtherProfileSentinel = Join-Path $LayoutA.ProjectCacheRootPath "b\ps2\debug\default\other-profile.txt"
+    $OtherPlatformSentinel = Join-Path $LayoutA.ProjectCacheRootPath "b\windows\debug\profiler\other-platform.txt"
     $OtherProjectSentinel = Join-Path $LayoutB.ProjectCacheRootPath "project-b.txt"
     foreach ($SentinelPath in @(
             $SelectedEditorSentinel,
@@ -235,7 +238,7 @@ exit 0
     Assert-PathExists -LiteralPath $ProtectedOutputSentinel
     Assert-PathExists -LiteralPath $ProtectedPlatformSentinel
 
-    $SiblingProtectedOutputPath = Join-Path $LayoutA.ProjectCacheRootPath "editor\debug-sibling\output"
+    $SiblingProtectedOutputPath = Join-Path $LayoutA.ProjectCacheRootPath ("e\" + $EditorProjectHash + "\debug-sibling\output")
     $SiblingSelectedEditorSentinel = Join-Path $LayoutA.EditorArtifactsPath "sibling-boundary-editor.txt"
     $SiblingSelectedPlatformSentinel = Join-Path $LayoutA.PlatformCacheRootPath "sibling-boundary-platform.txt"
     New-Sentinel -LiteralPath (Join-Path $SiblingProtectedOutputPath "output-sentinel.txt")
@@ -248,8 +251,8 @@ exit 0
     Assert-PathMissing -LiteralPath $SiblingSelectedPlatformSentinel
     Assert-PathExists -LiteralPath (Join-Path $SiblingProtectedOutputPath "output-sentinel.txt")
 
-    $SafeEditorTargetPath = Join-Path $LayoutA.ProjectCacheRootPath "editor\debug"
-    $SafePlatformTargetPath = Join-Path $LayoutA.ProjectCacheRootPath "platforms\ps2\debug\profiler"
+    $SafeEditorTargetPath = Join-Path $LayoutA.ProjectCacheRootPath ("e\" + $EditorProjectHash + "\debug")
+    $SafePlatformTargetPath = Join-Path $LayoutA.ProjectCacheRootPath "b\ps2\debug\profiler"
     foreach ($UnsafeTarget in @(
             $LayoutA.ProjectCacheRootPath,
             (Join-Path $LayoutA.ProjectCacheRootPath "..\outside-via-dotdot"),
@@ -268,7 +271,7 @@ exit 0
     }
 
     $JunctionBackingPath = Join-Path $TestRootPath "junction-backing"
-    $JunctionPath = Join-Path $LayoutA.ProjectCacheRootPath "editor\debug"
+    $JunctionPath = Join-Path $LayoutA.ProjectCacheRootPath ("e\" + $EditorProjectHash + "\debug")
     $null = New-Item -ItemType Directory -Path $JunctionBackingPath -Force
     New-Sentinel -LiteralPath (Join-Path $JunctionBackingPath "junction-sentinel.txt")
     $null = New-Item -ItemType Directory -Path (Split-Path -Parent $JunctionPath) -Force
@@ -301,7 +304,7 @@ exit 0
     $AllowedRootJunctionLayout = [pscustomobject]@{
         ProjectCacheRootPath = $AllowedRootJunctionPath
         EditorConfigurationRootPath = $AllowedRootTargetPath
-        PlatformCacheRootPath = (Join-Path $AllowedRootJunctionPath "platforms\ps2\debug\profiler")
+        PlatformCacheRootPath = (Join-Path $AllowedRootJunctionPath "b\ps2\debug\profiler")
     }
     Assert-Throws -CaseName "Reparse-point allowed root" -Action {
         Remove-BuildPlatformSelectedCache `
@@ -325,7 +328,7 @@ exit 0
     $AncestorJunctionLayout = [pscustomobject]@{
         ProjectCacheRootPath = $AncestorAllowedRootPath
         EditorConfigurationRootPath = $AncestorEditorTargetPath
-        PlatformCacheRootPath = (Join-Path $AncestorAllowedRootPath "platforms\ps2\debug\profiler")
+        PlatformCacheRootPath = (Join-Path $AncestorAllowedRootPath "b\ps2\debug\profiler")
     }
     Assert-Throws -CaseName "Reparse-point ancestor above allowed root" -Action {
         Remove-BuildPlatformSelectedCache `
@@ -397,7 +400,7 @@ exit 0
     $FreshHash = Get-BuildPlatformProjectHash -ProjectRootPath $FreshRoot
     $HeldHash = Get-BuildPlatformProjectHash -ProjectRootPath $HeldRoot
     $MismatchHash = Get-BuildPlatformProjectHash -ProjectRootPath $MismatchRoot
-    $ProjectsRootPath = Join-Path $PruneRootPath "projects"
+    $ProjectsRootPath = Join-Path $PruneRootPath "v2"
     Write-CacheMetadata -ProjectCacheRootPath (Join-Path $ProjectsRootPath $ExpiredHash) -ProjectRootPath $ExpiredRoot -LastUsedUtc $NowUtc.AddDays(-31)
     Write-CacheMetadata -ProjectCacheRootPath (Join-Path $ProjectsRootPath $FreshHash) -ProjectRootPath $FreshRoot -LastUsedUtc $NowUtc.AddDays(-29)
     Write-CacheMetadata -ProjectCacheRootPath (Join-Path $ProjectsRootPath $HeldHash) -ProjectRootPath $HeldRoot -LastUsedUtc $NowUtc.AddDays(-31)
@@ -412,11 +415,11 @@ exit 0
     $null = New-Item -ItemType Directory -Path $InvalidDirectoryPath -Force
     $null = New-Item -ItemType Directory -Path $BlankRootPath -Force
     $null = New-Item -ItemType Directory -Path $InvalidDatePath -Force
-    Set-Content -LiteralPath (Join-Path $MalformedPath "cache-metadata.json") -Value "not json" -NoNewline
+    Set-Content -LiteralPath (Join-Path $MalformedPath "m.json") -Value "not json" -NoNewline
     [ordered]@{ projectRootPath = " "; lastUsedUtc = $NowUtc.AddDays(-31).ToString("o") } |
-        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $BlankRootPath "cache-metadata.json") -Encoding UTF8
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $BlankRootPath "m.json") -Encoding UTF8
     [ordered]@{ projectRootPath = $ExpiredRoot; lastUsedUtc = "not-a-date" } |
-        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $InvalidDatePath "cache-metadata.json") -Encoding UTF8
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $InvalidDatePath "m.json") -Encoding UTF8
     foreach ($Path in @($MalformedPath, $MissingPath, $InvalidDirectoryPath, $BlankRootPath, $InvalidDatePath)) {
         New-Sentinel -LiteralPath (Join-Path $Path "preserve.txt")
     }
@@ -434,7 +437,7 @@ exit 0
         throw "Failed to create disposable prune junction. $($JunctionOutput -join ' ')"
     }
 
-    $HeldLockPath = Join-Path (Join-Path $PruneRootPath "locks") ($HeldHash + ".lock")
+    $HeldLockPath = Join-Path (Join-Path $PruneRootPath "v2\l") ($HeldHash + ".lock")
     $HeldLock = Enter-BuildPlatformProjectLock `
         -LockPath $HeldLockPath `
         -Metadata ([ordered]@{ projectPath = $HeldRoot }) `
@@ -462,7 +465,7 @@ exit 0
             $BlankRootPath,
             $InvalidDatePath,
             $PruneJunctionPath,
-            (Join-Path $PruneJunctionBackingPath "cache-metadata.json")
+            (Join-Path $PruneJunctionBackingPath "m.json")
         )) {
         Assert-PathExists -LiteralPath $PreservedPath
     }
@@ -519,7 +522,7 @@ exit 0
     $null = New-Item -ItemType Directory -Path $AtomicRoot -Force
     $AtomicHash = Get-BuildPlatformProjectHash -ProjectRootPath $AtomicRoot
     $AtomicCachePath = Join-Path $ProjectsRootPath $AtomicHash
-    $AtomicLockPath = Join-Path (Join-Path $PruneRootPath "locks") ($AtomicHash + ".lock")
+    $AtomicLockPath = Join-Path (Join-Path $PruneRootPath "v2\l") ($AtomicHash + ".lock")
     Write-CacheMetadata `
         -ProjectCacheRootPath $AtomicCachePath `
         -ProjectRootPath $AtomicRoot `
@@ -645,7 +648,7 @@ exit /b 0
         $WrapperExpiredRoot = Join-Path $SourceRootPath "wrapper-expired"
         $null = New-Item -ItemType Directory -Path $WrapperExpiredRoot -Force
         $WrapperExpiredHash = Get-BuildPlatformProjectHash -ProjectRootPath $WrapperExpiredRoot
-        $WrapperExpiredCachePath = Join-Path (Join-Path $CacheRootPath "projects") $WrapperExpiredHash
+        $WrapperExpiredCachePath = Join-Path (Join-Path $CacheRootPath "v2") $WrapperExpiredHash
         Write-CacheMetadata `
             -ProjectCacheRootPath $WrapperExpiredCachePath `
             -ProjectRootPath $WrapperExpiredRoot `

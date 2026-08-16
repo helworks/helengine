@@ -126,7 +126,7 @@ namespace helengine.editor.tests.managers.project {
 
             Assert.Equal(firstOutputRootPath, secondOutputRootPath);
             Assert.EndsWith(
-                Path.Combine("projects", "8db35f03fc461cbce04997a159b92bcc", "platforms", "ps2", "debug", "profiler", "generated-dotnet"),
+                Path.Combine("v2", "8db35f03fc461cbce04997a159b92bcc", "b", "ps2", "debug", "profiler", "generated-dotnet"),
                 firstOutputRootPath,
                 StringComparison.OrdinalIgnoreCase);
         }

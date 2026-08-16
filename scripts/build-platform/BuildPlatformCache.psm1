@@ -47,22 +47,21 @@ function Join-BuildPlatformStrictDescendantPath {
     return $CanonicalCandidatePath
 }
 
-function Get-BuildPlatformProjectHash {
+function Get-BuildPlatformPathHash {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$ProjectRootPath
+        [string]$Path
     )
 
-    if ([string]::IsNullOrWhiteSpace($ProjectRootPath)) {
-        throw "Project root path must be provided."
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        throw "Path must be provided."
     }
 
-    $FullProjectRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $ProjectRootPath
-    $ProjectIdentityPath = $FullProjectRootPath.ToLowerInvariant()
-    $ProjectRootBytes = [System.Text.Encoding]::UTF8.GetBytes($ProjectIdentityPath)
+    $CanonicalPath = (Get-BuildPlatformCanonicalDirectoryPath -Path $Path).ToLowerInvariant()
+    $PathBytes = [System.Text.Encoding]::UTF8.GetBytes($CanonicalPath)
     $Sha256 = [System.Security.Cryptography.SHA256]::Create()
     try {
-        $HashBytes = $Sha256.ComputeHash($ProjectRootBytes)
+        $HashBytes = $Sha256.ComputeHash($PathBytes)
     } finally {
         $Sha256.Dispose()
     }
@@ -72,6 +71,15 @@ function Get-BuildPlatformProjectHash {
         $null = $Builder.Append($HashBytes[$Index].ToString("x2"))
     }
     return $Builder.ToString()
+}
+
+function Get-BuildPlatformProjectHash {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRootPath
+    )
+
+    return Get-BuildPlatformPathHash -Path $ProjectRootPath
 }
 
 function Get-BuildPlatformSafeSegment {
@@ -127,6 +135,9 @@ function Resolve-BuildPlatformCacheLayout {
         [string]$ProjectRootPath,
 
         [Parameter(Mandatory = $true)]
+        [string]$EditorProjectPath,
+
+        [Parameter(Mandatory = $true)]
         [string]$Platform,
 
         [Parameter(Mandatory = $true)]
@@ -142,19 +153,21 @@ function Resolve-BuildPlatformCacheLayout {
 
     $FullCacheRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $CacheRootPath
     $ProjectHash = Get-BuildPlatformProjectHash -ProjectRootPath $ProjectRootPath
+    $EditorProjectHash = Get-BuildPlatformPathHash -Path $EditorProjectPath
     $PlatformSegment = Get-BuildPlatformSafeSegment -Value $Platform
     $ConfigurationSegment = Get-BuildPlatformSafeSegment -Value $Configuration.ToLowerInvariant()
     $ProfileSegment = Get-BuildPlatformSafeSegment -Value $BuildProfile
-    $LocksRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $FullCacheRootPath -ChildPath "locks"
+    $VersionRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $FullCacheRootPath -ChildPath "v2"
+    $LocksRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $VersionRootPath -ChildPath "l"
     $LockPath = Join-BuildPlatformStrictDescendantPath -ParentPath $LocksRootPath -ChildPath ($ProjectHash + ".lock")
-    $ProjectsRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $FullCacheRootPath -ChildPath "projects"
-    $ProjectCacheRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectsRootPath -ChildPath $ProjectHash
-    $MetadataPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectCacheRootPath -ChildPath "cache-metadata.json"
-    $EditorRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectCacheRootPath -ChildPath "editor"
-    $EditorConfigurationRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorRootPath -ChildPath $ConfigurationSegment
-    $EditorArtifactsPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorConfigurationRootPath -ChildPath "artifacts"
-    $EditorPublishPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorConfigurationRootPath -ChildPath "publish"
-    $PlatformsRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectCacheRootPath -ChildPath "platforms"
+    $ProjectCacheRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $VersionRootPath -ChildPath $ProjectHash
+    $MetadataPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectCacheRootPath -ChildPath "m.json"
+    $EditorRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectCacheRootPath -ChildPath "e"
+    $EditorProjectRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorRootPath -ChildPath $EditorProjectHash
+    $EditorConfigurationRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorProjectRootPath -ChildPath $ConfigurationSegment
+    $EditorArtifactsPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorConfigurationRootPath -ChildPath "a"
+    $EditorPublishPath = Join-BuildPlatformStrictDescendantPath -ParentPath $EditorConfigurationRootPath -ChildPath "p"
+    $PlatformsRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $ProjectCacheRootPath -ChildPath "b"
     $PlatformRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $PlatformsRootPath -ChildPath $PlatformSegment
     $PlatformConfigurationRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $PlatformRootPath -ChildPath $ConfigurationSegment
     $PlatformCacheRootPath = Join-BuildPlatformStrictDescendantPath -ParentPath $PlatformConfigurationRootPath -ChildPath $ProfileSegment
@@ -334,7 +347,7 @@ function Get-BuildPlatformExpiredProjectCacheCandidate {
             -AllowedRootPath $ProjectsRootPath `
             -TargetPath $ProjectDirectory.FullName `
             -ProtectedPath $ProtectedPath
-        $MetadataPath = Join-Path $ProjectCacheRootPath "cache-metadata.json"
+        $MetadataPath = Join-Path $ProjectCacheRootPath "m.json"
         if (-not (Test-Path -LiteralPath $MetadataPath -PathType Leaf)) {
             return $null
         }
@@ -409,7 +422,7 @@ function Remove-BuildPlatformExpiredProjectCaches {
     $CanonicalCacheRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $CacheRootPath
     $ProjectsRootPath = Join-BuildPlatformStrictDescendantPath `
         -ParentPath $CanonicalCacheRootPath `
-        -ChildPath "projects"
+        -ChildPath "v2"
     if (-not (Test-Path -LiteralPath $ProjectsRootPath -PathType Container)) {
         return
     }
@@ -417,10 +430,10 @@ function Remove-BuildPlatformExpiredProjectCaches {
     $ExpirationUtc = $NowUtc.ToUniversalTime().AddDays(-$OlderThanDays)
     $LocksRootPath = Join-BuildPlatformStrictDescendantPath `
         -ParentPath $CanonicalCacheRootPath `
-        -ChildPath "locks"
+        -ChildPath "v2\l"
     $ProjectDirectories = Get-ChildItem -LiteralPath $ProjectsRootPath -Directory -Force
     foreach ($ProjectDirectory in $ProjectDirectories) {
-        if ($ProjectDirectory.Name -cnotmatch '^[0-9a-f]{32}$') {
+        if ($ProjectDirectory.Name -ceq "l" -or $ProjectDirectory.Name -cnotmatch '^[0-9a-f]{32}$') {
             continue
         }
 
@@ -488,6 +501,7 @@ function Write-BuildPlatformCacheMetadata {
 }
 
 Export-ModuleMember -Function @(
+    'Get-BuildPlatformPathHash',
     'Get-BuildPlatformProjectHash',
     'Get-BuildPlatformSafeSegment',
     'Resolve-BuildPlatformCacheLayout',
