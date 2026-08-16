@@ -24,13 +24,17 @@ namespace helengine.tools.buildwaiter.tests {
             Directory.CreateDirectory(outputRootPath);
             try {
                 string artifactPath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, "game.iso"));
-                string statePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
+                string outputRootLiteral = ConvertToPowerShellLiteral(outputRootPath);
+                string sharedStatePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
                 string command = string.Join("; ", [
                     "$startedUtc = [DateTime]::UtcNow",
                     $"[System.IO.File]::WriteAllText({artifactPath}, 'iso')",
                     "$completedUtc = [DateTime]::UtcNow",
                     "$state = [ordered]@{ buildId = $env:HELENGINE_BUILD_INVOCATION_ID; projectPath = 'C:\\project\\project.heproj'; platform = 'ps2'; buildProfile = 'debug'; configuration = 'Debug'; startedUtc = $startedUtc.ToString('o'); completedUtc = $completedUtc.ToString('o'); status = 'succeeded'; exitCode = 0 }",
-                    $"$state | ConvertTo-Json | Set-Content -LiteralPath {statePath} -Encoding UTF8"
+                    "$stateJson = $state | ConvertTo-Json",
+                    $"$proofPath = Join-Path {outputRootLiteral} ('.helengine-build-state.' + $env:HELENGINE_BUILD_INVOCATION_ID + '.json')",
+                    "$stateJson | Set-Content -LiteralPath $proofPath -Encoding UTF8",
+                    $"$stateJson | Set-Content -LiteralPath {sharedStatePath} -Encoding UTF8"
                 ]);
 
                 int exitCode = await Program.RunAsync([

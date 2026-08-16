@@ -10,8 +10,10 @@ $FixtureRootPath = Join-Path $PSScriptRoot "fixtures\build-platform-smoke-projec
 $BuilderProjectPath = Join-Path $PSScriptRoot "fixtures\build-platform-smoke-builder\helengine.buildplatform.smokebuilder.csproj"
 $CodegenProjectPath = "C:\dev\helworks\csharpcodegen\codegen\codegen.csproj"
 $CodegenToolPath = "C:\dev\helworks\csharpcodegen\codegen\bin\Release\net9.0\codegen.exe"
-$TestBuildRootPath = Join-Path ([System.IO.Path]::GetTempPath()) "helengine-build-platform-tests"
+$TemporaryRootPath = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
+$TestBuildRootPath = Join-Path $TemporaryRootPath "helengine-build-platform-tests"
 $TestRootPath = Join-Path $TestBuildRootPath ("build platform real editor smoke " + [Guid]::NewGuid().ToString("N"))
+$TestRootCreated = $false
 $ProjectRootPath = Join-Path $TestRootPath "authored-project"
 $ProjectPath = Join-Path $ProjectRootPath "project.heproj"
 $CacheRootPath = Join-Path $TestRootPath "cache"
@@ -20,6 +22,25 @@ $EngineUserSettingsRootPath = Join-Path $TestRootPath "engine-user-settings"
 $StatePath = Join-Path $OutputRootPath ".helengine-build-state.json"
 $SmokeMarkerPath = Join-Path $OutputRootPath "smoke-build.txt"
 $OriginalEngineUserSettingsRoot = $env:HELENGINE_ENGINE_USER_SETTINGS_ROOT
+
+function Test-StrictDescendantPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ParentPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CandidatePath
+    )
+
+    $DirectorySeparators = [char[]]@(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+    $CanonicalParentPath = [System.IO.Path]::GetFullPath($ParentPath).TrimEnd($DirectorySeparators)
+    $CanonicalCandidatePath = [System.IO.Path]::GetFullPath($CandidatePath).TrimEnd($DirectorySeparators)
+    $Prefix = $CanonicalParentPath + [System.IO.Path]::DirectorySeparatorChar
+    return $CanonicalCandidatePath.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase)
+}
 
 function Invoke-DotNetBuild {
     param(
@@ -182,6 +203,21 @@ function Assert-WrapperSuccess {
 }
 
 try {
+    if (-not (Test-Path -LiteralPath $TemporaryRootPath -PathType Container)) {
+        throw "Temporary root '$TemporaryRootPath' is required."
+    }
+    if (-not (Test-Path -LiteralPath $TestBuildRootPath -PathType Container)) {
+        $null = New-Item -ItemType Directory -Path $TestBuildRootPath -ErrorAction Stop
+    }
+    if (-not (Test-StrictDescendantPath -ParentPath $TestBuildRootPath -CandidatePath $TestRootPath)) {
+        throw "Disposable real-editor smoke root '$TestRootPath' must be a strict descendant of '$TestBuildRootPath'."
+    }
+    if (Test-Path -LiteralPath $TestRootPath) {
+        throw "Disposable real-editor smoke root '$TestRootPath' unexpectedly already exists."
+    }
+    $null = New-Item -ItemType Directory -Path $TestRootPath -ErrorAction Stop
+    $TestRootCreated = $true
+
     $FixtureRelativePaths = @(
         "project.heproj",
         "settings\platforms.json",
@@ -295,7 +331,12 @@ try {
     Write-Output "REAL_EDITOR_SMOKE_TEST_PASS"
 } finally {
     $env:HELENGINE_ENGINE_USER_SETTINGS_ROOT = $OriginalEngineUserSettingsRoot
-    if (Test-Path -LiteralPath $TestRootPath) {
-        Remove-Item -LiteralPath $TestRootPath -Recurse -Force
+    if ($TestRootCreated) {
+        if (-not (Test-StrictDescendantPath -ParentPath $TestBuildRootPath -CandidatePath $TestRootPath)) {
+            throw "Refusing to remove disposable real-editor smoke root '$TestRootPath' outside '$TestBuildRootPath'."
+        }
+        if (Test-Path -LiteralPath $TestRootPath) {
+            Remove-Item -LiteralPath $TestRootPath -Recurse -Force
+        }
     }
 }

@@ -260,6 +260,7 @@ $BuildStartedUtc = $null
 $BuildTerminalStatus = "failed"
 $BuildTerminalExitCode = 10
 $StateFilePath = $null
+$TerminalProofPath = $null
 $Layout = $null
 $CacheMetadataStarted = $false
 
@@ -357,6 +358,7 @@ try {
     }
     $StateFilePath = Join-Path $ResolvedOutputPath ".helengine-build-state.json"
     $BuildId = $InvocationBuildId
+    $TerminalProofPath = Join-Path $ResolvedOutputPath (".helengine-build-state.$BuildId.json")
     $BuildStartedUtc = [DateTime]::UtcNow.ToString("o")
     Write-BuildPlatformState `
         -StatePath $StateFilePath `
@@ -502,6 +504,7 @@ try {
     try {
         try {
             if ($BuildStateStarted) {
+                $BuildCompletedUtc = [DateTime]::UtcNow.ToString("o")
                 try {
                     Write-BuildPlatformState `
                         -StatePath $StateFilePath `
@@ -511,13 +514,34 @@ try {
                         -BuildProfile $ResolvedBuildProfile `
                         -Configuration $Configuration `
                         -StartedUtc $BuildStartedUtc `
-                        -CompletedUtc ([DateTime]::UtcNow.ToString("o")) `
+                        -CompletedUtc $BuildCompletedUtc `
                         -Status $BuildTerminalStatus `
                         -ExitCode $BuildTerminalExitCode
                 } catch {
                     $TerminalStateWriteFailed = $true
                     [Console]::Error.WriteLine(
                         "Failed to write terminal build state '$StateFilePath': $($_.Exception.Message)"
+                    )
+                    if ($BuildTerminalExitCode -eq 0) {
+                        $BuildTerminalExitCode = 10
+                    }
+                }
+                try {
+                    Write-BuildPlatformState `
+                        -StatePath $TerminalProofPath `
+                        -BuildId $BuildId `
+                        -ProjectPath $ResolvedProjectPath `
+                        -Platform $Platform `
+                        -BuildProfile $ResolvedBuildProfile `
+                        -Configuration $Configuration `
+                        -StartedUtc $BuildStartedUtc `
+                        -CompletedUtc $BuildCompletedUtc `
+                        -Status $BuildTerminalStatus `
+                        -ExitCode $BuildTerminalExitCode
+                } catch {
+                    $TerminalStateWriteFailed = $true
+                    [Console]::Error.WriteLine(
+                        "Failed to write invocation-specific terminal build proof '$TerminalProofPath': $($_.Exception.Message)"
                     )
                     if ($BuildTerminalExitCode -eq 0) {
                         $BuildTerminalExitCode = 10

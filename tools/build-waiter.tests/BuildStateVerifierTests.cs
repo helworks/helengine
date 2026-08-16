@@ -7,13 +7,18 @@ namespace helengine.tools.buildwaiter.tests {
     /// </summary>
     static class BuildStateVerifierTestExtensions {
         /// <summary>
+        /// Canonical invocation identity used by state-proof fixtures.
+        /// </summary>
+        public const string ExpectedBuildId = "11111111-1111-1111-1111-111111111111";
+
+        /// <summary>
         /// Verifies one default fixture state with its matching build identity.
         /// </summary>
         public static BuildStateVerificationResult Verify(
             this BuildStateVerifier verifier,
             string outputRootPath,
             DateTime waiterStartedUtc) {
-            return verifier.Verify(outputRootPath, waiterStartedUtc, "build-1");
+            return verifier.Verify(outputRootPath, waiterStartedUtc, ExpectedBuildId);
         }
     }
 
@@ -21,6 +26,11 @@ namespace helengine.tools.buildwaiter.tests {
     /// Verifies build-state validation accepts only a complete successful state written by the current waiter invocation.
     /// </summary>
     public sealed class BuildStateVerifierTests {
+        /// <summary>
+        /// Canonical invocation identity used by the default proof path and verifier call.
+        /// </summary>
+        const string ExpectedBuildId = BuildStateVerifierTestExtensions.ExpectedBuildId;
+
         /// <summary>
         /// Ensures a complete successful state produced after waiter startup satisfies the state contract.
         /// </summary>
@@ -30,7 +40,7 @@ namespace helengine.tools.buildwaiter.tests {
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
                 DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
-                WriteState(outputRootPath, "build-1", stateStartedUtc, stateStartedUtc.AddMilliseconds(500), "succeeded", 0);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, stateStartedUtc.AddMilliseconds(500), "succeeded", 0);
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
 
@@ -55,7 +65,7 @@ namespace helengine.tools.buildwaiter.tests {
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(
                     outputRootPath,
                     waiterStartedUtc,
-                    "expected-build-id");
+                    ExpectedBuildId);
 
                 Assert.False(result.Succeeded);
                 Assert.Contains("build id", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -73,6 +83,75 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         /// <summary>
+        /// Ensures only a canonical lowercase D-format GUID can select an invocation-proof filename.
+        /// </summary>
+        /// <param name="invalidBuildId">Noncanonical or malformed build identity.</param>
+        [Theory]
+        [InlineData("build-1")]
+        [InlineData("11111111111111111111111111111111")]
+        [InlineData("11111111-1111-1111-1111-11111111111A")]
+        [InlineData(" 11111111-1111-1111-1111-111111111111")]
+        public void Verify_WhenExpectedBuildIdIsNotCanonicalGuid_ThrowsArgumentException(string invalidBuildId) {
+            Assert.Throws<ArgumentException>(() => new BuildStateVerifier().Verify(
+                "output",
+                DateTime.UtcNow,
+                invalidBuildId));
+        }
+
+        /// <summary>
+        /// Ensures a later build can replace shared compatibility state without invalidating this invocation's durable terminal proof.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenSharedStateIsOverwrittenAfterExpectedProof_ReturnsSuccess() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
+                DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, DateTime.UtcNow, "succeeded", 0);
+                WriteSharedState(
+                    outputRootPath,
+                    "22222222-2222-2222-2222-222222222222",
+                    DateTime.UtcNow,
+                    DateTime.UtcNow,
+                    "succeeded",
+                    0);
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    waiterStartedUtc,
+                    ExpectedBuildId);
+
+                Assert.True(result.Succeeded);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures matching shared compatibility state cannot substitute for a missing invocation proof.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenOnlySharedStateMatches_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
+                DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
+                WriteSharedState(outputRootPath, ExpectedBuildId, stateStartedUtc, DateTime.UtcNow, "succeeded", 0);
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    waiterStartedUtc,
+                    ExpectedBuildId);
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("proof", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("missing", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
         /// Ensures a state that starts at the exact waiter boundary is current rather than stale.
         /// </summary>
         [Fact]
@@ -80,7 +159,7 @@ namespace helengine.tools.buildwaiter.tests {
             string outputRootPath = CreateOutputRoot();
             try {
                 DateTime waiterStartedUtc = new DateTime(2026, 8, 15, 12, 0, 0, DateTimeKind.Utc);
-                WriteState(outputRootPath, "build-1", waiterStartedUtc, waiterStartedUtc.AddSeconds(1), "succeeded", 0);
+                WriteState(outputRootPath, ExpectedBuildId, waiterStartedUtc, waiterStartedUtc.AddSeconds(1), "succeeded", 0);
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
 
@@ -415,7 +494,7 @@ namespace helengine.tools.buildwaiter.tests {
         public void Verify_WhenStateJsonIsMalformed_ReturnsFailure() {
             string outputRootPath = CreateOutputRoot();
             try {
-                File.WriteAllText(GetStatePath(outputRootPath), "{ not-json");
+                File.WriteAllText(GetProofPath(outputRootPath), "{ not-json");
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, DateTime.UtcNow);
 
@@ -436,9 +515,9 @@ namespace helengine.tools.buildwaiter.tests {
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
                 DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
-                WriteState(outputRootPath, "build-1", stateStartedUtc, DateTime.UtcNow, "succeeded", 0);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, DateTime.UtcNow, "succeeded", 0);
                 using FileStream stateLock = new FileStream(
-                    GetStatePath(outputRootPath),
+                    GetProofPath(outputRootPath),
                     FileMode.Open,
                     FileAccess.ReadWrite,
                     FileShare.None);
@@ -462,7 +541,7 @@ namespace helengine.tools.buildwaiter.tests {
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
                 DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
-                WriteState(outputRootPath, "build-1", stateStartedUtc, null, "running", null);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, null, "running", null);
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
 
@@ -482,7 +561,7 @@ namespace helengine.tools.buildwaiter.tests {
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
                 DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
-                WriteState(outputRootPath, "build-1", stateStartedUtc, DateTime.UtcNow, "failed", 7);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, DateTime.UtcNow, "failed", 7);
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
 
@@ -522,7 +601,7 @@ namespace helengine.tools.buildwaiter.tests {
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
                 DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
-                WriteState(outputRootPath, "build-1", stateStartedUtc, null, "succeeded", 0);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, null, "succeeded", 0);
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
 
@@ -543,7 +622,7 @@ namespace helengine.tools.buildwaiter.tests {
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-3);
                 DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
-                WriteState(outputRootPath, "build-1", stateStartedUtc, stateStartedUtc.AddSeconds(-1), "succeeded", 0);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, stateStartedUtc.AddSeconds(-1), "succeeded", 0);
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
 
@@ -564,7 +643,7 @@ namespace helengine.tools.buildwaiter.tests {
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow;
                 DateTime stateStartedUtc = waiterStartedUtc.AddSeconds(-1);
-                WriteState(outputRootPath, "build-1", stateStartedUtc, stateStartedUtc.AddMilliseconds(500), "succeeded", 0);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, stateStartedUtc.AddMilliseconds(500), "succeeded", 0);
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
 
@@ -585,7 +664,7 @@ namespace helengine.tools.buildwaiter.tests {
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
                 DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
-                WriteState(outputRootPath, "build-1", stateStartedUtc, DateTime.UtcNow, "succeeded", 9);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, DateTime.UtcNow, "succeeded", 9);
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
 
@@ -606,7 +685,7 @@ namespace helengine.tools.buildwaiter.tests {
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
                 DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
-                WriteState(outputRootPath, "build-1", stateStartedUtc, DateTime.UtcNow, "succeeded", null);
+                WriteState(outputRootPath, ExpectedBuildId, stateStartedUtc, DateTime.UtcNow, "succeeded", null);
 
                 BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
 
@@ -637,11 +716,20 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         /// <summary>
-        /// Returns the canonical state-file path beneath one output root.
+        /// Returns the expected invocation-proof path beneath one output root.
         /// </summary>
-        /// <param name="outputRootPath">Output root containing build state.</param>
-        /// <returns>Path to the build-state JSON file.</returns>
-        static string GetStatePath(string outputRootPath) {
+        /// <param name="outputRootPath">Output root containing invocation proof.</param>
+        /// <returns>Path to the invocation-specific terminal proof.</returns>
+        static string GetProofPath(string outputRootPath) {
+            return Path.Combine(outputRootPath, $".helengine-build-state.{ExpectedBuildId}.json");
+        }
+
+        /// <summary>
+        /// Returns the shared compatibility-state path beneath one output root.
+        /// </summary>
+        /// <param name="outputRootPath">Output root containing compatibility state.</param>
+        /// <returns>Path to the shared build-state JSON file.</returns>
+        static string GetSharedStatePath(string outputRootPath) {
             return Path.Combine(outputRootPath, ".helengine-build-state.json");
         }
 
@@ -661,6 +749,44 @@ namespace helengine.tools.buildwaiter.tests {
             DateTime? completedUtc,
             string status,
             int? exitCode) {
+            WriteStateFile(
+                GetProofPath(outputRootPath),
+                buildId,
+                startedUtc,
+                completedUtc,
+                status,
+                exitCode);
+        }
+
+        /// <summary>
+        /// Writes one complete wrapper-shaped document to the shared compatibility-state path.
+        /// </summary>
+        static void WriteSharedState(
+            string outputRootPath,
+            string buildId,
+            DateTime startedUtc,
+            DateTime? completedUtc,
+            string status,
+            int? exitCode) {
+            WriteStateFile(
+                GetSharedStatePath(outputRootPath),
+                buildId,
+                startedUtc,
+                completedUtc,
+                status,
+                exitCode);
+        }
+
+        /// <summary>
+        /// Writes one complete wrapper-shaped state document to an exact selected path.
+        /// </summary>
+        static void WriteStateFile(
+            string statePath,
+            string buildId,
+            DateTime startedUtc,
+            DateTime? completedUtc,
+            string status,
+            int? exitCode) {
             string json = JsonSerializer.Serialize(new {
                 buildId,
                 projectPath = "C:\\project\\project.heproj",
@@ -672,7 +798,7 @@ namespace helengine.tools.buildwaiter.tests {
                 status,
                 exitCode
             });
-            File.WriteAllText(GetStatePath(outputRootPath), json);
+            File.WriteAllText(statePath, json);
         }
 
         /// <summary>
@@ -690,7 +816,7 @@ namespace helengine.tools.buildwaiter.tests {
             string startedPropertyName = "startedUtc",
             string completedPropertyName = "completedUtc") {
             Dictionary<string, object> state = new Dictionary<string, object> {
-                ["buildId"] = "build-1",
+                ["buildId"] = ExpectedBuildId,
                 ["projectPath"] = "C:\\project\\project.heproj",
                 ["platform"] = "ps2",
                 ["buildProfile"] = "debug",
@@ -700,7 +826,7 @@ namespace helengine.tools.buildwaiter.tests {
                 ["status"] = "succeeded",
                 ["exitCode"] = 0
             };
-            File.WriteAllText(GetStatePath(outputRootPath), JsonSerializer.Serialize(state));
+            File.WriteAllText(GetProofPath(outputRootPath), JsonSerializer.Serialize(state));
         }
 
         /// <summary>
@@ -710,7 +836,7 @@ namespace helengine.tools.buildwaiter.tests {
         /// <param name="timestampPropertiesJson">Comma-delimited raw timestamp JSON properties.</param>
         static void WriteRawState(string outputRootPath, string timestampPropertiesJson) {
             string json = "{"
-                + "\"buildId\":\"build-1\","
+                + $"\"buildId\":\"{ExpectedBuildId}\","
                 + "\"projectPath\":\"C:\\\\project\\\\project.heproj\","
                 + "\"platform\":\"ps2\","
                 + "\"buildProfile\":\"debug\","
@@ -719,7 +845,7 @@ namespace helengine.tools.buildwaiter.tests {
                 + ",\"status\":\"succeeded\","
                 + "\"exitCode\":0"
                 + "}";
-            File.WriteAllText(GetStatePath(outputRootPath), json);
+            File.WriteAllText(GetProofPath(outputRootPath), json);
         }
     }
 }

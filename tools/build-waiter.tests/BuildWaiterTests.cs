@@ -182,6 +182,36 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         /// <summary>
+        /// Ensures a subsequent build that takes the same output and overwrites shared compatibility state cannot race the first waiter's identity check.
+        /// </summary>
+        [Fact]
+        public async Task WaitAsync_WhenSubsequentBuildOverwritesSharedStateBeforeVerification_UsesInvocationProof() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                BuildWaiterOptions options = CreatePowerShellOptions(
+                    outputRootPath,
+                    true,
+                    "succeeded",
+                    0,
+                    false,
+                    false,
+                    0,
+                    overwriteSharedStateWithForeignBuild: true);
+
+                BuildWaiterResult result = await CreateWaiter().WaitAsync(options, CancellationToken.None);
+
+                Assert.True(result.Succeeded);
+                Assert.Equal(0, result.ExitCode);
+                Assert.Contains(
+                    "22222222-2222-2222-2222-222222222222",
+                    File.ReadAllText(Path.Combine(outputRootPath, ".helengine-build-state.json")),
+                    StringComparison.Ordinal);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
         /// Ensures both verifier dependencies are mandatory.
         /// </summary>
         [Fact]
@@ -225,6 +255,8 @@ namespace helengine.tools.buildwaiter.tests {
         /// <param name="writeStaleState">Whether the recorded state start predates waiter invocation.</param>
         /// <param name="writeMalformedState">Whether the state file contains malformed JSON.</param>
         /// <param name="childExitCode">Exit code returned by the child process.</param>
+        /// <param name="writeForeignBuildId">Whether the expected proof contains a foreign build identity.</param>
+        /// <param name="overwriteSharedStateWithForeignBuild">Whether a subsequent build replaces only shared compatibility state before verification.</param>
         /// <returns>Waiter options for the generated child command.</returns>
         static BuildWaiterOptions CreatePowerShellOptions(
             string outputRootPath,
@@ -234,10 +266,15 @@ namespace helengine.tools.buildwaiter.tests {
             bool writeStaleState,
             bool writeMalformedState,
             int childExitCode,
-            bool writeForeignBuildId = false) {
-            string statePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
+            bool writeForeignBuildId = false,
+            bool overwriteSharedStateWithForeignBuild = false) {
+            string outputRootLiteral = ConvertToPowerShellLiteral(outputRootPath);
+            string sharedStatePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
             string artifactPath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, "game.iso"));
-            List<string> statements = ["$ErrorActionPreference = 'Stop'"];
+            List<string> statements = [
+                "$ErrorActionPreference = 'Stop'",
+                $"$proofPath = Join-Path {outputRootLiteral} ('.helengine-build-state.' + $env:HELENGINE_BUILD_INVOCATION_ID + '.json')"
+            ];
             statements.Add(writeStaleState
                 ? "$startedUtc = [DateTime]::UtcNow.AddMinutes(-5)"
                 : "$startedUtc = [DateTime]::UtcNow");
@@ -246,7 +283,8 @@ namespace helengine.tools.buildwaiter.tests {
             }
 
             if (writeMalformedState) {
-                statements.Add($"[System.IO.File]::WriteAllText({statePath}, '{{ not-json')");
+                statements.Add("[System.IO.File]::WriteAllText($proofPath, '{ not-json')");
+                statements.Add($"[System.IO.File]::WriteAllText({sharedStatePath}, '{{ not-json')");
             } else if (!string.IsNullOrWhiteSpace(stateStatus)) {
                 string stateExitCodeExpression = stateExitCode.HasValue
                     ? stateExitCode.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
@@ -260,7 +298,17 @@ namespace helengine.tools.buildwaiter.tests {
                     + $"buildId = {buildIdExpression}; projectPath = 'C:\\project\\project.heproj'; platform = 'ps2'; "
                     + "buildProfile = 'debug'; configuration = 'Debug'; startedUtc = $startedUtc.ToString('o'); "
                     + $"completedUtc = $completedUtc.ToString('o'); status = '{stateStatus}'; exitCode = {stateExitCodeExpression} }}");
-                statements.Add($"$state | ConvertTo-Json | Set-Content -LiteralPath {statePath} -Encoding UTF8");
+                statements.Add("$stateJson = $state | ConvertTo-Json");
+                statements.Add("$stateJson | Set-Content -LiteralPath $proofPath -Encoding UTF8");
+                statements.Add($"$stateJson | Set-Content -LiteralPath {sharedStatePath} -Encoding UTF8");
+                if (overwriteSharedStateWithForeignBuild) {
+                    statements.Add(
+                        "$foreignState = [ordered]@{ buildId = '22222222-2222-2222-2222-222222222222'; "
+                        + "projectPath = 'C:\\foreign-project\\project.heproj'; platform = 'ps2'; "
+                        + "buildProfile = 'debug'; configuration = 'Debug'; startedUtc = [DateTime]::UtcNow.ToString('o'); "
+                        + "completedUtc = [DateTime]::UtcNow.ToString('o'); status = 'succeeded'; exitCode = 0 }");
+                    statements.Add($"$foreignState | ConvertTo-Json | Set-Content -LiteralPath {sharedStatePath} -Encoding UTF8");
+                }
             }
 
             statements.Add($"exit {childExitCode}");

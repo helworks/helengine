@@ -1117,12 +1117,35 @@ exit /b 8
         if ($AdoptedInvocationState.buildId -cne $ExpectedInvocationId) {
             throw "The wrapper recorded build id '$($AdoptedInvocationState.buildId)' instead of '$ExpectedInvocationId'."
         }
+        $ExpectedInvocationProofPath = Join-Path $CanonicalOutputPath (".helengine-build-state.$ExpectedInvocationId.json")
+        if (-not (Test-Path -LiteralPath $ExpectedInvocationProofPath -PathType Leaf)) {
+            throw "The wrapper did not write invocation proof '$ExpectedInvocationProofPath'."
+        }
+        $AdoptedInvocationProof = Get-Content -LiteralPath $ExpectedInvocationProofPath -Raw | ConvertFrom-Json
+        Assert-BuildStateDocument `
+            -State $AdoptedInvocationProof `
+            -ExpectedStatus "succeeded" `
+            -ExpectedExitCode 0 `
+            -ExpectedProjectPath $CanonicalProjectPath
+        if ($AdoptedInvocationProof.buildId -cne $ExpectedInvocationId) {
+            throw "Invocation proof recorded build id '$($AdoptedInvocationProof.buildId)' instead of '$ExpectedInvocationId'."
+        }
 
         $GeneratedInvocationResult = Invoke-ControlledWrapper -CachePath $CacheRootPath
         Assert-Success -Result $GeneratedInvocationResult -CaseName "The wrapper invocation without an explicit build identity"
         $GeneratedInvocationState = Get-Content -LiteralPath $ExpectedStatePath -Raw | ConvertFrom-Json
         if ([string]$GeneratedInvocationState.buildId -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
             throw "The wrapper generated build id '$($GeneratedInvocationState.buildId)' instead of a canonical D-format GUID."
+        }
+        $GeneratedInvocationProofPath = Join-Path $CanonicalOutputPath (".helengine-build-state.$($GeneratedInvocationState.buildId).json")
+        if (-not (Test-Path -LiteralPath $GeneratedInvocationProofPath -PathType Leaf)) {
+            throw "The wrapper did not write generated invocation proof '$GeneratedInvocationProofPath'."
+        }
+        $GeneratedInvocationProof = Get-Content -LiteralPath $GeneratedInvocationProofPath -Raw | ConvertFrom-Json
+        if ($GeneratedInvocationProof.buildId -cne $GeneratedInvocationState.buildId -or
+            $GeneratedInvocationProof.status -cne "succeeded" -or
+            [int]$GeneratedInvocationProof.exitCode -ne 0) {
+            throw "Generated invocation proof did not preserve terminal success for '$($GeneratedInvocationState.buildId)'."
         }
 
         $InvalidInvocationIdCases = @(
@@ -1170,8 +1193,8 @@ exit /b 8
             -ExpectedProjectPath $CanonicalProjectPath
 
         $StateWriteCallSiteCount = @(Select-String -LiteralPath $WrapperPath -Pattern '^\s*Write-BuildPlatformState\b').Count
-        if ($StateWriteCallSiteCount -ne 2) {
-            throw "The wrapper contained $StateWriteCallSiteCount state-writer call sites instead of running plus terminal."
+        if ($StateWriteCallSiteCount -ne 3) {
+            throw "The wrapper contained $StateWriteCallSiteCount state-writer call sites instead of shared running, shared terminal, and invocation terminal proof."
         }
 
         $EditorCacheSentinelPath = Join-Path $ExpectedEditorCachePath "state-failure-sentinel.txt"
