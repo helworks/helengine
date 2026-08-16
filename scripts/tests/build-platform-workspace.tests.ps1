@@ -21,6 +21,7 @@ $EnvironmentCapturePath = Join-Path $TestRootPath "editor-environment.txt"
 $RunningStateCapturePath = Join-Path $TestRootPath "running-state.json"
 $EnvironmentEnumerationGuardPath = Join-Path $TestRootPath "reject-environment-enumeration.ps1"
 $EnvironmentCleanupGuardPath = Join-Path $TestRootPath "capture-environment-cleanup.ps1"
+$AdditionalArgumentsLauncherPath = Join-Path $TestRootPath "invoke-with-additional-arguments.ps1"
 $RobocopyMarkerPath = Join-Path $TestRootPath "robocopy-invoked.txt"
 $ProjectPath = Join-Path $TestRootPath "authored-project\project.heproj"
 $EditorProjectPath = Join-Path $TestRootPath "editor\editor.csproj"
@@ -47,7 +48,13 @@ function Invoke-ControlledWrapper {
         [string]$CleanupCapturePath = "",
 
         [Parameter()]
-        [int]$LockTimeoutMilliseconds = 0
+        [int]$LockTimeoutMilliseconds = 0,
+
+        [Parameter()]
+        [string]$InvocationOutputPath = $OutputArgumentPath,
+
+        [Parameter()]
+        [string[]]$AdditionalArguments = @()
     )
 
     $InvocationScriptPath = $WrapperPath
@@ -62,7 +69,7 @@ function Invoke-ControlledWrapper {
         "-Platform",
         "windows",
         "-Output",
-        $OutputArgumentPath,
+        $InvocationOutputPath,
         "-Configuration",
         "Release",
         "-BuildProfile",
@@ -92,14 +99,29 @@ function Invoke-ControlledWrapper {
     if ($LockTimeoutMilliseconds -gt 0) {
         $Arguments += @("-LockTimeout", ([TimeSpan]::FromMilliseconds($LockTimeoutMilliseconds).ToString("c")))
     }
+    if ($AdditionalArguments.Count -gt 0) {
+        $InvocationScriptPath = $AdditionalArgumentsLauncherPath
+        $Arguments[4] = $InvocationScriptPath
+        $Arguments += @(
+            "-WrapperPath",
+            $WrapperPath,
+            "-AdditionalArgumentsJsonBase64",
+            [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(
+                (ConvertTo-Json -InputObject ([string[]]$AdditionalArguments) -Compress)
+            ))
+        )
+    }
 
     $OriginalErrorActionPreference = $ErrorActionPreference
+    $OriginalExpectedStatePath = $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH
     try {
         $ErrorActionPreference = "Continue"
+        $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH = Join-Path $InvocationOutputPath ".helengine-build-state.json"
         $InvocationOutput = @(& powershell.exe @Arguments 2>&1)
         $InvocationExitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $OriginalErrorActionPreference
+        $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH = $OriginalExpectedStatePath
     }
     return [pscustomobject]@{
         ExitCode = $InvocationExitCode
@@ -192,6 +214,57 @@ function Assert-Success {
 
     if ($Result.ExitCode -ne 0) {
         throw "$CaseName failed with exit code $($Result.ExitCode). $($Result.Output -join [Environment]::NewLine)"
+    }
+}
+
+function Assert-RejectedBeforeBuildPlatformMutation {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Result,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CaseName,
+
+        [Parameter(Mandatory = $true)]
+        [int]$InvocationCountBefore,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OutputPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectCacheRootPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SentinelPath,
+
+        [Parameter()]
+        [string]$ExpectedDiagnostic = "",
+
+        [Parameter()]
+        [switch]$AssertProjectCacheAbsent
+    )
+
+    if ($Result.ExitCode -ne 2) {
+        throw "$CaseName must exit 2, got $($Result.ExitCode). $($Result.Output -join [Environment]::NewLine)"
+    }
+    if (@(Get-Content -LiteralPath $CapturePath).Count -ne $InvocationCountBefore) {
+        throw "$CaseName reached the editor."
+    }
+    if (Test-Path -LiteralPath (Join-Path $OutputPath ".helengine-build-state.json")) {
+        throw "$CaseName wrote build state."
+    }
+    if (Test-Path -LiteralPath $OutputPath) {
+        throw "$CaseName created output '$OutputPath'."
+    }
+    if ($AssertProjectCacheAbsent -and (Test-Path -LiteralPath $ProjectCacheRootPath)) {
+        throw "$CaseName created project cache '$ProjectCacheRootPath'."
+    }
+    if (-not (Test-Path -LiteralPath $SentinelPath -PathType Leaf)) {
+        throw "$CaseName removed sentinel '$SentinelPath'."
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedDiagnostic) -and
+        ($Result.Output -join [Environment]::NewLine) -notmatch [regex]::Escape($ExpectedDiagnostic)) {
+        throw "$CaseName did not mention '$ExpectedDiagnostic'. $($Result.Output -join [Environment]::NewLine)"
     }
 }
 
@@ -508,6 +581,52 @@ try {
 }
 exit $WrapperExitCode
 '@ -NoNewline
+    Set-Content -LiteralPath $AdditionalArgumentsLauncherPath -Value @'
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)] [string]$WrapperPath,
+    [Parameter(Mandatory = $true)] [string]$Project,
+    [Parameter(Mandatory = $true)] [string]$Platform,
+    [Parameter(Mandatory = $true)] [string]$Output,
+    [Parameter(Mandatory = $true)] [string]$Configuration,
+    [Parameter(Mandatory = $true)] [string]$BuildProfile,
+    [Parameter(Mandatory = $true)] [string]$EditorProject,
+    [Parameter()] [string]$CacheRoot = "",
+    [Parameter()] [string]$WorkspaceRoot = "",
+    [Parameter()] [int]$PruneCacheOlderThanDays = 0,
+    [Parameter()] [TimeSpan]$LockTimeout = [TimeSpan]::FromHours(2),
+    [Parameter(Mandatory = $true)] [string]$AdditionalArgumentsJsonBase64
+)
+
+$AdditionalArgumentsJson = [Text.Encoding]::UTF8.GetString(
+    [Convert]::FromBase64String($AdditionalArgumentsJsonBase64)
+)
+$AdditionalArguments = ConvertFrom-Json -InputObject $AdditionalArgumentsJson
+$WrapperArguments = @{
+    Project = $Project
+    Platform = $Platform
+    Output = $Output
+    Configuration = $Configuration
+    BuildProfile = $BuildProfile
+    EditorProject = $EditorProject
+    AdditionalArgs = [string[]]$AdditionalArguments
+}
+if (-not [string]::IsNullOrWhiteSpace($CacheRoot)) {
+    $WrapperArguments.CacheRoot = $CacheRoot
+}
+if (-not [string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
+    $WrapperArguments.WorkspaceRoot = $WorkspaceRoot
+}
+if ($PruneCacheOlderThanDays -ne 0) {
+    $WrapperArguments.PruneCacheOlderThanDays = $PruneCacheOlderThanDays
+}
+if ($LockTimeout -ne [TimeSpan]::FromHours(2)) {
+    $WrapperArguments.LockTimeout = $LockTimeout
+}
+
+& $WrapperPath @WrapperArguments
+exit $LASTEXITCODE
+'@ -NoNewline
     Set-Content -LiteralPath (Join-Path $FakeToolsPath "dotnet.cmd") -Value @'
 @echo off
 setlocal EnableExtensions
@@ -599,6 +718,118 @@ exit /b 8
         $EnumerationGuardExitCode = $LASTEXITCODE
         if ($EnumerationGuardExitCode -ne 0) {
             throw "The wrapper failed when environment provider enumeration was unavailable (exit $EnumerationGuardExitCode): $($EnumerationGuardOutput -join [Environment]::NewLine)"
+        }
+        Clear-Content -LiteralPath $CapturePath
+
+        $OverlapCacheRootPath = Join-Path $TestRootPath "unsafe-overlap-cache"
+        $OverlapLayout = Resolve-BuildPlatformCacheLayout `
+            -CacheRootPath $OverlapCacheRootPath `
+            -ProjectRootPath $ProjectRootPath `
+            -EditorProjectPath $EditorProjectPath `
+            -Platform windows `
+            -Configuration Release `
+            -BuildProfile profiler
+        $OutputContainingProjectCacheRootPath = Join-Path $TestRootPath "unsafe-output-containing-project-cache"
+        $OutputContainingProjectCacheLayout = Resolve-BuildPlatformCacheLayout `
+            -CacheRootPath $OutputContainingProjectCacheRootPath `
+            -ProjectRootPath $ProjectRootPath `
+            -EditorProjectPath $EditorProjectPath `
+            -Platform windows `
+            -Configuration Release `
+            -BuildProfile profiler
+        $OverlapCases = @(
+            [pscustomobject]@{
+                Name = "Output equal to project cache"
+                CacheRootPath = $OverlapCacheRootPath
+                OutputPath = $OverlapLayout.ProjectCacheRootPath
+                ProjectCacheRootPath = $OverlapLayout.ProjectCacheRootPath
+            },
+            [pscustomobject]@{
+                Name = "Output beneath project cache"
+                CacheRootPath = $OverlapCacheRootPath
+                OutputPath = Join-Path $OverlapLayout.ProjectCacheRootPath "nested-output"
+                ProjectCacheRootPath = $OverlapLayout.ProjectCacheRootPath
+            },
+            [pscustomobject]@{
+                Name = "Project cache beneath output"
+                CacheRootPath = $OutputContainingProjectCacheRootPath
+                OutputPath = $OutputContainingProjectCacheRootPath
+                ProjectCacheRootPath = $OutputContainingProjectCacheLayout.ProjectCacheRootPath
+            }
+        )
+        foreach ($OverlapCase in $OverlapCases) {
+            $SentinelPath = (Join-Path (Split-Path -Parent $OverlapCase.OutputPath) "overlap-sentinel.txt")
+            $null = New-Item -ItemType Directory -Path (Split-Path -Parent $SentinelPath) -Force
+            Set-Content -LiteralPath $SentinelPath -Value $OverlapCase.Name -NoNewline
+            $InvocationCountBefore = @(Get-Content -LiteralPath $CapturePath).Count
+            $OverlapResult = Invoke-ControlledWrapper `
+                -CachePath $OverlapCase.CacheRootPath `
+                -InvocationOutputPath $OverlapCase.OutputPath
+            Assert-RejectedBeforeBuildPlatformMutation `
+                -Result $OverlapResult `
+                -CaseName $OverlapCase.Name `
+                -InvocationCountBefore $InvocationCountBefore `
+                -OutputPath $OverlapCase.OutputPath `
+                -ProjectCacheRootPath $OverlapCase.ProjectCacheRootPath `
+                -SentinelPath $SentinelPath
+        }
+
+        $ReservedCases = @(
+            @('--project', 'C:\decoy\project.heproj'),
+            @('--PROJECT=C:\decoy\project.heproj'),
+            @('--build', 'ps2'),
+            @('--build=ps2'),
+            @('--build-profile', 'release'),
+            @('--build-profile=release'),
+            @('--output', 'C:\decoy\output'),
+            @('--output=C:\decoy\output')
+        )
+        foreach ($ReservedCase in $ReservedCases) {
+            $ReservedArguments = @($ReservedCase)
+            $RejectedSwitch = ([string]$ReservedArguments[0]).Split("=", 2)[0]
+            $CaseIdentifier = [Guid]::NewGuid().ToString("N")
+            $ReservedCacheRootPath = Join-Path $TestRootPath ("unsafe-arguments-cache-" + $CaseIdentifier)
+            $ReservedOutputPath = Join-Path $TestRootPath ("unsafe-arguments-output-" + $CaseIdentifier)
+            $ReservedLayout = Resolve-BuildPlatformCacheLayout `
+                -CacheRootPath $ReservedCacheRootPath `
+                -ProjectRootPath $ProjectRootPath `
+                -EditorProjectPath $EditorProjectPath `
+                -Platform windows `
+                -Configuration Release `
+                -BuildProfile profiler
+            $SentinelPath = (Join-Path (Split-Path -Parent $ReservedOutputPath) ("arguments-sentinel-" + $CaseIdentifier + ".txt"))
+            Set-Content -LiteralPath $SentinelPath -Value $RejectedSwitch -NoNewline
+            $InvocationCountBefore = @(Get-Content -LiteralPath $CapturePath).Count
+            $ReservedResult = Invoke-ControlledWrapper `
+                -CachePath $ReservedCacheRootPath `
+                -InvocationOutputPath $ReservedOutputPath `
+                -AdditionalArguments (@("--custom-argument", "pass-through") + $ReservedArguments)
+            Assert-RejectedBeforeBuildPlatformMutation `
+                -Result $ReservedResult `
+                -CaseName "Reserved additional argument '$($ReservedArguments[0])'" `
+                -InvocationCountBefore $InvocationCountBefore `
+                -OutputPath $ReservedOutputPath `
+                -ProjectCacheRootPath $ReservedLayout.ProjectCacheRootPath `
+                -SentinelPath $SentinelPath `
+                -ExpectedDiagnostic $RejectedSwitch `
+                -AssertProjectCacheAbsent
+        }
+
+        $AllowedArgumentsCacheRootPath = Join-Path $TestRootPath "allowed-arguments-cache"
+        $AllowedArgumentsOutputPath = Join-Path $TestRootPath "allowed-arguments-output"
+        $AllowedArgumentsResult = Invoke-ControlledWrapper `
+            -CachePath $AllowedArgumentsCacheRootPath `
+            -InvocationOutputPath $AllowedArgumentsOutputPath `
+            -AdditionalArguments @("--custom-argument", "pass-through", "--projectile", "safe")
+        Assert-Success -Result $AllowedArgumentsResult -CaseName "Allowed additional argument pass-through"
+        $AllowedArgumentsInvocation = Get-Content -LiteralPath $CapturePath |
+            Where-Object { $_ -match '--build windows' } |
+            Select-Object -Last 1
+        if ($AllowedArgumentsInvocation -notmatch [regex]::Escape("--custom-argument pass-through")) {
+            throw "Allowed additional argument was not passed through to the editor: '$AllowedArgumentsInvocation'."
+        }
+        if ($AllowedArgumentsInvocation -notmatch [regex]::Escape("--projectile safe")) {
+            throw "Allowed project-like argument was not passed through to the editor: '$AllowedArgumentsInvocation'."
         }
         Clear-Content -LiteralPath $CapturePath
 

@@ -64,6 +64,67 @@ function Get-CanonicalDirectoryPath {
     return $FullPath.TrimEnd($DirectorySeparators)
 }
 
+function Test-BuildPlatformPathContains {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ParentPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CandidatePath
+    )
+
+    $Parent = Get-CanonicalDirectoryPath -Path $ParentPath
+    $Candidate = Get-CanonicalDirectoryPath -Path $CandidatePath
+    $Prefix = $Parent
+    if (-not $Prefix.EndsWith([IO.Path]::DirectorySeparatorChar)) {
+        $Prefix += [IO.Path]::DirectorySeparatorChar
+    }
+    return $Candidate.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-BuildPlatformPathOverlap {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FirstPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SecondPath
+    )
+
+    $First = Get-CanonicalDirectoryPath -Path $FirstPath
+    $Second = Get-CanonicalDirectoryPath -Path $SecondPath
+    return $First.Equals($Second, [StringComparison]::OrdinalIgnoreCase) -or
+        (Test-BuildPlatformPathContains -ParentPath $First -CandidatePath $Second) -or
+        (Test-BuildPlatformPathContains -ParentPath $Second -CandidatePath $First)
+}
+
+function Assert-BuildPlatformAdditionalArguments {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$Arguments
+    )
+
+    $ReservedSwitches = @(
+        "--project",
+        "--build",
+        "--build-profile",
+        "--output"
+    )
+    foreach ($Argument in $Arguments) {
+        if ($null -eq $Argument) {
+            continue
+        }
+
+        foreach ($ReservedSwitch in $ReservedSwitches) {
+            if ($Argument.Equals($ReservedSwitch, [StringComparison]::OrdinalIgnoreCase) -or
+                $Argument.StartsWith($ReservedSwitch + "=", [StringComparison]::OrdinalIgnoreCase)) {
+                throw "AdditionalArgs cannot override wrapper-owned switch '$Argument'."
+            }
+        }
+    }
+}
+
 function Get-EditorArtifactsOutputPath {
     param(
         [Parameter(Mandatory = $true)]
@@ -206,6 +267,19 @@ try {
         -Platform $Platform `
         -Configuration $Configuration `
         -BuildProfile $ResolvedBuildProfile
+
+    if (Test-BuildPlatformPathOverlap -FirstPath $ResolvedOutputPath -SecondPath $Layout.ProjectCacheRootPath) {
+        [Console]::Error.WriteLine(
+            "Output path '$ResolvedOutputPath' must not overlap project cache '$($Layout.ProjectCacheRootPath)'."
+        )
+        exit 2
+    }
+    try {
+        Assert-BuildPlatformAdditionalArguments -Arguments $AdditionalArgs
+    } catch {
+        [Console]::Error.WriteLine($_.Exception.Message)
+        exit 2
+    }
 
     $LockMetadata = [ordered]@{
         processId = $PID
