@@ -20,7 +20,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File C:\dev\helworks\helengine\sc
 Parameters:
 
 - `-Project`: project directory that contains `project.heproj`, or an explicit `.heproj` path
-- `-Platform`: platform id already configured in the project's `user_settings`
+- `-Platform`: supported platform id declared in the project's `settings/platforms.json`; its selected build profile and other build selections come from `user_settings/build_config.json`
 - `-Output`: output directory for the generated platform package
 - `-Configuration`: optional .NET build configuration for the editor project, defaults to `Debug`
 - `-BuildProfile`: platform build profile; defaults to `debug` or `release` when `-Configuration` has that name
@@ -50,7 +50,9 @@ Exit codes:
 - `2`: invalid wrapper arguments such as missing required values
 - `3`: editor project `.csproj` path was not found
 - `4`: project `.heproj` path was not found
-- any other non-zero value: propagated editor or platform build failure exit code
+- `5`: the published editor assembly was missing after a successful publish command
+- `10`: wrapper or internal orchestration failure, including failure to write terminal state after an otherwise successful build
+- any other non-zero value: propagated restore, publish, editor, or platform native-process failure exit code
 
 ## Verified Build Waiting
 

@@ -11,7 +11,7 @@ $BuilderProjectPath = Join-Path $PSScriptRoot "fixtures\build-platform-smoke-bui
 $CodegenProjectPath = "C:\dev\helworks\csharpcodegen\codegen\codegen.csproj"
 $CodegenToolPath = "C:\dev\helworks\csharpcodegen\codegen\bin\Release\net9.0\codegen.exe"
 $TestBuildRootPath = Join-Path ([System.IO.Path]::GetTempPath()) "helengine-build-platform-tests"
-$TestRootPath = Join-Path $TestBuildRootPath ("build-platform-real-editor-smoke-" + [Guid]::NewGuid().ToString("N"))
+$TestRootPath = Join-Path $TestBuildRootPath ("build platform real editor smoke " + [Guid]::NewGuid().ToString("N"))
 $ProjectRootPath = Join-Path $TestRootPath "authored-project"
 $ProjectPath = Join-Path $ProjectRootPath "project.heproj"
 $CacheRootPath = Join-Path $TestRootPath "cache"
@@ -107,6 +107,28 @@ function Get-PublishOutputPath {
     return [System.IO.Path]::GetFullPath($PathValue)
 }
 
+function Get-CommandOptionValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CommandLine,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OptionName
+    )
+
+    $Pattern = '(?:^|\s)' + [regex]::Escape($OptionName) + '\s+(?:"((?:\\"|[^"])*)"|(\S+))'
+    $Matches = [regex]::Matches($CommandLine, $Pattern)
+    if ($Matches.Count -ne 1) {
+        throw "Expected one '$OptionName' value in '$CommandLine', but found $($Matches.Count)."
+    }
+
+    if ($Matches[0].Groups[1].Success) {
+        return $Matches[0].Groups[1].Value.Replace('\"', '"')
+    }
+
+    return $Matches[0].Groups[2].Value
+}
+
 function Get-SingleStablePath {
     param(
         [Parameter(Mandatory = $true)]
@@ -140,9 +162,22 @@ function Assert-WrapperSuccess {
         throw "$InvocationName did not identify the disposable authored project. $($Result.Output -join [Environment]::NewLine)"
     }
 
-    $ExecutingLine = @($Result.Output | Where-Object { $_.StartsWith("Executing: ", [StringComparison]::OrdinalIgnoreCase) })
-    if ($ExecutingLine.Count -ne 1 -or $ExecutingLine[0] -notmatch [regex]::Escape("--project $CanonicalProjectPath")) {
-        throw "$InvocationName did not build the disposable authored project directly. $($ExecutingLine -join [Environment]::NewLine)"
+    $ExecutingLines = @($Result.Output | Where-Object { $_.StartsWith("Executing: ", [StringComparison]::OrdinalIgnoreCase) })
+    if ($ExecutingLines.Count -ne 1) {
+        throw "$InvocationName emitted $($ExecutingLines.Count) Executing lines instead of one."
+    }
+
+    $ExecutingProjectPath = [System.IO.Path]::GetFullPath(
+        (Get-CommandOptionValue -CommandLine $ExecutingLines[0] -OptionName "--project"))
+    if ($ExecutingProjectPath -cne $CanonicalProjectPath) {
+        throw "$InvocationName built project '$ExecutingProjectPath' instead of '$CanonicalProjectPath'."
+    }
+
+    $CanonicalOutputRootPath = [System.IO.Path]::GetFullPath($OutputRootPath)
+    $ExecutingOutputRootPath = [System.IO.Path]::GetFullPath(
+        (Get-CommandOptionValue -CommandLine $ExecutingLines[0] -OptionName "--output"))
+    if ($ExecutingOutputRootPath -cne $CanonicalOutputRootPath) {
+        throw "$InvocationName targeted output '$ExecutingOutputRootPath' instead of '$CanonicalOutputRootPath'."
     }
 }
 
