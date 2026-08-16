@@ -18,6 +18,19 @@ $FakeDotNetPath = Join-Path $FakeToolsPath "dotnet.cmd"
 $EditorProjectPath = Join-Path $TestRootPath "editor\editor.csproj"
 $CacheRootPath = Join-Path $TestRootPath "cache"
 $StartedInvocations = New-Object System.Collections.ArrayList
+$InvocationEnvironmentVariableNames = @(
+    "HELENGINE_DOTNET_EXECUTABLE_PATH",
+    "HELENGINE_LOCK_TEST_MARKER",
+    "HELENGINE_LOCK_TEST_RELEASE",
+    "HELENGINE_LOCK_TEST_CHILD_PID",
+    "HELENGINE_LOCK_TEST_DONE"
+)
+
+$HarnessSource = Get-Content -LiteralPath $PSCommandPath -Raw
+$ProcessStartInfoEnvironmentPropertyPattern = [regex]::Escape('$StartInfo' + '.') + 'Environment(?:Variables)?\b'
+if ([regex]::IsMatch($HarnessSource, $ProcessStartInfoEnvironmentPropertyPattern)) {
+    throw "The locking harness must not access a ProcessStartInfo environment dictionary."
+}
 
 function ConvertTo-ProcessArgument {
     param(
@@ -122,17 +135,61 @@ function Start-WrapperInvocation {
     $StartInfo.CreateNoWindow = $true
     $StartInfo.RedirectStandardOutput = $true
     $StartInfo.RedirectStandardError = $true
-    $StartInfo.EnvironmentVariables["HELENGINE_DOTNET_EXECUTABLE_PATH"] = $FakeDotNetPath
-    $StartInfo.EnvironmentVariables["HELENGINE_LOCK_TEST_MARKER"] = $Control.MarkerPath
-    $StartInfo.EnvironmentVariables["HELENGINE_LOCK_TEST_RELEASE"] = $Control.ReleasePath
-    $StartInfo.EnvironmentVariables["HELENGINE_LOCK_TEST_CHILD_PID"] = $Control.ChildProcessIdPath
-    $StartInfo.EnvironmentVariables["HELENGINE_LOCK_TEST_DONE"] = $Control.DonePath
 
     $Process = New-Object System.Diagnostics.Process
     $Process.StartInfo = $StartInfo
-    if (-not $Process.Start()) {
-        $Process.Dispose()
-        throw "Wrapper '$($Control.Name)' failed to start."
+    $InvocationEnvironmentValues = @{
+        HELENGINE_DOTNET_EXECUTABLE_PATH = $FakeDotNetPath
+        HELENGINE_LOCK_TEST_MARKER = $Control.MarkerPath
+        HELENGINE_LOCK_TEST_RELEASE = $Control.ReleasePath
+        HELENGINE_LOCK_TEST_CHILD_PID = $Control.ChildProcessIdPath
+        HELENGINE_LOCK_TEST_DONE = $Control.DonePath
+    }
+    $SavedInvocationEnvironmentState = @{}
+    foreach ($EnvironmentVariableName in $InvocationEnvironmentVariableNames) {
+        $EnvironmentVariableValue = [System.Environment]::GetEnvironmentVariable(
+            $EnvironmentVariableName,
+            [System.EnvironmentVariableTarget]::Process)
+        $SavedInvocationEnvironmentState[$EnvironmentVariableName] = [pscustomobject]@{
+            Exists = $null -ne $EnvironmentVariableValue
+            Value = $EnvironmentVariableValue
+        }
+    }
+
+    try {
+        foreach ($EnvironmentVariableName in $InvocationEnvironmentVariableNames) {
+            [System.Environment]::SetEnvironmentVariable(
+                $EnvironmentVariableName,
+                $InvocationEnvironmentValues[$EnvironmentVariableName],
+                [System.EnvironmentVariableTarget]::Process)
+        }
+        if (-not $Process.Start()) {
+            $Process.Dispose()
+            throw "Wrapper '$($Control.Name)' failed to start."
+        }
+    } finally {
+        foreach ($EnvironmentVariableName in $InvocationEnvironmentVariableNames) {
+            $SavedEnvironmentVariable = $SavedInvocationEnvironmentState[$EnvironmentVariableName]
+            $RestoredEnvironmentVariableValue = if ($SavedEnvironmentVariable.Exists) {
+                $SavedEnvironmentVariable.Value
+            } else {
+                $null
+            }
+            [System.Environment]::SetEnvironmentVariable(
+                $EnvironmentVariableName,
+                $RestoredEnvironmentVariableValue,
+                [System.EnvironmentVariableTarget]::Process)
+
+            $ActualRestoredEnvironmentVariableValue = [System.Environment]::GetEnvironmentVariable(
+                $EnvironmentVariableName,
+                [System.EnvironmentVariableTarget]::Process)
+            if (($SavedEnvironmentVariable.Exists -and
+                    $ActualRestoredEnvironmentVariableValue -cne $SavedEnvironmentVariable.Value) -or
+                (-not $SavedEnvironmentVariable.Exists -and
+                    $null -ne $ActualRestoredEnvironmentVariableValue)) {
+                throw "The locking harness did not restore inherited '$EnvironmentVariableName'."
+            }
+        }
     }
 
     $Control.Process = $Process
