@@ -20,6 +20,7 @@ $CapturePath = Join-Path $TestRootPath "dotnet-invocations.txt"
 $EnvironmentCapturePath = Join-Path $TestRootPath "editor-environment.txt"
 $RunningStateCapturePath = Join-Path $TestRootPath "running-state.json"
 $EnvironmentEnumerationGuardPath = Join-Path $TestRootPath "reject-environment-enumeration.ps1"
+$EnvironmentCleanupGuardPath = Join-Path $TestRootPath "capture-environment-cleanup.ps1"
 $RobocopyMarkerPath = Join-Path $TestRootPath "robocopy-invoked.txt"
 $ProjectPath = Join-Path $TestRootPath "authored-project\project.heproj"
 $EditorProjectPath = Join-Path $TestRootPath "editor\editor.csproj"
@@ -39,15 +40,22 @@ function Invoke-ControlledWrapper {
         [string]$WorkspacePath = "",
 
         [Parameter()]
-        [int]$PruneDays = 0
+        [int]$PruneDays = 0,
+
+        [Parameter()]
+        [string]$CleanupCapturePath = "",
+
+        [Parameter()]
+        [int]$LockTimeoutMilliseconds = 0
     )
 
+    $InvocationScriptPath = $WrapperPath
     $Arguments = @(
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        $WrapperPath,
+        $InvocationScriptPath,
         "-Project",
         $ProjectPath,
         "-Platform",
@@ -61,6 +69,16 @@ function Invoke-ControlledWrapper {
         "-EditorProject",
         $EditorProjectPath
     )
+    if (-not [string]::IsNullOrWhiteSpace($CleanupCapturePath)) {
+        $InvocationScriptPath = $EnvironmentCleanupGuardPath
+        $Arguments[4] = $InvocationScriptPath
+        $Arguments += @(
+            "-WrapperPath",
+            $WrapperPath,
+            "-CleanupCapturePath",
+            $CleanupCapturePath
+        )
+    }
     if (-not [string]::IsNullOrWhiteSpace($CachePath)) {
         $Arguments += @("-CacheRoot", $CachePath)
     }
@@ -69,6 +87,9 @@ function Invoke-ControlledWrapper {
     }
     if ($PruneDays -ne 0) {
         $Arguments += @("-PruneCacheOlderThanDays", $PruneDays)
+    }
+    if ($LockTimeoutMilliseconds -gt 0) {
+        $Arguments += @("-LockTimeout", ([TimeSpan]::FromMilliseconds($LockTimeoutMilliseconds).ToString("c")))
     }
 
     $OriginalErrorActionPreference = $ErrorActionPreference
@@ -82,6 +103,38 @@ function Invoke-ControlledWrapper {
     return [pscustomobject]@{
         ExitCode = $InvocationExitCode
         Output = $InvocationOutput
+    }
+}
+
+function Assert-EnvironmentCleanupCapture {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CapturePath
+    )
+
+    if (-not (Test-Path -LiteralPath $CapturePath -PathType Leaf)) {
+        throw "The wrapper invocation did not execute its caller environment-cleanup checkpoint '$CapturePath'."
+    }
+
+    $CapturedEnvironment = Get-Content -LiteralPath $CapturePath -Raw | ConvertFrom-Json
+    foreach ($EnvironmentField in @{
+            cacheRoot = "HELENGINE_BUILD_CACHE_ROOT"
+            configuration = "HELENGINE_BUILD_CONFIGURATION"
+            profile = "HELENGINE_BUILD_PROFILE"
+            sourceRoot = "HELENGINE_SOURCE_ROOT"
+        }.GetEnumerator()) {
+        $ExpectedValue = [Environment]::GetEnvironmentVariable(
+            $EnvironmentField.Value,
+            [EnvironmentVariableTarget]::Process
+        )
+        $ActualValue = $CapturedEnvironment.($EnvironmentField.Key)
+        if ($null -eq $ExpectedValue) {
+            if ($null -ne $ActualValue) {
+                throw "Environment cleanup retained $($EnvironmentField.Value)='$ActualValue' instead of removing it."
+            }
+        } elseif ($ActualValue -cne $ExpectedValue) {
+            throw "Environment cleanup restored $($EnvironmentField.Value)='$ActualValue' instead of '$ExpectedValue'."
+        }
     }
 }
 
@@ -376,6 +429,46 @@ function Get-ChildItem {
     -EditorProject $EditorProject `
     -CacheRoot $CacheRoot
 '@ -NoNewline
+    Set-Content -LiteralPath $EnvironmentCleanupGuardPath -Value @'
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)] [string]$WrapperPath,
+    [Parameter(Mandatory = $true)] [string]$CleanupCapturePath,
+    [Parameter(Mandatory = $true)] [string]$Project,
+    [Parameter(Mandatory = $true)] [string]$Platform,
+    [Parameter(Mandatory = $true)] [string]$Output,
+    [Parameter(Mandatory = $true)] [string]$Configuration,
+    [Parameter(Mandatory = $true)] [string]$BuildProfile,
+    [Parameter(Mandatory = $true)] [string]$EditorProject,
+    [Parameter(Mandatory = $true)] [string]$CacheRoot,
+    [Parameter()] [TimeSpan]$LockTimeout = [TimeSpan]::FromHours(2)
+)
+
+$WrapperExitCode = 0
+try {
+    & $WrapperPath `
+        -Project $Project `
+        -Platform $Platform `
+        -Output $Output `
+        -Configuration $Configuration `
+        -BuildProfile $BuildProfile `
+        -EditorProject $EditorProject `
+        -CacheRoot $CacheRoot `
+        -LockTimeout $LockTimeout
+    $WrapperExitCode = $LASTEXITCODE
+} catch {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    $WrapperExitCode = 1
+} finally {
+    [ordered]@{
+        cacheRoot = [Environment]::GetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", [EnvironmentVariableTarget]::Process)
+        configuration = [Environment]::GetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", [EnvironmentVariableTarget]::Process)
+        profile = [Environment]::GetEnvironmentVariable("HELENGINE_BUILD_PROFILE", [EnvironmentVariableTarget]::Process)
+        sourceRoot = [Environment]::GetEnvironmentVariable("HELENGINE_SOURCE_ROOT", [EnvironmentVariableTarget]::Process)
+    } | ConvertTo-Json | Set-Content -LiteralPath $CleanupCapturePath -Encoding UTF8
+}
+exit $WrapperExitCode
+'@ -NoNewline
     Set-Content -LiteralPath (Join-Path $FakeToolsPath "dotnet.cmd") -Value @'
 @echo off
 setlocal EnableExtensions
@@ -410,6 +503,13 @@ if defined IsEditorBuild (
         echo configuration=%HELENGINE_BUILD_CONFIGURATION%
         echo profile=%HELENGINE_BUILD_PROFILE%
     )
+    if /I "%HELENGINE_WORKSPACE_SABOTAGE_STATE%"=="1" (
+        for %%I in ("%ProjectFilePath%") do echo authored mutation> "%%~dpI\fake-editor-mutation.txt"
+        if not exist "%BuildOutputPath%" mkdir "%BuildOutputPath%"
+        echo partial output> "%BuildOutputPath%\partial-output.txt"
+        del /F /Q "%HELENGINE_WORKSPACE_EXPECTED_STATE_PATH%" >nul 2>&1
+        mkdir "%HELENGINE_WORKSPACE_EXPECTED_STATE_PATH%"
+    )
     if not "%HELENGINE_WORKSPACE_EDITOR_EXIT_CODE%"=="" (
         for %%I in ("%ProjectFilePath%") do echo authored mutation> "%%~dpI\fake-editor-mutation.txt"
         if not exist "%BuildOutputPath%" mkdir "%BuildOutputPath%"
@@ -431,6 +531,7 @@ exit /b 8
     $OriginalExpectedStatePath = $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH
     $OriginalRunningStateCapturePath = $env:HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE
     $OriginalEditorExitCode = $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE
+    $OriginalSabotageState = $env:HELENGINE_WORKSPACE_SABOTAGE_STATE
     $OriginalRobocopyMarkerPath = $env:HELENGINE_WORKSPACE_ROBOCOPY_MARKER
     $OriginalDotNetExecutablePath = $env:HELENGINE_DOTNET_EXECUTABLE_PATH
     try {
@@ -440,6 +541,7 @@ exit /b 8
         $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH = Join-Path $OutputPath ".helengine-build-state.json"
         $env:HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE = $RunningStateCapturePath
         $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = $null
+        $env:HELENGINE_WORKSPACE_SABOTAGE_STATE = $null
         $env:HELENGINE_WORKSPACE_ROBOCOPY_MARKER = $RobocopyMarkerPath
         $env:HELENGINE_DOTNET_EXECUTABLE_PATH = Join-Path $FakeToolsPath "dotnet.cmd"
 
@@ -633,6 +735,134 @@ exit /b 8
             }
         }
 
+        $TerminalStateFailureErrors = New-Object System.Collections.ArrayList
+        foreach ($TerminalStateFailureCase in @(
+                [pscustomobject]@{
+                    Name = "successful native build with terminal state failure"
+                    NativeExitCode = $null
+                    ExpectedWrapperExitCode = 10
+                },
+                [pscustomobject]@{
+                    Name = "failed native build with terminal state failure"
+                    NativeExitCode = "37"
+                    ExpectedWrapperExitCode = 37
+                }
+            )) {
+            $EnvironmentCleanupCapturePath = Join-Path $TestRootPath (
+                "environment-cleanup-" + $TerminalStateFailureCase.ExpectedWrapperExitCode + ".json"
+            )
+            foreach ($ResetPath in @(
+                    $RunningStateCapturePath,
+                    (Join-Path $CanonicalProjectRootPath "fake-editor-mutation.txt"),
+                    (Join-Path $CanonicalOutputPath "partial-output.txt")
+                )) {
+                if (Test-Path -LiteralPath $ResetPath) {
+                    Remove-Item -LiteralPath $ResetPath -Force
+                }
+            }
+
+            $env:HELENGINE_WORKSPACE_SABOTAGE_STATE = "1"
+            $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = $TerminalStateFailureCase.NativeExitCode
+            try {
+                $TerminalStateFailureResult = Invoke-ControlledWrapper `
+                    -CachePath $CacheRootPath `
+                    -CleanupCapturePath $EnvironmentCleanupCapturePath
+            } finally {
+                $env:HELENGINE_WORKSPACE_SABOTAGE_STATE = $null
+                $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = $null
+            }
+
+            if ($TerminalStateFailureResult.ExitCode -ne $TerminalStateFailureCase.ExpectedWrapperExitCode) {
+                $null = $TerminalStateFailureErrors.Add(
+                    "$($TerminalStateFailureCase.Name) exited $($TerminalStateFailureResult.ExitCode) instead of $($TerminalStateFailureCase.ExpectedWrapperExitCode)."
+                )
+            }
+            if (($TerminalStateFailureResult.Output -join [Environment]::NewLine) -notmatch 'Failed to write terminal build state') {
+                $null = $TerminalStateFailureErrors.Add(
+                    "$($TerminalStateFailureCase.Name) did not print the terminal state-write diagnostic."
+                )
+            }
+            try {
+                Assert-EnvironmentCleanupCapture -CapturePath $EnvironmentCleanupCapturePath
+            } catch {
+                $null = $TerminalStateFailureErrors.Add($_.Exception.Message)
+            }
+
+            foreach ($PreservedPath in @(
+                    (Join-Path $CanonicalProjectRootPath "fake-editor-mutation.txt"),
+                    (Join-Path $CanonicalOutputPath "partial-output.txt"),
+                    $EditorCacheSentinelPath,
+                    $PlatformCacheSentinelPath,
+                    $ExpectedLockPath
+                )) {
+                if (-not (Test-Path -LiteralPath $PreservedPath)) {
+                    $null = $TerminalStateFailureErrors.Add(
+                        "$($TerminalStateFailureCase.Name) rolled back or removed '$PreservedPath'."
+                    )
+                }
+            }
+            if (-not (Test-Path -LiteralPath $ExpectedStatePath -PathType Container)) {
+                $null = $TerminalStateFailureErrors.Add(
+                    "$($TerminalStateFailureCase.Name) did not leave the sabotaged state-path directory in place."
+                )
+            }
+
+            if (Test-Path -LiteralPath $ExpectedStatePath) {
+                Remove-Item -LiteralPath $ExpectedStatePath -Recurse -Force
+            }
+            $RecoveryResult = Invoke-ControlledWrapper `
+                -CachePath $CacheRootPath `
+                -LockTimeoutMilliseconds 1500
+            if ($RecoveryResult.ExitCode -ne 0) {
+                $null = $TerminalStateFailureErrors.Add(
+                    "$($TerminalStateFailureCase.Name) did not release the project lock for recovery: exit $($RecoveryResult.ExitCode)."
+                )
+            }
+        }
+
+        $MissingDotNetCleanupCapturePath = Join-Path $TestRootPath "environment-cleanup-missing-dotnet.json"
+        $env:HELENGINE_DOTNET_EXECUTABLE_PATH = Join-Path $FakeToolsPath "missing-dotnet.cmd"
+        try {
+            $MissingDotNetResult = Invoke-ControlledWrapper `
+                -CachePath $CacheRootPath `
+                -CleanupCapturePath $MissingDotNetCleanupCapturePath
+        } finally {
+            $env:HELENGINE_DOTNET_EXECUTABLE_PATH = Join-Path $FakeToolsPath "dotnet.cmd"
+        }
+        if ($MissingDotNetResult.ExitCode -ne 10) {
+            $null = $TerminalStateFailureErrors.Add(
+                "The post-running missing-dotnet exception exited $($MissingDotNetResult.ExitCode) instead of wrapper code 10."
+            )
+        } else {
+            $MissingDotNetState = Get-Content -LiteralPath $ExpectedStatePath -Raw | ConvertFrom-Json
+            try {
+                Assert-BuildStateDocument `
+                    -State $MissingDotNetState `
+                    -ExpectedStatus "failed" `
+                    -ExpectedExitCode 10 `
+                    -ExpectedProjectPath $CanonicalProjectPath
+            } catch {
+                $null = $TerminalStateFailureErrors.Add($_.Exception.Message)
+            }
+        }
+        try {
+            Assert-EnvironmentCleanupCapture -CapturePath $MissingDotNetCleanupCapturePath
+        } catch {
+            $null = $TerminalStateFailureErrors.Add($_.Exception.Message)
+        }
+        $MissingDotNetRecoveryResult = Invoke-ControlledWrapper `
+            -CachePath $CacheRootPath `
+            -LockTimeoutMilliseconds 1500
+        if ($MissingDotNetRecoveryResult.ExitCode -ne 0) {
+            $null = $TerminalStateFailureErrors.Add(
+                "The post-running missing-dotnet exception did not release the project lock for recovery: exit $($MissingDotNetRecoveryResult.ExitCode)."
+            )
+        }
+
+        if ($TerminalStateFailureErrors.Count -ne 0) {
+            throw ("Terminal state failure regressions failed: " + ($TerminalStateFailureErrors -join " | "))
+        }
+
         if ((Get-CapturedArgumentValue -Invocation $WorkspaceOnlyPublishInvocation -ArgumentName "-o") -cne $ExpectedEditorPublishPath) {
             throw "WorkspaceRoot alone did not resolve the CacheRoot layout."
         }
@@ -669,6 +899,7 @@ exit /b 8
         $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH = $OriginalExpectedStatePath
         $env:HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE = $OriginalRunningStateCapturePath
         $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = $OriginalEditorExitCode
+        $env:HELENGINE_WORKSPACE_SABOTAGE_STATE = $OriginalSabotageState
         $env:HELENGINE_WORKSPACE_ROBOCOPY_MARKER = $OriginalRobocopyMarkerPath
         $env:HELENGINE_DOTNET_EXECUTABLE_PATH = $OriginalDotNetExecutablePath
     }

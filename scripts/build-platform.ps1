@@ -362,20 +362,31 @@ try {
     $BuildTerminalExitCode = 10
     exit 10
 } finally {
+    $TerminalStateWriteFailed = $false
     try {
         try {
             if ($BuildStateStarted) {
-                Write-BuildPlatformState `
-                    -StatePath $StateFilePath `
-                    -BuildId $BuildId `
-                    -ProjectPath $ResolvedProjectPath `
-                    -Platform $Platform `
-                    -BuildProfile $ResolvedBuildProfile `
-                    -Configuration $Configuration `
-                    -StartedUtc $BuildStartedUtc `
-                    -CompletedUtc ([DateTime]::UtcNow.ToString("o")) `
-                    -Status $BuildTerminalStatus `
-                    -ExitCode $BuildTerminalExitCode
+                try {
+                    Write-BuildPlatformState `
+                        -StatePath $StateFilePath `
+                        -BuildId $BuildId `
+                        -ProjectPath $ResolvedProjectPath `
+                        -Platform $Platform `
+                        -BuildProfile $ResolvedBuildProfile `
+                        -Configuration $Configuration `
+                        -StartedUtc $BuildStartedUtc `
+                        -CompletedUtc ([DateTime]::UtcNow.ToString("o")) `
+                        -Status $BuildTerminalStatus `
+                        -ExitCode $BuildTerminalExitCode
+                } catch {
+                    $TerminalStateWriteFailed = $true
+                    [Console]::Error.WriteLine(
+                        "Failed to write terminal build state '$StateFilePath': $($_.Exception.Message)"
+                    )
+                    if ($BuildTerminalExitCode -eq 0) {
+                        $BuildTerminalExitCode = 10
+                    }
+                }
             }
         } finally {
             if ($null -ne $ProjectLock) {
@@ -384,5 +395,8 @@ try {
         }
     } finally {
         Restore-BuildPlatformEnvironmentState -State $OriginalBuildPlatformEnvironmentState
+    }
+    if ($TerminalStateWriteFailed) {
+        exit $BuildTerminalExitCode
     }
 }
