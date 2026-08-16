@@ -204,9 +204,74 @@ function Exit-BuildPlatformProjectLock {
     }
 }
 
+function Enter-BuildPlatformProjectMutex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectHash,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath,
+
+        [Parameter(Mandatory = $true)]
+        [TimeSpan]$Timeout
+    )
+
+    if ($ProjectHash -cnotmatch '^[0-9a-f]{32}$') {
+        throw "Project hash must be 32 lowercase hexadecimal characters."
+    }
+    if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
+        throw "Project path must be provided."
+    }
+    if ($Timeout -lt [TimeSpan]::Zero) {
+        throw "Lock timeout must be zero or positive."
+    }
+
+    $MutexName = "Global\helengine.build-platform.project.v1.$ProjectHash"
+    $Mutex = New-Object System.Threading.Mutex($false, $MutexName)
+    $OwnsMutex = $false
+    try {
+        try {
+            $OwnsMutex = $Mutex.WaitOne($Timeout)
+        } catch [System.Threading.AbandonedMutexException] {
+            $OwnsMutex = $true
+        }
+        if (-not $OwnsMutex) {
+            throw "Timed out after $($Timeout.ToString('c')) waiting for project mutex '$MutexName' for canonical project '$ProjectPath'."
+        }
+        return [pscustomobject]@{
+            Name = $MutexName
+            Mutex = $Mutex
+            OwnsMutex = $true
+        }
+    } catch {
+        if ($OwnsMutex) {
+            $Mutex.ReleaseMutex()
+        }
+        $Mutex.Dispose()
+        throw
+    }
+}
+
+function Exit-BuildPlatformProjectMutex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$MutexHandle
+    )
+
+    try {
+        if ($MutexHandle.OwnsMutex) {
+            $MutexHandle.Mutex.ReleaseMutex()
+        }
+    } finally {
+        $MutexHandle.Mutex.Dispose()
+    }
+}
+
 Export-ModuleMember -Function @(
     'Enter-BuildPlatformProjectLock',
     'Enter-BuildPlatformProjectLockNonBlocking',
+    'Enter-BuildPlatformProjectMutex',
     'Test-BuildPlatformProjectLockHeld',
-    'Exit-BuildPlatformProjectLock'
+    'Exit-BuildPlatformProjectLock',
+    'Exit-BuildPlatformProjectMutex'
 )

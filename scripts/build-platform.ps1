@@ -161,6 +161,7 @@ if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
 }
 
 $OriginalBuildPlatformEnvironmentState = Save-BuildPlatformEnvironmentState
+$ProjectMutex = $null
 $ProjectLock = $null
 $BuildStateStarted = $false
 $BuildId = $null
@@ -212,10 +213,19 @@ try {
         output = $ResolvedOutputPath
         startedUtc = [DateTime]::UtcNow.ToString("o")
     }
+    $LockWaitStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $ProjectMutex = Enter-BuildPlatformProjectMutex `
+        -ProjectHash $Layout.ProjectHash `
+        -ProjectPath $ResolvedProjectPath `
+        -Timeout $LockTimeout
+    $RemainingLockTimeout = $LockTimeout - $LockWaitStopwatch.Elapsed
+    if ($RemainingLockTimeout -lt [TimeSpan]::Zero) {
+        $RemainingLockTimeout = [TimeSpan]::Zero
+    }
     $ProjectLock = Enter-BuildPlatformProjectLock `
         -LockPath $Layout.LockPath `
         -Metadata $LockMetadata `
-        -Timeout $LockTimeout
+        -Timeout $RemainingLockTimeout
 
     if ($Clean) {
         Remove-BuildPlatformSelectedCache -Layout $Layout
@@ -420,7 +430,13 @@ try {
             }
         }
     } finally {
-        Restore-BuildPlatformEnvironmentState -State $OriginalBuildPlatformEnvironmentState
+        try {
+            if ($null -ne $ProjectMutex) {
+                Exit-BuildPlatformProjectMutex -MutexHandle $ProjectMutex
+            }
+        } finally {
+            Restore-BuildPlatformEnvironmentState -State $OriginalBuildPlatformEnvironmentState
+        }
     }
     if ($TerminalStateWriteFailed) {
         exit $BuildTerminalExitCode

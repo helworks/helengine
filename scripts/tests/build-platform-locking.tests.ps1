@@ -18,6 +18,8 @@ $FakeDotNetPath = Join-Path $FakeToolsPath "dotnet.cmd"
 $EditorProjectPath = Join-Path $TestRootPath "editor\editor.csproj"
 $CacheRootPath = Join-Path $TestRootPath "cache"
 $StartedInvocations = New-Object System.Collections.ArrayList
+$StartedMutexOwners = New-Object System.Collections.ArrayList
+$MutexOwnerScriptPath = Join-Path $TestRootPath "mutex-owner.ps1"
 $InvocationEnvironmentVariableNames = @(
     "HELENGINE_DOTNET_EXECUTABLE_PATH",
     "HELENGINE_LOCK_TEST_MARKER",
@@ -103,6 +105,9 @@ function New-InvocationControl {
         [string]$ProjectPath,
 
         [Parameter()]
+        [string]$CacheRootPath = $script:CacheRootPath,
+
+        [Parameter()]
         [switch]$Released,
 
         [Parameter()]
@@ -114,6 +119,7 @@ function New-InvocationControl {
     $Control = [pscustomobject]@{
         Name = $Name
         ProjectPath = $ProjectPath
+        CacheRootPath = [System.IO.Path]::GetFullPath($CacheRootPath)
         OutputPath = Join-Path $TestRootPath ("outputs\" + $Name)
         MarkerPath = Join-Path $ControlRootPath "dotnet-reached.marker"
         ReleasePath = Join-Path $ControlRootPath "release.marker"
@@ -154,7 +160,7 @@ function Start-WrapperInvocation {
         "-EditorProject",
         $EditorProjectPath,
         "-CacheRoot",
-        $CacheRootPath,
+        $Control.CacheRootPath,
         "-LockTimeout",
         $Control.LockTimeout.ToString("c")
     )
@@ -434,6 +440,99 @@ function Assert-SuccessfulInvocation {
     return $Result
 }
 
+function New-MutexOwnerControl {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectHash,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath
+    )
+
+    $ControlRootPath = Join-Path $TestRootPath ("mutex-controls\" + $Name)
+    $null = New-Item -ItemType Directory -Path $ControlRootPath -Force
+    return [pscustomobject]@{
+        Name = $Name
+        ProjectHash = $ProjectHash
+        ProjectPath = $ProjectPath
+        OwnedMarkerPath = Join-Path $ControlRootPath "owned.marker"
+        ReleaseMarkerPath = Join-Path $ControlRootPath "release.marker"
+        Process = $null
+    }
+}
+
+function Start-MutexOwnerProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Control
+    )
+
+    $Arguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        $MutexOwnerScriptPath,
+        "-LockModulePath",
+        $LockModulePath,
+        "-ProjectHash",
+        $Control.ProjectHash,
+        "-ProjectPath",
+        $Control.ProjectPath,
+        "-OwnedMarkerPath",
+        $Control.OwnedMarkerPath,
+        "-ReleaseMarkerPath",
+        $Control.ReleaseMarkerPath
+    )
+    $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $StartInfo.FileName = "powershell.exe"
+    $StartInfo.Arguments = (($Arguments | ForEach-Object { ConvertTo-ProcessArgument -Value $_ }) -join " ")
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.CreateNoWindow = $true
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $true
+
+    $Process = New-Object System.Diagnostics.Process
+    $Process.StartInfo = $StartInfo
+    if (-not $Process.Start()) {
+        $Process.Dispose()
+        throw "Mutex owner '$($Control.Name)' failed to start."
+    }
+    $Control.Process = $Process
+    $null = $StartedMutexOwners.Add($Control)
+    return $Control
+}
+
+function Release-MutexOwnerProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Control
+    )
+
+    if (-not (Test-Path -LiteralPath $Control.ReleaseMarkerPath)) {
+        Set-Content -LiteralPath $Control.ReleaseMarkerPath -Value "released" -NoNewline
+    }
+}
+
+function Assert-SuccessfulMutexOwnerProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Control
+    )
+
+    if (-not $Control.Process.WaitForExit(10000)) {
+        throw "Mutex owner '$($Control.Name)' did not exit after release."
+    }
+    $StandardOutput = $Control.Process.StandardOutput.ReadToEnd()
+    $StandardError = $Control.Process.StandardError.ReadToEnd()
+    if ($Control.Process.ExitCode -ne 0) {
+        throw "Mutex owner '$($Control.Name)' failed with exit code $($Control.Process.ExitCode). stdout: $StandardOutput stderr: $StandardError"
+    }
+}
+
 try {
     $null = New-Item -ItemType Directory -Path $FakeToolsPath -Force
     $null = New-Item -ItemType Directory -Path (Split-Path -Parent $EditorProjectPath) -Force
@@ -460,15 +559,44 @@ if not "%OutputPath%"=="" (
 exit /b 0
 '@ -NoNewline
 
+    Set-Content -LiteralPath $MutexOwnerScriptPath -Value @'
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)][string]$LockModulePath,
+    [Parameter(Mandatory = $true)][string]$ProjectHash,
+    [Parameter(Mandatory = $true)][string]$ProjectPath,
+    [Parameter(Mandatory = $true)][string]$OwnedMarkerPath,
+    [Parameter(Mandatory = $true)][string]$ReleaseMarkerPath
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+Import-Module $LockModulePath -Force
+$Handle = Enter-BuildPlatformProjectMutex `
+    -ProjectHash $ProjectHash `
+    -ProjectPath $ProjectPath `
+    -Timeout ([TimeSpan]::FromSeconds(10))
+Set-Content -LiteralPath $OwnedMarkerPath -Value $PID -NoNewline
+try {
+    while (-not (Test-Path -LiteralPath $ReleaseMarkerPath)) {
+        Start-Sleep -Milliseconds 25
+    }
+} finally {
+    Exit-BuildPlatformProjectMutex -MutexHandle $Handle
+}
+'@ -NoNewline
+
     $ExpectedLockCommands = @(
         "Enter-BuildPlatformProjectLock",
         "Enter-BuildPlatformProjectLockNonBlocking",
+        "Enter-BuildPlatformProjectMutex",
         "Exit-BuildPlatformProjectLock",
+        "Exit-BuildPlatformProjectMutex",
         "Test-BuildPlatformProjectLockHeld"
     )
     $ActualLockCommands = @(Get-Command -Module BuildPlatformLock | Select-Object -ExpandProperty Name | Sort-Object)
     if (($ActualLockCommands -join "|") -cne ($ExpectedLockCommands -join "|")) {
-        throw "The lock module exported '$($ActualLockCommands -join "', '")' instead of exactly the four public lock functions."
+        throw "The lock module exported '$($ActualLockCommands -join "', '")' instead of exactly the six public lock functions."
     }
 
     $DirectLockPath = Join-Path $TestRootPath "direct-lock\project.lock"
@@ -505,6 +633,85 @@ exit /b 0
         throw "A leftover readable metadata file was treated as ownership."
     }
 
+    $DirectMutexProjectPath = Join-Path $TestRootPath "direct-mutex\project.heproj"
+    foreach ($InvalidProjectHash in @("", ("A" * 32), ("g" * 32), ("a" * 31))) {
+        $InvalidHashThrew = $false
+        try {
+            $null = Enter-BuildPlatformProjectMutex `
+                -ProjectHash $InvalidProjectHash `
+                -ProjectPath $DirectMutexProjectPath `
+                -Timeout ([TimeSpan]::Zero)
+        } catch {
+            $InvalidHashThrew = $true
+        }
+        if (-not $InvalidHashThrew) {
+            throw "Invalid project hash '$InvalidProjectHash' did not throw."
+        }
+    }
+    $NegativeTimeoutThrew = $false
+    try {
+        $null = Enter-BuildPlatformProjectMutex `
+            -ProjectHash ("1" * 32) `
+            -ProjectPath $DirectMutexProjectPath `
+            -Timeout ([TimeSpan]::FromMilliseconds(-1))
+    } catch {
+        $NegativeTimeoutThrew = $true
+    }
+    if (-not $NegativeTimeoutThrew) {
+        throw "A negative mutex timeout did not throw."
+    }
+
+    $ExitReleaseHash = "11111111111111111111111111111111"
+    $ExitReleaseHandle = Enter-BuildPlatformProjectMutex `
+        -ProjectHash $ExitReleaseHash `
+        -ProjectPath $DirectMutexProjectPath `
+        -Timeout ([TimeSpan]::Zero)
+    Exit-BuildPlatformProjectMutex -MutexHandle $ExitReleaseHandle
+    $ExitReleaseContender = Start-MutexOwnerProcess -Control (New-MutexOwnerControl `
+        -Name "exit-release-contender" `
+        -ProjectHash $ExitReleaseHash `
+        -ProjectPath $DirectMutexProjectPath)
+    Wait-ForPath -Path $ExitReleaseContender.OwnedMarkerPath -Description "the mutex contender after explicit release"
+    Release-MutexOwnerProcess -Control $ExitReleaseContender
+    Assert-SuccessfulMutexOwnerProcess -Control $ExitReleaseContender
+
+    $TimeoutMutexHash = "22222222222222222222222222222222"
+    $TimeoutMutexOwner = Start-MutexOwnerProcess -Control (New-MutexOwnerControl `
+        -Name "zero-timeout-owner" `
+        -ProjectHash $TimeoutMutexHash `
+        -ProjectPath $DirectMutexProjectPath)
+    Wait-ForPath -Path $TimeoutMutexOwner.OwnedMarkerPath -Description "the zero-timeout mutex owner"
+    $ZeroTimeoutError = $null
+    try {
+        $null = Enter-BuildPlatformProjectMutex `
+            -ProjectHash $TimeoutMutexHash `
+            -ProjectPath $DirectMutexProjectPath `
+            -Timeout ([TimeSpan]::Zero)
+    } catch {
+        $ZeroTimeoutError = $_
+    }
+    if ($null -eq $ZeroTimeoutError -or $ZeroTimeoutError.Exception.Message -notmatch "Timed out after") {
+        throw "A zero-timeout mutex contender did not receive a timeout error while another process owned the mutex."
+    }
+    Release-MutexOwnerProcess -Control $TimeoutMutexOwner
+    Assert-SuccessfulMutexOwnerProcess -Control $TimeoutMutexOwner
+
+    $AbandonedMutexHash = "33333333333333333333333333333333"
+    $AbandonedMutexOwner = Start-MutexOwnerProcess -Control (New-MutexOwnerControl `
+        -Name "abandoned-owner" `
+        -ProjectHash $AbandonedMutexHash `
+        -ProjectPath $DirectMutexProjectPath)
+    Wait-ForPath -Path $AbandonedMutexOwner.OwnedMarkerPath -Description "the mutex owner to abandon its mutex"
+    $AbandonedMutexOwner.Process.Kill()
+    if (-not $AbandonedMutexOwner.Process.WaitForExit(10000)) {
+        throw "The exact recorded mutex owner did not terminate for abandonment coverage."
+    }
+    $AbandonedMutexHandle = Enter-BuildPlatformProjectMutex `
+        -ProjectHash $AbandonedMutexHash `
+        -ProjectPath $DirectMutexProjectPath `
+        -Timeout ([TimeSpan]::Zero)
+    Exit-BuildPlatformProjectMutex -MutexHandle $AbandonedMutexHandle
+
     $SameProjectPath = New-TestProject -Name "MixedCaseProject"
     $SameProjectOwner = Start-WrapperInvocation -Control (New-InvocationControl `
         -Name "same-project-owner" `
@@ -526,6 +733,26 @@ exit /b 0
     if (-not (Test-Path -LiteralPath $SameProjectWaiter.MarkerPath)) {
         throw "The waiting same-project wrapper did not proceed after the owner released."
     }
+
+    $CrossCacheProjectPath = New-TestProject -Name "cross-cache-project"
+    $CrossCacheOwner = Start-WrapperInvocation -Control (New-InvocationControl `
+        -Name "cross-cache-owner" `
+        -ProjectPath $CrossCacheProjectPath `
+        -CacheRootPath (Join-Path $TestRootPath "cache-a"))
+    Wait-ForPath -Path $CrossCacheOwner.MarkerPath -Description "the cross-cache owner to enter fake dotnet"
+
+    $CrossCacheWaiter = Start-WrapperInvocation -Control (New-InvocationControl `
+        -Name "cross-cache-waiter" `
+        -ProjectPath $CrossCacheProjectPath `
+        -CacheRootPath (Join-Path $TestRootPath "cache-b") `
+        -Released)
+    Start-Sleep -Milliseconds 750
+    if (Test-Path -LiteralPath $CrossCacheWaiter.MarkerPath) {
+        throw "Same canonical project wrappers bypassed serialization through different cache roots."
+    }
+    Release-Invocation -Control $CrossCacheOwner
+    $null = Assert-SuccessfulInvocation -Control $CrossCacheOwner
+    $null = Assert-SuccessfulInvocation -Control $CrossCacheWaiter
 
     $DifferentOwnerProjectPath = New-TestProject -Name "different-owner"
     $DifferentWaiterProjectPath = New-TestProject -Name "different-waiter"
@@ -566,11 +793,11 @@ exit /b 0
         -Platform "windows" `
         -Configuration "Release" `
         -BuildProfile "profiler"
+    $TimeoutMutexName = "Global\helengine.build-platform.project.v1.$($TimeoutLayout.ProjectHash)"
     foreach ($ExpectedTimeoutText in @(
-            ('"processId":' + $TimeoutOwner.Process.Id),
             "Timed out after",
             [System.IO.Path]::GetFullPath($TimeoutProjectPath),
-            $TimeoutLayout.LockPath
+            $TimeoutMutexName
         )) {
         if ($TimeoutCombinedOutput -notmatch [regex]::Escape($ExpectedTimeoutText)) {
             throw "Timeout diagnostics did not mention '$ExpectedTimeoutText'. Output: $TimeoutCombinedOutput"
@@ -647,6 +874,18 @@ exit /b 0
         }
         if ($null -ne $Invocation.Process) {
             $Invocation.Process.Dispose()
+        }
+    }
+    foreach ($MutexOwner in $StartedMutexOwners) {
+        if ($null -ne $MutexOwner.Process) {
+            try {
+                if (-not $MutexOwner.Process.HasExited) {
+                    $MutexOwner.Process.Kill()
+                    $null = $MutexOwner.Process.WaitForExit(1000)
+                }
+            } catch {
+            }
+            $MutexOwner.Process.Dispose()
         }
     }
     if (Test-Path -LiteralPath $TestRootPath) {
