@@ -167,6 +167,9 @@ function Start-WrapperInvocation {
             $Process.Dispose()
             throw "Wrapper '$($Control.Name)' failed to start."
         }
+        $Control.Process = $Process
+        $Control.StartedUtc = [DateTime]::UtcNow
+        $null = $StartedInvocations.Add($Control)
     } finally {
         foreach ($EnvironmentVariableName in $InvocationEnvironmentVariableNames) {
             $SavedEnvironmentVariable = $SavedInvocationEnvironmentState[$EnvironmentVariableName]
@@ -192,9 +195,6 @@ function Start-WrapperInvocation {
         }
     }
 
-    $Control.Process = $Process
-    $Control.StartedUtc = [DateTime]::UtcNow
-    $null = $StartedInvocations.Add($Control)
     return $Control
 }
 
@@ -231,6 +231,140 @@ function Release-Invocation {
     }
 }
 
+function Wait-ForOptionalPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [int]$TimeoutMilliseconds
+    )
+
+    $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($Stopwatch.ElapsedMilliseconds -lt $TimeoutMilliseconds) {
+        if (Test-Path -LiteralPath $Path) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 25
+    }
+    return Test-Path -LiteralPath $Path
+}
+
+function Get-InvocationRemainingWaitMilliseconds {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Control,
+
+        [Parameter(Mandatory = $true)]
+        [int]$MaximumMilliseconds
+    )
+
+    if ($null -eq $Control.StartedUtc) {
+        return $MaximumMilliseconds
+    }
+
+    $ElapsedMilliseconds = [int]([DateTime]::UtcNow - $Control.StartedUtc).TotalMilliseconds
+    return [Math]::Max(0, [Math]::Min($MaximumMilliseconds, 20000 - $ElapsedMilliseconds))
+}
+
+function Stop-InvocationExactChildProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Control
+    )
+
+    Release-Invocation -Control $Control
+    $ChildProcessIdWaitMilliseconds = Get-InvocationRemainingWaitMilliseconds `
+        -Control $Control `
+        -MaximumMilliseconds 1000
+    if (-not (Wait-ForOptionalPath `
+            -Path $Control.ChildProcessIdPath `
+            -TimeoutMilliseconds $ChildProcessIdWaitMilliseconds)) {
+        return
+    }
+
+    $RecordedChildProcessId = 0
+    $RecordedChildProcessIdText = (Get-Content -LiteralPath $Control.ChildProcessIdPath -Raw).Trim()
+    if (-not [int]::TryParse($RecordedChildProcessIdText, [ref]$RecordedChildProcessId) -or
+        $RecordedChildProcessId -le 0) {
+        return
+    }
+
+    $RecordedChildProcess = $null
+    try {
+        try {
+            $RecordedChildProcess = [System.Diagnostics.Process]::GetProcessById($RecordedChildProcessId)
+        } catch [System.ArgumentException] {
+        }
+
+        if ($null -ne $RecordedChildProcess -and -not $RecordedChildProcess.HasExited) {
+            $RecordedChildProcessName = $RecordedChildProcess.ProcessName
+            $RecordedChildProcessStartedUtc = $RecordedChildProcess.StartTime.ToUniversalTime()
+            if ($RecordedChildProcessName -ieq "powershell" -and
+                $null -ne $Control.StartedUtc -and
+                $RecordedChildProcessStartedUtc -ge $Control.StartedUtc) {
+                $GracefulWaitMilliseconds = Get-InvocationRemainingWaitMilliseconds `
+                    -Control $Control `
+                    -MaximumMilliseconds 1000
+                $RecordedChildProcessExited = $RecordedChildProcess.HasExited
+                if (-not $RecordedChildProcessExited -and $GracefulWaitMilliseconds -gt 0) {
+                    $RecordedChildProcessExited = $RecordedChildProcess.WaitForExit($GracefulWaitMilliseconds)
+                }
+                if (-not $RecordedChildProcessExited -and -not $RecordedChildProcess.HasExited) {
+                    $RecordedChildProcess.Kill()
+                    $KilledWaitMilliseconds = Get-InvocationRemainingWaitMilliseconds `
+                        -Control $Control `
+                        -MaximumMilliseconds 1000
+                    if ($KilledWaitMilliseconds -gt 0) {
+                        $null = $RecordedChildProcess.WaitForExit($KilledWaitMilliseconds)
+                    }
+                }
+            }
+        }
+    } catch {
+    } finally {
+        if ($null -ne $RecordedChildProcess) {
+            $RecordedChildProcess.Dispose()
+        }
+    }
+
+    $DoneWaitMilliseconds = Get-InvocationRemainingWaitMilliseconds `
+        -Control $Control `
+        -MaximumMilliseconds 1000
+    if ($DoneWaitMilliseconds -gt 0) {
+        $null = Wait-ForOptionalPath -Path $Control.DonePath -TimeoutMilliseconds $DoneWaitMilliseconds
+    }
+}
+
+function Stop-InvocationExactWrapperProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Control
+    )
+
+    if ($null -eq $Control.Process -or $Control.Process.HasExited) {
+        return
+    }
+
+    $GracefulWaitMilliseconds = Get-InvocationRemainingWaitMilliseconds `
+        -Control $Control `
+        -MaximumMilliseconds 1000
+    if ($GracefulWaitMilliseconds -gt 0 -and
+        $Control.Process.WaitForExit($GracefulWaitMilliseconds)) {
+        return
+    }
+
+    if (-not $Control.Process.HasExited) {
+        $Control.Process.Kill()
+        $KilledWaitMilliseconds = Get-InvocationRemainingWaitMilliseconds `
+            -Control $Control `
+            -MaximumMilliseconds 1000
+        if ($KilledWaitMilliseconds -gt 0) {
+            $null = $Control.Process.WaitForExit($KilledWaitMilliseconds)
+        }
+    }
+}
+
 function Complete-Invocation {
     param(
         [Parameter(Mandatory = $true)]
@@ -241,7 +375,6 @@ function Complete-Invocation {
     $RemainingMilliseconds = [Math]::Max(1, 20000 - $ElapsedMilliseconds)
     if (-not $Control.Process.WaitForExit($RemainingMilliseconds)) {
         $Control.Process.Kill()
-        $Control.Process.WaitForExit()
         throw "Wrapper '$($Control.Name)' exceeded the 20-second process cap."
     }
 
@@ -272,6 +405,8 @@ try {
     Set-Content -LiteralPath $FakeDotNetPath -Value @'
 @echo off
 setlocal EnableExtensions
+if exist "%HELENGINE_LOCK_TEST_CHILD_PID%" del /Q "%HELENGINE_LOCK_TEST_CHILD_PID%"
+if exist "%HELENGINE_LOCK_TEST_DONE%" del /Q "%HELENGINE_LOCK_TEST_DONE%"
 > "%HELENGINE_LOCK_TEST_MARKER%" echo reached
 powershell.exe -NoProfile -Command "$PID | Set-Content -LiteralPath $env:HELENGINE_LOCK_TEST_CHILD_PID -NoNewline; while (-not (Test-Path -LiteralPath $env:HELENGINE_LOCK_TEST_RELEASE)) { Start-Sleep -Milliseconds 50 }"
 set "OutputPath="
@@ -421,12 +556,18 @@ exit /b 0
     if (-not (Test-Path -LiteralPath $CrashLayout.LockPath -PathType Leaf)) {
         throw "The owner did not leave readable lock metadata at '$($CrashLayout.LockPath)'."
     }
-    $CrashOwner.Process.Kill()
-    if (-not $CrashOwner.Process.WaitForExit(20000)) {
+    Wait-ForPath -Path $CrashOwner.ChildProcessIdPath -Description "the crash owner's exact fake-dotnet child PID"
+    $CrashChildProcessId = [int](Get-Content -LiteralPath $CrashOwner.ChildProcessIdPath -Raw)
+    $CrashChildProcess = [System.Diagnostics.Process]::GetProcessById($CrashChildProcessId)
+    Stop-InvocationExactWrapperProcess -Control $CrashOwner
+    if (-not $CrashOwner.Process.HasExited) {
         throw "The terminated crash owner did not exit within the 20-second process cap."
     }
-    Release-Invocation -Control $CrashOwner
-    Wait-ForPath -Path $CrashOwner.DonePath -Description "the terminated owner's exact fake-dotnet child to finish"
+    Stop-InvocationExactChildProcess -Control $CrashOwner
+    if (-not $CrashChildProcess.WaitForExit(2000)) {
+        throw "Exact-child cleanup left the terminated wrapper's recorded child alive."
+    }
+    $CrashChildProcess.Dispose()
     $LeftoverMetadata = Get-Content -LiteralPath $CrashLayout.LockPath -Raw | ConvertFrom-Json
     if ($LeftoverMetadata.processId -ne $CrashOwner.Process.Id) {
         throw "The post-crash lock metadata was not readable or did not describe the terminated owner."
@@ -443,18 +584,19 @@ exit /b 0
 } finally {
     foreach ($Invocation in $StartedInvocations) {
         try {
-            Release-Invocation -Control $Invocation
-            if ($null -ne $Invocation.Process -and -not $Invocation.Process.HasExited) {
-                if (-not $Invocation.Process.WaitForExit(2000)) {
-                    $Invocation.Process.Kill()
-                    $Invocation.Process.WaitForExit()
-                }
-            }
+            Stop-InvocationExactChildProcess -Control $Invocation
         } catch {
-        } finally {
-            if ($null -ne $Invocation.Process) {
-                $Invocation.Process.Dispose()
-            }
+        }
+        try {
+            Stop-InvocationExactWrapperProcess -Control $Invocation
+        } catch {
+        }
+        try {
+            Stop-InvocationExactChildProcess -Control $Invocation
+        } catch {
+        }
+        if ($null -ne $Invocation.Process) {
+            $Invocation.Process.Dispose()
         }
     }
     if (Test-Path -LiteralPath $TestRootPath) {
