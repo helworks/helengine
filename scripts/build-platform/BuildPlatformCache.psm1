@@ -1,5 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:BuildPlatformBeforePruneDelete = $null
+$script:BuildPlatformBeforeGuardedDeleteValidation = $null
 
 function Get-BuildPlatformCanonicalDirectoryPath {
     param(
@@ -249,8 +251,14 @@ function Remove-BuildPlatformGuardedDirectory {
     }
 
     foreach ($CanonicalTargetPath in $CanonicalTargetPaths) {
-        if (Test-Path -LiteralPath $CanonicalTargetPath) {
-            Remove-Item -LiteralPath $CanonicalTargetPath -Recurse -Force
+        if ($null -ne $script:BuildPlatformBeforeGuardedDeleteValidation) {
+            & $script:BuildPlatformBeforeGuardedDeleteValidation $CanonicalTargetPath
+        }
+        $RevalidatedTargetPath = Get-BuildPlatformGuardedDeleteTarget `
+            -AllowedRootPath $AllowedRootPath `
+            -TargetPath $CanonicalTargetPath
+        if (Test-Path -LiteralPath $RevalidatedTargetPath) {
+            Remove-Item -LiteralPath $RevalidatedTargetPath -Recurse -Force
         }
     }
 }
@@ -267,6 +275,75 @@ function Remove-BuildPlatformSelectedCache {
             $Layout.EditorConfigurationRootPath,
             $Layout.PlatformCacheRootPath
         )
+}
+
+function Get-BuildPlatformExpiredProjectCacheCandidate {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.IO.DirectoryInfo]$ProjectDirectory,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectsRootPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$LocksRootPath,
+
+        [Parameter(Mandatory = $true)]
+        [DateTime]$ExpirationUtc
+    )
+
+    try {
+        $ProjectCacheRootPath = Get-BuildPlatformGuardedDeleteTarget `
+            -AllowedRootPath $ProjectsRootPath `
+            -TargetPath $ProjectDirectory.FullName
+        $MetadataPath = Join-Path $ProjectCacheRootPath "cache-metadata.json"
+        if (-not (Test-Path -LiteralPath $MetadataPath -PathType Leaf)) {
+            return $null
+        }
+        $MetadataItem = Get-Item -LiteralPath $MetadataPath -Force
+        if (($MetadataItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            return $null
+        }
+
+        $Metadata = Get-Content -LiteralPath $MetadataPath -Raw | ConvertFrom-Json
+        $ProjectRootPath = [string]$Metadata.projectRootPath
+        $LastUsedText = [string]$Metadata.lastUsedUtc
+        if ([string]::IsNullOrWhiteSpace($ProjectRootPath) -or
+            [string]::IsNullOrWhiteSpace($LastUsedText)) {
+            return $null
+        }
+
+        $CanonicalProjectRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $ProjectRootPath
+        $LastUsed = [DateTimeOffset]::MinValue
+        if (-not [DateTimeOffset]::TryParse(
+                $LastUsedText,
+                [System.Globalization.CultureInfo]::InvariantCulture,
+                [System.Globalization.DateTimeStyles]::RoundtripKind,
+                [ref]$LastUsed)) {
+            return $null
+        }
+        if ($LastUsed.UtcDateTime -ge $ExpirationUtc) {
+            return $null
+        }
+
+        $ExpectedHash = Get-BuildPlatformProjectHash -ProjectRootPath $CanonicalProjectRootPath
+        if ($ExpectedHash -cne $ProjectDirectory.Name) {
+            return $null
+        }
+
+        $LockPath = Join-BuildPlatformStrictDescendantPath `
+            -ParentPath $LocksRootPath `
+            -ChildPath ($ProjectDirectory.Name + ".lock")
+        return [pscustomobject]@{
+            ProjectCacheRootPath = $ProjectCacheRootPath
+            ProjectRootPath = $CanonicalProjectRootPath
+            MetadataPath = $MetadataPath
+            LockPath = $LockPath
+        }
+    } catch {
+        Write-Warning "Skipping unsafe or invalid project cache '$($ProjectDirectory.FullName)': $($_.Exception.Message)"
+        return $null
+    }
 }
 
 function Remove-BuildPlatformExpiredProjectCaches {
@@ -297,66 +374,53 @@ function Remove-BuildPlatformExpiredProjectCaches {
     }
 
     $ExpirationUtc = $NowUtc.ToUniversalTime().AddDays(-$OlderThanDays)
+    $LocksRootPath = Join-BuildPlatformStrictDescendantPath `
+        -ParentPath $CanonicalCacheRootPath `
+        -ChildPath "locks"
     $ProjectDirectories = Get-ChildItem -LiteralPath $ProjectsRootPath -Directory -Force
     foreach ($ProjectDirectory in $ProjectDirectories) {
         if ($ProjectDirectory.Name -cnotmatch '^[0-9a-f]{32}$') {
             continue
         }
 
+        $Candidate = Get-BuildPlatformExpiredProjectCacheCandidate `
+            -ProjectDirectory $ProjectDirectory `
+            -ProjectsRootPath $ProjectsRootPath `
+            -LocksRootPath $LocksRootPath `
+            -ExpirationUtc $ExpirationUtc
+        if ($null -eq $Candidate) {
+            continue
+        }
+
+        $CandidateLock = Enter-BuildPlatformProjectLockNonBlocking `
+            -LockPath $Candidate.LockPath `
+            -Metadata ([ordered]@{
+                processId = $PID
+                operation = "prune"
+                projectPath = $Candidate.ProjectRootPath
+                startedUtc = [DateTime]::UtcNow.ToString("o")
+            })
+        if ($null -eq $CandidateLock) {
+            continue
+        }
+
         try {
-            $ProjectCacheRootPath = Get-BuildPlatformGuardedDeleteTarget `
-                -AllowedRootPath $ProjectsRootPath `
-                -TargetPath $ProjectDirectory.FullName
-            $MetadataPath = Join-Path $ProjectCacheRootPath "cache-metadata.json"
-            if (-not (Test-Path -LiteralPath $MetadataPath -PathType Leaf)) {
+            $Candidate = Get-BuildPlatformExpiredProjectCacheCandidate `
+                -ProjectDirectory $ProjectDirectory `
+                -ProjectsRootPath $ProjectsRootPath `
+                -LocksRootPath $LocksRootPath `
+                -ExpirationUtc $ExpirationUtc
+            if ($null -eq $Candidate) {
                 continue
             }
-            $MetadataItem = Get-Item -LiteralPath $MetadataPath -Force
-            if (($MetadataItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-                continue
+            if ($null -ne $script:BuildPlatformBeforePruneDelete) {
+                & $script:BuildPlatformBeforePruneDelete $Candidate
             }
-
-            $Metadata = Get-Content -LiteralPath $MetadataPath -Raw | ConvertFrom-Json
-            $ProjectRootPath = [string]$Metadata.projectRootPath
-            $LastUsedText = [string]$Metadata.lastUsedUtc
-            if ([string]::IsNullOrWhiteSpace($ProjectRootPath) -or
-                [string]::IsNullOrWhiteSpace($LastUsedText)) {
-                continue
-            }
-
-            $CanonicalProjectRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $ProjectRootPath
-            $LastUsed = [DateTimeOffset]::MinValue
-            if (-not [DateTimeOffset]::TryParse(
-                    $LastUsedText,
-                    [System.Globalization.CultureInfo]::InvariantCulture,
-                    [System.Globalization.DateTimeStyles]::RoundtripKind,
-                    [ref]$LastUsed)) {
-                continue
-            }
-            if ($LastUsed.UtcDateTime -ge $ExpirationUtc) {
-                continue
-            }
-
-            $ExpectedHash = Get-BuildPlatformProjectHash -ProjectRootPath $CanonicalProjectRootPath
-            if ($ExpectedHash -cne $ProjectDirectory.Name) {
-                continue
-            }
-
-            $LocksRootPath = Join-BuildPlatformStrictDescendantPath `
-                -ParentPath $CanonicalCacheRootPath `
-                -ChildPath "locks"
-            $LockPath = Join-BuildPlatformStrictDescendantPath `
-                -ParentPath $LocksRootPath `
-                -ChildPath ($ProjectDirectory.Name + ".lock")
-            if (Test-BuildPlatformProjectLockHeld -LockPath $LockPath) {
-                continue
-            }
-
             Remove-BuildPlatformGuardedDirectory `
                 -AllowedRootPath $ProjectsRootPath `
-                -TargetPath @($ProjectCacheRootPath)
-        } catch {
-            Write-Warning "Skipping unsafe or invalid project cache '$($ProjectDirectory.FullName)': $($_.Exception.Message)"
+                -TargetPath @($Candidate.ProjectCacheRootPath)
+        } finally {
+            Exit-BuildPlatformProjectLock -LockHandle $CandidateLock
         }
     }
 }

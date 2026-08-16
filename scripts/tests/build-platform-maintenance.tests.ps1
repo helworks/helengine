@@ -13,7 +13,8 @@ Import-Module $LockModulePath -Force
 
 foreach ($RequiredCommand in @(
         "Remove-BuildPlatformSelectedCache",
-        "Remove-BuildPlatformExpiredProjectCaches"
+        "Remove-BuildPlatformExpiredProjectCaches",
+        "Enter-BuildPlatformProjectLockNonBlocking"
     )) {
     if ($null -eq (Get-Command $RequiredCommand -ErrorAction SilentlyContinue)) {
         throw "Required exported maintenance command '$RequiredCommand' was not found."
@@ -34,10 +35,13 @@ $ProjectARootPath = Split-Path -Parent $ProjectAPath
 $ProjectBRootPath = Split-Path -Parent $ProjectBPath
 $ProjectAOutputPath = Join-Path $OutputRootPath "project-a"
 $MetadataRunningCapturePath = Join-Path $TestRootPath "metadata-running.json"
+$PruneContenderScriptPath = Join-Path $TestRootPath "prune-lock-contender.ps1"
+$PruneLockObservationPath = Join-Path $TestRootPath "prune-lock-observation.txt"
 $HeldLock = $null
 $JunctionPath = $null
 $AllowedRootJunctionPath = $null
 $AncestorJunctionPath = $null
+$GuardRevalidationJunctionPath = $null
 $PruneJunctionPath = $null
 
 function Assert-PathExists {
@@ -141,6 +145,31 @@ try {
     Set-Content -LiteralPath $ProjectAPath -Value "{}" -NoNewline
     Set-Content -LiteralPath $ProjectBPath -Value "{}" -NoNewline
     Set-Content -LiteralPath $EditorProjectPath -Value "<Project />" -NoNewline
+    Set-Content -LiteralPath $PruneContenderScriptPath -Value @'
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)][string]$LockModulePath,
+    [Parameter(Mandatory = $true)][string]$LockPath,
+    [Parameter(Mandatory = $true)][string]$ObservationPath
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+Import-Module $LockModulePath -Force
+$Handle = Enter-BuildPlatformProjectLockNonBlocking `
+    -LockPath $LockPath `
+    -Metadata ([ordered]@{ processId = $PID; operation = "maintenance-contender" })
+if ($null -eq $Handle) {
+    Set-Content -LiteralPath $ObservationPath -Value "HELD" -NoNewline
+    exit 0
+}
+try {
+    Set-Content -LiteralPath $ObservationPath -Value "ACQUIRED" -NoNewline
+} finally {
+    Exit-BuildPlatformProjectLock -LockHandle $Handle
+}
+exit 0
+'@ -NoNewline
 
     $SourceSentinelPath = Join-Path $ProjectARootPath "source-sentinel.txt"
     $OutputSentinelPath = Join-Path $ProjectAOutputPath "output-sentinel.txt"
@@ -271,6 +300,52 @@ try {
     [System.IO.Directory]::Delete($AncestorJunctionPath, $false)
     $AncestorJunctionPath = $null
 
+    $GuardRevalidationRootPath = Join-Path $TestRootPath "guard-revalidation"
+    $GuardFirstTargetPath = Join-Path $GuardRevalidationRootPath "editor\debug"
+    $GuardSecondTargetPath = Join-Path $GuardRevalidationRootPath "platforms\ps2\debug\profiler"
+    $GuardRevalidationBackingPath = Join-Path $TestRootPath "guard-revalidation-backing"
+    $GuardRevalidationSentinelPath = Join-Path $GuardRevalidationBackingPath "external-sentinel.txt"
+    $GuardRevalidationJunctionPath = $GuardSecondTargetPath
+    New-Sentinel -LiteralPath (Join-Path $GuardFirstTargetPath "first-target.txt")
+    New-Sentinel -LiteralPath (Join-Path $GuardSecondTargetPath "second-target.txt")
+    New-Sentinel -LiteralPath $GuardRevalidationSentinelPath
+    $BeforeGuardedDeleteValidationHook = {
+        param([string]$CanonicalTargetPath)
+
+        if (-not $CanonicalTargetPath.Equals($GuardSecondTargetPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return
+        }
+        Remove-Item -LiteralPath $GuardSecondTargetPath -Recurse -Force
+        $JunctionOutput = & cmd.exe /d /c mklink /J $GuardSecondTargetPath $GuardRevalidationBackingPath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to create deletion-time target junction. $($JunctionOutput -join ' ')"
+        }
+    }.GetNewClosure()
+    $CacheModule = Get-Module BuildPlatformCache
+    & $CacheModule { $script:BuildPlatformBeforeGuardedDeleteValidation = $args[0] } $BeforeGuardedDeleteValidationHook
+    try {
+        $GuardDeleteRequest = [pscustomobject]@{
+            AllowedRootPath = $GuardRevalidationRootPath
+            TargetPaths = @($GuardFirstTargetPath, $GuardSecondTargetPath)
+        }
+        Assert-Throws -CaseName "Deletion-time second-target junction swap" -Action {
+            & $CacheModule {
+                param([psobject]$Request)
+                Remove-BuildPlatformGuardedDirectory `
+                    -AllowedRootPath $Request.AllowedRootPath `
+                    -TargetPath $Request.TargetPaths
+            } $GuardDeleteRequest
+        }
+        Assert-PathMissing -LiteralPath $GuardFirstTargetPath
+        Assert-PathExists -LiteralPath $GuardRevalidationSentinelPath
+    } finally {
+        & $CacheModule { $script:BuildPlatformBeforeGuardedDeleteValidation = $null }
+        if (Test-Path -LiteralPath $GuardRevalidationJunctionPath) {
+            [System.IO.Directory]::Delete($GuardRevalidationJunctionPath, $false)
+        }
+        $GuardRevalidationJunctionPath = $null
+    }
+
     $PruneRootPath = Join-Path $TestRootPath "prune-cache"
     $NowUtc = [DateTime]::SpecifyKind([DateTime]::Parse("2026-08-15T12:00:00"), [DateTimeKind]::Utc)
     $ExpiredRoot = Join-Path $SourceRootPath "expired"
@@ -349,6 +424,69 @@ try {
     $PruneJunctionPath = $null
     Exit-BuildPlatformProjectLock -LockHandle $HeldLock
     $HeldLock = $null
+
+    $AtomicRoot = Join-Path $SourceRootPath "atomic-prune"
+    $null = New-Item -ItemType Directory -Path $AtomicRoot -Force
+    $AtomicHash = Get-BuildPlatformProjectHash -ProjectRootPath $AtomicRoot
+    $AtomicCachePath = Join-Path $ProjectsRootPath $AtomicHash
+    $AtomicLockPath = Join-Path (Join-Path $PruneRootPath "locks") ($AtomicHash + ".lock")
+    Write-CacheMetadata `
+        -ProjectCacheRootPath $AtomicCachePath `
+        -ProjectRootPath $AtomicRoot `
+        -LastUsedUtc $NowUtc.AddDays(-31)
+    New-Sentinel -LiteralPath (Join-Path $AtomicCachePath "atomic-delete-sentinel.txt")
+
+    $BeforePruneDeleteHook = {
+        param([psobject]$Candidate)
+
+        $HookOutput = @(& powershell.exe `
+            -NoProfile `
+            -ExecutionPolicy Bypass `
+            -File $PruneContenderScriptPath `
+            -LockModulePath $LockModulePath `
+            -LockPath $Candidate.LockPath `
+            -ObservationPath $PruneLockObservationPath 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            throw "Prune lock contender failed with exit code $LASTEXITCODE. $($HookOutput -join [Environment]::NewLine)"
+        }
+    }.GetNewClosure()
+    $CacheModule = Get-Module BuildPlatformCache
+    & $CacheModule { $script:BuildPlatformBeforePruneDelete = $args[0] } $BeforePruneDeleteHook
+    try {
+        Remove-BuildPlatformExpiredProjectCaches -CacheRootPath $PruneRootPath -OlderThanDays 30 -NowUtc $NowUtc
+    } finally {
+        & $CacheModule { $script:BuildPlatformBeforePruneDelete = $null }
+    }
+    Assert-PathMissing -LiteralPath $AtomicCachePath
+    Assert-PathExists -LiteralPath $PruneLockObservationPath
+    $PruneLockObservation = Get-Content -LiteralPath $PruneLockObservationPath -Raw
+    if ($PruneLockObservation -cne "HELD") {
+        throw "A competing process acquired candidate lock '$AtomicLockPath' during prune deletion. Observation: '$PruneLockObservation'."
+    }
+    $PostPruneLock = Enter-BuildPlatformProjectLockNonBlocking `
+        -LockPath $AtomicLockPath `
+        -Metadata ([ordered]@{ processId = $PID; operation = "post-prune-verification" })
+    if ($null -eq $PostPruneLock) {
+        throw "Prune did not release candidate lock '$AtomicLockPath' after deletion."
+    }
+    Exit-BuildPlatformProjectLock -LockHandle $PostPruneLock
+
+    $InvalidLockParentPath = Join-Path $TestRootPath "invalid-lock-parent"
+    Set-Content -LiteralPath $InvalidLockParentPath -Value "file blocks directory creation" -NoNewline
+    $UnrelatedLockErrorThrew = $false
+    try {
+        $UnexpectedHandle = Enter-BuildPlatformProjectLockNonBlocking `
+            -LockPath (Join-Path $InvalidLockParentPath "candidate.lock") `
+            -Metadata ([ordered]@{ processId = $PID; operation = "invalid-path" })
+        if ($null -ne $UnexpectedHandle) {
+            Exit-BuildPlatformProjectLock -LockHandle $UnexpectedHandle
+        }
+    } catch {
+        $UnrelatedLockErrorThrew = $true
+    }
+    if (-not $UnrelatedLockErrorThrew) {
+        throw "Unrelated nonblocking lock path error was reported as ordinary lock contention."
+    }
 
     Set-Content -LiteralPath (Join-Path $FakeToolsPath "dotnet.cmd") -Value @'
 @echo off
@@ -522,6 +660,9 @@ exit /b 0
     }
     if ($null -ne $AncestorJunctionPath -and (Test-Path -LiteralPath $AncestorJunctionPath)) {
         [System.IO.Directory]::Delete($AncestorJunctionPath, $false)
+    }
+    if ($null -ne $GuardRevalidationJunctionPath -and (Test-Path -LiteralPath $GuardRevalidationJunctionPath)) {
+        [System.IO.Directory]::Delete($GuardRevalidationJunctionPath, $false)
     }
     if ($null -ne $PruneJunctionPath -and (Test-Path -LiteralPath $PruneJunctionPath)) {
         [System.IO.Directory]::Delete($PruneJunctionPath, $false)

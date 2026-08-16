@@ -462,12 +462,13 @@ exit /b 0
 
     $ExpectedLockCommands = @(
         "Enter-BuildPlatformProjectLock",
+        "Enter-BuildPlatformProjectLockNonBlocking",
         "Exit-BuildPlatformProjectLock",
         "Test-BuildPlatformProjectLockHeld"
     )
     $ActualLockCommands = @(Get-Command -Module BuildPlatformLock | Select-Object -ExpandProperty Name | Sort-Object)
     if (($ActualLockCommands -join "|") -cne ($ExpectedLockCommands -join "|")) {
-        throw "The lock module exported '$($ActualLockCommands -join "', '")' instead of exactly the three public lock functions."
+        throw "The lock module exported '$($ActualLockCommands -join "', '")' instead of exactly the four public lock functions."
     }
 
     $DirectLockPath = Join-Path $TestRootPath "direct-lock\project.lock"
