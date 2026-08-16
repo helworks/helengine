@@ -193,12 +193,6 @@ function Get-BuildPlatformGuardedDeleteTarget {
 
     $CanonicalAllowedRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $AllowedRootPath
     $CanonicalTargetPath = Get-BuildPlatformCanonicalDirectoryPath -Path $TargetPath
-    if (Test-Path -LiteralPath $CanonicalAllowedRootPath) {
-        $AllowedRootItem = Get-Item -LiteralPath $CanonicalAllowedRootPath -Force
-        if (($AllowedRootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw "Allowed delete root '$CanonicalAllowedRootPath' is a reparse point."
-        }
-    }
     $AllowedPrefix = $CanonicalAllowedRootPath
     if (-not $AllowedPrefix.EndsWith([System.IO.Path]::DirectorySeparatorChar) -and
         -not $AllowedPrefix.EndsWith([System.IO.Path]::AltDirectorySeparatorChar)) {
@@ -210,8 +204,16 @@ function Get-BuildPlatformGuardedDeleteTarget {
         throw "Delete target '$CanonicalTargetPath' must be a strict descendant of '$CanonicalAllowedRootPath'."
     }
 
-    $RelativeTargetPath = $CanonicalTargetPath.Substring($AllowedPrefix.Length)
-    $CurrentPath = $CanonicalAllowedRootPath
+    $FileSystemRootPath = [System.IO.Path]::GetPathRoot($CanonicalTargetPath)
+    $CurrentPath = $FileSystemRootPath
+    if (Test-Path -LiteralPath $CurrentPath) {
+        $RootItem = Get-Item -LiteralPath $CurrentPath -Force
+        if (($RootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Delete target '$CanonicalTargetPath' traverses reparse point '$CurrentPath'."
+        }
+    }
+
+    $RelativeTargetPath = $CanonicalTargetPath.Substring($FileSystemRootPath.Length)
     foreach ($Segment in [regex]::Split($RelativeTargetPath, '[\\/]+')) {
         if ([string]::IsNullOrEmpty($Segment)) {
             continue

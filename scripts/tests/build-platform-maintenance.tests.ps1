@@ -37,6 +37,7 @@ $MetadataRunningCapturePath = Join-Path $TestRootPath "metadata-running.json"
 $HeldLock = $null
 $JunctionPath = $null
 $AllowedRootJunctionPath = $null
+$AncestorJunctionPath = $null
 $PruneJunctionPath = $null
 
 function Assert-PathExists {
@@ -247,6 +248,28 @@ try {
     Assert-PathExists -LiteralPath (Join-Path $AllowedRootBackingPath "editor\debug\allowed-root-sentinel.txt")
     [System.IO.Directory]::Delete($AllowedRootJunctionPath, $false)
     $AllowedRootJunctionPath = $null
+
+    $AncestorJunctionBackingPath = Join-Path $TestRootPath "ancestor-junction-backing"
+    $AncestorJunctionPath = Join-Path $TestRootPath "ancestor-junction"
+    $AncestorAllowedRootPath = Join-Path $AncestorJunctionPath "project-cache"
+    $AncestorEditorTargetPath = Join-Path $AncestorAllowedRootPath "editor\debug"
+    $AncestorSentinelPath = Join-Path $AncestorJunctionBackingPath "project-cache\editor\debug\ancestor-sentinel.txt"
+    New-Sentinel -LiteralPath $AncestorSentinelPath
+    $JunctionOutput = & cmd.exe /d /c mklink /J $AncestorJunctionPath $AncestorJunctionBackingPath 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to create disposable ancestor junction. $($JunctionOutput -join ' ')"
+    }
+    $AncestorJunctionLayout = [pscustomobject]@{
+        ProjectCacheRootPath = $AncestorAllowedRootPath
+        EditorConfigurationRootPath = $AncestorEditorTargetPath
+        PlatformCacheRootPath = (Join-Path $AncestorAllowedRootPath "platforms\ps2\debug\profiler")
+    }
+    Assert-Throws -CaseName "Reparse-point ancestor above allowed root" -Action {
+        Remove-BuildPlatformSelectedCache -Layout $AncestorJunctionLayout
+    }
+    Assert-PathExists -LiteralPath $AncestorSentinelPath
+    [System.IO.Directory]::Delete($AncestorJunctionPath, $false)
+    $AncestorJunctionPath = $null
 
     $PruneRootPath = Join-Path $TestRootPath "prune-cache"
     $NowUtc = [DateTime]::SpecifyKind([DateTime]::Parse("2026-08-15T12:00:00"), [DateTimeKind]::Utc)
@@ -496,6 +519,9 @@ exit /b 0
     }
     if ($null -ne $AllowedRootJunctionPath -and (Test-Path -LiteralPath $AllowedRootJunctionPath)) {
         [System.IO.Directory]::Delete($AllowedRootJunctionPath, $false)
+    }
+    if ($null -ne $AncestorJunctionPath -and (Test-Path -LiteralPath $AncestorJunctionPath)) {
+        [System.IO.Directory]::Delete($AncestorJunctionPath, $false)
     }
     if ($null -ne $PruneJunctionPath -and (Test-Path -LiteralPath $PruneJunctionPath)) {
         [System.IO.Directory]::Delete($PruneJunctionPath, $false)
