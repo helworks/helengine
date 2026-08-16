@@ -1105,6 +1105,46 @@ exit /b 8
             -ExpectedExitCode 0 `
             -ExpectedProjectPath $CanonicalProjectPath
 
+        $ExpectedInvocationId = "b40ab19d-4d81-4db0-a0d4-9b818b49c7c0"
+        $env:HELENGINE_BUILD_INVOCATION_ID = $ExpectedInvocationId
+        try {
+            $AdoptedInvocationResult = Invoke-ControlledWrapper -CachePath $CacheRootPath
+        } finally {
+            $env:HELENGINE_BUILD_INVOCATION_ID = $null
+        }
+        Assert-Success -Result $AdoptedInvocationResult -CaseName "The wrapper invocation with an explicit build identity"
+        $AdoptedInvocationState = Get-Content -LiteralPath $ExpectedStatePath -Raw | ConvertFrom-Json
+        if ($AdoptedInvocationState.buildId -cne $ExpectedInvocationId) {
+            throw "The wrapper recorded build id '$($AdoptedInvocationState.buildId)' instead of '$ExpectedInvocationId'."
+        }
+
+        $GeneratedInvocationResult = Invoke-ControlledWrapper -CachePath $CacheRootPath
+        Assert-Success -Result $GeneratedInvocationResult -CaseName "The wrapper invocation without an explicit build identity"
+        $GeneratedInvocationState = Get-Content -LiteralPath $ExpectedStatePath -Raw | ConvertFrom-Json
+        if ([string]$GeneratedInvocationState.buildId -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+            throw "The wrapper generated build id '$($GeneratedInvocationState.buildId)' instead of a canonical D-format GUID."
+        }
+
+        $InvalidInvocationOutputPath = Join-Path $TestRootPath "invalid-invocation-output"
+        $InvocationCountBeforeInvalidInvocationId = @(Get-Content -LiteralPath $CapturePath).Count
+        $env:HELENGINE_BUILD_INVOCATION_ID = "not-a-guid"
+        try {
+            $InvalidInvocationResult = Invoke-ControlledWrapper `
+                -CachePath $CacheRootPath `
+                -InvocationOutputPath $InvalidInvocationOutputPath
+        } finally {
+            $env:HELENGINE_BUILD_INVOCATION_ID = $null
+        }
+        if ($InvalidInvocationResult.ExitCode -ne 2) {
+            throw "A malformed HELENGINE_BUILD_INVOCATION_ID must exit 2, got $($InvalidInvocationResult.ExitCode)."
+        }
+        if (@(Get-Content -LiteralPath $CapturePath).Count -ne $InvocationCountBeforeInvalidInvocationId) {
+            throw "A malformed HELENGINE_BUILD_INVOCATION_ID reached the editor."
+        }
+        if (Test-Path -LiteralPath $InvalidInvocationOutputPath) {
+            throw "A malformed HELENGINE_BUILD_INVOCATION_ID mutated output '$InvalidInvocationOutputPath'."
+        }
+
         $RunningState = Get-Content -LiteralPath $RunningStateCapturePath -Raw | ConvertFrom-Json
         Assert-BuildStateDocument `
             -State $RunningState `

@@ -63,6 +63,25 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         /// <summary>
+        /// Ensures a fresh successful state bearing a different build identity cannot satisfy the waiter.
+        /// </summary>
+        [Fact]
+        public async Task WaitAsync_WhenChildWritesForeignBuildId_ReturnsStateFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                BuildWaiterOptions options = CreatePowerShellOptions(outputRootPath, true, "succeeded", 0, false, false, 0, true);
+
+                BuildWaiterResult result = await CreateWaiter().WaitAsync(options, CancellationToken.None);
+
+                Assert.False(result.Succeeded);
+                Assert.Equal(1, result.ExitCode);
+                Assert.Contains("build id", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
         /// Ensures fresh artifacts cannot override a state that reports build failure.
         /// </summary>
         [Fact]
@@ -214,7 +233,8 @@ namespace helengine.tools.buildwaiter.tests {
             int? stateExitCode,
             bool writeStaleState,
             bool writeMalformedState,
-            int childExitCode) {
+            int childExitCode,
+            bool writeForeignBuildId = false) {
             string statePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
             string artifactPath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, "game.iso"));
             List<string> statements = ["$ErrorActionPreference = 'Stop'"];
@@ -232,9 +252,12 @@ namespace helengine.tools.buildwaiter.tests {
                     ? stateExitCode.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
                     : "$null";
                 statements.Add("$completedUtc = [DateTime]::UtcNow");
+                string buildIdExpression = writeForeignBuildId
+                    ? "'foreign-build-id'"
+                    : "$env:HELENGINE_BUILD_INVOCATION_ID";
                 statements.Add(
                     "$state = [ordered]@{ "
-                    + "buildId = 'build-1'; projectPath = 'C:\\project\\project.heproj'; platform = 'ps2'; "
+                    + $"buildId = {buildIdExpression}; projectPath = 'C:\\project\\project.heproj'; platform = 'ps2'; "
                     + "buildProfile = 'debug'; configuration = 'Debug'; startedUtc = $startedUtc.ToString('o'); "
                     + $"completedUtc = $completedUtc.ToString('o'); status = '{stateStatus}'; exitCode = {stateExitCodeExpression} }}");
                 statements.Add($"$state | ConvertTo-Json | Set-Content -LiteralPath {statePath} -Encoding UTF8");

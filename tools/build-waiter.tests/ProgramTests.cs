@@ -29,7 +29,7 @@ namespace helengine.tools.buildwaiter.tests {
                     "$startedUtc = [DateTime]::UtcNow",
                     $"[System.IO.File]::WriteAllText({artifactPath}, 'iso')",
                     "$completedUtc = [DateTime]::UtcNow",
-                    "$state = [ordered]@{ buildId = 'build-1'; projectPath = 'C:\\project\\project.heproj'; platform = 'ps2'; buildProfile = 'debug'; configuration = 'Debug'; startedUtc = $startedUtc.ToString('o'); completedUtc = $completedUtc.ToString('o'); status = 'succeeded'; exitCode = 0 }",
+                    "$state = [ordered]@{ buildId = $env:HELENGINE_BUILD_INVOCATION_ID; projectPath = 'C:\\project\\project.heproj'; platform = 'ps2'; buildProfile = 'debug'; configuration = 'Debug'; startedUtc = $startedUtc.ToString('o'); completedUtc = $completedUtc.ToString('o'); status = 'succeeded'; exitCode = 0 }",
                     $"$state | ConvertTo-Json | Set-Content -LiteralPath {statePath} -Encoding UTF8"
                 ]);
 

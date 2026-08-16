@@ -237,6 +237,18 @@ if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
     $DotNetExecutablePath = "dotnet"
 }
 
+$InvocationBuildId = $env:HELENGINE_BUILD_INVOCATION_ID
+if ([string]::IsNullOrWhiteSpace($InvocationBuildId)) {
+    $InvocationBuildId = [Guid]::NewGuid().ToString("D")
+} else {
+    $ParsedInvocationBuildId = [Guid]::Empty
+    if (-not [Guid]::TryParseExact($InvocationBuildId, "D", [ref]$ParsedInvocationBuildId)) {
+        [Console]::Error.WriteLine("HELENGINE_BUILD_INVOCATION_ID must be a canonical GUID in D format.")
+        exit 2
+    }
+    $InvocationBuildId = $ParsedInvocationBuildId.ToString("D")
+}
+
 $OriginalBuildPlatformEnvironmentState = Save-BuildPlatformEnvironmentState
 $ProjectMutex = $null
 $OutputMutex = $null
@@ -343,7 +355,7 @@ try {
         $null = New-Item -ItemType Directory -Path $ResolvedOutputPath -Force
     }
     $StateFilePath = Join-Path $ResolvedOutputPath ".helengine-build-state.json"
-    $BuildId = [Guid]::NewGuid().ToString("D")
+    $BuildId = $InvocationBuildId
     $BuildStartedUtc = [DateTime]::UtcNow.ToString("o")
     Write-BuildPlatformState `
         -StatePath $StateFilePath `

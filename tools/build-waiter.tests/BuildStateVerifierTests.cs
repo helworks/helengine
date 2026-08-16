@@ -3,6 +3,21 @@ using helengine.tools.buildwaiter;
 
 namespace helengine.tools.buildwaiter.tests {
     /// <summary>
+    /// Supplies the established state fixture identity to tests that do not vary the expected build identity.
+    /// </summary>
+    static class BuildStateVerifierTestExtensions {
+        /// <summary>
+        /// Verifies one default fixture state with its matching build identity.
+        /// </summary>
+        public static BuildStateVerificationResult Verify(
+            this BuildStateVerifier verifier,
+            string outputRootPath,
+            DateTime waiterStartedUtc) {
+            return verifier.Verify(outputRootPath, waiterStartedUtc, "build-1");
+        }
+    }
+
+    /// <summary>
     /// Verifies build-state validation accepts only a complete successful state written by the current waiter invocation.
     /// </summary>
     public sealed class BuildStateVerifierTests {
@@ -24,6 +39,37 @@ namespace helengine.tools.buildwaiter.tests {
             } finally {
                 Directory.Delete(outputRootPath, true);
             }
+        }
+
+        /// <summary>
+        /// Ensures a fresh successful state from another build cannot satisfy this waiter invocation.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenStateBuildIdDiffersFromExpected_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
+                DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
+                WriteState(outputRootPath, "foreign-build-id", stateStartedUtc, stateStartedUtc.AddMilliseconds(500), "succeeded", 0);
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    waiterStartedUtc,
+                    "expected-build-id");
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("build id", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures callers must provide the identity expected from the child build.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenExpectedBuildIdIsBlank_ThrowsArgumentException() {
+            Assert.Throws<ArgumentException>(() => new BuildStateVerifier().Verify("output", DateTime.UtcNow, " "));
         }
 
         /// <summary>

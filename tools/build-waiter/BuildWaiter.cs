@@ -42,6 +42,7 @@ namespace helengine.tools.buildwaiter {
             }
 
             DateTime buildStartedUtc = DateTime.UtcNow;
+            string invocationId = Guid.NewGuid().ToString("D");
             ProcessStartInfo startInfo = new ProcessStartInfo {
                 FileName = options.CommandFileName,
                 UseShellExecute = false,
@@ -49,6 +50,7 @@ namespace helengine.tools.buildwaiter {
                 RedirectStandardError = true,
                 CreateNoWindow = true
             };
+            startInfo.Environment["HELENGINE_BUILD_INVOCATION_ID"] = invocationId;
             for (int argumentIndex = 0; argumentIndex < options.CommandArguments.Length; argumentIndex++) {
                 startInfo.ArgumentList.Add(options.CommandArguments[argumentIndex]);
             }
@@ -98,7 +100,8 @@ namespace helengine.tools.buildwaiter {
 
             BuildStateVerificationResult stateVerificationResult = StateVerifier.Verify(
                 options.OutputRootPath,
-                buildStartedUtc);
+                buildStartedUtc,
+                invocationId);
             if (!stateVerificationResult.Succeeded) {
                 return new BuildWaiterResult(false, 1, stateVerificationResult.Message);
             }
