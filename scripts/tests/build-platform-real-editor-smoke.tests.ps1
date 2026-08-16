@@ -282,7 +282,7 @@ try {
     }
 
     $GuidLikeInvocationDirectories = @(Get-ChildItem -LiteralPath $CacheRootPath -Recurse -Directory |
-        Where-Object { $_.Name -match '^[0-9a-f]{32}$' -and $_.Parent.Name -cne "projects" })
+        Where-Object { $_.Name -match '^[0-9a-f]{32}$' -and $_.Parent.Name -cne "v2" -and $_.Parent.Name -cne "e" })
     if ($GuidLikeInvocationDirectories.Count -ne 0) {
         throw "The stable cache contains GUID-like invocation directories: $($GuidLikeInvocationDirectories.FullName -join ', ')."
     }
