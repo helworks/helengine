@@ -103,30 +103,39 @@ namespace helengine.tools.buildwaiter {
         }
 
         /// <summary>
-        /// Validates every case-insensitive occurrence of one timestamp property is null when allowed or a string ending in literal Z.
+        /// Validates one timestamp property occurs exactly once case-insensitively and has the required wrapper value form.
         /// </summary>
         /// <param name="rootElement">Build-state JSON object containing timestamp properties.</param>
         /// <param name="propertyName">Canonical timestamp property name.</param>
         /// <param name="allowNull">Whether a null property value should pass representation validation.</param>
-        /// <returns>An empty string when all matching values are valid; otherwise a descriptive failure.</returns>
+        /// <returns>An empty string when exactly one matching value is valid; otherwise a descriptive failure.</returns>
         static string ValidateTimestampRepresentation(
             JsonElement rootElement,
             string propertyName,
             bool allowNull) {
+            int occurrenceCount = 0;
+            JsonElement timestampElement = default;
             foreach (JsonProperty property in rootElement.EnumerateObject()) {
                 if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase)) {
                     continue;
-                } else if (allowNull && property.Value.ValueKind == JsonValueKind.Null) {
-                    continue;
-                } else if (property.Value.ValueKind != JsonValueKind.String) {
-                    return $"Build state {propertyName} must be a UTC JSON string ending in literal 'Z'.";
                 }
 
-                string timestampText = property.Value.GetString();
-                if (string.IsNullOrWhiteSpace(timestampText)
-                    || !timestampText.EndsWith("Z", StringComparison.OrdinalIgnoreCase)) {
-                    return $"Build state {propertyName} must be a UTC JSON string ending in literal 'Z'.";
-                }
+                occurrenceCount++;
+                timestampElement = property.Value;
+            }
+
+            if (occurrenceCount != 1) {
+                return $"Build state {propertyName} must occur exactly one time; found {occurrenceCount}.";
+            } else if (allowNull && timestampElement.ValueKind == JsonValueKind.Null) {
+                return string.Empty;
+            } else if (timestampElement.ValueKind != JsonValueKind.String) {
+                return $"Build state {propertyName} must be a UTC JSON string ending in uppercase literal 'Z'.";
+            }
+
+            string timestampText = timestampElement.GetString();
+            if (string.IsNullOrWhiteSpace(timestampText)
+                || !timestampText.EndsWith("Z", StringComparison.Ordinal)) {
+                return $"Build state {propertyName} must be a UTC JSON string ending in uppercase literal 'Z'.";
             }
 
             return string.Empty;

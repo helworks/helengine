@@ -193,6 +193,123 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         /// <summary>
+        /// Ensures a missing started timestamp cannot pass when its default value equals the waiter boundary.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenStartedTimestampPropertyIsMissing_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteRawState(
+                    outputRootPath,
+                    "\"completedUtc\":\"2026-08-15T12:00:01.0000000Z\"");
+                DateTime waiterStartedUtc = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("started", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("exactly one", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures the completed timestamp property is required even though its sole value may be null.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenCompletedTimestampPropertyIsMissing_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteRawState(
+                    outputRootPath,
+                    "\"startedUtc\":\"2026-08-15T12:00:00.0000000Z\"");
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2026, 8, 15, 12, 0, 0, DateTimeKind.Utc));
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("completed", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("exactly one", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures case-variant duplicate started timestamps are rejected before deserialization regardless of ordering.
+        /// </summary>
+        /// <param name="timestampPropertiesJson">Raw timestamp properties containing duplicate started variants.</param>
+        [Theory]
+        [InlineData("\"startedUtc\":\"2026-08-15T12:00:00.0000000Z\",\"STARTEDUTC\":\"2026-08-15T12:00:01.0000000Z\",\"completedUtc\":\"2026-08-15T12:00:02.0000000Z\"")]
+        [InlineData("\"STARTEDUTC\":\"2026-08-15T12:00:01.0000000Z\",\"startedUtc\":\"2026-08-15T12:00:00.0000000Z\",\"completedUtc\":\"2026-08-15T12:00:02.0000000Z\"")]
+        public void Verify_WhenStartedTimestampHasCaseVariantDuplicate_ReturnsFailure(string timestampPropertiesJson) {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteRawState(outputRootPath, timestampPropertiesJson);
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("started", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("exactly one", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures case-variant duplicate completion timestamps are rejected even when one value is null, regardless of ordering.
+        /// </summary>
+        /// <param name="timestampPropertiesJson">Raw timestamp properties containing duplicate completion variants.</param>
+        [Theory]
+        [InlineData("\"startedUtc\":\"2026-08-15T12:00:00.0000000Z\",\"completedUtc\":null,\"COMPLETEDUTC\":\"2026-08-15T12:00:01.0000000Z\"")]
+        [InlineData("\"startedUtc\":\"2026-08-15T12:00:00.0000000Z\",\"COMPLETEDUTC\":\"2026-08-15T12:00:01.0000000Z\",\"completedUtc\":null")]
+        public void Verify_WhenCompletedTimestampHasCaseVariantDuplicate_ReturnsFailure(string timestampPropertiesJson) {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteRawState(outputRootPath, timestampPropertiesJson);
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("completed", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("exactly one", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures lowercase z does not satisfy the wrapper's uppercase literal-Z contract.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenTimestampEndsInLowercaseZ_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteRawState(
+                    outputRootPath,
+                    "\"startedUtc\":\"2026-08-15T12:00:00.0000000z\",\"completedUtc\":\"2026-08-15T12:00:01.0000000Z\"");
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("started", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("uppercase", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Z", result.Message, StringComparison.Ordinal);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
         /// Ensures a local waiter timestamp is rejected as ambiguous programmer input.
         /// </summary>
         [Fact]
@@ -538,6 +655,25 @@ namespace helengine.tools.buildwaiter.tests {
                 ["exitCode"] = 0
             };
             File.WriteAllText(GetStatePath(outputRootPath), JsonSerializer.Serialize(state));
+        }
+
+        /// <summary>
+        /// Writes a complete state object with caller-supplied raw timestamp properties.
+        /// </summary>
+        /// <param name="outputRootPath">Output root that receives the state file.</param>
+        /// <param name="timestampPropertiesJson">Comma-delimited raw timestamp JSON properties.</param>
+        static void WriteRawState(string outputRootPath, string timestampPropertiesJson) {
+            string json = "{"
+                + "\"buildId\":\"build-1\","
+                + "\"projectPath\":\"C:\\\\project\\\\project.heproj\","
+                + "\"platform\":\"ps2\","
+                + "\"buildProfile\":\"debug\","
+                + "\"configuration\":\"Debug\","
+                + timestampPropertiesJson
+                + ",\"status\":\"succeeded\","
+                + "\"exitCode\":0"
+                + "}";
+            File.WriteAllText(GetStatePath(outputRootPath), json);
         }
     }
 }
