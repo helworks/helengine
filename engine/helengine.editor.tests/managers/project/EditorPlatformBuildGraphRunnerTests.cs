@@ -13,14 +13,49 @@ namespace helengine.editor.tests.managers.project;
 /// <summary>
 /// Verifies the platform build executor delegates execution to the shared build-graph runner.
 /// </summary>
-public class EditorPlatformBuildGraphRunnerTests {
+[Collection(EditorBuildCacheEnvironmentCollection.Name)]
+public class EditorPlatformBuildGraphRunnerTests : IDisposable {
+    /// <summary>
+    /// Original stable cache root inherited by the test process.
+    /// </summary>
+    readonly string OriginalCacheRoot = Environment.GetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT");
+
+    /// <summary>
+    /// Original stable build configuration inherited by the test process.
+    /// </summary>
+    readonly string OriginalConfiguration = Environment.GetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION");
+
+    /// <summary>
+    /// Original stable build profile inherited by the test process.
+    /// </summary>
+    readonly string OriginalProfile = Environment.GetEnvironmentVariable("HELENGINE_BUILD_PROFILE");
+
+    /// <summary>
+    /// Original deprecated workspace root inherited by the test process.
+    /// </summary>
+    readonly string OriginalWorkspaceRoot = Environment.GetEnvironmentVariable("HELENGINE_BUILD_WORKSPACE_ROOT");
+
     /// <summary>
     /// Configures the shared built-in shader backend registry used by build-path tests that package generated standard materials.
     /// </summary>
     public EditorPlatformBuildGraphRunnerTests() {
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", null);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", null);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", null);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_WORKSPACE_ROOT", null);
         ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
         shaderBackendRegistry.Register(new DirectX11ShaderBackend());
         EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+    }
+
+    /// <summary>
+    /// Restores every process environment variable changed by build-graph runner tests.
+    /// </summary>
+    public void Dispose() {
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", OriginalCacheRoot);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", OriginalConfiguration);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", OriginalProfile);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_WORKSPACE_ROOT", OriginalWorkspaceRoot);
     }
 
     /// <summary>

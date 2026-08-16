@@ -42,15 +42,89 @@ namespace helengine.editor {
                 throw new ArgumentException("Builder working root path must be provided.", nameof(builderWorkingRootPath));
             }
 
-            ExecutionRootPath = Path.GetFullPath(executionRootPath);
-            GeneratedCoreRootPath = Path.GetFullPath(generatedCoreRootPath);
-            BuilderWorkingRootPath = Path.GetFullPath(builderWorkingRootPath);
+            string canonicalExecutionRootPath = ResolveCanonicalRootPath(executionRootPath);
+            string canonicalGeneratedCoreRootPath = ResolveCanonicalRootPath(generatedCoreRootPath);
+            string canonicalBuilderWorkingRootPath = ResolveCanonicalRootPath(builderWorkingRootPath);
+            EnsureRootsAreDisjoint(
+                canonicalExecutionRootPath,
+                "Execution root",
+                canonicalGeneratedCoreRootPath,
+                "generated-core root",
+                nameof(generatedCoreRootPath));
+            EnsureRootsAreDisjoint(
+                canonicalExecutionRootPath,
+                "Execution root",
+                canonicalBuilderWorkingRootPath,
+                "native root",
+                nameof(builderWorkingRootPath));
+            EnsureRootsAreDisjoint(
+                canonicalGeneratedCoreRootPath,
+                "generated-core root",
+                canonicalBuilderWorkingRootPath,
+                "native root",
+                nameof(builderWorkingRootPath));
+
+            ExecutionRootPath = canonicalExecutionRootPath;
+            GeneratedCoreRootPath = canonicalGeneratedCoreRootPath;
+            BuilderWorkingRootPath = canonicalBuilderWorkingRootPath;
             CookRootPath = Path.Combine(ExecutionRootPath, "cooked");
             CodeRootPath = Path.Combine(ExecutionRootPath, "code");
             VariantRootPath = Path.Combine(ExecutionRootPath, "variants");
             LayoutRootPath = Path.Combine(ExecutionRootPath, "layout");
             PackageRootPath = Path.Combine(ExecutionRootPath, "package");
             LogsRootPath = Path.Combine(ExecutionRootPath, "logs");
+        }
+
+        /// <summary>
+        /// Canonicalizes one independently managed workspace root before overlap validation.
+        /// </summary>
+        /// <param name="path">Workspace root path to canonicalize.</param>
+        /// <returns>Absolute path without a trailing separator unless the path is a filesystem root.</returns>
+        static string ResolveCanonicalRootPath(string path) {
+            string fullPath = Path.GetFullPath(path);
+            string rootPath = Path.GetPathRoot(fullPath);
+            if (fullPath.Length <= rootPath.Length) {
+                return rootPath;
+            }
+
+            return fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
+        /// <summary>
+        /// Rejects independently managed roots that are equal or nested in either direction.
+        /// </summary>
+        /// <param name="firstPath">First canonical workspace root.</param>
+        /// <param name="firstName">First root name used in validation diagnostics.</param>
+        /// <param name="secondPath">Second canonical workspace root.</param>
+        /// <param name="secondName">Second root name used in validation diagnostics.</param>
+        /// <param name="parameterName">Constructor parameter associated with the conflicting root.</param>
+        static void EnsureRootsAreDisjoint(
+            string firstPath,
+            string firstName,
+            string secondPath,
+            string secondName,
+            string parameterName) {
+            if (firstPath.Equals(secondPath, StringComparison.OrdinalIgnoreCase)
+                || IsStrictAncestorPath(firstPath, secondPath)
+                || IsStrictAncestorPath(secondPath, firstPath)) {
+                throw new ArgumentException(
+                    $"{firstName} path '{firstPath}' conflicts with {secondName} path '{secondPath}'; independent workspace roots must not be equal or nested.",
+                    parameterName);
+            }
+        }
+
+        /// <summary>
+        /// Determines whether one canonical path is a strict separator-delimited ancestor of another.
+        /// </summary>
+        /// <param name="ancestorPath">Potential canonical ancestor path.</param>
+        /// <param name="descendantPath">Potential canonical descendant path.</param>
+        /// <returns><c>true</c> when the descendant is strictly below the ancestor.</returns>
+        static bool IsStrictAncestorPath(string ancestorPath, string descendantPath) {
+            string ancestorPrefix = ancestorPath.EndsWith(Path.DirectorySeparatorChar)
+                || ancestorPath.EndsWith(Path.AltDirectorySeparatorChar)
+                ? ancestorPath
+                : ancestorPath + Path.DirectorySeparatorChar;
+            return descendantPath.StartsWith(ancestorPrefix, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
