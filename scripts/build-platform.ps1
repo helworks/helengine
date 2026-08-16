@@ -197,6 +197,7 @@ try {
     $ResolvedProjectRootPath = Split-Path -Parent $ResolvedProjectPath
     $ResolvedHelEngineRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
     $ResolvedOutputPath = Get-CanonicalDirectoryPath -Path $Output
+    $MaintenanceProtectedPaths = @($ResolvedProjectRootPath, $ResolvedOutputPath)
 
     $Layout = Resolve-BuildPlatformCacheLayout `
         -CacheRootPath $SelectedCacheRoot `
@@ -228,12 +229,15 @@ try {
         -Timeout $RemainingLockTimeout
 
     if ($Clean) {
-        Remove-BuildPlatformSelectedCache -Layout $Layout
+        Remove-BuildPlatformSelectedCache `
+            -Layout $Layout `
+            -ProtectedPath $MaintenanceProtectedPaths
     }
     if ($PruneCacheOlderThanDays -gt 0) {
         Remove-BuildPlatformExpiredProjectCaches `
             -CacheRootPath $Layout.CacheRootPath `
-            -OlderThanDays $PruneCacheOlderThanDays
+            -OlderThanDays $PruneCacheOlderThanDays `
+            -ProtectedPath $MaintenanceProtectedPaths
     }
     Write-BuildPlatformCacheMetadata -Layout $Layout -ProjectRootPath $ResolvedProjectRootPath
     $CacheMetadataStarted = $true

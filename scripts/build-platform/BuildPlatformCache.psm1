@@ -178,7 +178,10 @@ function Get-BuildPlatformGuardedDeleteTarget {
         [string]$AllowedRootPath,
 
         [Parameter(Mandatory = $true)]
-        [string]$TargetPath
+        [string]$TargetPath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ProtectedPath
     )
 
     if ([string]::IsNullOrWhiteSpace($AllowedRootPath)) {
@@ -205,6 +208,10 @@ function Get-BuildPlatformGuardedDeleteTarget {
         -not $CanonicalTargetPath.StartsWith($AllowedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Delete target '$CanonicalTargetPath' must be a strict descendant of '$CanonicalAllowedRootPath'."
     }
+
+    Assert-BuildPlatformDeleteTargetDoesNotContainProtectedPath `
+        -TargetPath $CanonicalTargetPath `
+        -ProtectedPath $ProtectedPath
 
     $FileSystemRootPath = [System.IO.Path]::GetPathRoot($CanonicalTargetPath)
     $CurrentPath = $FileSystemRootPath
@@ -234,20 +241,42 @@ function Get-BuildPlatformGuardedDeleteTarget {
     return $CanonicalTargetPath
 }
 
+function Assert-BuildPlatformDeleteTargetDoesNotContainProtectedPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$TargetPath,
+        [Parameter(Mandatory = $true)][string[]]$ProtectedPath
+    )
+
+    $CanonicalTargetPath = Get-BuildPlatformCanonicalDirectoryPath -Path $TargetPath
+    $TargetPrefix = $CanonicalTargetPath.TrimEnd([char[]]@('\', '/')) + [System.IO.Path]::DirectorySeparatorChar
+    foreach ($CandidateProtectedPath in $ProtectedPath) {
+        if ([string]::IsNullOrWhiteSpace($CandidateProtectedPath)) { throw "Protected path must be provided." }
+        $CanonicalProtectedPath = Get-BuildPlatformCanonicalDirectoryPath -Path $CandidateProtectedPath
+        if ($CanonicalProtectedPath.Equals($CanonicalTargetPath, [System.StringComparison]::OrdinalIgnoreCase) -or
+            $CanonicalProtectedPath.StartsWith($TargetPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Delete target '$CanonicalTargetPath' contains protected path '$CanonicalProtectedPath'."
+        }
+    }
+}
+
 function Remove-BuildPlatformGuardedDirectory {
     param(
         [Parameter(Mandatory = $true)]
         [string]$AllowedRootPath,
 
         [Parameter(Mandatory = $true)]
-        [string[]]$TargetPath
+        [string[]]$TargetPath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ProtectedPath
     )
 
     $CanonicalTargetPaths = @()
     foreach ($CandidatePath in $TargetPath) {
         $CanonicalTargetPaths += Get-BuildPlatformGuardedDeleteTarget `
             -AllowedRootPath $AllowedRootPath `
-            -TargetPath $CandidatePath
+            -TargetPath $CandidatePath `
+            -ProtectedPath $ProtectedPath
     }
 
     foreach ($CanonicalTargetPath in $CanonicalTargetPaths) {
@@ -256,7 +285,8 @@ function Remove-BuildPlatformGuardedDirectory {
         }
         $RevalidatedTargetPath = Get-BuildPlatformGuardedDeleteTarget `
             -AllowedRootPath $AllowedRootPath `
-            -TargetPath $CanonicalTargetPath
+            -TargetPath $CanonicalTargetPath `
+            -ProtectedPath $ProtectedPath
         if (Test-Path -LiteralPath $RevalidatedTargetPath) {
             Remove-Item -LiteralPath $RevalidatedTargetPath -Recurse -Force
         }
@@ -266,7 +296,10 @@ function Remove-BuildPlatformGuardedDirectory {
 function Remove-BuildPlatformSelectedCache {
     param(
         [Parameter(Mandatory = $true)]
-        [psobject]$Layout
+        [psobject]$Layout,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ProtectedPath
     )
 
     Remove-BuildPlatformGuardedDirectory `
@@ -274,7 +307,8 @@ function Remove-BuildPlatformSelectedCache {
         -TargetPath @(
             $Layout.EditorConfigurationRootPath,
             $Layout.PlatformCacheRootPath
-        )
+        ) `
+        -ProtectedPath $ProtectedPath
 }
 
 function Get-BuildPlatformExpiredProjectCacheCandidate {
@@ -289,13 +323,17 @@ function Get-BuildPlatformExpiredProjectCacheCandidate {
         [string]$LocksRootPath,
 
         [Parameter(Mandatory = $true)]
-        [DateTime]$ExpirationUtc
+        [DateTime]$ExpirationUtc,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ProtectedPath
     )
 
     try {
         $ProjectCacheRootPath = Get-BuildPlatformGuardedDeleteTarget `
             -AllowedRootPath $ProjectsRootPath `
-            -TargetPath $ProjectDirectory.FullName
+            -TargetPath $ProjectDirectory.FullName `
+            -ProtectedPath $ProtectedPath
         $MetadataPath = Join-Path $ProjectCacheRootPath "cache-metadata.json"
         if (-not (Test-Path -LiteralPath $MetadataPath -PathType Leaf)) {
             return $null
@@ -354,6 +392,9 @@ function Remove-BuildPlatformExpiredProjectCaches {
         [Parameter(Mandatory = $true)]
         [int]$OlderThanDays,
 
+        [Parameter(Mandatory = $true)]
+        [string[]]$ProtectedPath,
+
         [Parameter()]
         [DateTime]$NowUtc = [DateTime]::UtcNow
     )
@@ -387,7 +428,8 @@ function Remove-BuildPlatformExpiredProjectCaches {
             -ProjectDirectory $ProjectDirectory `
             -ProjectsRootPath $ProjectsRootPath `
             -LocksRootPath $LocksRootPath `
-            -ExpirationUtc $ExpirationUtc
+            -ExpirationUtc $ExpirationUtc `
+            -ProtectedPath $ProtectedPath
         if ($null -eq $Candidate) {
             continue
         }
@@ -409,7 +451,8 @@ function Remove-BuildPlatformExpiredProjectCaches {
                 -ProjectDirectory $ProjectDirectory `
                 -ProjectsRootPath $ProjectsRootPath `
                 -LocksRootPath $LocksRootPath `
-                -ExpirationUtc $ExpirationUtc
+                -ExpirationUtc $ExpirationUtc `
+                -ProtectedPath $ProtectedPath
             if ($null -eq $Candidate) {
                 continue
             }
@@ -418,7 +461,8 @@ function Remove-BuildPlatformExpiredProjectCaches {
             }
             Remove-BuildPlatformGuardedDirectory `
                 -AllowedRootPath $ProjectsRootPath `
-                -TargetPath @($Candidate.ProjectCacheRootPath)
+                -TargetPath @($Candidate.ProjectCacheRootPath) `
+                -ProtectedPath $ProtectedPath
         } finally {
             Exit-BuildPlatformProjectLock -LockHandle $CandidateLock
         }

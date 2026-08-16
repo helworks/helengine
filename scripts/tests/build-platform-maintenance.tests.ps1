@@ -206,7 +206,9 @@ exit 0
         New-Sentinel -LiteralPath $SentinelPath
     }
 
-    Remove-BuildPlatformSelectedCache -Layout $LayoutA
+    Remove-BuildPlatformSelectedCache `
+        -Layout $LayoutA `
+        -ProtectedPath @($ProjectARootPath, $ProjectAOutputPath)
     Assert-PathMissing -LiteralPath $SelectedEditorSentinel
     Assert-PathMissing -LiteralPath $SelectedPlatformSentinel
     foreach ($PreservedPath in @(
@@ -219,6 +221,32 @@ exit 0
         )) {
         Assert-PathExists -LiteralPath $PreservedPath
     }
+
+    $ProtectedOutputPath = Join-Path $LayoutA.EditorArtifactsPath "requested-output"
+    $ProtectedOutputSentinel = Join-Path $ProtectedOutputPath "output-sentinel.txt"
+    $ProtectedPlatformSentinel = Join-Path $LayoutA.PlatformCacheRootPath "platform-sentinel.txt"
+    New-Sentinel -LiteralPath $ProtectedOutputSentinel
+    New-Sentinel -LiteralPath $ProtectedPlatformSentinel
+    Assert-Throws -CaseName "Selected clean containing requested output" -Action {
+        Remove-BuildPlatformSelectedCache `
+            -Layout $LayoutA `
+            -ProtectedPath @($ProjectARootPath, $ProtectedOutputPath)
+    }
+    Assert-PathExists -LiteralPath $ProtectedOutputSentinel
+    Assert-PathExists -LiteralPath $ProtectedPlatformSentinel
+
+    $SiblingProtectedOutputPath = Join-Path $LayoutA.ProjectCacheRootPath "editor\debug-sibling\output"
+    $SiblingSelectedEditorSentinel = Join-Path $LayoutA.EditorArtifactsPath "sibling-boundary-editor.txt"
+    $SiblingSelectedPlatformSentinel = Join-Path $LayoutA.PlatformCacheRootPath "sibling-boundary-platform.txt"
+    New-Sentinel -LiteralPath (Join-Path $SiblingProtectedOutputPath "output-sentinel.txt")
+    New-Sentinel -LiteralPath $SiblingSelectedEditorSentinel
+    New-Sentinel -LiteralPath $SiblingSelectedPlatformSentinel
+    Remove-BuildPlatformSelectedCache `
+        -Layout $LayoutA `
+        -ProtectedPath @($ProjectARootPath, $SiblingProtectedOutputPath)
+    Assert-PathMissing -LiteralPath $SiblingSelectedEditorSentinel
+    Assert-PathMissing -LiteralPath $SiblingSelectedPlatformSentinel
+    Assert-PathExists -LiteralPath (Join-Path $SiblingProtectedOutputPath "output-sentinel.txt")
 
     $SafeEditorTargetPath = Join-Path $LayoutA.ProjectCacheRootPath "editor\debug"
     $SafePlatformTargetPath = Join-Path $LayoutA.ProjectCacheRootPath "platforms\ps2\debug\profiler"
@@ -233,7 +261,9 @@ exit 0
             PlatformCacheRootPath = $SafePlatformTargetPath
         }
         Assert-Throws -CaseName "Unsafe selected-cache target '$UnsafeTarget'" -Action {
-            Remove-BuildPlatformSelectedCache -Layout $UnsafeLayout
+            Remove-BuildPlatformSelectedCache `
+                -Layout $UnsafeLayout `
+                -ProtectedPath @($ProjectARootPath, $ProjectAOutputPath)
         }
     }
 
@@ -252,7 +282,9 @@ exit 0
         PlatformCacheRootPath = $SafePlatformTargetPath
     }
     Assert-Throws -CaseName "Reparse-point selected cache" -Action {
-        Remove-BuildPlatformSelectedCache -Layout $JunctionLayout
+        Remove-BuildPlatformSelectedCache `
+            -Layout $JunctionLayout `
+            -ProtectedPath @($ProjectARootPath, $ProjectAOutputPath)
     }
     Assert-PathExists -LiteralPath (Join-Path $JunctionBackingPath "junction-sentinel.txt")
     [System.IO.Directory]::Delete($JunctionPath, $false)
@@ -272,7 +304,9 @@ exit 0
         PlatformCacheRootPath = (Join-Path $AllowedRootJunctionPath "platforms\ps2\debug\profiler")
     }
     Assert-Throws -CaseName "Reparse-point allowed root" -Action {
-        Remove-BuildPlatformSelectedCache -Layout $AllowedRootJunctionLayout
+        Remove-BuildPlatformSelectedCache `
+            -Layout $AllowedRootJunctionLayout `
+            -ProtectedPath @($ProjectARootPath, $ProjectAOutputPath)
     }
     Assert-PathExists -LiteralPath (Join-Path $AllowedRootBackingPath "editor\debug\allowed-root-sentinel.txt")
     [System.IO.Directory]::Delete($AllowedRootJunctionPath, $false)
@@ -294,7 +328,9 @@ exit 0
         PlatformCacheRootPath = (Join-Path $AncestorAllowedRootPath "platforms\ps2\debug\profiler")
     }
     Assert-Throws -CaseName "Reparse-point ancestor above allowed root" -Action {
-        Remove-BuildPlatformSelectedCache -Layout $AncestorJunctionLayout
+        Remove-BuildPlatformSelectedCache `
+            -Layout $AncestorJunctionLayout `
+            -ProtectedPath @($ProjectARootPath, $ProjectAOutputPath)
     }
     Assert-PathExists -LiteralPath $AncestorSentinelPath
     [System.IO.Directory]::Delete($AncestorJunctionPath, $false)
@@ -327,13 +363,15 @@ exit 0
         $GuardDeleteRequest = [pscustomobject]@{
             AllowedRootPath = $GuardRevalidationRootPath
             TargetPaths = @($GuardFirstTargetPath, $GuardSecondTargetPath)
+            ProtectedPaths = @($ProjectARootPath, $ProjectAOutputPath)
         }
         Assert-Throws -CaseName "Deletion-time second-target junction swap" -Action {
             & $CacheModule {
                 param([psobject]$Request)
                 Remove-BuildPlatformGuardedDirectory `
                     -AllowedRootPath $Request.AllowedRootPath `
-                    -TargetPath $Request.TargetPaths
+                    -TargetPath $Request.TargetPaths `
+                    -ProtectedPath $Request.ProtectedPaths
             } $GuardDeleteRequest
         }
         Assert-PathMissing -LiteralPath $GuardFirstTargetPath
@@ -402,9 +440,17 @@ exit 0
         -Metadata ([ordered]@{ projectPath = $HeldRoot }) `
         -Timeout ([TimeSpan]::Zero)
 
-    Remove-BuildPlatformExpiredProjectCaches -CacheRootPath $PruneRootPath -OlderThanDays 0 -NowUtc $NowUtc
+    Remove-BuildPlatformExpiredProjectCaches `
+        -CacheRootPath $PruneRootPath `
+        -OlderThanDays 0 `
+        -ProtectedPath @($ProjectARootPath, $ProjectAOutputPath) `
+        -NowUtc $NowUtc
     Assert-PathExists -LiteralPath (Join-Path $ProjectsRootPath $ExpiredHash)
-    Remove-BuildPlatformExpiredProjectCaches -CacheRootPath $PruneRootPath -OlderThanDays 30 -NowUtc $NowUtc
+    Remove-BuildPlatformExpiredProjectCaches `
+        -CacheRootPath $PruneRootPath `
+        -OlderThanDays 30 `
+        -ProtectedPath @($ProjectARootPath, $ProjectAOutputPath) `
+        -NowUtc $NowUtc
     Assert-PathMissing -LiteralPath (Join-Path $ProjectsRootPath $ExpiredHash)
     foreach ($PreservedPath in @(
             (Join-Path $ProjectsRootPath $FreshHash),
@@ -424,6 +470,50 @@ exit 0
     $PruneJunctionPath = $null
     Exit-BuildPlatformProjectLock -LockHandle $HeldLock
     $HeldLock = $null
+
+    $ProtectedSourceProjectRoot = Join-Path $SourceRootPath "protected-source-project"
+    $ProtectedOutputProjectRoot = Join-Path $SourceRootPath "protected-output-project"
+    $RemovableProjectRoot = Join-Path $SourceRootPath "removable-project"
+    foreach ($ProjectRootPath in @($ProtectedSourceProjectRoot, $ProtectedOutputProjectRoot, $RemovableProjectRoot)) {
+        $null = New-Item -ItemType Directory -Path $ProjectRootPath -Force
+    }
+    $ProtectedSourceHash = Get-BuildPlatformProjectHash -ProjectRootPath $ProtectedSourceProjectRoot
+    $ProtectedOutputHash = Get-BuildPlatformProjectHash -ProjectRootPath $ProtectedOutputProjectRoot
+    $RemovableHash = Get-BuildPlatformProjectHash -ProjectRootPath $RemovableProjectRoot
+    $ProtectedSourceCachePath = Join-Path $ProjectsRootPath $ProtectedSourceHash
+    $ProtectedOutputCachePath = Join-Path $ProjectsRootPath $ProtectedOutputHash
+    $RemovableCachePath = Join-Path $ProjectsRootPath $RemovableHash
+    Write-CacheMetadata `
+        -ProjectCacheRootPath $ProtectedSourceCachePath `
+        -ProjectRootPath $ProtectedSourceProjectRoot `
+        -LastUsedUtc $NowUtc.AddDays(-31)
+    Write-CacheMetadata `
+        -ProjectCacheRootPath $ProtectedOutputCachePath `
+        -ProjectRootPath $ProtectedOutputProjectRoot `
+        -LastUsedUtc $NowUtc.AddDays(-31)
+    Write-CacheMetadata `
+        -ProjectCacheRootPath $RemovableCachePath `
+        -ProjectRootPath $RemovableProjectRoot `
+        -LastUsedUtc $NowUtc.AddDays(-31)
+    $ProtectedSourcePath = Join-Path $ProtectedSourceCachePath "current-source"
+    $ProtectedOutputPath = Join-Path $ProtectedOutputCachePath "requested-output"
+    $ProtectedSourceSentinel = Join-Path $ProtectedSourcePath "source-sentinel.txt"
+    $ProtectedOutputSentinel = Join-Path $ProtectedOutputPath "output-sentinel.txt"
+    New-Sentinel -LiteralPath $ProtectedSourceSentinel
+    New-Sentinel -LiteralPath $ProtectedOutputSentinel
+    New-Sentinel -LiteralPath (Join-Path $RemovableCachePath "remove-sentinel.txt")
+
+    Remove-BuildPlatformExpiredProjectCaches `
+        -CacheRootPath $PruneRootPath `
+        -OlderThanDays 30 `
+        -ProtectedPath @($ProtectedSourcePath, $ProtectedOutputPath) `
+        -NowUtc $NowUtc
+
+    Assert-PathExists -LiteralPath $ProtectedSourceCachePath
+    Assert-PathExists -LiteralPath $ProtectedSourceSentinel
+    Assert-PathExists -LiteralPath $ProtectedOutputCachePath
+    Assert-PathExists -LiteralPath $ProtectedOutputSentinel
+    Assert-PathMissing -LiteralPath $RemovableCachePath
 
     $AtomicRoot = Join-Path $SourceRootPath "atomic-prune"
     $null = New-Item -ItemType Directory -Path $AtomicRoot -Force
@@ -453,7 +543,11 @@ exit 0
     $CacheModule = Get-Module BuildPlatformCache
     & $CacheModule { $script:BuildPlatformBeforePruneDelete = $args[0] } $BeforePruneDeleteHook
     try {
-        Remove-BuildPlatformExpiredProjectCaches -CacheRootPath $PruneRootPath -OlderThanDays 30 -NowUtc $NowUtc
+        Remove-BuildPlatformExpiredProjectCaches `
+            -CacheRootPath $PruneRootPath `
+            -OlderThanDays 30 `
+            -ProtectedPath @($ProjectARootPath, $ProjectAOutputPath) `
+            -NowUtc $NowUtc
     } finally {
         & $CacheModule { $script:BuildPlatformBeforePruneDelete = $null }
     }
