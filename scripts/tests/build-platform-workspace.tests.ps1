@@ -217,6 +217,64 @@ function Assert-Success {
     }
 }
 
+function Get-BuildPlatformDirectorySnapshot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $CanonicalPath = [System.IO.Path]::GetFullPath($Path)
+    if (-not (Test-Path -LiteralPath $CanonicalPath -PathType Container)) {
+        return @("<missing>")
+    }
+
+    $Entries = New-Object System.Collections.Generic.List[string]
+    foreach ($Item in @(Get-ChildItem -LiteralPath $CanonicalPath -Force -Recurse | Sort-Object FullName)) {
+        $RelativePath = $Item.FullName.Substring($CanonicalPath.Length).TrimStart([char[]]@('\', '/'))
+        if ($Item.PSIsContainer) {
+            $null = $Entries.Add(("D|{0}|{1}" -f $RelativePath, $Item.Attributes))
+        } else {
+            $FileHash = (Get-FileHash -LiteralPath $Item.FullName -Algorithm SHA256).Hash
+            $null = $Entries.Add(("F|{0}|{1}|{2}|{3}|{4}" -f `
+                $RelativePath, $Item.Length, $Item.Attributes, $Item.LastWriteTimeUtc.Ticks, $FileHash))
+        }
+    }
+    return $Entries.ToArray()
+}
+
+function Get-BuildPlatformFileSnapshot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return "<missing>"
+    }
+
+    $Item = Get-Item -LiteralPath $Path -Force
+    $FileHash = (Get-FileHash -LiteralPath $Item.FullName -Algorithm SHA256).Hash
+    return "F|$($Item.Length)|$($Item.Attributes)|$($Item.LastWriteTimeUtc.Ticks)|$FileHash"
+}
+
+function Assert-BuildPlatformSnapshotUnchanged {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Description,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ExpectedSnapshot,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ActualSnapshot
+    )
+
+    $Differences = @(Compare-Object -ReferenceObject $ExpectedSnapshot -DifferenceObject $ActualSnapshot)
+    if ($Differences.Count -ne 0) {
+        throw "$Description changed: $($Differences | Out-String)"
+    }
+}
+
 function Assert-RejectedBeforeBuildPlatformMutation {
     param(
         [Parameter(Mandatory = $true)]
@@ -241,7 +299,40 @@ function Assert-RejectedBeforeBuildPlatformMutation {
         [string]$ExpectedDiagnostic = "",
 
         [Parameter()]
-        [switch]$AssertProjectCacheAbsent
+        [switch]$AssertProjectCacheAbsent,
+
+        [Parameter()]
+        [switch]$AssertOutputAbsent,
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [string[]]$CacheRootSnapshot = @(),
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [string[]]$OutputSnapshot = @(),
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [string[]]$ProjectCacheSnapshot = @(),
+
+        [Parameter()]
+        [string]$MetadataSnapshot = "",
+
+        [Parameter()]
+        [string]$LockSnapshot = "",
+
+        [Parameter()]
+        [string]$SentinelSnapshot = "",
+
+        [Parameter()]
+        [string]$CacheRootPath = "",
+
+        [Parameter()]
+        [string]$MetadataPath = "",
+
+        [Parameter()]
+        [string]$LockPath = ""
     )
 
     if ($Result.ExitCode -ne 2) {
@@ -253,7 +344,7 @@ function Assert-RejectedBeforeBuildPlatformMutation {
     if (Test-Path -LiteralPath (Join-Path $OutputPath ".helengine-build-state.json")) {
         throw "$CaseName wrote build state."
     }
-    if (Test-Path -LiteralPath $OutputPath) {
+    if ($AssertOutputAbsent -and (Test-Path -LiteralPath $OutputPath)) {
         throw "$CaseName created output '$OutputPath'."
     }
     if ($AssertProjectCacheAbsent -and (Test-Path -LiteralPath $ProjectCacheRootPath)) {
@@ -261,6 +352,36 @@ function Assert-RejectedBeforeBuildPlatformMutation {
     }
     if (-not (Test-Path -LiteralPath $SentinelPath -PathType Leaf)) {
         throw "$CaseName removed sentinel '$SentinelPath'."
+    }
+    if ($CacheRootSnapshot.Count -gt 0) {
+        Assert-BuildPlatformSnapshotUnchanged `
+            -Description "$CaseName cache root" `
+            -ExpectedSnapshot $CacheRootSnapshot `
+            -ActualSnapshot (Get-BuildPlatformDirectorySnapshot -Path $CacheRootPath)
+    }
+    if ($OutputSnapshot.Count -gt 0) {
+        Assert-BuildPlatformSnapshotUnchanged `
+            -Description "$CaseName output tree" `
+            -ExpectedSnapshot $OutputSnapshot `
+            -ActualSnapshot (Get-BuildPlatformDirectorySnapshot -Path $OutputPath)
+    }
+    if ($ProjectCacheSnapshot.Count -gt 0) {
+        Assert-BuildPlatformSnapshotUnchanged `
+            -Description "$CaseName project cache" `
+            -ExpectedSnapshot $ProjectCacheSnapshot `
+            -ActualSnapshot (Get-BuildPlatformDirectorySnapshot -Path $ProjectCacheRootPath)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($MetadataSnapshot) -and
+        $MetadataSnapshot -cne (Get-BuildPlatformFileSnapshot -Path $MetadataPath)) {
+        throw "$CaseName changed cache metadata '$MetadataPath'."
+    }
+    if (-not [string]::IsNullOrWhiteSpace($LockSnapshot) -and
+        $LockSnapshot -cne (Get-BuildPlatformFileSnapshot -Path $LockPath)) {
+        throw "$CaseName changed lock metadata '$LockPath'."
+    }
+    if (-not [string]::IsNullOrWhiteSpace($SentinelSnapshot) -and
+        $SentinelSnapshot -cne (Get-BuildPlatformFileSnapshot -Path $SentinelPath)) {
+        throw "$CaseName changed sentinel '$SentinelPath'."
     }
     if (-not [string]::IsNullOrWhiteSpace($ExpectedDiagnostic) -and
         ($Result.Output -join [Environment]::NewLine) -notmatch [regex]::Escape($ExpectedDiagnostic)) {
@@ -743,24 +864,45 @@ exit /b 8
                 CacheRootPath = $OverlapCacheRootPath
                 OutputPath = $OverlapLayout.ProjectCacheRootPath
                 ProjectCacheRootPath = $OverlapLayout.ProjectCacheRootPath
+                MetadataPath = $OverlapLayout.MetadataPath
+                LockPath = $OverlapLayout.LockPath
             },
             [pscustomobject]@{
                 Name = "Output beneath project cache"
                 CacheRootPath = $OverlapCacheRootPath
                 OutputPath = Join-Path $OverlapLayout.ProjectCacheRootPath "nested-output"
                 ProjectCacheRootPath = $OverlapLayout.ProjectCacheRootPath
+                MetadataPath = $OverlapLayout.MetadataPath
+                LockPath = $OverlapLayout.LockPath
             },
             [pscustomobject]@{
                 Name = "Project cache beneath output"
                 CacheRootPath = $OutputContainingProjectCacheRootPath
                 OutputPath = $OutputContainingProjectCacheRootPath
                 ProjectCacheRootPath = $OutputContainingProjectCacheLayout.ProjectCacheRootPath
+                MetadataPath = $OutputContainingProjectCacheLayout.MetadataPath
+                LockPath = $OutputContainingProjectCacheLayout.LockPath
             }
         )
         foreach ($OverlapCase in $OverlapCases) {
             $SentinelPath = (Join-Path (Split-Path -Parent $OverlapCase.OutputPath) "overlap-sentinel.txt")
+            $OutputSentinelPath = Join-Path $OverlapCase.OutputPath "output-sentinel.txt"
+            $null = New-Item -ItemType Directory -Path $OverlapCase.CacheRootPath -Force
+            $null = New-Item -ItemType Directory -Path $OverlapCase.ProjectCacheRootPath -Force
+            $null = New-Item -ItemType Directory -Path $OverlapCase.OutputPath -Force
+            $null = New-Item -ItemType Directory -Path (Split-Path -Parent $OverlapCase.MetadataPath) -Force
+            $null = New-Item -ItemType Directory -Path (Split-Path -Parent $OverlapCase.LockPath) -Force
             $null = New-Item -ItemType Directory -Path (Split-Path -Parent $SentinelPath) -Force
+            Set-Content -LiteralPath $OverlapCase.MetadataPath -Value ("metadata " + $OverlapCase.Name) -NoNewline
+            Set-Content -LiteralPath $OverlapCase.LockPath -Value ("lock " + $OverlapCase.Name) -NoNewline
             Set-Content -LiteralPath $SentinelPath -Value $OverlapCase.Name -NoNewline
+            Set-Content -LiteralPath $OutputSentinelPath -Value $OverlapCase.Name -NoNewline
+            $CacheRootSnapshot = Get-BuildPlatformDirectorySnapshot -Path $OverlapCase.CacheRootPath
+            $OutputSnapshot = Get-BuildPlatformDirectorySnapshot -Path $OverlapCase.OutputPath
+            $ProjectCacheSnapshot = Get-BuildPlatformDirectorySnapshot -Path $OverlapCase.ProjectCacheRootPath
+            $MetadataSnapshot = Get-BuildPlatformFileSnapshot -Path $OverlapCase.MetadataPath
+            $LockSnapshot = Get-BuildPlatformFileSnapshot -Path $OverlapCase.LockPath
+            $SentinelSnapshot = Get-BuildPlatformFileSnapshot -Path $SentinelPath
             $InvocationCountBefore = @(Get-Content -LiteralPath $CapturePath).Count
             $OverlapResult = Invoke-ControlledWrapper `
                 -CachePath $OverlapCase.CacheRootPath `
@@ -771,7 +913,16 @@ exit /b 8
                 -InvocationCountBefore $InvocationCountBefore `
                 -OutputPath $OverlapCase.OutputPath `
                 -ProjectCacheRootPath $OverlapCase.ProjectCacheRootPath `
-                -SentinelPath $SentinelPath
+                -SentinelPath $SentinelPath `
+                -CacheRootSnapshot $CacheRootSnapshot `
+                -OutputSnapshot $OutputSnapshot `
+                -ProjectCacheSnapshot $ProjectCacheSnapshot `
+                -MetadataSnapshot $MetadataSnapshot `
+                -LockSnapshot $LockSnapshot `
+                -SentinelSnapshot $SentinelSnapshot `
+                -CacheRootPath $OverlapCase.CacheRootPath `
+                -MetadataPath $OverlapCase.MetadataPath `
+                -LockPath $OverlapCase.LockPath
         }
 
         $ReservedCases = @(
@@ -812,7 +963,8 @@ exit /b 8
                 -ProjectCacheRootPath $ReservedLayout.ProjectCacheRootPath `
                 -SentinelPath $SentinelPath `
                 -ExpectedDiagnostic $RejectedSwitch `
-                -AssertProjectCacheAbsent
+                -AssertProjectCacheAbsent `
+                -AssertOutputAbsent
         }
 
         $AllowedArgumentsCacheRootPath = Join-Path $TestRootPath "allowed-arguments-cache"
