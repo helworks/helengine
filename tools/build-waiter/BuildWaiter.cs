@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace helengine.tools.buildwaiter {
     /// <summary>
-    /// Launches one platform build command, forwards its diagnostics, and verifies the build's published artifacts before reporting completion.
+    /// Launches one platform build command, forwards its diagnostics, and verifies current successful state and published artifacts before reporting completion.
     /// </summary>
     public sealed class BuildWaiter {
         /// <summary>
@@ -16,19 +16,26 @@ namespace helengine.tools.buildwaiter {
         readonly BuildArtifactVerifier ArtifactVerifier;
 
         /// <summary>
-        /// Initializes one build waiter with the artifact verifier used after child-process completion.
+        /// Verifier that determines whether persisted state proves successful completion by the current invocation.
+        /// </summary>
+        readonly BuildStateVerifier StateVerifier;
+
+        /// <summary>
+        /// Initializes one build waiter with the state and artifact verifiers used after child-process completion.
         /// </summary>
         /// <param name="artifactVerifier">Verifier for the final published output artifacts.</param>
-        public BuildWaiter(BuildArtifactVerifier artifactVerifier) {
+        /// <param name="stateVerifier">Verifier for persisted platform build state.</param>
+        public BuildWaiter(BuildArtifactVerifier artifactVerifier, BuildStateVerifier stateVerifier) {
             ArtifactVerifier = artifactVerifier ?? throw new ArgumentNullException(nameof(artifactVerifier));
+            StateVerifier = stateVerifier ?? throw new ArgumentNullException(nameof(stateVerifier));
         }
 
         /// <summary>
-        /// Launches the configured build command and waits until it fails or produces every required current artifact.
+        /// Launches the configured build command and waits until it fails or produces successful current state and every required current artifact.
         /// </summary>
         /// <param name="options">Command and output-artifact contract for the build invocation.</param>
         /// <param name="cancellationToken">Cancellation token used while waiting for the child build process.</param>
-        /// <returns>Terminal build result containing child-process or artifact-verification status.</returns>
+        /// <returns>Terminal build result containing child-process, state-verification, or artifact-verification status.</returns>
         public async Task<BuildWaiterResult> WaitAsync(BuildWaiterOptions options, CancellationToken cancellationToken) {
             if (options == null) {
                 throw new ArgumentNullException(nameof(options));
@@ -87,6 +94,13 @@ namespace helengine.tools.buildwaiter {
             await Task.WhenAll(standardOutputCompleted.Task, standardErrorCompleted.Task);
             if (process.ExitCode != 0) {
                 return new BuildWaiterResult(false, process.ExitCode, $"Build command exited with code {process.ExitCode}.");
+            }
+
+            BuildStateVerificationResult stateVerificationResult = StateVerifier.Verify(
+                options.OutputRootPath,
+                buildStartedUtc);
+            if (!stateVerificationResult.Succeeded) {
+                return new BuildWaiterResult(false, 1, stateVerificationResult.Message);
             }
 
             BuildArtifactVerificationResult verificationResult = ArtifactVerifier.Verify(

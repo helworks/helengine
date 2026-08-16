@@ -14,5 +14,45 @@ namespace helengine.tools.buildwaiter.tests {
 
             Assert.Equal(1, exitCode);
         }
+
+        /// <summary>
+        /// Ensures the public entry point wires state and artifact verification for a complete successful invocation.
+        /// </summary>
+        [Fact]
+        public async Task RunAsync_WhenChildWritesCurrentStateAndArtifact_ReturnsZero() {
+            string outputRootPath = Path.Combine(Path.GetTempPath(), "build-waiter-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(outputRootPath);
+            try {
+                string artifactPath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, "game.iso"));
+                string statePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
+                string command = string.Join("; ", [
+                    "$startedUtc = [DateTime]::UtcNow",
+                    $"[System.IO.File]::WriteAllText({artifactPath}, 'iso')",
+                    "$completedUtc = [DateTime]::UtcNow",
+                    "$state = [ordered]@{ buildId = 'build-1'; projectPath = 'C:\\project\\project.heproj'; platform = 'ps2'; buildProfile = 'debug'; configuration = 'Debug'; startedUtc = $startedUtc.ToString('o'); completedUtc = $completedUtc.ToString('o'); status = 'succeeded'; exitCode = 0 }",
+                    $"$state | ConvertTo-Json | Set-Content -LiteralPath {statePath} -Encoding UTF8"
+                ]);
+
+                int exitCode = await Program.RunAsync([
+                    "--output", outputRootPath,
+                    "--require", "game.iso",
+                    "--",
+                    "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command
+                ]);
+
+                Assert.Equal(0, exitCode);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Quotes one value as a single-quoted PowerShell literal.
+        /// </summary>
+        /// <param name="value">Raw value to quote.</param>
+        /// <returns>PowerShell-safe single-quoted literal.</returns>
+        static string ConvertToPowerShellLiteral(string value) {
+            return "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
+        }
     }
 }
