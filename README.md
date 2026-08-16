@@ -42,6 +42,24 @@ Platform build profiles can declare ordered editor prebuild commands in `user_se
 
 The wrapper passes the canonical authored `.heproj` path to the editor and never copies the project. Editor publish artifacts, generated managed code, generated native code, and builder working files use deterministic project/configuration/profile cache paths. Builds of the same authored project wait on one project lock; builds of different projects use different locks and can overlap.
 
+### Cache, Output, and Invocation Contract
+
+The reusable `v2` cache has a compact identity derived from the canonical authored project path. Editor publish artifacts also include the canonical editor-checkout identity, so a different editor checkout cannot reuse another checkout's editor outputs. The requested output must be disjoint from the selected project's cache; the wrapper rejects an output path that is the cache root, contains it, or is contained by it.
+
+No repository copy is made: the wrapper builds the authored project in place and keeps reusable intermediates under `-CacheRoot`. `-AdditionalArgs` is for extra editor CLI arguments only; it cannot override the wrapper-owned `--project`, `--build`, `--build-profile`, or `--output` switches.
+
+Builds targeting the same output are serialized across projects by an output lock. This is in addition to the project lock, so different projects can overlap only when they use different output paths. `HELENGINE_BUILD_INVOCATION_ID` is a wrapper/waiter internal correlation contract (a canonical GUID), not a normal user setting to place in project or shell configuration.
+
+### Native Stable-Cache Smoke
+
+The real Windows native smoke requires the sibling platform source at `C:\dev\helworks\helengine-windows`, Visual Studio C++ developer tools, `cmake.exe`, Ninja, the Windows builder assembly, and the published external codegen tool (including its MSBuild BuildHost companion). It copies only the tiny authored-project fixture into a disposable child of `C:\tmp`, configures disposable platform settings, and runs the production wrapper twice. Both invocations must use the same cache, produce a non-empty `helengine_windows.exe`, and leave a current successful build-state file.
+
+Run it explicitly; it is intentionally not part of the default fast suite because it depends on the external Windows platform repository and native toolchain:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/tests/build-platform-native-cache-smoke.tests.ps1
+```
+
 The editor and platform builder write directly to the authored project and requested output. If a build fails, source mutations, partial output, and reusable cache content remain for diagnosis; the wrapper does not roll them back or stage an atomic output replacement. Use `-Clean` only when the selected reusable cache slices need to be rebuilt.
 
 Exit codes:
