@@ -41,6 +41,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformCache.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformEnvironment.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformLock.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformProcess.psm1") -Force
 
 function Get-CanonicalDirectoryPath {
@@ -159,6 +160,7 @@ if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
 }
 
 $OriginalBuildPlatformEnvironmentState = Save-BuildPlatformEnvironmentState
+$ProjectLock = $null
 
 try {
     if ([string]::IsNullOrWhiteSpace($EditorProject)) {
@@ -185,9 +187,6 @@ try {
     $ResolvedProjectRootPath = Split-Path -Parent $ResolvedProjectPath
     $ResolvedHelEngineRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
     $ResolvedOutputPath = Get-CanonicalDirectoryPath -Path $Output
-    if (-not (Test-Path -LiteralPath $ResolvedOutputPath -PathType Container)) {
-        $null = New-Item -ItemType Directory -Path $ResolvedOutputPath -Force
-    }
 
     $Layout = Resolve-BuildPlatformCacheLayout `
         -CacheRootPath $SelectedCacheRoot `
@@ -195,6 +194,23 @@ try {
         -Platform $Platform `
         -Configuration $Configuration `
         -BuildProfile $ResolvedBuildProfile
+
+    $LockMetadata = [ordered]@{
+        processId = $PID
+        projectPath = $ResolvedProjectPath
+        platform = $Platform
+        profile = $ResolvedBuildProfile
+        output = $ResolvedOutputPath
+        startedUtc = [DateTime]::UtcNow.ToString("o")
+    }
+    $ProjectLock = Enter-BuildPlatformProjectLock `
+        -LockPath $Layout.LockPath `
+        -Metadata $LockMetadata `
+        -Timeout $LockTimeout
+
+    if (-not (Test-Path -LiteralPath $ResolvedOutputPath -PathType Container)) {
+        $null = New-Item -ItemType Directory -Path $ResolvedOutputPath -Force
+    }
     Write-BuildPlatformCacheMetadata -Layout $Layout -ProjectRootPath $ResolvedProjectRootPath
 
     $EditorArtifactsPath = $Layout.EditorArtifactsPath
@@ -318,5 +334,11 @@ try {
     [Console]::Error.WriteLine($_.Exception.Message)
     exit 10
 } finally {
-    Restore-BuildPlatformEnvironmentState -State $OriginalBuildPlatformEnvironmentState
+    try {
+        if ($null -ne $ProjectLock) {
+            Exit-BuildPlatformProjectLock -LockHandle $ProjectLock
+        }
+    } finally {
+        Restore-BuildPlatformEnvironmentState -State $OriginalBuildPlatformEnvironmentState
+    }
 }
