@@ -43,6 +43,7 @@ Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformCache.psm1")
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformEnvironment.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformLock.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformProcess.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformState.psm1") -Force
 
 function Get-CanonicalDirectoryPath {
     param(
@@ -161,6 +162,12 @@ if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
 
 $OriginalBuildPlatformEnvironmentState = Save-BuildPlatformEnvironmentState
 $ProjectLock = $null
+$BuildStateStarted = $false
+$BuildId = $null
+$BuildStartedUtc = $null
+$BuildTerminalStatus = "failed"
+$BuildTerminalExitCode = 10
+$StateFilePath = $null
 
 try {
     if ([string]::IsNullOrWhiteSpace($EditorProject)) {
@@ -211,13 +218,26 @@ try {
     if (-not (Test-Path -LiteralPath $ResolvedOutputPath -PathType Container)) {
         $null = New-Item -ItemType Directory -Path $ResolvedOutputPath -Force
     }
+    $StateFilePath = Join-Path $ResolvedOutputPath ".helengine-build-state.json"
+    $BuildId = [Guid]::NewGuid().ToString("D")
+    $BuildStartedUtc = [DateTime]::UtcNow.ToString("o")
+    Write-BuildPlatformState `
+        -StatePath $StateFilePath `
+        -BuildId $BuildId `
+        -ProjectPath $ResolvedProjectPath `
+        -Platform $Platform `
+        -BuildProfile $ResolvedBuildProfile `
+        -Configuration $Configuration `
+        -StartedUtc $BuildStartedUtc `
+        -CompletedUtc $null `
+        -Status "running" `
+        -ExitCode $null
+    $BuildStateStarted = $true
     Write-BuildPlatformCacheMetadata -Layout $Layout -ProjectRootPath $ResolvedProjectRootPath
 
     $EditorArtifactsPath = $Layout.EditorArtifactsPath
     $EditorPublishPath = $Layout.EditorPublishPath
     $EditorCachePath = Split-Path -Parent $EditorArtifactsPath
-    $StateFilePath = Join-Path $ResolvedOutputPath ".helengine-build-state.json"
-
     Write-Host "Authored project: $ResolvedProjectPath"
     Write-Host "Lock: $($Layout.LockPath)"
     Write-Host "Editor cache: $EditorCachePath"
@@ -284,6 +304,7 @@ try {
     $DotNetRestoreExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList $DotNetRestoreArguments
     if ($DotNetRestoreExitCode -ne 0) {
         [Console]::Error.WriteLine("Editor project restore failed with exit code $DotNetRestoreExitCode.")
+        $BuildTerminalExitCode = $DotNetRestoreExitCode
         exit $DotNetRestoreExitCode
     }
 
@@ -301,12 +322,14 @@ try {
     $DotNetBuildExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList $DotNetPublishArguments
     if ($DotNetBuildExitCode -ne 0) {
         [Console]::Error.WriteLine("Editor project publish failed with exit code $DotNetBuildExitCode.")
+        $BuildTerminalExitCode = $DotNetBuildExitCode
         exit $DotNetBuildExitCode
     }
 
     $EditorAssemblyPath = Join-Path $EditorPublishPath "helengine.editor.app.dll"
     if (-not (Test-Path -LiteralPath $EditorAssemblyPath -PathType Leaf)) {
         [Console]::Error.WriteLine("Editor app assembly was not found at '$EditorAssemblyPath'.")
+        $BuildTerminalExitCode = 5
         exit 5
     }
 
@@ -326,17 +349,38 @@ try {
     $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
     if ($DotNetExitCode -ne 0) {
         [Console]::Error.WriteLine("Editor platform build failed with exit code $DotNetExitCode.")
+        $BuildTerminalExitCode = $DotNetExitCode
         exit $DotNetExitCode
     }
 
+    $BuildTerminalStatus = "succeeded"
+    $BuildTerminalExitCode = 0
     exit 0
 } catch {
     [Console]::Error.WriteLine($_.Exception.Message)
+    $BuildTerminalStatus = "failed"
+    $BuildTerminalExitCode = 10
     exit 10
 } finally {
     try {
-        if ($null -ne $ProjectLock) {
-            Exit-BuildPlatformProjectLock -LockHandle $ProjectLock
+        try {
+            if ($BuildStateStarted) {
+                Write-BuildPlatformState `
+                    -StatePath $StateFilePath `
+                    -BuildId $BuildId `
+                    -ProjectPath $ResolvedProjectPath `
+                    -Platform $Platform `
+                    -BuildProfile $ResolvedBuildProfile `
+                    -Configuration $Configuration `
+                    -StartedUtc $BuildStartedUtc `
+                    -CompletedUtc ([DateTime]::UtcNow.ToString("o")) `
+                    -Status $BuildTerminalStatus `
+                    -ExitCode $BuildTerminalExitCode
+            }
+        } finally {
+            if ($null -ne $ProjectLock) {
+                Exit-BuildPlatformProjectLock -LockHandle $ProjectLock
+            }
         }
     } finally {
         Restore-BuildPlatformEnvironmentState -State $OriginalBuildPlatformEnvironmentState

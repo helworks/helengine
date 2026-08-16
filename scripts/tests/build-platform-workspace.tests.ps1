@@ -18,6 +18,7 @@ $TestRootPath = Join-Path $TestBuildRootPath ("build-platform-workspace-" + [Gui
 $FakeToolsPath = Join-Path $TestRootPath "fake-tools"
 $CapturePath = Join-Path $TestRootPath "dotnet-invocations.txt"
 $EnvironmentCapturePath = Join-Path $TestRootPath "editor-environment.txt"
+$RunningStateCapturePath = Join-Path $TestRootPath "running-state.json"
 $EnvironmentEnumerationGuardPath = Join-Path $TestRootPath "reject-environment-enumeration.ps1"
 $RobocopyMarkerPath = Join-Path $TestRootPath "robocopy-invoked.txt"
 $ProjectPath = Join-Path $TestRootPath "authored-project\project.heproj"
@@ -137,6 +138,80 @@ function Assert-Success {
 
     if ($Result.ExitCode -ne 0) {
         throw "$CaseName failed with exit code $($Result.ExitCode). $($Result.Output -join [Environment]::NewLine)"
+    }
+}
+
+function Assert-BuildStateDocument {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$State,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedStatus,
+
+        [Parameter()]
+        [AllowNull()]
+        [object]$ExpectedExitCode,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedProjectPath
+    )
+
+    $ExpectedPropertyNames = @(
+        "buildId",
+        "projectPath",
+        "platform",
+        "buildProfile",
+        "configuration",
+        "startedUtc",
+        "completedUtc",
+        "status",
+        "exitCode"
+    )
+    $ActualPropertyNames = @($State.PSObject.Properties.Name)
+    if ($ActualPropertyNames.Count -ne $ExpectedPropertyNames.Count -or
+        @(Compare-Object -ReferenceObject $ExpectedPropertyNames -DifferenceObject $ActualPropertyNames).Count -ne 0) {
+        throw "Build state fields were '$($ActualPropertyNames -join ', ')' instead of '$($ExpectedPropertyNames -join ', ')'."
+    }
+
+    $ParsedBuildId = [Guid]::Empty
+    if (-not [Guid]::TryParse([string]$State.buildId, [ref]$ParsedBuildId) -or $ParsedBuildId -eq [Guid]::Empty) {
+        throw "Build state id '$($State.buildId)' was not a non-empty GUID."
+    }
+    if ($State.projectPath -cne $ExpectedProjectPath -or -not $State.projectPath.EndsWith(".heproj", [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Build state project path '$($State.projectPath)' was not canonical project '$ExpectedProjectPath'."
+    }
+    if ($State.platform -cne "windows" -or $State.buildProfile -cne "profiler" -or $State.configuration -cne "Release") {
+        throw "Build state identity was platform='$($State.platform)', profile='$($State.buildProfile)', configuration='$($State.configuration)'."
+    }
+    if ($State.status -cne $ExpectedStatus) {
+        throw "Build state status '$($State.status)' was not '$ExpectedStatus'."
+    }
+    if ($null -eq $ExpectedExitCode) {
+        if ($null -ne $State.exitCode -or $null -ne $State.completedUtc) {
+            throw "Running build state must preserve JSON null for completedUtc and exitCode."
+        }
+    } else {
+        if ([int]$State.exitCode -ne [int]$ExpectedExitCode) {
+            throw "Build state exit code '$($State.exitCode)' was not '$ExpectedExitCode'."
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$State.completedUtc)) {
+            throw "Terminal build state did not contain completedUtc."
+        }
+    }
+
+    $StartedUtc = [DateTimeOffset]::Parse([string]$State.startedUtc)
+    if ($StartedUtc.Offset -ne [TimeSpan]::Zero) {
+        throw "Build state startedUtc '$($State.startedUtc)' was not UTC."
+    }
+    if ($null -ne $State.completedUtc) {
+        $CompletedUtc = [DateTimeOffset]::Parse([string]$State.completedUtc)
+        if ($CompletedUtc.Offset -ne [TimeSpan]::Zero) {
+            throw "Build state completedUtc '$($State.completedUtc)' was not UTC."
+        }
+        if ($CompletedUtc -lt $StartedUtc) {
+            throw "Build state completedUtc '$CompletedUtc' preceded startedUtc '$StartedUtc'."
+        }
     }
 }
 
@@ -305,24 +380,42 @@ function Get-ChildItem {
 @echo off
 setlocal EnableExtensions
 echo %*>> "%HELENGINE_WORKSPACE_CAPTURE%"
-echo %* | findstr /C:"--build windows" >nul
-if not errorlevel 1 (
+if exist "%HELENGINE_WORKSPACE_EXPECTED_STATE_PATH%" (
+    if not exist "%HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE%" copy /Y "%HELENGINE_WORKSPACE_EXPECTED_STATE_PATH%" "%HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE%" >nul
+    findstr /C:"running" "%HELENGINE_WORKSPACE_EXPECTED_STATE_PATH%" >nul
+    if errorlevel 1 exit /b 92
+) else (
+    if not exist "%HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE%" echo missing> "%HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE%"
+)
+set "PublishOutputPath="
+set "BuildOutputPath="
+set "ProjectFilePath="
+set "IsEditorBuild="
+:FindArguments
+if "%~1"=="" goto RunInvocation
+if /I "%~1"=="-o" set "PublishOutputPath=%~2"
+if /I "%~1"=="--output" set "BuildOutputPath=%~2"
+if /I "%~1"=="--project" set "ProjectFilePath=%~2"
+if /I "%~1"=="--build" set "IsEditorBuild=1"
+shift
+goto FindArguments
+:RunInvocation
+if not "%PublishOutputPath%"=="" (
+    if not exist "%PublishOutputPath%" mkdir "%PublishOutputPath%"
+    type nul > "%PublishOutputPath%\helengine.editor.app.dll"
+)
+if defined IsEditorBuild (
     > "%HELENGINE_WORKSPACE_ENVIRONMENT_CAPTURE%" (
         echo cache=%HELENGINE_BUILD_CACHE_ROOT%
         echo configuration=%HELENGINE_BUILD_CONFIGURATION%
         echo profile=%HELENGINE_BUILD_PROFILE%
     )
-)
-set "OutputPath="
-:FindOutputPath
-if "%~1"=="" goto CreatePublishOutput
-if /I "%~1"=="-o" set "OutputPath=%~2"
-shift
-goto FindOutputPath
-:CreatePublishOutput
-if not "%OutputPath%"=="" (
-    if not exist "%OutputPath%" mkdir "%OutputPath%"
-    type nul > "%OutputPath%\helengine.editor.app.dll"
+    if not "%HELENGINE_WORKSPACE_EDITOR_EXIT_CODE%"=="" (
+        for %%I in ("%ProjectFilePath%") do echo authored mutation> "%%~dpI\fake-editor-mutation.txt"
+        if not exist "%BuildOutputPath%" mkdir "%BuildOutputPath%"
+        echo partial output> "%BuildOutputPath%\partial-output.txt"
+        exit /b %HELENGINE_WORKSPACE_EDITOR_EXIT_CODE%
+    )
 )
 exit /b 0
 '@ -NoNewline
@@ -335,12 +428,18 @@ exit /b 8
     $OriginalPath = $env:PATH
     $OriginalCapturePath = $env:HELENGINE_WORKSPACE_CAPTURE
     $OriginalEnvironmentCapturePath = $env:HELENGINE_WORKSPACE_ENVIRONMENT_CAPTURE
+    $OriginalExpectedStatePath = $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH
+    $OriginalRunningStateCapturePath = $env:HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE
+    $OriginalEditorExitCode = $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE
     $OriginalRobocopyMarkerPath = $env:HELENGINE_WORKSPACE_ROBOCOPY_MARKER
     $OriginalDotNetExecutablePath = $env:HELENGINE_DOTNET_EXECUTABLE_PATH
     try {
         $env:PATH = $FakeToolsPath + ";" + $OriginalPath
         $env:HELENGINE_WORKSPACE_CAPTURE = $CapturePath
         $env:HELENGINE_WORKSPACE_ENVIRONMENT_CAPTURE = $EnvironmentCapturePath
+        $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH = Join-Path $OutputPath ".helengine-build-state.json"
+        $env:HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE = $RunningStateCapturePath
+        $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = $null
         $env:HELENGINE_WORKSPACE_ROBOCOPY_MARKER = $RobocopyMarkerPath
         $env:HELENGINE_DOTNET_EXECUTABLE_PATH = Join-Path $FakeToolsPath "dotnet.cmd"
 
@@ -463,11 +562,75 @@ exit /b 8
         }
         $null = [DateTimeOffset]::Parse($Metadata.lastUsedUtc)
 
-        if (Test-Path -LiteralPath $ExpectedLockPath) {
-            throw "The wrapper materialized the later-task lock path '$ExpectedLockPath'."
+        if (-not (Test-Path -LiteralPath $ExpectedLockPath -PathType Leaf)) {
+            throw "The wrapper did not retain persistent lock metadata at '$ExpectedLockPath'."
         }
-        if (Test-Path -LiteralPath $ExpectedStatePath) {
-            throw "The wrapper materialized the later-task state path '$ExpectedStatePath'."
+        $LockMetadata = Get-Content -LiteralPath $ExpectedLockPath -Raw | ConvertFrom-Json
+        if ($LockMetadata.projectPath -cne $CanonicalProjectPath) {
+            throw "Persistent lock metadata recorded '$($LockMetadata.projectPath)' instead of '$CanonicalProjectPath'."
+        }
+
+        if (-not (Test-Path -LiteralPath $ExpectedStatePath -PathType Leaf)) {
+            throw "Successful build state was not written to '$ExpectedStatePath'."
+        }
+        $SuccessfulState = Get-Content -LiteralPath $ExpectedStatePath -Raw | ConvertFrom-Json
+        Assert-BuildStateDocument `
+            -State $SuccessfulState `
+            -ExpectedStatus "succeeded" `
+            -ExpectedExitCode 0 `
+            -ExpectedProjectPath $CanonicalProjectPath
+
+        $RunningState = Get-Content -LiteralPath $RunningStateCapturePath -Raw | ConvertFrom-Json
+        Assert-BuildStateDocument `
+            -State $RunningState `
+            -ExpectedStatus "running" `
+            -ExpectedExitCode $null `
+            -ExpectedProjectPath $CanonicalProjectPath
+
+        $StateWriteCallSiteCount = @(Select-String -LiteralPath $WrapperPath -Pattern '^\s*Write-BuildPlatformState\b').Count
+        if ($StateWriteCallSiteCount -ne 2) {
+            throw "The wrapper contained $StateWriteCallSiteCount state-writer call sites instead of running plus terminal."
+        }
+
+        $EditorCacheSentinelPath = Join-Path $ExpectedEditorCachePath "state-failure-sentinel.txt"
+        $PlatformCacheSentinelPath = Join-Path $ExpectedPlatformCachePath "state-failure-sentinel.txt"
+        $null = New-Item -ItemType Directory -Path (Split-Path -Parent $EditorCacheSentinelPath) -Force
+        $null = New-Item -ItemType Directory -Path (Split-Path -Parent $PlatformCacheSentinelPath) -Force
+        Set-Content -LiteralPath $EditorCacheSentinelPath -Value "editor cache sentinel" -NoNewline
+        Set-Content -LiteralPath $PlatformCacheSentinelPath -Value "platform cache sentinel" -NoNewline
+        Remove-Item -LiteralPath $RunningStateCapturePath -Force
+        $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = "37"
+        try {
+            $FailureResult = Invoke-ControlledWrapper -CachePath $CacheRootPath
+        } finally {
+            $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = $null
+        }
+        if ($FailureResult.ExitCode -ne 37) {
+            throw "The failing fake editor exit code changed from 37 to $($FailureResult.ExitCode). $($FailureResult.Output -join [Environment]::NewLine)"
+        }
+        $FailedState = Get-Content -LiteralPath $ExpectedStatePath -Raw | ConvertFrom-Json
+        Assert-BuildStateDocument `
+            -State $FailedState `
+            -ExpectedStatus "failed" `
+            -ExpectedExitCode 37 `
+            -ExpectedProjectPath $CanonicalProjectPath
+        $FailureRunningState = Get-Content -LiteralPath $RunningStateCapturePath -Raw | ConvertFrom-Json
+        Assert-BuildStateDocument `
+            -State $FailureRunningState `
+            -ExpectedStatus "running" `
+            -ExpectedExitCode $null `
+            -ExpectedProjectPath $CanonicalProjectPath
+
+        foreach ($PreservedPath in @(
+                (Join-Path $CanonicalProjectRootPath "fake-editor-mutation.txt"),
+                (Join-Path $CanonicalOutputPath "partial-output.txt"),
+                $EditorCacheSentinelPath,
+                $PlatformCacheSentinelPath,
+                $ExpectedLockPath
+            )) {
+            if (-not (Test-Path -LiteralPath $PreservedPath)) {
+                throw "The failed direct-output build removed '$PreservedPath'."
+            }
         }
 
         if ((Get-CapturedArgumentValue -Invocation $WorkspaceOnlyPublishInvocation -ArgumentName "-o") -cne $ExpectedEditorPublishPath) {
@@ -503,6 +666,9 @@ exit /b 8
         $env:PATH = $OriginalPath
         $env:HELENGINE_WORKSPACE_CAPTURE = $OriginalCapturePath
         $env:HELENGINE_WORKSPACE_ENVIRONMENT_CAPTURE = $OriginalEnvironmentCapturePath
+        $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH = $OriginalExpectedStatePath
+        $env:HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE = $OriginalRunningStateCapturePath
+        $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = $OriginalEditorExitCode
         $env:HELENGINE_WORKSPACE_ROBOCOPY_MARKER = $OriginalRobocopyMarkerPath
         $env:HELENGINE_DOTNET_EXECUTABLE_PATH = $OriginalDotNetExecutablePath
     }
