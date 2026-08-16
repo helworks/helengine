@@ -46,13 +46,16 @@ The editor and platform builder write directly to the authored project and reque
 
 Exit codes:
 
+The wrapper uses these codes for its own validation and orchestration failures:
+
 - `0`: build completed successfully
 - `2`: invalid wrapper arguments such as missing required values
 - `3`: editor project `.csproj` path was not found
 - `4`: project `.heproj` path was not found
 - `5`: the published editor assembly was missing after a successful publish command
 - `10`: wrapper or internal orchestration failure, including failure to write terminal state after an otherwise successful build
-- any other non-zero value: propagated restore, publish, editor, or platform native-process failure exit code
+
+Restore, publish, and editor child process failures are propagated unchanged. Those child exit codes can numerically coincide with the wrapper-defined codes above, so callers must inspect emitted diagnostics and any available `.helengine-build-state.json` context to distinguish collisions.
 
 ## Verified Build Waiting
 
