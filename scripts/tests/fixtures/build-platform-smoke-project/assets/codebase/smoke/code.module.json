@@ -1,0 +1,6 @@
+{
+  "moduleId": "smoke",
+  "dependencyModuleIds": [],
+  "loadScopes": [ "always-loaded" ],
+  "moduleKind": "runtime"
+}

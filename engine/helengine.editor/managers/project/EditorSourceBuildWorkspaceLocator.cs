@@ -14,6 +14,11 @@ namespace helengine.editor {
         const string HelEngineSourceRootEnvironmentVariableName = "HELENGINE_SOURCE_ROOT";
 
         /// <summary>
+        /// Environment variable that can explicitly point the locator at engine-level user settings.
+        /// </summary>
+        const string EngineUserSettingsRootEnvironmentVariableName = "HELENGINE_ENGINE_USER_SETTINGS_ROOT";
+
+        /// <summary>
         /// Hidden git worktree directory name used by this source workspace.
         /// </summary>
         const string HiddenWorktreeDirectoryName = ".worktrees";
@@ -108,6 +113,11 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Absolute shared engine user-settings root path.</returns>
         public string ResolveSharedEngineUserSettingsRootPath() {
+            string configuredRootPath = Environment.GetEnvironmentVariable(EngineUserSettingsRootEnvironmentVariableName);
+            if (!string.IsNullOrWhiteSpace(configuredRootPath)) {
+                return Path.GetFullPath(configuredRootPath);
+            }
+
             string sharedHelEngineRootPath = ResolveSharedHelEngineRootPath();
             return Path.Combine(sharedHelEngineRootPath, "user_settings");
         }

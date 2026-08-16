@@ -11,6 +11,11 @@ namespace helengine.editor.tests.managers.project {
         const string HelEngineSourceRootEnvironmentVariableName = "HELENGINE_SOURCE_ROOT";
 
         /// <summary>
+        /// Name of the environment variable used to override engine user-settings discovery.
+        /// </summary>
+        const string EngineUserSettingsRootEnvironmentVariableName = "HELENGINE_ENGINE_USER_SETTINGS_ROOT";
+
+        /// <summary>
         /// Temporary repository root used by the current test instance.
         /// </summary>
         readonly string TemporaryRepositoryRootPath;
@@ -21,11 +26,17 @@ namespace helengine.editor.tests.managers.project {
         readonly string OriginalEnvironmentVariableValue;
 
         /// <summary>
+        /// Original engine user-settings environment-variable value restored after the test completes.
+        /// </summary>
+        readonly string OriginalEngineUserSettingsRootEnvironmentVariableValue;
+
+        /// <summary>
         /// Initializes one temporary source-root override test fixture.
         /// </summary>
         public EditorSourceBuildWorkspaceLocatorTests() {
             TemporaryRepositoryRootPath = Path.Combine(Path.GetTempPath(), "helengine-source-root-locator-tests", Guid.NewGuid().ToString("N"));
             OriginalEnvironmentVariableValue = Environment.GetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName);
+            OriginalEngineUserSettingsRootEnvironmentVariableValue = Environment.GetEnvironmentVariable(EngineUserSettingsRootEnvironmentVariableName);
             Directory.CreateDirectory(Path.Combine(TemporaryRepositoryRootPath, "engine", "helengine.editor"));
             File.WriteAllText(Path.Combine(TemporaryRepositoryRootPath, "engine", "helengine.editor", "helengine.editor.csproj"), "<Project />");
         }
@@ -35,6 +46,7 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         public void Dispose() {
             Environment.SetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName, OriginalEnvironmentVariableValue);
+            Environment.SetEnvironmentVariable(EngineUserSettingsRootEnvironmentVariableName, OriginalEngineUserSettingsRootEnvironmentVariableValue);
             if (Directory.Exists(TemporaryRepositoryRootPath)) {
                 Directory.Delete(TemporaryRepositoryRootPath, true);
             }
@@ -51,6 +63,34 @@ namespace helengine.editor.tests.managers.project {
             string resolvedRootPath = locator.ResolveHelEngineRootPath();
 
             Assert.Equal(Path.GetFullPath(TemporaryRepositoryRootPath), resolvedRootPath);
+        }
+
+        /// <summary>
+        /// Ensures the locator canonicalizes and returns an explicit engine user-settings root.
+        /// </summary>
+        [Fact]
+        public void ResolveSharedEngineUserSettingsRootPath_WhenEnvironmentOverrideIsProvided_ReturnsCanonicalOverrideRoot() {
+            string configuredRootPath = Path.Combine(TemporaryRepositoryRootPath, "settings-parent", "..", "engine-user-settings");
+            Environment.SetEnvironmentVariable(EngineUserSettingsRootEnvironmentVariableName, configuredRootPath);
+            EditorSourceBuildWorkspaceLocator locator = new();
+
+            string resolvedRootPath = locator.ResolveSharedEngineUserSettingsRootPath();
+
+            Assert.Equal(Path.GetFullPath(configuredRootPath), resolvedRootPath);
+        }
+
+        /// <summary>
+        /// Ensures missing engine user-settings overrides preserve shared source-root discovery.
+        /// </summary>
+        [Fact]
+        public void ResolveSharedEngineUserSettingsRootPath_WhenEnvironmentOverrideIsAbsent_ReturnsSharedSourceRootSettings() {
+            Environment.SetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName, TemporaryRepositoryRootPath);
+            Environment.SetEnvironmentVariable(EngineUserSettingsRootEnvironmentVariableName, null);
+            EditorSourceBuildWorkspaceLocator locator = new();
+
+            string resolvedRootPath = locator.ResolveSharedEngineUserSettingsRootPath();
+
+            Assert.Equal(Path.Combine(Path.GetFullPath(TemporaryRepositoryRootPath), "user_settings"), resolvedRootPath);
         }
     }
 }
