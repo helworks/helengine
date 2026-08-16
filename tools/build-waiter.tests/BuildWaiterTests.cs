@@ -83,6 +83,26 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         /// <summary>
+        /// Ensures fresh artifacts cannot override state that still reports an active build.
+        /// </summary>
+        [Fact]
+        public async Task WaitAsync_WhenChildWritesFreshArtifactAndRunningState_ReturnsStateFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                BuildWaiterOptions options = CreatePowerShellOptions(outputRootPath, true, "running", null, false, false, 0);
+
+                BuildWaiterResult result = await CreateWaiter().WaitAsync(options, CancellationToken.None);
+
+                Assert.False(result.Succeeded);
+                Assert.Equal(1, result.ExitCode);
+                Assert.Contains("state", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("running", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
         /// Ensures fresh artifacts cannot override a missing state file.
         /// </summary>
         [Fact]

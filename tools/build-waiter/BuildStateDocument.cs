@@ -31,12 +31,12 @@ namespace helengine.tools.buildwaiter {
         /// <summary>
         /// Gets or sets the UTC time at which the build invocation started.
         /// </summary>
-        public DateTime StartedUtc { get; set; }
+        public DateTimeOffset StartedUtc { get; set; }
 
         /// <summary>
         /// Gets or sets the UTC time at which the build invocation completed.
         /// </summary>
-        public DateTime? CompletedUtc { get; set; }
+        public DateTimeOffset? CompletedUtc { get; set; }
 
         /// <summary>
         /// Gets or sets the running or terminal build status.

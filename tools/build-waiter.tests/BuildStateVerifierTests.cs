@@ -27,6 +27,208 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         /// <summary>
+        /// Ensures a state that starts at the exact waiter boundary is current rather than stale.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenStateStartEqualsWaiterStart_ReturnsSuccess() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                DateTime waiterStartedUtc = new DateTime(2026, 8, 15, 12, 0, 0, DateTimeKind.Utc);
+                WriteState(outputRootPath, "build-1", waiterStartedUtc, waiterStartedUtc.AddSeconds(1), "succeeded", 0);
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(outputRootPath, waiterStartedUtc);
+
+                Assert.True(result.Succeeded);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures a started timestamp without an explicit UTC suffix is rejected.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenStartedTimestampHasNoOffset_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteStateWithTimestampText(
+                    outputRootPath,
+                    "2026-08-15T12:00:00.0000000",
+                    "2026-08-15T12:00:01.0000000Z");
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("started", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("UTC", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Z", result.Message, StringComparison.Ordinal);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures a completion timestamp without an explicit UTC suffix is rejected.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenCompletedTimestampHasNoOffset_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteStateWithTimestampText(
+                    outputRootPath,
+                    "2026-08-15T12:00:00.0000000Z",
+                    "2026-08-15T12:00:01.0000000");
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("completed", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("UTC", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Z", result.Message, StringComparison.Ordinal);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures a started timestamp with a nonzero numeric offset is rejected even when it represents a current instant.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenStartedTimestampHasNonzeroOffset_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteStateWithTimestampText(
+                    outputRootPath,
+                    "2026-08-15T12:00:00.0000000+02:00",
+                    "2026-08-15T12:00:01.0000000Z");
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("started", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("UTC", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Z", result.Message, StringComparison.Ordinal);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures a completion timestamp with a nonzero numeric offset is rejected even when ordering remains valid.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenCompletedTimestampHasNonzeroOffset_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteStateWithTimestampText(
+                    outputRootPath,
+                    "2026-08-15T12:00:00.0000000Z",
+                    "2026-08-16T12:00:00.0000000-07:00");
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("completed", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("UTC", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Z", result.Message, StringComparison.Ordinal);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures a zero numeric offset is rejected because the wrapper contract emits a literal UTC suffix.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenStartedTimestampUsesZeroNumericOffset_ReturnsFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteStateWithTimestampText(
+                    outputRootPath,
+                    "2026-08-15T12:00:00.0000000+00:00",
+                    "2026-08-15T12:00:01.0000000Z");
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("started", result.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("literal 'Z'", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures case-insensitive JSON property matching remains enabled for timestamp inspection and deserialization.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenTimestampPropertyNamesUseDifferentCase_ReturnsSuccess() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                WriteStateWithTimestampText(
+                    outputRootPath,
+                    "2026-08-15T12:00:00.0000000Z",
+                    "2026-08-15T12:00:01.0000000Z",
+                    "STARTEDUTC",
+                    "COMPLETEDUTC");
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2026, 8, 15, 12, 0, 0, DateTimeKind.Utc));
+
+                Assert.True(result.Succeeded);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures a local waiter timestamp is rejected as ambiguous programmer input.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenWaiterStartIsLocal_ThrowsArgumentException() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                ArgumentException exception = Assert.Throws<ArgumentException>(() => new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2026, 8, 15, 12, 0, 0, DateTimeKind.Local)));
+
+                Assert.Equal("waiterStartedUtc", exception.ParamName);
+                Assert.Contains("UTC", exception.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures an unspecified waiter timestamp is rejected as ambiguous programmer input.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenWaiterStartIsUnspecified_ThrowsArgumentException() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                ArgumentException exception = Assert.Throws<ArgumentException>(() => new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    new DateTime(2026, 8, 15, 12, 0, 0, DateTimeKind.Unspecified)));
+
+                Assert.Equal("waiterStartedUtc", exception.ParamName);
+                Assert.Contains("UTC", exception.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
         /// Ensures an absent state file reports a descriptive verification failure.
         /// </summary>
         [Fact]
@@ -308,6 +510,34 @@ namespace helengine.tools.buildwaiter.tests {
                 exitCode
             });
             File.WriteAllText(GetStatePath(outputRootPath), json);
+        }
+
+        /// <summary>
+        /// Writes wrapper-shaped state while preserving caller-selected timestamp text and property casing.
+        /// </summary>
+        /// <param name="outputRootPath">Output root that receives the state file.</param>
+        /// <param name="startedUtcText">Raw started timestamp JSON string.</param>
+        /// <param name="completedUtcText">Raw completed timestamp JSON string.</param>
+        /// <param name="startedPropertyName">JSON property name used for the started timestamp.</param>
+        /// <param name="completedPropertyName">JSON property name used for the completed timestamp.</param>
+        static void WriteStateWithTimestampText(
+            string outputRootPath,
+            string startedUtcText,
+            string completedUtcText,
+            string startedPropertyName = "startedUtc",
+            string completedPropertyName = "completedUtc") {
+            Dictionary<string, object> state = new Dictionary<string, object> {
+                ["buildId"] = "build-1",
+                ["projectPath"] = "C:\\project\\project.heproj",
+                ["platform"] = "ps2",
+                ["buildProfile"] = "debug",
+                ["configuration"] = "Debug",
+                [startedPropertyName] = startedUtcText,
+                [completedPropertyName] = completedUtcText,
+                ["status"] = "succeeded",
+                ["exitCode"] = 0
+            };
+            File.WriteAllText(GetStatePath(outputRootPath), JsonSerializer.Serialize(state));
         }
     }
 }
