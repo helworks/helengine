@@ -204,29 +204,35 @@ function Exit-BuildPlatformProjectLock {
     }
 }
 
-function Enter-BuildPlatformProjectMutex {
+function Enter-BuildPlatformNamedMutex {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$ProjectHash,
+        [string]$Hash,
 
         [Parameter(Mandatory = $true)]
-        [string]$ProjectPath,
+        [string]$TargetPath,
 
         [Parameter(Mandatory = $true)]
-        [TimeSpan]$Timeout
+        [TimeSpan]$Timeout,
+
+        [Parameter(Mandatory = $true)]
+        [string]$MutexName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$TargetKind
     )
 
-    if ($ProjectHash -cnotmatch '^[0-9a-f]{32}$') {
-        throw "Project hash must be 32 lowercase hexadecimal characters."
+    $TargetDisplayName = $TargetKind.Substring(0, 1).ToUpperInvariant() + $TargetKind.Substring(1)
+    if ($Hash -cnotmatch '^[0-9a-f]{32}$') {
+        throw "$TargetDisplayName hash must be 32 lowercase hexadecimal characters."
     }
-    if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
-        throw "Project path must be provided."
+    if ([string]::IsNullOrWhiteSpace($TargetPath)) {
+        throw "$TargetDisplayName path must be provided."
     }
     if ($Timeout -lt [TimeSpan]::Zero) {
         throw "Lock timeout must be zero or positive."
     }
 
-    $MutexName = "Global\helengine.build-platform.project.v1.$ProjectHash"
     $Mutex = New-Object System.Threading.Mutex($false, $MutexName)
     $OwnsMutex = $false
     try {
@@ -236,7 +242,7 @@ function Enter-BuildPlatformProjectMutex {
             $OwnsMutex = $true
         }
         if (-not $OwnsMutex) {
-            throw "Timed out after $($Timeout.ToString('c')) waiting for project mutex '$MutexName' for canonical project '$ProjectPath'."
+            throw "Timed out after $($Timeout.ToString('c')) waiting for $TargetKind mutex '$MutexName' for canonical $TargetKind '$TargetPath'."
         }
         return [pscustomobject]@{
             Name = $MutexName
@@ -244,15 +250,18 @@ function Enter-BuildPlatformProjectMutex {
             OwnsMutex = $true
         }
     } catch {
-        if ($OwnsMutex) {
-            $Mutex.ReleaseMutex()
+        try {
+            if ($OwnsMutex) {
+                $Mutex.ReleaseMutex()
+            }
+        } finally {
+            $Mutex.Dispose()
         }
-        $Mutex.Dispose()
         throw
     }
 }
 
-function Exit-BuildPlatformProjectMutex {
+function Exit-BuildPlatformNamedMutex {
     param(
         [Parameter(Mandatory = $true)]
         [psobject]$MutexHandle
@@ -267,10 +276,70 @@ function Exit-BuildPlatformProjectMutex {
     }
 }
 
+function Enter-BuildPlatformProjectMutex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectHash,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath,
+
+        [Parameter(Mandatory = $true)]
+        [TimeSpan]$Timeout
+    )
+
+    return Enter-BuildPlatformNamedMutex `
+        -Hash $ProjectHash `
+        -TargetPath $ProjectPath `
+        -Timeout $Timeout `
+        -MutexName "Global\helengine.build-platform.project.v1.$ProjectHash" `
+        -TargetKind "project"
+}
+
+function Exit-BuildPlatformProjectMutex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$MutexHandle
+    )
+
+    Exit-BuildPlatformNamedMutex -MutexHandle $MutexHandle
+}
+
+function Enter-BuildPlatformOutputMutex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$OutputHash,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OutputPath,
+
+        [Parameter(Mandatory = $true)]
+        [TimeSpan]$Timeout
+    )
+
+    return Enter-BuildPlatformNamedMutex `
+        -Hash $OutputHash `
+        -TargetPath $OutputPath `
+        -Timeout $Timeout `
+        -MutexName "Global\helengine.build-platform.output.v1.$OutputHash" `
+        -TargetKind "output"
+}
+
+function Exit-BuildPlatformOutputMutex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$MutexHandle
+    )
+
+    Exit-BuildPlatformNamedMutex -MutexHandle $MutexHandle
+}
+
 Export-ModuleMember -Function @(
+    'Enter-BuildPlatformOutputMutex',
     'Enter-BuildPlatformProjectLock',
     'Enter-BuildPlatformProjectLockNonBlocking',
     'Enter-BuildPlatformProjectMutex',
+    'Exit-BuildPlatformOutputMutex',
     'Test-BuildPlatformProjectLockHeld',
     'Exit-BuildPlatformProjectLock',
     'Exit-BuildPlatformProjectMutex'

@@ -125,6 +125,22 @@ function Assert-BuildPlatformAdditionalArguments {
     }
 }
 
+function Get-RemainingBuildPlatformLockTimeout {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Stopwatch]$Stopwatch,
+
+        [Parameter(Mandatory = $true)]
+        [TimeSpan]$Timeout
+    )
+
+    $RemainingTimeout = $Timeout - $Stopwatch.Elapsed
+    if ($RemainingTimeout -lt [TimeSpan]::Zero) {
+        return [TimeSpan]::Zero
+    }
+    return $RemainingTimeout
+}
+
 function Get-EditorArtifactsOutputPath {
     param(
         [Parameter(Mandatory = $true)]
@@ -223,6 +239,7 @@ if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
 
 $OriginalBuildPlatformEnvironmentState = Save-BuildPlatformEnvironmentState
 $ProjectMutex = $null
+$OutputMutex = $null
 $ProjectLock = $null
 $BuildStateStarted = $false
 $BuildId = $null
@@ -294,14 +311,19 @@ try {
         -ProjectHash $Layout.ProjectHash `
         -ProjectPath $ResolvedProjectPath `
         -Timeout $LockTimeout
-    $RemainingLockTimeout = $LockTimeout - $LockWaitStopwatch.Elapsed
-    if ($RemainingLockTimeout -lt [TimeSpan]::Zero) {
-        $RemainingLockTimeout = [TimeSpan]::Zero
-    }
+    $OutputHash = Get-BuildPlatformPathHash -Path $ResolvedOutputPath
+    $OutputMutex = Enter-BuildPlatformOutputMutex `
+        -OutputHash $OutputHash `
+        -OutputPath $ResolvedOutputPath `
+        -Timeout (Get-RemainingBuildPlatformLockTimeout `
+            -Stopwatch $LockWaitStopwatch `
+            -Timeout $LockTimeout)
     $ProjectLock = Enter-BuildPlatformProjectLock `
         -LockPath $Layout.LockPath `
         -Metadata $LockMetadata `
-        -Timeout $RemainingLockTimeout
+        -Timeout (Get-RemainingBuildPlatformLockTimeout `
+            -Stopwatch $LockWaitStopwatch `
+            -Timeout $LockTimeout)
 
     if ($Clean) {
         Remove-BuildPlatformSelectedCache `
@@ -503,8 +525,14 @@ try {
                     }
                 }
             } finally {
-                if ($null -ne $ProjectLock) {
-                    Exit-BuildPlatformProjectLock -LockHandle $ProjectLock
+                try {
+                    if ($null -ne $ProjectLock) {
+                        Exit-BuildPlatformProjectLock -LockHandle $ProjectLock
+                    }
+                } finally {
+                    if ($null -ne $OutputMutex) {
+                        Exit-BuildPlatformOutputMutex -MutexHandle $OutputMutex
+                    }
                 }
             }
         }
