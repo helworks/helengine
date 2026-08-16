@@ -1125,24 +1125,41 @@ exit /b 8
             throw "The wrapper generated build id '$($GeneratedInvocationState.buildId)' instead of a canonical D-format GUID."
         }
 
-        $InvalidInvocationOutputPath = Join-Path $TestRootPath "invalid-invocation-output"
-        $InvocationCountBeforeInvalidInvocationId = @(Get-Content -LiteralPath $CapturePath).Count
-        $env:HELENGINE_BUILD_INVOCATION_ID = "not-a-guid"
-        try {
-            $InvalidInvocationResult = Invoke-ControlledWrapper `
-                -CachePath $CacheRootPath `
-                -InvocationOutputPath $InvalidInvocationOutputPath
-        } finally {
-            $env:HELENGINE_BUILD_INVOCATION_ID = $null
+        $InvalidInvocationIdCases = @(
+            [pscustomobject]@{ Name = "blank"; Value = " " },
+            [pscustomobject]@{ Name = "padded"; Value = " " + $ExpectedInvocationId },
+            [pscustomobject]@{ Name = "malformed"; Value = "not-a-guid" }
+        )
+        $InvalidInvocationIdErrors = New-Object System.Collections.ArrayList
+        foreach ($InvalidInvocationIdCase in $InvalidInvocationIdCases) {
+            $InvalidInvocationOutputPath = Join-Path $TestRootPath ("invalid-" + $InvalidInvocationIdCase.Name + "-invocation-output")
+            $InvocationCountBeforeInvalidInvocationId = @(Get-Content -LiteralPath $CapturePath).Count
+            $env:HELENGINE_BUILD_INVOCATION_ID = $InvalidInvocationIdCase.Value
+            try {
+                $InvalidInvocationResult = Invoke-ControlledWrapper `
+                    -CachePath $CacheRootPath `
+                    -InvocationOutputPath $InvalidInvocationOutputPath
+            } finally {
+                $env:HELENGINE_BUILD_INVOCATION_ID = $null
+            }
+            if ($InvalidInvocationResult.ExitCode -ne 2) {
+                $null = $InvalidInvocationIdErrors.Add(
+                    "A $($InvalidInvocationIdCase.Name) HELENGINE_BUILD_INVOCATION_ID must exit 2, got $($InvalidInvocationResult.ExitCode)."
+                )
+            }
+            if (@(Get-Content -LiteralPath $CapturePath).Count -ne $InvocationCountBeforeInvalidInvocationId) {
+                $null = $InvalidInvocationIdErrors.Add(
+                    "A $($InvalidInvocationIdCase.Name) HELENGINE_BUILD_INVOCATION_ID reached the editor."
+                )
+            }
+            if (Test-Path -LiteralPath $InvalidInvocationOutputPath) {
+                $null = $InvalidInvocationIdErrors.Add(
+                    "A $($InvalidInvocationIdCase.Name) HELENGINE_BUILD_INVOCATION_ID mutated output '$InvalidInvocationOutputPath'."
+                )
+            }
         }
-        if ($InvalidInvocationResult.ExitCode -ne 2) {
-            throw "A malformed HELENGINE_BUILD_INVOCATION_ID must exit 2, got $($InvalidInvocationResult.ExitCode)."
-        }
-        if (@(Get-Content -LiteralPath $CapturePath).Count -ne $InvocationCountBeforeInvalidInvocationId) {
-            throw "A malformed HELENGINE_BUILD_INVOCATION_ID reached the editor."
-        }
-        if (Test-Path -LiteralPath $InvalidInvocationOutputPath) {
-            throw "A malformed HELENGINE_BUILD_INVOCATION_ID mutated output '$InvalidInvocationOutputPath'."
+        if ($InvalidInvocationIdErrors.Count -ne 0) {
+            throw ($InvalidInvocationIdErrors -join " | ")
         }
 
         $RunningState = Get-Content -LiteralPath $RunningStateCapturePath -Raw | ConvertFrom-Json

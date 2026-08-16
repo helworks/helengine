@@ -237,12 +237,13 @@ if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
     $DotNetExecutablePath = "dotnet"
 }
 
-$InvocationBuildId = $env:HELENGINE_BUILD_INVOCATION_ID
-if ([string]::IsNullOrWhiteSpace($InvocationBuildId)) {
+if (-not (Test-Path -LiteralPath "Env:HELENGINE_BUILD_INVOCATION_ID")) {
     $InvocationBuildId = [Guid]::NewGuid().ToString("D")
 } else {
+    $InvocationBuildId = $env:HELENGINE_BUILD_INVOCATION_ID
     $ParsedInvocationBuildId = [Guid]::Empty
-    if (-not [Guid]::TryParseExact($InvocationBuildId, "D", [ref]$ParsedInvocationBuildId)) {
+    if (-not [Guid]::TryParseExact($InvocationBuildId, "D", [ref]$ParsedInvocationBuildId) -or
+        $InvocationBuildId -cne $ParsedInvocationBuildId.ToString("D")) {
         [Console]::Error.WriteLine("HELENGINE_BUILD_INVOCATION_ID must be a canonical GUID in D format.")
         exit 2
     }
