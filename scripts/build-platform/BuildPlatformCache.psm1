@@ -162,10 +162,200 @@ function Resolve-BuildPlatformCacheLayout {
         ProjectHash = $ProjectHash
         ProjectCacheRootPath = $ProjectCacheRootPath
         LockPath = $LockPath
+        EditorConfigurationRootPath = $EditorConfigurationRootPath
         EditorArtifactsPath = $EditorArtifactsPath
         EditorPublishPath = $EditorPublishPath
         PlatformCacheRootPath = $PlatformCacheRootPath
         MetadataPath = $MetadataPath
+    }
+}
+
+function Get-BuildPlatformGuardedDeleteTarget {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AllowedRootPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$TargetPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($AllowedRootPath)) {
+        throw "Allowed delete root must be provided."
+    }
+    if ([string]::IsNullOrWhiteSpace($TargetPath)) {
+        throw "Delete target must be provided."
+    }
+
+    $TargetSegments = [regex]::Split($TargetPath, '[\\/]+')
+    if ($TargetSegments -contains "..") {
+        throw "Delete target '$TargetPath' contains a parent traversal segment."
+    }
+
+    $CanonicalAllowedRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $AllowedRootPath
+    $CanonicalTargetPath = Get-BuildPlatformCanonicalDirectoryPath -Path $TargetPath
+    if (Test-Path -LiteralPath $CanonicalAllowedRootPath) {
+        $AllowedRootItem = Get-Item -LiteralPath $CanonicalAllowedRootPath -Force
+        if (($AllowedRootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Allowed delete root '$CanonicalAllowedRootPath' is a reparse point."
+        }
+    }
+    $AllowedPrefix = $CanonicalAllowedRootPath
+    if (-not $AllowedPrefix.EndsWith([System.IO.Path]::DirectorySeparatorChar) -and
+        -not $AllowedPrefix.EndsWith([System.IO.Path]::AltDirectorySeparatorChar)) {
+        $AllowedPrefix += [System.IO.Path]::DirectorySeparatorChar
+    }
+
+    if ($CanonicalTargetPath.Equals($CanonicalAllowedRootPath, [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not $CanonicalTargetPath.StartsWith($AllowedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Delete target '$CanonicalTargetPath' must be a strict descendant of '$CanonicalAllowedRootPath'."
+    }
+
+    $RelativeTargetPath = $CanonicalTargetPath.Substring($AllowedPrefix.Length)
+    $CurrentPath = $CanonicalAllowedRootPath
+    foreach ($Segment in [regex]::Split($RelativeTargetPath, '[\\/]+')) {
+        if ([string]::IsNullOrEmpty($Segment)) {
+            continue
+        }
+        $CurrentPath = Join-Path $CurrentPath $Segment
+        if (-not (Test-Path -LiteralPath $CurrentPath)) {
+            continue
+        }
+
+        $Item = Get-Item -LiteralPath $CurrentPath -Force
+        if (($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Delete target '$CanonicalTargetPath' traverses reparse point '$CurrentPath'."
+        }
+    }
+
+    return $CanonicalTargetPath
+}
+
+function Remove-BuildPlatformGuardedDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AllowedRootPath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$TargetPath
+    )
+
+    $CanonicalTargetPaths = @()
+    foreach ($CandidatePath in $TargetPath) {
+        $CanonicalTargetPaths += Get-BuildPlatformGuardedDeleteTarget `
+            -AllowedRootPath $AllowedRootPath `
+            -TargetPath $CandidatePath
+    }
+
+    foreach ($CanonicalTargetPath in $CanonicalTargetPaths) {
+        if (Test-Path -LiteralPath $CanonicalTargetPath) {
+            Remove-Item -LiteralPath $CanonicalTargetPath -Recurse -Force
+        }
+    }
+}
+
+function Remove-BuildPlatformSelectedCache {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Layout
+    )
+
+    Remove-BuildPlatformGuardedDirectory `
+        -AllowedRootPath $Layout.ProjectCacheRootPath `
+        -TargetPath @(
+            $Layout.EditorConfigurationRootPath,
+            $Layout.PlatformCacheRootPath
+        )
+}
+
+function Remove-BuildPlatformExpiredProjectCaches {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CacheRootPath,
+
+        [Parameter(Mandatory = $true)]
+        [int]$OlderThanDays,
+
+        [Parameter()]
+        [DateTime]$NowUtc = [DateTime]::UtcNow
+    )
+
+    if ($OlderThanDays -lt 0) {
+        throw "Cache prune age must be zero or positive."
+    }
+    if ($OlderThanDays -eq 0) {
+        return
+    }
+
+    $CanonicalCacheRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $CacheRootPath
+    $ProjectsRootPath = Join-BuildPlatformStrictDescendantPath `
+        -ParentPath $CanonicalCacheRootPath `
+        -ChildPath "projects"
+    if (-not (Test-Path -LiteralPath $ProjectsRootPath -PathType Container)) {
+        return
+    }
+
+    $ExpirationUtc = $NowUtc.ToUniversalTime().AddDays(-$OlderThanDays)
+    $ProjectDirectories = Get-ChildItem -LiteralPath $ProjectsRootPath -Directory -Force
+    foreach ($ProjectDirectory in $ProjectDirectories) {
+        if ($ProjectDirectory.Name -cnotmatch '^[0-9a-f]{32}$') {
+            continue
+        }
+
+        try {
+            $ProjectCacheRootPath = Get-BuildPlatformGuardedDeleteTarget `
+                -AllowedRootPath $ProjectsRootPath `
+                -TargetPath $ProjectDirectory.FullName
+            $MetadataPath = Join-Path $ProjectCacheRootPath "cache-metadata.json"
+            if (-not (Test-Path -LiteralPath $MetadataPath -PathType Leaf)) {
+                continue
+            }
+            $MetadataItem = Get-Item -LiteralPath $MetadataPath -Force
+            if (($MetadataItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                continue
+            }
+
+            $Metadata = Get-Content -LiteralPath $MetadataPath -Raw | ConvertFrom-Json
+            $ProjectRootPath = [string]$Metadata.projectRootPath
+            $LastUsedText = [string]$Metadata.lastUsedUtc
+            if ([string]::IsNullOrWhiteSpace($ProjectRootPath) -or
+                [string]::IsNullOrWhiteSpace($LastUsedText)) {
+                continue
+            }
+
+            $CanonicalProjectRootPath = Get-BuildPlatformCanonicalDirectoryPath -Path $ProjectRootPath
+            $LastUsed = [DateTimeOffset]::MinValue
+            if (-not [DateTimeOffset]::TryParse(
+                    $LastUsedText,
+                    [System.Globalization.CultureInfo]::InvariantCulture,
+                    [System.Globalization.DateTimeStyles]::RoundtripKind,
+                    [ref]$LastUsed)) {
+                continue
+            }
+            if ($LastUsed.UtcDateTime -ge $ExpirationUtc) {
+                continue
+            }
+
+            $ExpectedHash = Get-BuildPlatformProjectHash -ProjectRootPath $CanonicalProjectRootPath
+            if ($ExpectedHash -cne $ProjectDirectory.Name) {
+                continue
+            }
+
+            $LocksRootPath = Join-BuildPlatformStrictDescendantPath `
+                -ParentPath $CanonicalCacheRootPath `
+                -ChildPath "locks"
+            $LockPath = Join-BuildPlatformStrictDescendantPath `
+                -ParentPath $LocksRootPath `
+                -ChildPath ($ProjectDirectory.Name + ".lock")
+            if (Test-BuildPlatformProjectLockHeld -LockPath $LockPath) {
+                continue
+            }
+
+            Remove-BuildPlatformGuardedDirectory `
+                -AllowedRootPath $ProjectsRootPath `
+                -TargetPath @($ProjectCacheRootPath)
+        } catch {
+            Write-Warning "Skipping unsafe or invalid project cache '$($ProjectDirectory.FullName)': $($_.Exception.Message)"
+        }
     }
 }
 
@@ -191,5 +381,7 @@ Export-ModuleMember -Function @(
     'Get-BuildPlatformProjectHash',
     'Get-BuildPlatformSafeSegment',
     'Resolve-BuildPlatformCacheLayout',
-    'Write-BuildPlatformCacheMetadata'
+    'Write-BuildPlatformCacheMetadata',
+    'Remove-BuildPlatformSelectedCache',
+    'Remove-BuildPlatformExpiredProjectCaches'
 )

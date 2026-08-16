@@ -168,6 +168,8 @@ $BuildStartedUtc = $null
 $BuildTerminalStatus = "failed"
 $BuildTerminalExitCode = 10
 $StateFilePath = $null
+$Layout = $null
+$CacheMetadataStarted = $false
 
 try {
     if ([string]::IsNullOrWhiteSpace($EditorProject)) {
@@ -215,6 +217,17 @@ try {
         -Metadata $LockMetadata `
         -Timeout $LockTimeout
 
+    if ($Clean) {
+        Remove-BuildPlatformSelectedCache -Layout $Layout
+    }
+    if ($PruneCacheOlderThanDays -gt 0) {
+        Remove-BuildPlatformExpiredProjectCaches `
+            -CacheRootPath $Layout.CacheRootPath `
+            -OlderThanDays $PruneCacheOlderThanDays
+    }
+    Write-BuildPlatformCacheMetadata -Layout $Layout -ProjectRootPath $ResolvedProjectRootPath
+    $CacheMetadataStarted = $true
+
     if (-not (Test-Path -LiteralPath $ResolvedOutputPath -PathType Container)) {
         $null = New-Item -ItemType Directory -Path $ResolvedOutputPath -Force
     }
@@ -233,7 +246,6 @@ try {
         -Status "running" `
         -ExitCode $null
     $BuildStateStarted = $true
-    Write-BuildPlatformCacheMetadata -Layout $Layout -ProjectRootPath $ResolvedProjectRootPath
 
     $EditorArtifactsPath = $Layout.EditorArtifactsPath
     $EditorPublishPath = $Layout.EditorPublishPath
@@ -389,8 +401,22 @@ try {
                 }
             }
         } finally {
-            if ($null -ne $ProjectLock) {
-                Exit-BuildPlatformProjectLock -LockHandle $ProjectLock
+            try {
+                if ($CacheMetadataStarted) {
+                    try {
+                        Write-BuildPlatformCacheMetadata `
+                            -Layout $Layout `
+                            -ProjectRootPath $ResolvedProjectRootPath
+                    } catch {
+                        [Console]::Error.WriteLine(
+                            "Failed to write terminal cache metadata '$($Layout.MetadataPath)': $($_.Exception.Message)"
+                        )
+                    }
+                }
+            } finally {
+                if ($null -ne $ProjectLock) {
+                    Exit-BuildPlatformProjectLock -LockHandle $ProjectLock
+                }
             }
         }
     } finally {
