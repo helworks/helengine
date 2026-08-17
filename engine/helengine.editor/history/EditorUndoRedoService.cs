@@ -78,7 +78,9 @@ namespace helengine.editor {
 
             UndoStack.Push(operation);
             RedoStack.Clear();
-            CurrentRevision++;
+            if (operation.AffectsSavedState) {
+                CurrentRevision++;
+            }
             Logger.WriteLine($"History recorded: {operation.Description} (undo depth {UndoStack.Count}).");
         }
 
@@ -95,7 +97,9 @@ namespace helengine.editor {
             ApplyHistoryOperation(operation, true);
             UndoStack.Pop();
             RedoStack.Push(operation);
-            CurrentRevision--;
+            if (operation.AffectsSavedState) {
+                CurrentRevision--;
+            }
             RefreshEditorState();
             return true;
         }
@@ -113,7 +117,9 @@ namespace helengine.editor {
             ApplyHistoryOperation(operation, false);
             RedoStack.Pop();
             UndoStack.Push(operation);
-            CurrentRevision++;
+            if (operation.AffectsSavedState) {
+                CurrentRevision++;
+            }
             RefreshEditorState();
             return true;
         }

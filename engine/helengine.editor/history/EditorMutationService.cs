@@ -121,6 +121,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Records one user-initiated selection change; selection is editor-only state, so no scene-dirty notification is emitted.
+        /// </summary>
+        /// <param name="previousEntityId">Stable scene entity id selected before the change, or zero when none existed.</param>
+        /// <param name="currentEntityId">Stable scene entity id selected after the change, or zero when the selection was cleared.</param>
+        public void RecordSelectionChange(uint previousEntityId, uint currentEntityId) {
+            UndoRedoService.Record(new EntitySelectionHistoryOperation(previousEntityId, currentEntityId));
+        }
+
+        /// <summary>
         /// Records one entity-scoped mutation using detached before/after snapshots of the supplied live entity.
         /// </summary>
         /// <param name="entity">Live editor entity that was mutated.</param>

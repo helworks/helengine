@@ -436,6 +436,18 @@ namespace helengine.editor {
         /// </summary>
         bool HasUntrackedSceneChangesSinceSave;
         /// <summary>
+        /// Stable scene entity id of the selection currently tracked for selection-history recording, or zero when nothing is selected.
+        /// </summary>
+        uint TrackedSelectionEntityId;
+        /// <summary>
+        /// True when the tracked selection refers to an entity without a stable scene id and therefore cannot participate in selection history.
+        /// </summary>
+        bool TrackedSelectionHasNoStableId;
+        /// <summary>
+        /// True while a composite session flow (entity create/delete) changes the selection as a side effect that its own history operation already reverts.
+        /// </summary>
+        bool SuppressSelectionHistoryRecording;
+        /// <summary>
         /// Pending scene transition waiting on the unsaved-changes guard or save flow.
         /// </summary>
         SceneTransitionKind PendingSceneTransition;
@@ -2439,6 +2451,7 @@ namespace helengine.editor {
 
             Entity previousSelection = EditorSelectionService.SelectedEntity;
 
+            SuppressSelectionHistoryRecording = true;
             try {
                 EditorEntity entity = createEntity();
                 RefreshHierarchy();
@@ -2451,6 +2464,8 @@ namespace helengine.editor {
                 } else {
                     EditorSelectionService.SetSelectedEntity(previousSelection);
                 }
+            } finally {
+                SuppressSelectionHistoryRecording = false;
             }
         }
 
@@ -2524,8 +2539,13 @@ namespace helengine.editor {
             }
 
             HistoryMutationService.RecordDeletedEntity(entity);
-            EditorSelectionService.ClearSelection();
-            DeleteSceneEntityById(entityId);
+            SuppressSelectionHistoryRecording = true;
+            try {
+                EditorSelectionService.ClearSelection();
+                DeleteSceneEntityById(entityId);
+            } finally {
+                SuppressSelectionHistoryRecording = false;
+            }
             RefreshEditorStateAfterHistoryMutation();
         }
 
@@ -4297,7 +4317,37 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates the properties panel when the selection changes.
+        /// Records one user-initiated selection change into undo/redo history while tracking the current selection cursor.
+        /// Reselecting the same entity, clearing an already-empty selection, history replay, and composite create/delete
+        /// flows record nothing.
+        /// </summary>
+        /// <param name="args">Selection change data raised by the shared selection service.</param>
+        void RecordSelectionChangeHistory(EditorSelectionChangedEventArgs args) {
+            if (args == null) {
+                throw new ArgumentNullException(nameof(args));
+            }
+
+            uint currentSelectionEntityId = args.HasSelection ? GetSceneEntityId(args.SelectedEntity) : 0u;
+            bool currentSelectionHasNoStableId = args.HasSelection && currentSelectionEntityId == 0u;
+            uint previousSelectionEntityId = TrackedSelectionEntityId;
+            bool previousSelectionHadNoStableId = TrackedSelectionHasNoStableId;
+            TrackedSelectionEntityId = currentSelectionEntityId;
+            TrackedSelectionHasNoStableId = currentSelectionHasNoStableId;
+
+            if (SuppressSelectionHistoryRecording
+                || UndoRedoService == null
+                || UndoRedoService.IsApplyingHistory
+                || currentSelectionHasNoStableId
+                || previousSelectionHadNoStableId
+                || currentSelectionEntityId == previousSelectionEntityId) {
+                return;
+            }
+
+            HistoryMutationService.RecordSelectionChange(previousSelectionEntityId, currentSelectionEntityId);
+        }
+
+        /// <summary>
+        /// Applies panel and preview updates for the current editor selection.
         /// </summary>
         /// <param name="args">Selection change data.</param>
         void HandleSelectionChanged(EditorSelectionChangedEventArgs args) {
@@ -4305,6 +4355,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(args));
             }
 
+            RecordSelectionChangeHistory(args);
             SelectedSceneEntity = args.HasSelection ? args.SelectedEntity : null;
             if (args.HasSelection && HasPreviewableCamera(args.SelectedEntity)) {
                 LatestPreviewSelectionKind = PreviewPanelBindingKind.Camera;

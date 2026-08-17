@@ -288,6 +288,86 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures user-initiated selection changes are recorded as undoable history and replay through the global shortcuts.
+        /// </summary>
+        [Fact]
+        public void Selection_changes_record_undoable_history() {
+            EditorSession session = CreateSessionForUndoRedo();
+            EditorEntity firstEntity = CreateUserSceneEntity(401u, "First");
+            EditorEntity secondEntity = CreateUserSceneEntity(402u, "Second");
+
+            EditorSelectionService.SetSelectedEntity(firstEntity);
+            InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(firstEntity, true));
+            EditorSelectionService.SetSelectedEntity(secondEntity);
+            InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(secondEntity, true));
+
+            InvokePrivate(session, "HandleGlobalUndoShortcut");
+            Assert.Same(firstEntity, EditorSelectionService.SelectedEntity);
+
+            InvokePrivate(session, "HandleGlobalUndoShortcut");
+            Assert.Null(EditorSelectionService.SelectedEntity);
+
+            InvokePrivate(session, "HandleGlobalRedoShortcut");
+            Assert.Same(firstEntity, EditorSelectionService.SelectedEntity);
+
+            InvokePrivate(session, "HandleGlobalRedoShortcut");
+            Assert.Same(secondEntity, EditorSelectionService.SelectedEntity);
+        }
+
+        /// <summary>
+        /// Ensures reselecting the already-selected entity does not add a history entry.
+        /// </summary>
+        [Fact]
+        public void Reselecting_the_same_entity_records_no_history() {
+            EditorSession session = CreateSessionForUndoRedo();
+            EditorEntity entity = CreateUserSceneEntity(403u, "Reselected");
+            EditorUndoRedoService undoRedoService = GetPrivateField<EditorUndoRedoService>(session, "UndoRedoService");
+
+            EditorSelectionService.SetSelectedEntity(entity);
+            InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(entity, true));
+            InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(entity, true));
+
+            Assert.True(undoRedoService.CanUndo);
+            InvokePrivate(session, "HandleGlobalUndoShortcut");
+            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.False(undoRedoService.CanUndo);
+        }
+
+        /// <summary>
+        /// Ensures clearing the selection while nothing is selected does not add a history entry.
+        /// </summary>
+        [Fact]
+        public void Deselecting_with_nothing_selected_records_no_history() {
+            EditorSession session = CreateSessionForUndoRedo();
+            EditorUndoRedoService undoRedoService = GetPrivateField<EditorUndoRedoService>(session, "UndoRedoService");
+
+            EditorSelectionService.ClearSelection();
+            InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(null, false));
+
+            Assert.False(undoRedoService.CanUndo);
+        }
+
+        /// <summary>
+        /// Ensures selection history entries never mark the scene dirty since selection is not scene state.
+        /// </summary>
+        [Fact]
+        public void Selection_history_does_not_mark_the_scene_dirty() {
+            EditorSession session = CreateSessionForUndoRedo();
+            EditorEntity entity = CreateUserSceneEntity(404u, "Dirtyless");
+
+            EditorSelectionService.SetSelectedEntity(entity);
+            InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(entity, true));
+            InvokePrivate(session, "RefreshSceneDirtyState");
+
+            Assert.False(GetPrivateField<bool>(session, "IsSceneDirty"));
+
+            InvokePrivate(session, "HandleGlobalUndoShortcut");
+            InvokePrivate(session, "RefreshSceneDirtyState");
+
+            Assert.False(GetPrivateField<bool>(session, "IsSceneDirty"));
+        }
+
+        /// <summary>
         /// Ensures modal editor workflows block the global delete shortcut so scene entities are not removed behind open dialogs.
         /// </summary>
         [Fact]
