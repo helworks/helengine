@@ -160,7 +160,7 @@ namespace helengine.editor {
         /// Applies highlight material state based on the currently hovered rotation ring.
         /// </summary>
         void UpdateAxisHighlightMaterials() {
-            Entity hoveredAxis = EditorGizmoHoverService.HoveredHandleEntity;
+            Entity hoveredAxis = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
             for (int ringIndex = 0; ringIndex < GizmoRoot.Children.Count; ringIndex++) {
                 if (GizmoRoot.Children[ringIndex] is not EditorEntity ringEntity || !IsHandleEntity(ringEntity)) {
                     continue;
@@ -296,7 +296,7 @@ namespace helengine.editor {
                 return;
             }
 
-            Entity hoveredHandle = EditorGizmoHoverService.HoveredHandleEntity;
+            Entity hoveredHandle = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
             if (hoveredHandle == null || !IsOwnedHandleEntity(hoveredHandle)) {
                 SetSnapPreviewVisible(false);
                 return;

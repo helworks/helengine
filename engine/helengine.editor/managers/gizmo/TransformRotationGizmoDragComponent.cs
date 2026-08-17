@@ -126,7 +126,7 @@ namespace helengine.editor {
                 return;
             }
 
-            Entity hoveredHandle = EditorGizmoHoverService.HoveredHandleEntity;
+            Entity hoveredHandle = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
             if (hoveredHandle == null) {
                 return;
             }

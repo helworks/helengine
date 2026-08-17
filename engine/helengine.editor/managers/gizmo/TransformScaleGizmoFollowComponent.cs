@@ -186,7 +186,7 @@ namespace helengine.editor {
         /// Applies highlight material state based on the currently hovered scale handle.
         /// </summary>
         void UpdateHandleHighlightMaterials() {
-            Entity hoveredHandle = EditorGizmoHoverService.HoveredHandleEntity;
+            Entity hoveredHandle = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
             for (int handleIndex = 0; handleIndex < GizmoRoot.Children.Count; handleIndex++) {
                 if (GizmoRoot.Children[handleIndex] is not EditorEntity handleEntity) {
                     continue;
