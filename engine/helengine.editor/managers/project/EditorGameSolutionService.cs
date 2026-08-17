@@ -665,6 +665,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets whether the project declares at least one authored code module.
+        /// </summary>
+        public bool HasCodeModules {
+            get {
+                EditorProjectPaths.Initialize(ProjectRootPath);
+                return CodeModuleManifestService.Load().Modules.Length > 0;
+            }
+        }
+
+        /// <summary>
         /// Builds the generated code solution description for the current authored module layout.
         /// </summary>
         /// <returns>Generated code solution description.</returns>

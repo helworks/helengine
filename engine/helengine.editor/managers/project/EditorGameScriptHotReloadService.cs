@@ -36,6 +36,10 @@ namespace helengine.editor {
         /// <returns>Structured result describing the build-and-reload outcome.</returns>
         public EditorBuildExecutionResult BuildAndReload() {
             try {
+                if (!GameSolutionService.HasCodeModules) {
+                    return EditorBuildExecutionResult.Success("Script hot reload skipped: the project declares no code modules.");
+                }
+
                 string solutionPath = GameSolutionService.GenerateSolutionFiles();
                 EditorBuildExecutionResult buildResult = BuildTool.Build(solutionPath);
                 if (!buildResult.Succeeded) {
