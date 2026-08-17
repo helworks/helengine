@@ -77,6 +77,46 @@ namespace helengine.editor.iconbuilder {
             BuildShiftKeyIcon(Path.Combine(outputDirectory, "key-shift.png"), iconSize);
             BuildSnapIncreaseIcon(Path.Combine(outputDirectory, "snap-increase.png"), iconSize);
             BuildSnapDecreaseIcon(Path.Combine(outputDirectory, "snap-decrease.png"), iconSize);
+            BuildStatsIcon(Path.Combine(outputDirectory, "stats.png"), iconSize);
+        }
+
+        /// <summary>
+        /// Builds the viewport stats icon as an ascending bar chart over a baseline.
+        /// </summary>
+        /// <param name="filePath">Destination file path.</param>
+        /// <param name="iconSize">Square icon size in pixels.</param>
+        void BuildStatsIcon(string filePath, int iconSize) {
+            using Bitmap bitmap = CreateBitmap(iconSize);
+            using Graphics graphics = CreateGraphics(bitmap);
+            float baselineY = (float)(iconSize * 0.86);
+            float barWidth = (float)(iconSize * 0.16);
+            float barSpacing = (float)(iconSize * 0.09);
+            float firstBarX = (float)(iconSize * 0.16);
+            float[] barHeights = {
+                (float)(iconSize * 0.30),
+                (float)(iconSize * 0.48),
+                (float)(iconSize * 0.68)
+            };
+
+            using SolidBrush xBrush = new SolidBrush(XAxisColor);
+            using SolidBrush yBrush = new SolidBrush(YAxisColor);
+            using SolidBrush zBrush = new SolidBrush(ZAxisColor);
+            SolidBrush[] barBrushes = { xBrush, zBrush, yBrush };
+            for (int barIndex = 0; barIndex < barHeights.Length; barIndex++) {
+                float barX = firstBarX + barIndex * (barWidth + barSpacing);
+                float barHeight = barHeights[barIndex];
+                graphics.FillRectangle(barBrushes[barIndex], barX, baselineY - barHeight, barWidth, barHeight);
+            }
+
+            using Pen baselinePen = new Pen(NeutralColor, (float)(iconSize * 0.05));
+            graphics.DrawLine(
+                baselinePen,
+                (float)(iconSize * 0.10),
+                baselineY,
+                (float)(iconSize * 0.90),
+                baselineY);
+
+            SaveBitmap(bitmap, filePath);
         }
 
         /// <summary>

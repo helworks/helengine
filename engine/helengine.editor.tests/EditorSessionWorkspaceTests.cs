@@ -1152,6 +1152,7 @@ namespace helengine.editor.tests {
                     icon,
                     icon,
                     icon,
+                    icon,
                     icon);
             }
 

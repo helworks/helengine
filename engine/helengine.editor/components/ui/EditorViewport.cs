@@ -173,6 +173,42 @@ namespace helengine.editor {
         /// </summary>
         EditorViewportSettingsOverlayComponent SettingsOverlayComponent;
         /// <summary>
+        /// Root entity for the viewport stats toggle button.
+        /// </summary>
+        EditorEntity StatsButtonRoot;
+        /// <summary>
+        /// Background sprite for the viewport stats toggle button.
+        /// </summary>
+        SpriteComponent StatsButtonBackground;
+        /// <summary>
+        /// Icon sprite rendered inside the stats toggle button.
+        /// </summary>
+        SpriteComponent StatsButtonIcon;
+        /// <summary>
+        /// Interactable region for the stats toggle button.
+        /// </summary>
+        InteractableComponent StatsButtonInteractable;
+        /// <summary>
+        /// Tracks pointer hover over the stats toggle button.
+        /// </summary>
+        bool StatsButtonHoverState;
+        /// <summary>
+        /// Tracks pointer press on the stats toggle button.
+        /// </summary>
+        bool StatsButtonPressedState;
+        /// <summary>
+        /// Tracks keyboard focus on the stats toggle button.
+        /// </summary>
+        bool StatsButtonKeyboardFocusState;
+        /// <summary>
+        /// Focus target bound to the stats toggle button.
+        /// </summary>
+        EditorFocusTarget StatsButtonFocusTarget;
+        /// <summary>
+        /// Overlay component that renders the toggleable viewport stats box.
+        /// </summary>
+        EditorViewportStatsOverlayComponent StatsOverlayComponent;
+        /// <summary>
         /// Overlay component that owns viewport-local world-space gizmo labels.
         /// </summary>
         EditorViewportCameraAngleOverlayComponent CameraAngleOverlayComponentValue;
@@ -397,6 +433,8 @@ namespace helengine.editor {
             InitializeToolButtons();
             InitializeSettingsButton();
             InitializeSettingsOverlay();
+            InitializeStatsButton();
+            InitializeStatsOverlay();
             InitializeSnapControls();
             CameraAngleOverlayComponentValue = new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false);
             AddComponent(CameraAngleOverlayComponentValue);
@@ -649,6 +687,165 @@ namespace helengine.editor {
             SettingsOverlayComponent.OpenStateChanged += HandleSettingsOverlayOpenStateChanged;
             AddComponent(SettingsOverlayComponent);
             SettingsOverlayComponent.SetSettingsButtonFocusTarget(SettingsButtonFocusTarget);
+        }
+
+        /// <summary>
+        /// Initializes the viewport stats toggle button on the toolbar.
+        /// </summary>
+        void InitializeStatsButton() {
+            EditorEntity buttonRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero
+            };
+            ToolbarRoot.AddChild(buttonRoot);
+
+            SpriteComponent buttonBackground = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = ThemeManager.Colors.SurfaceInput,
+                RenderOrder2D = ToolbarSurfaceOrder
+            };
+            buttonRoot.AddComponent(buttonBackground);
+
+            EditorEntity iconHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = new float3(0f, 0f, 0.1f)
+            };
+            buttonRoot.AddChild(iconHost);
+
+            SpriteComponent buttonIcon = new SpriteComponent {
+                Texture = ToolbarIcons.StatsIcon,
+                Color = new byte4(255, 255, 255, 224),
+                Size = new int2(ToolButtonIconSize, ToolButtonIconSize),
+                RenderOrder2D = ToolbarForegroundOrder
+            };
+            iconHost.AddComponent(buttonIcon);
+
+            InteractableComponent buttonInteractable = new InteractableComponent {
+                Size = new int2(ToolButtonWidth, ToolButtonHeight)
+            };
+            buttonInteractable.CursorEvent += (pos, delta, state) => HandleStatsButtonCursor(state);
+            buttonRoot.AddComponent(buttonInteractable);
+
+            StatsButtonFocusTarget = new EditorFocusTarget(
+                ToolbarFocusGroup,
+                ToolModes.Length + 1,
+                false,
+                () => Enabled && buttonRoot.Enabled,
+                ContainsStatsButtonPoint,
+                isFocused => {
+                    StatsButtonKeyboardFocusState = isFocused;
+                    UpdateStatsButtonVisuals();
+                },
+                key => key == Keys.Enter || key == Keys.Space,
+                key => ToggleStatsOverlay());
+            EditorKeyboardFocusService.RegisterTarget(StatsButtonFocusTarget);
+
+            StatsButtonRoot = buttonRoot;
+            StatsButtonBackground = buttonBackground;
+            StatsButtonIcon = buttonIcon;
+            StatsButtonInteractable = buttonInteractable;
+            StatsButtonHoverState = false;
+            StatsButtonPressedState = false;
+            StatsButtonKeyboardFocusState = false;
+            UpdateStatsButtonVisuals();
+        }
+
+        /// <summary>
+        /// Initializes the viewport stats overlay component toggled by the stats button.
+        /// </summary>
+        void InitializeStatsOverlay() {
+            StatsOverlayComponent = new EditorViewportStatsOverlayComponent(Camera, Font, ToolbarHeight);
+            AddComponent(StatsOverlayComponent);
+        }
+
+        /// <summary>
+        /// Handles pointer interaction state updates for the stats toggle button.
+        /// </summary>
+        /// <param name="interaction">Pointer interaction state.</param>
+        void HandleStatsButtonCursor(PointerInteraction interaction) {
+            switch (interaction) {
+                case PointerInteraction.Hover:
+                    StatsButtonHoverState = true;
+                    break;
+                case PointerInteraction.Press:
+                    StatsButtonPressedState = true;
+                    break;
+                case PointerInteraction.Release:
+                    bool shouldToggle = StatsButtonPressedState && StatsButtonHoverState;
+                    StatsButtonPressedState = false;
+                    if (shouldToggle) {
+                        ToggleStatsOverlay();
+                    }
+                    break;
+                case PointerInteraction.Leave:
+                    StatsButtonHoverState = false;
+                    StatsButtonPressedState = false;
+                    break;
+                case PointerInteraction.None:
+                    break;
+                default:
+                    throw new InvalidOperationException("Pointer interaction state is not supported.");
+            }
+
+            UpdateStatsButtonVisuals();
+        }
+
+        /// <summary>
+        /// Toggles the viewport stats box visibility.
+        /// </summary>
+        void ToggleStatsOverlay() {
+            if (StatsOverlayComponent == null) {
+                return;
+            }
+
+            StatsOverlayComponent.SetVisible(!StatsOverlayComponent.IsVisible);
+            UpdateStatsButtonVisuals();
+        }
+
+        /// <summary>
+        /// Applies the stats button colors from its toggle, hover, pressed, and focus states.
+        /// </summary>
+        void UpdateStatsButtonVisuals() {
+            if (StatsButtonBackground == null || StatsButtonIcon == null) {
+                return;
+            }
+
+            bool statsVisible = StatsOverlayComponent != null && StatsOverlayComponent.IsVisible;
+            if (StatsButtonPressedState) {
+                StatsButtonBackground.Color = ThemeManager.Colors.AccentTertiary;
+            } else if (statsVisible) {
+                StatsButtonBackground.Color = ThemeManager.Colors.AccentPrimary;
+            } else if (StatsButtonKeyboardFocusState || StatsButtonHoverState) {
+                StatsButtonBackground.Color = ThemeManager.Colors.AccentSecondary;
+            } else {
+                StatsButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
+            }
+
+            if (statsVisible || StatsButtonHoverState || StatsButtonPressedState || StatsButtonKeyboardFocusState) {
+                StatsButtonIcon.Color = new byte4(255, 255, 255, 255);
+            } else {
+                StatsButtonIcon.Color = new byte4(255, 255, 255, 224);
+            }
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside the viewport stats button.
+        /// </summary>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the stats button bounds.</returns>
+        bool ContainsStatsButtonPoint(int2 point) {
+            if (StatsButtonRoot == null || StatsButtonInteractable == null) {
+                return false;
+            }
+
+            int left = (int)Math.Round(StatsButtonRoot.Position.X);
+            int top = (int)Math.Round(StatsButtonRoot.Position.Y);
+            int width = StatsButtonInteractable.Size.X;
+            int height = StatsButtonInteractable.Size.Y;
+            return point.X >= left &&
+                   point.X < left + width &&
+                   point.Y >= top &&
+                   point.Y < top + height;
         }
 
         /// <summary>
@@ -1498,6 +1695,20 @@ namespace helengine.editor {
                         ToolbarRoot.LocalPosition.Y + buttonY + ToolButtonHeight,
                         ToolButtonWidth);
                 }
+
+                if (StatsButtonRoot != null && StatsButtonBackground != null && StatsButtonIcon != null && StatsButtonInteractable != null) {
+                    float statsButtonX = Math.Max(
+                        ToolbarPadding,
+                        settingsButtonX - ToolbarButtonSpacing - ToolButtonWidth);
+                    StatsButtonRoot.Position = new float3(statsButtonX, buttonY, 0.1f);
+                    StatsButtonBackground.Size = new int2(ToolButtonWidth, ToolButtonHeight);
+                    StatsButtonInteractable.Size = new int2(ToolButtonWidth, ToolButtonHeight);
+                    LayoutToolButtonIcon(StatsButtonIcon, ToolButtonWidth, ToolButtonHeight, ToolButtonIconSize, ToolButtonIconSize);
+                }
+            }
+
+            if (StatsOverlayComponent != null) {
+                StatsOverlayComponent.SetAnchorWidth(toolbarWidth);
             }
 
             LayoutSnapControls(buttonY);

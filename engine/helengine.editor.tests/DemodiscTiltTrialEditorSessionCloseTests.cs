@@ -148,6 +148,7 @@ public sealed class DemodiscTiltTrialEditorSessionCloseTests : IDisposable {
             icon,
             icon,
             icon,
+            icon,
             icon);
     }
 

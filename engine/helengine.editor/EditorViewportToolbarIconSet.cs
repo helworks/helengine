@@ -16,6 +16,7 @@ namespace helengine.editor {
         /// <param name="magnetIcon">Texture used by snap-slot labels to indicate snapping.</param>
         /// <param name="ctrlKeyIcon">Texture used by the first snap-slot label.</param>
         /// <param name="shiftKeyIcon">Texture used by the second snap-slot label.</param>
+        /// <param name="statsIcon">Texture used by the viewport stats toggle button.</param>
         public EditorViewportToolbarIconSet(
             RuntimeTexture translateIcon,
             RuntimeTexture rotateIcon,
@@ -26,7 +27,8 @@ namespace helengine.editor {
             RuntimeTexture snapDecreaseIcon,
             RuntimeTexture magnetIcon,
             RuntimeTexture ctrlKeyIcon,
-            RuntimeTexture shiftKeyIcon) {
+            RuntimeTexture shiftKeyIcon,
+            RuntimeTexture statsIcon) {
             TranslateIcon = translateIcon ?? throw new ArgumentNullException(nameof(translateIcon));
             RotateIcon = rotateIcon ?? throw new ArgumentNullException(nameof(rotateIcon));
             ScaleIcon = scaleIcon ?? throw new ArgumentNullException(nameof(scaleIcon));
@@ -37,6 +39,7 @@ namespace helengine.editor {
             MagnetIcon = magnetIcon ?? throw new ArgumentNullException(nameof(magnetIcon));
             CtrlKeyIcon = ctrlKeyIcon ?? throw new ArgumentNullException(nameof(ctrlKeyIcon));
             ShiftKeyIcon = shiftKeyIcon ?? throw new ArgumentNullException(nameof(shiftKeyIcon));
+            StatsIcon = statsIcon ?? throw new ArgumentNullException(nameof(statsIcon));
         }
 
         /// <summary>
@@ -79,6 +82,10 @@ namespace helengine.editor {
         /// Gets the texture used by the second snap-slot modifier label.
         /// </summary>
         public RuntimeTexture ShiftKeyIcon { get; }
+        /// <summary>
+        /// Gets the texture used by the viewport stats toggle button.
+        /// </summary>
+        public RuntimeTexture StatsIcon { get; }
 
         /// <summary>
         /// Resolves the toolbar icon texture for the provided viewport tool mode.

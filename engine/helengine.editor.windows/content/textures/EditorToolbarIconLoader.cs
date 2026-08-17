@@ -44,6 +44,10 @@ namespace helengine.editor {
         /// </summary>
         static readonly string ShiftKeyIconPath = Path.Combine("content", "icons", "toolbar", "key-shift.png");
         /// <summary>
+        /// Root-relative path for the viewport stats toolbar icon.
+        /// </summary>
+        static readonly string StatsIconPath = Path.Combine("content", "icons", "toolbar", "stats.png");
+        /// <summary>
         /// Root-relative path for the editor title-bar icon.
         /// </summary>
         static readonly string TitleBarIconPath = Path.Combine("content", "icons", "titlebar", "helengine_icon.png");
@@ -72,6 +76,7 @@ namespace helengine.editor {
             RuntimeTexture magnetIcon = LoadTexture(content, applicationRootPath, MagnetIconPath);
             RuntimeTexture ctrlKeyIcon = LoadTexture(content, applicationRootPath, CtrlKeyIconPath);
             RuntimeTexture shiftKeyIcon = LoadTexture(content, applicationRootPath, ShiftKeyIconPath);
+            RuntimeTexture statsIcon = LoadTexture(content, applicationRootPath, StatsIconPath);
             return new EditorViewportToolbarIconSet(
                 translateIcon,
                 rotateIcon,
@@ -82,7 +87,8 @@ namespace helengine.editor {
                 snapDecreaseIcon,
                 magnetIcon,
                 ctrlKeyIcon,
-                shiftKeyIcon);
+                shiftKeyIcon,
+                statsIcon);
         }
 
         /// <summary>

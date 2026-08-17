@@ -142,6 +142,7 @@ namespace helengine.editor.tests {
                 CreateTexture(),
                 CreateTexture(),
                 CreateTexture(),
+                CreateTexture(),
                 CreateTexture());
         }
 
