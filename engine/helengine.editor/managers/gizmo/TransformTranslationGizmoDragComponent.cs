@@ -222,10 +222,7 @@ namespace helengine.editor {
                 double deltaParameter = currentAxisParameter - DragStartAxisParameter;
                 float3 axisOffset = ResolveAxisTranslationOffset(deltaParameter, input);
                 float3 newPresentedPosition = DragStartEntityPosition + axisOffset;
-                float3 storedPosition = ResolveStoredDragPosition(newPresentedPosition);
-                if (DraggedEntity.Position != storedPosition) {
-                    DraggedEntity.Position = storedPosition;
-                }
+                ApplyStoredDragPosition(ResolveStoredDragPosition(newPresentedPosition));
                 DragChanged = DragChanged || newPresentedPosition != DragStartEntityPosition;
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
                 if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
@@ -236,10 +233,7 @@ namespace helengine.editor {
                 float3 delta = currentPlanePoint - DragStartPlanePoint;
                 float3 planeOffset = ResolvePlaneTranslationOffset(delta, input);
                 float3 newPresentedPosition = DragStartEntityPosition + planeOffset;
-                float3 storedPosition = ResolveStoredDragPosition(newPresentedPosition);
-                if (DraggedEntity.Position != storedPosition) {
-                    DraggedEntity.Position = storedPosition;
-                }
+                ApplyStoredDragPosition(ResolveStoredDragPosition(newPresentedPosition));
                 DragChanged = DragChanged || newPresentedPosition != DragStartEntityPosition;
             } else {
                 throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
@@ -306,6 +300,46 @@ namespace helengine.editor {
             }
 
             return EditorViewportDirect2DPresentationService.ResolvePresentedWorldAnchorPosition(selectedEntity);
+        }
+
+        /// <summary>
+        /// Writes one stored drag position onto the dragged entity. Viewport-owned 2D entities receive the stored-space
+        /// value directly per the 2D presentation contract; scene entities convert the world-space result into their
+        /// parent-local frame so parented entities do not jump by their parent transform.
+        /// </summary>
+        /// <param name="storedPosition">Stored drag position resolved for the current drag frame.</param>
+        void ApplyStoredDragPosition(float3 storedPosition) {
+            if (DraggedEntity.Position == storedPosition) {
+                return;
+            }
+
+            if (EditorViewportDirect2DPresentationService.TryResolveViewportOwner(DraggedEntity, out _, out _)) {
+                DraggedEntity.Position = storedPosition;
+                return;
+            }
+
+            DraggedEntity.LocalPosition = ResolveParentLocalPosition(DraggedEntity, storedPosition);
+        }
+
+        /// <summary>
+        /// Converts one world-space position into the local frame of the supplied entity's parent.
+        /// </summary>
+        /// <param name="entity">Entity whose parent frame should receive the position.</param>
+        /// <param name="worldPosition">World-space position to convert.</param>
+        /// <returns>Parent-local position that composes back to the supplied world position.</returns>
+        static float3 ResolveParentLocalPosition(Entity entity, float3 worldPosition) {
+            Entity parent = entity.Parent;
+            if (parent == null) {
+                return worldPosition;
+            }
+
+            float3 relativePosition = worldPosition - parent.Position;
+            float3 unrotatedPosition = float4.RotateVector(relativePosition, float4.Inverse(parent.Orientation));
+            float3 parentScale = parent.Scale;
+            return new float3(
+                parentScale.X == 0f ? 0f : unrotatedPosition.X / parentScale.X,
+                parentScale.Y == 0f ? 0f : unrotatedPosition.Y / parentScale.Y,
+                parentScale.Z == 0f ? 0f : unrotatedPosition.Z / parentScale.Z);
         }
 
         /// <summary>

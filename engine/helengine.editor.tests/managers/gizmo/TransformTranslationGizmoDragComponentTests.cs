@@ -95,6 +95,44 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures dragging a child scene entity keeps the drag result in world space instead of writing the world
+        /// position into the raw local field, which would offset the entity by its parent transform.
+        /// </summary>
+        [Fact]
+        public void Update_WhenAxisDraggingParentedSceneEntity_PreservesWorldSpaceDragResult() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera();
+            Entity parentEntity = new Entity {
+                LocalPosition = new float3(10f, 0f, 0f)
+            };
+            parentEntity.InitComponents();
+            parentEntity.InitChildren();
+            Entity selectedEntity = new Entity {
+                LocalPosition = new float3(2f, 0f, 0f)
+            };
+            selectedEntity.InitComponents();
+            selectedEntity.InitChildren();
+            parentEntity.AddChild(selectedEntity);
+            Entity handleEntity = CreateHandleEntity();
+            TransformTranslationGizmoDragComponent component = CreateDragComponent(sceneCamera);
+            int2 startPointer = new int2(250, 200);
+            int2 currentPointer = new int2(250, 250);
+            float3 presentedStartPosition = selectedEntity.Position;
+            float3 axisDirection = new float3(0f, -1f, 0f);
+            double startAxisParameter = ResolveAxisParameter(sceneCamera, startPointer, presentedStartPosition, axisDirection);
+            double currentAxisParameter = ResolveAxisParameter(sceneCamera, currentPointer, presentedStartPosition, axisDirection);
+            float3 expectedWorldPosition = presentedStartPosition + (axisDirection * (float)(currentAxisParameter - startAxisParameter));
+
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InitializeActiveAxisDrag(component, selectedEntity, handleEntity, presentedStartPosition, axisDirection, startAxisParameter);
+
+            CompleteDragFrame(component, CreateMouseState(currentPointer.X, currentPointer.Y, ButtonState.Pressed));
+
+            AssertFloat3ApproximatelyEqual(expectedWorldPosition, selectedEntity.Position, 0.001f);
+        }
+
+        /// <summary>
         /// Ensures a completed drag that moved the entity records the pre-drag snapshot into undo/redo history so Ctrl+Z can revert the move.
         /// </summary>
         [Fact]
