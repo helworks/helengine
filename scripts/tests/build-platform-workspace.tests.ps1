@@ -54,6 +54,14 @@ function Invoke-ControlledWrapper {
         [string]$InvocationOutputPath = $OutputArgumentPath,
 
         [Parameter()]
+        [AllowNull()]
+        [object]$InvocationId = $null,
+
+        [Parameter()]
+        [AllowNull()]
+        [object]$WaiterProtocol = $null,
+
+        [Parameter()]
         [string[]]$AdditionalArguments = @()
     )
 
@@ -114,14 +122,44 @@ function Invoke-ControlledWrapper {
 
     $OriginalErrorActionPreference = $ErrorActionPreference
     $OriginalExpectedStatePath = $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH
+    $OriginalInvocationId = [Environment]::GetEnvironmentVariable(
+        "HELENGINE_BUILD_INVOCATION_ID",
+        [EnvironmentVariableTarget]::Process)
+    $OriginalWaiterProtocol = [Environment]::GetEnvironmentVariable(
+        "HELENGINE_BUILD_WAITER_PROTOCOL",
+        [EnvironmentVariableTarget]::Process)
     try {
         $ErrorActionPreference = "Continue"
         $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH = Join-Path $InvocationOutputPath ".helengine-build-state.json"
+        [Environment]::SetEnvironmentVariable(
+            "HELENGINE_BUILD_INVOCATION_ID",
+            $InvocationId,
+            [EnvironmentVariableTarget]::Process)
+        [Environment]::SetEnvironmentVariable(
+            "HELENGINE_BUILD_WAITER_PROTOCOL",
+            $WaiterProtocol,
+            [EnvironmentVariableTarget]::Process)
         $InvocationOutput = @(& powershell.exe @Arguments 2>&1)
         $InvocationExitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $OriginalErrorActionPreference
         $env:HELENGINE_WORKSPACE_EXPECTED_STATE_PATH = $OriginalExpectedStatePath
+        [Environment]::SetEnvironmentVariable(
+            "HELENGINE_BUILD_INVOCATION_ID",
+            $OriginalInvocationId,
+            [EnvironmentVariableTarget]::Process)
+        [Environment]::SetEnvironmentVariable(
+            "HELENGINE_BUILD_WAITER_PROTOCOL",
+            $OriginalWaiterProtocol,
+            [EnvironmentVariableTarget]::Process)
+        if ([Environment]::GetEnvironmentVariable(
+                "HELENGINE_BUILD_INVOCATION_ID",
+                [EnvironmentVariableTarget]::Process) -cne $OriginalInvocationId -or
+            [Environment]::GetEnvironmentVariable(
+                "HELENGINE_BUILD_WAITER_PROTOCOL",
+                [EnvironmentVariableTarget]::Process) -cne $OriginalWaiterProtocol) {
+            throw "The workspace harness did not restore waiter environment values."
+        }
     }
     return [pscustomobject]@{
         ExitCode = $InvocationExitCode
@@ -842,6 +880,131 @@ exit /b 8
         }
         Clear-Content -LiteralPath $CapturePath
 
+        $WaiterInvocationId = "b40ab19d-4d81-4db0-a0d4-9b818b49c7c0"
+        $WaiterPreflightCases = @(
+            [pscustomobject]@{
+                Name = "ack-v1 without an invocation ID"
+                InvocationId = $null
+                WaiterProtocol = "ack-v1"
+            },
+            [pscustomobject]@{
+                Name = "ACK-V1 with a canonical invocation ID"
+                InvocationId = $WaiterInvocationId
+                WaiterProtocol = "ACK-V1"
+            }
+        )
+        foreach ($WaiterPreflightCase in $WaiterPreflightCases) {
+            $WaiterPreflightOutputPath = Join-Path $TestRootPath ("waiter-preflight-" + $WaiterPreflightCase.Name.Replace(" ", "-").Replace("/", "-") + "-output")
+            $WaiterPreflightCachePath = Join-Path $TestRootPath ("waiter-preflight-" + $WaiterPreflightCase.Name.Replace(" ", "-").Replace("/", "-") + "-cache")
+            $InvocationCountBeforeWaiterPreflight = @(Get-Content -LiteralPath $CapturePath).Count
+            $WaiterPreflightResult = Invoke-ControlledWrapper `
+                -CachePath $WaiterPreflightCachePath `
+                -InvocationOutputPath $WaiterPreflightOutputPath `
+                -InvocationId $WaiterPreflightCase.InvocationId `
+                -WaiterProtocol $WaiterPreflightCase.WaiterProtocol
+            if ($WaiterPreflightResult.ExitCode -ne 2) {
+                throw "$($WaiterPreflightCase.Name) must exit 2, got $($WaiterPreflightResult.ExitCode). $($WaiterPreflightResult.Output -join [Environment]::NewLine)"
+            }
+            if (@(Get-Content -LiteralPath $CapturePath).Count -ne $InvocationCountBeforeWaiterPreflight) {
+                throw "$($WaiterPreflightCase.Name) reached fake dotnet."
+            }
+            if ((Test-Path -LiteralPath $WaiterPreflightOutputPath) -or (Test-Path -LiteralPath $WaiterPreflightCachePath)) {
+                throw "$($WaiterPreflightCase.Name) mutated output or cache before preflight validation."
+            }
+        }
+
+        $PreExistingAcknowledgementOutputPath = Join-Path $TestRootPath "waiter-pre-existing-ack-output"
+        $PreExistingAcknowledgementCachePath = Join-Path $TestRootPath "waiter-pre-existing-ack-cache"
+        $PreExistingAcknowledgementPath = Join-Path $PreExistingAcknowledgementOutputPath (".helengine-build-state." + $WaiterInvocationId + ".ack")
+        $null = New-Item -ItemType Directory -Path $PreExistingAcknowledgementOutputPath -Force
+        [IO.File]::WriteAllText($PreExistingAcknowledgementPath, $WaiterInvocationId)
+        $PreExistingAcknowledgementBytes = [IO.File]::ReadAllBytes($PreExistingAcknowledgementPath)
+        $InvocationCountBeforePreExistingAcknowledgement = @(Get-Content -LiteralPath $CapturePath).Count
+        $PreExistingAcknowledgementResult = Invoke-ControlledWrapper `
+            -CachePath $PreExistingAcknowledgementCachePath `
+            -InvocationOutputPath $PreExistingAcknowledgementOutputPath `
+            -InvocationId $WaiterInvocationId `
+            -WaiterProtocol "ack-v1"
+        if ($PreExistingAcknowledgementResult.ExitCode -ne 2) {
+            throw "A pre-existing waiter acknowledgment must exit 2, got $($PreExistingAcknowledgementResult.ExitCode)."
+        }
+        if (@(Get-Content -LiteralPath $CapturePath).Count -ne $InvocationCountBeforePreExistingAcknowledgement) {
+            throw "A pre-existing waiter acknowledgment reached fake dotnet."
+        }
+        if ((Test-Path -LiteralPath $PreExistingAcknowledgementCachePath) -or
+            (Test-Path -LiteralPath (Join-Path $PreExistingAcknowledgementOutputPath ".helengine-build-state.json")) -or
+            ([Convert]::ToBase64String([IO.File]::ReadAllBytes($PreExistingAcknowledgementPath)) -cne
+                [Convert]::ToBase64String($PreExistingAcknowledgementBytes))) {
+            throw "A pre-existing waiter acknowledgment was not rejected before mutation."
+        }
+
+        $DirectHandshakeOutputPath = Join-Path $TestRootPath "waiter-direct-output"
+        $DirectHandshakeCachePath = Join-Path $TestRootPath "waiter-direct-cache"
+        $DirectHandshakeStopwatch = [Diagnostics.Stopwatch]::StartNew()
+        $DirectHandshakeResult = Invoke-ControlledWrapper `
+            -CachePath $DirectHandshakeCachePath `
+            -InvocationOutputPath $DirectHandshakeOutputPath
+        if ($DirectHandshakeResult.ExitCode -ne 0 -or $DirectHandshakeStopwatch.Elapsed -ge [TimeSpan]::FromSeconds(5)) {
+            throw "Direct wrapper mode did not complete normally without waiter delay."
+        }
+        $DirectHandshakeState = Get-Content -LiteralPath (Join-Path $DirectHandshakeOutputPath ".helengine-build-state.json") -Raw | ConvertFrom-Json
+        $DirectHandshakeAcknowledgementPath = Join-Path $DirectHandshakeOutputPath (".helengine-build-state." + $DirectHandshakeState.buildId + ".ack")
+        if (Test-Path -LiteralPath $DirectHandshakeAcknowledgementPath) {
+            throw "Direct wrapper mode left a waiter acknowledgment."
+        }
+
+        $FailedWaiterOutputPath = Join-Path $TestRootPath "waiter-editor-failure-output"
+        $FailedWaiterCachePath = Join-Path $TestRootPath "waiter-editor-failure-cache"
+        $FailedWaiterInvocationId = "c50ab19d-4d81-4db0-a0d4-9b818b49c7c0"
+        $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = "17"
+        try {
+            $FailedWaiterStopwatch = [Diagnostics.Stopwatch]::StartNew()
+            $FailedWaiterResult = Invoke-ControlledWrapper `
+                -CachePath $FailedWaiterCachePath `
+                -InvocationOutputPath $FailedWaiterOutputPath `
+                -InvocationId $FailedWaiterInvocationId `
+                -WaiterProtocol "ack-v1"
+        } finally {
+            $env:HELENGINE_WORKSPACE_EDITOR_EXIT_CODE = $null
+        }
+        if ($FailedWaiterResult.ExitCode -ne 17 -or $FailedWaiterStopwatch.Elapsed -ge [TimeSpan]::FromSeconds(5)) {
+            throw "A failed editor build waited for acknowledgment or changed exit code."
+        }
+        $FailedWaiterProofPath = Join-Path $FailedWaiterOutputPath (".helengine-build-state." + $FailedWaiterInvocationId + ".json")
+        $FailedWaiterProof = Get-Content -LiteralPath $FailedWaiterProofPath -Raw | ConvertFrom-Json
+        if ($FailedWaiterProof.status -cne "failed" -or [int]$FailedWaiterProof.exitCode -ne 17 -or
+            (Test-Path -LiteralPath (Join-Path $FailedWaiterOutputPath (".helengine-build-state." + $FailedWaiterInvocationId + ".ack")))) {
+            throw "A failed editor build did not bypass waiter acknowledgment lifecycle."
+        }
+
+        $WaiterTimeoutOutputPath = Join-Path $TestRootPath "waiter-timeout-output"
+        $WaiterTimeoutCachePath = Join-Path $TestRootPath "waiter-timeout-cache"
+        $WaiterTimeoutInvocationId = "d60ab19d-4d81-4db0-a0d4-9b818b49c7c0"
+        $WaiterTimeoutSentinelPath = Join-Path $WaiterTimeoutOutputPath "unrelated-sentinel.txt"
+        $null = New-Item -ItemType Directory -Path $WaiterTimeoutOutputPath -Force
+        Set-Content -LiteralPath $WaiterTimeoutSentinelPath -Value "preserve" -NoNewline
+        $WaiterTimeoutResult = Invoke-ControlledWrapper `
+            -CachePath $WaiterTimeoutCachePath `
+            -InvocationOutputPath $WaiterTimeoutOutputPath `
+            -InvocationId $WaiterTimeoutInvocationId `
+            -WaiterProtocol "ack-v1"
+        if ($WaiterTimeoutResult.ExitCode -ne 10) {
+            throw "A successful waiter-controlled build without acknowledgment must exit 10, got $($WaiterTimeoutResult.ExitCode)."
+        }
+        foreach ($WaiterTimeoutStatePath in @(
+                (Join-Path $WaiterTimeoutOutputPath ".helengine-build-state.json"),
+                (Join-Path $WaiterTimeoutOutputPath (".helengine-build-state." + $WaiterTimeoutInvocationId + ".json"))
+            )) {
+            $WaiterTimeoutState = Get-Content -LiteralPath $WaiterTimeoutStatePath -Raw | ConvertFrom-Json
+            if ($WaiterTimeoutState.status -cne "failed" -or [int]$WaiterTimeoutState.exitCode -ne 10) {
+                throw "Waiter timeout state '$WaiterTimeoutStatePath' did not record failed exit 10."
+            }
+        }
+        if (-not (Test-Path -LiteralPath $WaiterTimeoutSentinelPath -PathType Leaf)) {
+            throw "Waiter timeout removed unrelated output content."
+        }
+        Clear-Content -LiteralPath $CapturePath
+
         $OverlapCacheRootPath = Join-Path $TestRootPath "unsafe-overlap-cache"
         $OverlapLayout = Resolve-BuildPlatformCacheLayout `
             -CacheRootPath $OverlapCacheRootPath `
@@ -1106,12 +1269,9 @@ exit /b 8
             -ExpectedProjectPath $CanonicalProjectPath
 
         $ExpectedInvocationId = "b40ab19d-4d81-4db0-a0d4-9b818b49c7c0"
-        $env:HELENGINE_BUILD_INVOCATION_ID = $ExpectedInvocationId
-        try {
-            $AdoptedInvocationResult = Invoke-ControlledWrapper -CachePath $CacheRootPath
-        } finally {
-            $env:HELENGINE_BUILD_INVOCATION_ID = $null
-        }
+        $AdoptedInvocationResult = Invoke-ControlledWrapper `
+            -CachePath $CacheRootPath `
+            -InvocationId $ExpectedInvocationId
         Assert-Success -Result $AdoptedInvocationResult -CaseName "The wrapper invocation with an explicit build identity"
         $AdoptedInvocationState = Get-Content -LiteralPath $ExpectedStatePath -Raw | ConvertFrom-Json
         if ($AdoptedInvocationState.buildId -cne $ExpectedInvocationId) {
@@ -1157,14 +1317,10 @@ exit /b 8
         foreach ($InvalidInvocationIdCase in $InvalidInvocationIdCases) {
             $InvalidInvocationOutputPath = Join-Path $TestRootPath ("invalid-" + $InvalidInvocationIdCase.Name + "-invocation-output")
             $InvocationCountBeforeInvalidInvocationId = @(Get-Content -LiteralPath $CapturePath).Count
-            $env:HELENGINE_BUILD_INVOCATION_ID = $InvalidInvocationIdCase.Value
-            try {
-                $InvalidInvocationResult = Invoke-ControlledWrapper `
-                    -CachePath $CacheRootPath `
-                    -InvocationOutputPath $InvalidInvocationOutputPath
-            } finally {
-                $env:HELENGINE_BUILD_INVOCATION_ID = $null
-            }
+            $InvalidInvocationResult = Invoke-ControlledWrapper `
+                -CachePath $CacheRootPath `
+                -InvocationOutputPath $InvalidInvocationOutputPath `
+                -InvocationId $InvalidInvocationIdCase.Value
             if ($InvalidInvocationResult.ExitCode -ne 2) {
                 $null = $InvalidInvocationIdErrors.Add(
                     "A $($InvalidInvocationIdCase.Name) HELENGINE_BUILD_INVOCATION_ID must exit 2, got $($InvalidInvocationResult.ExitCode)."
@@ -1193,8 +1349,8 @@ exit /b 8
             -ExpectedProjectPath $CanonicalProjectPath
 
         $StateWriteCallSiteCount = @(Select-String -LiteralPath $WrapperPath -Pattern '^\s*Write-BuildPlatformState\b').Count
-        if ($StateWriteCallSiteCount -ne 3) {
-            throw "The wrapper contained $StateWriteCallSiteCount state-writer call sites instead of shared running, shared terminal, and invocation terminal proof."
+        if ($StateWriteCallSiteCount -ne 5) {
+            throw "The wrapper contained $StateWriteCallSiteCount state-writer call sites instead of shared running, shared terminal, invocation terminal proof, and two timeout rewrites."
         }
 
         $EditorCacheSentinelPath = Join-Path $ExpectedEditorCachePath "state-failure-sentinel.txt"

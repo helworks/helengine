@@ -25,7 +25,9 @@ $InvocationEnvironmentVariableNames = @(
     "HELENGINE_LOCK_TEST_MARKER",
     "HELENGINE_LOCK_TEST_RELEASE",
     "HELENGINE_LOCK_TEST_CHILD_PID",
-    "HELENGINE_LOCK_TEST_DONE"
+    "HELENGINE_LOCK_TEST_DONE",
+    "HELENGINE_BUILD_INVOCATION_ID",
+    "HELENGINE_BUILD_WAITER_PROTOCOL"
 )
 
 $HarnessSource = Get-Content -LiteralPath $PSCommandPath -Raw
@@ -114,6 +116,14 @@ function New-InvocationControl {
         [switch]$Released,
 
         [Parameter()]
+        [AllowNull()]
+        [object]$InvocationId = $null,
+
+        [Parameter()]
+        [AllowNull()]
+        [object]$WaiterProtocol = $null,
+
+        [Parameter()]
         [TimeSpan]$LockTimeout = [TimeSpan]::FromSeconds(20)
     )
 
@@ -132,6 +142,8 @@ function New-InvocationControl {
         ReleasePath = Join-Path $ControlRootPath "release.marker"
         ChildProcessIdPath = Join-Path $ControlRootPath "child-process-id.txt"
         DonePath = Join-Path $ControlRootPath "dotnet-finished.marker"
+        InvocationId = $InvocationId
+        WaiterProtocol = $WaiterProtocol
         LockTimeout = $LockTimeout
         StartedUtc = $null
         Process = $null
@@ -188,6 +200,8 @@ function Start-WrapperInvocation {
         HELENGINE_LOCK_TEST_RELEASE = $Control.ReleasePath
         HELENGINE_LOCK_TEST_CHILD_PID = $Control.ChildProcessIdPath
         HELENGINE_LOCK_TEST_DONE = $Control.DonePath
+        HELENGINE_BUILD_INVOCATION_ID = $Control.InvocationId
+        HELENGINE_BUILD_WAITER_PROTOCOL = $Control.WaiterProtocol
     }
     $SavedInvocationEnvironmentState = @{}
     foreach ($EnvironmentVariableName in $InvocationEnvironmentVariableNames) {
@@ -292,6 +306,29 @@ function Wait-ForOptionalPath {
         Start-Sleep -Milliseconds 25
     }
     return Test-Path -LiteralPath $Path
+}
+
+function Set-WaiterAcknowledgementContents {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Contents
+    )
+
+    $Stopwatch = [Diagnostics.Stopwatch]::StartNew()
+    do {
+        try {
+            [IO.File]::WriteAllText($Path, $Contents)
+            return
+        } catch [IO.IOException] {
+            if ($Stopwatch.Elapsed -ge [TimeSpan]::FromSeconds(2)) {
+                throw
+            }
+            Start-Sleep -Milliseconds 25
+        }
+    } while ($true)
 }
 
 function Get-InvocationRemainingWaitMilliseconds {
@@ -421,10 +458,10 @@ function Complete-Invocation {
     )
 
     $ElapsedMilliseconds = [int]([DateTime]::UtcNow - $Control.StartedUtc).TotalMilliseconds
-    $RemainingMilliseconds = [Math]::Max(1, 20000 - $ElapsedMilliseconds)
+    $RemainingMilliseconds = [Math]::Max(1, 45000 - $ElapsedMilliseconds)
     if (-not $Control.Process.WaitForExit($RemainingMilliseconds)) {
         $Control.Process.Kill()
-        throw "Wrapper '$($Control.Name)' exceeded the 20-second process cap."
+        throw "Wrapper '$($Control.Name)' exceeded the 45-second process cap."
     }
 
     return [pscustomobject]@{
@@ -897,11 +934,14 @@ try {
     $SharedOutputPath = Join-Path $TestRootPath "outputs\shared-output"
     $SameOutputOwnerProjectPath = New-TestProject -Name "same-output-owner"
     $SameOutputWaiterProjectPath = New-TestProject -Name "same-output-waiter"
+    $SameOutputInvocationId = "b40ab19d-4d81-4db0-a0d4-9b818b49c7c0"
     $SameOutputOwner = Start-WrapperInvocation -Control (New-InvocationControl `
         -Name "same-output-owner" `
         -ProjectPath $SameOutputOwnerProjectPath `
         -CacheRootPath (Join-Path $TestRootPath "same-output-cache-a") `
-        -OutputPath $SharedOutputPath)
+        -OutputPath $SharedOutputPath `
+        -InvocationId $SameOutputInvocationId `
+        -WaiterProtocol "ack-v1")
     Wait-ForPath -Path $SameOutputOwner.MarkerPath -Description "the same-output owner to enter fake dotnet"
 
     $SameOutputWaiter = Start-WrapperInvocation -Control (New-InvocationControl `
@@ -915,11 +955,77 @@ try {
         throw "Different projects with one canonical output overlapped: the second wrapper reached fake dotnet before the owner released."
     }
     Release-Invocation -Control $SameOutputOwner
-    $null = Assert-SuccessfulInvocation -Control $SameOutputOwner
-    $null = Assert-SuccessfulInvocation -Control $SameOutputWaiter
-    if (-not (Test-Path -LiteralPath $SameOutputWaiter.MarkerPath)) {
-        throw "The waiting same-output wrapper did not proceed after the owner released."
+    $SameOutputProofPath = Join-Path $SharedOutputPath (".helengine-build-state." + $SameOutputInvocationId + ".json")
+    Wait-ForPath -Path $SameOutputProofPath -Description "the same-output owner to publish successful invocation proof"
+    if ($SameOutputOwner.Process.HasExited) {
+        throw "The waiter-controlled same-output owner exited before acknowledgment."
     }
+    if (Test-Path -LiteralPath $SameOutputWaiter.MarkerPath) {
+        throw "The same-output waiter reached fake dotnet after proof publication but before acknowledgment."
+    }
+    $SameOutputAcknowledgementPath = Join-Path $SharedOutputPath (".helengine-build-state." + $SameOutputInvocationId + ".ack")
+    foreach ($InvalidAcknowledgementContents in @(
+            "00000000-0000-0000-0000-000000000000",
+            $SameOutputInvocationId.ToUpperInvariant(),
+            $SameOutputInvocationId.Substring(0, $SameOutputInvocationId.Length - 1),
+            ($SameOutputInvocationId + [Environment]::NewLine)
+        )) {
+        Set-WaiterAcknowledgementContents `
+            -Path $SameOutputAcknowledgementPath `
+            -Contents $InvalidAcknowledgementContents
+        Start-Sleep -Milliseconds 150
+        if ($SameOutputOwner.Process.HasExited -or (Test-Path -LiteralPath $SameOutputWaiter.MarkerPath)) {
+            throw "An inexact same-output acknowledgment released a wrapper lock."
+        }
+    }
+    Set-WaiterAcknowledgementContents `
+        -Path $SameOutputAcknowledgementPath `
+        -Contents $SameOutputInvocationId
+    $null = Assert-SuccessfulInvocation -Control $SameOutputOwner
+    if (Test-Path -LiteralPath $SameOutputAcknowledgementPath) {
+        throw "The exact same-output acknowledgment was not removed before lock release."
+    }
+    Wait-ForPath -Path $SameOutputWaiter.MarkerPath -Description "the same-output waiter to enter fake dotnet after exact acknowledgment"
+    $null = Assert-SuccessfulInvocation -Control $SameOutputWaiter
+
+    $WaiterTimeoutOutputPath = Join-Path $TestRootPath "outputs\waiter-timeout-output"
+    $WaiterTimeoutOwnerProjectPath = New-TestProject -Name "waiter-timeout-owner"
+    $WaiterTimeoutWaiterProjectPath = New-TestProject -Name "waiter-timeout-waiter"
+    $WaiterTimeoutInvocationId = "c50ab19d-4d81-4db0-a0d4-9b818b49c7c0"
+    $WaiterTimeoutOwner = Start-WrapperInvocation -Control (New-InvocationControl `
+        -Name "waiter-timeout-owner" `
+        -ProjectPath $WaiterTimeoutOwnerProjectPath `
+        -CacheRootPath (Join-Path $TestRootPath "waiter-timeout-cache-a") `
+        -OutputPath $WaiterTimeoutOutputPath `
+        -InvocationId $WaiterTimeoutInvocationId `
+        -WaiterProtocol "ack-v1" `
+        -Released)
+    Wait-ForPath -Path $WaiterTimeoutOwner.MarkerPath -Description "the waiter-timeout owner to enter fake dotnet"
+    $WaiterTimeoutWaiter = Start-WrapperInvocation -Control (New-InvocationControl `
+        -Name "waiter-timeout-waiter" `
+        -ProjectPath $WaiterTimeoutWaiterProjectPath `
+        -CacheRootPath (Join-Path $TestRootPath "waiter-timeout-cache-b") `
+        -OutputPath $WaiterTimeoutOutputPath `
+        -Released `
+        -LockTimeout ([TimeSpan]::FromSeconds(40)))
+    $WaiterTimeoutProofPath = Join-Path $WaiterTimeoutOutputPath (".helengine-build-state." + $WaiterTimeoutInvocationId + ".json")
+    Wait-ForPath -Path $WaiterTimeoutProofPath -Description "the waiter-timeout owner to publish successful proof"
+    if ($WaiterTimeoutOwner.Process.HasExited -or (Test-Path -LiteralPath $WaiterTimeoutWaiter.MarkerPath)) {
+        throw "The waiter-timeout output lock was released before timeout."
+    }
+    $WaiterTimeoutResult = Complete-Invocation -Control $WaiterTimeoutOwner
+    if ($WaiterTimeoutResult.ExitCode -ne 10) {
+        throw "A waiter timeout must exit 10, got $($WaiterTimeoutResult.ExitCode)."
+    }
+    if (([DateTime]::UtcNow - $WaiterTimeoutOwner.StartedUtc).TotalSeconds -lt 25) {
+        throw "The waiter timeout released the output lock before approximately 30 seconds."
+    }
+    $WaiterTimeoutProof = Get-Content -LiteralPath $WaiterTimeoutProofPath -Raw | ConvertFrom-Json
+    if ($WaiterTimeoutProof.status -cne "failed" -or [int]$WaiterTimeoutProof.exitCode -ne 10) {
+        throw "The waiter-timeout proof did not record failed exit 10."
+    }
+    Wait-ForPath -Path $WaiterTimeoutWaiter.MarkerPath -Description "the waiter-timeout follower to enter fake dotnet after timeout release"
+    $null = Assert-SuccessfulInvocation -Control $WaiterTimeoutWaiter
 
     $TimeoutOutputPath = Join-Path $TestRootPath "outputs\timeout-output"
     $TimeoutOutputOwnerProjectPath = New-TestProject -Name "timeout-output-owner"

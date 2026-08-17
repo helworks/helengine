@@ -44,6 +44,7 @@ Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformEnvironment.
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformLock.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformProcess.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformState.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformWaiterHandshake.psm1") -Force
 
 function Get-CanonicalDirectoryPath {
     param(
@@ -237,17 +238,11 @@ if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
     $DotNetExecutablePath = "dotnet"
 }
 
-if (-not (Test-Path -LiteralPath "Env:HELENGINE_BUILD_INVOCATION_ID")) {
+$InvocationBuildIdWasSupplied = Test-Path -LiteralPath "Env:HELENGINE_BUILD_INVOCATION_ID"
+if (-not $InvocationBuildIdWasSupplied) {
     $InvocationBuildId = [Guid]::NewGuid().ToString("D")
 } else {
     $InvocationBuildId = $env:HELENGINE_BUILD_INVOCATION_ID
-    $ParsedInvocationBuildId = [Guid]::Empty
-    if (-not [Guid]::TryParseExact($InvocationBuildId, "D", [ref]$ParsedInvocationBuildId) -or
-        $InvocationBuildId -cne $ParsedInvocationBuildId.ToString("D")) {
-        [Console]::Error.WriteLine("HELENGINE_BUILD_INVOCATION_ID must be a canonical GUID in D format.")
-        exit 2
-    }
-    $InvocationBuildId = $ParsedInvocationBuildId.ToString("D")
 }
 
 $OriginalBuildPlatformEnvironmentState = Save-BuildPlatformEnvironmentState
@@ -261,8 +256,10 @@ $BuildTerminalStatus = "failed"
 $BuildTerminalExitCode = 10
 $StateFilePath = $null
 $TerminalProofPath = $null
+$Handshake = $null
 $Layout = $null
 $CacheMetadataStarted = $false
+$TerminalExitOverrideRequired = $false
 
 try {
     if ([string]::IsNullOrWhiteSpace($EditorProject)) {
@@ -311,6 +308,24 @@ try {
         [Console]::Error.WriteLine($_.Exception.Message)
         exit 2
     }
+    $WaiterProtocolValue = if (Test-Path -LiteralPath 'Env:HELENGINE_BUILD_WAITER_PROTOCOL') {
+        $env:HELENGINE_BUILD_WAITER_PROTOCOL
+    } else {
+        $null
+    }
+    try {
+        $Handshake = Resolve-BuildPlatformWaiterHandshake `
+            -ProtocolValue $WaiterProtocolValue `
+            -InvocationIdWasSupplied $InvocationBuildIdWasSupplied `
+            -InvocationId $InvocationBuildId `
+            -OutputRootPath $ResolvedOutputPath
+    } catch {
+        [Console]::Error.WriteLine($_.Exception.Message)
+        exit 2
+    }
+    $BuildId = $Handshake.InvocationId
+    $StateFilePath = Join-Path $ResolvedOutputPath ".helengine-build-state.json"
+    $TerminalProofPath = $Handshake.ProofPath
 
     $LockMetadata = [ordered]@{
         processId = $PID
@@ -356,9 +371,6 @@ try {
     if (-not (Test-Path -LiteralPath $ResolvedOutputPath -PathType Container)) {
         $null = New-Item -ItemType Directory -Path $ResolvedOutputPath -Force
     }
-    $StateFilePath = Join-Path $ResolvedOutputPath ".helengine-build-state.json"
-    $BuildId = $InvocationBuildId
-    $TerminalProofPath = Join-Path $ResolvedOutputPath (".helengine-build-state.$BuildId.json")
     $BuildStartedUtc = [DateTime]::UtcNow.ToString("o")
     Write-BuildPlatformState `
         -StatePath $StateFilePath `
@@ -547,6 +559,71 @@ try {
                         $BuildTerminalExitCode = 10
                     }
                 }
+                if (-not $TerminalStateWriteFailed -and
+                    $BuildTerminalStatus -ceq "succeeded" -and
+                    $BuildTerminalExitCode -eq 0 -and
+                    $Handshake.Enabled) {
+                    $AcknowledgementAccepted = $false
+                    try {
+                        $AcknowledgementAccepted = Wait-BuildPlatformWaiterAcknowledgement `
+                            -Handshake $Handshake `
+                            -Timeout ([TimeSpan]::FromSeconds(30))
+                        if ($AcknowledgementAccepted) {
+                            Remove-BuildPlatformWaiterAcknowledgement -Handshake $Handshake
+                        } else {
+                            [Console]::Error.WriteLine(
+                                "Timed out waiting for waiter acknowledgment '$($Handshake.AcknowledgementPath)'."
+                            )
+                        }
+                    } catch {
+                        [Console]::Error.WriteLine(
+                            "Failed to consume waiter acknowledgment '$($Handshake.AcknowledgementPath)': $($_.Exception.Message)"
+                        )
+                        $AcknowledgementAccepted = $false
+                    }
+                    if (-not $AcknowledgementAccepted) {
+                        $BuildTerminalStatus = "failed"
+                        $BuildTerminalExitCode = 10
+                        $BuildCompletedUtc = [DateTime]::UtcNow.ToString("o")
+                        $TerminalExitOverrideRequired = $true
+                        try {
+                            Write-BuildPlatformState `
+                                -StatePath $StateFilePath `
+                                -BuildId $BuildId `
+                                -ProjectPath $ResolvedProjectPath `
+                                -Platform $Platform `
+                                -BuildProfile $ResolvedBuildProfile `
+                                -Configuration $Configuration `
+                                -StartedUtc $BuildStartedUtc `
+                                -CompletedUtc $BuildCompletedUtc `
+                                -Status $BuildTerminalStatus `
+                                -ExitCode $BuildTerminalExitCode
+                        } catch {
+                            $TerminalStateWriteFailed = $true
+                            [Console]::Error.WriteLine(
+                                "Failed to rewrite timed-out terminal build state '$StateFilePath': $($_.Exception.Message)"
+                            )
+                        }
+                        try {
+                            Write-BuildPlatformState `
+                                -StatePath $TerminalProofPath `
+                                -BuildId $BuildId `
+                                -ProjectPath $ResolvedProjectPath `
+                                -Platform $Platform `
+                                -BuildProfile $ResolvedBuildProfile `
+                                -Configuration $Configuration `
+                                -StartedUtc $BuildStartedUtc `
+                                -CompletedUtc $BuildCompletedUtc `
+                                -Status $BuildTerminalStatus `
+                                -ExitCode $BuildTerminalExitCode
+                        } catch {
+                            $TerminalStateWriteFailed = $true
+                            [Console]::Error.WriteLine(
+                                "Failed to rewrite timed-out invocation proof '$TerminalProofPath': $($_.Exception.Message)"
+                            )
+                        }
+                    }
+                }
             }
         } finally {
             try {
@@ -582,7 +659,7 @@ try {
             Restore-BuildPlatformEnvironmentState -State $OriginalBuildPlatformEnvironmentState
         }
     }
-    if ($TerminalStateWriteFailed) {
+    if ($TerminalStateWriteFailed -or $TerminalExitOverrideRequired) {
         exit $BuildTerminalExitCode
     }
 }
