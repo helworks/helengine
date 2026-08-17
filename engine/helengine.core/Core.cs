@@ -691,8 +691,13 @@ namespace helengine {
 
         /// <summary>
         /// Clears any accumulated fixed-step timing debt so the next scene starts from a clean physics schedule.
+        /// No-ops before initialization creates the scheduler so hosts can configure pause state at construction time.
         /// </summary>
         public void ResetPhysicsTimingState() {
+            if (PhysicsSchedulerValue == null) {
+                return;
+            }
+
             PhysicsSchedulerValue.Reset();
             PredictedPhysicsStepSeconds = 0d;
         }

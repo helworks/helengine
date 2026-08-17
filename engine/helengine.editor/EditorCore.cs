@@ -19,6 +19,7 @@ namespace helengine {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             }) {
             Project = project;
+            PhysicsSimulationIsPaused = true;
         }
 
         /// <summary>
