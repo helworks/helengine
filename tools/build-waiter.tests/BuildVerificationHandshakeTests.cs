@@ -73,7 +73,13 @@ namespace helengine.tools.buildwaiter.tests {
                 Assert.False(result.StateVerificationResult.Succeeded);
                 Assert.Null(result.ArtifactVerificationResult);
                 Assert.Null(result.AcknowledgementFailureMessage);
-                Assert.False(string.IsNullOrWhiteSpace(result.StateVerificationResult.Message));
+                if (proofKind == "missing") {
+                    Assert.Equal(
+                        $"Build state proof file '{BuildInvocationProofPaths.GetProofPath(outputRootPath, InvocationId)}' is missing.",
+                        result.StateVerificationResult.Message);
+                } else {
+                    Assert.False(string.IsNullOrWhiteSpace(result.StateVerificationResult.Message));
+                }
             } finally {
                 Directory.Delete(outputRootPath, true);
             }
@@ -108,7 +114,11 @@ namespace helengine.tools.buildwaiter.tests {
                 Assert.True(File.Exists(BuildInvocationProofPaths.GetAcknowledgementPath(outputRootPath, InvocationId)));
                 Assert.True(result.StateVerificationResult.Succeeded);
                 Assert.False(result.ArtifactVerificationResult.Succeeded);
-                Assert.Contains(expectedDiagnostic, result.ArtifactVerificationResult.Message, StringComparison.OrdinalIgnoreCase);
+                if (artifactKind == "missing") {
+                    Assert.Equal("Required artifact 'game.iso' is missing.", result.ArtifactVerificationResult.Message);
+                } else {
+                    Assert.Contains(expectedDiagnostic, result.ArtifactVerificationResult.Message, StringComparison.OrdinalIgnoreCase);
+                }
                 Assert.Null(result.AcknowledgementFailureMessage);
             } finally {
                 Directory.Delete(outputRootPath, true);

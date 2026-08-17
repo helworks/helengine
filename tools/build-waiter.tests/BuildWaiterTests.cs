@@ -5,6 +5,8 @@ namespace helengine.tools.buildwaiter.tests {
     /// Verifies the build waiter combines child-process completion with required-artifact validation.
     /// </summary>
     public sealed class BuildWaiterTests {
+        static readonly SemaphoreSlim ConsoleCaptureLock = new(1, 1);
+
         /// <summary>
         /// Ensures a successful child process that writes current successful state and the required artifact produces a successful wait result.
         /// </summary>
@@ -117,9 +119,18 @@ namespace helengine.tools.buildwaiter.tests {
         public async Task WaitAsync_WhenCancellationIsRequestedAfterProofPublication_AcknowledgesAndDrainsBeforeThrowing() {
             string outputRootPath = CreateOutputRoot();
             string completionMarkerPath = Path.Combine(outputRootPath, "child-completed.txt");
+            await ConsoleCaptureLock.WaitAsync();
+            TextWriter originalStandardOutput = Console.Out;
+            TextWriter originalStandardError = Console.Error;
+            StringWriter observedStandardOutput = new();
+            StringWriter observedStandardError = new();
             try {
+                Console.SetOut(observedStandardOutput);
+                Console.SetError(observedStandardError);
                 BuildWaiterOptions options = CreatePowerShellOptions(
-                    outputRootPath, true, "succeeded", 0, false, false, 0, completionMarkerPath: completionMarkerPath);
+                    outputRootPath, true, "succeeded", 0, false, false, 0,
+                    completionMarkerPath: completionMarkerPath,
+                    emitDiagnosticsAfterAcknowledgement: true);
                 using CancellationTokenSource cancellation = new();
                 Task<BuildWaiterResult> waiting = CreateWaiter().WaitAsync(options, cancellation.Token);
                 await WaitForProofAsync(outputRootPath);
@@ -127,7 +138,12 @@ namespace helengine.tools.buildwaiter.tests {
 
                 await Assert.ThrowsAsync<OperationCanceledException>(() => waiting);
                 Assert.True(File.Exists(completionMarkerPath));
+                Assert.Contains("stdout-after-ack", observedStandardOutput.ToString(), StringComparison.Ordinal);
+                Assert.Contains("stderr-after-ack", observedStandardError.ToString(), StringComparison.Ordinal);
             } finally {
+                Console.SetOut(originalStandardOutput);
+                Console.SetError(originalStandardError);
+                ConsoleCaptureLock.Release();
                 Directory.Delete(outputRootPath, true);
             }
         }
@@ -349,7 +365,8 @@ namespace helengine.tools.buildwaiter.tests {
             bool overwriteSharedStateWithForeignBuild = false,
             bool replaceArtifactAfterAcknowledgement = false,
             bool forceAcknowledgementWriteFailure = false,
-            string completionMarkerPath = null) {
+            string completionMarkerPath = null,
+            bool emitDiagnosticsAfterAcknowledgement = false) {
             string outputRootLiteral = ConvertToPowerShellLiteral(outputRootPath);
             string sharedStatePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
             string artifactPath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, "game.iso"));
@@ -404,6 +421,10 @@ namespace helengine.tools.buildwaiter.tests {
                     statements.Add("if ([IO.File]::ReadAllText($ackPath) -cne $env:HELENGINE_BUILD_INVOCATION_ID) { exit 91 }");
                     if (replaceArtifactAfterAcknowledgement) {
                         statements.Add($"[IO.File]::WriteAllText({artifactPath}, 'artifact-b-after-ack')");
+                    }
+                    if (emitDiagnosticsAfterAcknowledgement) {
+                        statements.Add("[Console]::Out.WriteLine('stdout-after-ack')");
+                        statements.Add("[Console]::Error.WriteLine('stderr-after-ack')");
                     }
                     if (!string.IsNullOrWhiteSpace(completionMarkerPath)) {
                         statements.Add($"[IO.File]::WriteAllText({ConvertToPowerShellLiteral(completionMarkerPath)}, 'completed')");
