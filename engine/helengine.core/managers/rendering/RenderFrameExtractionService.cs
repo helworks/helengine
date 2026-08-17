@@ -53,13 +53,26 @@ namespace helengine {
             NativeOwnership.Delete(lightClassifier);
 
             RenderFrame[] frames = new RenderFrame[cameras.Count];
+            List<RenderFrameLightSubmission> cameraLightSubmissions = new List<RenderFrameLightSubmission>(lightSubmissions.Length);
             for (int index = 0; index < cameras.Count; index++) {
+                CameraComponent camera = cameras[index];
+                cameraLightSubmissions.Clear();
+                for (int lightIndex = 0; lightIndex < lightSubmissions.Length; lightIndex++) {
+                    RenderFrameLightSubmission lightSubmission = lightSubmissions[lightIndex];
+                    if (IsLightVisibleToCamera(lightSubmission.Light, camera)) {
+                        cameraLightSubmissions.Add(lightSubmission);
+                    }
+                }
+
                 frames[index] = new RenderFrame(
-                    cameras[index],
+                    camera,
                     drawableSubmissionArray,
-                    lightSubmissions,
+                    cameraLightSubmissions,
                     shadowCasterSubmissionArray);
             }
+
+            NativeOwnership.DetachOwned(cameraLightSubmissions);
+            NativeOwnership.Delete(cameraLightSubmissions);
 
             NativeOwnership.DeleteItemsAndRelease(ref drawableSubmissionArray);
             NativeOwnership.DeleteItemsAndRelease(ref lightSubmissions);
@@ -93,6 +106,22 @@ namespace helengine {
             }
 
             NativeOwnership.Delete(submissions);
+        }
+
+        /// <summary>
+        /// Determines whether one light should participate in a camera's frame based on layer-mask matching, mirroring
+        /// drawable visibility. Lights without an owning entity stay visible to every camera.
+        /// </summary>
+        /// <param name="light">Light component to test.</param>
+        /// <param name="camera">Camera whose frame is being extracted.</param>
+        /// <returns>True when the light should light the camera's frame.</returns>
+        static bool IsLightVisibleToCamera(LightComponent light, CameraComponent camera) {
+            Entity lightOwner = light.Parent;
+            if (lightOwner == null) {
+                return true;
+            }
+
+            return (lightOwner.LayerMask & camera.LayerMask) != 0;
         }
 
         static bool ShouldCastShadows(RuntimeMaterial material) {

@@ -259,6 +259,45 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures lights only appear in frames whose camera layer mask matches the light's owning entity, so isolated
+        /// scenes such as the editor model preview cannot leak their lights into the main scene viewport.
+        /// </summary>
+        [Fact]
+        public void Extract_WhenLightLayerDoesNotMatchCamera_ExcludesLightFromThatCameraFrame() {
+            Core core = new Core(new CoreInitializationOptions {
+                RenderList3DInitialCapacity = 4,
+                RenderList2DInitialCapacity = 4,
+                ContentStreamSource = new FakeContentStreamSource()
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CameraComponent sceneCamera = new CameraComponent { LayerMask = 0b0100000000000000 };
+            CameraComponent previewCamera = new CameraComponent { LayerMask = 0b0000000000100000 };
+            Entity sceneLightEntity = new Entity { LayerMask = 0b0100000000000000 };
+            sceneLightEntity.InitComponents();
+            sceneLightEntity.InitChildren();
+            DirectionalLightComponent sceneLight = new DirectionalLightComponent();
+            sceneLightEntity.AddComponent(sceneLight);
+            Entity previewLightEntity = new Entity { LayerMask = 0b0000000000100000 };
+            previewLightEntity.InitComponents();
+            previewLightEntity.InitChildren();
+            DirectionalLightComponent previewLight = new DirectionalLightComponent();
+            previewLightEntity.AddComponent(previewLight);
+            RenderFrameExtractionService extractionService = new RenderFrameExtractionService();
+
+            RenderFrameExtractionResult result = extractionService.Extract(
+                new[] { sceneCamera, previewCamera },
+                Array.Empty<IDrawable3D>(),
+                new LightComponent[] { sceneLight, previewLight },
+                new RendererBackendCapabilityProfile(true, false, true, true, 32, 4));
+
+            Assert.Equal(2, result.Frames.Count);
+            RenderFrameLightSubmission sceneSubmission = Assert.Single(result.Frames[0].LightSubmissions);
+            Assert.Same(sceneLight, sceneSubmission.Light);
+            RenderFrameLightSubmission previewSubmission = Assert.Single(result.Frames[1].LightSubmissions);
+            Assert.Same(previewLight, previewSubmission.Light);
+        }
+
+        /// <summary>
         /// Ensures each camera frame owns an independent submission-list container while sharing immutable submission records.
         /// </summary>
         [Fact]
