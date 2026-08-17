@@ -28,6 +28,14 @@ namespace helengine.editor.app {
         /// </summary>
         static readonly string LoopErrorLogPath = Path.Combine(Path.GetTempPath(), "helengine.editor.loop-errors.log");
         /// <summary>
+        /// File path used to persist all editor logger output for diagnostics outside the in-app logger panel.
+        /// </summary>
+        static readonly string SessionLogPath = Path.Combine(Path.GetTempPath(), "helengine.editor.log");
+        /// <summary>
+        /// Logger subscription that mirrors logger-panel entries into the session log file.
+        /// </summary>
+        Action<LogEntry> sessionLogListener;
+        /// <summary>
         /// Background thread that drives the editor update loop.
         /// </summary>
         Thread thread;
@@ -91,7 +99,24 @@ namespace helengine.editor.app {
             InitializeWindowFrame();
 
             this.projectPath = projectPath;
+            AttachSessionLogListener();
             InitializeEditor();
+        }
+
+        /// <summary>
+        /// Mirrors all logger output into the session log file so diagnostics survive outside the in-app logger panel.
+        /// </summary>
+        void AttachSessionLogListener() {
+            sessionLogListener = entry => {
+                try {
+                    File.AppendAllText(
+                        SessionLogPath,
+                        string.Concat(DateTime.UtcNow.ToString("O"), " | ", entry.Level, " | ", entry.Message, Environment.NewLine));
+                } catch {
+                }
+            };
+            Logger.MessageLogged += sessionLogListener;
+            sessionLogListener(new LogEntry(LogLevel.Info, $"Editor session started for project '{projectPath}'.", 0d));
         }
 
         /// <summary>
@@ -410,6 +435,10 @@ namespace helengine.editor.app {
             base.OnClosed(e);
 
             closed = true;
+            if (sessionLogListener != null) {
+                Logger.MessageLogged -= sessionLogListener;
+                sessionLogListener = null;
+            }
             editorSession.CloseRequested -= HandleEditorSessionCloseRequested;
             editorSession.PreferencesChanged -= HandleEditorPreferencesChanged;
             editorSession.Dispose();

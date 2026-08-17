@@ -49,6 +49,30 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the component actually executes through the real object-manager update loop once its owning entity
+        /// hierarchy is initialized, guarding against silently-dead shortcut components that only direct calls would exercise.
+        /// </summary>
+        [Fact]
+        public void Update_loop_runs_the_component_when_the_owning_entity_hierarchy_is_initialized() {
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent();
+            int undoCount = 0;
+            component.UndoShortcutRequested = () => undoCount++;
+            EditorEntity ownerEntity = new EditorEntity {
+                InternalEntity = true,
+                Enabled = true
+            };
+            ownerEntity.AddComponent(component);
+            ownerEntity.InitializeHierarchy();
+
+            AdvanceToNeutralFrame();
+            InputBackend.SetKeyboardState(new KeyboardState(Keys.LeftControl, Keys.Z));
+            InputBackend.EarlyUpdate();
+            Core.Instance.ObjectManager.Update();
+
+            Assert.Equal(1, undoCount);
+        }
+
+        /// <summary>
         /// Ensures pressing Ctrl+Y invokes the redo shortcut callback.
         /// </summary>
         [Fact]

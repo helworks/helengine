@@ -79,6 +79,7 @@ namespace helengine.editor {
             UndoStack.Push(operation);
             RedoStack.Clear();
             CurrentRevision++;
+            Logger.WriteLine($"History recorded: {operation.Description} (undo depth {UndoStack.Count}).");
         }
 
         /// <summary>

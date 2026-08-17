@@ -171,6 +171,45 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the forced platform-selection workflow is skipped entirely when no engine platforms are installed,
+        /// since a dialog with nothing to enable would trap the user and block all editor shortcuts.
+        /// </summary>
+        [Fact]
+        public void PromptForPlatformSelectionIfRequired_WhenNoPlatformsAreInstalled_DoesNotOpenTheDialog() {
+            WritePlatformsSettingsFile("windows");
+            WritePlatformManifest("1.0.0-custom", [], []);
+            EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows"]);
+            localSettingsService.SaveActivePlatform("windows");
+            EditorSession session = CreateSession(["windows"], localSettingsService, "windows");
+
+            InvokePrivate(session, "PromptForPlatformSelectionIfRequired");
+
+            PlatformsDialog dialog = GetPrivateField<PlatformsDialog>(session, "platformsDialog");
+            Assert.False(dialog.Enabled);
+        }
+
+        /// <summary>
+        /// Ensures cancelling the Platforms dialog closes it when no engine platforms are installed, instead of
+        /// force-reopening a dialog the user cannot resolve.
+        /// </summary>
+        [Fact]
+        public void HandlePlatformsDialogCancelRequested_WhenNoPlatformsAreInstalled_ClosesTheDialog() {
+            WritePlatformsSettingsFile("windows");
+            WritePlatformManifest("1.0.0-custom", [], []);
+            EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows"]);
+            localSettingsService.SaveActivePlatform("windows");
+            EditorSession session = CreateSession(["windows"], localSettingsService, "windows");
+            PlatformsDialog dialog = GetPrivateField<PlatformsDialog>(session, "platformsDialog");
+
+            InvokePrivate(session, "HandlePlatformsRequested");
+            Assert.True(dialog.Enabled);
+
+            InvokePrivate(session, "HandlePlatformsDialogCancelRequested");
+
+            Assert.False(dialog.Enabled);
+        }
+
+        /// <summary>
         /// Creates one partially initialized editor session containing the collaborators used by project-platform handling.
         /// </summary>
         /// <param name="supportedPlatforms">Project-supported platforms for the test session.</param>

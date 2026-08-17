@@ -619,6 +619,7 @@ namespace helengine.editor {
                 DeleteShortcutRequested = HandleGlobalDeleteShortcut
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
+            keyboardFocusEntity.InitializeHierarchy();
 
             titleBar = new EditorTitleBar(uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
             PanelRegistry = new EditorWorkspacePanelRegistry();
@@ -2481,10 +2482,13 @@ namespace helengine.editor {
         /// </summary>
         void HandleGlobalUndoShortcut() {
             if (IsEditorGlobalShortcutBlocked()) {
+                Logger.WriteLine("Undo shortcut ignored: a modal editor dialog is blocking global shortcuts.");
                 return;
             }
 
-            UndoRedoService.Undo();
+            if (!UndoRedoService.Undo()) {
+                Logger.WriteLine("Undo shortcut received but undo history is empty.");
+            }
         }
 
         /// <summary>
@@ -2492,10 +2496,13 @@ namespace helengine.editor {
         /// </summary>
         void HandleGlobalRedoShortcut() {
             if (IsEditorGlobalShortcutBlocked()) {
+                Logger.WriteLine("Redo shortcut ignored: a modal editor dialog is blocking global shortcuts.");
                 return;
             }
 
-            UndoRedoService.Redo();
+            if (!UndoRedoService.Redo()) {
+                Logger.WriteLine("Redo shortcut received but redo history is empty.");
+            }
         }
 
         /// <summary>
@@ -2739,7 +2746,7 @@ namespace helengine.editor {
         /// Cancels the Platforms workflow and hides the dialog.
         /// </summary>
         void HandlePlatformsDialogCancelRequested() {
-            if (!CanUseProjectPlatform(ActiveProjectPlatform)) {
+            if (!CanUseProjectPlatform(ActiveProjectPlatform) && ResolveInstalledPlatformIds().Count > 0) {
                 HandlePlatformsRequested();
                 return;
             }
@@ -5378,10 +5385,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Forces the Platforms workflow when the current persisted project platform is no longer usable.
+        /// Forces the Platforms workflow when the current persisted project platform is no longer usable and a
+        /// replacement can actually be chosen; with no installed platforms the dialog would trap the user.
         /// </summary>
         void PromptForPlatformSelectionIfRequired() {
             if (CanUseProjectPlatform(ActiveProjectPlatform)) {
+                return;
+            }
+
+            if (ResolveInstalledPlatformIds().Count == 0) {
+                Logger.WriteError($"No engine platforms are installed for engine version '{RequiredEngineVersion}'. The engine host platform must be installed; this editor installation is broken.");
                 return;
             }
 
