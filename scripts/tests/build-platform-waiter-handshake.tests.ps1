@@ -105,6 +105,24 @@ try {
         }
     }
 
+    foreach ($BomEncodingCase in @(
+            [pscustomobject]@{ Name = "UTF-8 BOM"; Encoding = [Text.UTF8Encoding]::new($true) },
+            [pscustomobject]@{ Name = "UTF-16 BOM"; Encoding = [Text.UnicodeEncoding]::new($false, $true) }
+        )) {
+        [IO.File]::WriteAllBytes(
+            $Handshake.AcknowledgementPath,
+            [byte[]]($BomEncodingCase.Encoding.GetPreamble() + $BomEncodingCase.Encoding.GetBytes($InvocationId)))
+        if (Wait-BuildPlatformWaiterAcknowledgement -Handshake $Handshake -Timeout ([TimeSpan]::FromMilliseconds(100))) {
+            throw "A $($BomEncodingCase.Name) acknowledgment was accepted."
+        }
+        Assert-Throws -Description "A $($BomEncodingCase.Name) acknowledgment removal" -Action {
+            Remove-BuildPlatformWaiterAcknowledgement -Handshake $Handshake
+        }
+        if (-not (Test-Path -LiteralPath $Handshake.AcknowledgementPath -PathType Leaf)) {
+            throw "A $($BomEncodingCase.Name) acknowledgment was removed."
+        }
+    }
+
     [IO.File]::WriteAllText($Handshake.AcknowledgementPath, $InvocationId)
     $SiblingSentinelPath = Join-Path $OutputRoot ".helengine-build-state.$InvocationId.sibling"
     [IO.File]::WriteAllText($Handshake.ProofPath, "proof")

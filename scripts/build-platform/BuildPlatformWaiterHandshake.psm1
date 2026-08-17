@@ -45,6 +45,28 @@ function Get-BuildPlatformWaiterChildPath {
     return $CandidatePath
 }
 
+function Test-BuildPlatformWaiterAcknowledgementBytes {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AcknowledgementPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$InvocationId
+    )
+
+    $ExpectedBytes = [Text.Encoding]::ASCII.GetBytes($InvocationId)
+    $ActualBytes = [IO.File]::ReadAllBytes($AcknowledgementPath)
+    if ($ActualBytes.Length -ne $ExpectedBytes.Length) {
+        return $false
+    }
+    for ($ByteIndex = 0; $ByteIndex -lt $ExpectedBytes.Length; $ByteIndex++) {
+        if ($ActualBytes[$ByteIndex] -ne $ExpectedBytes[$ByteIndex]) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Resolve-BuildPlatformWaiterHandshake {
     param(
         [Parameter()]
@@ -111,8 +133,9 @@ function Wait-BuildPlatformWaiterAcknowledgement {
     do {
         if (Test-Path -LiteralPath $Handshake.AcknowledgementPath -PathType Leaf) {
             try {
-                $Contents = [IO.File]::ReadAllText($Handshake.AcknowledgementPath)
-                if ($Contents -ceq $Handshake.InvocationId) {
+                if (Test-BuildPlatformWaiterAcknowledgementBytes `
+                        -AcknowledgementPath $Handshake.AcknowledgementPath `
+                        -InvocationId $Handshake.InvocationId) {
                     return $true
                 }
             } catch [IO.IOException] {
@@ -135,9 +158,10 @@ function Remove-BuildPlatformWaiterAcknowledgement {
     if (-not (Test-Path -LiteralPath $Handshake.AcknowledgementPath -PathType Leaf)) {
         throw "Waiter acknowledgment '$($Handshake.AcknowledgementPath)' was not found for removal."
     }
-    $Contents = [IO.File]::ReadAllText($Handshake.AcknowledgementPath)
-    if ($Contents -cne $Handshake.InvocationId) {
-        throw "Waiter acknowledgment '$($Handshake.AcknowledgementPath)' did not contain the exact invocation ID."
+    if (-not (Test-BuildPlatformWaiterAcknowledgementBytes `
+            -AcknowledgementPath $Handshake.AcknowledgementPath `
+            -InvocationId $Handshake.InvocationId)) {
+        throw "Waiter acknowledgment '$($Handshake.AcknowledgementPath)' did not contain the exact ASCII invocation ID bytes."
     }
     Remove-Item -LiteralPath $Handshake.AcknowledgementPath -Force
 }
