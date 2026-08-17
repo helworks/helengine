@@ -75,6 +75,36 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         /// <summary>
+        /// Ensures an embedded build identity differing only by hexadecimal case is rejected.
+        /// </summary>
+        [Fact]
+        public void Verify_WhenBuildIdDiffersOnlyByCase_ReturnsFailure() {
+            const string expectedBuildId = "b40ab19d-4d81-4db0-a0d4-9b818b49c7c0";
+            string outputRootPath = CreateOutputRoot();
+            try {
+                DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-2);
+                DateTime stateStartedUtc = DateTime.UtcNow.AddSeconds(-1);
+                WriteStateFile(
+                    BuildInvocationProofPaths.GetProofPath(outputRootPath, expectedBuildId),
+                    "B40ab19d-4d81-4db0-a0d4-9b818b49c7c0",
+                    stateStartedUtc,
+                    stateStartedUtc.AddMilliseconds(500),
+                    "succeeded",
+                    0);
+
+                BuildStateVerificationResult result = new BuildStateVerifier().Verify(
+                    outputRootPath,
+                    waiterStartedUtc,
+                    expectedBuildId);
+
+                Assert.False(result.Succeeded);
+                Assert.Contains("build id", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        /// <summary>
         /// Ensures callers must provide the identity expected from the child build.
         /// </summary>
         [Fact]
@@ -721,7 +751,7 @@ namespace helengine.tools.buildwaiter.tests {
         /// <param name="outputRootPath">Output root containing invocation proof.</param>
         /// <returns>Path to the invocation-specific terminal proof.</returns>
         static string GetProofPath(string outputRootPath) {
-            return Path.Combine(outputRootPath, $".helengine-build-state.{ExpectedBuildId}.json");
+            return BuildInvocationProofPaths.GetProofPath(outputRootPath, ExpectedBuildId);
         }
 
         /// <summary>

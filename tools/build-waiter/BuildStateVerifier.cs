@@ -6,16 +6,6 @@ namespace helengine.tools.buildwaiter {
     /// </summary>
     public sealed class BuildStateVerifier {
         /// <summary>
-        /// Prefix used for invocation-specific terminal proof files beneath the final output root.
-        /// </summary>
-        const string StateProofFileNamePrefix = ".helengine-build-state.";
-
-        /// <summary>
-        /// Suffix used for invocation-specific terminal proof files beneath the final output root.
-        /// </summary>
-        const string StateProofFileNameSuffix = ".json";
-
-        /// <summary>
         /// JSON behavior used to read wrapper-authored build state.
         /// </summary>
         static readonly JsonSerializerOptions SerializerOptions = new JsonSerializerOptions {
@@ -45,9 +35,7 @@ namespace helengine.tools.buildwaiter {
                     nameof(expectedBuildId));
             }
 
-            string stateProofPath = Path.Combine(
-                Path.GetFullPath(outputRootPath),
-                StateProofFileNamePrefix + expectedBuildId + StateProofFileNameSuffix);
+            string stateProofPath = BuildInvocationProofPaths.GetProofPath(outputRootPath, expectedBuildId);
             if (!File.Exists(stateProofPath)) {
                 return new BuildStateVerificationResult(false, $"Build state proof file '{stateProofPath}' is missing.");
             }
@@ -74,7 +62,7 @@ namespace helengine.tools.buildwaiter {
 
             if (document == null) {
                 return new BuildStateVerificationResult(false, $"Build state proof file '{stateProofPath}' contains malformed JSON.");
-            } else if (!string.Equals(document.BuildId, expectedBuildId, StringComparison.OrdinalIgnoreCase)) {
+            } else if (!string.Equals(document.BuildId, expectedBuildId, StringComparison.Ordinal)) {
                 return new BuildStateVerificationResult(false, "Build state build id does not match this waiter invocation.");
             } else if (!string.Equals(document.Status, "succeeded", StringComparison.OrdinalIgnoreCase)) {
                 string displayedStatus = string.IsNullOrWhiteSpace(document.Status) ? "missing" : document.Status;
