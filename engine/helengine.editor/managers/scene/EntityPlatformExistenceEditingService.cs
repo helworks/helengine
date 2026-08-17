@@ -9,6 +9,11 @@ namespace helengine.editor {
         public const string CommonPlatformId = ComponentPlatformEditingService.CommonPlatformId;
 
         /// <summary>
+        /// Raised after one entity existence override changes so viewport suppression can re-resolve event-driven.
+        /// </summary>
+        public static event Action ExistenceChanged;
+
+        /// <summary>
         /// Resolves whether one entity should exist on the supplied platform.
         /// </summary>
         /// <param name="saveComponent">Hidden save component that owns the entity existence overrides.</param>
@@ -98,6 +103,7 @@ namespace helengine.editor {
                 : ResolveExists(saveComponent, new EditorOverrideScope(scope.PlatformId));
             if (exists == parentExists) {
                 saveComponent.RemoveExistencePlatformOverride(scope);
+                ExistenceChanged?.Invoke();
                 return;
             }
 
@@ -106,6 +112,14 @@ namespace helengine.editor {
                 EnvironmentId = scope.EnvironmentId,
                 Exists = exists
             });
+            ExistenceChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Removes all existence-changed subscribers between tests or editor shutdown.
+        /// </summary>
+        public static void ResetExistenceChangedSubscribers() {
+            ExistenceChanged = null;
         }
 
         /// <summary>

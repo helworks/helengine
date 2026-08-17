@@ -3,28 +3,33 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies the viewport sync that suppresses scene entities not existing on the active platform.
+    /// Verifies the event-driven sync that suppresses scene entities not existing on the active platform.
     /// </summary>
-    public sealed class EditorPlatformExistenceViewportSyncComponentTests {
+    public sealed class EditorPlatformExistenceViewportSyncServiceTests : IDisposable {
         /// <summary>
-        /// Ensures entities excluded from the active platform are suppressed and re-shown when the platform changes.
+        /// Clears static existence-changed subscribers after each test.
+        /// </summary>
+        public void Dispose() {
+            EntityPlatformExistenceEditingService.ResetExistenceChangedSubscribers();
+        }
+
+        /// <summary>
+        /// Ensures entities excluded from the applied platform are suppressed and re-shown when another platform applies.
         /// </summary>
         [Fact]
-        public void Update_WhenEntityDoesNotExistOnActivePlatform_SuppressesItUntilThePlatformChanges() {
-            Core core = CreateCore();
-            string activePlatform = "windows";
-            EditorPlatformExistenceViewportSyncComponent component = new EditorPlatformExistenceViewportSyncComponent(() => activePlatform);
+        public void Apply_WhenEntityDoesNotExistOnPlatform_SuppressesItUntilAnotherPlatformApplies() {
+            CreateCore();
+            EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService();
             EditorEntity sceneEntity = new EditorEntity { IsSceneOwned = true };
             EntitySaveComponent saveComponent = FindSaveComponent(sceneEntity);
             new EntityPlatformExistenceEditingService().SetExists(saveComponent, "windows", false);
 
-            component.Update();
+            service.Apply("windows");
 
             Assert.True(sceneEntity.RuntimeSuppressed);
             Assert.True(sceneEntity.Enabled);
 
-            activePlatform = "ps2";
-            component.Update();
+            service.Apply("ps2");
 
             Assert.False(sceneEntity.RuntimeSuppressed);
         }
@@ -33,14 +38,31 @@ namespace helengine.editor.tests {
         /// Ensures editor-internal and non-scene entities are never suppressed by platform existence.
         /// </summary>
         [Fact]
-        public void Update_LeavesEditorInternalEntitiesUntouched() {
-            Core core = CreateCore();
-            EditorPlatformExistenceViewportSyncComponent component = new EditorPlatformExistenceViewportSyncComponent(() => "windows");
+        public void Apply_LeavesEditorInternalEntitiesUntouched() {
+            CreateCore();
+            EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService();
             EditorEntity internalEntity = new EditorEntity { InternalEntity = true };
 
-            component.Update();
+            service.Apply("windows");
 
             Assert.False(internalEntity.RuntimeSuppressed);
+        }
+
+        /// <summary>
+        /// Ensures existence-override edits raise the changed event so viewport suppression can re-resolve event-driven.
+        /// </summary>
+        [Fact]
+        public void SetExists_WhenOverrideChanges_RaisesExistenceChanged() {
+            CreateCore();
+            EditorEntity sceneEntity = new EditorEntity { IsSceneOwned = true };
+            EntitySaveComponent saveComponent = FindSaveComponent(sceneEntity);
+            int raisedCount = 0;
+            EntityPlatformExistenceEditingService.ExistenceChanged += () => raisedCount++;
+
+            new EntityPlatformExistenceEditingService().SetExists(saveComponent, "windows", false);
+            new EntityPlatformExistenceEditingService().SetExists(saveComponent, "windows", true);
+
+            Assert.Equal(2, raisedCount);
         }
 
         /// <summary>
@@ -61,11 +83,9 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Creates one initialized core instance for sync tests.
         /// </summary>
-        /// <returns>Initialized core.</returns>
-        static Core CreateCore() {
+        static void CreateCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            return core;
         }
     }
 }

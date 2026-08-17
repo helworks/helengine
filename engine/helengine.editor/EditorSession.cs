@@ -252,9 +252,9 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity keyboardFocusEntity;
         /// <summary>
-        /// Internal entity hosting the sync that suppresses scene entities excluded from the active platform.
+        /// Event-driven sync that suppresses scene entities excluded from the active platform.
         /// </summary>
-        readonly EditorEntity platformExistenceSyncEntity;
+        readonly EditorPlatformExistenceViewportSyncService PlatformExistenceSyncService;
         /// <summary>
         /// Hidden editor camera entity used for offscreen rendering.
         /// </summary>
@@ -637,13 +637,8 @@ namespace helengine.editor {
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
             keyboardFocusEntity.InitializeHierarchy();
 
-            platformExistenceSyncEntity = new EditorEntity {
-                InternalEntity = true,
-                Enabled = true,
-                LayerMask = EditorLayerMasks.EditorUi
-            };
-            platformExistenceSyncEntity.AddComponent(new EditorPlatformExistenceViewportSyncComponent(() => ActiveProjectPlatform));
-            platformExistenceSyncEntity.InitializeHierarchy();
+            PlatformExistenceSyncService = new EditorPlatformExistenceViewportSyncService();
+            EntityPlatformExistenceEditingService.ExistenceChanged += ApplyPlatformExistenceSuppression;
 
             titleBar = new EditorTitleBar(uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
             PanelRegistry = new EditorWorkspacePanelRegistry();
@@ -1124,7 +1119,19 @@ namespace helengine.editor {
             ProjectLocalSettingsService.SaveActivePlatform(platformId);
             ActiveProjectPlatform = platformId;
             assetImportManager.CurrentPlatformId = platformId;
+            ApplyPlatformExistenceSuppression();
             RefreshWindowTitle();
+        }
+
+        /// <summary>
+        /// Re-resolves viewport suppression for entities excluded from the active platform.
+        /// </summary>
+        void ApplyPlatformExistenceSuppression() {
+            if (PlatformExistenceSyncService == null) {
+                return;
+            }
+
+            PlatformExistenceSyncService.Apply(ActiveProjectPlatform);
         }
 
         /// <summary>
@@ -1531,6 +1538,7 @@ namespace helengine.editor {
             EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
             EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
             EditorSceneMutationService.SceneMutated -= HandleSceneMutated;
+            EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression;
             EditorEntityHistoryMutationService.Reset();
             EditorComponentHistoryMutationService.Reset();
             sceneHierarchyPanel.ReparentRequested -= HandleSceneHierarchyReparentRequested;
@@ -3449,6 +3457,7 @@ namespace helengine.editor {
                 sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
                 UndoRedoService.Reset();
                 MarkSceneClean();
+                ApplyPlatformExistenceSuppression();
                 RefreshHierarchy();
                 IReadOnlyList<AssetBrowserPanel> assetBrowserPanels = GetAssetBrowserPanels();
                 for (int index = 0; index < assetBrowserPanels.Count; index++) {
@@ -4550,6 +4559,7 @@ namespace helengine.editor {
         void RefreshEditorStateAfterHistoryMutation() {
             RefreshHierarchy();
             RefreshPreviewSource();
+            ApplyPlatformExistenceSuppression();
             RefreshSceneDirtyState();
         }
 
