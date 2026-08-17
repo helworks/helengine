@@ -368,6 +368,44 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the global delete shortcut refuses blueprint-inherited entities since inherited content is read-only.
+        /// </summary>
+        [Fact]
+        public void Handle_global_delete_shortcut_ignores_blueprint_inherited_entities() {
+            EditorSession session = CreateSessionForUndoRedo();
+            EditorEntity inheritedEntity = CreateUserSceneEntity(501u, "Inherited Coin");
+            inheritedEntity.AddComponent(new BlueprintInheritedEntityComponent {
+                BlueprintAssetPath = "blueprints/games/split_play/GoldenCoin.hblueprint",
+                SourceEntityId = 501u
+            });
+            EditorSelectionService.SetSelectedEntity(inheritedEntity);
+
+            InvokePrivate(session, "HandleGlobalDeleteShortcut");
+
+            Assert.Equal(1, CountUserSceneEntities());
+            Assert.Same(inheritedEntity, EditorSelectionService.SelectedEntity);
+        }
+
+        /// <summary>
+        /// Ensures selection history skips blueprint-inherited entities whose blueprint-internal ids cannot be replayed safely.
+        /// </summary>
+        [Fact]
+        public void Selection_history_ignores_blueprint_inherited_entities() {
+            EditorSession session = CreateSessionForUndoRedo();
+            EditorEntity inheritedEntity = CreateUserSceneEntity(502u, "Inherited Selection");
+            inheritedEntity.AddComponent(new BlueprintInheritedEntityComponent {
+                BlueprintAssetPath = "blueprints/games/split_play/GoldenCoin.hblueprint",
+                SourceEntityId = 502u
+            });
+            EditorUndoRedoService undoRedoService = GetPrivateField<EditorUndoRedoService>(session, "UndoRedoService");
+
+            EditorSelectionService.SetSelectedEntity(inheritedEntity);
+            InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(inheritedEntity, true));
+
+            Assert.False(undoRedoService.CanUndo);
+        }
+
+        /// <summary>
         /// Ensures modal editor workflows block the global delete shortcut so scene entities are not removed behind open dialogs.
         /// </summary>
         [Fact]

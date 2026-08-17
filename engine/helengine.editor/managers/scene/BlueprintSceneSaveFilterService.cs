@@ -13,15 +13,15 @@ namespace helengine.editor {
                 return false;
             }
 
-            return !HasInheritedMarker(entity);
+            return !IsInheritedEntity(entity);
         }
 
         /// <summary>
-        /// Returns whether one entity is an inherited blueprint expansion node.
+        /// Returns whether one entity is a read-only inherited blueprint expansion node.
         /// </summary>
-        /// <param name="entity">Entity to inspect.</param>
+        /// <param name="entity">Entity to inspect; null classifies as not inherited.</param>
         /// <returns>True when the entity has an inherited blueprint marker.</returns>
-        static bool HasInheritedMarker(EditorEntity entity) {
+        public static bool IsInheritedEntity(Entity entity) {
             if (entity?.Components == null) {
                 return false;
             }

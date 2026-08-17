@@ -114,6 +114,9 @@ namespace helengine.editor {
             if (!entity.IsSceneOwned) {
                 throw new InvalidOperationException("Only authored scene entities can be captured into undo/redo history.");
             }
+            if (BlueprintSceneSaveFilterService.IsInheritedEntity(entity)) {
+                throw new InvalidOperationException("Blueprint-inherited entities are read-only and cannot be captured into undo/redo history.");
+            }
 
             EntityReferenceTable.Clear();
             uint entityId = EntityReferenceTable.GetRequiredEntityId(entity);

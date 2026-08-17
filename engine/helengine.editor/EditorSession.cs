@@ -2631,6 +2631,9 @@ namespace helengine.editor {
             if (!editorEntity.IsSceneOwned) {
                 return null;
             }
+            if (BlueprintSceneSaveFilterService.IsInheritedEntity(editorEntity)) {
+                return null;
+            }
 
             return editorEntity;
         }
@@ -4339,7 +4342,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(args));
             }
 
-            uint currentSelectionEntityId = args.HasSelection ? GetSceneEntityId(args.SelectedEntity) : 0u;
+            bool currentSelectionIsInherited = args.HasSelection && BlueprintSceneSaveFilterService.IsInheritedEntity(args.SelectedEntity);
+            uint currentSelectionEntityId = args.HasSelection && !currentSelectionIsInherited ? GetSceneEntityId(args.SelectedEntity) : 0u;
             bool currentSelectionHasNoStableId = args.HasSelection && currentSelectionEntityId == 0u;
             uint previousSelectionEntityId = TrackedSelectionEntityId;
             bool previousSelectionHadNoStableId = TrackedSelectionHasNoStableId;

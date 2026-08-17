@@ -24,6 +24,9 @@ namespace helengine.editor {
             if (entity is not EditorEntity editorEntity || editorEntity.IsDisposed || CaptureEntityState == null) {
                 return false;
             }
+            if (BlueprintSceneSaveFilterService.IsInheritedEntity(editorEntity)) {
+                return false;
+            }
 
             entityState = CaptureEntityState(editorEntity);
             return entityState != null;
@@ -37,6 +40,9 @@ namespace helengine.editor {
         /// <returns>True when the mutation was recorded into undo/redo history; otherwise false.</returns>
         public static bool TryRecordEntityStateChange(Entity entity, SerializedEditorEntityState previousEntityState) {
             if (previousEntityState == null || entity is not EditorEntity editorEntity || editorEntity.IsDisposed || RecordEntityStateChange == null) {
+                return false;
+            }
+            if (BlueprintSceneSaveFilterService.IsInheritedEntity(editorEntity)) {
                 return false;
             }
 

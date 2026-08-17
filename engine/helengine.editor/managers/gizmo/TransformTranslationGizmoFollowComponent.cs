@@ -436,6 +436,10 @@ namespace helengine.editor {
                 return false;
             }
 
+            if (BlueprintSceneSaveFilterService.IsInheritedEntity(selectedEntity)) {
+                return false;
+            }
+
             return true;
         }
 
