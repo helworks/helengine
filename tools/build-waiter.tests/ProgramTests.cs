@@ -28,13 +28,19 @@ namespace helengine.tools.buildwaiter.tests {
                 string sharedStatePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
                 string command = string.Join("; ", [
                     "$startedUtc = [DateTime]::UtcNow",
+                    "if ($env:HELENGINE_BUILD_WAITER_PROTOCOL -cne 'ack-v1') { exit 90 }",
                     $"[System.IO.File]::WriteAllText({artifactPath}, 'iso')",
                     "$completedUtc = [DateTime]::UtcNow",
                     "$state = [ordered]@{ buildId = $env:HELENGINE_BUILD_INVOCATION_ID; projectPath = 'C:\\project\\project.heproj'; platform = 'ps2'; buildProfile = 'debug'; configuration = 'Debug'; startedUtc = $startedUtc.ToString('o'); completedUtc = $completedUtc.ToString('o'); status = 'succeeded'; exitCode = 0 }",
                     "$stateJson = $state | ConvertTo-Json",
                     $"$proofPath = Join-Path {outputRootLiteral} ('.helengine-build-state.' + $env:HELENGINE_BUILD_INVOCATION_ID + '.json')",
                     "$stateJson | Set-Content -LiteralPath $proofPath -Encoding UTF8",
-                    $"$stateJson | Set-Content -LiteralPath {sharedStatePath} -Encoding UTF8"
+                    $"$stateJson | Set-Content -LiteralPath {sharedStatePath} -Encoding UTF8",
+                    $"$ackPath = Join-Path {outputRootLiteral} ('.helengine-build-state.' + $env:HELENGINE_BUILD_INVOCATION_ID + '.ack')",
+                    "$ackStopwatch = [Diagnostics.Stopwatch]::StartNew()",
+                    "while (-not (Test-Path -LiteralPath $ackPath) -and $ackStopwatch.Elapsed -lt [TimeSpan]::FromSeconds(5)) { Start-Sleep -Milliseconds 10 }",
+                    "if (-not (Test-Path -LiteralPath $ackPath)) { exit 92 }",
+                    "if ([IO.File]::ReadAllText($ackPath) -cne $env:HELENGINE_BUILD_INVOCATION_ID) { exit 91 }"
                 ]);
 
                 int exitCode = await Program.RunAsync([

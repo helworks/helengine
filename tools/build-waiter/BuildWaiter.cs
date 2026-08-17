@@ -10,24 +10,14 @@ namespace helengine.tools.buildwaiter {
         /// </summary>
         static readonly TimeSpan WaitingStatusInterval = TimeSpan.FromSeconds(10);
 
-        /// <summary>
-        /// Verifier that determines whether the child build produced the current invocation's required output files.
-        /// </summary>
-        readonly BuildArtifactVerifier ArtifactVerifier;
+        readonly BuildVerificationHandshake VerificationHandshake;
 
         /// <summary>
-        /// Verifier that determines whether persisted state proves successful completion by the current invocation.
+        /// Initializes one build waiter with the active-child verification handshake.
         /// </summary>
-        readonly BuildStateVerifier StateVerifier;
-
-        /// <summary>
-        /// Initializes one build waiter with the state and artifact verifiers used after child-process completion.
-        /// </summary>
-        /// <param name="artifactVerifier">Verifier for the final published output artifacts.</param>
-        /// <param name="stateVerifier">Verifier for persisted platform build state.</param>
-        public BuildWaiter(BuildArtifactVerifier artifactVerifier, BuildStateVerifier stateVerifier) {
-            ArtifactVerifier = artifactVerifier ?? throw new ArgumentNullException(nameof(artifactVerifier));
-            StateVerifier = stateVerifier ?? throw new ArgumentNullException(nameof(stateVerifier));
+        /// <param name="verificationHandshake">Coordinator for proof verification and wrapper release.</param>
+        public BuildWaiter(BuildVerificationHandshake verificationHandshake) {
+            VerificationHandshake = verificationHandshake ?? throw new ArgumentNullException(nameof(verificationHandshake));
         }
 
         /// <summary>
@@ -51,6 +41,7 @@ namespace helengine.tools.buildwaiter {
                 CreateNoWindow = true
             };
             startInfo.Environment["HELENGINE_BUILD_INVOCATION_ID"] = invocationId;
+            startInfo.Environment["HELENGINE_BUILD_WAITER_PROTOCOL"] = "ack-v1";
             for (int argumentIndex = 0; argumentIndex < options.CommandArguments.Length; argumentIndex++) {
                 startInfo.ArgumentList.Add(options.CommandArguments[argumentIndex]);
             }
@@ -77,15 +68,25 @@ namespace helengine.tools.buildwaiter {
             };
 
             Console.WriteLine($"[build-waiter] launching: {options.CommandFileName}");
-            if (!process.Start()) {
-                return new BuildWaiterResult(false, 1, $"Build command '{options.CommandFileName}' did not start.");
+            try {
+                if (!process.Start()) {
+                    return new BuildWaiterResult(false, 1, $"Build command '{options.CommandFileName}' did not start.");
+                }
+            } catch (System.ComponentModel.Win32Exception exception) {
+                return new BuildWaiterResult(false, 1, $"Build command '{options.CommandFileName}' did not start: {exception.Message}");
             }
 
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
-            Task processExitTask = process.WaitForExitAsync(cancellationToken);
+            Task processExitTask = process.WaitForExitAsync(CancellationToken.None);
+            Task<BuildVerificationHandshakeResult> handshakeTask = VerificationHandshake.VerifyAndAcknowledgeAsync(
+                options.OutputRootPath,
+                options.RequiredArtifactRelativePaths,
+                buildStartedUtc,
+                invocationId,
+                processExitTask);
             while (!processExitTask.IsCompleted) {
-                Task waitingStatusTask = Task.Delay(WaitingStatusInterval, cancellationToken);
+                Task waitingStatusTask = Task.Delay(WaitingStatusInterval);
                 Task completedTask = await Task.WhenAny(processExitTask, waitingStatusTask);
                 if (completedTask == waitingStatusTask && !processExitTask.IsCompleted) {
                     Console.WriteLine("[build-waiter] waiting for build process completion");
@@ -94,27 +95,21 @@ namespace helengine.tools.buildwaiter {
 
             await processExitTask;
             await Task.WhenAll(standardOutputCompleted.Task, standardErrorCompleted.Task);
+            BuildVerificationHandshakeResult handshake = await handshakeTask;
             if (process.ExitCode != 0) {
                 return new BuildWaiterResult(false, process.ExitCode, $"Build command exited with code {process.ExitCode}.");
             }
-
-            BuildStateVerificationResult stateVerificationResult = StateVerifier.Verify(
-                options.OutputRootPath,
-                buildStartedUtc,
-                invocationId);
-            if (!stateVerificationResult.Succeeded) {
-                return new BuildWaiterResult(false, 1, stateVerificationResult.Message);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!string.IsNullOrWhiteSpace(handshake.AcknowledgementFailureMessage)) {
+                return new BuildWaiterResult(false, 1, handshake.AcknowledgementFailureMessage);
             }
-
-            BuildArtifactVerificationResult verificationResult = ArtifactVerifier.Verify(
-                options.OutputRootPath,
-                options.RequiredArtifactRelativePaths,
-                buildStartedUtc);
-            if (!verificationResult.Succeeded) {
-                return new BuildWaiterResult(false, 1, verificationResult.Message);
+            if (!handshake.StateVerificationResult.Succeeded) {
+                return new BuildWaiterResult(false, 1, handshake.StateVerificationResult.Message);
             }
-
-            return new BuildWaiterResult(true, 0, verificationResult.Message);
+            if (!handshake.ArtifactVerificationResult.Succeeded) {
+                return new BuildWaiterResult(false, 1, handshake.ArtifactVerificationResult.Message);
+            }
+            return new BuildWaiterResult(true, 0, handshake.ArtifactVerificationResult.Message);
         }
     }
 }
