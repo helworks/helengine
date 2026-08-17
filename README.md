@@ -79,6 +79,10 @@ Restore, publish, and editor child process failures are propagated unchanged. Th
 
 Use `tools/build-waiter` whenever a build needs an automatically verified completion result. It launches the child build, forwards its diagnostics, and succeeds only after the child exits with code `0`, the output contains a current successful `.helengine-build-state.json`, and every required artifact is fresh and non-empty.
 
+For a waiter-controlled build targeting an output shared with another build, the wrapper keeps that output serialized until the waiter validates the exact terminal proof and attempts required-artifact verification. The waiter then writes an exact invocation-specific acknowledgment, which the wrapper consumes before releasing the same-output lock. This acknowledgment phase is internal to the wrapper/waiter contract: `HELENGINE_BUILD_INVOCATION_ID` and `HELENGINE_BUILD_WAITER_PROTOCOL` are not user-authored shell or project configuration settings.
+
+Direct calls to the platform wrapper do not use the waiter acknowledgment phase. For waiter-controlled calls, an otherwise successful wrapper build without an exact acknowledgment fails with exit code `10` after a fixed 30-second wait.
+
 Example PS2 build:
 
 ```powershell

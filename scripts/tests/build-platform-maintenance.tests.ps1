@@ -730,8 +730,8 @@ exit /b 0
     if ([regex]::Matches($WrapperText, 'Write-BuildPlatformCacheMetadata\s').Count -ne 2) {
         throw "The wrapper must contain exactly two cache metadata write sites."
     }
-    if ([regex]::Matches($WrapperText, 'Write-BuildPlatformState\s').Count -ne 2) {
-        throw "The wrapper must retain exactly two build-state write sites."
+    if ([regex]::Matches($WrapperText, 'Write-BuildPlatformState\s').Count -ne 5) {
+        throw "The wrapper must retain five build-state write sites: running, shared terminal, invocation proof, timeout shared rewrite, and timeout proof rewrite."
     }
     $MaintenanceIndex = $WrapperText.IndexOf("Remove-BuildPlatformSelectedCache", [System.StringComparison]::Ordinal)
     $RunningStateIndex = $WrapperText.IndexOf('-Status "running"', [System.StringComparison]::Ordinal)
