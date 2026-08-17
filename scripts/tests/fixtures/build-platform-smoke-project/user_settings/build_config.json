@@ -1,0 +1,29 @@
+{
+  "platforms": [
+    {
+      "platformId": "smoke",
+      "selectedSceneIds": [ "SmokeScene" ],
+      "sceneOrders": [
+        {
+          "sceneId": "SmokeScene",
+          "orderNumber": 1
+        }
+      ],
+      "outputDirectoryPath": "",
+      "debugBuild": false,
+      "selectedBuildProfileId": "release",
+      "selectedGraphicsProfileId": "smoke",
+      "selectedBuildOptionValues": {},
+      "selectedGraphicsOptionValues": {},
+      "selectedCodegenProfileId": "smoke",
+      "selectedStorageProfileId": "smoke",
+      "selectedMediaProfileId": "smoke",
+      "selectedCodegenOptionValues": {
+        "generated-math-convention": "engine-row-vector",
+        "pointer-size-bytes": "8"
+      },
+      "editorPrebuildCommandIdsByBuildProfileId": {}
+    }
+  ],
+  "queueItems": []
+}

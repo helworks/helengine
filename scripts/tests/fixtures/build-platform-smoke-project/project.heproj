@@ -1,0 +1,11 @@
+{
+  "projectFormatVersion": 1,
+  "name": "Build Platform Smoke",
+  "version": "1.0.0-smoke",
+  "requiredEngineVersion": "1.0.0-smoke",
+  "supportedPlatforms": [ "smoke" ],
+  "created": "2026-08-15T00:00:00Z",
+  "lastOpened": "2026-08-15T00:00:00Z",
+  "description": "Direct-source platform build smoke fixture",
+  "sourceSentinel": "AUTHORED_SOURCE_SENTINEL"
+}

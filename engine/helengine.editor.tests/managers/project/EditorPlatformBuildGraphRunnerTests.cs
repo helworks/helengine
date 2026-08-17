@@ -13,14 +13,105 @@ namespace helengine.editor.tests.managers.project;
 /// <summary>
 /// Verifies the platform build executor delegates execution to the shared build-graph runner.
 /// </summary>
-public class EditorPlatformBuildGraphRunnerTests {
+[Collection(EditorBuildCacheEnvironmentCollection.Name)]
+public class EditorPlatformBuildGraphRunnerTests : IDisposable {
+    /// <summary>
+    /// Original stable cache root inherited by the test process.
+    /// </summary>
+    readonly string OriginalCacheRoot = Environment.GetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT");
+
+    /// <summary>
+    /// Original stable build configuration inherited by the test process.
+    /// </summary>
+    readonly string OriginalConfiguration = Environment.GetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION");
+
+    /// <summary>
+    /// Original stable build profile inherited by the test process.
+    /// </summary>
+    readonly string OriginalProfile = Environment.GetEnvironmentVariable("HELENGINE_BUILD_PROFILE");
+
+    /// <summary>
+    /// Original deprecated workspace root inherited by the test process.
+    /// </summary>
+    readonly string OriginalWorkspaceRoot = Environment.GetEnvironmentVariable("HELENGINE_BUILD_WORKSPACE_ROOT");
+
     /// <summary>
     /// Configures the shared built-in shader backend registry used by build-path tests that package generated standard materials.
     /// </summary>
     public EditorPlatformBuildGraphRunnerTests() {
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", null);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", null);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", null);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_WORKSPACE_ROOT", null);
         ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
         shaderBackendRegistry.Register(new DirectX11ShaderBackend());
         EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
+    }
+
+    /// <summary>
+    /// Restores every process environment variable changed by build-graph runner tests.
+    /// </summary>
+    public void Dispose() {
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", OriginalCacheRoot);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", OriginalConfiguration);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", OriginalProfile);
+        Environment.SetEnvironmentVariable("HELENGINE_BUILD_WORKSPACE_ROOT", OriginalWorkspaceRoot);
+    }
+
+    /// <summary>
+    /// Ensures stable graph reset removes resettable state without deleting persistent native builder state.
+    /// </summary>
+    [Fact]
+    public void ResetExecutionDirectories_WhenNativeRootIsExternal_PreservesNativeState() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-stable-reset-tests", Guid.NewGuid().ToString("N"));
+        string executionRootPath = Path.Combine(rootPath, "build-graph");
+        string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+        string nativeRootPath = Path.Combine(rootPath, "native");
+        ConstructorInfo workspaceConstructor = typeof(EditorPlatformBuildGraphWorkspace).GetConstructor([
+            typeof(string),
+            typeof(string),
+            typeof(string)
+        ]);
+        Assert.NotNull(workspaceConstructor);
+        EditorPlatformBuildGraphWorkspace workspace = (EditorPlatformBuildGraphWorkspace)workspaceConstructor.Invoke([
+            executionRootPath,
+            generatedCoreRootPath,
+            nativeRootPath
+        ]);
+        MethodInfo resetMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+            "ResetExecutionDirectories",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(resetMethod);
+
+        try {
+            Directory.CreateDirectory(workspace.ExecutionRootPath);
+            Directory.CreateDirectory(workspace.GeneratedCoreRootPath);
+            Directory.CreateDirectory(workspace.BuilderWorkingRootPath);
+            string graphSentinelPath = Path.Combine(workspace.ExecutionRootPath, "stale-graph.txt");
+            string generatedCoreSentinelPath = Path.Combine(workspace.GeneratedCoreRootPath, "stale-core.txt");
+            string nativeSentinelPath = Path.Combine(workspace.BuilderWorkingRootPath, "native-cache.txt");
+            File.WriteAllText(graphSentinelPath, "stale");
+            File.WriteAllText(generatedCoreSentinelPath, "stale");
+            File.WriteAllText(nativeSentinelPath, "persistent");
+
+            resetMethod.Invoke(null, [
+                workspace.ExecutionRootPath,
+                workspace.GeneratedCoreRootPath,
+                workspace.CookRootPath,
+                workspace.PackageRootPath,
+                workspace.BuilderWorkingRootPath
+            ]);
+
+            Assert.False(File.Exists(graphSentinelPath));
+            Assert.False(File.Exists(generatedCoreSentinelPath));
+            Assert.True(File.Exists(nativeSentinelPath));
+            Assert.True(Directory.Exists(workspace.ExecutionRootPath));
+            Assert.True(Directory.Exists(workspace.GeneratedCoreRootPath));
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
     }
 
     [Fact]

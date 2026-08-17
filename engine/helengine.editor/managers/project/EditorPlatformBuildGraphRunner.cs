@@ -157,12 +157,15 @@ namespace helengine.editor {
                 selectedBuildProfile);
             EditorPlatformBuildGraphWorkspace workspace = WorkspaceFactory.Create(PlatformDescriptor.Id, queueItem.QueueItemId);
 
-            ResetExecutionDirectories(workspace.ExecutionRootPath, workspace.CookRootPath, workspace.PackageRootPath, workspace.BuilderWorkingRootPath);
-            Directory.CreateDirectory(workspace.GeneratedCoreRootPath);
+            ResetExecutionDirectories(
+                workspace.ExecutionRootPath,
+                workspace.GeneratedCoreRootPath,
+                workspace.CookRootPath,
+                workspace.PackageRootPath,
+                workspace.BuilderWorkingRootPath);
             Directory.CreateDirectory(workspace.CodeRootPath);
             Directory.CreateDirectory(workspace.VariantRootPath);
             Directory.CreateDirectory(workspace.LayoutRootPath);
-            Directory.CreateDirectory(workspace.BuilderWorkingRootPath);
             Directory.CreateDirectory(workspace.LogsRootPath);
             WritePhaseMarker(workspace, "workspace-ready");
 
@@ -1273,9 +1276,16 @@ namespace helengine.editor {
             }
         }
 
-        static void ResetExecutionDirectories(string executionRoot, string cookRoot, string packageRoot, string builderWorkingRoot) {
+        static void ResetExecutionDirectories(
+            string executionRoot,
+            string generatedCoreRoot,
+            string cookRoot,
+            string packageRoot,
+            string builderWorkingRoot) {
             DeleteDirectoryIfPresent(executionRoot);
+            DeleteDirectoryIfPresent(generatedCoreRoot);
 
+            Directory.CreateDirectory(generatedCoreRoot);
             Directory.CreateDirectory(cookRoot);
             Directory.CreateDirectory(packageRoot);
             Directory.CreateDirectory(builderWorkingRoot);

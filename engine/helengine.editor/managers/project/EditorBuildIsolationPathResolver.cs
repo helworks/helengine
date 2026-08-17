@@ -17,6 +17,21 @@ namespace helengine.editor {
         const string WorkspaceRootEnvironmentVariableName = "HELENGINE_BUILD_WORKSPACE_ROOT";
 
         /// <summary>
+        /// Environment setting that enables deterministic headless build caches.
+        /// </summary>
+        internal const string CacheRootEnvironmentVariableName = "HELENGINE_BUILD_CACHE_ROOT";
+
+        /// <summary>
+        /// Environment setting that selects the deterministic build configuration segment.
+        /// </summary>
+        internal const string ConfigurationEnvironmentVariableName = "HELENGINE_BUILD_CONFIGURATION";
+
+        /// <summary>
+        /// Environment setting that selects the deterministic build-profile segment.
+        /// </summary>
+        internal const string ProfileEnvironmentVariableName = "HELENGINE_BUILD_PROFILE";
+
+        /// <summary>
         /// Number of SHA-256 bytes retained in the stable project hash segment.
         /// </summary>
         const int ProjectHashByteCount = 16;
@@ -32,6 +47,11 @@ namespace helengine.editor {
         readonly string ProjectHashSegment;
 
         /// <summary>
+        /// Wrapper-compatible project hash segment used only by deterministic headless cache mode.
+        /// </summary>
+        readonly string StableProjectHashSegment;
+
+        /// <summary>
         /// Initializes one resolver for the supplied authored project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative authored project root path.</param>
@@ -42,6 +62,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             ProjectHashSegment = ComputeProjectHashSegment(ProjectRootPath);
+            StableProjectHashSegment = ComputeStableProjectHashSegment(ProjectRootPath);
         }
 
         /// <summary>
@@ -71,6 +92,10 @@ namespace helengine.editor {
                 throw new ArgumentException("Queue item id must be provided.", nameof(queueItemId));
             }
 
+            if (UsesStableCacheRoot()) {
+                return CombineStrictDescendantPath(ResolveStableProfileRootPath(platformId), "build-graph");
+            }
+
             if (UsesConfiguredWorkspaceRoot()) {
                 return Path.Combine(ResolveIsolationRootPath(), SanitizePathSegment(platformId), SanitizePathSegment(queueItemId));
             }
@@ -90,6 +115,10 @@ namespace helengine.editor {
                 throw new ArgumentException("Execution id must be provided.", nameof(executionId));
             }
 
+            if (UsesStableCacheRoot()) {
+                return CombineStrictDescendantPath(ResolveStableProfileRootPath(platformId), "build-graph");
+            }
+
             if (UsesConfiguredWorkspaceRoot()) {
                 return Path.Combine(ResolveIsolationRootPath(), SanitizePathSegment(platformId), SanitizePathSegment(executionId));
             }
@@ -104,6 +133,10 @@ namespace helengine.editor {
         /// <param name="executionId">Unique identifier for the build invocation.</param>
         /// <returns>Absolute invocation-isolated generated managed-code output root path.</returns>
         public string ResolveGeneratedCodeOutputRootPath(string platformId, string executionId) {
+            if (UsesStableCacheRoot()) {
+                return CombineStrictDescendantPath(ResolveStableProfileRootPath(platformId), "generated-dotnet");
+            }
+
             return Path.Combine(ResolveWorkspaceExecutionRootPath(platformId, executionId), "generated-dotnet");
         }
 
@@ -115,6 +148,32 @@ namespace helengine.editor {
         /// <returns>Absolute invocation-isolated generated solution workspace root path.</returns>
         public string ResolveGeneratedCodeWorkspaceRootPath(string platformId, string executionId) {
             return Path.Combine(ResolveGeneratedCodeOutputRootPath(platformId, executionId), "workspace");
+        }
+
+        /// <summary>
+        /// Resolves the persistent generated-core root used by deterministic headless builds.
+        /// </summary>
+        /// <param name="platformId">Stable target platform identifier.</param>
+        /// <returns>Absolute generated-core root beneath the selected stable profile.</returns>
+        internal string ResolveGeneratedCoreRootPath(string platformId) {
+            return CombineStrictDescendantPath(ResolveStableProfileRootPath(platformId), "generated-core");
+        }
+
+        /// <summary>
+        /// Resolves the persistent native builder root used by deterministic headless builds.
+        /// </summary>
+        /// <param name="platformId">Stable target platform identifier.</param>
+        /// <returns>Absolute native root beneath the selected stable profile.</returns>
+        internal string ResolveNativeRootPath(string platformId) {
+            return CombineStrictDescendantPath(ResolveStableProfileRootPath(platformId), "native");
+        }
+
+        /// <summary>
+        /// Determines whether deterministic headless cache mode is enabled.
+        /// </summary>
+        /// <returns><c>true</c> when a non-empty stable cache root is configured.</returns>
+        internal bool UsesStableCacheRoot() {
+            return !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(CacheRootEnvironmentVariableName));
         }
 
         /// <summary>
@@ -130,6 +189,80 @@ namespace helengine.editor {
             }
 
             return builder.ToString();
+        }
+
+        /// <summary>
+        /// Computes the wrapper-compatible case-stable project identity used by deterministic cache mode.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute authored project root path.</param>
+        /// <returns>First sixteen SHA-256 bytes encoded as lowercase hexadecimal.</returns>
+        static string ComputeStableProjectHashSegment(string projectRootPath) {
+            string projectIdentityPath = ResolveCanonicalDirectoryPath(projectRootPath).ToLowerInvariant();
+            return ComputeProjectHashSegment(projectIdentityPath);
+        }
+
+        /// <summary>
+        /// Resolves the deterministic profile root shared with the platform wrapper cache layout.
+        /// </summary>
+        /// <param name="platformId">Stable target platform identifier.</param>
+        /// <returns>Absolute deterministic cache root for the selected platform profile.</returns>
+        string ResolveStableProfileRootPath(string platformId) {
+            string cacheRootPath = Environment.GetEnvironmentVariable(CacheRootEnvironmentVariableName);
+            if (string.IsNullOrWhiteSpace(cacheRootPath)) {
+                throw new InvalidOperationException("A stable build cache root must be configured.");
+            }
+
+            string configuration = Environment.GetEnvironmentVariable(ConfigurationEnvironmentVariableName);
+            if (string.IsNullOrWhiteSpace(configuration)) {
+                throw new InvalidOperationException($"{ConfigurationEnvironmentVariableName} must be configured when stable build cache mode is enabled.");
+            }
+
+            string profile = Environment.GetEnvironmentVariable(ProfileEnvironmentVariableName);
+            if (string.IsNullOrWhiteSpace(profile)) {
+                throw new InvalidOperationException($"{ProfileEnvironmentVariableName} must be configured when stable build cache mode is enabled.");
+            }
+
+            string versionRootPath = CombineStrictDescendantPath(ResolveCanonicalDirectoryPath(cacheRootPath), "v2");
+            string projectRootPath = CombineStrictDescendantPath(versionRootPath, StableProjectHashSegment);
+            string platformsRootPath = CombineStrictDescendantPath(projectRootPath, "b");
+            string platformRootPath = CombineStrictDescendantPath(platformsRootPath, SanitizeStablePathSegment(platformId));
+            string configurationRootPath = CombineStrictDescendantPath(platformRootPath, SanitizeStablePathSegment(configuration));
+            return CombineStrictDescendantPath(configurationRootPath, SanitizeStablePathSegment(profile));
+        }
+
+        /// <summary>
+        /// Canonicalizes one directory path while preserving filesystem roots and removing trailing aliases elsewhere.
+        /// </summary>
+        /// <param name="path">Directory path to canonicalize.</param>
+        /// <returns>Absolute canonical directory path.</returns>
+        static string ResolveCanonicalDirectoryPath(string path) {
+            string fullPath = Path.GetFullPath(path);
+            string rootPath = Path.GetPathRoot(fullPath);
+            if (fullPath.Length <= rootPath.Length) {
+                return rootPath;
+            }
+
+            return fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
+        /// <summary>
+        /// Combines one safe child segment and verifies the result remains below its canonical parent.
+        /// </summary>
+        /// <param name="parentPath">Canonical or relative parent directory.</param>
+        /// <param name="childSegment">Single child path segment.</param>
+        /// <returns>Canonical strict descendant path.</returns>
+        static string CombineStrictDescendantPath(string parentPath, string childSegment) {
+            string canonicalParentPath = ResolveCanonicalDirectoryPath(parentPath);
+            string candidatePath = ResolveCanonicalDirectoryPath(Path.Combine(canonicalParentPath, childSegment));
+            string parentPrefix = canonicalParentPath.EndsWith(Path.DirectorySeparatorChar)
+                ? canonicalParentPath
+                : canonicalParentPath + Path.DirectorySeparatorChar;
+            if (candidatePath.Equals(canonicalParentPath, StringComparison.OrdinalIgnoreCase)
+                || !candidatePath.StartsWith(parentPrefix, StringComparison.OrdinalIgnoreCase)) {
+                throw new ArgumentException($"Path '{candidatePath}' must be a strict descendant of '{canonicalParentPath}'.", nameof(childSegment));
+            }
+
+            return candidatePath;
         }
 
         /// <summary>
@@ -171,6 +304,55 @@ namespace helengine.editor {
             }
 
             return builder.ToString();
+        }
+
+        /// <summary>
+        /// Produces a stable-cache segment while rejecting traversal and Windows directory aliases.
+        /// </summary>
+        /// <param name="value">Untrusted stable-cache segment value.</param>
+        /// <returns>Filesystem-safe stable-cache segment.</returns>
+        static string SanitizeStablePathSegment(string value) {
+            if (value == "." || value == "..") {
+                throw new ArgumentException($"Path segment '{value}' is not allowed.", nameof(value));
+            }
+            if (!string.IsNullOrEmpty(value)
+                && (value.EndsWith(".", StringComparison.Ordinal) || value.EndsWith(" ", StringComparison.Ordinal))) {
+                throw new ArgumentException($"Path segment '{value}' has a trailing Windows alias character.", nameof(value));
+            }
+
+            string safeSegment = SanitizePathSegment(value);
+            if (safeSegment == "." || safeSegment == "..") {
+                throw new ArgumentException($"Path segment '{value}' resolves to a traversal segment.", nameof(value));
+            }
+            if (safeSegment.EndsWith(".", StringComparison.Ordinal) || safeSegment.EndsWith(" ", StringComparison.Ordinal)) {
+                throw new ArgumentException($"Path segment '{value}' resolves to a trailing Windows alias character.", nameof(value));
+            }
+
+            string deviceBaseName = safeSegment.Split('.')[0];
+            bool isReservedDeviceName = deviceBaseName.Equals("CON", StringComparison.OrdinalIgnoreCase)
+                || deviceBaseName.Equals("PRN", StringComparison.OrdinalIgnoreCase)
+                || deviceBaseName.Equals("AUX", StringComparison.OrdinalIgnoreCase)
+                || deviceBaseName.Equals("NUL", StringComparison.OrdinalIgnoreCase)
+                || IsNumberedReservedDeviceName(deviceBaseName, "COM")
+                || IsNumberedReservedDeviceName(deviceBaseName, "LPT");
+            if (isReservedDeviceName) {
+                throw new ArgumentException($"Path segment '{value}' uses a reserved Windows device basename.", nameof(value));
+            }
+
+            return safeSegment;
+        }
+
+        /// <summary>
+        /// Determines whether one path basename is a numbered Windows device name from one through nine.
+        /// </summary>
+        /// <param name="value">Filesystem basename to inspect.</param>
+        /// <param name="prefix">Reserved device prefix.</param>
+        /// <returns><c>true</c> when the value is a reserved numbered device name.</returns>
+        static bool IsNumberedReservedDeviceName(string value, string prefix) {
+            return value.Length == prefix.Length + 1
+                && value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                && value[value.Length - 1] >= '1'
+                && value[value.Length - 1] <= '9';
         }
     }
 }

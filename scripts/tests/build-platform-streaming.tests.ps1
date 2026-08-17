@@ -6,25 +6,30 @@ $ErrorActionPreference = "Stop"
 
 $RepositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $WrapperPath = Join-Path $RepositoryRoot "scripts\build-platform.ps1"
-$Source = Get-Content -LiteralPath $WrapperPath -Raw
+$ProcessModulePath = Join-Path $RepositoryRoot "scripts\build-platform\BuildPlatformProcess.psm1"
 
-foreach ($RequiredToken in @(
+if (-not (Test-Path -LiteralPath $ProcessModulePath -PathType Leaf)) {
+    throw "The testable streaming helper module was not found at '$ProcessModulePath'."
+}
+
+Import-Module $ProcessModulePath -Force
+$WrapperSource = Get-Content -LiteralPath $WrapperPath -Raw
+$ProcessSource = Get-Content -LiteralPath $ProcessModulePath -Raw
+
+foreach ($RequiredProcessToken in @(
         "System.Diagnostics.Process",
         "BeginOutputReadLine",
         "BeginErrorReadLine",
         "Register-ObjectEvent",
-        "WaitForExit()",
-        "Copy-ProjectIntoIsolatedWorkspace",
-        '[Guid]::NewGuid().ToString("N")',
-        '$IsolatedProjectPath',
-        'ps2-build*',
-        'vita-build*',
-        '"*.iso"',
-        "--build-profile"
+        "WaitForExit()"
     )) {
-    if (-not $Source.Contains($RequiredToken)) {
-        throw "The build wrapper is missing streaming-process token '$RequiredToken'."
+    if (-not $ProcessSource.Contains($RequiredProcessToken)) {
+        throw "The streaming helper is missing process token '$RequiredProcessToken'."
     }
+}
+
+if (-not $WrapperSource.Contains("--build-profile")) {
+    throw "The build wrapper is missing --build-profile forwarding."
 }
 
 foreach ($ForbiddenProjectCommandId in @(
@@ -33,7 +38,7 @@ foreach ($ForbiddenProjectCommandId in @(
         "menu.attach-tilt-trial-presentation-blueprints",
         "--editor-command"
     )) {
-    if ($Source.Contains($ForbiddenProjectCommandId)) {
+    if ($WrapperSource.Contains($ForbiddenProjectCommandId)) {
         throw "The generic build wrapper must not hard-code project editor command '$ForbiddenProjectCommandId'."
     }
 }
@@ -44,14 +49,56 @@ foreach ($ForbiddenToken in @(
         "ReadToEndAsync",
         "Task.WhenAny"
     )) {
-    if ($Source.Contains($ForbiddenToken)) {
-        throw "The build wrapper must not use timer-based or buffered process handling token '$ForbiddenToken'."
+    if ($ProcessSource.Contains($ForbiddenToken)) {
+        throw "The streaming helper must not use timer-based or buffered process handling token '$ForbiddenToken'."
     }
 }
 
-$InvocationCount = ([System.Text.RegularExpressions.Regex]::Matches($Source, "Invoke-StreamingNativeProcess")).Count
-if ($InvocationCount -ne 4) {
-    throw "Expected one streaming runner declaration and three native invocations, found $InvocationCount."
+$WrapperInvocationCount = ([System.Text.RegularExpressions.Regex]::Matches($WrapperSource, "Invoke-StreamingNativeProcess")).Count
+if ($WrapperInvocationCount -ne 3) {
+    throw "Expected three native process invocations in the wrapper, found $WrapperInvocationCount."
 }
 
-Write-Output "STREAMING_TEST_PASS"
+$TestRootPath = Join-Path ([System.IO.Path]::GetTempPath()) ("build-platform-streaming-" + [Guid]::NewGuid().ToString("N"))
+$FakeChildPath = Join-Path $TestRootPath "fake-streaming-child.cmd"
+
+try {
+    $null = New-Item -ItemType Directory -Path $TestRootPath -Force
+    Set-Content -LiteralPath $FakeChildPath -Value @'
+@echo off
+echo STREAM_STDOUT_MARKER:%~1
+echo STREAM_STDERR_MARKER 1>&2
+exit /b 23
+'@ -NoNewline
+
+    $OriginalConsoleOut = [Console]::Out
+    $OriginalConsoleError = [Console]::Error
+    $CapturedConsoleOut = New-Object System.IO.StringWriter
+    $CapturedConsoleError = New-Object System.IO.StringWriter
+    try {
+        [Console]::SetOut($CapturedConsoleOut)
+        [Console]::SetError($CapturedConsoleError)
+        $ExitCode = Invoke-StreamingNativeProcess -FilePath $FakeChildPath -ArgumentList @("argument with spaces")
+    } finally {
+        [Console]::SetOut($OriginalConsoleOut)
+        [Console]::SetError($OriginalConsoleError)
+    }
+
+    $CapturedStandardOutput = $CapturedConsoleOut.ToString()
+    $CapturedStandardError = $CapturedConsoleError.ToString()
+    if ($CapturedStandardOutput -notmatch 'STREAM_STDOUT_MARKER:argument with spaces') {
+        throw "The streaming helper did not forward stdout. Captured: '$CapturedStandardOutput'."
+    }
+    if ($CapturedStandardError -notmatch 'STREAM_STDERR_MARKER') {
+        throw "The streaming helper did not forward stderr. Captured: '$CapturedStandardError'."
+    }
+    if ($ExitCode -ne 23) {
+        throw "The streaming helper returned exit code $ExitCode instead of 23."
+    }
+
+    Write-Output "STREAMING_TEST_PASS"
+} finally {
+    if (Test-Path -LiteralPath $TestRootPath) {
+        Remove-Item -LiteralPath $TestRootPath -Recurse -Force
+    }
+}

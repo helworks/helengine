@@ -19,7 +19,19 @@ param(
     [string]$EditorProject = "",
 
     [Parameter()]
+    [string]$CacheRoot = "",
+
+    [Parameter()]
     [string]$WorkspaceRoot = "",
+
+    [Parameter()]
+    [TimeSpan]$LockTimeout = [TimeSpan]::FromHours(2),
+
+    [Parameter()]
+    [switch]$Clean,
+
+    [Parameter()]
+    [int]$PruneCacheOlderThanDays = 0,
 
     [Parameter()]
     [string[]]$AdditionalArgs = @()
@@ -27,128 +39,107 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformCache.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformEnvironment.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformLock.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformProcess.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformState.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "build-platform\BuildPlatformWaiterHandshake.psm1") -Force
 
-function Get-SafePathSegment {
+function Get-CanonicalDirectoryPath {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Value
+        [string]$Path
     )
 
-    if ([string]::IsNullOrWhiteSpace($Value)) {
-        throw "Path segment must be provided."
+    $FullPath = [System.IO.Path]::GetFullPath($Path)
+    $RootPath = [System.IO.Path]::GetPathRoot($FullPath)
+    if ($FullPath.Length -le $RootPath.Length) {
+        return $RootPath
     }
 
-    $InvalidCharacters = [System.IO.Path]::GetInvalidFileNameChars()
-    $Builder = New-Object System.Text.StringBuilder
-    foreach ($Character in $Value.ToCharArray()) {
-        if ($InvalidCharacters -contains $Character) {
-            $null = $Builder.Append('_')
-        } else {
-            $null = $Builder.Append($Character)
+    $DirectorySeparators = [char[]]@(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+    return $FullPath.TrimEnd($DirectorySeparators)
+}
+
+function Test-BuildPlatformPathContains {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ParentPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CandidatePath
+    )
+
+    $Parent = Get-CanonicalDirectoryPath -Path $ParentPath
+    $Candidate = Get-CanonicalDirectoryPath -Path $CandidatePath
+    $Prefix = $Parent
+    if (-not $Prefix.EndsWith([IO.Path]::DirectorySeparatorChar)) {
+        $Prefix += [IO.Path]::DirectorySeparatorChar
+    }
+    return $Candidate.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-BuildPlatformPathOverlap {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FirstPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SecondPath
+    )
+
+    $First = Get-CanonicalDirectoryPath -Path $FirstPath
+    $Second = Get-CanonicalDirectoryPath -Path $SecondPath
+    return $First.Equals($Second, [StringComparison]::OrdinalIgnoreCase) -or
+        (Test-BuildPlatformPathContains -ParentPath $First -CandidatePath $Second) -or
+        (Test-BuildPlatformPathContains -ParentPath $Second -CandidatePath $First)
+}
+
+function Assert-BuildPlatformAdditionalArguments {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$Arguments
+    )
+
+    $ReservedSwitches = @(
+        "--project",
+        "--build",
+        "--build-profile",
+        "--output"
+    )
+    foreach ($Argument in $Arguments) {
+        if ($null -eq $Argument) {
+            continue
+        }
+
+        foreach ($ReservedSwitch in $ReservedSwitches) {
+            if ($Argument.Equals($ReservedSwitch, [StringComparison]::OrdinalIgnoreCase) -or
+                $Argument.StartsWith($ReservedSwitch + "=", [StringComparison]::OrdinalIgnoreCase)) {
+                throw "AdditionalArgs cannot override wrapper-owned switch '$Argument'."
+            }
         }
     }
-
-    return $Builder.ToString()
 }
 
-function Get-ProjectIsolationHash {
+function Get-RemainingBuildPlatformLockTimeout {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$ProjectRootPath
-    )
-
-    if ([string]::IsNullOrWhiteSpace($ProjectRootPath)) {
-        throw "Project root path must be provided."
-    }
-
-    $FullProjectRootPath = [System.IO.Path]::GetFullPath($ProjectRootPath)
-    $ProjectRootBytes = [System.Text.Encoding]::UTF8.GetBytes($FullProjectRootPath)
-    $Sha256 = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        $HashBytes = $Sha256.ComputeHash($ProjectRootBytes)
-    } finally {
-        $Sha256.Dispose()
-    }
-    $Builder = New-Object System.Text.StringBuilder
-    for ($Index = 0; $Index -lt 16; $Index++) {
-        $null = $Builder.Append($HashBytes[$Index].ToString("x2"))
-    }
-
-    return $Builder.ToString()
-}
-
-function Copy-ProjectIntoIsolatedWorkspace {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$SourceProjectRootPath,
+        [System.Diagnostics.Stopwatch]$Stopwatch,
 
         [Parameter(Mandatory = $true)]
-        [string]$DestinationProjectRootPath
+        [TimeSpan]$Timeout
     )
 
-    if ([string]::IsNullOrWhiteSpace($SourceProjectRootPath)) {
-        throw "Source project root path must be provided."
-    } elseif ([string]::IsNullOrWhiteSpace($DestinationProjectRootPath)) {
-        throw "Destination project root path must be provided."
+    $RemainingTimeout = $Timeout - $Stopwatch.Elapsed
+    if ($RemainingTimeout -lt [TimeSpan]::Zero) {
+        return [TimeSpan]::Zero
     }
-
-    if (-not (Test-Path -LiteralPath $SourceProjectRootPath -PathType Container)) {
-        throw "Source project root directory was not found at '$SourceProjectRootPath'."
-    }
-    if (Test-Path -LiteralPath $DestinationProjectRootPath) {
-        throw "Destination project workspace already exists at '$DestinationProjectRootPath'."
-    }
-
-    $ExcludedDirectoryPaths = @(
-        (Join-Path $SourceProjectRootPath ".git"),
-        (Join-Path $SourceProjectRootPath ".vs"),
-        (Join-Path $SourceProjectRootPath ".worktrees"),
-        (Join-Path $SourceProjectRootPath "_codex_backups"),
-        (Join-Path $SourceProjectRootPath "cache"),
-        (Join-Path $SourceProjectRootPath "output"),
-        (Join-Path $SourceProjectRootPath "builds"),
-        (Join-Path $SourceProjectRootPath "build-logs"),
-        (Join-Path $SourceProjectRootPath "tmp"),
-        (Join-Path $SourceProjectRootPath "user_settings\generated_code")
-    )
-    $ArtifactDirectoryPatterns = @(
-        "3ds-build*",
-        "ps2-build*",
-        "switch-build*",
-        "vita-build*",
-        "wiiu-build*"
-    )
-    $ArtifactDirectoryPaths = @()
-    foreach ($ArtifactDirectoryPattern in $ArtifactDirectoryPatterns) {
-        $ArtifactDirectoryPaths += Get-ChildItem -LiteralPath $SourceProjectRootPath -Directory -Filter $ArtifactDirectoryPattern |
-            Select-Object -ExpandProperty FullName
-    }
-    $RobocopyArguments = @(
-        $SourceProjectRootPath,
-        $DestinationProjectRootPath,
-        "/E",
-        "/COPY:DAT",
-        "/DCOPY:DAT",
-        "/R:1",
-        "/W:1",
-        "/NFL",
-        "/NDL",
-        "/NJH",
-        "/NJS",
-        "/NP",
-        "/XD"
-    ) + $ExcludedDirectoryPaths + $ArtifactDirectoryPaths + @(
-        "/XF",
-        "*.iso",
-        "*.gcm",
-        "*.vpk"
-    )
-
-    & robocopy @RobocopyArguments
-    $RobocopyExitCode = $LASTEXITCODE
-    if ($RobocopyExitCode -gt 7) {
-        throw "Project workspace copy failed with robocopy exit code $RobocopyExitCode."
-    }
+    return $RemainingTimeout
 }
 
 function Get-EditorArtifactsOutputPath {
@@ -211,89 +202,27 @@ function Sync-EditorProjectReferenceOutputs {
     return $EditorOutputPath
 }
 
-function ConvertTo-NativeProcessArgument {
-    param(
-        [Parameter(Mandatory = $true)]
-        [AllowEmptyString()]
-        [string]$Value
-    )
-
-    if ($Value.Length -eq 0) {
-        return '""'
-    }
-
-    if ($Value -notmatch '[\s"]') {
-        return $Value
-    }
-
-    $EscapedValue = $Value -replace '(\\*)"', '$1$1\"'
-    $EscapedValue = $EscapedValue -replace '(\\+)$', '$1$1'
-    return '"' + $EscapedValue + '"'
-}
-
-function Invoke-StreamingNativeProcess {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$FilePath,
-
-        [Parameter(Mandatory = $true)]
-        [string[]]$ArgumentList
-    )
-
-    if ([string]::IsNullOrWhiteSpace($FilePath)) {
-        throw "Native process path must be provided."
-    }
-
-    $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $StartInfo.FileName = $FilePath
-    $StartInfo.Arguments = (($ArgumentList | ForEach-Object { ConvertTo-NativeProcessArgument -Value $_ }) -join " ")
-    $StartInfo.UseShellExecute = $false
-    $StartInfo.CreateNoWindow = $true
-    $StartInfo.RedirectStandardOutput = $true
-    $StartInfo.RedirectStandardError = $true
-
-    $Process = New-Object System.Diagnostics.Process
-    $Process.StartInfo = $StartInfo
-    $OutputSubscription = $null
-    $ErrorSubscription = $null
-    try {
-        $OutputSubscription = Register-ObjectEvent -InputObject $Process -EventName OutputDataReceived -Action {
-            if ($null -ne $EventArgs.Data) {
-                [Console]::Out.WriteLine($EventArgs.Data)
-                [Console]::Out.Flush()
-            }
-        }
-        $ErrorSubscription = Register-ObjectEvent -InputObject $Process -EventName ErrorDataReceived -Action {
-            if ($null -ne $EventArgs.Data) {
-                [Console]::Error.WriteLine($EventArgs.Data)
-                [Console]::Error.Flush()
-            }
-        }
-
-        if (-not $Process.Start()) {
-            throw "Native process '$FilePath' failed to start."
-        }
-
-        $Process.BeginOutputReadLine()
-        $Process.BeginErrorReadLine()
-        $Process.WaitForExit()
-        $Process.WaitForExit()
-        return $Process.ExitCode
-    } finally {
-        if ($null -ne $OutputSubscription) {
-            Unregister-Event -SubscriptionId $OutputSubscription.Id -ErrorAction SilentlyContinue
-        }
-        if ($null -ne $ErrorSubscription) {
-            Unregister-Event -SubscriptionId $ErrorSubscription.Id -ErrorAction SilentlyContinue
-        }
-        $Process.Dispose()
-    }
-}
-
 if ([string]::IsNullOrWhiteSpace($Project)) { [Console]::Error.WriteLine("Project is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Platform)) { [Console]::Error.WriteLine("Platform is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Output)) { [Console]::Error.WriteLine("Output is required."); exit 2 }
 if ([string]::IsNullOrWhiteSpace($Configuration)) { [Console]::Error.WriteLine("Configuration is required."); exit 2 }
+if ($PruneCacheOlderThanDays -lt 0) { [Console]::Error.WriteLine("PruneCacheOlderThanDays must be zero or positive."); exit 2 }
+
+if (-not [string]::IsNullOrWhiteSpace($CacheRoot) -and
+    -not [string]::IsNullOrWhiteSpace($WorkspaceRoot) -and
+    (Get-CanonicalDirectoryPath -Path $CacheRoot) -ine (Get-CanonicalDirectoryPath -Path $WorkspaceRoot)) {
+    [Console]::Error.WriteLine("CacheRoot and deprecated WorkspaceRoot must resolve to the same path when both are supplied.")
+    exit 2
+}
+
+$SelectedCacheRoot = if (-not [string]::IsNullOrWhiteSpace($CacheRoot)) {
+    $CacheRoot
+} elseif (-not [string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
+    Write-Warning "WorkspaceRoot is deprecated; use CacheRoot."
+    $WorkspaceRoot
+} else {
+    "C:\dev\helworks\builds\helengine\cache"
+}
 
 if (-not [string]::IsNullOrWhiteSpace($BuildProfile)) {
     $ResolvedBuildProfile = $BuildProfile
@@ -308,6 +237,29 @@ $DotNetExecutablePath = $env:HELENGINE_DOTNET_EXECUTABLE_PATH
 if ([string]::IsNullOrWhiteSpace($DotNetExecutablePath)) {
     $DotNetExecutablePath = "dotnet"
 }
+
+$InvocationBuildIdWasSupplied = Test-Path -LiteralPath "Env:HELENGINE_BUILD_INVOCATION_ID"
+if (-not $InvocationBuildIdWasSupplied) {
+    $InvocationBuildId = [Guid]::NewGuid().ToString("D")
+} else {
+    $InvocationBuildId = $env:HELENGINE_BUILD_INVOCATION_ID
+}
+
+$OriginalBuildPlatformEnvironmentState = Save-BuildPlatformEnvironmentState
+$ProjectMutex = $null
+$OutputMutex = $null
+$ProjectLock = $null
+$BuildStateStarted = $false
+$BuildId = $null
+$BuildStartedUtc = $null
+$BuildTerminalStatus = "failed"
+$BuildTerminalExitCode = 10
+$StateFilePath = $null
+$TerminalProofPath = $null
+$Handshake = $null
+$Layout = $null
+$CacheMetadataStarted = $false
+$TerminalExitOverrideRequired = $false
 
 try {
     if ([string]::IsNullOrWhiteSpace($EditorProject)) {
@@ -332,34 +284,120 @@ try {
     }
 
     $ResolvedProjectRootPath = Split-Path -Parent $ResolvedProjectPath
-    $ProjectIsolationHash = Get-ProjectIsolationHash -ProjectRootPath $ResolvedProjectRootPath
-    $PlatformIsolationSegment = Get-SafePathSegment -Value $Platform
     $ResolvedHelEngineRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-    if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
-        $ResolvedWorkspaceRootPath = Join-Path (Split-Path -Parent $ResolvedHelEngineRootPath) "b"
+    $ResolvedOutputPath = Get-CanonicalDirectoryPath -Path $Output
+    $MaintenanceProtectedPaths = @($ResolvedProjectRootPath, $ResolvedOutputPath)
+
+    $Layout = Resolve-BuildPlatformCacheLayout `
+        -CacheRootPath $SelectedCacheRoot `
+        -ProjectRootPath $ResolvedProjectRootPath `
+        -EditorProjectPath $ResolvedEditorProject `
+        -Platform $Platform `
+        -Configuration $Configuration `
+        -BuildProfile $ResolvedBuildProfile
+
+    if (Test-BuildPlatformPathOverlap -FirstPath $ResolvedOutputPath -SecondPath $Layout.ProjectCacheRootPath) {
+        [Console]::Error.WriteLine(
+            "Output path '$ResolvedOutputPath' must not overlap project cache '$($Layout.ProjectCacheRootPath)'."
+        )
+        exit 2
+    }
+    try {
+        Assert-BuildPlatformAdditionalArguments -Arguments $AdditionalArgs
+    } catch {
+        [Console]::Error.WriteLine($_.Exception.Message)
+        exit 2
+    }
+    $WaiterProtocolValue = if (Test-Path -LiteralPath 'Env:HELENGINE_BUILD_WAITER_PROTOCOL') {
+        $env:HELENGINE_BUILD_WAITER_PROTOCOL
     } else {
-        $ResolvedWorkspaceRootPath = [System.IO.Path]::GetFullPath($WorkspaceRoot)
+        $null
     }
-
-    $env:HELENGINE_BUILD_WORKSPACE_ROOT = $ResolvedWorkspaceRootPath
-
-    $BuildExecutionId = [Guid]::NewGuid().ToString("N")
-    $BuildInvocationRootPath = Join-Path $ResolvedWorkspaceRootPath ($ProjectIsolationHash + "\" + $PlatformIsolationSegment + "\" + $BuildExecutionId)
-    $IsolatedProjectRootPath = Join-Path $BuildInvocationRootPath "project"
-    $IsolatedProjectPath = Join-Path $IsolatedProjectRootPath (Split-Path -Leaf $ResolvedProjectPath)
-    Copy-ProjectIntoIsolatedWorkspace -SourceProjectRootPath $ResolvedProjectRootPath -DestinationProjectRootPath $IsolatedProjectRootPath
-    if (-not (Test-Path -LiteralPath $IsolatedProjectPath -PathType Leaf)) {
-        throw "Isolated project file was not copied to '$IsolatedProjectPath'."
+    try {
+        $Handshake = Resolve-BuildPlatformWaiterHandshake `
+            -ProtocolValue $WaiterProtocolValue `
+            -InvocationIdWasSupplied $InvocationBuildIdWasSupplied `
+            -InvocationId $InvocationBuildId `
+            -OutputRootPath $ResolvedOutputPath
+    } catch {
+        [Console]::Error.WriteLine($_.Exception.Message)
+        exit 2
     }
+    $BuildId = $Handshake.InvocationId
+    $StateFilePath = Join-Path $ResolvedOutputPath ".helengine-build-state.json"
+    $TerminalProofPath = $Handshake.ProofPath
 
-    $EditorIsolationRootPath = Join-Path $BuildInvocationRootPath "editor-app"
-    $EditorArtifactsPath = Join-Path $EditorIsolationRootPath "artifacts"
-    $EditorPublishPath = Join-Path $EditorIsolationRootPath "publish"
+    $LockMetadata = [ordered]@{
+        processId = $PID
+        projectPath = $ResolvedProjectPath
+        platform = $Platform
+        profile = $ResolvedBuildProfile
+        output = $ResolvedOutputPath
+        startedUtc = [DateTime]::UtcNow.ToString("o")
+    }
+    $LockWaitStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $ProjectMutex = Enter-BuildPlatformProjectMutex `
+        -ProjectHash $Layout.ProjectHash `
+        -ProjectPath $ResolvedProjectPath `
+        -Timeout $LockTimeout
+    $OutputHash = Get-BuildPlatformPathHash -Path $ResolvedOutputPath
+    $OutputMutex = Enter-BuildPlatformOutputMutex `
+        -OutputHash $OutputHash `
+        -OutputPath $ResolvedOutputPath `
+        -Timeout (Get-RemainingBuildPlatformLockTimeout `
+            -Stopwatch $LockWaitStopwatch `
+            -Timeout $LockTimeout)
+    $ProjectLock = Enter-BuildPlatformProjectLock `
+        -LockPath $Layout.LockPath `
+        -Metadata $LockMetadata `
+        -Timeout (Get-RemainingBuildPlatformLockTimeout `
+            -Stopwatch $LockWaitStopwatch `
+            -Timeout $LockTimeout)
 
-    $ResolvedOutputPath = [System.IO.Path]::GetFullPath($Output)
+    if ($Clean) {
+        Remove-BuildPlatformSelectedCache `
+            -Layout $Layout `
+            -ProtectedPath $MaintenanceProtectedPaths
+    }
+    if ($PruneCacheOlderThanDays -gt 0) {
+        Remove-BuildPlatformExpiredProjectCaches `
+            -CacheRootPath $Layout.CacheRootPath `
+            -OlderThanDays $PruneCacheOlderThanDays `
+            -ProtectedPath $MaintenanceProtectedPaths
+    }
+    Write-BuildPlatformCacheMetadata -Layout $Layout -ProjectRootPath $ResolvedProjectRootPath
+    $CacheMetadataStarted = $true
+
     if (-not (Test-Path -LiteralPath $ResolvedOutputPath -PathType Container)) {
         $null = New-Item -ItemType Directory -Path $ResolvedOutputPath -Force
     }
+    $BuildStartedUtc = [DateTime]::UtcNow.ToString("o")
+    Write-BuildPlatformState `
+        -StatePath $StateFilePath `
+        -BuildId $BuildId `
+        -ProjectPath $ResolvedProjectPath `
+        -Platform $Platform `
+        -BuildProfile $ResolvedBuildProfile `
+        -Configuration $Configuration `
+        -StartedUtc $BuildStartedUtc `
+        -CompletedUtc $null `
+        -Status "running" `
+        -ExitCode $null
+    $BuildStateStarted = $true
+
+    $EditorArtifactsPath = $Layout.EditorArtifactsPath
+    $EditorPublishPath = $Layout.EditorPublishPath
+    $EditorCachePath = Split-Path -Parent $EditorArtifactsPath
+    Write-Host "Authored project: $ResolvedProjectPath"
+    Write-Host "Lock: $($Layout.LockPath)"
+    Write-Host "Editor cache: $EditorCachePath"
+    Write-Host "Platform cache: $($Layout.PlatformCacheRootPath)"
+    Write-Host "Output: $ResolvedOutputPath"
+    Write-Host "State file: $StateFilePath"
+
+    [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", $Layout.CacheRootPath, [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", $Configuration.ToLowerInvariant(), [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", $ResolvedBuildProfile, [EnvironmentVariableTarget]::Process)
 
     $DotNetSharedPropertyArguments = @(
         "--artifacts-path",
@@ -383,7 +421,7 @@ try {
 
     $EditorRunArguments = @(
         "--project",
-        $IsolatedProjectPath,
+        $ResolvedProjectPath,
         "--build",
         $Platform
     )
@@ -416,6 +454,7 @@ try {
     $DotNetRestoreExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList $DotNetRestoreArguments
     if ($DotNetRestoreExitCode -ne 0) {
         [Console]::Error.WriteLine("Editor project restore failed with exit code $DotNetRestoreExitCode.")
+        $BuildTerminalExitCode = $DotNetRestoreExitCode
         exit $DotNetRestoreExitCode
     }
 
@@ -433,12 +472,14 @@ try {
     $DotNetBuildExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList $DotNetPublishArguments
     if ($DotNetBuildExitCode -ne 0) {
         [Console]::Error.WriteLine("Editor project publish failed with exit code $DotNetBuildExitCode.")
+        $BuildTerminalExitCode = $DotNetBuildExitCode
         exit $DotNetBuildExitCode
     }
 
     $EditorAssemblyPath = Join-Path $EditorPublishPath "helengine.editor.app.dll"
     if (-not (Test-Path -LiteralPath $EditorAssemblyPath -PathType Leaf)) {
         [Console]::Error.WriteLine("Editor app assembly was not found at '$EditorAssemblyPath'.")
+        $BuildTerminalExitCode = 5
         exit 5
     }
 
@@ -453,21 +494,172 @@ try {
 
     Write-Host ("Executing: " + ($DisplayArguments -join " "))
 
-    $OriginalHelEngineSourceRootPath = $env:HELENGINE_SOURCE_ROOT
-    try {
-        $env:HELENGINE_SOURCE_ROOT = $ResolvedHelEngineRootPath
+    [Environment]::SetEnvironmentVariable("HELENGINE_SOURCE_ROOT", $ResolvedHelEngineRootPath, [EnvironmentVariableTarget]::Process)
 
-        $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
-        if ($DotNetExitCode -ne 0) {
-            [Console]::Error.WriteLine("Editor platform build failed with exit code $DotNetExitCode.")
-            exit $DotNetExitCode
-        }
-    } finally {
-        $env:HELENGINE_SOURCE_ROOT = $OriginalHelEngineSourceRootPath
+    $DotNetExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList (@($EditorAssemblyPath) + $EditorRunArguments)
+    if ($DotNetExitCode -ne 0) {
+        [Console]::Error.WriteLine("Editor platform build failed with exit code $DotNetExitCode.")
+        $BuildTerminalExitCode = $DotNetExitCode
+        exit $DotNetExitCode
     }
 
+    $BuildTerminalStatus = "succeeded"
+    $BuildTerminalExitCode = 0
     exit 0
 } catch {
     [Console]::Error.WriteLine($_.Exception.Message)
+    $BuildTerminalStatus = "failed"
+    $BuildTerminalExitCode = 10
     exit 10
+} finally {
+    $TerminalStateWriteFailed = $false
+    try {
+        try {
+            if ($BuildStateStarted) {
+                $BuildCompletedUtc = [DateTime]::UtcNow.ToString("o")
+                try {
+                    Write-BuildPlatformState `
+                        -StatePath $StateFilePath `
+                        -BuildId $BuildId `
+                        -ProjectPath $ResolvedProjectPath `
+                        -Platform $Platform `
+                        -BuildProfile $ResolvedBuildProfile `
+                        -Configuration $Configuration `
+                        -StartedUtc $BuildStartedUtc `
+                        -CompletedUtc $BuildCompletedUtc `
+                        -Status $BuildTerminalStatus `
+                        -ExitCode $BuildTerminalExitCode
+                } catch {
+                    $TerminalStateWriteFailed = $true
+                    [Console]::Error.WriteLine(
+                        "Failed to write terminal build state '$StateFilePath': $($_.Exception.Message)"
+                    )
+                    if ($BuildTerminalExitCode -eq 0) {
+                        $BuildTerminalExitCode = 10
+                    }
+                }
+                try {
+                    Write-BuildPlatformState `
+                        -StatePath $TerminalProofPath `
+                        -BuildId $BuildId `
+                        -ProjectPath $ResolvedProjectPath `
+                        -Platform $Platform `
+                        -BuildProfile $ResolvedBuildProfile `
+                        -Configuration $Configuration `
+                        -StartedUtc $BuildStartedUtc `
+                        -CompletedUtc $BuildCompletedUtc `
+                        -Status $BuildTerminalStatus `
+                        -ExitCode $BuildTerminalExitCode
+                } catch {
+                    $TerminalStateWriteFailed = $true
+                    [Console]::Error.WriteLine(
+                        "Failed to write invocation-specific terminal build proof '$TerminalProofPath': $($_.Exception.Message)"
+                    )
+                    if ($BuildTerminalExitCode -eq 0) {
+                        $BuildTerminalExitCode = 10
+                    }
+                }
+                if (-not $TerminalStateWriteFailed -and
+                    $BuildTerminalStatus -ceq "succeeded" -and
+                    $BuildTerminalExitCode -eq 0 -and
+                    $Handshake.Enabled) {
+                    $AcknowledgementAccepted = $false
+                    try {
+                        $AcknowledgementAccepted = Wait-BuildPlatformWaiterAcknowledgement `
+                            -Handshake $Handshake `
+                            -Timeout ([TimeSpan]::FromSeconds(30))
+                        if ($AcknowledgementAccepted) {
+                            Remove-BuildPlatformWaiterAcknowledgement -Handshake $Handshake
+                        } else {
+                            [Console]::Error.WriteLine(
+                                "Timed out waiting for waiter acknowledgment '$($Handshake.AcknowledgementPath)'."
+                            )
+                        }
+                    } catch {
+                        [Console]::Error.WriteLine(
+                            "Failed to consume waiter acknowledgment '$($Handshake.AcknowledgementPath)': $($_.Exception.Message)"
+                        )
+                        $AcknowledgementAccepted = $false
+                    }
+                    if (-not $AcknowledgementAccepted) {
+                        $BuildTerminalStatus = "failed"
+                        $BuildTerminalExitCode = 10
+                        $BuildCompletedUtc = [DateTime]::UtcNow.ToString("o")
+                        $TerminalExitOverrideRequired = $true
+                        try {
+                            Write-BuildPlatformState `
+                                -StatePath $StateFilePath `
+                                -BuildId $BuildId `
+                                -ProjectPath $ResolvedProjectPath `
+                                -Platform $Platform `
+                                -BuildProfile $ResolvedBuildProfile `
+                                -Configuration $Configuration `
+                                -StartedUtc $BuildStartedUtc `
+                                -CompletedUtc $BuildCompletedUtc `
+                                -Status $BuildTerminalStatus `
+                                -ExitCode $BuildTerminalExitCode
+                        } catch {
+                            $TerminalStateWriteFailed = $true
+                            [Console]::Error.WriteLine(
+                                "Failed to rewrite timed-out terminal build state '$StateFilePath': $($_.Exception.Message)"
+                            )
+                        }
+                        try {
+                            Write-BuildPlatformState `
+                                -StatePath $TerminalProofPath `
+                                -BuildId $BuildId `
+                                -ProjectPath $ResolvedProjectPath `
+                                -Platform $Platform `
+                                -BuildProfile $ResolvedBuildProfile `
+                                -Configuration $Configuration `
+                                -StartedUtc $BuildStartedUtc `
+                                -CompletedUtc $BuildCompletedUtc `
+                                -Status $BuildTerminalStatus `
+                                -ExitCode $BuildTerminalExitCode
+                        } catch {
+                            $TerminalStateWriteFailed = $true
+                            [Console]::Error.WriteLine(
+                                "Failed to rewrite timed-out invocation proof '$TerminalProofPath': $($_.Exception.Message)"
+                            )
+                        }
+                    }
+                }
+            }
+        } finally {
+            try {
+                if ($CacheMetadataStarted) {
+                    try {
+                        Write-BuildPlatformCacheMetadata `
+                            -Layout $Layout `
+                            -ProjectRootPath $ResolvedProjectRootPath
+                    } catch {
+                        [Console]::Error.WriteLine(
+                            "Failed to write terminal cache metadata '$($Layout.MetadataPath)': $($_.Exception.Message)"
+                        )
+                    }
+                }
+            } finally {
+                try {
+                    if ($null -ne $ProjectLock) {
+                        Exit-BuildPlatformProjectLock -LockHandle $ProjectLock
+                    }
+                } finally {
+                    if ($null -ne $OutputMutex) {
+                        Exit-BuildPlatformOutputMutex -MutexHandle $OutputMutex
+                    }
+                }
+            }
+        }
+    } finally {
+        try {
+            if ($null -ne $ProjectMutex) {
+                Exit-BuildPlatformProjectMutex -MutexHandle $ProjectMutex
+            }
+        } finally {
+            Restore-BuildPlatformEnvironmentState -State $OriginalBuildPlatformEnvironmentState
+        }
+    }
+    if ($TerminalStateWriteFailed -or $TerminalExitOverrideRequired) {
+        exit $BuildTerminalExitCode
+    }
 }

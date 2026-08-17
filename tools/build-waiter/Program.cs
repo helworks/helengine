@@ -20,7 +20,11 @@ namespace helengine.tools.buildwaiter {
         public static async Task<int> RunAsync(string[] args) {
             try {
                 BuildWaiterOptions options = BuildWaiterOptionsParser.Parse(args);
-                BuildWaiterResult result = await new BuildWaiter(new BuildArtifactVerifier()).WaitAsync(options, CancellationToken.None);
+                BuildWaiterResult result = await new BuildWaiter(
+                    new BuildVerificationHandshake(
+                        new BuildStateVerifier(),
+                        new BuildArtifactVerifier(),
+                        TimeSpan.FromMilliseconds(25))).WaitAsync(options, CancellationToken.None);
                 if (!result.Succeeded) {
                     Console.Error.WriteLine("[build-waiter] " + result.Message);
                     return result.ExitCode == 0 ? 1 : result.ExitCode;
