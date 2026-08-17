@@ -252,6 +252,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity keyboardFocusEntity;
         /// <summary>
+        /// Internal entity hosting the sync that suppresses scene entities excluded from the active platform.
+        /// </summary>
+        readonly EditorEntity platformExistenceSyncEntity;
+        /// <summary>
         /// Hidden editor camera entity used for offscreen rendering.
         /// </summary>
         readonly EditorEntity hiddenCameraEntity;
@@ -632,6 +636,14 @@ namespace helengine.editor {
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
             keyboardFocusEntity.InitializeHierarchy();
+
+            platformExistenceSyncEntity = new EditorEntity {
+                InternalEntity = true,
+                Enabled = true,
+                LayerMask = EditorLayerMasks.EditorUi
+            };
+            platformExistenceSyncEntity.AddComponent(new EditorPlatformExistenceViewportSyncComponent(() => ActiveProjectPlatform));
+            platformExistenceSyncEntity.InitializeHierarchy();
 
             titleBar = new EditorTitleBar(uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
             PanelRegistry = new EditorWorkspacePanelRegistry();

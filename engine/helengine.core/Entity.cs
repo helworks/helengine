@@ -4,6 +4,10 @@ namespace helengine {
     /// </summary>
     public class Entity : IDisposable {
         bool isEnabled;
+        /// <summary>
+        /// Runtime-only suppression state that is never serialized with the entity.
+        /// </summary>
+        bool isRuntimeSuppressed;
         bool isStatic;
         bool isInitialized;
         bool isDisposing;
@@ -236,12 +240,35 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets a value indicating whether this entity is effectively enabled after combining its local state with all parents.
+        /// Gets or sets a runtime-only suppression that behaves like disabling the entity without touching the authored
+        /// enabled state; it is never serialized, so host tooling such as the editor can hide platform-excluded content.
+        /// </summary>
+        public bool RuntimeSuppressed {
+            get {
+                ThrowIfDisposed();
+                return isRuntimeSuppressed;
+            }
+            set {
+                ThrowIfDisposed();
+                bool wasHierarchyEnabled = IsHierarchyEnabled;
+                if (isRuntimeSuppressed != value) {
+                    isRuntimeSuppressed = value;
+                    bool isHierarchyEnabled = IsHierarchyEnabled;
+                    if (wasHierarchyEnabled != isHierarchyEnabled) {
+                        ParentEnabledChange(isHierarchyEnabled);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether this entity is effectively enabled after combining its local state, runtime
+        /// suppression, and all parents.
         /// </summary>
         public bool IsHierarchyEnabled {
             get {
                 ThrowIfDisposed();
-                if (!isEnabled) {
+                if (!isEnabled || isRuntimeSuppressed) {
                     return false;
                 }
 
