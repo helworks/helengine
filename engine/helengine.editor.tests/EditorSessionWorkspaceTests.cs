@@ -705,6 +705,9 @@ namespace helengine.editor.tests {
                     new CoreInitializationOptions {
                         ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
                     });
+                ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+                shaderBackendRegistry.Register(new helengine.directx11.DirectX11ShaderBackend());
+                EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
                 EditorKeyboardFocusService.Reset();
                 GeneratedAssetProviderRegistry.ResetForTests();
                 GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
