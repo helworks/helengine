@@ -95,9 +95,19 @@ namespace helengine.tools.buildwaiter {
 
             await processExitTask;
             await Task.WhenAll(standardOutputCompleted.Task, standardErrorCompleted.Task);
-            BuildVerificationHandshakeResult handshake = await handshakeTask;
             if (process.ExitCode != 0) {
+                try {
+                    await handshakeTask;
+                } catch (Exception) {
+                }
                 return new BuildWaiterResult(false, process.ExitCode, $"Build command exited with code {process.ExitCode}.");
+            }
+
+            BuildVerificationHandshakeResult handshake;
+            try {
+                handshake = await handshakeTask;
+            } catch (Exception exception) {
+                return new BuildWaiterResult(false, 1, $"Build verification handshake failed: {exception.Message}");
             }
             cancellationToken.ThrowIfCancellationRequested();
             if (!string.IsNullOrWhiteSpace(handshake.AcknowledgementFailureMessage)) {

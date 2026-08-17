@@ -138,6 +138,29 @@ try {
         throw "Acknowledgment removal deleted a proof or sibling sentinel."
     }
 
+    $LockedAcknowledgementWriter = [IO.FileStream]::new(
+        $Handshake.AcknowledgementPath,
+        [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write,
+        [IO.FileShare]::None)
+    try {
+        $AcknowledgementBytes = [Text.Encoding]::ASCII.GetBytes($InvocationId)
+        $LockedAcknowledgementWriter.Write($AcknowledgementBytes, 0, $AcknowledgementBytes.Length)
+        $LockedAcknowledgementWriter.Flush($true)
+        if (Wait-BuildPlatformWaiterAcknowledgement -Handshake $Handshake -Timeout ([TimeSpan]::FromMilliseconds(100))) {
+            throw "An acknowledgment was accepted while its writer still held an exclusive handle."
+        }
+    } finally {
+        $LockedAcknowledgementWriter.Dispose()
+    }
+    if (-not (Wait-BuildPlatformWaiterAcknowledgement -Handshake $Handshake -Timeout ([TimeSpan]::FromMilliseconds(100)))) {
+        throw "The acknowledgment was not accepted after its exclusive writer closed."
+    }
+    Remove-BuildPlatformWaiterAcknowledgement -Handshake $Handshake
+    if (Test-Path -LiteralPath $Handshake.AcknowledgementPath) {
+        throw "The acknowledgment was not removed after its exclusive writer closed."
+    }
+
     Write-Output "WAITER_HANDSHAKE_TEST_PASS"
 } finally {
     Remove-Module BuildPlatformWaiterHandshake -Force -ErrorAction SilentlyContinue

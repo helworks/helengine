@@ -137,6 +137,31 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         [Fact]
+        public async Task VerifyAndAcknowledgeAsync_WhenArtifactVerificationThrowsFilesystemException_AcknowledgesAndReturnsArtifactFailure() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-1);
+                WriteState(outputRootPath, InvocationId, waiterStartedUtc);
+                TaskCompletionSource childExit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                BuildVerificationHandshakeResult result = await CreateHandshake().VerifyAndAcknowledgeAsync(
+                    outputRootPath,
+                    [new string('a', 33_000)],
+                    waiterStartedUtc,
+                    InvocationId,
+                    childExit.Task);
+
+                Assert.True(File.Exists(BuildInvocationProofPaths.GetAcknowledgementPath(outputRootPath, InvocationId)));
+                Assert.True(result.StateVerificationResult.Succeeded);
+                Assert.False(result.ArtifactVerificationResult.Succeeded);
+                Assert.Contains("artifact verification failed", result.ArtifactVerificationResult.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Null(result.AcknowledgementFailureMessage);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        [Fact]
         public async Task VerifyAndAcknowledgeAsync_WhenAcknowledgementCannotBeCreated_PreservesVerificationResults() {
             string outputRootPath = CreateOutputRoot();
             try {

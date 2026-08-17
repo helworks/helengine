@@ -4,7 +4,7 @@ namespace helengine.tools.buildwaiter {
     /// <summary>
     /// Verifies a published build result and releases an active wrapper only after verification completes.
     /// </summary>
-    public sealed class BuildVerificationHandshake {
+    public class BuildVerificationHandshake {
         readonly BuildArtifactVerifier ArtifactVerifier;
         readonly TimeSpan ProofPollInterval;
         readonly BuildStateVerifier StateVerifier;
@@ -27,7 +27,7 @@ namespace helengine.tools.buildwaiter {
         /// <summary>
         /// Waits for a valid proof while the child remains active, then verifies artifacts and creates its exact acknowledgment.
         /// </summary>
-        public async Task<BuildVerificationHandshakeResult> VerifyAndAcknowledgeAsync(
+        public virtual async Task<BuildVerificationHandshakeResult> VerifyAndAcknowledgeAsync(
             string outputRootPath,
             string[] requiredArtifactRelativePaths,
             DateTime waiterStartedUtc,
@@ -41,8 +41,19 @@ namespace helengine.tools.buildwaiter {
                 BuildStateVerificationResult state = StateVerifier.Verify(
                     outputRootPath, waiterStartedUtc, expectedBuildId);
                 if (state.Succeeded) {
-                    BuildArtifactVerificationResult artifacts = ArtifactVerifier.Verify(
-                        outputRootPath, requiredArtifactRelativePaths, waiterStartedUtc);
+                    BuildArtifactVerificationResult artifacts;
+                    try {
+                        artifacts = ArtifactVerifier.Verify(
+                            outputRootPath, requiredArtifactRelativePaths, waiterStartedUtc);
+                    } catch (UnauthorizedAccessException exception) {
+                        artifacts = new BuildArtifactVerificationResult(
+                            false,
+                            $"Build artifact verification failed: {exception.Message}");
+                    } catch (IOException exception) {
+                        artifacts = new BuildArtifactVerificationResult(
+                            false,
+                            $"Build artifact verification failed: {exception.Message}");
+                    }
                     string acknowledgementFailure = WriteAcknowledgement(outputRootPath, expectedBuildId);
                     return new BuildVerificationHandshakeResult(state, artifacts, acknowledgementFailure);
                 }
@@ -66,7 +77,7 @@ namespace helengine.tools.buildwaiter {
                     acknowledgementPath,
                     FileMode.CreateNew,
                     FileAccess.Write,
-                    FileShare.Read);
+                    FileShare.None);
                 acknowledgementStream.Write(acknowledgementBytes, 0, acknowledgementBytes.Length);
                 acknowledgementStream.Flush(true);
                 return null;

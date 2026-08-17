@@ -116,6 +116,49 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         [Fact]
+        public async Task WaitAsync_WhenChildFailsAndArtifactVerificationFaults_PreservesChildExitCode() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                BuildWaiterOptions options = CreatePowerShellOptions(
+                    outputRootPath,
+                    writeArtifact: true,
+                    stateStatus: "succeeded",
+                    stateExitCode: 0,
+                    writeStaleState: false,
+                    writeMalformedState: false,
+                    childExitCode: 9,
+                    requiredArtifactRelativePaths: [new string('a', 33_000)],
+                    waitForAcknowledgement: false,
+                    delayAfterStatePublicationMilliseconds: 300);
+
+                BuildWaiterResult result = await CreateWaiter().WaitAsync(options, CancellationToken.None);
+
+                Assert.False(result.Succeeded);
+                Assert.Equal(9, result.ExitCode);
+                Assert.Contains("code 9", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        [Fact]
+        public async Task WaitAsync_WhenChildFailsAndHandshakeFaults_PreservesChildExitCode() {
+            string outputRootPath = CreateOutputRoot();
+            try {
+                BuildWaiterOptions options = new(outputRootPath, ["game.iso"], "cmd.exe", ["/c", "exit 9"]);
+
+                BuildWaiterResult result = await new BuildWaiter(new FaultingBuildVerificationHandshake())
+                    .WaitAsync(options, CancellationToken.None);
+
+                Assert.False(result.Succeeded);
+                Assert.Equal(9, result.ExitCode);
+                Assert.Contains("code 9", result.Message, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                Directory.Delete(outputRootPath, true);
+            }
+        }
+
+        [Fact]
         public async Task WaitAsync_WhenCancellationIsRequestedAfterProofPublication_AcknowledgesAndDrainsBeforeThrowing() {
             string outputRootPath = CreateOutputRoot();
             string completionMarkerPath = Path.Combine(outputRootPath, "child-completed.txt");
@@ -331,6 +374,21 @@ namespace helengine.tools.buildwaiter.tests {
                 new BuildStateVerifier(), new BuildArtifactVerifier(), TimeSpan.FromMilliseconds(10)));
         }
 
+        sealed class FaultingBuildVerificationHandshake : BuildVerificationHandshake {
+            public FaultingBuildVerificationHandshake()
+                : base(new BuildStateVerifier(), new BuildArtifactVerifier(), TimeSpan.FromMilliseconds(10)) {
+            }
+
+            public override Task<BuildVerificationHandshakeResult> VerifyAndAcknowledgeAsync(
+                string outputRootPath,
+                string[] requiredArtifactRelativePaths,
+                DateTime waiterStartedUtc,
+                string expectedBuildId,
+                Task childExitTask) {
+                return Task.FromException<BuildVerificationHandshakeResult>(new IOException("simulated handshake fault"));
+            }
+        }
+
         /// <summary>
         /// Creates one disposable output root for waiter integration testing.
         /// </summary>
@@ -368,7 +426,10 @@ namespace helengine.tools.buildwaiter.tests {
             bool forceAcknowledgementWriteFailure = false,
             string completionMarkerPath = null,
             bool emitDiagnosticsAfterAcknowledgement = false,
-            int delayAfterAcknowledgementMilliseconds = 0) {
+            int delayAfterAcknowledgementMilliseconds = 0,
+            string[] requiredArtifactRelativePaths = null,
+            bool waitForAcknowledgement = true,
+            int delayAfterStatePublicationMilliseconds = 0) {
             string outputRootLiteral = ConvertToPowerShellLiteral(outputRootPath);
             string sharedStatePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
             string artifactPath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, "game.iso"));
@@ -378,6 +439,9 @@ namespace helengine.tools.buildwaiter.tests {
                 $"$proofPath = Join-Path {outputRootLiteral} ('.helengine-build-state.' + $env:HELENGINE_BUILD_INVOCATION_ID + '.json')",
                 $"$ackPath = Join-Path {outputRootLiteral} ('.helengine-build-state.' + $env:HELENGINE_BUILD_INVOCATION_ID + '.ack')"
             ];
+            if (forceAcknowledgementWriteFailure) {
+                statements.Add("[IO.Directory]::CreateDirectory($ackPath) | Out-Null");
+            }
             statements.Add(writeStaleState
                 ? "$startedUtc = [DateTime]::UtcNow.AddMinutes(-5)"
                 : "$startedUtc = [DateTime]::UtcNow");
@@ -412,9 +476,12 @@ namespace helengine.tools.buildwaiter.tests {
                         + "completedUtc = [DateTime]::UtcNow.ToString('o'); status = 'succeeded'; exitCode = 0 }");
                     statements.Add($"$foreignState | ConvertTo-Json | Set-Content -LiteralPath {sharedStatePath} -Encoding UTF8");
                 }
-                if (forceAcknowledgementWriteFailure) {
-                    statements.Add("[IO.Directory]::CreateDirectory($ackPath) | Out-Null");
-                } else if (!writeForeignBuildId
+                if (delayAfterStatePublicationMilliseconds > 0) {
+                    statements.Add($"Start-Sleep -Milliseconds {delayAfterStatePublicationMilliseconds}");
+                }
+                if (!forceAcknowledgementWriteFailure
+                    && waitForAcknowledgement
+                    && !writeForeignBuildId
                     && !writeStaleState
                     && string.Equals(stateStatus, "succeeded", StringComparison.OrdinalIgnoreCase)) {
                     statements.Add("$ackStopwatch = [Diagnostics.Stopwatch]::StartNew()");
@@ -443,7 +510,7 @@ namespace helengine.tools.buildwaiter.tests {
             statements.Add($"exit {childExitCode}");
             return new BuildWaiterOptions(
                 outputRootPath,
-                ["game.iso"],
+                requiredArtifactRelativePaths ?? ["game.iso"],
                 "powershell.exe",
                 ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", string.Join("; ", statements)]);
         }
