@@ -40,7 +40,10 @@ namespace helengine.tools.buildwaiter.tests {
                     "$ackStopwatch = [Diagnostics.Stopwatch]::StartNew()",
                     "while (-not (Test-Path -LiteralPath $ackPath) -and $ackStopwatch.Elapsed -lt [TimeSpan]::FromSeconds(5)) { Start-Sleep -Milliseconds 10 }",
                     "if (-not (Test-Path -LiteralPath $ackPath)) { exit 92 }",
-                    "if ([IO.File]::ReadAllText($ackPath) -cne $env:HELENGINE_BUILD_INVOCATION_ID) { exit 91 }"
+                    "$acknowledgement = $null",
+                    "while ($null -eq $acknowledgement -and $ackStopwatch.Elapsed -lt [TimeSpan]::FromSeconds(5)) { try { $acknowledgement = [IO.File]::ReadAllText($ackPath) } catch [IO.IOException] { Start-Sleep -Milliseconds 10 } }",
+                    "if ($null -eq $acknowledgement) { exit 92 }",
+                    "if ($acknowledgement -cne $env:HELENGINE_BUILD_INVOCATION_ID) { exit 91 }"
                 ]);
 
                 int exitCode = await Program.RunAsync([

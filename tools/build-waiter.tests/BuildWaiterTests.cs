@@ -130,7 +130,8 @@ namespace helengine.tools.buildwaiter.tests {
                 BuildWaiterOptions options = CreatePowerShellOptions(
                     outputRootPath, true, "succeeded", 0, false, false, 0,
                     completionMarkerPath: completionMarkerPath,
-                    emitDiagnosticsAfterAcknowledgement: true);
+                    emitDiagnosticsAfterAcknowledgement: true,
+                    delayAfterAcknowledgementMilliseconds: 250);
                 using CancellationTokenSource cancellation = new();
                 Task<BuildWaiterResult> waiting = CreateWaiter().WaitAsync(options, cancellation.Token);
                 await WaitForProofAsync(outputRootPath);
@@ -366,7 +367,8 @@ namespace helengine.tools.buildwaiter.tests {
             bool replaceArtifactAfterAcknowledgement = false,
             bool forceAcknowledgementWriteFailure = false,
             string completionMarkerPath = null,
-            bool emitDiagnosticsAfterAcknowledgement = false) {
+            bool emitDiagnosticsAfterAcknowledgement = false,
+            int delayAfterAcknowledgementMilliseconds = 0) {
             string outputRootLiteral = ConvertToPowerShellLiteral(outputRootPath);
             string sharedStatePath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, ".helengine-build-state.json"));
             string artifactPath = ConvertToPowerShellLiteral(Path.Combine(outputRootPath, "game.iso"));
@@ -418,7 +420,10 @@ namespace helengine.tools.buildwaiter.tests {
                     statements.Add("$ackStopwatch = [Diagnostics.Stopwatch]::StartNew()");
                     statements.Add("while (-not (Test-Path -LiteralPath $ackPath) -and $ackStopwatch.Elapsed -lt [TimeSpan]::FromSeconds(5)) { Start-Sleep -Milliseconds 10 }");
                     statements.Add("if (-not (Test-Path -LiteralPath $ackPath)) { exit 92 }");
-                    statements.Add("if ([IO.File]::ReadAllText($ackPath) -cne $env:HELENGINE_BUILD_INVOCATION_ID) { exit 91 }");
+                    statements.Add("$acknowledgement = $null");
+                    statements.Add("while ($null -eq $acknowledgement -and $ackStopwatch.Elapsed -lt [TimeSpan]::FromSeconds(5)) { try { $acknowledgement = [IO.File]::ReadAllText($ackPath) } catch [IO.IOException] { Start-Sleep -Milliseconds 10 } }");
+                    statements.Add("if ($null -eq $acknowledgement) { exit 92 }");
+                    statements.Add("if ($acknowledgement -cne $env:HELENGINE_BUILD_INVOCATION_ID) { exit 91 }");
                     if (replaceArtifactAfterAcknowledgement) {
                         statements.Add($"[IO.File]::WriteAllText({artifactPath}, 'artifact-b-after-ack')");
                     }
@@ -428,6 +433,9 @@ namespace helengine.tools.buildwaiter.tests {
                     }
                     if (!string.IsNullOrWhiteSpace(completionMarkerPath)) {
                         statements.Add($"[IO.File]::WriteAllText({ConvertToPowerShellLiteral(completionMarkerPath)}, 'completed')");
+                    }
+                    if (delayAfterAcknowledgementMilliseconds > 0) {
+                        statements.Add($"Start-Sleep -Milliseconds {delayAfterAcknowledgementMilliseconds}");
                     }
                 }
             }

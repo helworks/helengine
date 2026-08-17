@@ -73,12 +73,20 @@ namespace helengine.tools.buildwaiter.tests {
                 Assert.False(result.StateVerificationResult.Succeeded);
                 Assert.Null(result.ArtifactVerificationResult);
                 Assert.Null(result.AcknowledgementFailureMessage);
-                if (proofKind == "missing") {
-                    Assert.Equal(
-                        $"Build state proof file '{BuildInvocationProofPaths.GetProofPath(outputRootPath, InvocationId)}' is missing.",
-                        result.StateVerificationResult.Message);
+                string proofPath = BuildInvocationProofPaths.GetProofPath(outputRootPath, InvocationId);
+                string expectedDiagnostic = proofKind switch {
+                    "missing" => $"Build state proof file '{proofPath}' is missing.",
+                    "malformed" => $"Build state proof file '{proofPath}' contains malformed JSON:",
+                    "stale" => "Build state is stale because its start time predates this waiter invocation.",
+                    "failed" => "Build state status is 'failed', not succeeded.",
+                    "foreign" => "Build state build id does not match this waiter invocation.",
+                    "wrong-case" => "Build state build id does not match this waiter invocation.",
+                    _ => throw new InvalidOperationException($"Unsupported proof fixture '{proofKind}'.")
+                };
+                if (proofKind == "malformed") {
+                    Assert.StartsWith(expectedDiagnostic, result.StateVerificationResult.Message, StringComparison.Ordinal);
                 } else {
-                    Assert.False(string.IsNullOrWhiteSpace(result.StateVerificationResult.Message));
+                    Assert.Equal(expectedDiagnostic, result.StateVerificationResult.Message);
                 }
             } finally {
                 Directory.Delete(outputRootPath, true);
@@ -86,15 +94,14 @@ namespace helengine.tools.buildwaiter.tests {
         }
 
         [Theory]
-        [InlineData("missing", "game.iso", "missing")]
-        [InlineData("empty", "game.iso", "empty")]
-        [InlineData("stale", "game.iso", "stale")]
-        [InlineData("rooted", "C:\\outside.iso", "relative")]
-        [InlineData("escaping", "..\\outside.iso", "escapes")]
+        [InlineData("missing", "game.iso")]
+        [InlineData("empty", "game.iso")]
+        [InlineData("stale", "game.iso")]
+        [InlineData("rooted", "C:\\outside.iso")]
+        [InlineData("escaping", "..\\outside.iso")]
         public async Task VerifyAndAcknowledgeAsync_WhenArtifactsAreInvalid_AcknowledgesAndPreservesArtifactDiagnostic(
             string artifactKind,
-            string requiredArtifactPath,
-            string expectedDiagnostic) {
+            string requiredArtifactPath) {
             string outputRootPath = CreateOutputRoot();
             try {
                 DateTime waiterStartedUtc = DateTime.UtcNow.AddSeconds(-1);
@@ -114,11 +121,15 @@ namespace helengine.tools.buildwaiter.tests {
                 Assert.True(File.Exists(BuildInvocationProofPaths.GetAcknowledgementPath(outputRootPath, InvocationId)));
                 Assert.True(result.StateVerificationResult.Succeeded);
                 Assert.False(result.ArtifactVerificationResult.Succeeded);
-                if (artifactKind == "missing") {
-                    Assert.Equal("Required artifact 'game.iso' is missing.", result.ArtifactVerificationResult.Message);
-                } else {
-                    Assert.Contains(expectedDiagnostic, result.ArtifactVerificationResult.Message, StringComparison.OrdinalIgnoreCase);
-                }
+                string expectedDiagnostic = artifactKind switch {
+                    "missing" => "Required artifact 'game.iso' is missing.",
+                    "empty" => "Required artifact 'game.iso' is empty.",
+                    "stale" => "Required artifact 'game.iso' is stale because it predates this build.",
+                    "rooted" => "Required artifact path 'C:\\outside.iso' must be relative.",
+                    "escaping" => "Required artifact path '..\\outside.iso' escapes the build output directory.",
+                    _ => throw new InvalidOperationException($"Unsupported artifact fixture '{artifactKind}'.")
+                };
+                Assert.Equal(expectedDiagnostic, result.ArtifactVerificationResult.Message);
                 Assert.Null(result.AcknowledgementFailureMessage);
             } finally {
                 Directory.Delete(outputRootPath, true);
