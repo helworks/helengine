@@ -188,22 +188,84 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Gathers the current frame and scene metrics.
+        /// Gathers the current frame metrics split into authored-scene and editor groups.
         /// </summary>
         /// <returns>Populated stats snapshot.</returns>
         EditorViewportStatsSnapshot BuildSnapshot() {
             ObjectManager objectManager = Core.Instance.ObjectManager;
+            EditorViewportStatsGroup scene = new EditorViewportStatsGroup();
+            EditorViewportStatsGroup editor = new EditorViewportStatsGroup();
+
+            for (int index = 0; index < objectManager.Entities.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.Entities[index])) {
+                    scene.EntityCount++;
+                } else {
+                    editor.EntityCount++;
+                }
+            }
+
+            for (int index = 0; index < objectManager.Drawables3D.Count; index++) {
+                IDrawable3D drawable = objectManager.Drawables3D[index];
+                Entity owner = drawable.Parent;
+                bool isVisible = owner != null && (owner.LayerMask & SceneCamera.LayerMask) != 0;
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(owner)) {
+                    scene.TotalDrawables3D++;
+                    if (isVisible) {
+                        scene.VisibleDrawables3D++;
+                    }
+                } else {
+                    editor.TotalDrawables3D++;
+                    if (isVisible) {
+                        editor.VisibleDrawables3D++;
+                    }
+                }
+            }
+
+            for (int index = 0; index < objectManager.Drawables2D.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.Drawables2D[index].Parent)) {
+                    scene.TotalDrawables2D++;
+                } else {
+                    editor.TotalDrawables2D++;
+                }
+            }
+
+            for (int index = 0; index < objectManager.DirectionalLights.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.DirectionalLights[index].Parent)) {
+                    scene.DirectionalLightCount++;
+                } else {
+                    editor.DirectionalLightCount++;
+                }
+            }
+
+            for (int index = 0; index < objectManager.PointLights.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.PointLights[index].Parent)) {
+                    scene.PointLightCount++;
+                } else {
+                    editor.PointLightCount++;
+                }
+            }
+
+            for (int index = 0; index < objectManager.SpotLights.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.SpotLights[index].Parent)) {
+                    scene.SpotLightCount++;
+                } else {
+                    editor.SpotLightCount++;
+                }
+            }
+
+            for (int index = 0; index < objectManager.AmbientLights.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.AmbientLights[index].Parent)) {
+                    scene.AmbientLightCount++;
+                } else {
+                    editor.AmbientLightCount++;
+                }
+            }
+
             return new EditorViewportStatsSnapshot {
                 Fps = FrameRateTracker.AverageFps,
                 FrameMilliseconds = FrameRateTracker.AverageFrameMilliseconds,
-                EntityCount = objectManager.Entities.Count,
-                VisibleDrawables3D = SceneCamera.RenderQueue3D.Count,
-                TotalDrawables3D = objectManager.Drawables3D.Count,
-                TotalDrawables2D = objectManager.Drawables2D.Count,
-                DirectionalLightCount = objectManager.DirectionalLights.Count,
-                PointLightCount = objectManager.PointLights.Count,
-                SpotLightCount = objectManager.SpotLights.Count,
-                AmbientLightCount = objectManager.AmbientLights.Count,
+                Scene = scene,
+                Editor = editor,
                 UpdateableCount = objectManager.Updateables.Count
             };
         }

@@ -267,30 +267,129 @@ namespace helengine.editor.app {
         }
 
         /// <summary>
-        /// Drives the editor update and draw loop on a worker thread.
+        /// Requests a specific system timer resolution so short sleeps become accurate.
+        /// </summary>
+        /// <param name="uMilliseconds">Requested timer resolution in milliseconds.</param>
+        /// <returns>Zero when the request succeeded.</returns>
+        [System.Runtime.InteropServices.DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+        static extern uint TimeBeginPeriod(uint uMilliseconds);
+
+        /// <summary>
+        /// Releases a previously requested system timer resolution.
+        /// </summary>
+        /// <param name="uMilliseconds">Previously requested timer resolution in milliseconds.</param>
+        /// <returns>Zero when the release succeeded.</returns>
+        [System.Runtime.InteropServices.DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+        static extern uint TimeEndPeriod(uint uMilliseconds);
+
+        /// <summary>
+        /// Native display-mode payload used to query the active refresh rate.
+        /// </summary>
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        struct NativeDisplayMode {
+            [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string dmDeviceName;
+            public ushort dmSpecVersion;
+            public ushort dmDriverVersion;
+            public ushort dmSize;
+            public ushort dmDriverExtra;
+            public uint dmFields;
+            public int dmPositionX;
+            public int dmPositionY;
+            public uint dmDisplayOrientation;
+            public uint dmDisplayFixedOutput;
+            public short dmColor;
+            public short dmDuplex;
+            public short dmYResolution;
+            public short dmTTOption;
+            public short dmCollate;
+            [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string dmFormName;
+            public ushort dmLogPixels;
+            public uint dmBitsPerPel;
+            public uint dmPelsWidth;
+            public uint dmPelsHeight;
+            public uint dmDisplayFlags;
+            public uint dmDisplayFrequency;
+        }
+
+        /// <summary>
+        /// Queries the active display mode for one display device.
+        /// </summary>
+        /// <param name="lpszDeviceName">Display device name, or null for the primary display.</param>
+        /// <param name="iModeNum">Mode index; -1 requests the current mode.</param>
+        /// <param name="lpDevMode">Receives the display mode.</param>
+        /// <returns>True when the mode was retrieved.</returns>
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        static extern bool EnumDisplaySettings(string lpszDeviceName, int iModeNum, ref NativeDisplayMode lpDevMode);
+
+        /// <summary>
+        /// Resolves the refresh rate of the display currently hosting this window, falling back to 120 Hz.
+        /// </summary>
+        /// <returns>Target editor frame rate in frames per second.</returns>
+        double ResolveDisplayRefreshRate() {
+            try {
+                string deviceName = Screen.FromControl(this).DeviceName;
+                NativeDisplayMode displayMode = new NativeDisplayMode {
+                    dmSize = (ushort)System.Runtime.InteropServices.Marshal.SizeOf<NativeDisplayMode>()
+                };
+                const int currentSettingsModeIndex = -1;
+                if (EnumDisplaySettings(deviceName, currentSettingsModeIndex, ref displayMode)
+                    && displayMode.dmDisplayFrequency >= 30
+                    && displayMode.dmDisplayFrequency <= 1000) {
+                    return displayMode.dmDisplayFrequency;
+                }
+            } catch {
+            }
+
+            return 120.0;
+        }
+
+        /// <summary>
+        /// Drives the editor update and draw loop on a worker thread. Frame pacing subtracts the frame's own cost from
+        /// the sleep and runs under a 1 ms system timer resolution; the previous fixed sleep was rounded up to the
+        /// default 15.6 ms Windows timer granularity, capping the editor below 64 FPS regardless of hardware.
         /// </summary>
         private void RunEditorLoop() {
-            TimeSpan span = TimeSpan.FromMilliseconds(1000 / 120.0);
-            for (; ; ) {
-                Thread.Sleep(span);
-                if (closed) {
-                    break;
-                }
+            double targetFrameSeconds = 1.0 / 120.0;
+            try {
+                targetFrameSeconds = 1.0 / (double)Invoke(() => ResolveDisplayRefreshRate());
+            } catch {
+            }
 
-                try {
-                    Invoke(() => {
-                        if (UpdateMinimumWindowSize()) {
-                            return;
-                        }
+            TimeBeginPeriod(1);
+            try {
+                System.Diagnostics.Stopwatch loopStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                for (; ; ) {
+                    if (closed) {
+                        break;
+                    }
 
-                        int renderWidth = Math.Max(1, ClientSize.Width);
-                        int renderHeight = Math.Max(1, ClientSize.Height);
-                        editorSession.UpdateFrame(renderWidth, renderHeight);
-                        UpdateDockingCursor();
-                    });
-                } catch (Exception ex) {
-                    RecordLoopException(ex);
+                    double frameStartSeconds = loopStopwatch.Elapsed.TotalSeconds;
+                    try {
+                        Invoke(() => {
+                            if (UpdateMinimumWindowSize()) {
+                                return;
+                            }
+
+                            int renderWidth = Math.Max(1, ClientSize.Width);
+                            int renderHeight = Math.Max(1, ClientSize.Height);
+                            editorSession.UpdateFrame(renderWidth, renderHeight);
+                            UpdateDockingCursor();
+                        });
+                    } catch (Exception ex) {
+                        RecordLoopException(ex);
+                    }
+
+                    double remainingSeconds = targetFrameSeconds - (loopStopwatch.Elapsed.TotalSeconds - frameStartSeconds);
+                    int sleepMilliseconds = (int)(remainingSeconds * 1000.0);
+                    if (sleepMilliseconds >= 1) {
+                        Thread.Sleep(sleepMilliseconds);
+                    }
                 }
+            } finally {
+                TimeEndPeriod(1);
             }
         }
 
