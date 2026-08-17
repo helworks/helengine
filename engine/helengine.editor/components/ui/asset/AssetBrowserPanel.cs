@@ -260,7 +260,9 @@ namespace helengine.editor {
                 items.Add(CreateAssetItems[index]);
             }
 
-            if (hoveredEntry != null && !hoveredEntry.IsDirectory && hoveredEntry.EntryKind == AssetEntryKind.Model) {
+            if (hoveredEntry != null
+                && !hoveredEntry.IsDirectory
+                && (hoveredEntry.EntryKind == AssetEntryKind.Model || hoveredEntry.EntryKind == AssetEntryKind.Blueprint)) {
                 AssetBrowserEntry capturedEntry = hoveredEntry;
                 items.Add(new ContextMenuItem("Add to scene", () => HandleAddToSceneRequested(capturedEntry)));
             }

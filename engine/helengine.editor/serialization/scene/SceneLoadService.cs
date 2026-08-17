@@ -125,6 +125,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Expands one live blueprint instance root into inherited children when blueprint expansion is enabled.
+        /// </summary>
+        /// <param name="instanceRoot">Scene-owned blueprint instance root to expand.</param>
+        public void ExpandBlueprintInstanceRoot(EditorEntity instanceRoot) {
+            if (instanceRoot == null) {
+                throw new ArgumentNullException(nameof(instanceRoot));
+            }
+
+            if (BlueprintExpansionService == null) {
+                return;
+            }
+
+            BlueprintExpansionService.ExpandInstanceRoot(instanceRoot);
+        }
+
+        /// <summary>
         /// Loads one serialized scene entity recursively.
         /// </summary>
         /// <param name="entityAsset">Serialized entity payload to materialize.</param>

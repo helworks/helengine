@@ -139,6 +139,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates one root blueprint instance entity referencing the supplied blueprint asset path.
+        /// </summary>
+        /// <param name="name">Display name assigned to the instance root.</param>
+        /// <param name="blueprintAssetPath">Project-relative blueprint asset path referenced by the instance.</param>
+        /// <returns>Configured blueprint instance root entity.</returns>
+        public EditorEntity CreateBlueprintInstance(string name, string blueprintAssetPath) {
+            if (string.IsNullOrWhiteSpace(name)) {
+                throw new ArgumentException("Blueprint instance name must be provided.", nameof(name));
+            }
+            if (string.IsNullOrWhiteSpace(blueprintAssetPath)) {
+                throw new ArgumentException("Blueprint asset path must be provided.", nameof(blueprintAssetPath));
+            }
+
+            EditorEntity entity = CreateBaseEntity(name);
+            entity.AddComponent(new BlueprintInstanceComponent {
+                BlueprintAssetPath = blueprintAssetPath
+            });
+            return entity;
+        }
+
+        /// <summary>
         /// Creates a root camera entity for the scene and attaches the editor-only camera visual.
         /// </summary>
         /// <returns>Configured camera scene entity.</returns>

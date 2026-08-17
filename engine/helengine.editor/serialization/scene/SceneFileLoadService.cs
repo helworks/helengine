@@ -42,6 +42,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Expands one live blueprint instance root into inherited children.
+        /// </summary>
+        /// <param name="instanceRoot">Scene-owned blueprint instance root to expand.</param>
+        public void ExpandBlueprintInstanceRoot(EditorEntity instanceRoot) {
+            SceneLoadService.ExpandBlueprintInstanceRoot(instanceRoot);
+        }
+
+        /// <summary>
         /// Loads one `.helen` scene file from disk.
         /// </summary>
         /// <param name="fullPath">Absolute path to the scene file.</param>

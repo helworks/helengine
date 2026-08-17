@@ -2453,11 +2453,58 @@ namespace helengine.editor {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
-            if (entry.IsDirectory || entry.EntryKind != AssetEntryKind.Model) {
+            if (entry.IsDirectory) {
                 return;
             }
 
-            CreateAndSelectSceneEntity(() => CreateModelSceneEntity(entry));
+            if (entry.EntryKind == AssetEntryKind.Model) {
+                CreateAndSelectSceneEntity(() => CreateModelSceneEntity(entry));
+                return;
+            }
+
+            if (entry.EntryKind == AssetEntryKind.Blueprint) {
+                CreateAndSelectSceneEntity(() => CreateBlueprintInstanceSceneEntity(entry));
+            }
+        }
+
+        /// <summary>
+        /// Creates one blueprint instance root for an asset-browser blueprint entry, expands its inherited children,
+        /// and places it at the focused viewport's orbit target.
+        /// </summary>
+        /// <param name="entry">Blueprint asset entry selected in the asset browser.</param>
+        /// <returns>Configured blueprint instance root entity.</returns>
+        EditorEntity CreateBlueprintInstanceSceneEntity(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+            if (entry.IsDirectory || entry.EntryKind != AssetEntryKind.Blueprint) {
+                throw new InvalidOperationException("Only blueprint assets can be instantiated into the scene.");
+            }
+
+            string blueprintAssetPath = ResolveAssetRelativePath(entry.FullPath);
+            EditorEntity entity = SceneCreationService.CreateBlueprintInstance(BuildModelEntityName(entry), blueprintAssetPath);
+            SceneFileLoadService.ExpandBlueprintInstanceRoot(entity);
+            entity.Position = ResolveAddToScenePlacementPosition();
+            return entity;
+        }
+
+        /// <summary>
+        /// Resolves one absolute asset file path to its assets-root-relative form using forward slashes.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to an asset inside the project assets folder.</param>
+        /// <returns>Assets-root-relative path with forward slashes.</returns>
+        string ResolveAssetRelativePath(string fullPath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
+            }
+
+            string assetsRootPath = Path.GetFullPath(Path.Combine(ResolveProjectRootPath(projectPath), "assets"));
+            string relativePath = Path.GetRelativePath(assetsRootPath, Path.GetFullPath(fullPath));
+            if (relativePath.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relativePath)) {
+                throw new InvalidOperationException("Asset path must live inside the project assets folder.");
+            }
+
+            return relativePath.Replace(Path.DirectorySeparatorChar, '/');
         }
 
         /// <summary>
