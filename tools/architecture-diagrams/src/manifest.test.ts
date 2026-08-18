@@ -39,8 +39,9 @@ test("builds stable section and element metadata without SVG markup", () => {
   assert.equal(manifest.title, "Manifest diagram");
   assert.deepEqual(manifest.viewBox, document.viewBox);
   assert.deepEqual(manifest.sections, [{ id: "section-a", bounds: document.sections[0].bounds, step: 1 }]);
-  assert.deepEqual(manifest.nodes, ["node-a"]);
+  assert.deepEqual(manifest.nodes, [{ id: "node-a", step: 1, role: "neutral" }]);
   assert.deepEqual(manifest.edges, []);
   assert.deepEqual(manifest.callouts, []);
+  assert.equal(manifest.theme.roles.csharp, "#8B7CFF");
   assert.doesNotMatch(JSON.stringify(manifest), /<svg/i);
 });
