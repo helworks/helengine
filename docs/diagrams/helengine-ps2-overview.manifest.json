@@ -272,28 +272,7 @@
       "role": "runtime"
     }
   ],
-  "callouts": [
-    {
-      "id": "callout-core-boundary",
-      "step": 2,
-      "role": "csharp"
-    },
-    {
-      "id": "callout-codegen-boundary",
-      "step": 3,
-      "role": "generated-cpp"
-    },
-    {
-      "id": "callout-player-link",
-      "step": 4,
-      "role": "handwritten-cpp"
-    },
-    {
-      "id": "callout-hardware-flow",
-      "step": 5,
-      "role": "ps2"
-    }
-  ],
+  "callouts": [],
   "theme": {
     "roles": {
       "csharp": "#8B7CFF",

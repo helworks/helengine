@@ -1,4 +1,4 @@
-import type { DiagramCallout, DiagramDocument, DiagramEdge, DiagramNode, DiagramSection, NodeKind, ViewBox, DiagramRole, EdgeRole } from "../model.js";
+import type { DiagramDocument, DiagramEdge, DiagramNode, DiagramSection, NodeKind, ViewBox, DiagramRole, EdgeRole } from "../model.js";
 
 const viewBox: ViewBox = { x: 0, y: 0, width: 2400, height: 1500 };
 
@@ -13,10 +13,10 @@ const sectionBounds = {
 export function createPs2OverviewDocument(): DiagramDocument {
   const sections: DiagramSection[] = [
     section("authoring", "Authoring surface", "What exists on the development machine", sectionBounds.authoring, 1, ["node-project", "node-editor", "node-scenes-assets"], ["edge-project-editor", "edge-editor-scenes"], []),
-    section("shared-core", "Shared engine contents", "The reusable C# runtime boundary", sectionBounds["shared-core"], 2, ["node-core", "node-core-anatomy", "node-files", "node-runtime-reads"], ["edge-scenes-files", "edge-files-runtime"], ["callout-core-boundary"]),
-    section("build-conversion", "Build and conversion", "How authored content becomes a console runtime", sectionBounds["build-conversion"], 3, ["node-editor-cli", "node-ps2-builder", "node-cook", "node-codegen", "node-generated-core"], ["edge-editor-cli", "edge-cli-builder", "edge-builder-cook", "edge-cook-codegen", "edge-core-codegen", "edge-codegen-generated-core"], ["callout-codegen-boundary"]),
-    section("ps2-player", "The PS2 player", "Generated core meets handwritten platform code", sectionBounds["ps2-player"], 4, ["node-player-core", "node-boot-host", "node-render-manager", "node-vu-programs", "node-ps2-elf"], ["edge-generated-player-core", "edge-host-elf", "edge-render-vu", "edge-vu-elf", "edge-builder-elf"], ["callout-player-link"]),
-    section("ps2-hardware", "Executable to hardware", "What finally reaches the PS2", sectionBounds["ps2-hardware"], 5, ["node-game-iso", "node-ee-runtime", "node-packets", "node-vu1", "node-gs"], ["edge-elf-iso", "edge-iso-ee", "edge-ee-packets", "edge-packets-vu", "edge-vu-gs"], ["callout-hardware-flow"])
+    section("shared-core", "Shared engine contents", "The reusable C# runtime boundary", sectionBounds["shared-core"], 2, ["node-core", "node-core-anatomy", "node-files", "node-runtime-reads"], ["edge-scenes-files", "edge-files-runtime"], []),
+    section("build-conversion", "Build and conversion", "How authored content becomes a console runtime", sectionBounds["build-conversion"], 3, ["node-editor-cli", "node-ps2-builder", "node-cook", "node-codegen", "node-generated-core"], ["edge-editor-cli", "edge-cli-builder", "edge-builder-cook", "edge-cook-codegen", "edge-core-codegen", "edge-codegen-generated-core"], []),
+    section("ps2-player", "The PS2 player", "Generated core meets handwritten platform code", sectionBounds["ps2-player"], 4, ["node-player-core", "node-boot-host", "node-render-manager", "node-vu-programs", "node-ps2-elf"], ["edge-generated-player-core", "edge-host-elf", "edge-render-vu", "edge-vu-elf", "edge-builder-elf"], []),
+    section("ps2-hardware", "Executable to hardware", "What finally reaches the PS2", sectionBounds["ps2-hardware"], 5, ["node-game-iso", "node-ee-runtime", "node-packets", "node-vu1", "node-gs"], ["edge-elf-iso", "edge-iso-ee", "edge-ee-packets", "edge-packets-vu", "edge-vu-gs"], [])
   ];
 
   const nodes: DiagramNode[] = [
@@ -71,14 +71,7 @@ export function createPs2OverviewDocument(): DiagramDocument {
     edge("edge-vu-gs", "node-vu1", "node-gs", "rasterize", "runtime", ["ps2-hardware"], 5)
   ];
 
-  const callouts: DiagramCallout[] = [
-    callout("callout-core-boundary", "Shared C# runtime", ["Core owns update, scenes, entities, content", "Runtime reads cooked assets; files writes them"], "csharp", { x: 540, y: 805, width: 360, height: 125 }, ["shared-core"], 2),
-    callout("callout-codegen-boundary", "Only the runtime subset crosses", ["The editor and builder stay C#", "Selected runtime C# -> generated C++", "The player receives generated core, not the editor"], "generated-cpp", { x: 990, y: 700, width: 360, height: 165 }, ["build-conversion"], 3),
-    callout("callout-player-link", "Two C++ sources become one player", ["Generated core + handwritten PS2 C++", "The linker produces the EE executable"], "handwritten-cpp", { x: 1440, y: 900, width: 360, height: 130 }, ["ps2-player"], 4),
-    callout("callout-hardware-flow", "VIF/GIF/VU/GS", ["C++ frame planning becomes packets", "VU1 transforms and shades; GS produces the image"], "ps2", { x: 1890, y: 745, width: 360, height: 145 }, ["ps2-hardware"], 5)
-  ];
-
-  return { title: "How Helengine reaches the PlayStation 2", subtitle: "A C# editor and shared runtime become generated C++ plus handwritten PS2 code", viewBox, sections, nodes, edges, callouts };
+  return { title: "How Helengine reaches the PlayStation 2", subtitle: "A C# editor and shared runtime become generated C++ plus handwritten PS2 code", viewBox, sections, nodes, edges, callouts: [] };
 }
 
 function section(id: string, title: string, subtitle: string, bounds: ViewBox, step: number, nodeIds: string[], edgeIds: string[], calloutIds: string[]): DiagramSection {
@@ -92,10 +85,6 @@ function node(id: string, title: string, subtitle: string, kind: NodeKind, role:
 
 function edge(id: string, from: string, to: string, label: string, role: EdgeRole, sectionIds: string[], step: number): DiagramEdge {
   return { id, from, to, label, role, sectionIds, step };
-}
-
-function callout(id: string, title: string, lines: string[], role: DiagramRole, bounds: ViewBox, sectionIds: string[], step: number): DiagramCallout {
-  return { id, title, lines, role, bounds, sectionIds, step };
 }
 
 function resolveSectionId(bounds: ViewBox): string {

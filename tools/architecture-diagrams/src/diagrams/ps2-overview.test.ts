@@ -28,7 +28,7 @@ test("names the important language, build, and hardware boundaries", () => {
     "generated c++",
     "handwritten ps2 c++",
     "game.iso",
-    "vif/gif/vu/gs"
+    "vif/gif packets"
   ]) {
     assert.ok(searchableText.includes(phrase), `Missing diagram phrase: ${phrase}`);
   }
@@ -44,4 +44,11 @@ test("does not render the editor-host explanatory callout", () => {
 
   assert.doesNotMatch(calloutIds.join(" "), /callout-editor-not-shipped/);
   assert.doesNotMatch(calloutText, /Editor stays on the host/);
+});
+
+test("does not render explanatory callouts", () => {
+  const document = createPs2OverviewDocument();
+
+  assert.deepEqual(document.callouts, []);
+  assert.ok(document.sections.every(section => section.calloutIds.length === 0));
 });
