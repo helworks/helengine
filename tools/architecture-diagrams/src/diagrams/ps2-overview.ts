@@ -1,4 +1,4 @@
-import type { DiagramDocument, DiagramEdge, DiagramNode, DiagramSection, NodeKind, ViewBox, DiagramRole, EdgeRole } from "../model.js";
+import type { DiagramDocument, DiagramNode, DiagramSection, NodeKind, ViewBox, DiagramRole } from "../model.js";
 
 const viewBox: ViewBox = { x: 0, y: 0, width: 2400, height: 1500 };
 
@@ -12,11 +12,11 @@ const sectionBounds = {
 
 export function createPs2OverviewDocument(): DiagramDocument {
   const sections: DiagramSection[] = [
-    section("authoring", "Authoring surface", "What exists on the development machine", sectionBounds.authoring, 1, ["node-project", "node-editor", "node-scenes-assets"], ["edge-project-editor", "edge-editor-scenes"], []),
-    section("shared-core", "Shared engine contents", "The reusable C# runtime boundary", sectionBounds["shared-core"], 2, ["node-core", "node-core-anatomy", "node-files", "node-runtime-reads"], ["edge-scenes-files", "edge-files-runtime"], []),
-    section("build-conversion", "Build and conversion", "How authored content becomes a console runtime", sectionBounds["build-conversion"], 3, ["node-editor-cli", "node-ps2-builder", "node-cook", "node-codegen", "node-generated-core"], ["edge-editor-cli", "edge-cli-builder", "edge-builder-cook", "edge-cook-codegen", "edge-core-codegen", "edge-codegen-generated-core"], []),
-    section("ps2-player", "The PS2 player", "Generated core meets handwritten platform code", sectionBounds["ps2-player"], 4, ["node-player-core", "node-boot-host", "node-render-manager", "node-vu-programs", "node-ps2-elf"], ["edge-generated-player-core", "edge-host-elf", "edge-render-vu", "edge-vu-elf", "edge-builder-elf"], []),
-    section("ps2-hardware", "Executable to hardware", "What finally reaches the PS2", sectionBounds["ps2-hardware"], 5, ["node-game-iso", "node-ee-runtime", "node-packets", "node-vu1", "node-gs"], ["edge-elf-iso", "edge-iso-ee", "edge-ee-packets", "edge-packets-vu", "edge-vu-gs"], [])
+    section("authoring", "Authoring surface", "What exists on the development machine", sectionBounds.authoring, 1, ["node-project", "node-editor", "node-scenes-assets"], [], []),
+    section("shared-core", "Shared engine contents", "The reusable C# runtime boundary", sectionBounds["shared-core"], 2, ["node-core", "node-core-anatomy", "node-files", "node-runtime-reads"], [], []),
+    section("build-conversion", "Build and conversion", "How authored content becomes a console runtime", sectionBounds["build-conversion"], 3, ["node-editor-cli", "node-ps2-builder", "node-cook", "node-codegen", "node-generated-core"], [], []),
+    section("ps2-player", "The PS2 player", "Generated core meets handwritten platform code", sectionBounds["ps2-player"], 4, ["node-player-core", "node-boot-host", "node-render-manager", "node-vu-programs", "node-ps2-elf"], [], []),
+    section("ps2-hardware", "Executable to hardware", "What finally reaches the PS2", sectionBounds["ps2-hardware"], 5, ["node-game-iso", "node-ee-runtime", "node-packets", "node-vu1", "node-gs"], [], [])
   ];
 
   const nodes: DiagramNode[] = [
@@ -48,30 +48,7 @@ export function createPs2OverviewDocument(): DiagramDocument {
     node("node-gs", "GS output", "PlayStation 2 graphics synthesizer", "hardware", "ps2", { x: 2070, y: 565, width: 180, height: 105 }, ["Framebuffer"], 5)
   ];
 
-  const edges: DiagramEdge[] = [
-    edge("edge-project-editor", "node-project", "node-editor", "open", "context", ["authoring"], 1),
-    edge("edge-editor-scenes", "node-editor", "node-scenes-assets", "author", "runtime", ["authoring"], 1),
-    edge("edge-scenes-files", "node-scenes-assets", "node-files", "serialize", "context", ["shared-core"], 2),
-    edge("edge-files-runtime", "node-files", "node-runtime-reads", "cook/read boundary", "runtime", ["shared-core"], 2),
-    edge("edge-editor-cli", "node-editor", "node-editor-cli", "build", "context", ["build-conversion"], 3),
-    edge("edge-cli-builder", "node-editor-cli", "node-ps2-builder", "request", "runtime", ["build-conversion"], 3),
-    edge("edge-builder-cook", "node-ps2-builder", "node-cook", "cook", "packaging", ["build-conversion"], 3),
-    edge("edge-cook-codegen", "node-cook", "node-codegen", "runtime inputs", "generation", ["build-conversion"], 3),
-    edge("edge-core-codegen", "node-core", "node-codegen", "selected runtime C#", "generation", ["build-conversion"], 3),
-    edge("edge-codegen-generated-core", "node-codegen", "node-generated-core", "generated C++", "generation", ["build-conversion"], 3),
-    edge("edge-generated-player-core", "node-generated-core", "node-player-core", "stage", "generation", ["ps2-player"], 4),
-    edge("edge-host-elf", "node-boot-host", "node-ps2-elf", "link", "packaging", ["ps2-player"], 4),
-    edge("edge-render-vu", "node-render-manager", "node-vu-programs", "dispatch", "runtime", ["ps2-player"], 4),
-    edge("edge-vu-elf", "node-vu-programs", "node-ps2-elf", "link", "packaging", ["ps2-player"], 4),
-    edge("edge-builder-elf", "node-ps2-builder", "node-ps2-elf", "package inputs", "packaging", ["ps2-player"], 4),
-    edge("edge-elf-iso", "node-ps2-elf", "node-game-iso", "package", "packaging", ["ps2-hardware"], 5),
-    edge("edge-iso-ee", "node-game-iso", "node-ee-runtime", "boot", "runtime", ["ps2-hardware"], 5),
-    edge("edge-ee-packets", "node-ee-runtime", "node-packets", "draw", "runtime", ["ps2-hardware"], 5),
-    edge("edge-packets-vu", "node-packets", "node-vu1", "execute", "runtime", ["ps2-hardware"], 5),
-    edge("edge-vu-gs", "node-vu1", "node-gs", "rasterize", "runtime", ["ps2-hardware"], 5)
-  ];
-
-  return { title: "How Helengine reaches the PlayStation 2", subtitle: "A C# editor and shared runtime become generated C++ plus handwritten PS2 code", viewBox, sections, nodes, edges, callouts: [] };
+  return { title: "How Helengine reaches the PlayStation 2", subtitle: "A C# editor and shared runtime become generated C++ plus handwritten PS2 code", viewBox, sections, nodes, edges: [], callouts: [] };
 }
 
 function section(id: string, title: string, subtitle: string, bounds: ViewBox, step: number, nodeIds: string[], edgeIds: string[], calloutIds: string[]): DiagramSection {
@@ -81,10 +58,6 @@ function section(id: string, title: string, subtitle: string, bounds: ViewBox, s
 function node(id: string, title: string, subtitle: string, kind: NodeKind, role: DiagramRole, bounds: ViewBox, lines: string[], step: number): DiagramNode {
   const sectionId = resolveSectionId(bounds);
   return { id, title, subtitle, lines, role, kind, bounds, sectionIds: [sectionId], step };
-}
-
-function edge(id: string, from: string, to: string, label: string, role: EdgeRole, sectionIds: string[], step: number): DiagramEdge {
-  return { id, from, to, label, role, sectionIds, step };
 }
 
 function resolveSectionId(bounds: ViewBox): string {

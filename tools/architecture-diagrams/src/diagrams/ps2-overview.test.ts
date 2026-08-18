@@ -33,8 +33,6 @@ test("names the important language, build, and hardware boundaries", () => {
     assert.ok(searchableText.includes(phrase), `Missing diagram phrase: ${phrase}`);
   }
 
-  assert.ok(document.edges.some(edge => edge.role === "generation"));
-  assert.ok(document.edges.some(edge => edge.role === "packaging"));
 });
 
 test("does not render the editor-host explanatory callout", () => {
@@ -51,4 +49,11 @@ test("does not render explanatory callouts", () => {
 
   assert.deepEqual(document.callouts, []);
   assert.ok(document.sections.every(section => section.calloutIds.length === 0));
+});
+
+test("does not render connection lines", () => {
+  const document = createPs2OverviewDocument();
+
+  assert.deepEqual(document.edges, []);
+  assert.ok(document.sections.every(section => section.edgeIds.length === 0));
 });
