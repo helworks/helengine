@@ -1,0 +1,312 @@
+{
+  "title": "How Helengine reaches the PlayStation 2",
+  "viewBox": {
+    "x": 0,
+    "y": 0,
+    "width": 2400,
+    "height": 1500
+  },
+  "sections": [
+    {
+      "id": "authoring",
+      "bounds": {
+        "x": 60,
+        "y": 170,
+        "width": 420,
+        "height": 1080
+      },
+      "step": 1
+    },
+    {
+      "id": "shared-core",
+      "bounds": {
+        "x": 510,
+        "y": 170,
+        "width": 420,
+        "height": 1080
+      },
+      "step": 2
+    },
+    {
+      "id": "build-conversion",
+      "bounds": {
+        "x": 960,
+        "y": 170,
+        "width": 420,
+        "height": 1080
+      },
+      "step": 3
+    },
+    {
+      "id": "ps2-player",
+      "bounds": {
+        "x": 1410,
+        "y": 170,
+        "width": 420,
+        "height": 1080
+      },
+      "step": 4
+    },
+    {
+      "id": "ps2-hardware",
+      "bounds": {
+        "x": 1860,
+        "y": 170,
+        "width": 420,
+        "height": 1080
+      },
+      "step": 5
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node-project",
+      "step": 1,
+      "role": "artifact"
+    },
+    {
+      "id": "node-editor",
+      "step": 1,
+      "role": "csharp"
+    },
+    {
+      "id": "node-scenes-assets",
+      "step": 1,
+      "role": "artifact"
+    },
+    {
+      "id": "node-core",
+      "step": 2,
+      "role": "csharp"
+    },
+    {
+      "id": "node-core-anatomy",
+      "step": 2,
+      "role": "csharp"
+    },
+    {
+      "id": "node-files",
+      "step": 2,
+      "role": "csharp"
+    },
+    {
+      "id": "node-runtime-reads",
+      "step": 2,
+      "role": "artifact"
+    },
+    {
+      "id": "node-editor-cli",
+      "step": 3,
+      "role": "csharp"
+    },
+    {
+      "id": "node-ps2-builder",
+      "step": 3,
+      "role": "csharp"
+    },
+    {
+      "id": "node-cook",
+      "step": 3,
+      "role": "artifact"
+    },
+    {
+      "id": "node-codegen",
+      "step": 3,
+      "role": "generated-cpp"
+    },
+    {
+      "id": "node-generated-core",
+      "step": 3,
+      "role": "generated-cpp"
+    },
+    {
+      "id": "node-player-core",
+      "step": 4,
+      "role": "generated-cpp"
+    },
+    {
+      "id": "node-boot-host",
+      "step": 4,
+      "role": "handwritten-cpp"
+    },
+    {
+      "id": "node-render-manager",
+      "step": 4,
+      "role": "handwritten-cpp"
+    },
+    {
+      "id": "node-vu-programs",
+      "step": 4,
+      "role": "handwritten-cpp"
+    },
+    {
+      "id": "node-ps2-elf",
+      "step": 4,
+      "role": "artifact"
+    },
+    {
+      "id": "node-game-iso",
+      "step": 5,
+      "role": "artifact"
+    },
+    {
+      "id": "node-ee-runtime",
+      "step": 5,
+      "role": "ps2"
+    },
+    {
+      "id": "node-packets",
+      "step": 5,
+      "role": "ps2"
+    },
+    {
+      "id": "node-vu1",
+      "step": 5,
+      "role": "ps2"
+    },
+    {
+      "id": "node-gs",
+      "step": 5,
+      "role": "ps2"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-project-editor",
+      "step": 1,
+      "role": "context"
+    },
+    {
+      "id": "edge-editor-scenes",
+      "step": 1,
+      "role": "runtime"
+    },
+    {
+      "id": "edge-scenes-files",
+      "step": 2,
+      "role": "context"
+    },
+    {
+      "id": "edge-files-runtime",
+      "step": 2,
+      "role": "runtime"
+    },
+    {
+      "id": "edge-editor-cli",
+      "step": 3,
+      "role": "context"
+    },
+    {
+      "id": "edge-cli-builder",
+      "step": 3,
+      "role": "runtime"
+    },
+    {
+      "id": "edge-builder-cook",
+      "step": 3,
+      "role": "packaging"
+    },
+    {
+      "id": "edge-cook-codegen",
+      "step": 3,
+      "role": "generation"
+    },
+    {
+      "id": "edge-core-codegen",
+      "step": 3,
+      "role": "generation"
+    },
+    {
+      "id": "edge-codegen-generated-core",
+      "step": 3,
+      "role": "generation"
+    },
+    {
+      "id": "edge-generated-player-core",
+      "step": 4,
+      "role": "generation"
+    },
+    {
+      "id": "edge-host-elf",
+      "step": 4,
+      "role": "packaging"
+    },
+    {
+      "id": "edge-render-vu",
+      "step": 4,
+      "role": "runtime"
+    },
+    {
+      "id": "edge-vu-elf",
+      "step": 4,
+      "role": "packaging"
+    },
+    {
+      "id": "edge-builder-elf",
+      "step": 4,
+      "role": "packaging"
+    },
+    {
+      "id": "edge-elf-iso",
+      "step": 5,
+      "role": "packaging"
+    },
+    {
+      "id": "edge-iso-ee",
+      "step": 5,
+      "role": "runtime"
+    },
+    {
+      "id": "edge-ee-packets",
+      "step": 5,
+      "role": "runtime"
+    },
+    {
+      "id": "edge-packets-vu",
+      "step": 5,
+      "role": "runtime"
+    },
+    {
+      "id": "edge-vu-gs",
+      "step": 5,
+      "role": "runtime"
+    }
+  ],
+  "callouts": [
+    {
+      "id": "callout-editor-not-shipped",
+      "step": 1,
+      "role": "csharp"
+    },
+    {
+      "id": "callout-core-boundary",
+      "step": 2,
+      "role": "csharp"
+    },
+    {
+      "id": "callout-codegen-boundary",
+      "step": 3,
+      "role": "generated-cpp"
+    },
+    {
+      "id": "callout-player-link",
+      "step": 4,
+      "role": "handwritten-cpp"
+    },
+    {
+      "id": "callout-hardware-flow",
+      "step": 5,
+      "role": "ps2"
+    }
+  ],
+  "theme": {
+    "roles": {
+      "csharp": "#8B7CFF",
+      "generated-cpp": "#F2B84B",
+      "handwritten-cpp": "#41D6C3",
+      "artifact": "#79D98C",
+      "ps2": "#FF8C5A",
+      "neutral": "#8EA0B8"
+    }
+  }
+}
