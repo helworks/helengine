@@ -123,7 +123,7 @@ function renderEdge(edge: DiagramEdge, from: DiagramNode | undefined, to: Diagra
   const dash = theme.edgeDash[edge.role];
   const dashAttribute = dash === "" ? "" : ` stroke-dasharray=\"${dash}\"`;
   const label = edge.label === undefined ? "" : `<text x=\"${formatNumber((fromPoint.x + toPoint.x) / 2)}\" y=\"${formatNumber((fromPoint.y + toPoint.y) / 2 - 8)}\" text-anchor=\"middle\" fill=\"${theme.muted}\" font-family=\"${theme.fontFamily}\" font-size=\"${theme.bodySize}\">${escapeXml(edge.label)}</text>`;
-  return `<g id=\"edge-${escapeXml(edge.id)}\" data-step=\"${edge.step}\" data-role=\"${edge.role}\"><line x1=\"${formatNumber(fromPoint.x)}\" y1=\"${formatNumber(fromPoint.y)}\" x2=\"${formatNumber(toPoint.x)}\" y2=\"${formatNumber(toPoint.y)}\" stroke=\"${color}\" stroke-width=\"3\"${dashAttribute} marker-end=\"url(#arrow-${edge.role})\"/>${label}</g>`;
+  return `<g id=\"edge-${escapeXml(edge.id)}\" data-step=\"${edge.step}\" data-role=\"${edge.role}\"><line x1=\"${formatNumber(fromPoint.x)}\" y1=\"${formatNumber(fromPoint.y)}\" x2=\"${formatNumber(toPoint.x)}\" y2=\"${formatNumber(toPoint.y)}\" stroke=\"${color}\" stroke-width=\"3\" opacity=\"${theme.edgeOpacity}\"${dashAttribute} marker-end=\"url(#arrow-${edge.role})\"/>${label}</g>`;
 }
 
 function renderNode(node: DiagramNode, theme: DiagramTheme): string {

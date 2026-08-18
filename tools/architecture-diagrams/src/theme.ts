@@ -9,6 +9,7 @@ export interface DiagramTheme {
   roles: Record<DiagramRole, string>;
   edgeRoles: Record<EdgeRole, string>;
   edgeDash: Record<EdgeRole, string>;
+  edgeOpacity: number;
   fontFamily: string;
   titleSize: number;
   subtitleSize: number;
@@ -42,6 +43,7 @@ export const defaultTheme: DiagramTheme = {
     packaging: "2 7",
     context: "5 5"
   },
+  edgeOpacity: 0.4,
   fontFamily: "Inter, Segoe UI, sans-serif",
   titleSize: 22,
   subtitleSize: 13,

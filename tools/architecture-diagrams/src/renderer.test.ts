@@ -87,6 +87,7 @@ test("renders accessible SVG with stable ids and escaped text", () => {
   assert.match(output, /id="section-section-a"[^>]+data-step="1"/);
   assert.match(output, /id="node-node-a"/);
   assert.match(output, /id="edge-edge-a"[^>]+data-step="2"/);
+  assert.match(output, /<line[^>]+opacity="0.4"[^>]+marker-end="url\(#arrow-generation\)"/);
   assert.match(output, /C# &amp; &lt;runtime&gt;/);
   assert.match(output, /marker-end="url\(#arrow-generation\)"/);
 });
