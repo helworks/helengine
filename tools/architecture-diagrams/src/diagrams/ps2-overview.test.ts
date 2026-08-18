@@ -1,0 +1,38 @@
+import { strict as assert } from "node:assert";
+import { test } from "node:test";
+import { validateDocument } from "../model.js";
+import { createPs2OverviewDocument } from "./ps2-overview.js";
+
+test("defines the five-section PS2 narrative in reveal order", () => {
+  const document = createPs2OverviewDocument();
+
+  assert.doesNotThrow(() => validateDocument(document));
+  assert.deepEqual(
+    document.sections.slice().sort((left, right) => left.step - right.step).map(section => section.id),
+    ["authoring", "shared-core", "build-conversion", "ps2-player", "ps2-hardware"]
+  );
+});
+
+test("names the important language, build, and hardware boundaries", () => {
+  const document = createPs2OverviewDocument();
+  const searchableText = [
+    ...document.nodes.flatMap(node => [node.title, node.subtitle ?? "", ...node.lines]),
+    ...document.callouts.flatMap(callout => [callout.title, ...callout.lines])
+  ].join(" ").toLowerCase();
+
+  for (const phrase of [
+    "helengine.core",
+    "helengine.editor",
+    "helengine.files",
+    "csharpcodegen",
+    "generated c++",
+    "handwritten ps2 c++",
+    "game.iso",
+    "vif/gif/vu/gs"
+  ]) {
+    assert.ok(searchableText.includes(phrase), `Missing diagram phrase: ${phrase}`);
+  }
+
+  assert.ok(document.edges.some(edge => edge.role === "generation"));
+  assert.ok(document.edges.some(edge => edge.role === "packaging"));
+});

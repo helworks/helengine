@@ -1,8 +1,11 @@
 import type { DiagramDocument } from "./model.js";
+import { createPs2OverviewDocument } from "./diagrams/ps2-overview.js";
 
 export type DiagramFactory = () => DiagramDocument;
 
 const diagramFactories = new Map<string, DiagramFactory>();
+
+registerDiagram("ps2-overview", createPs2OverviewDocument);
 
 export function registerDiagram(name: string, factory: DiagramFactory): void {
   if (diagramFactories.has(name)) {
