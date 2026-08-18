@@ -36,3 +36,12 @@ test("names the important language, build, and hardware boundaries", () => {
   assert.ok(document.edges.some(edge => edge.role === "generation"));
   assert.ok(document.edges.some(edge => edge.role === "packaging"));
 });
+
+test("does not render the editor-host explanatory callout", () => {
+  const document = createPs2OverviewDocument();
+  const calloutIds = document.callouts.map(callout => callout.id);
+  const calloutText = document.callouts.flatMap(callout => [callout.title, ...callout.lines]).join(" ");
+
+  assert.doesNotMatch(calloutIds.join(" "), /callout-editor-not-shipped/);
+  assert.doesNotMatch(calloutText, /Editor stays on the host/);
+});

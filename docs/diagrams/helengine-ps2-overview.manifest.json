@@ -274,11 +274,6 @@
   ],
   "callouts": [
     {
-      "id": "callout-editor-not-shipped",
-      "step": 1,
-      "role": "csharp"
-    },
-    {
       "id": "callout-core-boundary",
       "step": 2,
       "role": "csharp"
