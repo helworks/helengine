@@ -26,7 +26,6 @@ export function renderDocument(document: DiagramDocument, options: RenderOptions
   output.push(`<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"${formatViewBox(viewBox)}\" role=\"img\" aria-label=\"${escapeXml(document.title)}\">`);
   output.push(`<title>${escapeXml(document.title)}</title>`);
   output.push(`<desc>${escapeXml(document.subtitle ?? "Architecture diagram")}</desc>`);
-  output.push(renderDefinitions(theme));
   output.push(`<rect id=\"diagram-background\" x=\"${formatNumber(viewBox.x)}\" y=\"${formatNumber(viewBox.y)}\" width=\"${formatNumber(viewBox.width)}\" height=\"${formatNumber(viewBox.height)}\" fill=\"${theme.background}\"/>`);
   output.push(renderHeader(document, viewBox, theme));
 
@@ -91,14 +90,6 @@ function resolveSelectedSections(document: DiagramDocument, sectionId?: string):
   return [section];
 }
 
-function renderDefinitions(theme: DiagramTheme): string {
-  const markers = ["runtime", "generation", "packaging", "context"].map(role => {
-    const color = theme.edgeRoles[role as keyof typeof theme.edgeRoles];
-    return `<marker id=\"arrow-${role}\" markerWidth=\"8\" markerHeight=\"8\" refX=\"7\" refY=\"4\" orient=\"auto\" markerUnits=\"strokeWidth\"><path d=\"M0,0 L8,4 L0,8 z\" fill=\"${color}\"/></marker>`;
-  });
-  return `<defs>${markers.join("")}</defs>`;
-}
-
 function renderHeader(document: DiagramDocument, viewBox: ViewBox, theme: DiagramTheme): string {
   const x = viewBox.x + 32;
   const y = viewBox.y + 44;
@@ -125,7 +116,7 @@ function renderEdge(edge: DiagramEdge, from: DiagramNode | undefined, to: Diagra
   const controlX = (fromPoint.x + toPoint.x) / 2;
   const path = `M ${formatNumber(fromPoint.x)} ${formatNumber(fromPoint.y)} C ${formatNumber(controlX)} ${formatNumber(fromPoint.y)} ${formatNumber(controlX)} ${formatNumber(toPoint.y)} ${formatNumber(toPoint.x)} ${formatNumber(toPoint.y)}`;
   const label = edge.label === undefined ? "" : `<text x=\"${formatNumber((fromPoint.x + toPoint.x) / 2)}\" y=\"${formatNumber((fromPoint.y + toPoint.y) / 2 - 8)}\" text-anchor=\"middle\" fill=\"${theme.muted}\" font-family=\"${theme.fontFamily}\" font-size=\"${theme.bodySize}\">${escapeXml(edge.label)}</text>`;
-  return `<g id=\"edge-${escapeXml(edge.id)}\" data-step=\"${edge.step}\" data-role=\"${edge.role}\"><path d=\"${path}\" fill=\"none\" stroke=\"${color}\" stroke-width=\"3\" opacity=\"${theme.edgeOpacity}\"${dashAttribute} marker-end=\"url(#arrow-${edge.role})\"/>${label}</g>`;
+  return `<g id=\"edge-${escapeXml(edge.id)}\" data-step=\"${edge.step}\" data-role=\"${edge.role}\"><path d=\"${path}\" fill=\"none\" stroke=\"${color}\" stroke-width=\"3\" opacity=\"${theme.edgeOpacity}\"${dashAttribute}/>${label}</g>`;
 }
 
 function renderNode(node: DiagramNode, theme: DiagramTheme): string {
